@@ -1,3 +1,5 @@
+import { SelectField } from '@/components/design-system';
+
 type MarketplaceOption = {
   value: string;
   label: string;
@@ -33,57 +35,28 @@ const travelersOptions: MarketplaceOption[] = [
   { value: '3+', label: '3+ مسافرين' },
 ];
 
-function FilterSelect({
-  label,
-  value,
-  options,
-  onSelect,
-}: {
-  label: string;
-  value: string;
-  options: MarketplaceOption[];
-  onSelect: (value: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-xs font-semibold tracking-[0.12em] text-[var(--color-muted)] sm:text-sm">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onSelect(event.target.value)}
-        className="min-h-11 w-full rounded-[18px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-3 py-2 text-sm text-[var(--color-navy)] outline-none transition focus:border-[var(--color-gold)]"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 export default function MarketplaceFilters({ value, destinationOptions, serviceTypeOptions, onChange }: MarketplaceFiltersProps) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      <FilterSelect
+      <SelectField
         label="الوجهة"
         value={value.destination}
         options={destinationOptions}
-        onSelect={(destination) => onChange({ ...value, destination })}
+        onChange={(destination) => onChange({ ...value, destination })}
       />
 
-      <FilterSelect
+      <SelectField
         label="نوع الخدمة"
         value={value.serviceType}
         options={serviceTypeOptions}
-        onSelect={(serviceType) => onChange({ ...value, serviceType })}
+        onChange={(serviceType) => onChange({ ...value, serviceType })}
       />
 
-      <FilterSelect
+      <SelectField
         label="الميزانية"
         value={value.budget}
         options={budgetOptions}
-        onSelect={(budget) => onChange({ ...value, budget })}
+        onChange={(budget) => onChange({ ...value, budget })}
       />
 
       <label className="block">
@@ -104,11 +77,11 @@ export default function MarketplaceFilters({ value, destinationOptions, serviceT
         </div>
       </label>
 
-      <FilterSelect
+      <SelectField
         label="المسافرون"
         value={value.travelers}
         options={travelersOptions}
-        onSelect={(travelers) => onChange({ ...value, travelers })}
+        onChange={(travelers) => onChange({ ...value, travelers })}
       />
     </div>
   );

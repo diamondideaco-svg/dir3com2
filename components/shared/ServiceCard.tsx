@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { Badge, Chip } from '@/components/design-system';
 
 export type ServiceItem = {
   id: string | number;
@@ -55,9 +56,9 @@ export default function ServiceCard({ service }: ServiceCardProps) {
           <div className="flex-1">
             <div className="flex flex-wrap justify-end gap-2">
               {labels.map((label) => (
-                <span key={label} className="rounded-full border border-white/25 bg-white/12 px-3 py-2 text-[11px] font-semibold text-white/90 backdrop-blur-sm">
+                <Badge key={label} className="border-white/25 bg-white/12 text-[11px] text-white/90 backdrop-blur-sm">
                   {label}
-                </span>
+                </Badge>
               ))}
             </div>
           </div>
@@ -70,14 +71,14 @@ export default function ServiceCard({ service }: ServiceCardProps) {
             {(service.categoryLabel || service.metric) && (
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 {service.categoryLabel && (
-                  <span className="rounded-full bg-[var(--color-shell)] px-3 py-2 font-medium text-[var(--color-muted)]">
+                  <Chip className="font-medium text-[var(--color-muted)]">
                     {service.categoryLabel}
-                  </span>
+                  </Chip>
                 )}
                 {service.metric && (
-                  <span className="rounded-full bg-[var(--color-surface)] px-3 py-2 font-medium text-[var(--color-navy)]">
+                  <Chip className="bg-[var(--color-surface)] font-medium text-[var(--color-navy)]">
                     {service.metric}
-                  </span>
+                  </Chip>
                 )}
               </div>
             )}
@@ -90,9 +91,9 @@ export default function ServiceCard({ service }: ServiceCardProps) {
       {service.tags?.length ? (
         <div className="mt-5 flex flex-wrap gap-2">
           {service.tags.slice(0, 3).map((tag) => (
-            <span key={tag} className="rounded-full bg-[var(--color-surface)] px-3 py-2 text-xs font-medium text-[var(--color-navy)]">
+            <Chip key={tag} className="bg-[var(--color-surface)] text-xs font-medium text-[var(--color-navy)]">
               {tag}
-            </span>
+            </Chip>
           ))}
         </div>
       ) : null}

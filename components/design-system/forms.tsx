@@ -1,0 +1,53 @@
+import { FiSearch } from 'react-icons/fi';
+import { cn } from '@/lib/utils';
+
+type SearchFieldProps = {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  className?: string;
+};
+
+export function SearchField({ value, onChange, placeholder, className }: SearchFieldProps) {
+  return (
+    <label className={cn('block', className)}>
+      <span className="mb-2 block text-sm font-medium text-[var(--color-muted)]">البحث</span>
+      <span className="flex min-h-11 items-center gap-3 rounded-[22px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-3">
+        <FiSearch className="text-[var(--color-gold)]" />
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          className="w-full bg-transparent text-sm text-[var(--color-navy)] outline-none placeholder:text-[var(--color-muted)]/70"
+        />
+      </span>
+    </label>
+  );
+}
+
+type SelectFieldProps = {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+  className?: string;
+};
+
+export function SelectField({ label, value, onChange, options, className }: SelectFieldProps) {
+  return (
+    <label className={cn('block', className)}>
+      <span className="mb-2 block text-sm font-medium text-[var(--color-muted)]">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="min-h-11 w-full rounded-[22px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-3 text-sm text-[var(--color-navy)] outline-none"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}

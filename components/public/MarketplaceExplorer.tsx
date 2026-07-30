@@ -2,8 +2,9 @@
 
 import { useDeferredValue, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { FiCompass, FiFilter, FiSearch } from 'react-icons/fi';
+import { FiCompass, FiFilter } from 'react-icons/fi';
 import SectionHeading from '@/components/home/SectionHeading';
+import { Badge, Chip, ContentContainer, SearchField, SectionContainer, SectionSurface, SelectField } from '@/components/design-system';
 import ServicesGrid from '@/components/home/ServicesGrid';
 import MarketplaceFilters from '@/components/public/MarketplaceFilters';
 import { useMarketplaceServices } from '@/components/public/useMarketplaceServices';
@@ -127,14 +128,16 @@ export default function MarketplaceExplorer({
     ...availableCategories.map((option) => ({ value: option.category, label: option.categoryLabel })),
   ];
 
+  const sortOptions = marketplaceSortOptions.map((option) => ({ value: option.value, label: option.label }));
+
   return (
-    <section className="px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <SectionContainer>
+      <ContentContainer>
         <SectionHeading eyebrow="MARKETPLACE" title={title} description={description} />
 
         <motion.div variants={sectionStagger} initial="hidden" whileInView="visible" viewport={revealViewport} className="mt-8 space-y-5">
           <motion.div variants={fadeUpItem}>
-            <Card className="overflow-hidden border-[var(--color-gold)]/18 bg-[linear-gradient(150deg,rgba(255,255,255,0.9)_0%,rgba(248,242,231,0.84)_100%)] shadow-[0_24px_58px_rgba(13,27,42,0.1)]">
+            <SectionSurface className="overflow-hidden border-[var(--color-gold)]/18 bg-[linear-gradient(150deg,rgba(255,255,255,0.9)_0%,rgba(248,242,231,0.84)_100%)] shadow-[0_24px_58px_rgba(13,27,42,0.1)]">
               <CardContent className="p-5 sm:p-6 lg:p-7">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -142,39 +145,14 @@ export default function MarketplaceExplorer({
                     <h3 className="mt-2 text-2xl font-semibold text-[var(--color-navy)] sm:text-3xl">ابحث في سوق dir3com بذكاء وبساطة.</h3>
                     <p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">واجهة اكتشاف راقية مهيأة للمستخدم الخليجي، مع مرشحات مرنة وتجربة قراءة سريعة.</p>
                   </div>
-                  <div className="inline-flex items-center gap-2 self-start rounded-full border border-[var(--color-gold)]/24 bg-[var(--color-gold)]/10 px-4 py-2 text-xs font-semibold text-[var(--color-gold)] sm:text-sm">
+                  <Badge className="self-start">
                     <FiCompass /> اكتشاف فاخر
-                  </div>
+                  </Badge>
                 </div>
 
                 <div className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-[var(--color-muted)]">البحث</span>
-                    <span className="flex min-h-11 items-center gap-3 rounded-[22px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-3">
-                      <FiSearch className="text-[var(--color-gold)]" />
-                      <input
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        placeholder="ابحث عن خدمة، فئة، أو تجربة"
-                        className="w-full bg-transparent text-sm text-[var(--color-navy)] outline-none placeholder:text-[var(--color-muted)]/70"
-                      />
-                    </span>
-                  </label>
-
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-[var(--color-muted)]">الترتيب</span>
-                    <select
-                      value={sort}
-                      onChange={(event) => setSort(event.target.value as MarketplaceSortKey)}
-                      className="min-h-11 w-full rounded-[22px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-3 text-sm text-[var(--color-navy)] outline-none"
-                    >
-                      {marketplaceSortOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <SearchField value={query} onChange={setQuery} placeholder="ابحث عن خدمة، فئة، أو تجربة" />
+                  <SelectField label="الترتيب" value={sort} onChange={(next) => setSort(next as MarketplaceSortKey)} options={sortOptions} />
                 </div>
 
                 <div className="mt-6 rounded-[24px] border border-[var(--color-gold)]/14 bg-white/72 p-4 sm:p-5">
@@ -192,7 +170,7 @@ export default function MarketplaceExplorer({
                   </p>
                 </div>
               </CardContent>
-            </Card>
+            </SectionSurface>
           </motion.div>
 
           <motion.div variants={fadeUpItem} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -287,14 +265,14 @@ export default function MarketplaceExplorer({
         )}
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--color-muted)]">
-          <span>النتائج الظاهرة: {visibleServices.length}</span>
-          <span>{family ? 'عرض مفلتر حسب عائلة الخدمة' : 'عرض السوق الكامل'}</span>
+          <Chip className="text-sm">النتائج الظاهرة: {visibleServices.length}</Chip>
+          <Chip className="text-sm">{family ? 'عرض مفلتر حسب عائلة الخدمة' : 'عرض السوق الكامل'}</Chip>
         </div>
 
         <div className="mt-6">
           <ServicesGrid services={visibleServices} loading={loading} emptyMessage="لا توجد نتائج مطابقة للمرشحات الحالية. غيّر الفئة أو الميزانية وجرب مرة أخرى." />
         </div>
-      </div>
-    </section>
+      </ContentContainer>
+    </SectionContainer>
   );
 }

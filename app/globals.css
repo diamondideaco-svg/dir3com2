@@ -11,6 +11,19 @@
   --color-card: rgba(255, 252, 247, 0.84);
   --color-muted: #5D6A7D;
   --color-border: rgba(13, 27, 42, 0.12);
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --text-display: clamp(2rem, 4vw, 4rem);
+  --text-title: clamp(1.65rem, 2.5vw, 2.7rem);
+  --text-body: clamp(0.95rem, 1.2vw, 1.08rem);
+  --radius-luxury: 2rem;
+  --shadow-luxury: 0 26px 58px rgba(13, 27, 42, 0.12);
   color-scheme: light;
 }
 
@@ -78,6 +91,70 @@ section {
 
 html[data-theme='dark'] .luxury-section-shell::before {
   background: linear-gradient(90deg, transparent 0%, rgba(244, 241, 232, 0.12) 20%, rgba(212, 175, 55, 0.4) 50%, rgba(244, 241, 232, 0.12) 80%, transparent 100%);
+}
+
+.ds-container {
+  margin-inline: auto;
+  width: min(100%, 80rem);
+  padding-inline: 1rem;
+}
+
+@media (min-width: 640px) {
+  .ds-container {
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ds-container {
+    padding-inline: 2rem;
+  }
+}
+
+.ds-section {
+  padding-block: var(--space-10);
+}
+
+.ds-grid-responsive {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+@media (min-width: 768px) {
+  .ds-grid-responsive {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .ds-grid-responsive {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.ds-heading-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: var(--color-gold);
+}
+
+.ds-heading-title {
+  margin-top: var(--space-3);
+  max-width: 48rem;
+  font-size: var(--text-title);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-navy);
+}
+
+.ds-heading-description {
+  margin-top: var(--space-4);
+  max-width: 40rem;
+  font-size: var(--text-body);
+  line-height: 1.9;
+  color: var(--color-muted);
 }
 
 a {
