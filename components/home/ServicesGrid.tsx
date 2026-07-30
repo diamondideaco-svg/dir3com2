@@ -11,7 +11,7 @@ export default function ServicesGrid({ services, loading = false, emptyMessage =
     return (
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {Array.from({ length: 3 }).map((_, index) => (
-          <div key={index} className="h-64 animate-pulse rounded-[1.5rem] border border-white/10 bg-white/5" />
+          <div key={index} className="h-72 animate-pulse rounded-[30px] border border-[color:var(--color-border)] bg-white/70" />
         ))}
       </div>
     );
@@ -19,7 +19,7 @@ export default function ServicesGrid({ services, loading = false, emptyMessage =
 
   if (!services.length) {
     return (
-      <div className="rounded-[1.5rem] border border-dashed border-[#D4AF37]/30 bg-[#D4AF37]/10 p-8 text-center text-slate-300">
+      <div className="rounded-[30px] border border-dashed border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 p-8 text-center text-[var(--color-muted)]">
         {emptyMessage}
       </div>
     );

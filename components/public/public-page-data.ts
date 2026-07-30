@@ -1,3 +1,9 @@
+import type {
+  MarketplaceCollectionKey,
+  MarketplaceFamilyKey,
+  MarketplacePageCategory,
+} from '@/lib/marketplace/data';
+
 export type PublicCategorySlug =
   | 'cars'
   | 'hotels'
@@ -16,6 +22,9 @@ export type PublicCategoryConfig = {
   chips: string[];
   stats: Array<{ label: string; value: string }>;
   trustMessage: string;
+  marketplaceFamily?: MarketplaceFamilyKey;
+  marketplaceCategory?: MarketplacePageCategory;
+  defaultCollection?: MarketplaceCollectionKey;
 };
 
 export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryConfig> = {
@@ -32,6 +41,8 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
       { label: 'مسارات محمية', value: 'Shield' },
     ],
     trustMessage: 'تنقلك محفوظ بتجربة واضحة وتواصل سريع قبل وأثناء الرحلة.',
+    marketplaceFamily: 'dir3-drive',
+    marketplaceCategory: 'cars',
   },
   hotels: {
     slug: 'hotels',
@@ -46,6 +57,8 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
       { label: 'تجربة موثوقة', value: 'Premium' },
     ],
     trustMessage: 'شفافية الخدمة تسبق الدفع، والراحة تبدأ من طريقة عرض التفاصيل.',
+    marketplaceFamily: 'dir3-stay',
+    marketplaceCategory: 'hotels',
   },
   apartments: {
     slug: 'apartments',
@@ -60,6 +73,8 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
       { label: 'مراجعة واضحة', value: 'Safe' },
     ],
     trustMessage: 'المساحة المناسبة تعرض بوضوح مع مرونة تحفظ راحة الضيف ووقته.',
+    marketplaceFamily: 'dir3-stay',
+    marketplaceCategory: 'apartments',
   },
   'airport-transfers': {
     slug: 'airport-transfers',
@@ -74,6 +89,8 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
       { label: 'تغطية الخدمة', value: '24/7' },
     ],
     trustMessage: 'الوصول والمغادرة يحتاجان وضوحاً كاملاً، وهذا ما تعكسه الواجهة أولاً.',
+    marketplaceFamily: 'dir3-airport',
+    marketplaceCategory: 'airport-transfers',
   },
   concierge: {
     slug: 'concierge',
@@ -88,6 +105,8 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
       { label: 'واجهة جاهزة', value: 'Ready' },
     ],
     trustMessage: 'كل طلب خاص يحتاج هدوءاً ووضوحاً، والواجهة مصممة على هذا الأساس.',
+    marketplaceFamily: 'dir3-concierge',
+    marketplaceCategory: 'concierge',
   },
   experiences: {
     slug: 'experiences',
@@ -102,6 +121,8 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
       { label: 'عرض مرن', value: 'Dynamic' },
     ],
     trustMessage: 'التجربة المميزة لا تحتاج صخباً؛ تحتاج عرضاً مقنعاً ومحترماً للوقت.',
+    marketplaceFamily: 'dir3-experiences',
+    marketplaceCategory: 'experiences',
   },
   offers: {
     slug: 'offers',
@@ -116,6 +137,7 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
       { label: 'وضوح القيمة', value: 'High' },
     ],
     trustMessage: 'العرض الجيد يشرح القيمة أولاً ويحافظ على الشفافية حتى النهاية.',
+    defaultCollection: 'featured',
   },
 };
 

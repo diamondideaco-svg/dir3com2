@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^\\$stamp = Get-Date -Format \"yyyy-MM-dd_HHmm\"; \\$backupRoot = \"C:\\\\Users\\\\dell\\\\Desktop\\\\ZEP\\\\dir3com_Backups\"; New-Item -ItemType Directory -Force -Path \\$backupRoot \\| Out-Null; \\$backupName = \"dir3com_DEV004_Implemented_PreDEV005_\\$stamp\"; \\$backupPath = Join-Path \\$backupRoot \\$backupName; if \\(Test-Path \\$backupPath\\) \\{ throw \"Backup path already exists: \\$backupPath\" \\}; New-Item -ItemType Directory -Path \\$backupPath \\| Out-Null; robocopy \\. \\$backupPath /E /XD \\.git \\.next > \\$null; if \\(\\$LASTEXITCODE -gt 7\\) \\{ throw \"Robocopy failed with exit code \\$LASTEXITCODE\" \\}; Write-Output \"BACKUP_PATH=\\$backupPath\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

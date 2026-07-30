@@ -59,7 +59,7 @@ export default function ContactPublicPage() {
         eyebrow="CONTACT DIR3COM"
         title="تواصل معنا"
         description="قنوات التواصل مصممة ضمن نفس الهوية الراقية، مع نموذج واضح ومسارات جاهزة للتكامل المستقبلي دون تغيير في الواجهة العامة."
-        highlight="الفريق حاضر، والواجهة واضحة، والدِّبرة يبقى عنصراً بصرياً فقط في هذه المرحلة."
+        highlight="الفريق حاضر، والواجهة واضحة، والدبرة يبقى عنصراً بصرياً فقط في هذه المرحلة."
         chips={['0532867009', 'dir3com.com', 'Response Ready']}
       />
       <PublicStats

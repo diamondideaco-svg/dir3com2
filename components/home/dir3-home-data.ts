@@ -1,3 +1,5 @@
+import { marketplaceCatalogEntries } from '@/lib/marketplace/data';
+
 export const heroHighlights = [
   'تصميم عربي RTL أولاً',
   'واجهة دفع محلية جاهزة',
@@ -5,10 +7,10 @@ export const heroHighlights = [
 ];
 
 export const trustBarItems = [
-  'الخدمة أول... والحساب بعد رضاك.',
+  'رحلتكم محمية بضمان الدرع.',
+  'قيم الخدمة قبل نحاسب.',
+  'إذا صار شيء... حنا معك.',
   'فلوسك محفوظة لين تقول: تم.',
-  'قيّم الخدمة... وبعدها يكتمل الدفع.',
-  'إذا صار شي... حنا معك.',
 ];
 
 export const quickFilters = ['رحلات داخلية', 'فنادق', 'سيارات', 'تجارب', 'كونسيرج', 'عروض الصيف'];
@@ -48,78 +50,16 @@ export const shieldOffers = [
   },
 ];
 
-export const serviceCards = [
-  {
-    id: 'cars',
-    title: 'السيارات',
-    description: 'تنقلات مختارة، سائقون محترفون، ومسارات واضحة مصممة للضيف المحلي والدولي.',
-    icon: '/icons/drive.svg',
-    href: '/cars',
-    metric: '24/7',
-    category: 'cars',
-    tags: ['سائق خاص', 'تنقلات مطار', 'سيارات تنفيذية'],
-  },
-  {
-    id: 'hotels',
-    title: 'الفنادق',
-    description: 'إقامات فاخرة مع عرض ذكي للمزايا وسياسات واضحة قبل الحجز.',
-    icon: '/icons/stay.svg',
-    href: '/hotels',
-    metric: '120+',
-    category: 'hotels',
-    tags: ['إقامة راقية', 'إفطار فاخر', 'خيارات مرنة'],
-  },
-  {
-    id: 'apartments',
-    title: 'الشقق',
-    description: 'خيارات إقامة مرنة للعائلات والإقامات المطولة ضمن نفس تجربة dir3com الراقية.',
-    icon: '/icons/stay.svg',
-    href: '/apartments',
-    metric: 'Long Stay',
-    category: 'apartments',
-    tags: ['شقق مخدومة', 'عائلات', 'إقامة مطولة'],
-  },
-  {
-    id: 'experiences',
-    title: 'التجارب',
-    description: 'أنشطة مختارة تنقل روح السعودية بلمسة ثقافية قريبة من الذائقة المصرية.',
-    icon: '/icons/experiences.svg',
-    href: '/experiences',
-    metric: '48',
-    category: 'experiences',
-    tags: ['فعاليات', 'ثقافة', 'رحلات خاصة'],
-  },
-  {
-    id: 'concierge',
-    title: 'الكونسيرج',
-    description: 'تنسيق متكامل للطلبات الخاصة، من الطيران الأرضي حتى تفاصيل الضيافة اليومية.',
-    icon: '/icons/concierge.svg',
-    href: '/concierge',
-    metric: 'VIP',
-    category: 'concierge',
-    tags: ['مساعدة شخصية', 'متابعة يومية', 'دعم فوري'],
-  },
-  {
-    id: 'airport-transfers',
-    title: 'المطار والاستقبال',
-    description: 'خدمة استقبال وانطلاق ناعمة مع جاهزية مستقبلية للربط مع الحالات الحية والتنبيهات.',
-    icon: '/icons/airport.svg',
-    href: '/airport-transfers',
-    metric: 'Fast Lane',
-    category: 'airport-transfers',
-    tags: ['استقبال', 'مسار سريع', 'مرافقة'],
-  },
-  {
-    id: 'offers-collection',
-    title: 'العروض',
-    description: 'واجهة عروض تبقي القيمة واضحة وتربط الحملات بمفهوم الثقة المعتمد في dir3com.',
-    icon: '/icons/drive.svg',
-    href: '/offers',
-    metric: 'Campaign',
-    category: 'offers',
-    tags: ['موسمي', 'حصري', 'مرن'],
-  },
-];
+export const serviceCards = marketplaceCatalogEntries.map((entry) => ({
+  id: entry.category,
+  title: entry.title,
+  description: entry.description,
+  icon: entry.icon,
+  href: entry.href,
+  metric: entry.metric,
+  category: entry.category,
+  tags: entry.tags,
+}));
 
 export const partnerCards = [
   {
@@ -162,17 +102,47 @@ export const articleCards = [
     description: 'واجهة تحريرية تعرض الوجهات والعروض والخدمات بأسلوب يتوافق مع نفس الهوية البصرية.',
   },
   {
-    title: 'الدِّبرة: كيف سيظهر المساعد داخل الواجهة؟',
+    title: 'الدبرة: كيف سيظهر المساعد داخل الواجهة؟',
     category: 'منتج',
     readTime: '3 دقائق',
     description: 'تمهيد بصري للمساعد الودي دون أي منطق فعلي، مع مساحات واضحة للتكامل المستقبلي.',
   },
 ];
 
+export const travelTips = [
+  {
+    title: 'رتب الوصول قبل الإقامة',
+    description: 'ابدأ بخدمة dir3 airport أو dir3 drive حتى تكون بداية الرحلة هادئة ومحمية من أول خطوة.',
+    label: 'نصيحة الوصول',
+  },
+  {
+    title: 'اختر الإقامة حسب نمط الرحلة',
+    description: 'dir3 stay مناسب للإقامات الفاخرة، بينما الشقق تخدم الإقامات الأطول والعائلات بمرونة أعلى.',
+    label: 'نصيحة الإقامة',
+  },
+  {
+    title: 'أضف الكونسيرج عند الحاجة',
+    description: 'إذا كانت الرحلة تتضمن طلبات خاصة أو تنقلات متعددة، فإضافة dir3 concierge ترفع الانسيابية.',
+    label: 'نصيحة الخدمة',
+  },
+];
+
 export const appFeatures = [
   'إدارة الحجوزات والعروض من شاشة واحدة',
   'إشعارات مهيأة لرحلتك وتحديثات الخدمة',
-  'وصول مستقبلي سريع إلى الدِّبرة من التطبيق',
+  'وصول مستقبلي سريع إلى الدبرة من التطبيق',
 ];
 
-export const paymentMethods = ['mada', 'Visa', 'Mastercard', 'Apple Pay', 'STC Bank', 'Tabby', 'Tamara'];
+export const paymentMethods = ['mada', 'Visa', 'Mastercard', 'STC Bank', 'Tabby', 'Tamara'];
+
+export const qrMatrix = [
+  '111010101',
+  '101110001',
+  '111011101',
+  '000101000',
+  '111010111',
+  '100111001',
+  '111000111',
+  '001011100',
+  '111010111',
+];

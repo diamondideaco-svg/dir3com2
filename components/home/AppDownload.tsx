@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { FiBell, FiDownload, FiSmartphone } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
 import SectionHeading from '@/components/home/SectionHeading';
-import { appFeatures } from '@/components/home/dir3-home-data';
+import { appFeatures, qrMatrix } from '@/components/home/dir3-home-data';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -25,10 +25,24 @@ export default function AppDownload() {
                           <HiSparkles />
                         </span>
                         <div>
-                          <p className="font-semibold">الدِّبرة</p>
+                          <p className="font-semibold">الدبرة</p>
                           <p className="text-sm text-white/65">قريباً في التطبيق</p>
                         </div>
                       </div>
+                    </div>
+                    <div className="mt-4 rounded-[24px] border border-white/10 bg-white/6 p-4">
+                      <p className="text-sm text-white/70">QR Code</p>
+                      <div className="mt-3 inline-grid grid-cols-9 gap-1 rounded-[18px] bg-white p-3">
+                        {qrMatrix.flatMap((row, rowIndex) =>
+                          row.split('').map((cell, cellIndex) => (
+                            <span
+                              key={`${rowIndex}-${cellIndex}`}
+                              className={`h-2.5 w-2.5 rounded-[2px] ${cell === '1' ? 'bg-[var(--color-navy)]' : 'bg-white'}`}
+                            />
+                          ))
+                        )}
+                      </div>
+                      <p className="mt-3 text-xs text-white/65">امسح الرمز للاطلاع على واجهة التطبيق قريباً.</p>
                     </div>
                     <div className="mt-4 space-y-3">
                       <div className="rounded-[20px] border border-white/10 bg-white/6 p-4">حجوزاتي</div>
@@ -45,7 +59,7 @@ export default function AppDownload() {
             <SectionHeading
               eyebrow="APP DOWNLOAD"
               title="حمّل تطبيق dir3com حين يصبح جاهزاً، والواجهة مستعدة من الآن."
-              description="قسم تنزيل التطبيق مبني ليعرض مزايا التطبيق، الأزرار، والمعاينات المستقبلية من دون الحاجة إلى ربط أي متجر أو خدمة حالياً."
+              description="قسم تنزيل التطبيق مبني ليعرض مزايا التطبيق، الأزرار، والمعاينات المستقبلية مع QR Code من دون الحاجة إلى ربط أي متجر أو خدمة حالياً."
             />
 
             <div className="mt-6 grid gap-3">

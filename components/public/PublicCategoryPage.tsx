@@ -1,4 +1,4 @@
-import DynamicServices from '@/components/home/DynamicServices';
+import MarketplaceExplorer from '@/components/public/MarketplaceExplorer';
 import PublicCtaBanner from '@/components/public/PublicCtaBanner';
 import PublicFeatureStrip from '@/components/public/PublicFeatureStrip';
 import PublicHero from '@/components/public/PublicHero';
@@ -18,7 +18,13 @@ export default function PublicCategoryPage({ config }: { config: PublicCategoryC
       />
       <PublicStats stats={config.stats} />
       <PublicFeatureStrip trustMessage={config.trustMessage} />
-      <DynamicServices title={config.title} description={config.highlight} category={config.slug} />
+      <MarketplaceExplorer
+        title={`${config.title} داخل سوق dir3com`}
+        description="نفس البيانات المشتركة تغذي البحث، الترتيب، الفئات، وحالات Featured وPopular وRecommended عبر الصفحات العامة."
+        family={config.marketplaceFamily}
+        defaultCategory={config.marketplaceCategory}
+        defaultCollection={config.defaultCollection}
+      />
       <PublicRouteIndex />
       <PublicCtaBanner
         title={`جهز صفحة ${config.title} لتخدم رحلتك التالية.`}

@@ -17,7 +17,7 @@ export default function SmartSearch() {
         <SectionHeading
           eyebrow="SMART SEARCH"
           title="بحث ذكي جاهز لعرض الرحلات والخدمات بوضوح أنيق."
-          description="واجهة بحث مرنة تجهز أنواع الخدمات والبيانات المطلوبة وتضع الدِّبرة في موضع المساعد، من دون تنفيذ منطق فعلي حتى الآن."
+          description="اسأل الدبرة. واجهة بحث مرنة تجهز أنواع الخدمات والبيانات المطلوبة وتضع الدبرة في موضع المساعد، من دون تنفيذ منطق فعلي حتى الآن."
         />
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
@@ -67,12 +67,22 @@ export default function SmartSearch() {
             <Card className="h-full bg-[var(--color-navy)] text-[var(--color-light)]">
               <CardContent className="flex h-full flex-col p-6 sm:p-8">
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/12 px-4 py-2 text-sm text-[var(--color-gold)]">
-                  <HiSparkles /> الدِّبرة
+                  <HiSparkles /> اسأل الدبرة
                 </div>
-                <h3 className="mt-5 text-3xl font-semibold">مساعد ودود يوجه بحثك لاحقاً.</h3>
+                <h3 className="mt-5 text-3xl font-semibold">الدبرة</h3>
                 <p className="mt-4 text-base leading-8 text-white/72">
-                  هذه الواجهة مهيأة لمستقبل يستطيع فيه الدِّبرة اقتراح رحلات وخيارات حسب الوجهة، أسلوب الضيافة، ونوع الخدمة المفضل.
+                  هذه الواجهة مهيأة لمستقبل يستطيع فيه الدبرة اقتراح رحلات وخيارات حسب الوجهة، أسلوب الضيافة، ونوع الخدمة المفضل.
                 </p>
+
+                <div className="mt-4 rounded-[24px] border border-[var(--color-gold)]/20 bg-[var(--color-gold)]/10 px-4 py-4 text-sm leading-8 text-white/85">
+                  ياهلا والله 👋
+                  <br />
+                  أنا الدبرة...
+                  <br />
+                  مستشارك الشخصي في dir3com.
+                  <br />
+                  وش ودك ندبر لك اليوم؟
+                </div>
 
                 <div className="mt-6 space-y-3">
                   {smartPrompts.map((prompt) => (

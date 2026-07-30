@@ -14,7 +14,7 @@ export default function PublicCtaBanner({ title, description }: PublicCtaBannerP
         <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-4 py-2 text-sm text-[var(--color-gold)]">
-              <HiSparkles /> الدِّبرة واجهة مستقبلية فقط
+              <HiSparkles /> الدبرة واجهة مستقبلية فقط
             </span>
             <h2 className="mt-4 text-3xl font-semibold leading-[1.3] sm:text-4xl">{title}</h2>
             <p className="mt-4 max-w-2xl text-base leading-8 text-white/74">{description}</p>

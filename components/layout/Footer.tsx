@@ -43,14 +43,14 @@ export default function Footer() {
               </span>
               <div>
                 <p className="font-[var(--font-display)] text-3xl font-semibold">dir3com</p>
-                <p className="text-sm text-[var(--color-light)]/65">رحلتكم... محمية بضمان الدرع</p>
+                <p className="text-sm text-[var(--color-light)]/65">رحلتكم محمية بضمان الدرع.</p>
               </div>
             </div>
             <p className="mt-5 text-sm leading-8 text-[var(--color-light)]/72">
-              واجهة ضيافة وسفر عربية بروح فاخرة، مصممة لتخدم العميل أولاً وتجهز الدِّبرة لتكاملات المساعدة الذكية لاحقاً.
+              واجهة ضيافة وسفر عربية بروح فاخرة، مصممة لتخدم العميل أولاً وتجهز الدبرة لتكاملات المساعدة الذكية لاحقاً.
             </p>
             <div className="mt-6 rounded-[24px] border border-white/10 bg-white/5 p-4 text-sm leading-8 text-[var(--color-light)]/78">
-              الدِّبرة جاهز كواجهة مساعدة مستقبلية داخل الموقع والتطبيق من دون أي منطق مفعّل حالياً.
+              الدبرة — مستشارك الشخصي في dir3com
             </div>
             <div className="mt-6 flex flex-wrap gap-3 text-sm">
               <Link href="https://dir3com.com" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)]">
@@ -110,7 +110,7 @@ export default function Footer() {
 
         <div className="mt-10 border-t border-white/10 pt-6 text-sm text-[var(--color-light)]/65 sm:flex sm:items-center sm:justify-between">
           <p>© 2026 dir3com. جميع الحقوق محفوظة.</p>
-          <p className="mt-3 sm:mt-0">الدفع داخل السعودية.</p>
+          <p className="mt-3 sm:mt-0">قيم الخدمة قبل نحاسب.</p>
         </div>
       </div>
     </footer>

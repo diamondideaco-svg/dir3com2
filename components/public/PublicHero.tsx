@@ -27,7 +27,7 @@ export default function PublicHero({ eyebrow, title, description, highlight, chi
               <FiArrowLeft />
             </Link>
             <a href="#dibrah" className={buttonVariants({ variant: 'outline', size: 'lg' })}>
-              الدِّبرة
+              اسأل الدبرة
               <HiSparkles />
             </a>
           </div>
@@ -53,7 +53,7 @@ export default function PublicHero({ eyebrow, title, description, highlight, chi
             </div>
             <div id="dibrah" className="rounded-[24px] border border-white/10 bg-white/6 px-4 py-4">
               <p className="text-sm text-white/65">واجهة المستقبل</p>
-              <p className="mt-2 text-lg font-semibold">الدِّبرة كعنصر UI فقط</p>
+              <p className="mt-2 text-lg font-semibold">الدبرة كعنصر UI فقط</p>
             </div>
           </div>
         </div>

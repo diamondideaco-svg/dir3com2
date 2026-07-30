@@ -60,7 +60,7 @@ export default function UtilityBar() {
 
           <div className="flex flex-wrap items-center gap-2 text-right text-[13px] font-medium text-[var(--color-light)]/90">
             <span className="rounded-full border border-[var(--color-gold)]/35 bg-[var(--color-gold)]/12 px-3 py-2 text-[var(--color-light)]">
-              رحلتكم... محمية بضمان الدرع
+              رحلتكم محمية بضمان الدرع.
             </span>
             <a href="tel:0532867009" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 transition hover:border-[var(--color-gold)]/40 hover:text-[var(--color-gold)]">
               <FiPhoneCall /> 0532867009

@@ -10,7 +10,7 @@ const values = [
   { title: 'الثقة', description: 'الخدمة أولاً، والحساب بعد رضاك.', icon: FiShield },
   { title: 'الوضوح', description: 'واجهة تعرض القيمة والسياسات بلغة مباشرة وراقية.', icon: FiCompass },
   { title: 'الضيافة', description: 'تجربة عربية حديثة تحترم الوقت والذوق.', icon: FiUsers },
-  { title: 'الاستعداد', description: 'الدِّبرة حاضر بصرياً لتكاملات مستقبلية فقط.', icon: HiSparkles },
+  { title: 'الاستعداد', description: 'الدبرة حاضر بصرياً لتكاملات مستقبلية فقط.', icon: HiSparkles },
 ];
 
 export default function AboutPublicPage() {

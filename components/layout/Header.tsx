@@ -21,7 +21,7 @@ const navItems = [
 
 const actionLinks = [
   { label: 'البحث', href: '/services', icon: FiSearch },
-  { label: 'الدِّبرة', href: '#dibrah', icon: HiSparkles },
+  { label: 'الدبرة', href: '#dibrah', icon: HiSparkles },
   { label: 'المفضلة', href: '/my-bookings', icon: FiHeart },
   { label: 'التنبيهات', href: '/my-account', icon: FiBell },
   { label: 'المستخدم', href: '/profile', icon: FiUser },

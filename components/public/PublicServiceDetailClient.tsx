@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { FiArrowLeft, FiMapPin, FiShield } from 'react-icons/fi';
 import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { normalizeMarketplaceServices } from '@/lib/marketplace/data';
 import PublicCtaBanner from '@/components/public/PublicCtaBanner';
 import PublicRouteIndex from '@/components/public/PublicRouteIndex';
 
@@ -22,9 +23,18 @@ type ServiceProduct = {
 };
 
 type ServiceDetail = {
+  id?: string | number | null;
+  slug?: string | null;
   name_ar?: string | null;
+  name_en?: string | null;
   description_ar?: string | null;
+  description_en?: string | null;
   badge?: string | null;
+  base_price?: number | null;
+  currency?: string | null;
+  featured?: boolean | null;
+  status?: string | null;
+  created_at?: string | null;
   products?: ServiceProduct[];
 };
 
@@ -79,6 +89,8 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
     );
   }
 
+  const marketplaceService = normalizeMarketplaceServices([service], false)[0];
+
   return (
     <div className="pb-24">
       <section className="px-4 pb-10 pt-8 sm:px-6 lg:px-8 lg:pt-12">
@@ -88,11 +100,25 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
           </Link>
           <div className="mt-5 grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
             <div>
-              <p className="text-sm font-medium tracking-[0.18em] text-[var(--color-gold)]">{service.badge ?? 'SERVICE DETAIL'}</p>
+              <p className="text-sm font-medium tracking-[0.18em] text-[var(--color-gold)]">
+                {marketplaceService?.familyLabel ?? service.badge ?? 'SERVICE DETAIL'}
+              </p>
               <h1 className="mt-3 text-4xl font-semibold text-[var(--color-navy)] sm:text-5xl">{service.name_ar ?? 'خدمة dir3com'}</h1>
               <p className="mt-5 max-w-2xl text-lg leading-9 text-[var(--color-muted)]">
                 {service.description_ar ?? 'تفاصيل الخدمة ستظهر هنا مع نفس اللغة البصرية المعتمدة في المنصة العامة.'}
               </p>
+              {marketplaceService ? (
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-[var(--color-surface)] px-4 py-2 text-sm font-medium text-[var(--color-navy)]">
+                    {marketplaceService.categoryLabel}
+                  </span>
+                  {marketplaceService.tags.map((tag) => (
+                    <span key={tag} className="rounded-full border border-[color:var(--color-border)] bg-white/80 px-4 py-2 text-sm font-medium text-[var(--color-muted)]">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <Card className="bg-[var(--color-navy)] text-[var(--color-light)]">
               <CardContent className="p-6">
@@ -100,6 +126,16 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
                   <FiShield /> ضمان الدرع
                 </div>
                 <p className="mt-5 text-2xl font-semibold leading-[1.5]">الخدمة أول... والحساب بعد رضاك.</p>
+                {marketplaceService ? (
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-white/72">
+                    <div className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3">
+                      Featured: {marketplaceService.featured ? 'نعم' : 'لا'}
+                    </div>
+                    <div className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3">
+                      Recommended: {marketplaceService.recommended ? 'نعم' : 'لا'}
+                    </div>
+                  </div>
+                ) : null}
                 <p className="mt-4 text-sm leading-8 text-white/72">
                   كل بطاقة منتج هنا جاهزة لعرض الأسعار والموردين والصور ضمن نفس هيكلية dir3com دون أي تعديل على الخلفية التشغيلية.
                 </p>
