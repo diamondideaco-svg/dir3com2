@@ -16,7 +16,7 @@ const values = [
 
 export default function AboutPublicPage() {
   return (
-    <div className="pb-24">
+    <div className="page-stack-shell">
       <PublicHero
         eyebrow="ABOUT DIR3COM"
         title="من نحن"

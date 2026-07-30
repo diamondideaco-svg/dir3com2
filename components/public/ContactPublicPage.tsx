@@ -70,7 +70,7 @@ export default function ContactPublicPage() {
   };
 
   return (
-    <div className="pb-24">
+    <div className="page-stack-shell">
       <PublicHero
         eyebrow="CONTACT DIR3COM"
         title="تواصل معنا"
