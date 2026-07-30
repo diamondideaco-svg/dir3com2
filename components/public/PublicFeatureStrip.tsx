@@ -1,4 +1,5 @@
 import { FiCheckCircle, FiShield, FiStar } from 'react-icons/fi';
+import { ContentContainer, CtaBlock, ResponsiveGrid, SectionContainer } from '@/components/design-system';
 import { Card, CardContent } from '@/components/ui/card';
 
 type PublicFeatureStripProps = {
@@ -25,11 +26,11 @@ const features = [
 
 export default function PublicFeatureStrip({ trustMessage }: PublicFeatureStripProps) {
   return (
-    <section className="px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="rounded-[32px] bg-[var(--color-navy)] px-6 py-7 text-[var(--color-light)] shadow-[0_24px_60px_rgba(13,27,42,0.16)]">
+    <SectionContainer className="py-8 lg:py-10">
+      <ContentContainer>
+        <CtaBlock className="rounded-[32px] border-0 px-6 py-7 shadow-[0_24px_60px_rgba(13,27,42,0.16)]">
           <p className="text-center text-lg font-semibold text-[var(--color-gold)]">{trustMessage}</p>
-          <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <ResponsiveGrid className="mt-6 gap-4 xl:grid-cols-3">
             {features.map(({ title, description, icon: Icon }) => (
               <Card key={title} className="border-white/10 bg-white/6 text-[var(--color-light)] shadow-none">
                 <CardContent className="p-5">
@@ -41,9 +42,9 @@ export default function PublicFeatureStrip({ trustMessage }: PublicFeatureStripP
                 </CardContent>
               </Card>
             ))}
-          </div>
-        </div>
-      </div>
-    </section>
+          </ResponsiveGrid>
+        </CtaBlock>
+      </ContentContainer>
+    </SectionContainer>
   );
 }

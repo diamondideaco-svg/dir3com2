@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { FiCheckCircle, FiMail, FiMessageSquare, FiPhoneCall, FiSend, FiUser } from 'react-icons/fi';
+import { FiCheckCircle, FiMail, FiPhoneCall, FiSend } from 'react-icons/fi';
+import { ContentContainer, SectionContainer, SelectField, TextAreaField, TextField } from '@/components/design-system';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PublicHero from '@/components/public/PublicHero';
@@ -17,11 +18,6 @@ export default function ContactPublicPage() {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<ContactStatus>({ type: null, message: '' });
-
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = event.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -70,8 +66,8 @@ export default function ContactPublicPage() {
         ]}
       />
 
-      <section className="px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+      <SectionContainer className="py-8 lg:py-10">
+        <ContentContainer className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
           <Card className="bg-white/84">
             <CardHeader>
               <CardTitle className="text-3xl">أرسل رسالتك</CardTitle>
@@ -85,37 +81,54 @@ export default function ContactPublicPage() {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-2 inline-flex items-center gap-2 text-sm text-[var(--color-muted)]"><FiUser /> الاسم الكامل</span>
-                    <input name="name" required value={formData.name} onChange={handleChange} className="w-full rounded-[22px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-3 text-[var(--color-navy)] outline-none transition focus:border-[var(--color-gold)]" />
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 inline-flex items-center gap-2 text-sm text-[var(--color-muted)]"><FiMail /> البريد الإلكتروني</span>
-                    <input type="email" name="email" required value={formData.email} onChange={handleChange} className="w-full rounded-[22px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-3 text-[var(--color-navy)] outline-none transition focus:border-[var(--color-gold)]" />
-                  </label>
+                  <TextField
+                    label="الاسم الكامل"
+                    required
+                    value={formData.name}
+                    onChange={(value) => setFormData((prev) => ({ ...prev, name: value }))}
+                    placeholder="اكتب اسمك"
+                  />
+                  <TextField
+                    label="البريد الإلكتروني"
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(value) => setFormData((prev) => ({ ...prev, email: value }))}
+                    placeholder="name@example.com"
+                  />
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-2 inline-flex items-center gap-2 text-sm text-[var(--color-muted)]"><FiPhoneCall /> الهاتف</span>
-                    <input name="phone" value={formData.phone} onChange={handleChange} className="w-full rounded-[22px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-3 text-[var(--color-navy)] outline-none transition focus:border-[var(--color-gold)]" />
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 inline-flex items-center gap-2 text-sm text-[var(--color-muted)]"><FiMessageSquare /> الموضوع</span>
-                    <select name="subject" required value={formData.subject} onChange={handleChange} className="w-full rounded-[22px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-3 text-[var(--color-navy)] outline-none transition focus:border-[var(--color-gold)]">
-                      <option value="">اختر الموضوع</option>
-                      <option value="booking">استفسار عن حجز</option>
-                      <option value="service">استفسار عن خدمة</option>
-                      <option value="partnership">طلب شراكة</option>
-                      <option value="other">أخرى</option>
-                    </select>
-                  </label>
+                  <TextField
+                    label="الهاتف"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))}
+                    placeholder="05xxxxxxxx"
+                  />
+                  <SelectField
+                    label="الموضوع"
+                    required
+                    value={formData.subject}
+                    onChange={(value) => setFormData((prev) => ({ ...prev, subject: value }))}
+                    options={[
+                      { value: '', label: 'اختر الموضوع' },
+                      { value: 'booking', label: 'استفسار عن حجز' },
+                      { value: 'service', label: 'استفسار عن خدمة' },
+                      { value: 'partnership', label: 'طلب شراكة' },
+                      { value: 'other', label: 'أخرى' },
+                    ]}
+                  />
                 </div>
 
-                <label className="block">
-                  <span className="mb-2 inline-flex items-center gap-2 text-sm text-[var(--color-muted)]"><FiMessageSquare /> الرسالة</span>
-                  <textarea name="message" required rows={6} value={formData.message} onChange={handleChange} className="w-full rounded-[22px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-3 text-[var(--color-navy)] outline-none transition focus:border-[var(--color-gold)]" />
-                </label>
+                <TextAreaField
+                  label="الرسالة"
+                  required
+                  value={formData.message}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, message: value }))}
+                  rows={6}
+                  placeholder="اكتب تفاصيل طلبك"
+                />
 
                 <Button type="submit" variant="gold" size="lg" disabled={isSubmitting} className="w-full sm:w-auto">
                   <FiSend />
@@ -145,8 +158,8 @@ export default function ContactPublicPage() {
               </Card>
             ))}
           </div>
-        </div>
-      </section>
+        </ContentContainer>
+      </SectionContainer>
 
       <PublicRouteIndex />
     </div>

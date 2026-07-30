@@ -1,5 +1,6 @@
 import { FiCompass, FiShield, FiUsers } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
+import { ContentContainer, ResponsiveGrid, SectionContainer } from '@/components/design-system';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PublicCtaBanner from '@/components/public/PublicCtaBanner';
 import PublicHero from '@/components/public/PublicHero';
@@ -31,8 +32,8 @@ export default function AboutPublicPage() {
         ]}
       />
 
-      <section className="px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1fr_1fr]">
+      <SectionContainer className="py-8 lg:py-10">
+        <ContentContainer className="grid gap-6 lg:grid-cols-[1fr_1fr]">
           <Card className="bg-white/82">
             <CardHeader>
               <p className="text-sm font-medium tracking-[0.18em] text-[var(--color-gold)]">OUR STORY</p>
@@ -56,12 +57,12 @@ export default function AboutPublicPage() {
               </p>
             </CardContent>
           </Card>
-        </div>
-      </section>
+        </ContentContainer>
+      </SectionContainer>
 
-      <section className="px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <SectionContainer className="py-8 lg:py-10">
+        <ContentContainer>
+          <ResponsiveGrid className="xl:grid-cols-4">
             {values.map(({ title, description, icon: Icon }) => (
               <Card key={title} className="bg-white/82">
                 <CardContent className="p-6">
@@ -73,9 +74,9 @@ export default function AboutPublicPage() {
                 </CardContent>
               </Card>
             ))}
-          </div>
-        </div>
-      </section>
+          </ResponsiveGrid>
+        </ContentContainer>
+      </SectionContainer>
 
       <PublicRouteIndex />
       <PublicCtaBanner
