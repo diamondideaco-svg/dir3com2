@@ -1,0 +1,36 @@
+import Link from 'next/link';
+import PartnerTable from '@/components/admin/PartnerTable';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import type { PartnerRecord } from '@/lib/supabase/types';
+
+async function getPartners() {
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase.from('partners').select('*').order('created_at', { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return [] as PartnerRecord[];
+  }
+
+  return (data || []) as PartnerRecord[];
+}
+
+export default async function AdminPartnersPage() {
+  const partners = await getPartners();
+
+  return (
+    <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white" dir="rtl">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">لوحة الإدارة</p>
+            <h1 className="mt-2 text-3xl font-semibold text-white">إدارة الشركاء</h1>
+          </div>
+          <Link href="/admin" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة إلى لوحة التحكم</Link>
+        </div>
+        <PartnerTable partners={partners} />
+      </div>
+    </div>
+  );
+}

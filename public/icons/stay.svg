@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- تعريف التدرج الذهبي لإعطاء طابع معدني لامع -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBE18A" />
+      <stop offset="30%" stop-color="#D4AF37" />
+      <stop offset="70%" stop-color="#A67B23" />
+      <stop offset="100%" stop-color="#FBE18A" />
+    </linearGradient>
+
+    <!-- تعريف التدرج الفضي -->
+    <linearGradient id="silverGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C0C6CC" />
+      <stop offset="50%" stop-color="#6B7280" />
+      <stop offset="100%" stop-color="#4B5563" />
+    </linearGradient>
+
+    <!-- تأثير الظل البسيط للأبعاد الثلاثية -->
+    <filter id="drop-shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="4" dy="6" stdDeviation="6" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- ===== 1. الدرع الفضية (الجانب الأيمن السفلي) ===== -->
+  <path d="M 256 480 C 330 470 380 430 380 380 L 380 220 L 340 220 L 340 380 C 340 400 320 430 256 440 Z" fill="url(#silverGrad)" filter="url(#drop-shadow)" />
+  
+  <!-- ===== 2. الدرع الذهبية (الجانب الأيسر والأعلى) ===== -->
+  <path d="M 120 220 L 120 380 C 120 430 170 470 256 480 L 256 440 C 180 430 160 400 160 380 L 160 220 Z" fill="url(#goldGrad)" filter="url(#drop-shadow)" />
+
+  <!-- ===== 3. سقف المنزل الذهبي ===== -->
+  <path d="M 160 160 L 250 60 L 340 160 L 310 160 L 250 90 L 190 160 Z" fill="url(#goldGrad)" filter="url(#drop-shadow)" />
+  
+  <!-- ===== 4. المدخنة الذهبية ===== -->
+  <rect x="320" y="70" width="35" height="60" rx="3" fill="url(#goldGrad)" filter="url(#drop-shadow)" />
+
+  <!-- ===== 5. الشباك المربع (2x2) ===== -->
+  <!-- الإطار الخارجي للشباك -->
+  <rect x="180" y="190" width="90" height="90" rx="2" fill="url(#goldGrad)" filter="url(#drop-shadow)" />
+  <!-- خطوط تقاطع الشباك -->
+  <path d="M 180 235 L 270 235 M 225 190 L 225 280" stroke="#0D1B2A" stroke-width="8" />
+  <!-- لا يتم رسم خلفية الشباك، بل هو ذهبي، بدونه يصبح شفاف، لكن الإطار الذهبي يعطي شكل الشباك -->
+
+  <!-- ===== 6. الرقم "3" بخط عريض معدني ===== -->
+  <text x="256" y="340" font-family="'Arial Black', Impact, sans-serif" font-size="220" font-weight="900" fill="url(#goldGrad)" text-anchor="middle" filter="url(#drop-shadow)">3</text>
+
+</svg>

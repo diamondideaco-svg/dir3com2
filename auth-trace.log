@@ -1,0 +1,18 @@
+
+> dir3com-next@0.1.0 dev
+> next dev --port 3001
+
+▲ Next.js 16.2.11 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.18.65:3001
+- Environments: .env.local
+✓ Ready in 5.3s
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:3001
+- PID:          14892
+- Dir:          C:\Users\dell\Desktop\dir3com2
+- Log:          .next\dev\logs\next-development.log
+
+Run taskkill /PID 14892 /F to stop it.
+[?25h

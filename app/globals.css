@@ -1,0 +1,105 @@
+@import 'tailwindcss';
+
+:root {
+  --color-navy: #0D1B2A;
+  --color-gold: #D4AF37;
+  --color-light: #F4F1E8;
+  --color-gray: #8A9BB0;
+  --color-shell: rgba(244, 241, 232, 0.94);
+  --color-surface: rgba(212, 175, 55, 0.08);
+  --color-surface-strong: rgba(212, 175, 55, 0.14);
+  --color-card: rgba(255, 252, 247, 0.84);
+  --color-muted: #5D6A7D;
+  --color-border: rgba(13, 27, 42, 0.12);
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  --color-shell: rgba(11, 24, 37, 0.92);
+  --color-surface: rgba(212, 175, 55, 0.12);
+  --color-surface-strong: rgba(212, 175, 55, 0.18);
+  --color-card: rgba(18, 32, 48, 0.88);
+  --color-muted: #A8B6C9;
+  --color-border: rgba(244, 241, 232, 0.12);
+  color-scheme: dark;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(circle at top right, rgba(212, 175, 55, 0.18), transparent 28%),
+    radial-gradient(circle at 10% 15%, rgba(13, 27, 42, 0.08), transparent 30%),
+    linear-gradient(135deg, rgba(244, 241, 232, 0.97) 0%, rgba(247, 244, 237, 0.94) 44%, rgba(238, 232, 219, 0.98) 100%);
+  color: var(--color-navy);
+  direction: rtl;
+  font-family: var(--font-arabic), sans-serif;
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+html[data-theme='dark'] body {
+  background:
+    radial-gradient(circle at top right, rgba(212, 175, 55, 0.16), transparent 24%),
+    radial-gradient(circle at 12% 20%, rgba(138, 155, 176, 0.12), transparent 22%),
+    linear-gradient(135deg, #07111D 0%, #0D1B2A 65%, #122133 100%);
+  color: var(--color-light);
+}
+
+section {
+  scroll-margin-top: 6rem;
+}
+
+a {
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(212, 175, 55, 0.35);
+  color: white;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display), var(--font-arabic), serif;
+}
+
+a,
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-fade-up {
+    animation: none;
+  }
+}

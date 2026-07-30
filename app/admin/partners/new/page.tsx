@@ -1,0 +1,19 @@
+import Link from 'next/link';
+import PartnerForm from '@/components/admin/PartnerForm';
+
+export default function NewPartnerPage() {
+  return (
+    <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white" dir="rtl">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">الشركاء</p>
+            <h1 className="mt-2 text-3xl font-semibold text-white">إضافة شريك جديد</h1>
+          </div>
+          <Link href="/admin/partners" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة</Link>
+        </div>
+        <PartnerForm />
+      </div>
+    </div>
+  );
+}
