@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Badge, Chip } from '@/components/design-system';
+import { buttonVariants } from '@/components/ui/button';
 
 export type ServiceItem = {
   id: string | number;
@@ -109,7 +110,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
 
       <Link
         href={href}
-        className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--color-gold)] px-5 py-3 text-sm font-semibold text-[var(--color-navy)] transition hover:-translate-y-1"
+        className={`${buttonVariants({ variant: 'gold', size: 'default' })} mt-6`}
       >
         استكشف الخدمة
       </Link>

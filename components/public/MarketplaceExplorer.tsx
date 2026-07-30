@@ -183,7 +183,8 @@ export default function MarketplaceExplorer({
                   setCategory(option.category);
                   setAdvancedFilters((previous) => ({ ...previous, serviceType: option.category }));
                 }}
-                className={`rounded-[22px] border px-4 py-4 text-right transition ${
+                aria-pressed={activeCategory === option.category}
+                className={`rounded-[22px] border px-4 py-4 text-right transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 ${
                   activeCategory === option.category
                     ? 'border-[var(--color-gold)]/45 bg-[var(--color-gold)]/14'
                     : 'border-[color:var(--color-border)] bg-white/74 hover:border-[var(--color-gold)]/35'
@@ -209,7 +210,8 @@ export default function MarketplaceExplorer({
                   key={option.value}
                   type="button"
                   onClick={() => setCollection(option.value)}
-                  className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition ${
+                  aria-pressed={collection === option.value}
+                  className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 ${
                     collection === option.value
                       ? 'bg-[var(--color-navy)] text-[var(--color-light)]'
                       : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
@@ -227,7 +229,8 @@ export default function MarketplaceExplorer({
                   setCategory('all');
                   setAdvancedFilters((previous) => ({ ...previous, serviceType: 'all' }));
                 }}
-                className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition ${
+                aria-pressed={category === 'all' && advancedFilters.serviceType === 'all'}
+                className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 ${
                   category === 'all' && advancedFilters.serviceType === 'all'
                     ? 'bg-[var(--color-gold)] text-[var(--color-navy)]'
                     : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
@@ -243,7 +246,8 @@ export default function MarketplaceExplorer({
                     setCategory(option.category);
                     setAdvancedFilters((previous) => ({ ...previous, serviceType: option.category }));
                   }}
-                  className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition ${
+                  aria-pressed={category === option.category || advancedFilters.serviceType === option.category}
+                  className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 ${
                     category === option.category || advancedFilters.serviceType === option.category
                       ? 'bg-[var(--color-gold)] text-[var(--color-navy)]'
                       : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'

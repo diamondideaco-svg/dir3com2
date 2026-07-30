@@ -9,7 +9,6 @@ import {
   Badge,
   Chip,
   ContentContainer,
-  CtaBlock,
   EmptyState,
   FaqComponent,
   HeroBlock,
@@ -164,7 +163,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
     <div className="space-y-2 pb-24 sm:space-y-3 lg:space-y-4">
       <SectionContainer className="pb-10 pt-8 lg:pt-12">
         <ContentContainer>
-          <Link href="/services" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-gold)] transition hover:gap-3">
+          <Link href="/services" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-gold)] transition hover:gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35">
             <FiArrowLeft /> العودة إلى الخدمات
           </Link>
           <div className="mt-5 grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-start">
@@ -241,7 +240,9 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
                         key={`${image}-${index}`}
                         type="button"
                         onClick={() => setActiveImage(image)}
-                        className={`relative h-28 overflow-hidden rounded-[18px] border transition sm:h-32 ${mainImage === image ? 'border-[var(--color-gold)]' : 'border-[color:var(--color-border)]'}`}
+                        aria-label={`عرض صورة ${index + 1}`}
+                        aria-pressed={mainImage === image}
+                        className={`relative h-28 overflow-hidden rounded-[18px] border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 sm:h-32 ${mainImage === image ? 'border-[var(--color-gold)]' : 'border-[color:var(--color-border)]'}`}
                       >
                         <Image src={image} alt={`صورة ${index + 1}`} fill className="object-cover" unoptimized />
                       </button>
@@ -321,7 +322,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
               {Array.from({ length: 5 }).map((_, index) => (
                 <FiStar key={index} />
               ))}
-              <span className="mr-2 text-sm font-semibold text-[var(--color-navy)]">4.9 / 5</span>
+              <span className="me-2 text-sm font-semibold text-[var(--color-navy)]">4.9 / 5</span>
             </div>
             <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {staticReviews.map((review) => (
@@ -405,7 +406,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
                       <span className="inline-flex items-center gap-2"><FiMapPin /> {product.region?.name_ar ?? 'السعودية'}</span>
                       <span className="text-xl font-semibold text-[var(--color-gold)]">
                         {product.price_per_unit ?? '--'} ر.س
-                        <span className="mr-1 text-xs text-[var(--color-muted)]">/ {unitLabel(product.unit_type)}</span>
+                        <span className="me-1 text-xs text-[var(--color-muted)]">/ {unitLabel(product.unit_type)}</span>
                       </span>
                     </div>
                     <Link href={`/booking?product=${product.slug ?? ''}`} className={`${buttonVariants({ variant: 'gold', size: 'default' })} mt-5 w-full`}>
@@ -426,16 +427,10 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
       </div>
 
       <div className="luxury-section-shell">
-        <SectionContainer>
-          <ContentContainer>
-            <CtaBlock>
-              <PublicCtaBanner
-                title="استكشف الخدمة ثم انتقل إلى الحجز عندما تكون جاهزاً."
-                description="صفحة التفاصيل أصبحت جزءاً من نفس نظام dir3com العام، مع مكونات قابلة لإعادة الاستخدام وقابلة للتوسع مستقبلاً."
-              />
-            </CtaBlock>
-          </ContentContainer>
-        </SectionContainer>
+        <PublicCtaBanner
+          title="استكشف الخدمة ثم انتقل إلى الحجز عندما تكون جاهزاً."
+          description="صفحة التفاصيل أصبحت جزءاً من نفس نظام dir3com العام، مع مكونات قابلة لإعادة الاستخدام وقابلة للتوسع مستقبلاً."
+        />
       </div>
     </div>
   );
