@@ -47,14 +47,14 @@ export default function UtilityBar() {
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 text-xs sm:px-6 lg:px-8">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2 font-medium text-white/85">
-              <FiCloud className="ml-2 inline-block" /> الرياض 36°
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 font-medium text-white/85">
+              <FiCloud /> الرياض 36°
             </span>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2 font-medium text-white/85">
               1 USD = 3.75 SAR
             </span>
             <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-2 font-medium text-white/85">
-              <FiGlobe className="ml-2" /> AR / EN
+              <FiGlobe className="me-1" /> AR / EN
             </span>
           </div>
 
@@ -62,7 +62,7 @@ export default function UtilityBar() {
             <span className="rounded-full border border-[var(--color-gold)]/35 bg-[var(--color-gold)]/12 px-3 py-2 text-[var(--color-light)]">
               رحلتكم محمية بضمان الدرع.
             </span>
-            <a href="tel:0532867009" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 transition hover:border-[var(--color-gold)]/40 hover:text-[var(--color-gold)]">
+            <a href="tel:0532867009" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 transition hover:border-[var(--color-gold)]/40 hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
               <FiPhoneCall /> 0532867009
             </a>
             <Button
@@ -94,7 +94,7 @@ export default function UtilityBar() {
                 aria-label={label}
                 className={cn(
                   'inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 transition',
-                  'hover:-translate-y-0.5 hover:border-[var(--color-gold)]/50 hover:text-[var(--color-gold)]'
+                  'hover:-translate-y-0.5 hover:border-[var(--color-gold)]/50 hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45'
                 )}
               >
                 <Icon size={14} />

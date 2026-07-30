@@ -53,12 +53,12 @@ export default function Footer() {
               الدبرة — مستشارك الشخصي في dir3com
             </div>
             <div className="mt-6 flex flex-wrap gap-3 text-sm">
-              <Link href="https://dir3com.com" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)]">
+              <a href="https://dir3com.com" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
                 dir3com.com <FiArrowUpLeft />
-              </Link>
-              <Link href="https://dir3com.net" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)]">
+              </a>
+              <a href="https://dir3com.net" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
                 dir3com.net <FiArrowUpLeft />
-              </Link>
+              </a>
             </div>
           </div>
 
@@ -67,7 +67,7 @@ export default function Footer() {
               <h3 className="text-lg font-semibold">{collection.title}</h3>
               <div className="mt-5 grid gap-3 text-sm text-[var(--color-light)]/75">
                 {collection.links.map((item) => (
-                  <Link key={item.href} href={item.href} className="transition hover:text-[var(--color-gold)]">
+                  <Link key={item.href} href={item.href} className="rounded-md transition hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
                     {item.label}
                   </Link>
                 ))}
@@ -79,15 +79,15 @@ export default function Footer() {
             <h3 className="text-lg font-semibold">تواصل وتنزيل</h3>
             <div className="mt-5 flex items-center gap-2 text-sm text-[var(--color-light)]/75">
               <FiPhoneCall />
-              <a href="tel:0532867009" className="transition hover:text-[var(--color-gold)]">
+              <a href="tel:0532867009" className="rounded-md transition hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
                 0532867009
               </a>
             </div>
-            <div className="mt-4 grid gap-3">
-              <button type="button" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)]">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 sm:gap-2 lg:grid-cols-1 lg:gap-3">
+              <button type="button" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
                 <FiDownload /> App Store
               </button>
-              <button type="button" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)]">
+              <button type="button" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
                 <FiSmartphone /> Google Play
               </button>
             </div>
@@ -99,7 +99,7 @@ export default function Footer() {
                   target="_blank"
                   rel="noreferrer"
                   aria-label={label}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)]"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45"
                 >
                   <Icon size={15} />
                 </Link>

@@ -27,7 +27,7 @@ export default function PublicHero({ eyebrow, title, description, highlight, chi
               ابدأ رحلتك
               <FiArrowLeft />
             </Link>
-            <a href="#dibrah" className={buttonVariants({ variant: 'outline', size: 'lg' })}>
+            <a href="#dibrah" className={`${buttonVariants({ variant: 'outline', size: 'lg' })} focus-visible:ring-[var(--color-gold)]/50`}>
               اسأل الدبرة
               <HiSparkles />
             </a>

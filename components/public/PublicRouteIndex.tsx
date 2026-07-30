@@ -17,7 +17,7 @@ export default function PublicRouteIndex() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="transition hover:-translate-y-0.5"
+                  className="rounded-full transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35"
                 >
                   <Chip className="px-4 py-2 text-sm font-medium transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)]">{link.label}</Chip>
                 </Link>

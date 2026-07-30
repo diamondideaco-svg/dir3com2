@@ -14,6 +14,26 @@ type ContactStatus = {
   message: string;
 };
 
+const contactStats = [
+  { label: 'الهاتف الرسمي', value: '0532867009' },
+  { label: 'زمن الاستجابة', value: '24h' },
+  { label: 'لغة التجربة', value: 'Arabic RTL' },
+];
+
+const subjectOptions = [
+  { value: '', label: 'اختر الموضوع' },
+  { value: 'booking', label: 'استفسار عن حجز' },
+  { value: 'service', label: 'استفسار عن خدمة' },
+  { value: 'partnership', label: 'طلب شراكة' },
+  { value: 'other', label: 'أخرى' },
+];
+
+const contactCards = [
+  { title: 'الهاتف', value: '0532867009', hint: 'متاح للرد والمتابعة', icon: FiPhoneCall },
+  { title: 'البريد', value: 'hello@dir3com.com', hint: 'تواصل منظم واستجابة واضحة', icon: FiMail },
+  { title: 'ضمان الدرع', value: 'الخدمة أولاً', hint: 'فلوسك محفوظة لين تقول: تم.', icon: FiCheckCircle },
+];
+
 export default function ContactPublicPage() {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,13 +78,7 @@ export default function ContactPublicPage() {
         highlight="الفريق حاضر، والواجهة واضحة، والدبرة يبقى عنصراً بصرياً فقط في هذه المرحلة."
         chips={['0532867009', 'dir3com.com', 'Response Ready']}
       />
-      <PublicStats
-        stats={[
-          { label: 'الهاتف الرسمي', value: '0532867009' },
-          { label: 'زمن الاستجابة', value: '24h' },
-          { label: 'لغة التجربة', value: 'Arabic RTL' },
-        ]}
-      />
+      <PublicStats stats={contactStats} />
 
       <SectionContainer className="py-8 lg:py-10">
         <ContentContainer className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
@@ -111,13 +125,7 @@ export default function ContactPublicPage() {
                     required
                     value={formData.subject}
                     onChange={(value) => setFormData((prev) => ({ ...prev, subject: value }))}
-                    options={[
-                      { value: '', label: 'اختر الموضوع' },
-                      { value: 'booking', label: 'استفسار عن حجز' },
-                      { value: 'service', label: 'استفسار عن خدمة' },
-                      { value: 'partnership', label: 'طلب شراكة' },
-                      { value: 'other', label: 'أخرى' },
-                    ]}
+                    options={subjectOptions}
                   />
                 </div>
 
@@ -139,11 +147,7 @@ export default function ContactPublicPage() {
           </Card>
 
           <div className="space-y-5">
-            {[
-              { title: 'الهاتف', value: '0532867009', hint: 'متاح للرد والمتابعة', icon: FiPhoneCall },
-              { title: 'البريد', value: 'hello@dir3com.com', hint: 'تواصل منظم واستجابة واضحة', icon: FiMail },
-              { title: 'ضمان الدرع', value: 'الخدمة أولاً', hint: 'فلوسك محفوظة لين تقول: تم.', icon: FiCheckCircle },
-            ].map(({ title, value, hint, icon: Icon }) => (
+            {contactCards.map(({ title, value, hint, icon: Icon }) => (
               <Card key={title} className="bg-white/84">
                 <CardContent className="flex items-center gap-4 p-6">
                   <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--color-surface)] text-[var(--color-gold)]">

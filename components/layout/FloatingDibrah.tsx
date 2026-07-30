@@ -11,7 +11,7 @@ export default function FloatingDibrah() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.45, ease: subtleEasing }}
       whileHover={{ y: -2 }}
-      className="fixed bottom-5 left-5 z-50 sm:bottom-8 sm:left-8"
+      className="fixed bottom-5 right-5 z-50 sm:bottom-8 sm:right-8"
     >
       <button
         type="button"

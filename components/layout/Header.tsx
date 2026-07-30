@@ -21,7 +21,7 @@ const navItems = [
 
 const actionLinks = [
   { label: 'البحث', href: '/services', icon: FiSearch },
-  { label: 'الدبرة', href: '#dibrah', icon: HiSparkles },
+  { label: 'الدبرة', href: '/#dibrah-section', icon: HiSparkles },
   { label: 'المفضلة', href: '/my-bookings', icon: FiHeart },
   { label: 'التنبيهات', href: '/my-account', icon: FiBell },
   { label: 'المستخدم', href: '/profile', icon: FiUser },
@@ -71,7 +71,7 @@ export default function Header() {
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-full px-4 py-2 text-sm font-medium text-[var(--color-navy)] transition hover:bg-[var(--color-surface)] hover:text-[var(--color-gold)]"
+              className="rounded-full px-4 py-2 text-sm font-medium text-[var(--color-navy)] transition hover:bg-[var(--color-surface)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
             >
               {item.label}
             </Link>
@@ -88,7 +88,7 @@ export default function Header() {
                 key={label}
                 href={href}
                 aria-label={label}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-white/70 text-[var(--color-navy)] transition hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)]"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-white/70 text-[var(--color-navy)] transition hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
               >
                 <Icon size={18} />
               </Link>
@@ -116,7 +116,7 @@ export default function Header() {
               ))}
             </nav>
 
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               {actionLinks.map(({ href, label, icon: Icon }) => (
                 <Link
                   key={label}
@@ -125,7 +125,7 @@ export default function Header() {
                   onClick={() => setMobileOpen(false)}
                   className={cn(
                     'inline-flex h-12 items-center justify-center rounded-2xl border border-[color:var(--color-border)] bg-white/75 text-[var(--color-navy)] transition',
-                    'hover:border-[var(--color-gold)] hover:text-[var(--color-gold)]'
+                    'hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40'
                   )}
                 >
                   <Icon size={18} />
