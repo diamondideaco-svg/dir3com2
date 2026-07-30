@@ -14,7 +14,7 @@ import TrustBar from '@/components/home/TrustBar';
 
 export default function PlatformFoundationHome() {
   return (
-    <div className="space-y-2 pb-24 sm:space-y-3 lg:space-y-4">
+    <div className="page-stack-shell">
       <HomeHero />
       <div className="luxury-section-shell">
         <TrustBar />

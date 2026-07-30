@@ -77,6 +77,25 @@ section {
   position: relative;
 }
 
+.page-stack-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 6rem;
+}
+
+@media (min-width: 640px) {
+  .page-stack-shell {
+    gap: 0.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-stack-shell {
+    gap: 1rem;
+  }
+}
+
 .luxury-section-shell::before {
   content: '';
   position: absolute;

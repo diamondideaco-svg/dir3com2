@@ -54,6 +54,7 @@ export default function Header() {
             onClick={() => setMobileOpen((prev) => !prev)}
             aria-label="فتح القائمة"
             aria-expanded={mobileOpen}
+            aria-controls="mobile-nav-panel"
           >
             {mobileOpen ? <FiX size={18} /> : <FiMenu size={18} />}
           </button>
@@ -66,7 +67,7 @@ export default function Header() {
           <Logo />
         </div>
 
-        <nav className="hidden items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-white/60 px-3 py-2 lg:flex">
+        <nav aria-label="التنقل الرئيسي" className="hidden items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-white/60 px-3 py-2 lg:flex">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -101,9 +102,9 @@ export default function Header() {
       </div>
 
       {mobileOpen && (
-        <div className="border-t border-[color:var(--color-border)] bg-[color:var(--color-shell)]/95 px-4 py-4 shadow-[0_22px_50px_rgba(13,27,42,0.15)] lg:hidden">
+        <div id="mobile-nav-panel" className="border-t border-[color:var(--color-border)] bg-[color:var(--color-shell)]/95 px-4 py-4 shadow-[0_22px_50px_rgba(13,27,42,0.15)] lg:hidden">
           <div className="mx-auto flex max-w-7xl flex-col gap-3">
-            <nav className="grid gap-2">
+            <nav aria-label="قائمة الجوال" className="grid gap-2">
               {navItems.map((item) => (
                 <Link
                   key={item.href}

@@ -8,7 +8,7 @@ import type { PublicCategoryConfig } from '@/components/public/public-page-data'
 
 export default function PublicCategoryPage({ config }: { config: PublicCategoryConfig }) {
   return (
-    <div className="space-y-2 pb-24 sm:space-y-3 lg:space-y-4">
+    <div className="page-stack-shell">
       <PublicHero
         eyebrow={config.eyebrow}
         title={config.title}

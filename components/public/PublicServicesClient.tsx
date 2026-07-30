@@ -13,7 +13,7 @@ import PublicStats from '@/components/public/PublicStats';
 
 export default function PublicServicesClient() {
   return (
-    <div className="space-y-2 pb-24 sm:space-y-3 lg:space-y-4">
+    <div className="page-stack-shell">
       <PublicHero
         eyebrow="ALL SERVICES"
         title="خدمات dir3com"

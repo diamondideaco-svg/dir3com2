@@ -160,7 +160,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="space-y-2 pb-24 sm:space-y-3 lg:space-y-4">
+    <div className="page-stack-shell">
       <SectionContainer className="pb-10 pt-8 lg:pt-12">
         <ContentContainer>
           <Link href="/services" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-gold)] transition hover:gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35">
