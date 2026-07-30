@@ -3,10 +3,32 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { FiArrowLeft, FiMapPin, FiShield } from 'react-icons/fi';
+import { FiArrowLeft, FiCheckCircle, FiMapPin, FiShield, FiStar } from 'react-icons/fi';
+import {
+  AppDownloadComponent,
+  Badge,
+  Chip,
+  ContentContainer,
+  CtaBlock,
+  EmptyState,
+  FaqComponent,
+  HeroBlock,
+  LoadingSkeletonGrid,
+  PartnerComponent,
+  PaymentComponent,
+  ResponsiveGrid,
+  ReviewComponent,
+  SectionContainer,
+  SectionDescription,
+  SectionSurface,
+  SectionTitle,
+  ServiceComponent,
+  ShieldGuaranteeComponent,
+  TrustComponent,
+  TrustPill,
+} from '@/components/design-system';
 import { buttonVariants } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { normalizeMarketplaceServices } from '@/lib/marketplace/data';
+import { marketplaceCatalogEntries, normalizeMarketplaceServices } from '@/lib/marketplace/data';
 import PublicCtaBanner from '@/components/public/PublicCtaBanner';
 import PublicRouteIndex from '@/components/public/PublicRouteIndex';
 
@@ -45,8 +67,31 @@ function unitLabel(unitType?: string | null) {
   return unitType || 'وحدة';
 }
 
+const fallbackInclusions = ['دعم ضيافة مخصص', 'تأكيد سريع وواضح', 'تجربة حجز محسنة للمستخدم الخليجي'];
+
+const trustItems = [
+  { title: 'شفافية التسعير', note: 'السعر واضح قبل إتمام أي خطوة، مع إبراز تفاصيل الوحدة والمورد.' },
+  { title: 'مراجعة قبل الدفع', note: 'يمكن مراجعة الخيارات بالتفصيل ضمن واجهة هادئة وسهلة القراءة.' },
+  { title: 'دعم موثوق', note: 'إذا صار شيء... حنا معك، وفق معايير dir3com المعتمدة.' },
+];
+
+const paymentMethods = ['mada', 'Visa', 'Mastercard', 'Apple Pay', 'Tabby', 'Tamara'];
+
+const staticReviews = [
+  { author: 'ضيف من الرياض', text: 'التجربة واضحة جداً والخيارات مرتبة، حسيت بثقة من أول خطوة.' },
+  { author: 'مسافر أعمال', text: 'واجهة أنيقة وسريعة، وسهلت علي اختيار الخدمة المناسبة بدون تعقيد.' },
+  { author: 'عائلة من جدة', text: 'عرض التفاصيل ممتاز، وكل المعلومات الأساسية كانت قدامي بشكل مريح.' },
+];
+
+const staticFaq = [
+  { question: 'هل الأسعار تشمل كل الرسوم؟', answer: 'الواجهة تعرض السعر الأساسي بوضوح، وتفاصيل كل منتج تظهر قبل الحجز.' },
+  { question: 'هل يمكن مقارنة أكثر من خيار؟', answer: 'نعم، صفحة الخدمة تعرض المنتجات ضمن بنية موحدة تساعدك على المقارنة سريعاً.' },
+  { question: 'هل هذا القسم مرتبط مباشرة بالنظام التشغيلي؟', answer: 'هذه الطبقة واجهة خدمة معتمدة وجاهزة للتكامل، دون تعديل على منطق الخلفية حالياً.' },
+];
+
 export default function PublicServiceDetailClient({ slug }: { slug: string }) {
   const [service, setService] = useState<ServiceDetail | null>(null);
+  const [activeImage, setActiveImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,7 +104,13 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
         }
 
         const data = (await response.json()) as ServiceDetail;
+        const initialImage =
+          data.products
+            ?.flatMap((product) => product.images ?? [])
+            .find((image) => Boolean(image?.image_url))?.image_url ?? null;
+
         setService(data);
+        setActiveImage(initialImage);
       } catch (fetchError) {
         setError(fetchError instanceof Error ? fetchError.message : 'تعذر تحميل الخدمة');
       } finally {
@@ -70,35 +121,53 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
     loadService();
   }, [slug]);
 
+  const marketplaceService = service ? normalizeMarketplaceServices([service], false)[0] : null;
+  const products = service?.products ?? [];
+  const galleryImages = products
+    .flatMap((product) => product.images?.map((image) => image.image_url).filter(Boolean) ?? [])
+    .filter((value): value is string => Boolean(value));
+  const mainImage = activeImage && galleryImages.includes(activeImage) ? activeImage : galleryImages[0] ?? null;
+  const features = marketplaceService?.tags?.length ? marketplaceService.tags : fallbackInclusions;
+  const relatedServices = marketplaceService
+    ? [
+        ...marketplaceCatalogEntries.filter(
+          (entry) => entry.family === marketplaceService.family && entry.category !== marketplaceService.category
+        ),
+        ...marketplaceCatalogEntries.filter((entry) => entry.category !== marketplaceService.category),
+      ].slice(0, 3)
+    : marketplaceCatalogEntries.slice(0, 3);
+
   if (loading) {
-    return <div className="px-4 py-20 text-center text-[var(--color-muted)]">جاري تحميل تفاصيل الخدمة...</div>;
+    return (
+      <SectionContainer className="py-16">
+        <ContentContainer>
+          <LoadingSkeletonGrid count={2} className="xl:grid-cols-2" />
+        </ContentContainer>
+      </SectionContainer>
+    );
   }
 
   if (error || !service) {
     return (
-      <div className="px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl rounded-[32px] border border-[color:var(--color-border)] bg-white/84 p-8 text-center shadow-[0_18px_40px_rgba(13,27,42,0.06)]">
-          <p className="text-sm font-medium tracking-[0.18em] text-[var(--color-gold)]">SERVICE DETAIL</p>
-          <h1 className="mt-4 text-3xl font-semibold text-[var(--color-navy)]">الخدمة غير متاحة حالياً</h1>
-          <p className="mt-4 text-base leading-8 text-[var(--color-muted)]">{error ?? 'تعذر العثور على الخدمة المطلوبة.'}</p>
+      <SectionContainer className="py-16">
+        <ContentContainer>
+          <EmptyState title="الخدمة غير متاحة حالياً" description={error ?? 'تعذر العثور على الخدمة المطلوبة.'} />
           <Link href="/services" className={`${buttonVariants({ variant: 'gold', size: 'lg' })} mt-6`}>
             العودة إلى الخدمات
           </Link>
-        </div>
-      </div>
+        </ContentContainer>
+      </SectionContainer>
     );
   }
 
-  const marketplaceService = normalizeMarketplaceServices([service], false)[0];
-
   return (
-    <div className="pb-24">
-      <section className="px-4 pb-10 pt-8 sm:px-6 lg:px-8 lg:pt-12">
-        <div className="mx-auto max-w-7xl">
+    <div className="space-y-2 pb-24 sm:space-y-3 lg:space-y-4">
+      <SectionContainer className="pb-10 pt-8 lg:pt-12">
+        <ContentContainer>
           <Link href="/services" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-gold)] transition hover:gap-3">
             <FiArrowLeft /> العودة إلى الخدمات
           </Link>
-          <div className="mt-5 grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
+          <div className="mt-5 grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-start">
             <div>
               <p className="text-sm font-medium tracking-[0.18em] text-[var(--color-gold)]">
                 {marketplaceService?.familyLabel ?? service.badge ?? 'SERVICE DETAIL'}
@@ -109,90 +178,265 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
               </p>
               {marketplaceService ? (
                 <div className="mt-5 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-[var(--color-surface)] px-4 py-2 text-sm font-medium text-[var(--color-navy)]">
+                  <Chip className="bg-[var(--color-surface)] px-4 text-sm font-medium text-[var(--color-navy)]">
                     {marketplaceService.categoryLabel}
-                  </span>
+                  </Chip>
                   {marketplaceService.tags.map((tag) => (
-                    <span key={tag} className="rounded-full border border-[color:var(--color-border)] bg-white/80 px-4 py-2 text-sm font-medium text-[var(--color-muted)]">
+                    <Chip key={tag} className="px-4 text-sm font-medium text-[var(--color-muted)]">
                       {tag}
-                    </span>
+                    </Chip>
                   ))}
                 </div>
               ) : null}
             </div>
-            <Card className="bg-[var(--color-navy)] text-[var(--color-light)]">
-              <CardContent className="p-6">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm text-[var(--color-gold)]">
+            <HeroBlock>
+              <div>
+                <Badge className="border-white/10 bg-white/8 text-sm">
                   <FiShield /> ضمان الدرع
-                </div>
+                </Badge>
                 <p className="mt-5 text-2xl font-semibold leading-[1.5]">الخدمة أول... والحساب بعد رضاك.</p>
                 {marketplaceService ? (
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-white/72">
                     <div className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3">
-                      Featured: {marketplaceService.featured ? 'نعم' : 'لا'}
+                      featured: {marketplaceService.featured ? 'نعم' : 'لا'}
                     </div>
                     <div className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3">
-                      Recommended: {marketplaceService.recommended ? 'نعم' : 'لا'}
+                      recommended: {marketplaceService.recommended ? 'نعم' : 'لا'}
                     </div>
                   </div>
                 ) : null}
                 <p className="mt-4 text-sm leading-8 text-white/72">
                   كل بطاقة منتج هنا جاهزة لعرض الأسعار والموردين والصور ضمن نفس هيكلية dir3com دون أي تعديل على الخلفية التشغيلية.
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </HeroBlock>
           </div>
-        </div>
-      </section>
+        </ContentContainer>
+      </SectionContainer>
 
-      <section className="px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {service.products?.length ? (
-            service.products.map((product) => {
-              const primaryImage = product.images?.find((image) => image.is_primary)?.image_url ?? product.images?.[0]?.image_url ?? null;
+      <div className="luxury-section-shell">
+        <SectionContainer className="py-8">
+          <ContentContainer>
+            <SectionTitle>معرض الخدمة</SectionTitle>
+            <SectionDescription>صور مختارة لعرض التجربة بأسلوب راقٍ ومرتب.</SectionDescription>
 
-              return (
-                <Card key={product.id} className="overflow-hidden bg-white/84">
-                  {primaryImage ? (
-                    <div className="relative h-56 w-full overflow-hidden">
-                      <Image src={primaryImage} alt={product.name_ar ?? 'منتج'} fill className="object-cover" unoptimized />
-                    </div>
+            <div className="mt-6 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+              <SectionSurface className="overflow-hidden p-0">
+                {mainImage ? (
+                  <div className="relative h-[320px] w-full sm:h-[420px]">
+                    <Image src={mainImage} alt={service.name_ar ?? 'خدمة dir3com'} fill className="object-cover" unoptimized />
+                  </div>
+                ) : (
+                  <div className="flex h-[320px] items-center justify-center bg-[var(--color-surface)] text-sm text-[var(--color-muted)] sm:h-[420px]">
+                    لا توجد صورة حالياً
+                  </div>
+                )}
+              </SectionSurface>
+
+              <SectionSurface className="p-4 sm:p-5">
+                <div className="grid grid-cols-2 gap-3">
+                  {galleryImages.length ? (
+                    galleryImages.slice(0, 6).map((image, index) => (
+                      <button
+                        key={`${image}-${index}`}
+                        type="button"
+                        onClick={() => setActiveImage(image)}
+                        className={`relative h-28 overflow-hidden rounded-[18px] border transition sm:h-32 ${mainImage === image ? 'border-[var(--color-gold)]' : 'border-[color:var(--color-border)]'}`}
+                      >
+                        <Image src={image} alt={`صورة ${index + 1}`} fill className="object-cover" unoptimized />
+                      </button>
+                    ))
                   ) : (
-                    <div className="flex h-56 items-center justify-center bg-[var(--color-surface)] text-sm text-[var(--color-muted)]">لا توجد صورة حالياً</div>
+                    <EmptyState title="لا توجد صور متاحة" description="سيظهر معرض الصور فور توفر صور المنتجات." className="col-span-2" />
                   )}
-                  <CardHeader>
-                    <CardTitle>{product.name_ar ?? 'منتج dir3com'}</CardTitle>
-                    <p className="text-sm text-[var(--color-muted)]">{product.partner?.name_ar ? `الشريك: ${product.partner.name_ar}` : 'شريك معتمد من dir3com'}</p>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm leading-8 text-[var(--color-muted)]">{product.description_ar ?? 'وصف الخدمة سيظهر هنا عند توفر البيانات.'}</p>
-                    <div className="mt-5 flex items-center justify-between gap-3 text-sm text-[var(--color-muted)]">
+                </div>
+              </SectionSurface>
+            </div>
+          </ContentContainer>
+        </SectionContainer>
+      </div>
+
+      <div className="luxury-section-shell">
+        <SectionContainer>
+          <ContentContainer>
+            <ResponsiveGrid>
+              <ServiceComponent
+                title="نظرة عامة على الخدمة"
+                description={service.description_ar ?? 'تفاصيل الخدمة ستظهر هنا مع نفس اللغة البصرية المعتمدة في المنصة العامة.'}
+              />
+              <ServiceComponent
+                title="المزايا والتضمينات"
+                description="تجربة تشغيلية مصممة لتكون واضحة، أنيقة، وقابلة للتوسع عبر جميع واجهات dir3com." 
+              />
+              <SectionSurface>
+                <p className="text-base font-semibold text-[var(--color-navy)]">أهم المميزات</p>
+                <div className="mt-4 space-y-2">
+                  {features.map((feature) => (
+                    <p key={feature} className="inline-flex items-center gap-2 text-sm text-[var(--color-muted)]">
+                      <FiCheckCircle className="text-[var(--color-gold)]" /> {feature}
+                    </p>
+                  ))}
+                </div>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {fallbackInclusions.map((item) => (
+                    <Chip key={item}>{item}</Chip>
+                  ))}
+                </div>
+              </SectionSurface>
+            </ResponsiveGrid>
+          </ContentContainer>
+        </SectionContainer>
+      </div>
+
+      <div className="luxury-section-shell">
+        <SectionContainer>
+          <ContentContainer>
+            <SectionSurface>
+              <SectionTitle>ضمان الدرع والثقة</SectionTitle>
+              <SectionDescription>الضمان الموثوق، الوضوح المالي، والالتزام بجودة التجربة.</SectionDescription>
+
+              <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                <ShieldGuaranteeComponent message="رحلتكم محمية بضمان الدرع." />
+                <TrustPill>
+                  إذا صار شيء... حنا معك.
+                </TrustPill>
+              </div>
+            </SectionSurface>
+
+            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {trustItems.map((item) => (
+                <TrustComponent key={item.title} title={item.title} note={item.note} />
+              ))}
+            </div>
+          </ContentContainer>
+        </SectionContainer>
+      </div>
+
+      <div className="luxury-section-shell">
+        <SectionContainer>
+          <ContentContainer>
+            <SectionTitle>آراء وتقييمات</SectionTitle>
+            <SectionDescription>انطباعات المستخدمين ضمن تجربة عرض راقية وموحدة.</SectionDescription>
+            <div className="mt-4 inline-flex items-center gap-2 text-[var(--color-gold)]">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <FiStar key={index} />
+              ))}
+              <span className="mr-2 text-sm font-semibold text-[var(--color-navy)]">4.9 / 5</span>
+            </div>
+            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {staticReviews.map((review) => (
+                <ReviewComponent key={review.author} author={review.author} text={review.text} />
+              ))}
+            </div>
+          </ContentContainer>
+        </SectionContainer>
+      </div>
+
+      <div className="luxury-section-shell">
+        <SectionContainer>
+          <ContentContainer>
+            <SectionTitle>الأسئلة الشائعة</SectionTitle>
+            <SectionDescription>إجابات مختصرة تساعدك على اتخاذ قرار أسرع بثقة أعلى.</SectionDescription>
+            <div className="mt-6 space-y-3">
+              {staticFaq.map((item) => (
+                <FaqComponent key={item.question} question={item.question} answer={item.answer} />
+              ))}
+            </div>
+          </ContentContainer>
+        </SectionContainer>
+      </div>
+
+      <div className="luxury-section-shell">
+        <SectionContainer>
+          <ContentContainer>
+            <SectionSurface>
+              <SectionTitle>طرق الدفع والضمان</SectionTitle>
+              <SectionDescription>واجهات دفع محلية موثوقة مصممة للسوق الخليجي.</SectionDescription>
+              <div className="mt-5">
+                <PaymentComponent methods={paymentMethods} />
+              </div>
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <PartnerComponent name={products[0]?.partner?.name_ar ?? 'شريك dir3com معتمد'} detail="مراجعة الجودة تتم ضمن معايير dir3com المعتمدة." />
+                <AppDownloadComponent title="تابع الخدمة من التطبيق" note="واجهة جاهزة لإدارة الخدمات والحجوزات بسهولة من شاشة واحدة." />
+              </div>
+            </SectionSurface>
+          </ContentContainer>
+        </SectionContainer>
+      </div>
+
+      <div className="luxury-section-shell">
+        <SectionContainer>
+          <ContentContainer>
+            <SectionTitle>خدمات مشابهة</SectionTitle>
+            <SectionDescription>خيارات قريبة من نفس التجربة لتوسيع اختياراتك.</SectionDescription>
+            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {relatedServices.map((item) => (
+                <SectionSurface key={item.id}>
+                  <p className="text-sm font-semibold tracking-[0.18em] text-[var(--color-gold)]">{item.familyLabel}</p>
+                  <p className="mt-2 text-xl font-semibold text-[var(--color-navy)]">{item.title}</p>
+                  <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">{item.description}</p>
+                  <Link href={item.href} className={`${buttonVariants({ variant: 'gold', size: 'default' })} mt-5 w-full`}>
+                    استكشف الخدمة
+                  </Link>
+                </SectionSurface>
+              ))}
+            </div>
+          </ContentContainer>
+        </SectionContainer>
+      </div>
+
+      <div className="luxury-section-shell">
+        <SectionContainer className="py-8">
+          <ContentContainer>
+            {products.length ? (
+              <SectionTitle>خيارات الحجز المتاحة</SectionTitle>
+            ) : null}
+
+            {products.length ? (
+              <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {products.map((product) => (
+                  <SectionSurface key={product.id} className="overflow-hidden">
+                    <p className="text-lg font-semibold text-[var(--color-navy)]">{product.name_ar ?? 'منتج dir3com'}</p>
+                    <p className="mt-2 text-sm text-[var(--color-muted)]">
+                      {product.partner?.name_ar ? `الشريك: ${product.partner.name_ar}` : 'شريك معتمد من dir3com'}
+                    </p>
+                    <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">{product.description_ar ?? 'وصف الخدمة سيظهر هنا عند توفر البيانات.'}</p>
+                    <div className="mt-4 flex items-center justify-between gap-3 text-sm text-[var(--color-muted)]">
                       <span className="inline-flex items-center gap-2"><FiMapPin /> {product.region?.name_ar ?? 'السعودية'}</span>
                       <span className="text-xl font-semibold text-[var(--color-gold)]">
                         {product.price_per_unit ?? '--'} ر.س
                         <span className="mr-1 text-xs text-[var(--color-muted)]">/ {unitLabel(product.unit_type)}</span>
                       </span>
                     </div>
-                    <Link href={`/booking?product=${product.slug ?? ''}`} className={`${buttonVariants({ variant: 'gold', size: 'default' })} mt-6 w-full`}>
+                    <Link href={`/booking?product=${product.slug ?? ''}`} className={`${buttonVariants({ variant: 'gold', size: 'default' })} mt-5 w-full`}>
                       احجز الآن
                     </Link>
-                  </CardContent>
-                </Card>
-              );
-            })
-          ) : (
-            <Card className="md:col-span-2 xl:col-span-3 bg-white/84">
-              <CardContent className="p-8 text-center text-[var(--color-muted)]">لا توجد منتجات متاحة لهذه الخدمة حالياً.</CardContent>
-            </Card>
-          )}
-        </div>
-      </section>
+                  </SectionSurface>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="لا توجد منتجات متاحة حالياً" description="نحدّث القائمة باستمرار، راجع الخدمة لاحقاً لعرض الخيارات الجديدة." className="mt-6" />
+            )}
+          </ContentContainer>
+        </SectionContainer>
+      </div>
 
-      <PublicRouteIndex />
-      <PublicCtaBanner
-        title="استكشف الخدمة ثم انتقل إلى الحجز عندما تكون جاهزاً."
-        description="صفحة التفاصيل أصبحت جزءاً من نفس نظام dir3com العام، مع مكونات قابلة لإعادة الاستخدام وقابلة للتوسع مستقبلاً."
-      />
+      <div className="luxury-section-shell">
+        <PublicRouteIndex />
+      </div>
+
+      <div className="luxury-section-shell">
+        <SectionContainer>
+          <ContentContainer>
+            <CtaBlock>
+              <PublicCtaBanner
+                title="استكشف الخدمة ثم انتقل إلى الحجز عندما تكون جاهزاً."
+                description="صفحة التفاصيل أصبحت جزءاً من نفس نظام dir3com العام، مع مكونات قابلة لإعادة الاستخدام وقابلة للتوسع مستقبلاً."
+              />
+            </CtaBlock>
+          </ContentContainer>
+        </SectionContainer>
+      </div>
     </div>
   );
 }
