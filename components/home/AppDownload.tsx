@@ -5,6 +5,7 @@ import { FiBell, FiDownload, FiSmartphone } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
 import SectionHeading from '@/components/home/SectionHeading';
 import { appFeatures, qrMatrix } from '@/components/home/dir3-home-data';
+import { fadeUpItem, revealViewport, sectionStagger, subtleEasing } from '@/components/shared/motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -12,9 +13,9 @@ export default function AppDownload() {
   return (
     <section className="px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
-          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.25 }} transition={{ duration: 0.5 }}>
-            <Card className="overflow-hidden bg-[var(--color-navy)] text-[var(--color-light)]">
+        <motion.div variants={sectionStagger} initial="hidden" whileInView="visible" viewport={revealViewport} className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+          <motion.div variants={fadeUpItem} whileHover={{ y: -3, transition: { duration: 0.22, ease: subtleEasing } }}>
+            <Card className="overflow-hidden border-[var(--color-gold)]/20 bg-[var(--color-navy)] text-[var(--color-light)] shadow-[0_30px_70px_rgba(13,27,42,0.22)]">
               <CardContent className="p-6 sm:p-8">
                 <div className="mx-auto w-full max-w-[320px] rounded-[36px] border border-white/10 bg-[linear-gradient(180deg,#102334_0%,#09131d_100%)] p-4 shadow-[0_20px_45px_rgba(0,0,0,0.35)]">
                   <div className="rounded-[28px] bg-[linear-gradient(180deg,rgba(212,175,55,0.18)_0%,rgba(255,255,255,0.04)_100%)] p-5">
@@ -55,7 +56,7 @@ export default function AppDownload() {
             </Card>
           </motion.div>
 
-          <div>
+          <motion.div variants={fadeUpItem}>
             <SectionHeading
               eyebrow="APP DOWNLOAD"
               title="حمّل تطبيق dir3com حين يصبح جاهزاً، والواجهة مستعدة من الآن."
@@ -64,28 +65,28 @@ export default function AppDownload() {
 
             <div className="mt-6 grid gap-3">
               {appFeatures.map((feature) => (
-                <div key={feature} className="rounded-[24px] border border-[color:var(--color-border)] bg-white/76 px-4 py-4 text-base font-medium text-[var(--color-navy)] shadow-[0_16px_35px_rgba(13,27,42,0.06)]">
+                <div key={feature} className="rounded-[24px] border border-[color:var(--color-border)] bg-white/78 px-4 py-4 text-base font-medium text-[var(--color-navy)] shadow-[0_16px_35px_rgba(13,27,42,0.06)]">
                   {feature}
                 </div>
               ))}
             </div>
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Button variant="gold" size="lg">
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <Button variant="gold" size="lg" className="min-h-12">
                 <FiDownload />
                 App Store
               </Button>
-              <Button variant="outline" size="lg">
+              <Button variant="outline" size="lg" className="min-h-12">
                 <FiSmartphone />
                 Google Play
               </Button>
-              <Button variant="outline" size="lg">
+              <Button variant="outline" size="lg" className="min-h-12">
                 <FiBell />
                 نبّهني عند الإطلاق
               </Button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
     </section>
   );

@@ -34,12 +34,14 @@ export default function PartnersShowcase() {
           description="مساحة شراكات مرنة لعرض الجهات الموثوقة وتفاصيل التغطية والمدن ومستوى Shield readiness داخل الهوية نفسها."
         />
 
-        <motion.div variants={softScaleItem} initial="hidden" whileInView="visible" viewport={revealViewport} className="mt-8 overflow-hidden rounded-[36px] border border-[color:var(--color-border)] bg-[linear-gradient(160deg,rgba(255,255,255,0.82)_0%,rgba(248,244,236,0.74)_100%)] p-4 shadow-[0_22px_50px_rgba(13,27,42,0.08)] sm:p-6">
+        <motion.div variants={softScaleItem} initial="hidden" whileInView="visible" viewport={revealViewport} className="mt-8 overflow-hidden rounded-[36px] border border-[color:var(--color-border)] bg-[linear-gradient(160deg,rgba(255,255,255,0.86)_0%,rgba(248,244,236,0.76)_100%)] p-4 shadow-[0_24px_54px_rgba(13,27,42,0.1)] sm:p-6">
           <div
             className="group relative overflow-hidden rounded-[28px] border border-[var(--color-gold)]/18 bg-[var(--color-navy)]/2 py-4"
             onMouseEnter={() => controls.stop()}
             onMouseLeave={startMarquee}
           >
+            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-[linear-gradient(90deg,rgba(248,244,236,0.92)_0%,transparent_100%)]" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-[linear-gradient(270deg,rgba(248,244,236,0.92)_0%,transparent_100%)]" />
             <motion.div
               className="flex w-max gap-4 sm:gap-5"
               animate={controls}

@@ -44,6 +44,8 @@ body {
   font-family: var(--font-arabic), sans-serif;
   line-height: 1.7;
   overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 html[data-theme='dark'] body {
@@ -56,6 +58,26 @@ html[data-theme='dark'] body {
 
 section {
   scroll-margin-top: 6rem;
+}
+
+.luxury-section-shell {
+  position: relative;
+}
+
+.luxury-section-shell::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: min(1120px, calc(100% - 2rem));
+  height: 1px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent 0%, rgba(13, 27, 42, 0.14) 20%, rgba(212, 175, 55, 0.34) 50%, rgba(13, 27, 42, 0.14) 80%, transparent 100%);
+  opacity: 0.45;
+}
+
+html[data-theme='dark'] .luxury-section-shell::before {
+  background: linear-gradient(90deg, transparent 0%, rgba(244, 241, 232, 0.12) 20%, rgba(212, 175, 55, 0.4) 50%, rgba(244, 241, 232, 0.12) 80%, transparent 100%);
 }
 
 a {
@@ -101,5 +123,11 @@ button {
 
   .animate-fade-up {
     animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .luxury-section-shell::before {
+    width: calc(100% - 1.2rem);
   }
 }

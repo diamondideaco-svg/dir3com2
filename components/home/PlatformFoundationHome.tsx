@@ -14,18 +14,38 @@ import TrustBar from '@/components/home/TrustBar';
 
 export default function PlatformFoundationHome() {
   return (
-    <div className="pb-24">
+    <div className="space-y-2 pb-24 sm:space-y-3 lg:space-y-4">
       <HomeHero />
-      <TrustBar />
-      <SmartSearch />
-      <ShieldOffers />
-      <DynamicServices />
-      <PartnersShowcase />
-      <TravelTips />
-      <ArticlesGrid />
-      <PaymentMethodsSection />
-      <HomeCta />
-      <AppDownload />
+      <div className="luxury-section-shell">
+        <TrustBar />
+      </div>
+      <div className="luxury-section-shell">
+        <SmartSearch />
+      </div>
+      <div className="luxury-section-shell">
+        <ShieldOffers />
+      </div>
+      <div className="luxury-section-shell">
+        <DynamicServices />
+      </div>
+      <div className="luxury-section-shell">
+        <PartnersShowcase />
+      </div>
+      <div className="luxury-section-shell">
+        <TravelTips />
+      </div>
+      <div className="luxury-section-shell">
+        <ArticlesGrid />
+      </div>
+      <div className="luxury-section-shell">
+        <PaymentMethodsSection />
+      </div>
+      <div className="luxury-section-shell">
+        <HomeCta />
+      </div>
+      <div className="luxury-section-shell">
+        <AppDownload />
+      </div>
     </div>
   );
 }

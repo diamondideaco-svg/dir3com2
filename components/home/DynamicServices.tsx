@@ -42,7 +42,7 @@ export default function DynamicServices({ title, description, category }: Dynami
               transition={{ delay: index * 0.05 }}
               whileHover={{ y: -7, transition: { duration: 0.24, ease: subtleEasing } }}
             >
-              <Card id={service.id} className="group h-full overflow-hidden border-[var(--color-gold)]/20 bg-white/88 shadow-[0_20px_48px_rgba(13,27,42,0.1)]">
+              <Card id={service.id} className="group h-full overflow-hidden border-[var(--color-gold)]/20 bg-white/88 shadow-[0_20px_48px_rgba(13,27,42,0.1)] transition duration-300 hover:shadow-[0_30px_62px_rgba(13,27,42,0.16)]">
                 <CardHeader className="pb-4">
                   <div className="relative -mx-6 -mt-6 mb-4 overflow-hidden rounded-b-[28px] border-b border-[var(--color-gold)]/15">
                     <div className="absolute inset-0 bg-[linear-gradient(155deg,rgba(13,27,42,0.88)_0%,rgba(20,39,57,0.58)_55%,rgba(212,175,55,0.45)_125%)]" />
@@ -54,7 +54,7 @@ export default function DynamicServices({ title, description, category }: Dynami
                         {service.metric}
                       </span>
                     </div>
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-9 bg-[linear-gradient(180deg,transparent_0%,rgba(13,27,42,0.45)_100%)]" />
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-9 bg-[linear-gradient(180deg,transparent_0%,rgba(13,27,42,0.52)_100%)]" />
                   </div>
                   <CardTitle className="mt-2 text-[1.35rem] leading-8 sm:leading-9">{service.title}</CardTitle>
                 </CardHeader>
