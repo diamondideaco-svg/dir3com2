@@ -1,6 +1,7 @@
 // src/app/api/reviews/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { logServerError } from '@/lib/security/safe-logger';
 
 export async function POST(request: Request) {
     try {
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
             .single();
 
         if (insertError) {
-            console.error('❌ Insert review error:', insertError);
+            logServerError('api.reviews.insert_failed', insertError);
             return NextResponse.json({ error: 'فشل حفظ التقييم: ' + insertError.message }, { status: 500 });
         }
 
@@ -113,7 +114,7 @@ export async function POST(request: Request) {
                 .eq('id', booking_id);
 
             if (updateError) {
-                console.error('❌ Update discount error:', updateError);
+                logServerError('api.reviews.discount_update_failed', updateError);
                 // لا نوقف العملية، نكتفي بتسجيل الخطأ
             }
         }
@@ -128,7 +129,7 @@ export async function POST(request: Request) {
         });
 
     } catch (error) {
-        console.error('❌ API error:', error);
+        logServerError('api.reviews.unexpected_error', error);
         return NextResponse.json({ error: 'خطأ داخلي في الخادم' }, { status: 500 });
     }
 }

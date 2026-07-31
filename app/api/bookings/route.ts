@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
 import { sanitizeMessage, sanitizeNumber, sanitizeText } from '@/lib/security/validation';
+import { logServerError } from '@/lib/security/safe-logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -88,13 +89,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Supabase booking insert error:', error);
+      logServerError('api.bookings.insert_failed', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ data, message: 'تم إنشاء الحجز بنجاح' }, { status: 200 });
   } catch (error) {
-    console.error('Booking API error:', error);
+    logServerError('api.bookings.unexpected_error', error);
     return NextResponse.json({ error: 'حدث خطأ في الخادم أثناء معالجة الحجز' }, { status: 500 });
   }
 }

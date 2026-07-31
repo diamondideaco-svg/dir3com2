@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeMessage, sanitizeText } from '@/lib/security/validation';
+import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,7 +9,7 @@ export async function POST(request: NextRequest) {
 
     const sanitizedName = sanitizeText(name, '');
     const sanitizedEmail = sanitizeText(email, '');
-    const sanitizedPhone = sanitizeText(phone, '');
+    sanitizeText(phone, '');
     const sanitizedSubject = sanitizeText(subject, '');
     const sanitizedMessage = sanitizeMessage(message, '');
 
@@ -26,13 +27,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Received:', { name: sanitizedName, email: sanitizedEmail, phone: sanitizedPhone, subject: sanitizedSubject, message: sanitizedMessage });
+    logServerEvent('api.contact.request_received');
 
     return NextResponse.json(
       { message: 'تم إرسال الرسالة بنجاح' },
       { status: 200 }
     );
-  } catch {
+  } catch (error) {
+    logServerError('api.contact.request_failed', error);
     return NextResponse.json(
       { error: 'حدث خطأ في الخادم' },
       { status: 500 }

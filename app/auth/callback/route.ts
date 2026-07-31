@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getPostLoginDestination } from '@/lib/auth/redirect';
+import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 
 export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url);
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
             flowId ? { flowId } : undefined,
         );
         if (error) {
-            console.error('❌ Exchange error:', error);
+            logServerError('auth.callback.exchange_failed', error);
             return NextResponse.redirect(`${origin}/login?error=${error.message}`);
         }
 
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
                     role: 'customer',
                     phone: '', // فارغ – سيُطلب من المستخدم إدخاله لاحقاً
                 });
-                console.log('✅ New user created in users table:', data.user.email);
+                logServerEvent('auth.callback.user_created');
             } else {
                 // تحديث البريد الإلكتروني والاسم (في حالة تغيره)
                 await supabase
@@ -53,13 +54,13 @@ export async function GET(request: Request) {
                         full_name_ar: data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || '',
                     })
                     .eq('id', data.user.id);
-                console.log('✅ User updated in users table:', data.user.email);
+                logServerEvent('auth.callback.user_updated');
             }
         }
 
         return NextResponse.redirect(`${origin}${next}`);
     } catch (err) {
-        console.error('❌ Unexpected error:', err);
+        logServerError('auth.callback.unexpected_error', err);
         return NextResponse.redirect(`${origin}/login?error=server_error`);
     }
 }
