@@ -16,11 +16,12 @@ export default function SignInPage() {
 function SignInRedirect() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect');
+  const redirectTo = searchParams.get('redirect') ?? searchParams.get('next');
 
   useEffect(() => {
     const destination = getPostLoginDestination(redirectTo, window.location.origin);
-    const target = `/login?redirect=${encodeURIComponent(destination)}`;
+    const encoded = encodeURIComponent(destination);
+    const target = `/login?redirect=${encoded}&next=${encoded}`;
     router.replace(target);
   }, [redirectTo, router]);
 

@@ -6,7 +6,8 @@ import { getPostLoginDestination } from '@/lib/auth/redirect';
 export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
-    const next = getPostLoginDestination(searchParams.get('next'), origin);
+    const requestedDestination = searchParams.get('redirect') ?? searchParams.get('next');
+    const next = getPostLoginDestination(requestedDestination, origin);
     const flowId = searchParams.get('sb_flow_id');
 
     if (!code) {

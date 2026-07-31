@@ -22,8 +22,9 @@ function LoginContent() {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const requestedDestination = searchParams.get('redirect') ?? searchParams.get('next');
     const redirectTo = getPostLoginDestination(
-        searchParams.get('redirect'),
+        requestedDestination,
         typeof window === 'undefined' ? undefined : window.location.origin,
     );
 
@@ -56,10 +57,14 @@ function LoginContent() {
         setLoading(true);
         setError(null);
 
+        const callbackParams = new URLSearchParams();
+        callbackParams.set('redirect', redirectTo);
+        callbackParams.set('next', redirectTo);
+
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+                redirectTo: `${window.location.origin}/auth/callback?${callbackParams.toString()}`,
                 skipBrowserRedirect: true,
             },
         });

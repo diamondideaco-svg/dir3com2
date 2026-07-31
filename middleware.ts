@@ -2,17 +2,28 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const PUBLIC_PATHS = ['/', '/about', '/contact', '/services', '/services/', '/login', '/register', '/auth/signin', '/auth/callback'];
+const PUBLIC_CATEGORY_PATHS = ['/cars', '/hotels', '/experiences', '/concierge', '/offers', '/apartments', '/airport-transfers'];
 const ADMIN_PREFIX = '/admin';
 const PROTECTED_PREFIXES = ['/my-account', '/my-bookings', '/my-documents', '/my-profile', '/my-wallet'];
 
 function isPublicPath(pathname: string) {
   if (pathname === '/') return true;
   if (pathname.startsWith('/_next') || pathname.startsWith('/api/')) return true;
-  return PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/services/');
+
+  if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/services/')) {
+    return true;
+  }
+
+  return PUBLIC_CATEGORY_PATHS.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 
 function hasSupabaseSessionCookie(request: NextRequest) {
   return request.cookies.getAll().some((cookie) => cookie.name.includes('auth-token') || cookie.name.startsWith('sb-'));
+}
+
+function getDestinationPath(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+  return `${pathname}${search}`;
 }
 
 export function middleware(request: NextRequest) {
@@ -27,8 +38,10 @@ export function middleware(request: NextRequest) {
   const hasSession = hasSupabaseSessionCookie(request);
 
   if (!hasSession) {
+    const destination = getDestinationPath(request);
     const redirectUrl = new URL('/login', request.url);
-    redirectUrl.searchParams.set('next', pathname);
+    redirectUrl.searchParams.set('redirect', destination);
+    redirectUrl.searchParams.set('next', destination);
     return NextResponse.redirect(redirectUrl);
   }
 
@@ -36,8 +49,10 @@ export function middleware(request: NextRequest) {
     const roleCookie = request.cookies.get('role');
     const isAdminRole = roleCookie?.value === 'admin' || roleCookie?.value === 'super_admin';
     if (!isAdminRole) {
+      const destination = getDestinationPath(request);
       const redirectUrl = new URL('/login', request.url);
-      redirectUrl.searchParams.set('next', pathname);
+      redirectUrl.searchParams.set('redirect', destination);
+      redirectUrl.searchParams.set('next', destination);
       return NextResponse.redirect(redirectUrl);
     }
   }
