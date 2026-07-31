@@ -10,14 +10,14 @@ async function getPartners() {
 
   if (error) {
     console.error(error);
-    return [] as PartnerRecord[];
+    return { partners: [] as PartnerRecord[], error: 'تعذر تحميل قائمة الشركاء حالياً.' };
   }
 
-  return (data || []) as PartnerRecord[];
+  return { partners: (data || []) as PartnerRecord[], error: null };
 }
 
 export default async function AdminPartnersPage() {
-  const partners = await getPartners();
+  const { partners, error } = await getPartners();
 
   return (
     <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white" dir="rtl">
@@ -29,6 +29,11 @@ export default async function AdminPartnersPage() {
           </div>
           <Link href="/admin" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة إلى لوحة التحكم</Link>
         </div>
+
+        {error ? (
+          <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div>
+        ) : null}
+
         <PartnerTable partners={partners} />
       </div>
     </div>

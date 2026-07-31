@@ -27,18 +27,24 @@ export default function PartnerTable({ partners }: PartnerTableProps) {
             </tr>
           </thead>
           <tbody>
-            {partners.map((partner) => (
-              <tr key={partner.id} className="border-t border-white/10 text-sm text-slate-300">
-                <td className="px-5 py-4">{partner.company_name}</td>
-                <td className="px-5 py-4">{partner.contact_person}</td>
-                <td className="px-5 py-4">{partner.email}</td>
-                <td className="px-5 py-4"><PartnerStatusBadge status={partner.status} /></td>
-                <td className="px-5 py-4"><ShieldLevelBadge level={partner.shield_level} /></td>
-                <td className="px-5 py-4">
-                  <Link href={`/admin/partners/${partner.id}`} className="text-[#D4AF37] hover:underline">تفاصيل</Link>
-                </td>
+            {partners.length === 0 ? (
+              <tr className="border-t border-white/10 text-sm text-slate-300">
+                <td colSpan={6} className="px-5 py-8 text-center text-slate-400">لا توجد سجلات شركاء حالياً.</td>
               </tr>
-            ))}
+            ) : (
+              partners.map((partner) => (
+                <tr key={partner.id} className="border-t border-white/10 text-sm text-slate-300">
+                  <td className="px-5 py-4">{partner.company_name}</td>
+                  <td className="px-5 py-4">{partner.contact_person}</td>
+                  <td className="px-5 py-4">{partner.email}</td>
+                  <td className="px-5 py-4"><PartnerStatusBadge status={partner.status} /></td>
+                  <td className="px-5 py-4"><ShieldLevelBadge level={partner.shield_level} /></td>
+                  <td className="px-5 py-4">
+                    <Link href={`/admin/partners/${partner.id}`} className="text-[#D4AF37] hover:underline">تفاصيل</Link>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

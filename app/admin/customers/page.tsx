@@ -4,14 +4,28 @@ import CustomerTable from '@/components/customers/CustomerTable';
 import CustomerForm from '@/components/customers/CustomerForm';
 import type { CustomerRecord } from '@/lib/supabase/types';
 
+const resultMessages: Record<string, string> = {
+  created: 'تم إنشاء العميل بنجاح.',
+  shield_updated: 'تم تحديث مستوى الدرع للعميل.',
+  deactivated: 'تم تعطيل العميل بنجاح.',
+};
+
 async function getCustomers() {
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
-  return (data || []) as CustomerRecord[];
+  const { data, error } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return { customers: [] as CustomerRecord[], error: 'تعذر تحميل بيانات العملاء حالياً.' };
+  }
+
+  return { customers: (data || []) as CustomerRecord[], error: null };
 }
 
-export default async function AdminCustomersPage() {
-  const customers = await getCustomers();
+export default async function AdminCustomersPage({ searchParams }: { searchParams: Promise<{ result?: string }> }) {
+  const { customers, error } = await getCustomers();
+  const params = await searchParams;
+  const resultMessage = params?.result ? resultMessages[params.result] : null;
 
   return (
     <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white" dir="rtl">
@@ -23,6 +37,14 @@ export default async function AdminCustomersPage() {
           </div>
           <Link href="/admin" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة</Link>
         </div>
+
+        {resultMessage ? (
+          <div className="mb-5 rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{resultMessage}</div>
+        ) : null}
+
+        {error ? (
+          <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div>
+        ) : null}
 
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <CustomerForm />

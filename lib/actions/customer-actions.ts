@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/auth/admin';
 
 export async function createCustomerAction(formData: FormData) {
@@ -14,6 +15,7 @@ export async function createCustomerAction(formData: FormData) {
 
   await supabase.from('customers').insert({ full_name: fullName, email, phone, country, city, shield_level: shieldLevel });
   revalidatePath('/admin/customers');
+  redirect('/admin/customers?result=created');
 }
 
 export async function updateCustomerAction(formData: FormData) {
@@ -57,6 +59,7 @@ export async function updateShieldLevelAction(formData: FormData) {
   await supabase.from('customers').update({ shield_level: shieldLevel }).eq('id', id);
   revalidatePath('/admin/customers');
   revalidatePath('/my-account');
+  redirect('/admin/customers?result=shield_updated');
 }
 
 export async function deactivateCustomerAction(formData: FormData) {
@@ -66,4 +69,5 @@ export async function deactivateCustomerAction(formData: FormData) {
 
   await supabase.from('customers').update({ status: 'inactive' }).eq('id', id);
   revalidatePath('/admin/customers');
+  redirect('/admin/customers?result=deactivated');
 }

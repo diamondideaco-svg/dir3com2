@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/auth/admin';
 import { sanitizeBoolean, sanitizeNumber, sanitizeText } from '@/lib/security/validation';
 
@@ -31,6 +32,7 @@ export async function createProductAction(formData: FormData) {
   });
 
   revalidatePath('/admin/products');
+  redirect('/admin/products?result=created');
 }
 
 export async function updateProductAction(formData: FormData) {
@@ -63,6 +65,7 @@ export async function deleteProductAction(formData: FormData) {
 
   await supabase.from('products').delete().eq('id', id);
   revalidatePath('/admin/products');
+  redirect('/admin/products?result=deleted');
 }
 
 export async function uploadImagesAction(formData: FormData) {
@@ -101,4 +104,5 @@ export async function publishProductAction(formData: FormData) {
 
   await supabase.from('products').update({ status: 'published', verified: true }).eq('id', id);
   revalidatePath('/admin/products');
+  redirect('/admin/products?result=published');
 }
