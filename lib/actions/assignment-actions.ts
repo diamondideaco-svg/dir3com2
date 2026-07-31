@@ -9,7 +9,7 @@ export async function confirmBookingAction(formData: FormData) {
   if (!bookingId) return;
 
   const { supabase } = await requireAdminActionAccess();
-  await supabase.from('bookings').update({ status: 'Confirmed' }).eq('id', bookingId);
+  await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', bookingId);
   await autoAssignBooking(supabase, bookingId, 'admin');
   revalidatePath('/admin/assignment');
 }
@@ -40,7 +40,7 @@ export async function rejectAssignmentAction(formData: FormData) {
 
   const { supabase } = await requireAdminActionAccess();
   await supabase.from('partner_assignments').update({ assignment_status: 'declined' }).eq('booking_id', bookingId);
-  await supabase.from('bookings').update({ status: 'Pending' }).eq('id', bookingId);
+  await supabase.from('bookings').update({ status: 'pending' }).eq('id', bookingId);
   revalidatePath('/admin/assignment');
 }
 

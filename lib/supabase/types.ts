@@ -74,11 +74,13 @@ export interface Destination {
 
 export interface Booking {
   id: string;
-  profile_id?: string | null;
+  user_id?: string | null;
   booking_reference: string;
   status: BookingStatus;
-  currency: string;
-  total_amount: number;
+  total_price?: number | null;
+  payment_status?: string | null;
+  currency?: string | null;
+  total_amount?: number | null;
   notes?: string | null;
   deleted_at?: string | null;
   created_at: string;
@@ -102,7 +104,6 @@ export interface BookingItem {
 
 export interface Review {
   id: string;
-  profile_id?: string | null;
   service_id?: string | null;
   booking_id?: string | null;
   rating: number;
@@ -175,19 +176,22 @@ export interface NotificationItem {
   updated_at: string;
 }
 
-export type BookingWorkflowStatus = 'Draft' | 'Pending' | 'Confirmed' | 'Assigned' | 'In Progress' | 'Completed' | 'Waiting Review' | 'Settlement Released' | 'Cancelled';
+export type BookingWorkflowStatus = BookingStatus;
 export type AssignmentStatus = 'assigned' | 'accepted' | 'declined';
 export type SettlementStatus = 'pending' | 'released' | 'failed';
 
 export interface BookingEngineRecord {
   id: string;
   booking_reference: string;
+  user_id?: string | null;
   customer_id?: string | null;
   service_id?: string | null;
   partner_id?: string | null;
   title?: string | null;
   status: BookingWorkflowStatus;
   total_amount?: number | null;
+  total_price?: number | null;
+  payment_status?: string | null;
   currency?: string | null;
   notes?: string | null;
   customer_name?: string | null;

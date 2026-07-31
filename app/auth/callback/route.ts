@@ -40,7 +40,7 @@ export async function GET(request: Request) {
                     id: data.user.id,
                     email: data.user.email,
                     full_name_ar: data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || '',
-                    role: 'client',
+                    role: 'customer',
                     phone: '', // فارغ – سيُطلب من المستخدم إدخاله لاحقاً
                 });
                 console.log('✅ New user created in users table:', data.user.email);
