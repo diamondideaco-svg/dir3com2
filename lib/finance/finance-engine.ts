@@ -74,6 +74,10 @@ export async function releaseFunds(supabase: SupabaseClient, walletId: string, a
 }
 
 export async function createSettlement(supabase: SupabaseClient, bookingId: string, partnerId: string, amount: number) {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { success: false, error: 'Settlement amount must be greater than zero' };
+  }
+
   const calculation = calculateSettlement(amount);
   const { data, error } = await supabase.from('partner_settlements').insert({
     booking_id: bookingId,

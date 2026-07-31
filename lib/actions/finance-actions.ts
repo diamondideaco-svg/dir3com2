@@ -3,6 +3,19 @@
 import { requireAdminActionAccess } from '@/lib/auth/admin';
 import { calculateSettlement, createInvoice, createSettlement, createWallet, creditWallet, debitWallet, holdFunds, releaseFunds } from '@/lib/finance/finance-engine';
 
+function resolveBookingSettlementAmount(booking: { total_amount?: number | string | null; total_price?: number | string | null } | null, fallbackAmount?: number) {
+  const amountFromTotal = Number(booking?.total_amount ?? Number.NaN);
+  if (Number.isFinite(amountFromTotal) && amountFromTotal > 0) return amountFromTotal;
+
+  const amountFromPrice = Number(booking?.total_price ?? Number.NaN);
+  if (Number.isFinite(amountFromPrice) && amountFromPrice > 0) return amountFromPrice;
+
+  const safeFallback = Number(fallbackAmount ?? Number.NaN);
+  if (Number.isFinite(safeFallback) && safeFallback > 0) return safeFallback;
+
+  return 0;
+}
+
 export async function createFinanceWallet(ownerId: string, ownerType: string, currency = 'SAR') {
   const { supabase } = await requireAdminActionAccess();
   return createWallet(supabase, ownerId, ownerType, currency);
@@ -28,9 +41,20 @@ export async function releaseWalletFunds(walletId: string, amount: number, refer
   return releaseFunds(supabase, walletId, amount, reference);
 }
 
-export async function createPartnerSettlement(bookingId: string, partnerId: string, amount: number) {
+export async function createPartnerSettlement(bookingId: string, partnerId: string, amount?: number) {
   const { supabase } = await requireAdminActionAccess();
-  return createSettlement(supabase, bookingId, partnerId, amount);
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select('id,total_amount,total_price')
+    .eq('id', bookingId)
+    .maybeSingle();
+
+  const settlementAmount = resolveBookingSettlementAmount(booking, amount);
+  if (settlementAmount <= 0) {
+    return { success: false, error: 'Booking amount is not available for settlement' };
+  }
+
+  return createSettlement(supabase, bookingId, partnerId, settlementAmount);
 }
 
 export async function createFinanceInvoice(ownerId: string, ownerType: string, invoiceType: string, totalAmount: number, currency = 'SAR') {
