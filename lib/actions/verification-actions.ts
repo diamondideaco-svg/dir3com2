@@ -1,7 +1,9 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/auth/admin';
-import { approveVerification, createVerificationRequest, expireVerification, rejectVerification, renewVerification, uploadDocument } from '@/lib/verification/verification-engine';
+import { applyVerificationDecision, approveVerification, createVerificationRequest, expireVerification, rejectVerification, renewVerification, uploadDocument, type VerificationDecision } from '@/lib/verification/verification-engine';
 
 export async function createVerification(input: {
   requestType: string;
@@ -64,4 +66,35 @@ export async function getVerificationOverview() {
     documents: documentsRes.data ?? [],
     reviews: reviewsRes.data ?? [],
   };
+}
+
+const decisionResultMap: Record<VerificationDecision, string> = {
+  approve: 'verification_approved',
+  reject: 'verification_rejected',
+  pending: 'verification_pending',
+};
+
+export async function submitVerificationDecisionAction(formData: FormData) {
+  const verificationRequestId = formData.get('verificationRequestId')?.toString();
+  const decision = formData.get('decision')?.toString() as VerificationDecision | undefined;
+  const notes = formData.get('notes')?.toString() || undefined;
+  const returnPath = formData.get('returnPath')?.toString() || '/admin/verification';
+
+  if (!verificationRequestId || !decision || !decisionResultMap[decision]) {
+    redirect(`${returnPath}?error=verification_invalid_decision`);
+  }
+
+  const { supabase, user } = await requireAdminActionAccess();
+  const result = await applyVerificationDecision(supabase, verificationRequestId, decision, user.id, notes);
+
+  revalidatePath('/admin/verification');
+  revalidatePath('/admin/verification/customers');
+  revalidatePath('/admin/verification/partners');
+  revalidatePath('/my-documents');
+
+  if (!result.success) {
+    redirect(`${returnPath}?error=verification_decision_failed`);
+  }
+
+  redirect(`${returnPath}?result=${decisionResultMap[decision]}`);
 }

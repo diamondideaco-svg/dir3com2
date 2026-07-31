@@ -6,7 +6,9 @@ export const metadata = {
   title: 'Verification Engine | DIR3COM',
 };
 
-export default function VerificationPage() {
+export default async function VerificationPage({ searchParams }: { searchParams: Promise<{ result?: string; error?: string }> }) {
+  const params = await searchParams;
+
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -21,7 +23,7 @@ export default function VerificationPage() {
           <VerificationDetails />
         </div>
 
-        <VerificationTable />
+        <VerificationTable returnPath="/admin/verification" result={params?.result} actionErrorCode={params?.error} />
       </div>
     </main>
   );
