@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { VERIFICATION_STATUSES, type CanonicalVerificationStatus } from '@/lib/verification/status';
 
 export type VerificationStatus = 'Pending' | 'Under Review' | 'Approved' | 'Rejected' | 'Expired' | 'Suspended';
 export type VerificationLevel = 'basic' | 'silver' | 'gold' | 'platinum';
@@ -32,6 +33,21 @@ export interface DocumentInput {
   verificationStatus?: VerificationStatus;
 }
 
+async function synchronizeRequestDocumentsStatus(
+  supabase: SupabaseClient,
+  verificationRequestId: string,
+  status: CanonicalVerificationStatus,
+  reviewNotes?: string
+) {
+  await supabase
+    .from('verification_documents')
+    .update({
+      verification_status: status,
+      review_notes: reviewNotes,
+    })
+    .eq('verification_request_id', verificationRequestId);
+}
+
 export function getVerificationLevel(score: number): VerificationLevel {
   if (score >= 90) return 'platinum';
   if (score >= 70) return 'gold';
@@ -47,7 +63,7 @@ export async function createVerificationRequest(supabase: SupabaseClient, input:
     request_type: input.requestType,
     owner_type: input.ownerType,
     owner_id: input.ownerId,
-    status: 'Pending',
+    status: VERIFICATION_STATUSES.PENDING,
     score,
     verification_level: verificationLevel,
     notes: input.notes,
@@ -58,20 +74,32 @@ export async function createVerificationRequest(supabase: SupabaseClient, input:
 }
 
 export async function approveVerification(supabase: SupabaseClient, verificationRequestId: string, reviewerId?: string, notes?: string) {
-  const { data, error } = await supabase.from('verification_requests').update({ status: 'Approved', updated_at: new Date().toISOString() }).eq('id', verificationRequestId).select().single();
+  const { data, error } = await supabase
+    .from('verification_requests')
+    .update({ status: VERIFICATION_STATUSES.APPROVED, updated_at: new Date().toISOString() })
+    .eq('id', verificationRequestId)
+    .select()
+    .single();
   if (error || !data) return { success: false, error: error?.message ?? 'Verification not found' };
 
-  await supabase.from('verification_reviews').insert({ verification_request_id: verificationRequestId, reviewer_id: reviewerId, decision: 'Approved', notes });
-  await supabase.from('verification_status_history').insert({ verification_request_id: verificationRequestId, status: 'Approved', changed_by: reviewerId, notes });
+  await supabase.from('verification_reviews').insert({ verification_request_id: verificationRequestId, reviewer_id: reviewerId, decision: VERIFICATION_STATUSES.APPROVED, notes });
+  await supabase.from('verification_status_history').insert({ verification_request_id: verificationRequestId, status: VERIFICATION_STATUSES.APPROVED, changed_by: reviewerId, notes });
+  await synchronizeRequestDocumentsStatus(supabase, verificationRequestId, VERIFICATION_STATUSES.APPROVED, notes);
   return { success: true, verificationRequest: data };
 }
 
 export async function rejectVerification(supabase: SupabaseClient, verificationRequestId: string, reviewerId?: string, notes?: string) {
-  const { data, error } = await supabase.from('verification_requests').update({ status: 'Rejected', updated_at: new Date().toISOString() }).eq('id', verificationRequestId).select().single();
+  const { data, error } = await supabase
+    .from('verification_requests')
+    .update({ status: VERIFICATION_STATUSES.REJECTED, updated_at: new Date().toISOString() })
+    .eq('id', verificationRequestId)
+    .select()
+    .single();
   if (error || !data) return { success: false, error: error?.message ?? 'Verification not found' };
 
-  await supabase.from('verification_reviews').insert({ verification_request_id: verificationRequestId, reviewer_id: reviewerId, decision: 'Rejected', notes });
-  await supabase.from('verification_status_history').insert({ verification_request_id: verificationRequestId, status: 'Rejected', changed_by: reviewerId, notes });
+  await supabase.from('verification_reviews').insert({ verification_request_id: verificationRequestId, reviewer_id: reviewerId, decision: VERIFICATION_STATUSES.REJECTED, notes });
+  await supabase.from('verification_status_history').insert({ verification_request_id: verificationRequestId, status: VERIFICATION_STATUSES.REJECTED, changed_by: reviewerId, notes });
+  await synchronizeRequestDocumentsStatus(supabase, verificationRequestId, VERIFICATION_STATUSES.REJECTED, notes);
   return { success: true, verificationRequest: data };
 }
 
@@ -84,7 +112,7 @@ export async function uploadDocument(supabase: SupabaseClient, input: DocumentIn
     file_url: input.fileUrl,
     issue_date: input.issueDate,
     expiry_date: input.expiryDate,
-    verification_status: input.verificationStatus ?? 'Pending',
+    verification_status: input.verificationStatus ?? VERIFICATION_STATUSES.PENDING,
     verified_by: input.verifiedBy,
     review_notes: input.reviewNotes,
   }).select().single();
@@ -94,14 +122,26 @@ export async function uploadDocument(supabase: SupabaseClient, input: DocumentIn
 }
 
 export async function renewVerification(supabase: SupabaseClient, requestId: string, expiryDate?: string) {
-  const { data, error } = await supabase.from('verification_requests').update({ status: 'Approved', updated_at: new Date().toISOString() }).eq('id', requestId).select().single();
+  const { data, error } = await supabase
+    .from('verification_requests')
+    .update({ status: VERIFICATION_STATUSES.APPROVED, updated_at: new Date().toISOString() })
+    .eq('id', requestId)
+    .select()
+    .single();
   if (error || !data) return { success: false, error: error?.message ?? 'Verification not found' };
   if (expiryDate) await supabase.from('verification_requests').update({ updated_at: new Date().toISOString() }).eq('id', requestId);
+  await synchronizeRequestDocumentsStatus(supabase, requestId, VERIFICATION_STATUSES.APPROVED);
   return { success: true, verificationRequest: data };
 }
 
 export async function expireVerification(supabase: SupabaseClient, requestId: string) {
-  const { data, error } = await supabase.from('verification_requests').update({ status: 'Expired', updated_at: new Date().toISOString() }).eq('id', requestId).select().single();
+  const { data, error } = await supabase
+    .from('verification_requests')
+    .update({ status: VERIFICATION_STATUSES.EXPIRED, updated_at: new Date().toISOString() })
+    .eq('id', requestId)
+    .select()
+    .single();
   if (error || !data) return { success: false, error: error?.message ?? 'Verification not found' };
+  await synchronizeRequestDocumentsStatus(supabase, requestId, VERIFICATION_STATUSES.EXPIRED);
   return { success: true, verificationRequest: data };
 }

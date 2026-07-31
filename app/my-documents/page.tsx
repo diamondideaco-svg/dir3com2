@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { normalizeVerificationStatus } from '@/lib/verification/status';
 
 type VerificationDocumentRow = {
   id: string;
   document_type: string;
   file_url: string | null;
   verification_status: string;
+  verification_request_id: string | null;
+  verification_requests?: { status?: string | null } | null;
   expiry_date: string | null;
   created_at: string;
 };
@@ -28,7 +31,7 @@ async function getDocs() {
 
   const { data } = await supabase
     .from('verification_documents')
-    .select('id, document_type, file_url, verification_status, expiry_date, created_at')
+    .select('id, document_type, file_url, verification_status, verification_request_id, expiry_date, created_at, verification_requests(status)')
     .eq('owner_type', 'customer')
     .eq('owner_id', user.id)
     .order('created_at', { ascending: false });
@@ -55,16 +58,20 @@ export default async function MyDocumentsPage() {
               لا توجد مستندات مرتبطة بحسابك حالياً.
             </div>
           ) : (
-            documents.map((document) => (
-              <div key={document.id} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-lg font-semibold text-white">{document.document_type}</p>
-                  <span className="rounded-full border border-[#D4AF37]/25 bg-[#D4AF37]/10 px-3 py-1 text-xs text-[#D4AF37]">{document.verification_status}</span>
+            documents.map((document) => {
+              const resolvedStatus = normalizeVerificationStatus(document.verification_requests?.status ?? document.verification_status);
+
+              return (
+                <div key={document.id} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-lg font-semibold text-white">{document.document_type}</p>
+                    <span className="rounded-full border border-[#D4AF37]/25 bg-[#D4AF37]/10 px-3 py-1 text-xs text-[#D4AF37]">{resolvedStatus}</span>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-300 break-all">{document.file_url || '—'}</p>
+                  <p className="mt-2 text-xs text-slate-400">تاريخ الانتهاء: {document.expiry_date ? new Date(document.expiry_date).toLocaleDateString('ar-SA') : 'غير محدد'}</p>
                 </div>
-                <p className="mt-2 text-sm text-slate-300 break-all">{document.file_url || '—'}</p>
-                <p className="mt-2 text-xs text-slate-400">تاريخ الانتهاء: {document.expiry_date ? new Date(document.expiry_date).toLocaleDateString('ar-SA') : 'غير محدد'}</p>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
