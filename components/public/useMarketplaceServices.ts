@@ -204,6 +204,17 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
     ]
   );
 
+  const shouldUseAISearch = useMemo(() => {
+    if (!aiSearchEnabled) {
+      return false;
+    }
+
+    const normalizedQuery = (query ?? '').trim();
+    const normalizedIntent = (userIntent ?? '').trim();
+
+    return normalizedQuery.length > 0 || normalizedIntent.length > 0;
+  }, [aiSearchEnabled, query, userIntent]);
+
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
@@ -214,7 +225,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
       try {
         let data: unknown;
 
-        if (aiSearchEnabled) {
+        if (shouldUseAISearch) {
           const aiResponse = await fetch('/api/search/marketplace', {
             method: 'POST',
             cache: 'no-store',
@@ -298,7 +309,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
       active = false;
       controller.abort();
     };
-  }, [aiRequestBody, aiSearchEnabled, requestQuery]);
+  }, [aiRequestBody, requestQuery, shouldUseAISearch]);
 
   return { services, loading, error, meta };
 }
