@@ -149,7 +149,23 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
       page: options.page ?? 1,
       pageSize: options.pageSize ?? 9,
     }),
-    [options]
+    [
+      options.query,
+      options.userIntent,
+      options.language,
+      options.destination,
+      options.category,
+      options.checkIn,
+      options.checkOut,
+      options.travelers,
+      options.budget,
+      options.family,
+      options.collection,
+      options.sort,
+      options.availability,
+      options.page,
+      options.pageSize,
+    ]
   );
 
   useEffect(() => {
