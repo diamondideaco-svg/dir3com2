@@ -117,10 +117,46 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
   const [error, setError] = useState<string | null>(null);
   const aiSearchEnabled = isPublicAISearchEnabled();
 
+  const {
+    family,
+    category,
+    query,
+    userIntent,
+    language,
+    collection,
+    sort,
+    destination,
+    checkIn,
+    checkOut,
+    budget,
+    travelers,
+    availability,
+    page,
+    pageSize,
+  } = options;
+
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams();
 
-    Object.entries(options).forEach(([key, value]) => {
+    const normalizedQuery: MarketplaceServicesQuery = {
+      family,
+      category,
+      query,
+      userIntent,
+      language,
+      collection,
+      sort,
+      destination,
+      checkIn,
+      checkOut,
+      budget,
+      travelers,
+      availability,
+      page,
+      pageSize,
+    };
+
+    Object.entries(normalizedQuery).forEach(([key, value]) => {
       if (value === undefined || value === null || value === '' || value === 'all') {
         return;
       }
@@ -129,42 +165,42 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
     });
 
     return params.toString();
-  }, [options]);
+  }, [family, category, query, userIntent, language, collection, sort, destination, checkIn, checkOut, budget, travelers, availability, page, pageSize]);
 
   const aiRequestBody = useMemo(
     () => ({
-      query: options.query ?? '',
-      userIntent: options.userIntent ?? options.query ?? '',
-      language: options.language,
-      destination: options.destination ?? 'all',
-      serviceType: options.category ?? 'all',
-      checkIn: options.checkIn,
-      checkOut: options.checkOut,
-      travelers: options.travelers ?? 'all',
-      budget: options.budget ?? 'all',
-      family: options.family,
-      collection: options.collection ?? 'all',
-      sort: options.sort ?? 'recommended',
-      availability: options.availability ?? 'all',
-      page: options.page ?? 1,
-      pageSize: options.pageSize ?? 9,
+      query: query ?? '',
+      userIntent: userIntent ?? query ?? '',
+      language,
+      destination: destination ?? 'all',
+      serviceType: category ?? 'all',
+      checkIn,
+      checkOut,
+      travelers: travelers ?? 'all',
+      budget: budget ?? 'all',
+      family,
+      collection: collection ?? 'all',
+      sort: sort ?? 'recommended',
+      availability: availability ?? 'all',
+      page: page ?? 1,
+      pageSize: pageSize ?? 9,
     }),
     [
-      options.query,
-      options.userIntent,
-      options.language,
-      options.destination,
-      options.category,
-      options.checkIn,
-      options.checkOut,
-      options.travelers,
-      options.budget,
-      options.family,
-      options.collection,
-      options.sort,
-      options.availability,
-      options.page,
-      options.pageSize,
+      query,
+      userIntent,
+      language,
+      destination,
+      category,
+      checkIn,
+      checkOut,
+      travelers,
+      budget,
+      family,
+      collection,
+      sort,
+      availability,
+      page,
+      pageSize,
     ]
   );
 
