@@ -1,10 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { requireAdminActionAccess } from '@/lib/auth/admin';
 
 export async function createCustomerAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   const fullName = formData.get('fullName')?.toString() || '';
   const email = formData.get('email')?.toString() || '';
   const phone = formData.get('phone')?.toString() || '';
@@ -17,7 +17,7 @@ export async function createCustomerAction(formData: FormData) {
 }
 
 export async function updateCustomerAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   const id = formData.get('id')?.toString();
   if (!id) return;
 
@@ -38,7 +38,7 @@ export async function updateCustomerAction(formData: FormData) {
 }
 
 export async function uploadDocumentsAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   const customerId = formData.get('customerId')?.toString();
   const documentType = formData.get('documentType')?.toString() || 'passport';
   const fileUrl = formData.get('fileUrl')?.toString() || '';
@@ -49,7 +49,7 @@ export async function uploadDocumentsAction(formData: FormData) {
 }
 
 export async function updateShieldLevelAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   const id = formData.get('id')?.toString();
   const shieldLevel = formData.get('shieldLevel')?.toString();
   if (!id || !shieldLevel) return;
@@ -60,7 +60,7 @@ export async function updateShieldLevelAction(formData: FormData) {
 }
 
 export async function deactivateCustomerAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   const id = formData.get('id')?.toString();
   if (!id) return;
 

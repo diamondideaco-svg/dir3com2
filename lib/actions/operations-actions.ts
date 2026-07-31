@@ -1,6 +1,6 @@
 'use server';
 
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { requireAdminActionAccess } from '@/lib/auth/admin';
 import { appendTimelineRecord, createAuditRecord as createAuditEntry, createNotificationRecord, publishEvent, sendNotificationRecord } from '@/lib/operations/operations-engine';
 
 export async function createNotification(input: {
@@ -13,12 +13,12 @@ export async function createNotification(input: {
   status?: 'Pending' | 'Queued' | 'Sent' | 'Delivered' | 'Failed' | 'Cancelled';
   metadata?: Record<string, unknown>;
 }) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   return createNotificationRecord(supabase, input);
 }
 
 export async function sendNotification(notificationId: string, providerName = 'internal') {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   return sendNotificationRecord(supabase, notificationId, providerName);
 }
 
@@ -31,12 +31,12 @@ export async function createAuditLog(input: {
   performedBy?: string;
   ipAddress?: string;
 }) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   return createAuditEntry(supabase, input);
 }
 
 export async function publishSystemEvent(eventName: string, payload: Record<string, unknown>, source = 'operations-engine') {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   return publishEvent(supabase, eventName, payload, source);
 }
 
@@ -48,12 +48,12 @@ export async function appendTimeline(input: {
   metadata?: Record<string, unknown>;
   performedBy?: string;
 }) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   return appendTimelineRecord(supabase, input);
 }
 
 export async function getOperationsSummary() {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   const [notificationsRes, auditRes, timelineRes, eventsRes] = await Promise.all([
     supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(8),
     supabase.from('audit_logs').select('*').order('timestamp', { ascending: false }).limit(8),

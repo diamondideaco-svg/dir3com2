@@ -3,7 +3,6 @@ import type { NextRequest } from 'next/server';
 
 const PUBLIC_PATHS = ['/', '/about', '/contact', '/services', '/services/', '/login', '/register', '/auth/signin', '/auth/callback'];
 const PUBLIC_CATEGORY_PATHS = ['/cars', '/hotels', '/experiences', '/concierge', '/offers', '/apartments', '/airport-transfers'];
-const ADMIN_PREFIX = '/admin';
 const PROTECTED_PREFIXES = ['/my-account', '/my-bookings', '/my-documents', '/my-profile', '/my-wallet'];
 
 function isPublicPath(pathname: string) {
@@ -28,7 +27,6 @@ function getDestinationPath(request: NextRequest) {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isAdmin = pathname.startsWith(ADMIN_PREFIX);
   const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
   if (isPublicPath(pathname)) {
@@ -43,18 +41,6 @@ export function middleware(request: NextRequest) {
     redirectUrl.searchParams.set('redirect', destination);
     redirectUrl.searchParams.set('next', destination);
     return NextResponse.redirect(redirectUrl);
-  }
-
-  if (isAdmin) {
-    const roleCookie = request.cookies.get('role');
-    const isAdminRole = roleCookie?.value === 'admin' || roleCookie?.value === 'super_admin';
-    if (!isAdminRole) {
-      const destination = getDestinationPath(request);
-      const redirectUrl = new URL('/login', request.url);
-      redirectUrl.searchParams.set('redirect', destination);
-      redirectUrl.searchParams.set('next', destination);
-      return NextResponse.redirect(redirectUrl);
-    }
   }
 
   if (isProtected) {

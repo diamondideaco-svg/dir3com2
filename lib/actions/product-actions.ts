@@ -1,11 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { requireAdminActionAccess } from '@/lib/auth/admin';
 import { sanitizeBoolean, sanitizeNumber, sanitizeText } from '@/lib/security/validation';
 
 export async function createProductAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   const nameAr = sanitizeText(formData.get('nameAr')?.toString(), '').slice(0, 120);
   const nameEn = sanitizeText(formData.get('nameEn')?.toString(), '').slice(0, 120);
   const slug = sanitizeText(formData.get('slug')?.toString(), nameEn.toLowerCase().replace(/\s+/g, '-')).slice(0, 120);
@@ -34,7 +34,7 @@ export async function createProductAction(formData: FormData) {
 }
 
 export async function updateProductAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   const id = formData.get('id')?.toString();
   if (!id) return;
 
@@ -57,7 +57,7 @@ export async function updateProductAction(formData: FormData) {
 }
 
 export async function deleteProductAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   const id = formData.get('id')?.toString();
   if (!id) return;
 
@@ -66,7 +66,7 @@ export async function deleteProductAction(formData: FormData) {
 }
 
 export async function uploadImagesAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   const productId = formData.get('productId')?.toString();
   const files = formData.getAll('images');
   if (!productId) return;
@@ -84,7 +84,7 @@ export async function uploadImagesAction(formData: FormData) {
 }
 
 export async function assignPartnerAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   const productId = formData.get('productId')?.toString();
   const partnerId = formData.get('partnerId')?.toString();
   const city = formData.get('city')?.toString() || '';
@@ -95,7 +95,7 @@ export async function assignPartnerAction(formData: FormData) {
 }
 
 export async function publishProductAction(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminActionAccess();
   const id = formData.get('id')?.toString();
   if (!id) return;
 
