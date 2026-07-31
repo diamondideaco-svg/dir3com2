@@ -1,11 +1,13 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import FloatingDibrah from '@/components/layout/FloatingDibrah';
 import UtilityBar from '@/components/layout/UtilityBar';
+
+const FloatingDibrah = dynamic(() => import('@/components/layout/FloatingDibrah'), { ssr: false });
 
 const hiddenPathPrefixes = ['/admin'];
 const hiddenExactPaths = ['/auth/callback'];

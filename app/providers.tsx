@@ -18,10 +18,16 @@ export function useSupabase(): SupabaseState {
     let mounted = true;
 
     async function loadSession() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!mounted) return;
-      setUser(session?.user ?? null);
-      setIsLoading(false);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!mounted) return;
+        setUser(session?.user ?? null);
+      } finally {
+        if (!mounted) return;
+        setIsLoading(false);
+      }
     }
 
     loadSession();
@@ -29,6 +35,7 @@ export function useSupabase(): SupabaseState {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_: string, session: { user?: User | null } | null) => {
       if (!mounted) return;
       setUser(session?.user ?? null);
+      setIsLoading(false);
     });
 
     return () => {

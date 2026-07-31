@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { FiBell, FiHeart, FiMenu, FiSearch, FiShield, FiUser, FiX } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
 import { buttonVariants } from '@/components/ui/button';
+import { useSupabase } from '@/app/providers';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -24,8 +25,21 @@ const actionLinks = [
   { label: 'الدبرة', href: '/#dibrah-section', icon: HiSparkles },
   { label: 'المفضلة', href: '/my-bookings', icon: FiHeart },
   { label: 'التنبيهات', href: '/my-account', icon: FiBell },
-  { label: 'المستخدم', href: '/profile', icon: FiUser },
 ];
+
+function getUserDisplayName(rawName: string | null | undefined, email: string | null | undefined) {
+  const trimmedName = rawName?.trim();
+  if (trimmedName) {
+    return trimmedName;
+  }
+
+  const trimmedEmail = email?.trim();
+  if (!trimmedEmail) {
+    return 'ضيف';
+  }
+
+  return trimmedEmail.split('@')[0] || 'ضيف';
+}
 
 function Logo() {
   return (
@@ -43,6 +57,15 @@ function Logo() {
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, isLoading } = useSupabase();
+
+  const userDisplayName = getUserDisplayName(
+    (user?.user_metadata?.full_name_ar as string | undefined) ??
+    (user?.user_metadata?.full_name as string | undefined) ??
+      (user?.user_metadata?.name as string | undefined) ??
+      (user?.user_metadata?.preferred_username as string | undefined),
+    user?.email
+  );
 
   return (
     <header className="sticky top-0 z-40 border-b border-[color:var(--color-border)] bg-[color:var(--color-shell)]/90 backdrop-blur-xl">
@@ -83,6 +106,16 @@ export default function Header() {
           <div className="sm:hidden">
             <Logo />
           </div>
+          <div className="hidden md:flex">
+            <Link
+              href={user ? '/my-account' : '/login'}
+              className="inline-flex h-11 items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-white/70 px-3 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
+              aria-label={user ? `الحساب: ${userDisplayName}` : 'تسجيل الدخول'}
+            >
+              <FiUser size={16} />
+              <span className="max-w-28 truncate text-sm font-medium">{isLoading ? '...' : user ? userDisplayName : 'تسجيل الدخول'}</span>
+            </Link>
+          </div>
           <div className="hidden items-center gap-2 md:flex">
             {actionLinks.map(({ href, label, icon: Icon }) => (
               <Link
@@ -94,6 +127,13 @@ export default function Header() {
                 <Icon size={18} />
               </Link>
             ))}
+            <Link
+              href={user ? '/profile' : '/login'}
+              aria-label={user ? 'الملف الشخصي' : 'تسجيل الدخول'}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-white/70 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
+            >
+              <FiUser size={18} />
+            </Link>
           </div>
           <Link href="/booking" className={buttonVariants({ variant: 'gold', size: 'default' })}>
             ابدأ رحلتك
@@ -132,7 +172,25 @@ export default function Header() {
                   <Icon size={18} />
                 </Link>
               ))}
+              <Link
+                href={user ? '/profile' : '/login'}
+                aria-label={user ? 'الملف الشخصي' : 'تسجيل الدخول'}
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  'inline-flex h-12 items-center justify-center rounded-2xl border border-[color:var(--color-border)] bg-white/75 text-[var(--color-navy)] transition-all duration-200 active:scale-[0.97]',
+                  'hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40'
+                )}
+              >
+                <FiUser size={18} />
+              </Link>
             </div>
+            <Link
+              href={user ? '/my-account' : '/login'}
+              onClick={() => setMobileOpen(false)}
+              className="rounded-2xl border border-[color:var(--color-border)] bg-white/75 px-4 py-3 text-sm font-medium text-[var(--color-navy)] transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
+            >
+              {isLoading ? 'تحميل الحساب...' : user ? `حسابي: ${userDisplayName}` : 'تسجيل الدخول'}
+            </Link>
           </div>
         </div>
       )}
