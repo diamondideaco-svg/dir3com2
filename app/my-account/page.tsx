@@ -1,17 +1,38 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import CustomerProfile from '@/components/customers/CustomerProfile';
-import CustomerShieldBadge from '@/components/customers/CustomerShieldBadge';
-import type { CustomerRecord } from '@/lib/supabase/types';
+import { normalizeRole } from '@/lib/auth/identity';
 
-async function getCustomer() {
+function buildLoginTarget(destination: string) {
+  const encoded = encodeURIComponent(destination);
+  return `/login?redirect=${encoded}&next=${encoded}`;
+}
+
+async function getAccountProfile() {
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.from('customers').select('*').order('created_at', { ascending: false }).limit(1);
-  return (data?.[0] || null) as CustomerRecord | null;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect(buildLoginTarget('/my-account'));
+  }
+
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, full_name, email, role, status, created_at')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  return { user, profile: data };
 }
 
 export default async function MyAccountPage() {
-  const customer = await getCustomer();
+  const { user, profile } = await getAccountProfile();
+  const displayName = profile?.full_name || user.user_metadata?.full_name_ar || user.user_metadata?.full_name || user.email?.split('@')[0] || 'عميل dir3com';
+  const displayEmail = profile?.email || user.email || '—';
+  const displayRole = normalizeRole(profile?.role);
+  const joinedAt = profile?.created_at ? new Date(profile.created_at).toLocaleDateString('ar-SA') : '—';
 
   return (
     <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white" dir="rtl">
@@ -29,20 +50,36 @@ export default async function MyAccountPage() {
           </div>
         </div>
 
-        {customer ? (
-          <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-lg font-semibold text-white">{customer.full_name}</p>
-                <p className="mt-2 text-sm text-slate-300">{customer.email}</p>
-              </div>
-              <CustomerShieldBadge shieldLevel={customer.shield_level} />
+        <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-lg font-semibold text-white">{displayName}</p>
+              <p className="mt-2 text-sm text-slate-300">{displayEmail}</p>
             </div>
-            <div className="mt-6">
-              <CustomerProfile customer={customer} />
+            <span className="rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-xs font-semibold text-[#D4AF37]">
+              {displayRole}
+            </span>
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-white/10 bg-[#07111D] p-4">
+              <p className="text-xs text-slate-400">حالة الحساب</p>
+              <p className="mt-2 text-sm font-semibold text-white">{profile?.status || 'active'}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-[#07111D] p-4">
+              <p className="text-xs text-slate-400">تاريخ الانضمام</p>
+              <p className="mt-2 text-sm font-semibold text-white">{joinedAt}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-[#07111D] p-4">
+              <p className="text-xs text-slate-400">إدارة الحجوزات</p>
+              <Link href="/my-bookings" className="mt-2 inline-block text-sm font-semibold text-[#D4AF37]">عرض الحجوزات</Link>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-[#07111D] p-4">
+              <p className="text-xs text-slate-400">مستندات الحساب</p>
+              <Link href="/my-documents" className="mt-2 inline-block text-sm font-semibold text-[#D4AF37]">عرض المستندات</Link>
             </div>
           </div>
-        ) : null}
+        </div>
       </div>
     </div>
   );
