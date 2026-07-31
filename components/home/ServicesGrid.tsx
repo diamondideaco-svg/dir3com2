@@ -5,11 +5,17 @@ type ServicesGridProps = {
   services: ServiceItem[];
   loading?: boolean;
   emptyMessage?: string;
+  skeletonCount?: number;
 };
 
-export default function ServicesGrid({ services, loading = false, emptyMessage = 'لا توجد خدمات متاحة حالياً.' }: ServicesGridProps) {
+export default function ServicesGrid({
+  services,
+  loading = false,
+  emptyMessage = 'لا توجد خدمات متاحة حالياً.',
+  skeletonCount = 3,
+}: ServicesGridProps) {
   if (loading) {
-    return <LoadingSkeletonGrid count={3} />;
+    return <LoadingSkeletonGrid count={skeletonCount} />;
   }
 
   if (!services.length) {

@@ -1,16 +1,18 @@
 'use client';
 
-import AppDownload from '@/components/home/AppDownload';
-import ArticlesGrid from '@/components/home/ArticlesGrid';
-import DynamicServices from '@/components/home/DynamicServices';
+import dynamic from 'next/dynamic';
 import HomeCta from '@/components/home/HomeCta';
 import HomeHero from '@/components/home/HomeHero';
-import PaymentMethodsSection from '@/components/home/PaymentMethodsSection';
 import PartnersShowcase from '@/components/home/PartnersShowcase';
 import ShieldOffers from '@/components/home/ShieldOffers';
 import SmartSearch from '@/components/home/SmartSearch';
 import TravelTips from '@/components/home/TravelTips';
 import TrustBar from '@/components/home/TrustBar';
+
+const DynamicServices = dynamic(() => import('@/components/home/DynamicServices'));
+const ArticlesGrid = dynamic(() => import('@/components/home/ArticlesGrid'));
+const PaymentMethodsSection = dynamic(() => import('@/components/home/PaymentMethodsSection'));
+const AppDownload = dynamic(() => import('@/components/home/AppDownload'));
 
 export default function PlatformFoundationHome() {
   return (

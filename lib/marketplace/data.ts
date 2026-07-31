@@ -18,6 +18,10 @@ export type MarketplaceCollectionKey = 'all' | 'featured' | 'popular' | 'recomme
 
 export type MarketplaceSortKey = 'recommended' | 'featured' | 'popular' | 'price-low' | 'price-high' | 'name';
 
+export type MarketplaceDataSource = 'supabase' | 'api' | 'fallback';
+
+export type MarketplaceAvailability = 'available' | 'limited' | 'sold-out';
+
 export type MarketplaceCatalogEntry = {
   id: string;
   family: MarketplaceFamilyKey;
@@ -48,14 +52,20 @@ type RawServiceApiItem = {
   status?: string | null;
   featured?: boolean | null;
   created_at?: string | null;
+  updated_at?: string | null;
   products?: RawServiceProduct[] | null;
+  destination?: string | null;
+  region_name?: string | null;
+  availability_status?: string | null;
 };
 
 export type MarketplaceService = {
   id: string | number;
   slug: string;
   name_ar: string;
+  name_en?: string;
   description_ar: string;
+  description_en?: string;
   badge: string;
   family: MarketplaceFamilyKey;
   familyLabel: string;
@@ -68,10 +78,35 @@ export type MarketplaceService = {
   basePrice: number;
   currency: string;
   productCount: number;
+  inventoryCount: number;
+  availability: MarketplaceAvailability;
+  destination: string;
   featured: boolean;
   popular: boolean;
   recommended: boolean;
+  source: MarketplaceDataSource;
   createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type MarketplaceQueryOptions = {
+  family?: MarketplaceFamilyKey;
+  category?: MarketplacePageCategory;
+  query?: string;
+  collection?: MarketplaceCollectionKey;
+  sort?: MarketplaceSortKey;
+  destination?: string;
+  budget?: string;
+  travelers?: string;
+  availability?: 'all' | MarketplaceAvailability;
+};
+
+export type MarketplaceQueryResult = {
+  items: MarketplaceService[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 };
 
 export const marketplaceCatalogEntries: MarketplaceCatalogEntry[] = [
@@ -147,14 +182,26 @@ export const marketplaceCatalogEntries: MarketplaceCatalogEntry[] = [
     familyLabel: 'dir3 experiences',
     tags: ['فعاليات', 'ثقافة', 'رحلات خاصة'],
   },
+  {
+    id: 'dir3-offers',
+    family: 'dir3-experiences',
+    title: 'العروض',
+    description: 'عروض موسمية وتنفيذية بقيمة واضحة وتجربة متسقة مع درع dir3com.',
+    icon: '/icons/experiences.svg',
+    href: '/offers',
+    metric: 'New',
+    category: 'offers',
+    familyLabel: 'dir3 offers',
+    tags: ['عروض حصرية', 'موسمي', 'قيمة عالية'],
+  },
 ];
 
 export const marketplaceSortOptions: Array<{ value: MarketplaceSortKey; label: string }> = [
   { value: 'recommended', label: 'الأكثر ملاءمة' },
-  { value: 'featured', label: 'المميز أولاً' },
+  { value: 'featured', label: 'المميز أولا' },
   { value: 'popular', label: 'الأكثر شعبية' },
-  { value: 'price-low', label: 'السعر: الأقل أولاً' },
-  { value: 'price-high', label: 'السعر: الأعلى أولاً' },
+  { value: 'price-low', label: 'السعر: الأقل أولا' },
+  { value: 'price-high', label: 'السعر: الأعلى أولا' },
   { value: 'name', label: 'الاسم' },
 ];
 
@@ -165,6 +212,7 @@ const categoryKeywords: Array<{ category: MarketplacePageCategory; keywords: str
   { category: 'airport-transfers', keywords: ['airport', 'مطار', 'arrival', 'transfer'] },
   { category: 'concierge', keywords: ['concierge', 'كونسيرج', 'vip'] },
   { category: 'experiences', keywords: ['experience', 'experiences', 'تجارب', 'فعاليات'] },
+  { category: 'offers', keywords: ['offer', 'offers', 'عرض', 'عروض', 'deal', 'deals'] },
 ];
 
 const categoryLabels: Record<MarketplacePageCategory, string> = {
@@ -176,6 +224,30 @@ const categoryLabels: Record<MarketplacePageCategory, string> = {
   experiences: 'التجارب',
   offers: 'العروض',
 };
+
+const destinationKeywords: Array<{ destination: string; keywords: string[] }> = [
+  { destination: 'riyadh', keywords: ['riyadh', 'الرياض'] },
+  { destination: 'jeddah', keywords: ['jeddah', 'جدة'] },
+  { destination: 'makkah', keywords: ['makkah', 'mecca', 'مكة'] },
+  { destination: 'madinah', keywords: ['madinah', 'medina', 'المدينة'] },
+  { destination: 'dammam', keywords: ['dammam', 'الدمام'] },
+  { destination: 'khobar', keywords: ['khobar', 'الخبر'] },
+  { destination: 'abha', keywords: ['abha', 'أبها'] },
+  { destination: 'taif', keywords: ['taif', 'الطائف'] },
+  { destination: 'alula', keywords: ['alula', 'العلا'] },
+  { destination: 'neom', keywords: ['neom', 'نيوم'] },
+  { destination: 'cairo', keywords: ['cairo', 'القاهرة'] },
+  { destination: 'giza', keywords: ['giza', 'الجيزة'] },
+  { destination: 'alexandria', keywords: ['alexandria', 'الإسكندرية'] },
+  { destination: 'hurghada', keywords: ['hurghada', 'الغردقة'] },
+  { destination: 'sharm-el-sheikh', keywords: ['sharm', 'شرم'] },
+  { destination: 'luxor', keywords: ['luxor', 'الأقصر'] },
+  { destination: 'aswan', keywords: ['aswan', 'أسوان'] },
+  { destination: 'marsa-alam', keywords: ['marsa', 'مرسى'] },
+  { destination: 'new-alamein', keywords: ['alamein', 'العلمين'] },
+  { destination: 'saudi-arabia', keywords: ['ksa', 'saudi', 'السعودية', 'المملكة'] },
+  { destination: 'egypt', keywords: ['egypt', 'مصر'] },
+];
 
 function normalizeText(value: string | null | undefined) {
   return (value ?? '').trim().toLowerCase();
@@ -191,6 +263,30 @@ function inferCategory(item: RawServiceApiItem): MarketplacePageCategory {
   return match?.category ?? 'hotels';
 }
 
+function inferDestination(item: RawServiceApiItem) {
+  const haystack = [item.destination, item.region_name, item.slug, item.name_ar, item.name_en, item.description_ar, item.description_en]
+    .map(normalizeText)
+    .join(' ');
+
+  const matchedDestination = destinationKeywords.find(({ keywords }) => keywords.some((keyword) => haystack.includes(keyword)));
+
+  return matchedDestination?.destination ?? 'saudi-arabia';
+}
+
+function inferAvailability(item: RawServiceApiItem, productCount: number): MarketplaceAvailability {
+  const status = normalizeText(item.availability_status ?? item.status);
+
+  if (status.includes('sold') || status.includes('نفذ')) {
+    return 'sold-out';
+  }
+
+  if (status.includes('limited') || status.includes('few') || productCount === 1) {
+    return 'limited';
+  }
+
+  return productCount > 0 ? 'available' : 'limited';
+}
+
 function categoryToFamily(category: MarketplacePageCategory): MarketplaceFamilyKey {
   if (category === 'cars') return 'dir3-drive';
   if (category === 'hotels' || category === 'apartments') return 'dir3-stay';
@@ -203,12 +299,28 @@ function findCatalogEntry(category: MarketplacePageCategory) {
   return marketplaceCatalogEntries.find((entry) => entry.category === category) ?? marketplaceCatalogEntries[0];
 }
 
+function resolveServiceHref(item: RawServiceApiItem, catalogEntry: MarketplaceCatalogEntry, fallbackSlug: string) {
+  const normalizedSlug = normalizeText(item.slug);
+
+  if (normalizedSlug) {
+    return `/services/${normalizedSlug}`;
+  }
+
+  if (catalogEntry.href.startsWith('/')) {
+    return catalogEntry.href;
+  }
+
+  return `/services/${fallbackSlug}`;
+}
+
 function buildFallbackService(entry: MarketplaceCatalogEntry, index: number): MarketplaceService {
   return {
     id: `fallback-${entry.category}-${index}`,
     slug: `fallback-${entry.category}`,
     name_ar: entry.title,
+    name_en: entry.title,
     description_ar: entry.description,
+    description_en: entry.description,
     badge: entry.familyLabel,
     family: entry.family,
     familyLabel: entry.familyLabel,
@@ -221,10 +333,15 @@ function buildFallbackService(entry: MarketplaceCatalogEntry, index: number): Ma
     basePrice: 0,
     currency: 'SAR',
     productCount: 0,
+    inventoryCount: 0,
+    availability: 'limited',
+    destination: 'saudi-arabia',
     featured: entry.family === 'dir3-stay' || entry.family === 'dir3-drive',
     popular: entry.category === 'cars' || entry.category === 'hotels',
     recommended: true,
+    source: 'fallback',
     createdAt: null,
+    updatedAt: null,
   };
 }
 
@@ -232,7 +349,14 @@ export function createMarketplaceFallbackServices() {
   return marketplaceCatalogEntries.map(buildFallbackService);
 }
 
-export function normalizeMarketplaceServices(data: unknown, includeFallback = true): MarketplaceService[] {
+export function normalizeMarketplaceServices(
+  data: unknown,
+  includeFallbackOrOptions: boolean | { includeFallback?: boolean; source?: MarketplaceDataSource } = true
+): MarketplaceService[] {
+  const includeFallback =
+    typeof includeFallbackOrOptions === 'boolean' ? includeFallbackOrOptions : includeFallbackOrOptions.includeFallback ?? true;
+  const sourceLabel = typeof includeFallbackOrOptions === 'boolean' ? 'api' : includeFallbackOrOptions.source ?? 'api';
+
   const source = Array.isArray(data) ? (data as RawServiceApiItem[]) : [];
   const normalized = source.map((item, index) => {
     const category = inferCategory(item);
@@ -249,28 +373,38 @@ export function normalizeMarketplaceServices(data: unknown, includeFallback = tr
     const featured = Boolean(item.featured) || item.status === 'featured';
     const popular = productCount >= 2 || index < 2;
     const recommended = featured || productCount > 0 || family === 'dir3-stay' || family === 'dir3-drive';
+    const destination = inferDestination(item);
+    const availability = inferAvailability(item, productCount);
+    const fallbackSlug = `${family}-${index + 1}`;
 
     return {
       id: item.id ?? index + 1,
-      slug: item.slug ?? `${family}-${index + 1}`,
+      slug: item.slug ?? fallbackSlug,
       name_ar: item.name_ar ?? item.name_en ?? catalogEntry.title,
+      name_en: item.name_en ?? item.name_ar ?? catalogEntry.title,
       description_ar: item.description_ar ?? item.description_en ?? catalogEntry.description,
+      description_en: item.description_en ?? item.description_ar ?? catalogEntry.description,
       badge: catalogEntry.familyLabel,
       family,
       familyLabel: catalogEntry.familyLabel,
       category,
       categoryLabel: categoryLabels[category],
       icon: catalogEntry.icon,
-      href: `/services/${item.slug ?? `${family}-${index + 1}`}`,
+      href: resolveServiceHref(item, catalogEntry, fallbackSlug),
       metric: productCount > 0 ? `${productCount} خيارات` : catalogEntry.metric,
       tags: catalogEntry.tags,
       basePrice,
       currency: item.currency ?? 'SAR',
       productCount,
+      inventoryCount: productCount,
+      availability,
+      destination,
       featured,
       popular,
       recommended,
+      source: sourceLabel,
       createdAt: item.created_at,
+      updatedAt: item.updated_at,
     } satisfies MarketplaceService;
   });
 
@@ -285,16 +419,38 @@ export function normalizeMarketplaceServices(data: unknown, includeFallback = tr
   return [...normalized, ...missingCategories.map((entry, index) => buildFallbackService(entry, index))];
 }
 
-export function filterMarketplaceServices(
-  services: MarketplaceService[],
-  options: {
-    family?: MarketplaceFamilyKey;
-    category?: MarketplacePageCategory;
-    query?: string;
-    collection?: MarketplaceCollectionKey;
-    sort?: MarketplaceSortKey;
-  }
-) {
+function buildServiceHaystack(service: MarketplaceService) {
+  return [
+    service.name_ar,
+    service.name_en,
+    service.description_ar,
+    service.description_en,
+    service.familyLabel,
+    service.categoryLabel,
+    service.destination,
+    ...service.tags,
+  ]
+    .map(normalizeText)
+    .join(' ');
+}
+
+function withinBudget(price: number, budget?: string) {
+  if (!budget || budget === 'all') return true;
+  if (budget === '0-2000') return price > 0 && price <= 2000;
+  if (budget === '2000-5000') return price >= 2000 && price <= 5000;
+  if (budget === '5000+') return price >= 5000;
+  return true;
+}
+
+function withinTravelerGroup(productCount: number, travelers?: string) {
+  if (!travelers || travelers === 'all') return true;
+  if (travelers === '1') return productCount >= 1;
+  if (travelers === '2') return productCount >= 2;
+  if (travelers === '3+') return productCount >= 3;
+  return true;
+}
+
+export function filterMarketplaceServices(services: MarketplaceService[], options: MarketplaceQueryOptions) {
   const query = normalizeText(options.query);
   const collection = options.collection ?? 'all';
   const sort = options.sort ?? 'recommended';
@@ -320,15 +476,27 @@ export function filterMarketplaceServices(
       return false;
     }
 
+    if (options.destination && options.destination !== 'all' && service.destination !== options.destination) {
+      return false;
+    }
+
+    if (options.availability && options.availability !== 'all' && service.availability !== options.availability) {
+      return false;
+    }
+
+    if (!withinBudget(service.basePrice, options.budget)) {
+      return false;
+    }
+
+    if (!withinTravelerGroup(service.productCount, options.travelers)) {
+      return false;
+    }
+
     if (!query) {
       return true;
     }
 
-    const haystack = [service.name_ar, service.description_ar, service.familyLabel, service.categoryLabel, ...service.tags]
-      .map(normalizeText)
-      .join(' ');
-
-    return haystack.includes(query);
+    return buildServiceHaystack(service).includes(query);
   });
 
   return filtered.sort((left, right) => {
@@ -362,6 +530,31 @@ export function filterMarketplaceServices(
   });
 }
 
+export function paginateMarketplaceServices(services: MarketplaceService[], page = 1, pageSize = 9): MarketplaceQueryResult {
+  const safePageSize = Math.max(1, pageSize);
+  const total = services.length;
+  const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+  const normalizedPage = Math.min(Math.max(1, page), totalPages);
+  const startIndex = (normalizedPage - 1) * safePageSize;
+  const items = services.slice(startIndex, startIndex + safePageSize);
+
+  return {
+    items,
+    total,
+    page: normalizedPage,
+    pageSize: safePageSize,
+    totalPages,
+  };
+}
+
+export function queryMarketplaceServices(
+  services: MarketplaceService[],
+  options: MarketplaceQueryOptions & { page?: number; pageSize?: number }
+) {
+  const filtered = filterMarketplaceServices(services, options);
+  return paginateMarketplaceServices(filtered, options.page ?? 1, options.pageSize ?? 9);
+}
+
 export function getMarketplaceCategoryOptions(services: MarketplaceService[], family?: MarketplaceFamilyKey) {
   const scoped = family ? services.filter((service) => service.family === family) : services;
   const seen = new Set<MarketplacePageCategory>();
@@ -382,4 +575,24 @@ export function countMarketplaceCollection(
   family?: MarketplaceFamilyKey
 ) {
   return filterMarketplaceServices(services, { family, collection }).length;
+}
+
+export function summarizeMarketplace(services: MarketplaceService[]) {
+  const categories = marketplaceCatalogEntries.map((entry) => ({
+    category: entry.category,
+    label: categoryLabels[entry.category],
+    count: services.filter((service) => service.category === entry.category).length,
+  }));
+
+  const collections: Record<MarketplaceCollectionKey, number> = {
+    all: services.length,
+    featured: services.filter((service) => service.featured).length,
+    popular: services.filter((service) => service.popular).length,
+    recommended: services.filter((service) => service.recommended).length,
+  };
+
+  return {
+    categories,
+    collections,
+  };
 }

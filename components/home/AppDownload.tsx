@@ -50,6 +50,7 @@ export default function AppDownload() {
                       <div className="rounded-[20px] border border-white/10 bg-white/6 p-4">العروض المفضلة</div>
                       <div className="rounded-[20px] border border-white/10 bg-white/6 p-4">تنبيهات الوصول</div>
                     </div>
+                    <p className="mt-4 text-center text-xs text-white/60">QR جاهز لنسخة الإطلاق الأولى للتطبيق.</p>
                   </div>
                 </div>
               </CardContent>
@@ -72,15 +73,15 @@ export default function AppDownload() {
             </div>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <Button variant="gold" size="lg" className="min-h-12">
+              <Button variant="gold" size="lg" className="min-h-12 min-w-[165px]">
                 <FiDownload />
                 App Store
               </Button>
-              <Button variant="outline" size="lg" className="min-h-12">
+              <Button variant="outline" size="lg" className="min-h-12 min-w-[165px]">
                 <FiSmartphone />
                 Google Play
               </Button>
-              <Button variant="outline" size="lg" className="min-h-12">
+              <Button variant="outline" size="lg" className="min-h-12 min-w-[165px]">
                 <FiBell />
                 نبّهني عند الإطلاق
               </Button>

@@ -1,15 +1,17 @@
 'use client';
 
-import DynamicServices from '@/components/home/DynamicServices';
-import PaymentMethodsSection from '@/components/home/PaymentMethodsSection';
-import PartnersShowcase from '@/components/home/PartnersShowcase';
-import ShieldOffers from '@/components/home/ShieldOffers';
+import dynamic from 'next/dynamic';
 import MarketplaceExplorer from '@/components/public/MarketplaceExplorer';
 import PublicCtaBanner from '@/components/public/PublicCtaBanner';
 import PublicFeatureStrip from '@/components/public/PublicFeatureStrip';
 import PublicHero from '@/components/public/PublicHero';
 import PublicRouteIndex from '@/components/public/PublicRouteIndex';
 import PublicStats from '@/components/public/PublicStats';
+
+const DynamicServices = dynamic(() => import('@/components/home/DynamicServices'));
+const ShieldOffers = dynamic(() => import('@/components/home/ShieldOffers'));
+const PartnersShowcase = dynamic(() => import('@/components/home/PartnersShowcase'));
+const PaymentMethodsSection = dynamic(() => import('@/components/home/PaymentMethodsSection'));
 
 export default function PublicServicesClient() {
   return (

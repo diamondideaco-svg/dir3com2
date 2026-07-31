@@ -7,16 +7,16 @@ export const heroHighlights = [
 ];
 
 export const trustBarItems = [
-  'رحلتكم محمية بضمان الدرع.',
-  'قيم الخدمة قبل نحاسب.',
-  'إذا صار شيء... حنا معك.',
+  'Protected by DIR3 Shield | محمي بدرع dir3com',
+  'Transparent Pricing | تسعير واضح قبل أي خطوة',
+  "If something happens, we're with you | إذا صار شيء... حنا معك",
   'فلوسك محفوظة لين تقول: تم.',
 ];
 
-export const quickFilters = ['رحلات داخلية', 'فنادق', 'سيارات', 'تجارب', 'كونسيرج', 'عروض الصيف'];
+export const quickFilters = ['رحلات داخلية', 'فنادق', 'سيارات', 'تجارب', 'كونسيرج', 'عروض مختارة'];
 
 export const searchFields = [
-  { label: 'الوجهة', value: 'الرياض، جدة، العلا، القاهرة' },
+  { label: 'الوجهة', value: 'Saudi Arabia + Egypt | الرياض، جدة، القاهرة، الإسكندرية' },
   { label: 'نوع الخدمة', value: 'إقامة، سيارة، تجربة، استقبال مطار' },
   { label: 'التاريخ', value: 'اختر تاريخ الوصول والمغادرة' },
   { label: 'عدد الضيوف', value: 'شخصان، عائلة، أو وفد خاص' },
@@ -133,7 +133,7 @@ export const appFeatures = [
   'وصول مستقبلي سريع إلى الدبرة من التطبيق',
 ];
 
-export const paymentMethods = ['mada', 'Visa', 'Mastercard', 'STC Bank', 'Tabby', 'Tamara'];
+export const paymentMethods = ['mada', 'Visa', 'Mastercard', 'STC Pay', 'Tabby', 'Tamara'];
 
 export const qrMatrix = [
   '111010101',

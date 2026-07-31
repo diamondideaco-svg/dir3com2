@@ -22,10 +22,10 @@ export default function ArticlesGrid() {
             <motion.div
               key={article.title}
               variants={fadeUpItem}
-              transition={{ delay: index * 0.05 }}
+              transition={{ delay: index * 0.03 }}
               whileHover={{ y: -6, transition: { duration: 0.24, ease: subtleEasing } }}
             >
-              <Card className="group h-full overflow-hidden border-[var(--color-gold)]/15 bg-white/86 shadow-[0_20px_45px_rgba(13,27,42,0.08)]">
+              <Card className="group h-full overflow-hidden border-[var(--color-gold)]/15 bg-white/86 shadow-[0_20px_45px_rgba(13,27,42,0.08)] transition-shadow duration-200 hover:shadow-[0_26px_52px_rgba(13,27,42,0.12)]">
                 <div className="relative h-44 overflow-hidden rounded-b-[24px] border-b border-[var(--color-gold)]/15 bg-[linear-gradient(145deg,#0d1b2a_0%,#244360_60%,#d4af37_150%)] p-5 text-[var(--color-light)] sm:h-52">
                   <div className="absolute -left-8 top-4 h-20 w-20 rounded-full bg-[var(--color-gold)]/24 blur-3xl" />
                   <div className="absolute -right-7 bottom-3 h-20 w-20 rounded-full bg-white/12 blur-3xl" />
@@ -43,7 +43,7 @@ export default function ArticlesGrid() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-base leading-8 text-[var(--color-muted)]">{article.description}</p>
-                  <button type="button" className="mt-6 inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-[var(--color-gold)] transition group-hover:gap-3">
+                  <button type="button" className="mt-6 inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-[var(--color-gold)] transition-all duration-200 group-hover:gap-3">
                     اقرأ لاحقاً
                     <FiArrowLeft />
                   </button>

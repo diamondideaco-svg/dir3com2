@@ -32,14 +32,22 @@ function getPublicSupabaseConfig() {
   return { supabaseUrl, supabaseAnonKey };
 }
 
-const { supabaseUrl, supabaseServiceRoleKey } = getServerSupabaseConfig();
+function createSupabaseAdminClient() {
+  try {
+    const { supabaseUrl, supabaseServiceRoleKey } = getServerSupabaseConfig();
 
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-});
+    return createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+  } catch {
+    return null;
+  }
+}
+
+export const supabaseAdmin = createSupabaseAdminClient();
 
 export async function createSupabaseServerClient(): Promise<SupabaseClient> {
   const cookieStore = await cookies();

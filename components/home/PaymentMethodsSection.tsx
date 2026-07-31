@@ -7,6 +7,15 @@ import { paymentMethods } from '@/components/home/dir3-home-data';
 import { fadeUpItem, revealViewport, sectionStagger, subtleEasing } from '@/components/shared/motion';
 import { cn } from '@/lib/utils';
 
+const methodStyles: Record<string, string> = {
+  mada: 'border-emerald-200/80 bg-emerald-50 text-emerald-700',
+  Visa: 'border-blue-200/80 bg-blue-50 text-blue-700',
+  Mastercard: 'border-orange-200/80 bg-orange-50 text-orange-700',
+  'STC Pay': 'border-violet-200/80 bg-violet-50 text-violet-700',
+  Tabby: 'border-rose-200/80 bg-rose-50 text-rose-700',
+  Tamara: 'border-teal-200/80 bg-teal-50 text-teal-700',
+};
+
 export default function PaymentMethodsSection() {
   return (
     <section className="px-4 py-10 sm:px-6 lg:px-8">
@@ -40,11 +49,11 @@ export default function PaymentMethodsSection() {
             <motion.div
               key={method}
               variants={fadeUpItem}
-              transition={{ delay: index * 0.03 }}
+              transition={{ delay: index * 0.02 }}
               whileHover={{ y: -3, transition: { duration: 0.2, ease: subtleEasing } }}
               className={cn(
-                'min-h-11 rounded-2xl border border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-4 text-center text-sm font-semibold text-[var(--color-navy)] shadow-[0_10px_24px_rgba(13,27,42,0.06)]',
-                method === 'mada' && 'text-[#1a9b6d]'
+                'min-h-11 rounded-2xl border px-4 py-4 text-center text-sm font-semibold shadow-[0_10px_24px_rgba(13,27,42,0.06)] transition-colors',
+                methodStyles[method] ?? 'border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)]'
               )}
             >
               {method}

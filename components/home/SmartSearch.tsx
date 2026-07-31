@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import { FiCalendar, FiMapPin, FiSearch, FiShield, FiUsers } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
 import SectionHeading from '@/components/home/SectionHeading';
@@ -12,6 +13,8 @@ import { Card, CardContent } from '@/components/ui/card';
 const icons = [FiMapPin, FiShield, FiCalendar, FiUsers];
 
 export default function SmartSearch() {
+  const router = useRouter();
+
   return (
     <section className="px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
       <div className="mx-auto max-w-7xl">
@@ -54,9 +57,14 @@ export default function SmartSearch() {
               </div>
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                <Button variant="gold" size="lg">
+                <Button
+                  variant="gold"
+                  size="lg"
+                  className="min-w-[150px]"
+                  onClick={() => router.push('/services?query=Saudi+Arabia+Egypt&destination=saudi-arabia')}
+                >
                   <FiSearch />
-                  ابدأ البحث
+                  ابحث الآن
                 </Button>
                 <Button variant="outline" size="lg">
                   حفظ المعايير

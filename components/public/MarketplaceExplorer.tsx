@@ -1,7 +1,8 @@
 'use client';
 
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import { FiCompass, FiFilter } from 'react-icons/fi';
 import SectionHeading from '@/components/home/SectionHeading';
 import { Badge, Chip, ContentContainer, SearchField, SectionContainer, SectionSurface, SelectField } from '@/components/design-system';
@@ -10,11 +11,8 @@ import MarketplaceFilters from '@/components/public/MarketplaceFilters';
 import { useMarketplaceServices } from '@/components/public/useMarketplaceServices';
 import { fadeUpItem, revealViewport, sectionStagger, subtleEasing } from '@/components/shared/motion';
 import { Card, CardContent } from '@/components/ui/card';
+import { buttonVariants } from '@/components/ui/button';
 import {
-  countMarketplaceCollection,
-  filterMarketplaceServices,
-  getMarketplaceCategoryOptions,
-  marketplaceSortOptions,
   type MarketplaceCollectionKey,
   type MarketplaceFamilyKey,
   type MarketplacePageCategory,
@@ -38,18 +36,37 @@ const collectionLabels: Array<{ value: MarketplaceCollectionKey; label: string }
 
 const destinationOptions = [
   { value: 'all', label: 'كل الوجهات' },
-  { value: 'riyadh', label: 'الرياض' },
-  { value: 'jeddah', label: 'جدة' },
-  { value: 'alula', label: 'العلا' },
-  { value: 'cairo', label: 'القاهرة' },
+  { value: 'saudi-arabia', label: 'Saudi Arabia | السعودية' },
+  { value: 'egypt', label: 'Egypt | مصر' },
+  { value: 'riyadh', label: 'Riyadh | الرياض' },
+  { value: 'jeddah', label: 'Jeddah | جدة' },
+  { value: 'makkah', label: 'Makkah | مكة' },
+  { value: 'madinah', label: 'Madinah | المدينة' },
+  { value: 'dammam', label: 'Dammam | الدمام' },
+  { value: 'khobar', label: 'Khobar | الخبر' },
+  { value: 'abha', label: 'Abha | أبها' },
+  { value: 'taif', label: 'Taif | الطائف' },
+  { value: 'alula', label: 'AlUla | العلا' },
+  { value: 'neom', label: 'NEOM | نيوم' },
+  { value: 'cairo', label: 'Cairo | القاهرة' },
+  { value: 'giza', label: 'Giza | الجيزة' },
+  { value: 'alexandria', label: 'Alexandria | الإسكندرية' },
+  { value: 'hurghada', label: 'Hurghada | الغردقة' },
+  { value: 'sharm-el-sheikh', label: 'Sharm El Sheikh | شرم الشيخ' },
+  { value: 'luxor', label: 'Luxor | الأقصر' },
+  { value: 'aswan', label: 'Aswan | أسوان' },
+  { value: 'marsa-alam', label: 'Marsa Alam | مرسى علم' },
+  { value: 'new-alamein', label: 'New Alamein | العلمين الجديدة' },
 ];
 
-const destinationKeywords: Record<string, string[]> = {
-  riyadh: ['الرياض', 'riyadh'],
-  jeddah: ['جدة', 'jeddah'],
-  alula: ['العلا', 'alula'],
-  cairo: ['القاهرة', 'cairo'],
-};
+const sortOptions: Array<{ value: MarketplaceSortKey; label: string }> = [
+  { value: 'recommended', label: 'الأكثر ملاءمة' },
+  { value: 'featured', label: 'المميز أولا' },
+  { value: 'popular', label: 'الأكثر شعبية' },
+  { value: 'price-low', label: 'السعر: الأقل أولا' },
+  { value: 'price-high', label: 'السعر: الأعلى أولا' },
+  { value: 'name', label: 'الاسم' },
+];
 
 export default function MarketplaceExplorer({
   title,
@@ -58,14 +75,19 @@ export default function MarketplaceExplorer({
   defaultCategory,
   defaultCollection = 'all',
 }: MarketplaceExplorerProps) {
-  const { services, loading, error } = useMarketplaceServices();
+  const initialUrlParams =
+    typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
+  const initialQuery = initialUrlParams.get('query') ?? '';
+  const initialDestination = initialUrlParams.get('destination') ?? 'all';
 
-  const [query, setQuery] = useState('');
+  const [searchInput, setSearchInput] = useState(initialQuery);
+  const [query, setQuery] = useState(initialQuery);
   const [collection, setCollection] = useState<MarketplaceCollectionKey>(defaultCollection);
   const [sort, setSort] = useState<MarketplaceSortKey>('recommended');
   const [category, setCategory] = useState<MarketplacePageCategory | 'all'>(defaultCategory ?? 'all');
+  const [page, setPage] = useState(1);
   const [advancedFilters, setAdvancedFilters] = useState({
-    destination: 'all',
+    destination: initialDestination,
     serviceType: defaultCategory ?? 'all',
     budget: 'all',
     checkIn: '',
@@ -73,62 +95,54 @@ export default function MarketplaceExplorer({
     travelers: 'all',
   });
 
-  const deferredQuery = useDeferredValue(query);
-  const availableCategories = getMarketplaceCategoryOptions(services, family);
   const serviceTypeCategory = advancedFilters.serviceType === 'all' ? undefined : (advancedFilters.serviceType as MarketplacePageCategory);
   const activeCategory = serviceTypeCategory ?? (category === 'all' ? undefined : category);
 
-  const categoryBrowseItems = useMemo(
-    () =>
-      availableCategories.map((option) => ({
-        ...option,
-        count: services.filter((service) => service.category === option.category).length,
-      })),
-    [availableCategories, services]
-  );
-
-  const filteredByCore = filterMarketplaceServices(services, {
+  const { services, loading, error, meta } = useMarketplaceServices({
     family,
     category: activeCategory,
-    query: deferredQuery,
+    query,
     collection,
     sort,
+    destination: advancedFilters.destination,
+    budget: advancedFilters.budget,
+    travelers: advancedFilters.travelers,
+    page,
+    pageSize: 9,
   });
 
-  const visibleServices = filteredByCore.filter((service) => {
-    if (advancedFilters.budget !== 'all') {
-      const price = service.basePrice ?? 0;
+  const categoryBrowseItems = useMemo(
+    () =>
+      meta.facets.categories
+        .filter((item) => item.count > 0)
+        .map((item) => ({
+          category: item.category as MarketplacePageCategory,
+          categoryLabel: item.label,
+          count: item.count,
+        })),
+    [meta.facets.categories]
+  );
 
-      if (advancedFilters.budget === '0-2000' && !(price > 0 && price <= 2000)) {
-        return false;
-      }
-      if (advancedFilters.budget === '2000-5000' && !(price >= 2000 && price <= 5000)) {
-        return false;
-      }
-      if (advancedFilters.budget === '5000+' && !(price >= 5000)) {
-        return false;
-      }
+  const serviceTypeOptions = useMemo(
+    () => [
+      { value: 'all', label: 'كل الخدمات' },
+      ...categoryBrowseItems.map((option) => ({ value: option.category, label: option.categoryLabel })),
+    ],
+    [categoryBrowseItems]
+  );
+
+  const paginationPages = useMemo(() => {
+    const pages: number[] = [];
+    const totalPages = meta.totalPages;
+    const start = Math.max(1, meta.page - 1);
+    const end = Math.min(totalPages, start + 2);
+
+    for (let pageNumber = start; pageNumber <= end; pageNumber += 1) {
+      pages.push(pageNumber);
     }
 
-    if (advancedFilters.destination !== 'all') {
-      const keywords = destinationKeywords[advancedFilters.destination] ?? [];
-      if (!keywords.length) {
-        return true;
-      }
-
-      const haystack = [service.name_ar, service.description_ar, ...(service.tags ?? [])].join(' ').toLowerCase();
-      return keywords.some((keyword) => haystack.includes(keyword));
-    }
-
-    return true;
-  });
-
-  const serviceTypeOptions = [
-    { value: 'all', label: 'كل الخدمات' },
-    ...availableCategories.map((option) => ({ value: option.category, label: option.categoryLabel })),
-  ];
-
-  const sortOptions = marketplaceSortOptions.map((option) => ({ value: option.value, label: option.label }));
+    return pages;
+  }, [meta.page, meta.totalPages]);
 
   return (
     <SectionContainer>
@@ -151,8 +165,23 @@ export default function MarketplaceExplorer({
                 </div>
 
                 <div className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
-                  <SearchField value={query} onChange={setQuery} placeholder="ابحث عن خدمة، فئة، أو تجربة" />
+                  <SearchField value={searchInput} onChange={setSearchInput} placeholder="ابحث عن خدمة، فئة، أو تجربة" />
                   <SelectField label="الترتيب" value={sort} onChange={(next) => setSort(next as MarketplaceSortKey)} options={sortOptions} />
+                </div>
+
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextQuery = searchInput.trim();
+                      setQuery(nextQuery);
+                      setPage(1);
+                      document.getElementById('marketplace-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className={buttonVariants({ variant: 'gold', size: 'default' })}
+                  >
+                    ابحث الآن
+                  </button>
                 </div>
 
                 <div className="mt-6 rounded-[24px] border border-[var(--color-gold)]/14 bg-white/72 p-4 sm:p-5">
@@ -163,7 +192,10 @@ export default function MarketplaceExplorer({
                     value={advancedFilters}
                     destinationOptions={destinationOptions}
                     serviceTypeOptions={serviceTypeOptions}
-                    onChange={setAdvancedFilters}
+                    onChange={(next) => {
+                      setAdvancedFilters(next);
+                      setPage(1);
+                    }}
                   />
                   <p className="mt-3 text-xs leading-6 text-[var(--color-muted)]">
                     التواريخ وعدد المسافرين واجهة جاهزة للربط المباشر في مراحل التكامل القادمة.
@@ -182,6 +214,7 @@ export default function MarketplaceExplorer({
                 onClick={() => {
                   setCategory(option.category);
                   setAdvancedFilters((previous) => ({ ...previous, serviceType: option.category }));
+                  setPage(1);
                 }}
                 aria-pressed={activeCategory === option.category}
                 className={`rounded-[22px] border px-4 py-4 text-right transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 ${
@@ -205,21 +238,32 @@ export default function MarketplaceExplorer({
 
           <motion.div variants={fadeUpItem} className="rounded-[26px] border border-[color:var(--color-border)] bg-white/72 p-4 sm:p-5">
             <div className="flex flex-wrap gap-2">
-              {collectionLabels.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setCollection(option.value)}
-                  aria-pressed={collection === option.value}
-                  className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 ${
-                    collection === option.value
-                      ? 'bg-[var(--color-navy)] text-[var(--color-light)]'
-                      : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
-                  }`}
-                >
-                  {option.label} ({countMarketplaceCollection(services, option.value, family)})
-                </button>
-              ))}
+              {collectionLabels.map((option) => {
+                const collectionCount = meta.facets.collections[option.value] ?? 0;
+                const isUnavailable = option.value !== 'all' && collectionCount === 0;
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    disabled={isUnavailable}
+                    onClick={() => {
+                      setCollection(option.value);
+                      setPage(1);
+                    }}
+                    aria-pressed={collection === option.value}
+                    className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 ${
+                      collection === option.value
+                        ? 'bg-[var(--color-navy)] text-[var(--color-light)]'
+                        : isUnavailable
+                          ? 'cursor-not-allowed border border-dashed border-[color:var(--color-border)] bg-white/60 text-[var(--color-muted)]'
+                          : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
+                    }`}
+                  >
+                    {option.label} ({collectionCount})
+                  </button>
+                );
+              })}
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -228,6 +272,7 @@ export default function MarketplaceExplorer({
                 onClick={() => {
                   setCategory('all');
                   setAdvancedFilters((previous) => ({ ...previous, serviceType: 'all' }));
+                  setPage(1);
                 }}
                 aria-pressed={category === 'all' && advancedFilters.serviceType === 'all'}
                 className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 ${
@@ -238,13 +283,14 @@ export default function MarketplaceExplorer({
               >
                 تصفح الفئات: الكل
               </button>
-              {availableCategories.map((option) => (
+              {categoryBrowseItems.map((option) => (
                 <button
                   key={option.category}
                   type="button"
                   onClick={() => {
                     setCategory(option.category);
                     setAdvancedFilters((previous) => ({ ...previous, serviceType: option.category }));
+                    setPage(1);
                   }}
                   aria-pressed={category === option.category || advancedFilters.serviceType === option.category}
                   className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 ${
@@ -263,19 +309,99 @@ export default function MarketplaceExplorer({
         {error && (
           <Card className="mt-6 border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 shadow-none">
             <CardContent className="p-4 text-sm text-[var(--color-navy)]">
-              {error} تم عرض طبقة البيانات المشتركة الاحتياطية بدلا من ذلك.
+              {error} تم عرض طبقة البيانات الاحتياطية تلقائيا للحفاظ على استمرارية التجربة.
             </CardContent>
           </Card>
         )}
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--color-muted)]">
-          <Chip className="text-sm">النتائج الظاهرة: {visibleServices.length}</Chip>
-          <Chip className="text-sm">{family ? 'عرض مفلتر حسب عائلة الخدمة' : 'عرض السوق الكامل'}</Chip>
+          <Chip className="text-sm">النتائج الظاهرة: {services.length}</Chip>
+          <Chip className="text-sm">إجمالي النتائج: {meta.total}</Chip>
+          <Chip className="text-sm">المصدر: {meta.hasRealData ? 'Live Inventory' : 'Fallback Catalog'}</Chip>
         </div>
 
-        <div className="mt-6">
-          <ServicesGrid services={visibleServices} loading={loading} emptyMessage="لا توجد نتائج مطابقة للمرشحات الحالية. غيّر الفئة أو الميزانية وجرب مرة أخرى." />
+        <div id="marketplace-results" className="mt-6">
+          {!loading && services.length === 0 ? (
+            <SectionSurface>
+              <p className="text-xl font-semibold text-[var(--color-navy)]">لا توجد خدمات مطابقة للمرشحات الحالية.</p>
+              <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">جرّب إعادة ضبط المرشحات أو تصفح جميع الخدمات لاكتشاف خيارات أخرى.</p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCollection('all');
+                    setSort('recommended');
+                    setCategory('all');
+                    setSearchInput('');
+                    setQuery('');
+                    setAdvancedFilters({
+                      destination: 'all',
+                      serviceType: 'all',
+                      budget: 'all',
+                      checkIn: '',
+                      checkOut: '',
+                      travelers: 'all',
+                    });
+                    setPage(1);
+                  }}
+                  className={buttonVariants({ variant: 'gold', size: 'default' })}
+                >
+                  إعادة ضبط المرشحات
+                </button>
+                <Link href="/services" className={buttonVariants({ variant: 'outline', size: 'default' })}>
+                  تصفح كل الخدمات
+                </Link>
+              </div>
+            </SectionSurface>
+          ) : (
+            <ServicesGrid services={services} loading={loading} emptyMessage="لا توجد نتائج مطابقة للمرشحات الحالية." skeletonCount={6} />
+          )}
         </div>
+
+        {meta.totalPages > 1 ? (
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((previous) => Math.max(1, previous - 1))}
+              disabled={meta.page <= 1}
+              className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition ${
+                meta.page <= 1
+                  ? 'cursor-not-allowed border border-dashed border-[color:var(--color-border)] text-[var(--color-muted)]'
+                  : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
+              }`}
+            >
+              السابق
+            </button>
+
+            {paginationPages.map((pageNumber) => (
+              <button
+                key={pageNumber}
+                type="button"
+                onClick={() => setPage(pageNumber)}
+                className={`min-h-10 min-w-10 rounded-full px-3 py-2 text-sm font-medium transition ${
+                  meta.page === pageNumber
+                    ? 'bg-[var(--color-navy)] text-[var(--color-light)]'
+                    : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
+                }`}
+              >
+                {pageNumber}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => setPage((previous) => Math.min(meta.totalPages, previous + 1))}
+              disabled={meta.page >= meta.totalPages}
+              className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition ${
+                meta.page >= meta.totalPages
+                  ? 'cursor-not-allowed border border-dashed border-[color:var(--color-border)] text-[var(--color-muted)]'
+                  : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
+              }`}
+            >
+              التالي
+            </button>
+          </div>
+        ) : null}
       </ContentContainer>
     </SectionContainer>
   );

@@ -1,30 +1,20 @@
-// src/app/api/services/route.ts
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { getMarketplaceAssistantContext, queryMarketplace, sanitizeMarketplaceQuery } from '@/lib/marketplace/server';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        if (!supabaseAdmin) {
-            return NextResponse.json({ error: 'Service unavailable' }, { status: 500 });
+        const url = new URL(request.url);
+        const view = url.searchParams.get('view');
+
+        if (view === 'assistant') {
+            const context = await getMarketplaceAssistantContext();
+            return NextResponse.json(context);
         }
 
-        const { data: services, error } = await supabaseAdmin
-            .from('services')
-            .select(`
-                *,
-                products:products(
-                    *,
-                    partner:partners(*),
-                    images:product_images(*)
-                )
-            `)
-            .order('created_at', { ascending: true });
+        const query = sanitizeMarketplaceQuery(url.searchParams);
+        const payload = await queryMarketplace(query);
 
-        if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        }
-
-        return NextResponse.json(services);
+        return NextResponse.json(payload);
     } catch {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
