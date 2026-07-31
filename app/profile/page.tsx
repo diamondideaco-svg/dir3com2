@@ -231,7 +231,7 @@ export default function ProfilePage() {
                                         {/* ✅ زر التقييم – يظهر فقط للحجوزات المكتملة (completed) */}
                                         {booking.status === 'completed' && (
                                             <Link
-                                                href={`/booking/${booking.id}/review`}
+                                                href={`/my-bookings/${booking.id}/review`}
                                                 style={{
                                                     background: '#D4AF37',
                                                     color: '#0D1B2A',
