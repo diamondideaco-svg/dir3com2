@@ -49,6 +49,16 @@ async function getBooking(id: string, userId: string) {
   };
 }
 
+function getBookingServiceName(booking: BookingEngineRecord) {
+  const value = booking.service_name ?? (booking as BookingEngineRecord & { product_name?: string | null }).product_name;
+  return value || '—';
+}
+
+function getBookingAmount(booking: BookingEngineRecord) {
+  const value = booking.total_amount ?? booking.total_price;
+  return value ?? 0;
+}
+
 export default async function MyBookingDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
@@ -81,11 +91,11 @@ export default async function MyBookingDetailsPage({ params }: { params: Promise
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-sm text-slate-400">الخدمة</p>
-              <p className="text-lg font-semibold text-white">{booking.service_name || '—'}</p>
+              <p className="text-lg font-semibold text-white">{getBookingServiceName(booking)}</p>
             </div>
             <div>
               <p className="text-sm text-slate-400">المبلغ</p>
-              <p className="text-lg font-semibold text-white">{booking.total_amount ?? 0} {booking.currency || 'SAR'}</p>
+              <p className="text-lg font-semibold text-white">{getBookingAmount(booking)} {booking.currency || 'SAR'}</p>
             </div>
             <BookingStatusBadge status={booking.status} />
           </div>
