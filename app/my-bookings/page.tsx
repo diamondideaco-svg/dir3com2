@@ -1,12 +1,30 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import BookingStatusBadge from '@/components/booking/BookingStatusBadge';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { BookingEngineRecord } from '@/lib/supabase/types';
 
+function buildLoginTarget(destination: string) {
+  const encoded = encodeURIComponent(destination);
+  return `/login?redirect=${encoded}&next=${encoded}`;
+}
+
 async function getCustomerBookings() {
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const { data } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
+  if (!user) {
+    redirect(buildLoginTarget('/my-bookings'));
+  }
+
+  const { data } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('profile_id', user.id)
+    .order('created_at', { ascending: false });
+
   return (data || []) as BookingEngineRecord[];
 }
 

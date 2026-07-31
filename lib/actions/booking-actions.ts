@@ -14,6 +14,21 @@ export async function submitReviewAction(formData: FormData) {
 
   const supabase = await createSupabaseServerClient();
 
-  await supabase.from('booking_reviews').insert({ booking_id: bookingId, rating: Math.round(rating), title, comment });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('id', bookingId)
+    .eq('profile_id', user.id)
+    .single();
+
+  if (!booking) return;
+
+  await supabase.from('booking_reviews').insert({ booking_id: bookingId, customer_id: user.id, rating: Math.round(rating), title, comment });
   revalidatePath('/my-bookings');
 }

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import BookingTimeline from '@/components/booking/BookingTimeline';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import BookingStatusBadge from '@/components/booking/BookingStatusBadge';
@@ -7,11 +8,32 @@ import SettlementCard from '@/components/booking/SettlementCard';
 import ReviewCard from '@/components/booking/ReviewCard';
 import type { BookingEngineRecord, BookingStatusHistoryRecord, PartnerAssignmentRecord, PartnerSettlementRecord, BookingReviewRecord } from '@/lib/supabase/types';
 
-async function getBooking(id: string) {
+function buildLoginTarget(destination: string) {
+  const encoded = encodeURIComponent(destination);
+  return `/login?redirect=${encoded}&next=${encoded}`;
+}
+
+async function getBooking(id: string, userId: string) {
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: bookingData }, { data: historyData }, { data: assignmentData }, { data: settlementData }, { data: reviewData }] = await Promise.all([
-    supabase.from('bookings').select('*').eq('id', id).single(),
+  const { data: bookingData } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('id', id)
+    .eq('profile_id', userId)
+    .single();
+
+  if (!bookingData) {
+    return {
+      booking: null,
+      history: [] as BookingStatusHistoryRecord[],
+      assignments: [] as PartnerAssignmentRecord[],
+      settlements: [] as PartnerSettlementRecord[],
+      reviews: [] as BookingReviewRecord[],
+    };
+  }
+
+  const [{ data: historyData }, { data: assignmentData }, { data: settlementData }, { data: reviewData }] = await Promise.all([
     supabase.from('booking_status_history').select('*').eq('booking_id', id).order('created_at', { ascending: true }),
     supabase.from('partner_assignments').select('*').eq('booking_id', id).order('assigned_at', { ascending: true }),
     supabase.from('partner_settlements').select('*').eq('booking_id', id).order('created_at', { ascending: true }),
@@ -29,7 +51,16 @@ async function getBooking(id: string) {
 
 export default async function MyBookingDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { booking, history, assignments, settlements, reviews } = await getBooking(id);
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect(buildLoginTarget(`/my-bookings/${id}`));
+  }
+
+  const { booking, history, assignments, settlements, reviews } = await getBooking(id, user.id);
 
   if (!booking) {
     return <div className="min-h-screen bg-[#0D1B2A] p-10 text-white">الحجز غير موجود.</div>;

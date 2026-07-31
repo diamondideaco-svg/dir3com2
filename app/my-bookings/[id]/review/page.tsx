@@ -1,18 +1,39 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { submitReviewAction } from '@/lib/actions/booking-actions';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { BookingEngineRecord } from '@/lib/supabase/types';
 
-async function getBooking(id: string) {
+function buildLoginTarget(destination: string) {
+  const encoded = encodeURIComponent(destination);
+  return `/login?redirect=${encoded}&next=${encoded}`;
+}
+
+async function getBooking(id: string, userId: string) {
   const supabase = await createSupabaseServerClient();
 
-  const { data } = await supabase.from('bookings').select('*').eq('id', id).single();
+  const { data } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('id', id)
+    .eq('profile_id', userId)
+    .single();
+
   return (data || null) as BookingEngineRecord | null;
 }
 
 export default async function BookingReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const booking = await getBooking(id);
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect(buildLoginTarget(`/my-bookings/${id}/review`));
+  }
+
+  const booking = await getBooking(id, user.id);
 
   if (!booking) {
     return <div className="min-h-screen bg-[#0D1B2A] p-10 text-white">الحجز غير موجود.</div>;
