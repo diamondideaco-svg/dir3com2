@@ -1,5 +1,7 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/auth/admin';
 import { appendTimelineRecord, createAuditRecord as createAuditEntry, createNotificationRecord, publishEvent, sendNotificationRecord } from '@/lib/operations/operations-engine';
 import { bookingStatusFromAssignmentStatus, bookingStatusFromLifecycleOutcome, normalizeBookingStatus, type CanonicalAssignmentStatus, type CanonicalLifecycleOutcome } from '@/lib/booking/workflow-status';
@@ -79,6 +81,13 @@ export async function synchronizeBookingLifecycle(input: {
 }) {
   const { supabase, user } = await requireAdminActionAccess();
   const { data: booking } = await supabase.from('bookings').select('id, status').eq('id', input.bookingId).single();
+  const { data: latestAssignment } = await supabase
+    .from('partner_assignments')
+    .select('assignment_status')
+    .eq('booking_id', input.bookingId)
+    .order('assigned_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (!booking) {
     return { success: false, error: 'Booking not found' };
@@ -86,8 +95,10 @@ export async function synchronizeBookingLifecycle(input: {
 
   const previousStatus = normalizeBookingStatus(booking.status as string | null | undefined);
   const statusFromOutcome = bookingStatusFromLifecycleOutcome(input.outcome);
-  const nextStatus = input.assignmentStatus
-    ? bookingStatusFromAssignmentStatus(input.assignmentStatus)
+  const resolvedAssignmentStatus = input.assignmentStatus
+    ?? ((latestAssignment?.assignment_status as CanonicalAssignmentStatus | null | undefined) ?? null);
+  const nextStatus = resolvedAssignmentStatus
+    ? bookingStatusFromAssignmentStatus(resolvedAssignmentStatus)
     : statusFromOutcome;
 
   if (previousStatus !== nextStatus) {
@@ -106,7 +117,7 @@ export async function synchronizeBookingLifecycle(input: {
     entityType: 'booking',
     entityId: input.bookingId,
     outcome: input.outcome,
-    assignmentStatus: input.assignmentStatus ?? null,
+    assignmentStatus: resolvedAssignmentStatus,
     previousStatus,
     nextStatus,
   };
@@ -125,7 +136,7 @@ export async function synchronizeBookingLifecycle(input: {
       entityId: input.bookingId,
       action: 'lifecycle_status_updated',
       oldValues: { status: previousStatus },
-      newValues: { status: nextStatus, outcome: input.outcome, assignment_status: input.assignmentStatus ?? null },
+      newValues: { status: nextStatus, outcome: input.outcome, assignment_status: resolvedAssignmentStatus },
       performedBy: user.id,
     }),
     publishEvent(
@@ -137,4 +148,38 @@ export async function synchronizeBookingLifecycle(input: {
   ]);
 
   return { success: true, previousStatus, nextStatus };
+}
+
+export async function completeBookingLifecycleAction(formData: FormData) {
+  const bookingId = formData.get('bookingId')?.toString();
+  if (!bookingId) return;
+
+  await synchronizeBookingLifecycle({
+    bookingId,
+    outcome: 'completed',
+    note: 'Booking marked completed from operations workflow',
+  });
+
+  revalidatePath('/admin/bookings');
+  revalidatePath(`/admin/bookings/${bookingId}`);
+  revalidatePath('/my-bookings');
+  revalidatePath(`/my-bookings/${bookingId}`);
+  redirect(`/admin/bookings/${bookingId}?result=booking_completed`);
+}
+
+export async function cancelBookingLifecycleAction(formData: FormData) {
+  const bookingId = formData.get('bookingId')?.toString();
+  if (!bookingId) return;
+
+  await synchronizeBookingLifecycle({
+    bookingId,
+    outcome: 'cancelled',
+    note: 'Booking marked cancelled from operations workflow',
+  });
+
+  revalidatePath('/admin/bookings');
+  revalidatePath(`/admin/bookings/${bookingId}`);
+  revalidatePath('/my-bookings');
+  revalidatePath(`/my-bookings/${bookingId}`);
+  redirect(`/admin/bookings/${bookingId}?result=booking_cancelled`);
 }

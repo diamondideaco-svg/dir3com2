@@ -5,6 +5,7 @@ import BookingStatusBadge from '@/components/booking/BookingStatusBadge';
 import PartnerAssignmentCard from '@/components/booking/PartnerAssignmentCard';
 import SettlementCard from '@/components/booking/SettlementCard';
 import ReviewCard from '@/components/booking/ReviewCard';
+import { cancelBookingLifecycleAction, completeBookingLifecycleAction } from '@/lib/actions/operations-actions';
 import type { BookingEngineRecord, BookingStatusHistoryRecord, PartnerAssignmentRecord, PartnerSettlementRecord, BookingReviewRecord } from '@/lib/supabase/types';
 
 async function getBooking(id: string) {
@@ -27,13 +28,27 @@ async function getBooking(id: string) {
   };
 }
 
-export default async function AdminBookingDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AdminBookingDetailsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ result?: string }>;
+}) {
   const { id } = await params;
+  const query = await searchParams;
   const { booking, history, assignments, settlements, reviews } = await getBooking(id);
+
+  const resultMessages: Record<string, string> = {
+    booking_completed: 'تم تحديث الحجز إلى مكتمل بنجاح.',
+    booking_cancelled: 'تم تحديث الحجز إلى ملغي بنجاح.',
+  };
 
   if (!booking) {
     return <div className="min-h-screen bg-[#0D1B2A] p-10 text-white">الحجز غير موجود.</div>;
   }
+
+  const resultMessage = query?.result ? resultMessages[query.result] ?? null : null;
 
   return (
     <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white" dir="rtl">
@@ -61,6 +76,21 @@ export default async function AdminBookingDetailsPage({ params }: { params: Prom
               <p className="text-lg font-semibold text-white">{booking.total_amount ?? 0} {booking.currency || 'SAR'}</p>
             </div>
             <BookingStatusBadge status={booking.status} />
+          </div>
+
+          {resultMessage ? (
+            <div className="mt-4 rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{resultMessage}</div>
+          ) : null}
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <form action={completeBookingLifecycleAction}>
+              <input type="hidden" name="bookingId" value={booking.id} />
+              <button type="submit" className="rounded-full bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B2A]">تمييز كمكتمل</button>
+            </form>
+            <form action={cancelBookingLifecycleAction}>
+              <input type="hidden" name="bookingId" value={booking.id} />
+              <button type="submit" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">إلغاء الحجز</button>
+            </form>
           </div>
         </div>
 
