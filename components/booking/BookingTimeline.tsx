@@ -1,3 +1,5 @@
+import { getLifecycleStatusContract } from '@/lib/booking/workflow-status';
+
 type BookingTimelineProps = {
   history: Array<{ id: string; status: string; notes?: string | null; created_at: string }>;
 };
@@ -11,7 +13,7 @@ export default function BookingTimeline({ history }: BookingTimelineProps) {
           <div key={item.id} className="flex gap-3 rounded-2xl border border-white/10 bg-[#07111D] p-4">
             <div className="mt-1 h-3 w-3 rounded-full bg-[#D4AF37]" />
             <div>
-              <p className="font-semibold text-white">{item.status}</p>
+              <p className="font-semibold text-white">{getLifecycleStatusContract(item.status).customerVisibleStatus}</p>
               <p className="mt-1 text-sm text-slate-400">{new Date(item.created_at).toLocaleString('ar-SA')}</p>
               {item.notes ? <p className="mt-2 text-sm text-slate-300">{item.notes}</p> : null}
             </div>

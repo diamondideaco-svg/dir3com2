@@ -1,3 +1,5 @@
+import { getLifecycleStatusContract } from '@/lib/booking/workflow-status';
+
 type BookingStatusBadgeProps = {
   status: string;
 };
@@ -15,9 +17,11 @@ const toneMap: Record<string, string> = {
 };
 
 export default function BookingStatusBadge({ status }: BookingStatusBadgeProps) {
+  const { customerVisibleStatus } = getLifecycleStatusContract(status);
+
   return (
-    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneMap[status] || 'bg-slate-500/15 text-slate-300'}`}>
-      {status}
+    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneMap[customerVisibleStatus] || 'bg-slate-500/15 text-slate-300'}`}>
+      {customerVisibleStatus}
     </span>
   );
 }
