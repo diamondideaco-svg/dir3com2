@@ -22,7 +22,7 @@ async function getCustomerBookings() {
   const { data } = await supabase
     .from('bookings')
     .select('*')
-    .eq('profile_id', user.id)
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
   return (data || []) as BookingEngineRecord[];

@@ -20,7 +20,7 @@ async function getBooking(id: string, userId: string) {
     .from('bookings')
     .select('*')
     .eq('id', id)
-    .eq('profile_id', userId)
+    .eq('user_id', userId)
     .single();
 
   if (!bookingData) {

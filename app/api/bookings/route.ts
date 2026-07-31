@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     const bookingReference = `DIR3-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
 
     const bookingPayload = {
-      profile_id: user.id,
+      user_id: user.id,
       product_id: productId || null,
       product_name: productName,
       product_price: Math.max(0, productPrice),

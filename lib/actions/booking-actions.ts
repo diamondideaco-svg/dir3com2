@@ -24,7 +24,7 @@ export async function submitReviewAction(formData: FormData) {
     .from('bookings')
     .select('id')
     .eq('id', bookingId)
-    .eq('profile_id', user.id)
+    .eq('user_id', user.id)
     .single();
 
   if (!booking) return;
