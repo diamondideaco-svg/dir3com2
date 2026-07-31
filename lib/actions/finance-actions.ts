@@ -2,6 +2,7 @@
 
 import { requireAdminActionAccess } from '@/lib/auth/admin';
 import { calculateSettlement, createInvoice, createSettlement, createWallet, creditWallet, debitWallet, holdFunds, releaseFunds } from '@/lib/finance/finance-engine';
+import { reconcileWalletAgainstLedger } from '@/lib/finance/wallet-ledger';
 
 function resolveBookingSettlementAmount(booking: { total_amount?: number | string | null; total_price?: number | string | null } | null, fallbackAmount?: number) {
   const amountFromTotal = Number(booking?.total_amount ?? Number.NaN);
@@ -70,8 +71,44 @@ export async function getFinanceSummary() {
     supabase.from('invoices').select('*').order('created_at', { ascending: false }),
   ]);
 
+  const wallets = walletsRes.data || [];
+  const walletIds = wallets.map((wallet: { id: string }) => wallet.id);
+
+  const walletTransactionsRes = walletIds.length
+    ? await supabase
+        .from('wallet_transactions')
+        .select('*')
+        .in('wallet_id', walletIds)
+        .order('created_at', { ascending: false })
+    : { data: [] as Array<Record<string, unknown>> };
+
+  const transactionsByWallet = new Map<string, Array<Record<string, unknown>>>();
+  for (const tx of walletTransactionsRes.data || []) {
+    const walletId = String((tx as { wallet_id?: string }).wallet_id ?? '');
+    if (!walletId) continue;
+    const list = transactionsByWallet.get(walletId) ?? [];
+    list.push(tx as Record<string, unknown>);
+    transactionsByWallet.set(walletId, list);
+  }
+
+  const reconciledWallets = wallets.map((wallet: { id: string; balance?: number | string | null; held_balance?: number | string | null; available_balance?: number | string | null; currency?: string | null }) => {
+    const reconciliation = reconcileWalletAgainstLedger(wallet, transactionsByWallet.get(wallet.id) || []);
+
+    return {
+      ...wallet,
+      balance: reconciliation.ledger.balance,
+      held_balance: reconciliation.ledger.heldBalance,
+      available_balance: reconciliation.ledger.availableBalance,
+      reconciliation_status: reconciliation.isConsistent ? 'consistent' : 'drift',
+      reconciliation_delta_balance: reconciliation.delta.balance,
+      reconciliation_delta_held_balance: reconciliation.delta.heldBalance,
+      reconciliation_delta_available_balance: reconciliation.delta.availableBalance,
+      transaction_count: reconciliation.ledger.transactionCount,
+    };
+  });
+
   return {
-    wallets: walletsRes.data || [],
+    wallets: reconciledWallets,
     settlements: settlementsRes.data || [],
     invoices: invoicesRes.data || [],
   };

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { reconcileWalletAgainstLedger } from '@/lib/finance/wallet-ledger';
 import type { WalletRecord } from '@/lib/supabase/types';
 
 function buildLoginTarget(destination: string) {
@@ -27,11 +28,23 @@ async function getWallet() {
     .limit(1)
     .maybeSingle();
 
-  return data as WalletRecord | null;
+  const wallet = data as WalletRecord | null;
+  if (!wallet) {
+    return { wallet: null, reconciliation: null as ReturnType<typeof reconcileWalletAgainstLedger> | null };
+  }
+
+  const { data: transactions } = await supabase
+    .from('wallet_transactions')
+    .select('*')
+    .eq('wallet_id', wallet.id)
+    .order('created_at', { ascending: false });
+
+  const reconciliation = reconcileWalletAgainstLedger(wallet, transactions || []);
+  return { wallet, reconciliation };
 }
 
 export default async function MyWalletPage() {
-  const wallet = await getWallet();
+  const { wallet, reconciliation } = await getWallet();
 
   return (
     <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white" dir="rtl">
@@ -46,9 +59,12 @@ export default async function MyWalletPage() {
         <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
           {wallet ? (
             <div className="space-y-3">
-              <p className="text-lg font-semibold text-white">الرصيد الحالي: {Number(wallet.balance || 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
-              <p className="text-sm text-slate-300">الرصيد المتاح: {Number(wallet.available_balance || 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
-              <p className="text-sm text-slate-400">الرصيد المعلق: {Number(wallet.held_balance || 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
+              <p className="text-lg font-semibold text-white">الرصيد الحالي: {Number(reconciliation?.ledger.balance ?? wallet.balance ?? 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
+              <p className="text-sm text-slate-300">الرصيد المتاح: {Number(reconciliation?.ledger.availableBalance ?? wallet.available_balance ?? 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
+              <p className="text-sm text-slate-400">الرصيد المعلق: {Number(reconciliation?.ledger.heldBalance ?? wallet.held_balance ?? 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
+              {reconciliation && !reconciliation.isConsistent ? (
+                <p className="text-xs text-amber-300">تم عرض الرصيد وفق دفتر القيود المالي لحماية اتساق البيانات.</p>
+              ) : null}
             </div>
           ) : (
             <p className="text-sm text-slate-300">لا توجد محفظة مرتبطة بحسابك حالياً.</p>
