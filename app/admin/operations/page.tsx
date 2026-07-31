@@ -8,7 +8,15 @@ export const metadata = {
   title: 'Operations Engine | DIR3COM',
 };
 
-export default function OperationsPage() {
+const resultMessages: Record<string, string> = {
+  notification_sent: 'تم إرسال الإشعار بنجاح.',
+  audit_created: 'تم إنشاء سجل التدقيق بنجاح.',
+};
+
+export default async function OperationsPage({ searchParams }: { searchParams: Promise<{ result?: string }> }) {
+  const params = await searchParams;
+  const resultMessage = params?.result ? resultMessages[params.result] : null;
+
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -17,6 +25,10 @@ export default function OperationsPage() {
           <h1 className="mt-2 text-3xl font-semibold">Notifications, audit, timeline, and system events</h1>
           <p className="mt-3 max-w-3xl text-slate-400">Every important action in the platform is now traceable through one operational backbone.</p>
         </div>
+
+        {resultMessage ? (
+          <div className="rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{resultMessage}</div>
+        ) : null}
 
         <OperationSummaryCards />
 

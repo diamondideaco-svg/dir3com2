@@ -1,7 +1,17 @@
 import { getVerificationOverview } from '@/lib/actions/verification-actions';
 
 export async function VerificationCard() {
-  const overview = await getVerificationOverview();
+  const { overview, error } = await getVerificationOverview()
+    .then((payload) => ({ overview: payload, error: null as string | null }))
+    .catch(() => ({
+      overview: { requests: [], reviews: [] },
+      error: 'تعذر تحميل ملخص التحقق حالياً.',
+    }));
+
+  if (error) {
+    return <div className="rounded-2xl border border-red-400/35 bg-red-500/10 p-4 text-sm text-red-100">{error}</div>;
+  }
+
   const pending = overview.requests.filter((item: { status?: string | null }) => item.status === 'Pending').length;
 
   return (

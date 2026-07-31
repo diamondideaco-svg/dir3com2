@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { assignPartnerToBooking, autoAssignBooking, recalculateShieldScore } from '@/lib/assignment-engine';
 import { requireAdminActionAccess } from '@/lib/auth/admin';
 
@@ -42,6 +43,7 @@ export async function rejectAssignmentAction(formData: FormData) {
   await supabase.from('partner_assignments').update({ assignment_status: 'declined' }).eq('booking_id', bookingId);
   await supabase.from('bookings').update({ status: 'pending' }).eq('id', bookingId);
   revalidatePath('/admin/assignment');
+  redirect('/admin/assignment?result=assignment_rejected');
 }
 
 export async function approveAssignmentAction(formData: FormData) {
@@ -52,6 +54,7 @@ export async function approveAssignmentAction(formData: FormData) {
   await supabase.from('partner_assignments').update({ assignment_status: 'accepted' }).eq('booking_id', bookingId);
   await supabase.from('bookings').update({ status: 'In Progress' }).eq('id', bookingId);
   revalidatePath('/admin/assignment');
+  redirect('/admin/assignment?result=assignment_approved');
 }
 
 export async function forceAssignmentAction(formData: FormData) {

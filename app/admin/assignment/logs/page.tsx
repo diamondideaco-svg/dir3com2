@@ -14,12 +14,18 @@ type AssignmentLog = {
 
 async function getLogs() {
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.from('assignment_logs').select('*').order('created_at', { ascending: false });
-  return (data ?? []) as AssignmentLog[];
+  const { data, error } = await supabase.from('assignment_logs').select('*').order('created_at', { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return { logs: [] as AssignmentLog[], error: 'تعذر تحميل سجل التعيين حالياً.' };
+  }
+
+  return { logs: (data ?? []) as AssignmentLog[], error: null };
 }
 
 export default async function AssignmentLogsPage() {
-  const logs = await getLogs();
+  const { logs, error } = await getLogs();
 
   return (
     <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white" dir="rtl">
@@ -31,6 +37,10 @@ export default async function AssignmentLogsPage() {
           </div>
           <Link href="/admin/assignment" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة</Link>
         </div>
+
+        {error ? (
+          <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div>
+        ) : null}
 
         <AssignmentLogTable logs={logs} />
       </div>

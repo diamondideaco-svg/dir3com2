@@ -14,14 +14,27 @@ type AssignmentRecord = {
   score?: number;
 };
 
+const resultMessages: Record<string, string> = {
+  assignment_approved: 'تمت الموافقة على التعيين بنجاح.',
+  assignment_rejected: 'تم رفض التعيين وإعادة الحجز للمراجعة.',
+};
+
 async function getAssignments() {
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.from('partner_assignments').select('*').order('assigned_at', { ascending: false });
-  return (data ?? []) as AssignmentRecord[];
+  const { data, error } = await supabase.from('partner_assignments').select('*').order('assigned_at', { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return { assignments: [] as AssignmentRecord[], error: 'تعذر تحميل بيانات التعيين حالياً.' };
+  }
+
+  return { assignments: (data ?? []) as AssignmentRecord[], error: null };
 }
 
-export default async function AssignmentPage() {
-  const assignments = await getAssignments();
+export default async function AssignmentPage({ searchParams }: { searchParams: Promise<{ result?: string }> }) {
+  const { assignments, error } = await getAssignments();
+  const params = await searchParams;
+  const resultMessage = params?.result ? resultMessages[params.result] : null;
 
   return (
     <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white" dir="rtl">
@@ -36,6 +49,14 @@ export default async function AssignmentPage() {
             <Link href="/admin/assignment/logs" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">السجلات</Link>
           </div>
         </div>
+
+        {resultMessage ? (
+          <div className="mb-5 rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{resultMessage}</div>
+        ) : null}
+
+        {error ? (
+          <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div>
+        ) : null}
 
         <AssignmentTable assignments={assignments} />
       </div>

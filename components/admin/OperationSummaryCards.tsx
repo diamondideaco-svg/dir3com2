@@ -1,7 +1,16 @@
 import { getOperationsSummary } from '@/lib/actions/operations-actions';
 
 export async function OperationSummaryCards() {
-  const summary = await getOperationsSummary();
+  const { summary, error } = await getOperationsSummary()
+    .then((payload) => ({ summary: payload, error: null as string | null }))
+    .catch(() => ({
+      summary: { notifications: [], audits: [], timeline: [], events: [] },
+      error: 'تعذر تحميل ملخص العمليات حالياً.',
+    }));
+
+  if (error) {
+    return <div className="rounded-2xl border border-red-400/35 bg-red-500/10 p-4 text-sm text-red-100">{error}</div>;
+  }
 
   const cards = [
     { label: 'Notifications', value: summary.notifications.length },
