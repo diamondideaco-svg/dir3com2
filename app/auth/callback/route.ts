@@ -5,6 +5,24 @@ import { getPostLoginDestination } from '@/lib/auth/redirect';
 import { ensureCanonicalProfileFromAuthUser } from '@/lib/auth/identity';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 
+function getSafeCallbackErrorCode(message: string | undefined) {
+    const normalized = (message ?? '').toLowerCase();
+
+    if (normalized.includes('expired') || normalized.includes('timeout')) {
+        return 'session_expired';
+    }
+
+    if (normalized.includes('flow') || normalized.includes('state')) {
+        return 'invalid_flow';
+    }
+
+    if (normalized.includes('invalid') || normalized.includes('code')) {
+        return 'invalid_code';
+    }
+
+    return 'exchange_failed';
+}
+
 export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
@@ -25,7 +43,8 @@ export async function GET(request: Request) {
         );
         if (error) {
             logServerError('auth.callback.exchange_failed', error);
-            return NextResponse.redirect(`${origin}/login?error=${error.message}`);
+            const safeCode = getSafeCallbackErrorCode(error.message);
+            return NextResponse.redirect(`${origin}/login?error=${safeCode}`);
         }
 
         if (data?.user) {
