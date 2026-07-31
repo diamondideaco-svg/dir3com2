@@ -97,14 +97,25 @@ export default function MarketplaceExplorer({
 
   const serviceTypeCategory = advancedFilters.serviceType === 'all' ? undefined : (advancedFilters.serviceType as MarketplacePageCategory);
   const activeCategory = serviceTypeCategory ?? (category === 'all' ? undefined : category);
+  const inferredLanguage = /[\u0600-\u06FF]/.test(query)
+    ? /[A-Za-z]/.test(query)
+      ? 'mixed'
+      : 'ar'
+    : /[A-Za-z]/.test(query)
+      ? 'en'
+      : 'ar';
 
   const { services, loading, error, meta } = useMarketplaceServices({
     family,
     category: activeCategory,
     query,
+    userIntent: query,
+    language: inferredLanguage,
     collection,
     sort,
     destination: advancedFilters.destination,
+    checkIn: advancedFilters.checkIn,
+    checkOut: advancedFilters.checkOut,
     budget: advancedFilters.budget,
     travelers: advancedFilters.travelers,
     page,

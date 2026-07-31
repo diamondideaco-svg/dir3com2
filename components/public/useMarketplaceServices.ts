@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { isPublicAISearchEnabled } from '@/lib/ai/config';
 import {
   createMarketplaceFallbackServices,
   normalizeMarketplaceServices,
@@ -15,9 +16,13 @@ type MarketplaceServicesQuery = {
   family?: MarketplaceFamilyKey;
   category?: MarketplacePageCategory;
   query?: string;
+  userIntent?: string;
+  language?: 'ar' | 'en' | 'mixed';
   collection?: MarketplaceCollectionKey;
   sort?: MarketplaceSortKey;
   destination?: string;
+  checkIn?: string;
+  checkOut?: string;
   budget?: string;
   travelers?: string;
   availability?: 'all' | 'available' | 'limited' | 'sold-out';
@@ -36,6 +41,11 @@ type MarketplaceServicesMeta = {
   facets: {
     categories: Array<{ category: string; label: string; count: number }>;
     collections: Record<'all' | 'featured' | 'popular' | 'recommended', number>;
+  };
+  search?: {
+    provider: 'openai' | 'anthropic' | 'gemini' | 'azure-openai' | 'local';
+    usedAI: boolean;
+    fallbackReason?: string;
   };
 };
 
@@ -105,6 +115,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
   const [meta, setMeta] = useState<MarketplaceServicesMeta>(fallbackMeta);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const aiSearchEnabled = isPublicAISearchEnabled();
 
   const requestQuery = useMemo(() => {
     const params = new URLSearchParams();
@@ -120,6 +131,27 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
     return params.toString();
   }, [options]);
 
+  const aiRequestBody = useMemo(
+    () => ({
+      query: options.query ?? '',
+      userIntent: options.userIntent ?? options.query ?? '',
+      language: options.language,
+      destination: options.destination ?? 'all',
+      serviceType: options.category ?? 'all',
+      checkIn: options.checkIn,
+      checkOut: options.checkOut,
+      travelers: options.travelers ?? 'all',
+      budget: options.budget ?? 'all',
+      family: options.family,
+      collection: options.collection ?? 'all',
+      sort: options.sort ?? 'recommended',
+      availability: options.availability ?? 'all',
+      page: options.page ?? 1,
+      pageSize: options.pageSize ?? 9,
+    }),
+    [options]
+  );
+
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
@@ -128,16 +160,45 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
       setLoading(true);
 
       try {
-        const response = await fetch(`/api/services${requestQuery ? `?${requestQuery}` : ''}`, {
-          cache: 'no-store',
-          signal: controller.signal,
-        });
+        let data: unknown;
 
-        if (!response.ok) {
-          throw new Error('تعذر تحميل الخدمات حالياً');
+        if (aiSearchEnabled) {
+          const aiResponse = await fetch('/api/search/marketplace', {
+            method: 'POST',
+            cache: 'no-store',
+            signal: controller.signal,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(aiRequestBody),
+          });
+
+          if (aiResponse.ok) {
+            data = (await aiResponse.json()) as unknown;
+          } else {
+            const fallbackResponse = await fetch(`/api/services${requestQuery ? `?${requestQuery}` : ''}`, {
+              cache: 'no-store',
+              signal: controller.signal,
+            });
+
+            if (!fallbackResponse.ok) {
+              throw new Error('تعذر تحميل الخدمات حالياً');
+            }
+
+            data = (await fallbackResponse.json()) as unknown;
+          }
+        } else {
+          const response = await fetch(`/api/services${requestQuery ? `?${requestQuery}` : ''}`, {
+            cache: 'no-store',
+            signal: controller.signal,
+          });
+
+          if (!response.ok) {
+            throw new Error('تعذر تحميل الخدمات حالياً');
+          }
+
+          data = (await response.json()) as unknown;
         }
-
-        const data = (await response.json()) as unknown;
 
         if (!active) {
           return;
@@ -185,7 +246,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
       active = false;
       controller.abort();
     };
-  }, [requestQuery]);
+  }, [aiRequestBody, aiSearchEnabled, requestQuery]);
 
   return { services, loading, error, meta };
 }
