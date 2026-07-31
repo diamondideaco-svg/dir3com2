@@ -38,6 +38,12 @@ export async function GET(
                 .single();
 
             if (!productError && product) {
+                const { data: category } = await supabaseAdmin
+                    .from('product_categories')
+                    .select('id,slug,name_en,name_ar')
+                    .eq('id', product.category_id)
+                    .maybeSingle();
+
                 const { data: images } = await supabaseAdmin
                     .from('product_images')
                     .select('*')
@@ -56,6 +62,10 @@ export async function GET(
                     currency: product.currency,
                     featured: product.featured,
                     status: product.status,
+                    marketplace_category: category?.slug ?? category?.name_en ?? category?.name_ar ?? null,
+                    category_slug: category?.slug ?? null,
+                    category_name_en: category?.name_en ?? null,
+                    category_name_ar: category?.name_ar ?? null,
                     created_at: product.created_at,
                     products: [
                         {

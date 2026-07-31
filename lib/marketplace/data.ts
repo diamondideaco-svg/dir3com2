@@ -57,6 +57,10 @@ type RawServiceApiItem = {
   destination?: string | null;
   region_name?: string | null;
   availability_status?: string | null;
+  marketplace_category?: string | null;
+  category_slug?: string | null;
+  category_name_en?: string | null;
+  category_name_ar?: string | null;
 };
 
 export type MarketplaceService = {
@@ -253,7 +257,58 @@ function normalizeText(value: string | null | undefined) {
   return (value ?? '').trim().toLowerCase();
 }
 
+const explicitCategoryAliasMap: Record<string, MarketplacePageCategory> = {
+  cars: 'cars',
+  car: 'cars',
+  hotels: 'hotels',
+  hotel: 'hotels',
+  apartments: 'apartments',
+  apartment: 'apartments',
+  'airport-transfers': 'airport-transfers',
+  airport_transfers: 'airport-transfers',
+  airport: 'airport-transfers',
+  concierge: 'concierge',
+  experiences: 'experiences',
+  experience: 'experiences',
+  offers: 'offers',
+  offer: 'offers',
+  سيارات: 'cars',
+  فنادق: 'hotels',
+  فندق: 'hotels',
+  شقق: 'apartments',
+  شقة: 'apartments',
+  مطار: 'airport-transfers',
+  كونسيرج: 'concierge',
+  تجارب: 'experiences',
+  عروض: 'offers',
+};
+
+function resolveExplicitCategory(item: RawServiceApiItem): MarketplacePageCategory | null {
+  const candidates = [item.marketplace_category, item.category_slug, item.category_name_en, item.category_name_ar];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeText(candidate).replace(/_/g, '-');
+    if (!normalized) continue;
+
+    const direct = explicitCategoryAliasMap[normalized];
+    if (direct) {
+      return direct;
+    }
+
+    if ((marketplaceCatalogEntries as MarketplaceCatalogEntry[]).some((entry) => entry.category === normalized)) {
+      return normalized as MarketplacePageCategory;
+    }
+  }
+
+  return null;
+}
+
 function inferCategory(item: RawServiceApiItem): MarketplacePageCategory {
+  const explicitCategory = resolveExplicitCategory(item);
+  if (explicitCategory) {
+    return explicitCategory;
+  }
+
   const haystack = [item.slug, item.name_ar, item.name_en, item.description_ar, item.description_en]
     .map(normalizeText)
     .join(' ');
