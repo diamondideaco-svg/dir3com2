@@ -2,6 +2,32 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { getMarketplaceSnapshot } from '@/lib/marketplace/server';
 
+type ServiceApiErrorCode = 'invalid_slug' | 'not_found' | 'internal_error';
+
+function buildErrorResponse(code: ServiceApiErrorCode, message: string, status: number) {
+    return NextResponse.json(
+        {
+            ok: false,
+            error: {
+                code,
+                message,
+            },
+        },
+        { status },
+    );
+}
+
+function normalizeServiceSlug(rawSlug: string | null | undefined) {
+    const normalized = decodeURIComponent((rawSlug ?? '').trim()).toLowerCase();
+    const isValid = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized);
+
+    if (!normalized || normalized.length > 120 || !isValid) {
+        return null;
+    }
+
+    return normalized;
+}
+
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ slug: string }> }
@@ -10,6 +36,11 @@ export async function GET(
 
     try {
         const { slug } = await params;
+        const normalizedSlug = normalizeServiceSlug(slug);
+
+        if (!normalizedSlug) {
+            return buildErrorResponse('invalid_slug', 'Invalid service slug.', 400);
+        }
 
         if (supabaseAdmin) {
             const { data: service, error } = await supabaseAdmin
@@ -23,7 +54,7 @@ export async function GET(
                         region:regions(*)
                     )
                 `)
-                .eq('slug', slug)
+                .eq('slug', normalizedSlug)
                 .single();
 
             if (!error && service) {
@@ -33,7 +64,7 @@ export async function GET(
             const { data: product, error: productError } = await supabaseAdmin
                 .from('products')
                 .select('*')
-                .eq('slug', slug)
+                .eq('slug', normalizedSlug)
                 .in('status', ['published', 'active', 'featured'])
                 .single();
 
@@ -88,11 +119,11 @@ export async function GET(
         }
 
         const snapshot = await getMarketplaceSnapshot();
-        const fallback = snapshot.services.find((service) => service.slug === slug || service.href.endsWith(`/${slug}`));
+        const fallback = snapshot.services.find((service) => service.slug === normalizedSlug || service.href.endsWith(`/${normalizedSlug}`));
 
         if (!fallback) {
-            return NextResponse.json({ error: 'الخدمة غير موجودة حالياً' }, { status: 404 });
-    }
+            return buildErrorResponse('not_found', 'Service not found.', 404);
+        }
 
         return NextResponse.json({
             id: fallback.id,
@@ -110,6 +141,6 @@ export async function GET(
             products: [],
         });
     } catch {
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return buildErrorResponse('internal_error', 'Internal Server Error', 500);
     }
 }
