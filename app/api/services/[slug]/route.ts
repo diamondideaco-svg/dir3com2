@@ -29,6 +29,52 @@ export async function GET(
             if (!error && service) {
                 return NextResponse.json(service);
             }
+
+            const { data: product, error: productError } = await supabaseAdmin
+                .from('products')
+                .select('*')
+                .eq('slug', slug)
+                .in('status', ['published', 'active', 'featured'])
+                .single();
+
+            if (!productError && product) {
+                const { data: images } = await supabaseAdmin
+                    .from('product_images')
+                    .select('*')
+                    .eq('product_id', product.id)
+                    .order('created_at', { ascending: true });
+
+                return NextResponse.json({
+                    id: product.id,
+                    slug: product.slug,
+                    name_ar: product.name_ar,
+                    name_en: product.name_en,
+                    description_ar: product.description_ar,
+                    description_en: product.description_en,
+                    badge: 'PRODUCT',
+                    base_price: product.base_price,
+                    currency: product.currency,
+                    featured: product.featured,
+                    status: product.status,
+                    created_at: product.created_at,
+                    products: [
+                        {
+                            id: product.id,
+                            name_ar: product.name_ar,
+                            description_ar: product.description_ar,
+                            price_per_unit: product.base_price,
+                            unit_type: null,
+                            slug: product.slug,
+                            partner: null,
+                            region: null,
+                            images: (images ?? []).map((image) => ({
+                                image_url: image.image_url,
+                                is_primary: Boolean(image.is_primary),
+                            })),
+                        },
+                    ],
+                });
+            }
         }
 
         const snapshot = await getMarketplaceSnapshot();
