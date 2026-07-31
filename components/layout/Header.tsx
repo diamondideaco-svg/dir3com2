@@ -23,9 +23,22 @@ const navItems = [
 const actionLinks = [
   { label: 'البحث', href: '/services', icon: FiSearch },
   { label: 'الدبرة', href: '/#dibrah-section', icon: HiSparkles },
-  { label: 'المفضلة', href: '/my-bookings', icon: FiHeart },
-  { label: 'التنبيهات', href: '/my-account', icon: FiBell },
+  { label: 'المفضلة', href: '/my-bookings', icon: FiHeart, requiresAuth: true },
+  { label: 'التنبيهات', href: '/my-account', icon: FiBell, requiresAuth: true },
 ];
+
+function buildLoginTarget(destination: string) {
+  const encoded = encodeURIComponent(destination);
+  return `/login?redirect=${encoded}&next=${encoded}`;
+}
+
+function resolveActionHref(href: string, requiresAuth: boolean | undefined, hasUser: boolean) {
+  if (requiresAuth && !hasUser) {
+    return buildLoginTarget(href);
+  }
+
+  return href;
+}
 
 function getUserDisplayName(rawName: string | null | undefined, email: string | null | undefined) {
   const trimmedName = rawName?.trim();
@@ -66,6 +79,9 @@ export default function Header() {
       (user?.user_metadata?.preferred_username as string | undefined),
     user?.email
   );
+
+  const accountHref = user ? '/my-account' : buildLoginTarget('/my-account');
+  const profileHref = user ? '/my-profile' : buildLoginTarget('/my-profile');
 
   return (
     <header className="sticky top-0 z-40 border-b border-[color:var(--color-border)] bg-[color:var(--color-shell)]/90 backdrop-blur-xl">
@@ -108,7 +124,7 @@ export default function Header() {
           </div>
           <div className="hidden md:flex">
             <Link
-              href={user ? '/my-account' : '/login'}
+              href={accountHref}
               className="inline-flex h-11 items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-white/70 px-3 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
               aria-label={user ? `الحساب: ${userDisplayName}` : 'تسجيل الدخول'}
             >
@@ -117,10 +133,10 @@ export default function Header() {
             </Link>
           </div>
           <div className="hidden items-center gap-2 md:flex">
-            {actionLinks.map(({ href, label, icon: Icon }) => (
+            {actionLinks.map(({ href, label, icon: Icon, requiresAuth }) => (
               <Link
                 key={label}
-                href={href}
+                href={resolveActionHref(href, requiresAuth, Boolean(user))}
                 aria-label={label}
                 className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-white/70 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
               >
@@ -128,7 +144,7 @@ export default function Header() {
               </Link>
             ))}
             <Link
-              href={user ? '/profile' : '/login'}
+              href={profileHref}
               aria-label={user ? 'الملف الشخصي' : 'تسجيل الدخول'}
               className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-white/70 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
             >
@@ -158,10 +174,10 @@ export default function Header() {
             </nav>
 
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {actionLinks.map(({ href, label, icon: Icon }) => (
+              {actionLinks.map(({ href, label, icon: Icon, requiresAuth }) => (
                 <Link
                   key={label}
-                  href={href}
+                  href={resolveActionHref(href, requiresAuth, Boolean(user))}
                   aria-label={label}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
@@ -173,7 +189,7 @@ export default function Header() {
                 </Link>
               ))}
               <Link
-                href={user ? '/profile' : '/login'}
+                href={profileHref}
                 aria-label={user ? 'الملف الشخصي' : 'تسجيل الدخول'}
                 onClick={() => setMobileOpen(false)}
                 className={cn(
@@ -185,7 +201,7 @@ export default function Header() {
               </Link>
             </div>
             <Link
-              href={user ? '/my-account' : '/login'}
+              href={accountHref}
               onClick={() => setMobileOpen(false)}
               className="rounded-2xl border border-[color:var(--color-border)] bg-white/75 px-4 py-3 text-sm font-medium text-[var(--color-navy)] transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
             >
