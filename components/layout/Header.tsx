@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { FiBell, FiHeart, FiMenu, FiSearch, FiShield, FiUser, FiX } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
@@ -23,9 +24,11 @@ const navItems = [
 const actionLinks = [
   { label: 'البحث', href: '/services', icon: FiSearch },
   { label: 'الدبرة', href: '/#dibrah-section', icon: HiSparkles },
-  { label: 'المفضلة', href: '/my-bookings', icon: FiHeart, requiresAuth: true },
-  { label: 'التنبيهات', href: '/my-account', icon: FiBell, requiresAuth: true },
+  { label: 'المفضلة', href: '/my-bookings', icon: FiHeart, requiresAuth: true, accountSection: 'bookings' },
+  { label: 'التنبيهات', href: '/my-account', icon: FiBell, requiresAuth: true, accountSection: 'account' },
 ];
+
+type AccountSection = 'account' | 'profile' | 'bookings' | 'wallet' | 'documents';
 
 function buildLoginTarget(destination: string) {
   const encoded = encodeURIComponent(destination);
@@ -38,6 +41,30 @@ function resolveActionHref(href: string, requiresAuth: boolean | undefined, hasU
   }
 
   return href;
+}
+
+function normalizePathname(pathname: string) {
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    return pathname.slice(0, -1);
+  }
+
+  return pathname;
+}
+
+function getAccountSection(pathname: string): AccountSection | null {
+  const normalizedPath = normalizePathname(pathname);
+
+  if (normalizedPath === '/my-account') return 'account';
+  if (normalizedPath === '/my-profile' || normalizedPath === '/profile') return 'profile';
+  if (normalizedPath.startsWith('/my-bookings')) return 'bookings';
+  if (normalizedPath === '/my-wallet') return 'wallet';
+  if (normalizedPath === '/my-documents') return 'documents';
+
+  return null;
+}
+
+function isActiveAccountLink(target: AccountSection | null, current: AccountSection | null) {
+  return Boolean(target && current && target === current);
 }
 
 function getUserDisplayName(rawName: string | null | undefined, email: string | null | undefined) {
@@ -70,6 +97,7 @@ function Logo() {
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
   const { user, isLoading } = useSupabase();
 
   const userDisplayName = getUserDisplayName(
@@ -82,6 +110,8 @@ export default function Header() {
 
   const accountHref = user ? '/my-account' : buildLoginTarget('/my-account');
   const profileHref = user ? '/my-profile' : buildLoginTarget('/my-profile');
+  const currentAccountSection = user ? getAccountSection(pathname) : null;
+  const accountAreaActive = Boolean(currentAccountSection);
 
   return (
     <header className="sticky top-0 z-40 border-b border-[color:var(--color-border)] bg-[color:var(--color-shell)]/90 backdrop-blur-xl">
@@ -125,7 +155,10 @@ export default function Header() {
           <div className="hidden md:flex">
             <Link
               href={accountHref}
-              className="inline-flex h-11 items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-white/70 px-3 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
+              className={cn(
+                'inline-flex h-11 items-center gap-2 rounded-full border bg-white/70 px-3 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
+                accountAreaActive ? 'border-[var(--color-gold)] text-[var(--color-gold)]' : 'border-[color:var(--color-border)]'
+              )}
               aria-label={user ? `الحساب: ${userDisplayName}` : 'تسجيل الدخول'}
             >
               <FiUser size={16} />
@@ -133,12 +166,17 @@ export default function Header() {
             </Link>
           </div>
           <div className="hidden items-center gap-2 md:flex">
-            {actionLinks.map(({ href, label, icon: Icon, requiresAuth }) => (
+            {actionLinks.map(({ href, label, icon: Icon, requiresAuth, accountSection }) => (
               <Link
                 key={label}
                 href={resolveActionHref(href, requiresAuth, Boolean(user))}
                 aria-label={label}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-white/70 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
+                className={cn(
+                  'inline-flex h-11 w-11 items-center justify-center rounded-full border bg-white/70 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
+                  isActiveAccountLink(accountSection as AccountSection | undefined ?? null, currentAccountSection)
+                    ? 'border-[var(--color-gold)] text-[var(--color-gold)]'
+                    : 'border-[color:var(--color-border)]'
+                )}
               >
                 <Icon size={18} />
               </Link>
@@ -146,7 +184,12 @@ export default function Header() {
             <Link
               href={profileHref}
               aria-label={user ? 'الملف الشخصي' : 'تسجيل الدخول'}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-white/70 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
+              className={cn(
+                'inline-flex h-11 w-11 items-center justify-center rounded-full border bg-white/70 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
+                isActiveAccountLink('profile', currentAccountSection)
+                  ? 'border-[var(--color-gold)] text-[var(--color-gold)]'
+                  : 'border-[color:var(--color-border)]'
+              )}
             >
               <FiUser size={18} />
             </Link>
@@ -174,14 +217,17 @@ export default function Header() {
             </nav>
 
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {actionLinks.map(({ href, label, icon: Icon, requiresAuth }) => (
+              {actionLinks.map(({ href, label, icon: Icon, requiresAuth, accountSection }) => (
                 <Link
                   key={label}
                   href={resolveActionHref(href, requiresAuth, Boolean(user))}
                   aria-label={label}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    'inline-flex h-12 items-center justify-center rounded-2xl border border-[color:var(--color-border)] bg-white/75 text-[var(--color-navy)] transition-all duration-200 active:scale-[0.97]',
+                    'inline-flex h-12 items-center justify-center rounded-2xl border bg-white/75 text-[var(--color-navy)] transition-all duration-200 active:scale-[0.97]',
+                    isActiveAccountLink(accountSection as AccountSection | undefined ?? null, currentAccountSection)
+                      ? 'border-[var(--color-gold)] text-[var(--color-gold)]'
+                      : 'border-[color:var(--color-border)]',
                     'hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40'
                   )}
                 >
@@ -193,7 +239,10 @@ export default function Header() {
                 aria-label={user ? 'الملف الشخصي' : 'تسجيل الدخول'}
                 onClick={() => setMobileOpen(false)}
                 className={cn(
-                  'inline-flex h-12 items-center justify-center rounded-2xl border border-[color:var(--color-border)] bg-white/75 text-[var(--color-navy)] transition-all duration-200 active:scale-[0.97]',
+                  'inline-flex h-12 items-center justify-center rounded-2xl border bg-white/75 text-[var(--color-navy)] transition-all duration-200 active:scale-[0.97]',
+                  isActiveAccountLink('profile', currentAccountSection)
+                    ? 'border-[var(--color-gold)] text-[var(--color-gold)]'
+                    : 'border-[color:var(--color-border)]',
                   'hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40'
                 )}
               >
@@ -203,7 +252,10 @@ export default function Header() {
             <Link
               href={accountHref}
               onClick={() => setMobileOpen(false)}
-              className="rounded-2xl border border-[color:var(--color-border)] bg-white/75 px-4 py-3 text-sm font-medium text-[var(--color-navy)] transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
+              className={cn(
+                'rounded-2xl border bg-white/75 px-4 py-3 text-sm font-medium text-[var(--color-navy)] transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
+                accountAreaActive ? 'border-[var(--color-gold)] text-[var(--color-gold)]' : 'border-[color:var(--color-border)]'
+              )}
             >
               {isLoading ? 'تحميل الحساب...' : user ? `حسابي: ${userDisplayName}` : 'تسجيل الدخول'}
             </Link>
