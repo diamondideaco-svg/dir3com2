@@ -2,6 +2,7 @@ export const CANONICAL_BOOKING_STATUSES = ['Pending', 'Confirmed', 'Assigned', '
 
 export type CanonicalBookingStatus = (typeof CANONICAL_BOOKING_STATUSES)[number];
 export type CanonicalAssignmentStatus = 'assigned' | 'accepted' | 'declined';
+export type CanonicalLifecycleOutcome = 'confirmed' | 'assigned' | 'accepted' | 'declined' | 'completed' | 'cancelled';
 
 const BOOKING_STATUS_ALIASES: Record<string, CanonicalBookingStatus> = {
   pending: 'Pending',
@@ -36,6 +37,15 @@ export function bookingStatusFromAssignmentStatus(status: string | null | undefi
   if (normalized === 'accepted') return 'In Progress';
   if (normalized === 'declined') return 'Pending';
   return 'Assigned';
+}
+
+export function bookingStatusFromLifecycleOutcome(outcome: CanonicalLifecycleOutcome): CanonicalBookingStatus {
+  if (outcome === 'confirmed') return 'Confirmed';
+  if (outcome === 'assigned') return 'Assigned';
+  if (outcome === 'accepted') return 'In Progress';
+  if (outcome === 'declined') return 'Pending';
+  if (outcome === 'completed') return 'Completed';
+  return 'Cancelled';
 }
 
 export function getLifecycleStatusContract(bookingStatus: string | null | undefined, assignmentStatus?: string | null) {

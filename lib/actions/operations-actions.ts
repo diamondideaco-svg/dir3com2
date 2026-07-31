@@ -2,6 +2,7 @@
 
 import { requireAdminActionAccess } from '@/lib/auth/admin';
 import { appendTimelineRecord, createAuditRecord as createAuditEntry, createNotificationRecord, publishEvent, sendNotificationRecord } from '@/lib/operations/operations-engine';
+import { bookingStatusFromAssignmentStatus, bookingStatusFromLifecycleOutcome, normalizeBookingStatus, type CanonicalAssignmentStatus, type CanonicalLifecycleOutcome } from '@/lib/booking/workflow-status';
 
 export async function createNotification(input: {
   recipientType: string;
@@ -67,4 +68,73 @@ export async function getOperationsSummary() {
     timeline: timelineRes.data ?? [],
     events: eventsRes.data ?? [],
   };
+}
+
+export async function synchronizeBookingLifecycle(input: {
+  bookingId: string;
+  outcome: CanonicalLifecycleOutcome;
+  assignmentStatus?: CanonicalAssignmentStatus | null;
+  note?: string;
+  source?: string;
+}) {
+  const { supabase, user } = await requireAdminActionAccess();
+  const { data: booking } = await supabase.from('bookings').select('id, status').eq('id', input.bookingId).single();
+
+  if (!booking) {
+    return { success: false, error: 'Booking not found' };
+  }
+
+  const previousStatus = normalizeBookingStatus(booking.status as string | null | undefined);
+  const statusFromOutcome = bookingStatusFromLifecycleOutcome(input.outcome);
+  const nextStatus = input.assignmentStatus
+    ? bookingStatusFromAssignmentStatus(input.assignmentStatus)
+    : statusFromOutcome;
+
+  if (previousStatus !== nextStatus) {
+    await supabase.from('bookings').update({ status: nextStatus }).eq('id', input.bookingId);
+  }
+
+  await supabase.from('booking_status_history').insert({
+    booking_id: input.bookingId,
+    status: nextStatus,
+    changed_by: user.id,
+    notes: input.note ?? `Lifecycle updated via ${input.outcome}`,
+  });
+
+  const eventType = `booking_status.${nextStatus.toLowerCase().replace(/\s+/g, '_')}`;
+  const payload = {
+    entityType: 'booking',
+    entityId: input.bookingId,
+    outcome: input.outcome,
+    assignmentStatus: input.assignmentStatus ?? null,
+    previousStatus,
+    nextStatus,
+  };
+
+  await Promise.all([
+    appendTimelineRecord(supabase, {
+      entityType: 'booking',
+      entityId: input.bookingId,
+      eventType,
+      summary: input.note ?? `Booking moved to ${nextStatus}`,
+      metadata: payload,
+      performedBy: user.id,
+    }),
+    createAuditEntry(supabase, {
+      entityType: 'bookings',
+      entityId: input.bookingId,
+      action: 'lifecycle_status_updated',
+      oldValues: { status: previousStatus },
+      newValues: { status: nextStatus, outcome: input.outcome, assignment_status: input.assignmentStatus ?? null },
+      performedBy: user.id,
+    }),
+    publishEvent(
+      supabase,
+      'booking.lifecycle.updated',
+      payload,
+      input.source ?? 'assignment-operations-sync',
+    ),
+  ]);
+
+  return { success: true, previousStatus, nextStatus };
 }
