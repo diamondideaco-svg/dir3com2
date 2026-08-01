@@ -1,6 +1,7 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { createServerClient as createSupabaseServerClientBase } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import type { NextRequest } from 'next/server';
 
 function isValidSupabaseUrl(value: string) {
   return Boolean(value) && /^https?:\/\//i.test(value) && !value.includes('...');
@@ -30,6 +31,29 @@ function getPublicSupabaseConfig() {
   }
 
   return { supabaseUrl, supabaseAnonKey };
+}
+
+function getBearerToken(request: NextRequest) {
+  const header = request.headers.get('authorization')?.trim() ?? '';
+  const match = /^Bearer\s+(.+)$/i.exec(header);
+  return match?.[1] ?? null;
+}
+
+function createSupabaseBearerClient(accessToken: string): SupabaseClient {
+  const { supabaseUrl, supabaseAnonKey } = getPublicSupabaseConfig();
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  });
 }
 
 function createSupabaseAdminClient() {
@@ -63,4 +87,34 @@ export async function createSupabaseServerClient(): Promise<SupabaseClient> {
       },
     },
   }) as unknown as SupabaseClient;
+}
+
+export async function createSupabaseRequestClient(request: NextRequest): Promise<{ supabase: SupabaseClient; user: User } | null> {
+  const bearerToken = getBearerToken(request);
+
+  if (bearerToken) {
+    const supabase = createSupabaseBearerClient(bearerToken);
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser(bearerToken);
+
+    if (error || !user) {
+      return null;
+    }
+
+    return { supabase, user };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    return null;
+  }
+
+  return { supabase, user };
 }

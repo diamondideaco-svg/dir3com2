@@ -1,7 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
+import { createSupabaseRequestClient, createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
 import { sanitizeMessage, sanitizeNumber, sanitizeText } from '@/lib/security/validation';
 import { logServerError } from '@/lib/security/safe-logger';
+
+export async function GET(request: NextRequest) {
+  try {
+    const authContext = await createSupabaseRequestClient(request);
+
+    if (!authContext) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data, error } = await authContext.supabase
+      .from('bookings')
+      .select('id, booking_reference, status, total_amount, total_price, currency, service_name, product_name, arrival_date, departure_date, created_at')
+      .eq('user_id', authContext.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logServerError('api.bookings.read_failed', error);
+      return NextResponse.json({ error: 'Unable to load bookings right now.' }, { status: 500 });
+    }
+
+    const bookings = (data ?? []).map((booking) => ({
+      id: booking.id,
+      booking_reference: booking.booking_reference,
+      status: booking.status,
+      total_amount: booking.total_amount,
+      total_price: booking.total_price,
+      currency: booking.currency,
+      service_name: booking.service_name ?? booking.product_name ?? null,
+      arrival_date: booking.arrival_date,
+      departure_date: booking.departure_date,
+      created_at: booking.created_at,
+    }));
+
+    return NextResponse.json({ bookings }, { status: 200 });
+  } catch (error) {
+    logServerError('api.bookings.read_unexpected_error', error);
+    return NextResponse.json({ error: 'Unable to load bookings right now.' }, { status: 500 });
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
