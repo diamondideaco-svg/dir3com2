@@ -103,7 +103,7 @@ export async function POST(request: Request) {
 
         if (insertError) {
             logServerError('api.reviews.insert_failed', insertError);
-            return NextResponse.json({ error: 'فشل حفظ التقييم: ' + insertError.message }, { status: 500 });
+            return NextResponse.json({ error: 'فشل حفظ التقييم حالياً' }, { status: 500 });
         }
 
         // تحديث الحجز بقيمة الخصم (إذا كان هناك خصم)

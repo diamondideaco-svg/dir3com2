@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       logServerError('api.bookings.insert_failed', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'تعذر إتمام الحجز حالياً' }, { status: 500 });
     }
 
     return NextResponse.json({ data, message: 'تم إنشاء الحجز بنجاح' }, { status: 200 });
