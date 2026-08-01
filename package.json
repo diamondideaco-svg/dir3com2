@@ -2,11 +2,16 @@
   "name": "dir3com-next",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "mobile:dev": "npm --workspace @dir3com/mobile run start",
+    "mobile:typecheck": "npm --workspace @dir3com/mobile run typecheck"
   },
   "dependencies": {
     "@next/third-parties": "^16.2.12",

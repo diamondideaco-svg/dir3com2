@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "dir3com Mobile",
+    "slug": "dir3com-mobile",
+    "scheme": "dir3com",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0D1B2A"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
