@@ -2,7 +2,7 @@
   "name": "@dir3com/mobile",
   "version": "0.1.0",
   "private": true,
-  "main": "expo/AppEntry",
+  "main": "app/index.tsx",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
