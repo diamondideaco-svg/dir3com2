@@ -67,8 +67,8 @@ export function BookingDetailScreen({ bookingId, onBack }: BookingDetailScreenPr
     routeKey: 'bookingDetail',
     load: (signal) => fetchBookingDetail(getAccessToken, normalizedBookingId ?? bookingId, signal),
     isEmpty: () => false,
-    onUnauthorized: (routeKey) => {
-      void invalidateSession({ key: routeKey, bookingId: normalizedBookingId ?? bookingId });
+    onUnauthorized: () => {
+      void invalidateSession({ key: 'bookingDetail', bookingId: normalizedBookingId ?? bookingId });
     },
   });
 

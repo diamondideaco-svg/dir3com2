@@ -21,6 +21,27 @@ export type MobileServiceSummary = {
   availability?: string;
 };
 
+export type MarketplaceCategory = {
+  slug: string;
+  nameAr: string;
+  nameEn: string;
+  itemCount?: number;
+};
+
+export type MarketplaceItemSummary = {
+  id: string;
+  slug: string;
+  nameAr: string;
+  nameEn: string;
+  description?: string;
+  categorySlug: string;
+  categoryNameAr: string;
+  categoryNameEn: string;
+  imageUrl?: string;
+  startingPrice?: number;
+  currency?: string;
+};
+
 export type MobileBookingSummary = {
   id: string;
   bookingReference: string;

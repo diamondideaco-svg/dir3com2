@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocale } from '@/app/providers/LocaleProvider';
 import { normalizeBookingIdentifier } from '@/lib/bookings';
+import { normalizeMarketplaceIdentifier } from '@/lib/marketplace';
 import { colors } from '@/constants/theme';
 import { isProtectedRoute, resolveRouteForSession } from '@/navigation/guards';
 import { AUTH_ROUTES, PUBLIC_ROUTES } from '@/navigation/routes';
@@ -9,6 +10,7 @@ import type { RouteDestination } from '@/navigation/types';
 import { AccountScreen } from '@/screens/account/AccountScreen';
 import { MyBookingsScreen } from '@/screens/account/MyBookingsScreen';
 import { BookingDetailScreen } from '@/screens/bookings/BookingDetailScreen';
+import { MarketplaceCategoryScreen } from '@/screens/marketplace/MarketplaceCategoryScreen';
 import { HomeScreen } from '@/screens/public/HomeScreen';
 import { MarketplaceScreen } from '@/screens/public/MarketplaceScreen';
 import { SignInScreen } from '@/screens/public/SignInScreen';
@@ -47,13 +49,27 @@ export function MobileRouter() {
     setActiveRoute(resolveRouteForSession({ key: 'bookingDetail', bookingId: normalizedBookingId }, status));
   };
 
+  const navigateToMarketplaceCategory = (categorySlug: string) => {
+    const normalizedCategory = normalizeMarketplaceIdentifier(categorySlug);
+    if (!normalizedCategory) {
+      setActiveRoute({ key: 'marketplace' });
+      return;
+    }
+
+    setActiveRoute(resolveRouteForSession({ key: 'marketplaceCategory', categorySlug: normalizedCategory }, status));
+  };
+
   const content = useMemo(() => {
     if (resolvedActiveRoute.key === 'home') {
       return <HomeScreen />;
     }
 
     if (resolvedActiveRoute.key === 'marketplace') {
-      return <MarketplaceScreen />;
+      return <MarketplaceScreen onOpenCategory={navigateToMarketplaceCategory} />;
+    }
+
+    if (resolvedActiveRoute.key === 'marketplaceCategory') {
+      return <MarketplaceCategoryScreen categorySlug={resolvedActiveRoute.categorySlug} onBack={() => setActiveRoute({ key: 'marketplace' })} />;
     }
 
     if (resolvedActiveRoute.key === 'myBookings') {
@@ -82,7 +98,10 @@ export function MobileRouter() {
 
       <View style={[styles.tabBar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         {routes.map((route) => {
-          const isActive = route.key === resolvedActiveRoute.key || (resolvedActiveRoute.key === 'bookingDetail' && route.key === 'myBookings');
+          const isActive =
+            route.key === resolvedActiveRoute.key ||
+            (resolvedActiveRoute.key === 'bookingDetail' && route.key === 'myBookings') ||
+            (resolvedActiveRoute.key === 'marketplaceCategory' && route.key === 'marketplace');
 
           return (
             <TouchableOpacity

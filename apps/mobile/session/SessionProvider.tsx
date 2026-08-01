@@ -33,7 +33,7 @@ function toPendingRoute(route?: RouteDestination | RouteKey | null): RouteDestin
   }
 
   if (typeof route === 'string') {
-    if (route === 'bookingDetail') {
+    if (route === 'bookingDetail' || route === 'marketplaceCategory') {
       return null;
     }
 

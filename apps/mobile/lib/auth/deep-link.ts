@@ -1,4 +1,5 @@
 import { normalizeBookingIdentifier } from '@/lib/bookings';
+import { normalizeMarketplaceIdentifier } from '@/lib/marketplace';
 import type { RouteDestination, RouteKey } from '@/navigation/types';
 
 const APP_SCHEME = 'dir3com://';
@@ -18,7 +19,7 @@ function normalizePathname(pathname: string) {
   return pathname.replace(/^\/+/, '').trim().toLowerCase();
 }
 
-function toStaticRoute(key: Exclude<RouteKey, 'bookingDetail'>): RouteDestination {
+function toStaticRoute(key: Exclude<RouteKey, 'bookingDetail' | 'marketplaceCategory'>): RouteDestination {
   return { key };
 }
 
@@ -43,12 +44,17 @@ function readRouteFromPath(pathname: string): RouteDestination | null {
     return bookingId ? { key: 'bookingDetail', bookingId } : null;
   }
 
+  if (segments[0] === 'marketplace' && segments.length === 2) {
+    const categorySlug = normalizeMarketplaceIdentifier(segments[1]);
+    return categorySlug ? { key: 'marketplaceCategory', categorySlug } : null;
+  }
+
   if (segments.length > 1) {
     return null;
   }
 
   const staticRoute = DEEP_LINK_ROUTE_MAP[segments[0]];
-  return staticRoute ? toStaticRoute(staticRoute as Exclude<RouteKey, 'bookingDetail'>) : null;
+  return staticRoute ? toStaticRoute(staticRoute as Exclude<RouteKey, 'bookingDetail' | 'marketplaceCategory'>) : null;
 }
 
 function readRouteFromParams(params: Record<string, string>) {
