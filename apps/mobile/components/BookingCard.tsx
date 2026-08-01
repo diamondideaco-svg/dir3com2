@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '@/constants/theme';
 import type { MobileBookingSummary } from '@/types/domain';
 
@@ -42,11 +42,16 @@ function getAmountLabel(booking: MobileBookingSummary) {
   return `${booking.totalAmount} ${booking.currency ?? 'SAR'}`;
 }
 
-export function BookingCard({ booking }: { booking: MobileBookingSummary }) {
+type BookingCardProps = {
+  booking: MobileBookingSummary;
+  onPress?: () => void;
+};
+
+export function BookingCard({ booking, onPress }: BookingCardProps) {
   const amountLabel = getAmountLabel(booking);
 
-  return (
-    <View style={styles.card}>
+  const content = (
+    <>
       <View style={styles.row}>
         <View style={styles.block}>
           <Text style={styles.label}>Reference</Text>
@@ -74,6 +79,27 @@ export function BookingCard({ booking }: { booking: MobileBookingSummary }) {
           </View>
         ) : null}
       </View>
+
+      {onPress ? <Text style={styles.linkText}>View details</Text> : null}
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={`Open booking ${booking.bookingReference}`}
+        onPress={onPress}
+        style={styles.card}
+      >
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View style={styles.card}>
+      {content}
     </View>
   );
 }
@@ -120,5 +146,9 @@ const styles = StyleSheet.create({
     color: colors.gold,
     fontWeight: '700',
     fontSize: 12,
+  },
+  linkText: {
+    color: colors.gold,
+    fontWeight: '700',
   },
 });

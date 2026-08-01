@@ -8,6 +8,7 @@ export type ProtectedResourceState<T> = {
   status: ProtectedResourceStatus;
   data: T | null;
   errorMessage: string | null;
+  errorStatus: number | null;
 };
 
 type UseProtectedResourceOptions<T> = {
@@ -26,6 +27,7 @@ export function useProtectedResource<T>({ routeKey, load, isEmpty, onUnauthorize
     status: 'idle',
     data: null,
     errorMessage: null,
+    errorStatus: null,
   });
   const activeRequestRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
@@ -49,6 +51,7 @@ export function useProtectedResource<T>({ routeKey, load, isEmpty, onUnauthorize
       status: mode === 'refresh' && current.data ? 'refreshing' : 'loading',
       data: current.data,
       errorMessage: null,
+      errorStatus: null,
     }));
 
     const result = await loadRef.current(controller.signal);
@@ -63,8 +66,19 @@ export function useProtectedResource<T>({ routeKey, load, isEmpty, onUnauthorize
           status: 'unauthorized',
           data: current.data,
           errorMessage: result.error.message,
+          errorStatus: result.error.status ?? null,
         }));
         onUnauthorizedRef.current(routeKey);
+        return;
+      }
+
+      if (result.error.status === 404) {
+        setState({
+          status: 'empty',
+          data: null,
+          errorMessage: result.error.message,
+          errorStatus: 404,
+        });
         return;
       }
 
@@ -72,6 +86,7 @@ export function useProtectedResource<T>({ routeKey, load, isEmpty, onUnauthorize
         status: 'error',
         data: current.data,
         errorMessage: result.error.message,
+        errorStatus: result.error.status ?? null,
       }));
       return;
     }
@@ -80,6 +95,7 @@ export function useProtectedResource<T>({ routeKey, load, isEmpty, onUnauthorize
       status: isEmptyRef.current(result.data) ? 'empty' : 'success',
       data: result.data,
       errorMessage: null,
+      errorStatus: null,
     });
   };
 

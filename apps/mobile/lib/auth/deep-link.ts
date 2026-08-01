@@ -1,4 +1,5 @@
-import type { RouteKey } from '@/navigation/types';
+import { normalizeBookingIdentifier } from '@/lib/bookings';
+import type { RouteDestination, RouteKey } from '@/navigation/types';
 
 const APP_SCHEME = 'dir3com://';
 const AUTH_CALLBACK_PATH = 'auth/callback';
@@ -17,17 +18,37 @@ function normalizePathname(pathname: string) {
   return pathname.replace(/^\/+/, '').trim().toLowerCase();
 }
 
-function readRouteFromPath(pathname: string): RouteKey | null {
+function toStaticRoute(key: Exclude<RouteKey, 'bookingDetail'>): RouteDestination {
+  return { key };
+}
+
+function readRouteFromPath(pathname: string): RouteDestination | null {
   const normalized = normalizePathname(pathname);
-  if (!normalized) {
+  const segments = normalized.split('/').filter(Boolean);
+
+  if (segments.length === 0) {
     return null;
   }
 
   if (normalized === AUTH_CALLBACK_PATH) {
-    return 'signIn';
+    return toStaticRoute('signIn');
   }
 
-  return DEEP_LINK_ROUTE_MAP[normalized] ?? null;
+  if ((segments[0] === 'bookings' || segments[0] === 'my-bookings') && segments.length === 1) {
+    return toStaticRoute('myBookings');
+  }
+
+  if ((segments[0] === 'bookings' || segments[0] === 'my-bookings') && segments.length === 2) {
+    const bookingId = normalizeBookingIdentifier(segments[1]);
+    return bookingId ? { key: 'bookingDetail', bookingId } : null;
+  }
+
+  if (segments.length > 1) {
+    return null;
+  }
+
+  const staticRoute = DEEP_LINK_ROUTE_MAP[segments[0]];
+  return staticRoute ? toStaticRoute(staticRoute as Exclude<RouteKey, 'bookingDetail'>) : null;
 }
 
 function readRouteFromParams(params: Record<string, string>) {
@@ -65,7 +86,7 @@ export function parseAuthCallbackUrl(url: string) {
     }
 
     const isAuthCallback = pathname === AUTH_CALLBACK_PATH;
-    const route = isAuthCallback ? readRouteFromParams(params) ?? 'signIn' : readRouteFromPath(pathname);
+    const route = isAuthCallback ? readRouteFromParams(params) ?? toStaticRoute('signIn') : readRouteFromPath(pathname);
 
     return {
       isSupported: isAuthCallback || route !== null,

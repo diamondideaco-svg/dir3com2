@@ -1,4 +1,5 @@
-import type { MobileAccountSummary, MobileBookingSummary, MobileServiceSummary } from '@/types/domain';
+import { normalizeBookingIdentifier } from '@/lib/bookings';
+import type { MobileAccountSummary, MobileBookingDetail, MobileBookingSummary, MobilePaymentStatus, MobileServiceSummary } from '@/types/domain';
 import type { MobileApiFailure, MobileApiResult } from '@/types/result';
 
 function normalizeBookingStatus(status: string | null | undefined): MobileBookingSummary['status'] {
@@ -22,6 +23,36 @@ function normalizeBookingStatus(status: string | null | undefined): MobileBookin
 
   if (normalized === 'cancelled' || normalized === 'canceled') {
     return 'Cancelled';
+  }
+
+  return 'Pending';
+}
+
+function normalizePaymentStatus(status: string | null | undefined): MobilePaymentStatus | null {
+  const normalized = status?.trim().toLowerCase();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized === 'paid') {
+    return 'Paid';
+  }
+
+  if (normalized === 'processing') {
+    return 'Processing';
+  }
+
+  if (normalized === 'failed') {
+    return 'Failed';
+  }
+
+  if (normalized === 'refunded') {
+    return 'Refunded';
+  }
+
+  if (normalized === 'unpaid') {
+    return 'Unpaid';
   }
 
   return 'Pending';
@@ -80,6 +111,10 @@ export type MyBookingsResponse = {
   bookings: MobileBookingSummary[];
 };
 
+export type BookingDetailResponse = {
+  booking: MobileBookingDetail;
+};
+
 export type MyAccountResponse = {
   account: MobileAccountSummary | null;
 };
@@ -108,6 +143,20 @@ function readString(value: unknown) {
 
 function readNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function readInteger(value: unknown) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+function readDateString(value: unknown) {
+  const normalized = readString(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  return Number.isNaN(new Date(normalized).getTime()) ? null : normalized;
 }
 
 export function toMobileServiceSummary(input: {
@@ -230,6 +279,50 @@ export function adaptMyAccountResponse(input: unknown): MobileApiResult<MyAccoun
         fullName: readString(account.full_name),
         email: readString(account.email),
         phone: readString(account.phone),
+      },
+    },
+  };
+}
+
+export function adaptBookingDetailResponse(input: unknown): MobileApiResult<BookingDetailResponse> {
+  const root = readRecord(input);
+
+  if (!root) {
+    return invalidResponseFailure();
+  }
+
+  const booking = readRecord(root.booking);
+  if (!booking) {
+    return invalidResponseFailure();
+  }
+
+  const id = normalizeBookingIdentifier(readString(booking.id));
+  const bookingReference = readString(booking.booking_reference);
+
+  if (!id || !bookingReference) {
+    return invalidResponseFailure();
+  }
+
+  return {
+    ok: true,
+    data: {
+      booking: {
+        id,
+        bookingReference,
+        status: normalizeBookingStatus(readString(booking.status)),
+        paymentStatus: normalizePaymentStatus(readString(booking.payment_status)),
+        startDate: readDateString(booking.arrival_date),
+        endDate: readDateString(booking.departure_date),
+        city: readString(booking.city),
+        guests: readInteger(booking.guests),
+        totalAmount: readNumber(booking.total_amount) ?? readNumber(booking.total_price),
+        currency: readString(booking.currency),
+        serviceName: readString(booking.service_name),
+        guestName: readString(booking.guest_name),
+        guestPhone: readString(booking.guest_phone),
+        guestEmail: readString(booking.guest_email),
+        notes: readString(booking.notes),
+        createdAt: readDateString(booking.created_at),
       },
     },
   };

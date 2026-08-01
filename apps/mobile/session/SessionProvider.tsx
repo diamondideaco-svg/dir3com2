@@ -1,7 +1,7 @@
 import { createContext, type Dispatch, ReactNode, type SetStateAction, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 import { parseAuthCallbackUrl } from '@/lib/auth/deep-link';
-import type { RouteKey } from '@/navigation/types';
+import type { RouteDestination, RouteKey } from '@/navigation/types';
 import { getMobileSupabaseClient, mapSessionSnapshot } from '@/lib/supabase/client';
 import type { SessionSnapshot, SessionStatus } from '@/session/types';
 
@@ -16,16 +16,32 @@ type SessionContextValue = {
   errorMessage: string | null;
   authBusy: boolean;
   authActionError: string | null;
-  pendingRoute: RouteKey | null;
+  pendingRoute: RouteDestination | null;
   signIn: (input: SignInInput) => Promise<void>;
   signOut: () => Promise<void>;
-  invalidateSession: (route?: RouteKey | null) => Promise<void>;
-  setPendingRoute: Dispatch<SetStateAction<RouteKey | null>>;
+  invalidateSession: (route?: RouteDestination | RouteKey | null) => Promise<void>;
+  setPendingRoute: Dispatch<SetStateAction<RouteDestination | null>>;
   retry: () => void;
   getAccessToken: () => string | null;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
+
+function toPendingRoute(route?: RouteDestination | RouteKey | null): RouteDestination | null {
+  if (!route) {
+    return null;
+  }
+
+  if (typeof route === 'string') {
+    if (route === 'bookingDetail') {
+      return null;
+    }
+
+    return { key: route };
+  }
+
+  return route;
+}
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const supabase = getMobileSupabaseClient();
@@ -34,7 +50,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [authActionError, setAuthActionError] = useState<string | null>(null);
-  const [pendingRoute, setPendingRoute] = useState<RouteKey | null>(null);
+  const [pendingRoute, setPendingRoute] = useState<RouteDestination | null>(null);
   const invalidatingSessionRef = useRef(false);
 
   const applySession = (nextSession: SessionSnapshot) => {
@@ -145,13 +161,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const invalidateSession = async (route?: RouteKey | null) => {
+  const invalidateSession = async (route?: RouteDestination | RouteKey | null) => {
     if (invalidatingSessionRef.current) {
       return;
     }
 
     invalidatingSessionRef.current = true;
-    setPendingRoute(route ?? null);
+    setPendingRoute(toPendingRoute(route));
     setAuthActionError('Your session has expired. Please sign in again.');
     applySession(null);
 

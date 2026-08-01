@@ -7,7 +7,11 @@ import { fetchMyBookings } from '@/services/api/authenticated';
 import { useProtectedResource } from '@/services/api/protected-resource';
 import { useSession } from '@/session/SessionProvider';
 
-export function MyBookingsScreen() {
+type MyBookingsScreenProps = {
+  onOpenBooking: (bookingId: string) => void;
+};
+
+export function MyBookingsScreen({ onOpenBooking }: MyBookingsScreenProps) {
   const { isRTL } = useLocale();
   const { getAccessToken, invalidateSession } = useSession();
 
@@ -67,7 +71,7 @@ export function MyBookingsScreen() {
       <View style={styles.list}>
         {state.status === 'refreshing' ? <Text style={styles.refreshText}>{isRTL ? 'جارٍ التحديث...' : 'Refreshing...'}</Text> : null}
         {bookings.map((booking) => (
-          <BookingCard key={booking.id} booking={booking} />
+          <BookingCard key={booking.id} booking={booking} onPress={() => onOpenBooking(booking.id)} />
         ))}
       </View>
     );

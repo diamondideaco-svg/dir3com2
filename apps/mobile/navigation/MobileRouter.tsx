@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocale } from '@/app/providers/LocaleProvider';
+import { normalizeBookingIdentifier } from '@/lib/bookings';
 import { colors } from '@/constants/theme';
 import { isProtectedRoute, resolveRouteForSession } from '@/navigation/guards';
 import { AUTH_ROUTES, PUBLIC_ROUTES } from '@/navigation/routes';
-import type { RouteKey } from '@/navigation/types';
+import type { RouteDestination } from '@/navigation/types';
 import { AccountScreen } from '@/screens/account/AccountScreen';
 import { MyBookingsScreen } from '@/screens/account/MyBookingsScreen';
+import { BookingDetailScreen } from '@/screens/bookings/BookingDetailScreen';
 import { HomeScreen } from '@/screens/public/HomeScreen';
 import { MarketplaceScreen } from '@/screens/public/MarketplaceScreen';
 import { SignInScreen } from '@/screens/public/SignInScreen';
@@ -15,15 +17,15 @@ import { useSession } from '@/session/SessionProvider';
 export function MobileRouter() {
   const { status, pendingRoute, setPendingRoute } = useSession();
   const { isRTL } = useLocale();
-  const initialRoute: RouteKey = resolveRouteForSession(pendingRoute ?? (status === 'authenticated' ? 'home' : 'signIn'), status);
-  const [activeRoute, setActiveRoute] = useState<RouteKey>(initialRoute);
+  const initialRoute = resolveRouteForSession(pendingRoute ?? { key: status === 'authenticated' ? 'home' : 'signIn' }, status);
+  const [activeRoute, setActiveRoute] = useState<RouteDestination>(initialRoute);
 
   useEffect(() => {
     if (pendingRoute) {
       setActiveRoute(resolveRouteForSession(pendingRoute, status));
 
       if (status === 'authenticated' || !isProtectedRoute(pendingRoute)) {
-        setPendingRoute((current) => (current === pendingRoute ? null : current));
+        setPendingRoute(null);
       }
 
       return;
@@ -35,25 +37,39 @@ export function MobileRouter() {
   const routes = useMemo(() => (status === 'authenticated' ? AUTH_ROUTES : PUBLIC_ROUTES), [status]);
   const resolvedActiveRoute = resolveRouteForSession(activeRoute, status);
 
+  const navigateToBookingDetail = (bookingId: string) => {
+    const normalizedBookingId = normalizeBookingIdentifier(bookingId);
+    if (!normalizedBookingId) {
+      setActiveRoute({ key: 'myBookings' });
+      return;
+    }
+
+    setActiveRoute(resolveRouteForSession({ key: 'bookingDetail', bookingId: normalizedBookingId }, status));
+  };
+
   const content = useMemo(() => {
-    if (resolvedActiveRoute === 'home') {
+    if (resolvedActiveRoute.key === 'home') {
       return <HomeScreen />;
     }
 
-    if (resolvedActiveRoute === 'marketplace') {
+    if (resolvedActiveRoute.key === 'marketplace') {
       return <MarketplaceScreen />;
     }
 
-    if (resolvedActiveRoute === 'myBookings') {
-      return <MyBookingsScreen />;
+    if (resolvedActiveRoute.key === 'myBookings') {
+      return <MyBookingsScreen onOpenBooking={navigateToBookingDetail} />;
     }
 
-    if (resolvedActiveRoute === 'account') {
+    if (resolvedActiveRoute.key === 'bookingDetail') {
+      return <BookingDetailScreen bookingId={resolvedActiveRoute.bookingId} onBack={() => setActiveRoute({ key: 'myBookings' })} />;
+    }
+
+    if (resolvedActiveRoute.key === 'account') {
       return <AccountScreen />;
     }
 
     return <SignInScreen />;
-  }, [resolvedActiveRoute]);
+  }, [resolvedActiveRoute, status]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -66,12 +82,12 @@ export function MobileRouter() {
 
       <View style={[styles.tabBar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         {routes.map((route) => {
-          const isActive = route.key === resolvedActiveRoute;
+          const isActive = route.key === resolvedActiveRoute.key || (resolvedActiveRoute.key === 'bookingDetail' && route.key === 'myBookings');
 
           return (
             <TouchableOpacity
               key={route.key}
-              onPress={() => setActiveRoute(resolveRouteForSession(route.key, status))}
+              onPress={() => setActiveRoute(resolveRouteForSession({ key: route.key }, status))}
               style={[styles.tab, isActive && styles.tabActive]}
             >
               <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{isRTL ? route.labelAr : route.labelEn}</Text>
