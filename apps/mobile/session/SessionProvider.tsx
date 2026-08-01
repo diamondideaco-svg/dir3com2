@@ -1,6 +1,7 @@
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, type Dispatch, ReactNode, type SetStateAction, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 import { parseAuthCallbackUrl } from '@/lib/auth/deep-link';
+import type { RouteKey } from '@/navigation/types';
 import { getMobileSupabaseClient, mapSessionSnapshot } from '@/lib/supabase/client';
 import type { SessionSnapshot, SessionStatus } from '@/session/types';
 
@@ -15,8 +16,11 @@ type SessionContextValue = {
   errorMessage: string | null;
   authBusy: boolean;
   authActionError: string | null;
+  pendingRoute: RouteKey | null;
   signIn: (input: SignInInput) => Promise<void>;
   signOut: () => Promise<void>;
+  invalidateSession: (route?: RouteKey | null) => Promise<void>;
+  setPendingRoute: Dispatch<SetStateAction<RouteKey | null>>;
   retry: () => void;
   getAccessToken: () => string | null;
 };
@@ -30,6 +34,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [authActionError, setAuthActionError] = useState<string | null>(null);
+  const [pendingRoute, setPendingRoute] = useState<RouteKey | null>(null);
+  const invalidatingSessionRef = useRef(false);
 
   const applySession = (nextSession: SessionSnapshot) => {
     setSession(nextSession);
@@ -58,7 +64,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    const handleDeepLink = (url: string) => {
+      const callback = parseAuthCallbackUrl(url);
+      if (!callback.isSupported) {
+        return;
+      }
+
+      if (callback.route) {
+        setPendingRoute(callback.route);
+      }
+
+      if (callback.isAuthCallback) {
+        setAuthActionError(null);
+      }
+    };
+
     void hydrate();
+    void Linking.getInitialURL()
+      .then((initialUrl) => {
+        if (initialUrl) {
+          handleDeepLink(initialUrl);
+        }
+      })
+      .catch(() => undefined);
 
     const {
       data: { subscription },
@@ -68,10 +96,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
 
     const deepLinkSubscription = Linking.addEventListener('url', (event) => {
-      const callback = parseAuthCallbackUrl(event.url);
-      if (callback.isAuthCallback) {
-        setAuthActionError(null);
-      }
+      handleDeepLink(event.url);
     });
 
     return () => {
@@ -106,6 +131,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     setAuthBusy(true);
     setAuthActionError(null);
+    setPendingRoute(null);
 
     try {
       const { error } = await supabase.auth.signOut();
@@ -119,6 +145,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const invalidateSession = async (route?: RouteKey | null) => {
+    if (invalidatingSessionRef.current) {
+      return;
+    }
+
+    invalidatingSessionRef.current = true;
+    setPendingRoute(route ?? null);
+    setAuthActionError('Your session has expired. Please sign in again.');
+    applySession(null);
+
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // The local session is already cleared for safe route transition.
+    } finally {
+      invalidatingSessionRef.current = false;
+    }
+  };
+
   const value = useMemo<SessionContextValue>(
     () => ({
       status,
@@ -126,14 +171,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       errorMessage,
       authBusy,
       authActionError,
+      pendingRoute,
       signIn,
       signOut,
+      invalidateSession,
+      setPendingRoute,
       retry: () => {
         void hydrate();
       },
       getAccessToken: () => session?.accessToken ?? null,
     }),
-    [status, session, errorMessage, authBusy, authActionError]
+    [status, session, errorMessage, authBusy, authActionError, pendingRoute]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocale } from '@/app/providers/LocaleProvider';
 import { colors } from '@/constants/theme';
-import { resolveRouteForSession } from '@/navigation/guards';
+import { isProtectedRoute, resolveRouteForSession } from '@/navigation/guards';
 import { AUTH_ROUTES, PUBLIC_ROUTES } from '@/navigation/routes';
 import type { RouteKey } from '@/navigation/types';
 import { AccountScreen } from '@/screens/account/AccountScreen';
@@ -13,14 +13,24 @@ import { SignInScreen } from '@/screens/public/SignInScreen';
 import { useSession } from '@/session/SessionProvider';
 
 export function MobileRouter() {
-  const { status } = useSession();
+  const { status, pendingRoute, setPendingRoute } = useSession();
   const { isRTL } = useLocale();
-  const initialRoute: RouteKey = status === 'authenticated' ? 'home' : 'signIn';
+  const initialRoute: RouteKey = resolveRouteForSession(pendingRoute ?? (status === 'authenticated' ? 'home' : 'signIn'), status);
   const [activeRoute, setActiveRoute] = useState<RouteKey>(initialRoute);
 
   useEffect(() => {
+    if (pendingRoute) {
+      setActiveRoute(resolveRouteForSession(pendingRoute, status));
+
+      if (status === 'authenticated' || !isProtectedRoute(pendingRoute)) {
+        setPendingRoute((current) => (current === pendingRoute ? null : current));
+      }
+
+      return;
+    }
+
     setActiveRoute((previous) => resolveRouteForSession(previous, status));
-  }, [status]);
+  }, [pendingRoute, setPendingRoute, status]);
 
   const routes = useMemo(() => (status === 'authenticated' ? AUTH_ROUTES : PUBLIC_ROUTES), [status]);
   const resolvedActiveRoute = resolveRouteForSession(activeRoute, status);

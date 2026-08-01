@@ -29,14 +29,30 @@ function normalizeError(error: unknown): MobileApiError {
   if (error instanceof Error) {
     return {
       code: 'network_error',
-      message: error.message || 'Network request failed.',
+      message: 'Unable to reach DIR3COM right now. Please try again.',
     };
   }
 
   return {
     code: 'unknown_error',
-    message: 'Unknown error occurred.',
+    message: 'Something went wrong. Please try again.',
   };
+}
+
+function getHttpErrorMessage(status: number) {
+  if (status === 401) {
+    return 'Your session has expired. Please sign in again.';
+  }
+
+  if (status >= 500) {
+    return 'DIR3COM is temporarily unavailable. Please try again.';
+  }
+
+  if (status >= 400) {
+    return 'This request could not be completed right now.';
+  }
+
+  return 'Something went wrong. Please try again.';
 }
 
 async function parseJsonSafe(response: Response) {
@@ -77,16 +93,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const payload = await parseJsonSafe(response);
 
       if (!response.ok) {
-        const message =
-          payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string'
-            ? payload.error
-            : `Request failed with status ${response.status}.`;
-
         return {
           ok: false,
           error: {
             code: 'http_error',
-            message,
+            message: getHttpErrorMessage(response.status),
             status: response.status,
           },
         };
@@ -97,7 +108,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
           ok: false,
           error: {
             code: 'invalid_response',
-            message: 'Invalid JSON response received.',
+            message: 'Unexpected DIR3COM response. Please try again.',
             status: response.status,
           },
         };

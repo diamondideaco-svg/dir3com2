@@ -1,11 +1,9 @@
 export type MobileBookingStatus = 'Pending' | 'Confirmed' | 'Assigned' | 'In Progress' | 'Completed' | 'Cancelled';
 
-export type MobileIdentity = {
-  id: string;
+export type MobileAccountSummary = {
   fullName?: string | null;
   email?: string | null;
-  role?: string | null;
-  status?: string | null;
+  phone?: string | null;
 };
 
 export type MobileServiceSummary = {
@@ -25,8 +23,10 @@ export type MobileBookingSummary = {
   id: string;
   bookingReference: string;
   status: MobileBookingStatus;
+  startDate?: string | null;
+  endDate?: string | null;
   totalAmount?: number | null;
   currency?: string | null;
   serviceName?: string | null;
-  createdAt: string;
+  createdAt?: string | null;
 };
