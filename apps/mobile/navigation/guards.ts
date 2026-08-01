@@ -1,7 +1,7 @@
 import type { RouteDestination, RouteKey } from '@/navigation/types';
 import type { SessionStatus } from '@/session/types';
 
-const PROTECTED_ROUTES: RouteKey[] = ['myBookings', 'account', 'bookingDetail'];
+const PROTECTED_ROUTES: RouteKey[] = ['myBookings', 'account', 'bookingDetail', 'bookingIntent'];
 
 function getRouteKey(route: RouteDestination | RouteKey) {
   return typeof route === 'string' ? route : route.key;

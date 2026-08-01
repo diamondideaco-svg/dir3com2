@@ -10,6 +10,7 @@ import type { RouteDestination } from '@/navigation/types';
 import { AccountScreen } from '@/screens/account/AccountScreen';
 import { MyBookingsScreen } from '@/screens/account/MyBookingsScreen';
 import { BookingDetailScreen } from '@/screens/bookings/BookingDetailScreen';
+import { BookingIntentScreen } from '@/screens/bookings/BookingIntentScreen';
 import { MarketplaceCategoryScreen } from '@/screens/marketplace/MarketplaceCategoryScreen';
 import { MarketplaceItemDetailScreen } from '@/screens/marketplace/MarketplaceItemDetailScreen';
 import { HomeScreen } from '@/screens/public/HomeScreen';
@@ -70,6 +71,24 @@ export function MobileRouter() {
     setActiveRoute(resolveRouteForSession({ key: 'marketplaceItem', itemSlug: normalizedItemSlug }, status));
   };
 
+  const navigateToBookingIntent = (itemSlug: string) => {
+    const normalizedItemSlug = normalizeMarketplaceIdentifier(itemSlug);
+    if (!normalizedItemSlug) {
+      setActiveRoute({ key: 'marketplace' });
+      return;
+    }
+
+    const destination: RouteDestination = { key: 'bookingIntent', itemSlug: normalizedItemSlug };
+
+    if (status === 'authenticated') {
+      setActiveRoute(destination);
+      return;
+    }
+
+    setPendingRoute(destination);
+    setActiveRoute({ key: 'signIn' });
+  };
+
   const content = useMemo(() => {
     if (resolvedActiveRoute.key === 'home') {
       return <HomeScreen />;
@@ -90,7 +109,23 @@ export function MobileRouter() {
     }
 
     if (resolvedActiveRoute.key === 'marketplaceItem') {
-      return <MarketplaceItemDetailScreen itemSlug={resolvedActiveRoute.itemSlug} onBack={() => setActiveRoute({ key: 'marketplace' })} />;
+      return (
+        <MarketplaceItemDetailScreen
+          itemSlug={resolvedActiveRoute.itemSlug}
+          onBack={() => setActiveRoute({ key: 'marketplace' })}
+          onStartBooking={navigateToBookingIntent}
+        />
+      );
+    }
+
+    if (resolvedActiveRoute.key === 'bookingIntent') {
+      return (
+        <BookingIntentScreen
+          itemSlug={resolvedActiveRoute.itemSlug}
+          onBack={() => setActiveRoute({ key: 'marketplaceItem', itemSlug: resolvedActiveRoute.itemSlug })}
+          onOpenMyBookings={() => setActiveRoute({ key: 'myBookings' })}
+        />
+      );
     }
 
     if (resolvedActiveRoute.key === 'myBookings') {
@@ -122,6 +157,7 @@ export function MobileRouter() {
           const isActive =
             route.key === resolvedActiveRoute.key ||
             (resolvedActiveRoute.key === 'bookingDetail' && route.key === 'myBookings') ||
+            (resolvedActiveRoute.key === 'bookingIntent' && route.key === 'marketplace') ||
             (resolvedActiveRoute.key === 'marketplaceCategory' && route.key === 'marketplace') ||
             (resolvedActiveRoute.key === 'marketplaceItem' && route.key === 'marketplace');
 

@@ -11,6 +11,7 @@ import type { MarketplaceItemDetail } from '@/types/domain';
 type MarketplaceItemDetailScreenProps = {
   itemSlug: string;
   onBack: () => void;
+  onStartBooking: (itemSlug: string) => void;
 };
 
 function formatPrice(item: MarketplaceItemDetail) {
@@ -34,7 +35,7 @@ function DetailSection({ title, children }: { title: string; children: ReactNode
   );
 }
 
-export function MarketplaceItemDetailScreen({ itemSlug, onBack }: MarketplaceItemDetailScreenProps) {
+export function MarketplaceItemDetailScreen({ itemSlug, onBack, onStartBooking }: MarketplaceItemDetailScreenProps) {
   const { isRTL } = useLocale();
   const normalizedItemSlug = normalizeMarketplaceIdentifier(itemSlug);
   const [hidePrimaryImage, setHidePrimaryImage] = useState(false);
@@ -173,6 +174,22 @@ export function MarketplaceItemDetailScreen({ itemSlug, onBack }: MarketplaceIte
             ) : null}
           </DetailSection>
         ) : null}
+
+        <DetailSection title={isRTL ? 'بدء نية الحجز' : 'Start Booking Intent'}>
+          <Text style={styles.sectionText}>
+            {isRTL
+              ? 'سيتم تأكيد السعر النهائي والتوفر من DIR3COM Core لاحقاً. لم يتم إنشاء أي حجز بعد.'
+              : 'Final price and availability will be confirmed by DIR3COM Core later. No booking has been submitted yet.'}
+          </Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={isRTL ? 'ابدأ الحجز' : 'Start booking'}
+            onPress={() => onStartBooking(normalizedItemSlug)}
+            style={styles.startBookingButton}
+          >
+            <Text style={styles.startBookingButtonText}>{isRTL ? 'ابدأ الحجز' : 'Start booking'}</Text>
+          </TouchableOpacity>
+        </DetailSection>
       </View>
     );
   })();
@@ -295,5 +312,17 @@ const styles = StyleSheet.create({
     height: 92,
     borderRadius: 10,
     backgroundColor: colors.surfaceMuted,
+  },
+  startBookingButton: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    backgroundColor: colors.gold,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 6,
+  },
+  startBookingButtonText: {
+    color: colors.navy,
+    fontWeight: '700',
   },
 });
