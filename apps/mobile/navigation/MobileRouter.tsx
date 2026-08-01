@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocale } from '@/app/providers/LocaleProvider';
 import { normalizeBookingIdentifier } from '@/lib/bookings';
@@ -21,11 +21,16 @@ import { useSession } from '@/session/SessionProvider';
 export function MobileRouter() {
   const { status, pendingRoute, setPendingRoute } = useSession();
   const { isRTL } = useLocale();
-  const initialRoute = resolveRouteForSession(pendingRoute ?? { key: status === 'authenticated' ? 'home' : 'signIn' }, status);
+  const initialRoute = resolveRouteForSession(pendingRoute ?? { key: 'home' }, status);
   const [activeRoute, setActiveRoute] = useState<RouteDestination>(initialRoute);
+  const suppressProtectedPendingRef = useRef(false);
 
   useEffect(() => {
     if (pendingRoute) {
+      if (suppressProtectedPendingRef.current && isProtectedRoute(pendingRoute)) {
+        return;
+      }
+
       setActiveRoute(resolveRouteForSession(pendingRoute, status));
 
       if (status === 'authenticated' || !isProtectedRoute(pendingRoute)) {
@@ -35,58 +40,72 @@ export function MobileRouter() {
       return;
     }
 
+    suppressProtectedPendingRef.current = false;
+
     setActiveRoute((previous) => resolveRouteForSession(previous, status));
   }, [pendingRoute, setPendingRoute, status]);
 
   const routes = useMemo(() => (status === 'authenticated' ? AUTH_ROUTES : PUBLIC_ROUTES), [status]);
   const resolvedActiveRoute = resolveRouteForSession(activeRoute, status);
 
+  const navigateToRoute = (route: RouteDestination, options?: { clearProtectedPendingOnPublic?: boolean }) => {
+    const isPublicRoute = !isProtectedRoute(route);
+    const clearProtectedPendingOnPublic = options?.clearProtectedPendingOnPublic ?? isPublicRoute;
+
+    if (clearProtectedPendingOnPublic && pendingRoute && isProtectedRoute(pendingRoute) && isPublicRoute) {
+      suppressProtectedPendingRef.current = true;
+      setPendingRoute(null);
+    }
+
+    setActiveRoute(resolveRouteForSession(route, status));
+  };
+
   const navigateToBookingDetail = (bookingId: string) => {
     const normalizedBookingId = normalizeBookingIdentifier(bookingId);
     if (!normalizedBookingId) {
-      setActiveRoute({ key: 'myBookings' });
+      navigateToRoute({ key: 'myBookings' });
       return;
     }
 
-    setActiveRoute(resolveRouteForSession({ key: 'bookingDetail', bookingId: normalizedBookingId }, status));
+    navigateToRoute({ key: 'bookingDetail', bookingId: normalizedBookingId });
   };
 
   const navigateToMarketplaceCategory = (categorySlug: string) => {
     const normalizedCategory = normalizeMarketplaceIdentifier(categorySlug);
     if (!normalizedCategory) {
-      setActiveRoute({ key: 'marketplace' });
+      navigateToRoute({ key: 'marketplace' });
       return;
     }
 
-    setActiveRoute(resolveRouteForSession({ key: 'marketplaceCategory', categorySlug: normalizedCategory }, status));
+    navigateToRoute({ key: 'marketplaceCategory', categorySlug: normalizedCategory });
   };
 
   const navigateToMarketplaceItem = (itemSlug: string) => {
     const normalizedItemSlug = normalizeMarketplaceIdentifier(itemSlug);
     if (!normalizedItemSlug) {
-      setActiveRoute({ key: 'marketplace' });
+      navigateToRoute({ key: 'marketplace' });
       return;
     }
 
-    setActiveRoute(resolveRouteForSession({ key: 'marketplaceItem', itemSlug: normalizedItemSlug }, status));
+    navigateToRoute({ key: 'marketplaceItem', itemSlug: normalizedItemSlug });
   };
 
   const navigateToBookingIntent = (itemSlug: string) => {
     const normalizedItemSlug = normalizeMarketplaceIdentifier(itemSlug);
     if (!normalizedItemSlug) {
-      setActiveRoute({ key: 'marketplace' });
+      navigateToRoute({ key: 'marketplace' });
       return;
     }
 
     const destination: RouteDestination = { key: 'bookingIntent', itemSlug: normalizedItemSlug };
 
     if (status === 'authenticated') {
-      setActiveRoute(destination);
+      navigateToRoute(destination);
       return;
     }
 
     setPendingRoute(destination);
-    setActiveRoute({ key: 'signIn' });
+    navigateToRoute({ key: 'signIn' }, { clearProtectedPendingOnPublic: false });
   };
 
   const content = useMemo(() => {
@@ -102,7 +121,7 @@ export function MobileRouter() {
       return (
         <MarketplaceCategoryScreen
           categorySlug={resolvedActiveRoute.categorySlug}
-          onBack={() => setActiveRoute({ key: 'marketplace' })}
+          onBack={() => navigateToRoute({ key: 'marketplace' })}
           onOpenItem={navigateToMarketplaceItem}
         />
       );
@@ -112,7 +131,7 @@ export function MobileRouter() {
       return (
         <MarketplaceItemDetailScreen
           itemSlug={resolvedActiveRoute.itemSlug}
-          onBack={() => setActiveRoute({ key: 'marketplace' })}
+          onBack={() => navigateToRoute({ key: 'marketplace' })}
           onStartBooking={navigateToBookingIntent}
         />
       );
@@ -122,8 +141,8 @@ export function MobileRouter() {
       return (
         <BookingIntentScreen
           itemSlug={resolvedActiveRoute.itemSlug}
-          onBack={() => setActiveRoute({ key: 'marketplaceItem', itemSlug: resolvedActiveRoute.itemSlug })}
-          onOpenMyBookings={() => setActiveRoute({ key: 'myBookings' })}
+          onBack={() => navigateToRoute({ key: 'marketplaceItem', itemSlug: resolvedActiveRoute.itemSlug })}
+          onOpenMyBookings={() => navigateToRoute({ key: 'myBookings' })}
         />
       );
     }
@@ -133,7 +152,7 @@ export function MobileRouter() {
     }
 
     if (resolvedActiveRoute.key === 'bookingDetail') {
-      return <BookingDetailScreen bookingId={resolvedActiveRoute.bookingId} onBack={() => setActiveRoute({ key: 'myBookings' })} />;
+      return <BookingDetailScreen bookingId={resolvedActiveRoute.bookingId} onBack={() => navigateToRoute({ key: 'myBookings' })} />;
     }
 
     if (resolvedActiveRoute.key === 'account') {
@@ -150,7 +169,7 @@ export function MobileRouter() {
         <Text style={[styles.subtitle, { textAlign: isRTL ? 'right' : 'left' }]}>Session-aware navigation wired to shared core contracts.</Text>
       </View>
 
-      <View style={styles.content}>{content}</View>
+      <View style={styles.content} pointerEvents="box-none">{content}</View>
 
       <View style={[styles.tabBar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         {routes.map((route) => {
@@ -164,7 +183,8 @@ export function MobileRouter() {
           return (
             <TouchableOpacity
               key={route.key}
-              onPress={() => setActiveRoute(resolveRouteForSession({ key: route.key }, status))}
+              onPress={() => navigateToRoute({ key: route.key })}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
               style={[styles.tab, isActive && styles.tabActive]}
             >
               <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{isRTL ? route.labelAr : route.labelEn}</Text>
@@ -210,6 +230,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 8,
+    zIndex: 20,
+    elevation: 20,
   },
   tab: {
     flex: 1,
