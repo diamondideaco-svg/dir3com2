@@ -1,8 +1,10 @@
 import { createApiClient } from '@/services/api/client';
 import {
   adaptMarketplaceCategoriesResponse,
+  adaptMarketplaceItemDetailResponse,
   adaptMarketplaceItemsResponse,
   type MarketplaceCategoriesResponse,
+  type MarketplaceItemDetailResponse,
   type MarketplaceItemsResponse,
 } from '@/services/api/contracts';
 import { normalizeMarketplaceIdentifier } from '@/lib/marketplace';
@@ -46,4 +48,42 @@ export async function fetchMarketplaceItems(
   }
 
   return adaptMarketplaceItemsResponse(result.data);
+}
+
+export async function fetchMarketplaceItemDetail(
+  itemSlug: string,
+  signal?: AbortSignal
+): Promise<MobileApiResult<MarketplaceItemDetailResponse>> {
+  const normalizedItemSlug = normalizeMarketplaceIdentifier(itemSlug);
+
+  if (!normalizedItemSlug) {
+    return {
+      ok: false,
+      error: {
+        code: 'http_error',
+        message: 'This marketplace item is unavailable.',
+        status: 400,
+      },
+    };
+  }
+
+  const result = await publicApiClient.get<unknown>(`/api/public/marketplace/items/${encodeURIComponent(normalizedItemSlug)}`, {
+    signal,
+  });
+
+  if (!result.ok) {
+    if (result.error.status === 400 || result.error.status === 404) {
+      return {
+        ok: false,
+        error: {
+          ...result.error,
+          message: 'This marketplace item is unavailable.',
+        },
+      };
+    }
+
+    return result;
+  }
+
+  return adaptMarketplaceItemDetailResponse(result.data);
 }

@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '@/constants/theme';
+import { normalizeMarketplaceIdentifier } from '@/lib/marketplace';
 import type { MarketplaceItemSummary } from '@/types/domain';
 
 type MarketplaceItemCardProps = {
   item: MarketplaceItemSummary;
+  onPress?: () => void;
 };
 
 function formatPrice(item: MarketplaceItemSummary) {
@@ -19,12 +21,13 @@ function formatPrice(item: MarketplaceItemSummary) {
   return `${item.startingPrice} ${item.currency}`;
 }
 
-export function MarketplaceItemCard({ item }: MarketplaceItemCardProps) {
+export function MarketplaceItemCard({ item, onPress }: MarketplaceItemCardProps) {
   const [imageHidden, setImageHidden] = useState(false);
   const priceLabel = formatPrice(item);
+  const normalizedSlug = normalizeMarketplaceIdentifier(item.slug);
 
-  return (
-    <View style={styles.card}>
+  const content = (
+    <>
       {item.imageUrl && !imageHidden ? (
         <Image
           source={{ uri: item.imageUrl }}
@@ -44,7 +47,27 @@ export function MarketplaceItemCard({ item }: MarketplaceItemCardProps) {
         {item.description ? <Text style={styles.description}>{item.description}</Text> : null}
         <Text style={styles.category}>{item.categoryNameEn}</Text>
         {priceLabel ? <Text style={styles.price}>From {priceLabel}</Text> : null}
+        {onPress && normalizedSlug ? <Text style={styles.viewDetails}>View details</Text> : null}
       </View>
+    </>
+  );
+
+  if (onPress && normalizedSlug) {
+    return (
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={`View details for ${item.nameEn}`}
+        onPress={onPress}
+        style={styles.card}
+      >
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View style={styles.card}>
+      {content}
     </View>
   );
 }
@@ -97,6 +120,10 @@ const styles = StyleSheet.create({
   },
   price: {
     color: colors.light,
+    fontWeight: '700',
+  },
+  viewDetails: {
+    color: colors.gold,
     fontWeight: '700',
   },
 });

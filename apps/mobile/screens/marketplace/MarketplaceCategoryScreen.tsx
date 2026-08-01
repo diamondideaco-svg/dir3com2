@@ -10,9 +10,10 @@ import { usePublicResource } from '@/services/api/public-resource';
 type MarketplaceCategoryScreenProps = {
   categorySlug: string;
   onBack: () => void;
+  onOpenItem: (itemSlug: string) => void;
 };
 
-export function MarketplaceCategoryScreen({ categorySlug, onBack }: MarketplaceCategoryScreenProps) {
+export function MarketplaceCategoryScreen({ categorySlug, onBack, onOpenItem }: MarketplaceCategoryScreenProps) {
   const { isRTL } = useLocale();
   const normalizedCategory = normalizeMarketplaceIdentifier(categorySlug);
 
@@ -73,7 +74,7 @@ export function MarketplaceCategoryScreen({ categorySlug, onBack }: MarketplaceC
       <View style={styles.list}>
         {state.status === 'refreshing' ? <Text style={styles.refreshText}>{isRTL ? 'جارٍ التحديث...' : 'Refreshing...'}</Text> : null}
         {items.map((item) => (
-          <MarketplaceItemCard key={item.id} item={item} />
+          <MarketplaceItemCard key={item.id} item={item} onPress={() => onOpenItem(item.slug)} />
         ))}
       </View>
     );

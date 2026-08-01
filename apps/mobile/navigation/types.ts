@@ -1,12 +1,13 @@
 export type RouteTabKey = 'home' | 'signIn' | 'marketplace' | 'myBookings' | 'account';
 
-export type RouteKey = RouteTabKey | 'bookingDetail' | 'marketplaceCategory';
+export type RouteKey = RouteTabKey | 'bookingDetail' | 'marketplaceCategory' | 'marketplaceItem';
 
 export type RouteDestination =
   | { key: 'home' }
   | { key: 'signIn' }
   | { key: 'marketplace' }
   | { key: 'marketplaceCategory'; categorySlug: string }
+  | { key: 'marketplaceItem'; itemSlug: string }
   | { key: 'myBookings' }
   | { key: 'account' }
   | { key: 'bookingDetail'; bookingId: string };

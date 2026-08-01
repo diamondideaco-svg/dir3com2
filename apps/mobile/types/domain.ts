@@ -42,6 +42,25 @@ export type MarketplaceItemSummary = {
   currency?: string;
 };
 
+export type MarketplaceItemDetail = {
+  id: string;
+  slug: string;
+  nameAr?: string;
+  nameEn?: string;
+  shortDescription?: string;
+  longDescription?: string;
+  categorySlug: string;
+  categoryNameAr: string;
+  categoryNameEn: string;
+  primaryImageUrl?: string;
+  galleryImageUrls: string[];
+  startingPrice?: number;
+  currency?: string;
+  city?: string;
+  features: string[];
+  badge?: string;
+};
+
 export type MobileBookingSummary = {
   id: string;
   bookingReference: string;

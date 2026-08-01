@@ -11,6 +11,7 @@ import { AccountScreen } from '@/screens/account/AccountScreen';
 import { MyBookingsScreen } from '@/screens/account/MyBookingsScreen';
 import { BookingDetailScreen } from '@/screens/bookings/BookingDetailScreen';
 import { MarketplaceCategoryScreen } from '@/screens/marketplace/MarketplaceCategoryScreen';
+import { MarketplaceItemDetailScreen } from '@/screens/marketplace/MarketplaceItemDetailScreen';
 import { HomeScreen } from '@/screens/public/HomeScreen';
 import { MarketplaceScreen } from '@/screens/public/MarketplaceScreen';
 import { SignInScreen } from '@/screens/public/SignInScreen';
@@ -59,6 +60,16 @@ export function MobileRouter() {
     setActiveRoute(resolveRouteForSession({ key: 'marketplaceCategory', categorySlug: normalizedCategory }, status));
   };
 
+  const navigateToMarketplaceItem = (itemSlug: string) => {
+    const normalizedItemSlug = normalizeMarketplaceIdentifier(itemSlug);
+    if (!normalizedItemSlug) {
+      setActiveRoute({ key: 'marketplace' });
+      return;
+    }
+
+    setActiveRoute(resolveRouteForSession({ key: 'marketplaceItem', itemSlug: normalizedItemSlug }, status));
+  };
+
   const content = useMemo(() => {
     if (resolvedActiveRoute.key === 'home') {
       return <HomeScreen />;
@@ -69,7 +80,17 @@ export function MobileRouter() {
     }
 
     if (resolvedActiveRoute.key === 'marketplaceCategory') {
-      return <MarketplaceCategoryScreen categorySlug={resolvedActiveRoute.categorySlug} onBack={() => setActiveRoute({ key: 'marketplace' })} />;
+      return (
+        <MarketplaceCategoryScreen
+          categorySlug={resolvedActiveRoute.categorySlug}
+          onBack={() => setActiveRoute({ key: 'marketplace' })}
+          onOpenItem={navigateToMarketplaceItem}
+        />
+      );
+    }
+
+    if (resolvedActiveRoute.key === 'marketplaceItem') {
+      return <MarketplaceItemDetailScreen itemSlug={resolvedActiveRoute.itemSlug} onBack={() => setActiveRoute({ key: 'marketplace' })} />;
     }
 
     if (resolvedActiveRoute.key === 'myBookings') {
@@ -101,7 +122,8 @@ export function MobileRouter() {
           const isActive =
             route.key === resolvedActiveRoute.key ||
             (resolvedActiveRoute.key === 'bookingDetail' && route.key === 'myBookings') ||
-            (resolvedActiveRoute.key === 'marketplaceCategory' && route.key === 'marketplace');
+            (resolvedActiveRoute.key === 'marketplaceCategory' && route.key === 'marketplace') ||
+            (resolvedActiveRoute.key === 'marketplaceItem' && route.key === 'marketplace');
 
           return (
             <TouchableOpacity

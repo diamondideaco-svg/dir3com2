@@ -7,6 +7,7 @@ export type PublicResourceState<T> = {
   status: PublicResourceStatus;
   data: T | null;
   errorMessage: string | null;
+  errorStatus: number | null;
 };
 
 type UsePublicResourceOptions<T> = {
@@ -19,6 +20,7 @@ export function usePublicResource<T>({ load, isEmpty }: UsePublicResourceOptions
     status: 'idle',
     data: null,
     errorMessage: null,
+    errorStatus: null,
   });
 
   const activeRequestRef = useRef(0);
@@ -41,6 +43,7 @@ export function usePublicResource<T>({ load, isEmpty }: UsePublicResourceOptions
       status: mode === 'refresh' && current.data ? 'refreshing' : 'loading',
       data: current.data,
       errorMessage: null,
+      errorStatus: null,
     }));
 
     const result = await loadRef.current(controller.signal);
@@ -50,10 +53,21 @@ export function usePublicResource<T>({ load, isEmpty }: UsePublicResourceOptions
     }
 
     if (!result.ok) {
+      if (result.error.status === 404) {
+        setState({
+          status: 'empty',
+          data: null,
+          errorMessage: result.error.message,
+          errorStatus: 404,
+        });
+        return;
+      }
+
       setState((current) => ({
         status: 'error',
         data: current.data,
         errorMessage: result.error.message,
+        errorStatus: result.error.status ?? null,
       }));
       return;
     }
@@ -62,6 +76,7 @@ export function usePublicResource<T>({ load, isEmpty }: UsePublicResourceOptions
       status: isEmptyRef.current(result.data) ? 'empty' : 'success',
       data: result.data,
       errorMessage: null,
+      errorStatus: null,
     });
   };
 

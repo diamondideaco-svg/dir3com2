@@ -19,7 +19,7 @@ function normalizePathname(pathname: string) {
   return pathname.replace(/^\/+/, '').trim().toLowerCase();
 }
 
-function toStaticRoute(key: Exclude<RouteKey, 'bookingDetail' | 'marketplaceCategory'>): RouteDestination {
+function toStaticRoute(key: Exclude<RouteKey, 'bookingDetail' | 'marketplaceCategory' | 'marketplaceItem'>): RouteDestination {
   return { key };
 }
 
@@ -44,6 +44,11 @@ function readRouteFromPath(pathname: string): RouteDestination | null {
     return bookingId ? { key: 'bookingDetail', bookingId } : null;
   }
 
+  if (segments[0] === 'marketplace' && segments[1] === 'item' && segments.length === 3) {
+    const itemSlug = normalizeMarketplaceIdentifier(segments[2]);
+    return itemSlug ? { key: 'marketplaceItem', itemSlug } : null;
+  }
+
   if (segments[0] === 'marketplace' && segments.length === 2) {
     const categorySlug = normalizeMarketplaceIdentifier(segments[1]);
     return categorySlug ? { key: 'marketplaceCategory', categorySlug } : null;
@@ -54,7 +59,7 @@ function readRouteFromPath(pathname: string): RouteDestination | null {
   }
 
   const staticRoute = DEEP_LINK_ROUTE_MAP[segments[0]];
-  return staticRoute ? toStaticRoute(staticRoute as Exclude<RouteKey, 'bookingDetail' | 'marketplaceCategory'>) : null;
+  return staticRoute ? toStaticRoute(staticRoute as Exclude<RouteKey, 'bookingDetail' | 'marketplaceCategory' | 'marketplaceItem'>) : null;
 }
 
 function readRouteFromParams(params: Record<string, string>) {

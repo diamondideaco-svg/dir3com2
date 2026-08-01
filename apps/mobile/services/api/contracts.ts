@@ -2,6 +2,7 @@ import { normalizeBookingIdentifier } from '@/lib/bookings';
 import { normalizeMarketplaceIdentifier, normalizePublicImageUrl } from '@/lib/marketplace';
 import type {
   MarketplaceCategory,
+  MarketplaceItemDetail,
   MarketplaceItemSummary,
   MobileAccountSummary,
   MobileBookingDetail,
@@ -158,6 +159,29 @@ export type MarketplaceItemsResponse = {
   items: MarketplaceItemSummary[];
 };
 
+export type MarketplaceItemDetailRecord = {
+  id: string;
+  slug: string;
+  name_ar?: string;
+  name_en?: string;
+  short_description?: string;
+  long_description?: string;
+  category_slug: string;
+  category_name_ar: string;
+  category_name_en: string;
+  primary_image_url?: string;
+  gallery_image_urls?: string[];
+  starting_price?: number;
+  currency?: string;
+  city?: string;
+  features?: string[];
+  badge?: string;
+};
+
+export type MarketplaceItemDetailResponse = {
+  item: MarketplaceItemDetail;
+};
+
 function invalidResponseFailure(): MobileApiFailure {
   return {
     ok: false,
@@ -205,6 +229,48 @@ function readFiniteNonNegativeNumber(value: unknown) {
 function readCurrencyCode(value: unknown) {
   const normalized = readString(value)?.toUpperCase() ?? null;
   return normalized && /^[A-Z]{3}$/.test(normalized) ? normalized : null;
+}
+
+function readStringList(value: unknown, maxItems: number, maxLength = 120) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const deduped = new Set<string>();
+
+  for (const item of value) {
+    const normalized = readString(item);
+    if (normalized) {
+      deduped.add(normalized.slice(0, maxLength));
+    }
+
+    if (deduped.size >= maxItems) {
+      break;
+    }
+  }
+
+  return Array.from(deduped);
+}
+
+function readImageUrlList(value: unknown, maxItems: number) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const deduped = new Set<string>();
+
+  for (const item of value) {
+    const normalized = normalizePublicImageUrl(readString(item));
+    if (normalized) {
+      deduped.add(normalized);
+    }
+
+    if (deduped.size >= maxItems) {
+      break;
+    }
+  }
+
+  return Array.from(deduped);
 }
 
 function adaptMarketplaceCategory(input: unknown): MarketplaceCategory | null {
@@ -259,6 +325,44 @@ function adaptMarketplaceItem(input: unknown): MarketplaceItemSummary | null {
     imageUrl: normalizePublicImageUrl(readString(record.image_url)) ?? undefined,
     startingPrice: readFiniteNonNegativeNumber(record.starting_price) ?? undefined,
     currency: readCurrencyCode(record.currency) ?? undefined,
+  };
+}
+
+function adaptMarketplaceItemDetail(input: unknown): MarketplaceItemDetail | null {
+  const record = readRecord(input);
+  if (!record) {
+    return null;
+  }
+
+  const id = readString(record.id);
+  const slug = normalizeMarketplaceIdentifier(readString(record.slug));
+  const categorySlug = normalizeMarketplaceIdentifier(readString(record.category_slug));
+  const categoryNameAr = readString(record.category_name_ar);
+  const categoryNameEn = readString(record.category_name_en);
+  const nameAr = readString(record.name_ar);
+  const nameEn = readString(record.name_en);
+
+  if (!id || !slug || !categorySlug || !categoryNameAr || !categoryNameEn || (!nameAr && !nameEn)) {
+    return null;
+  }
+
+  return {
+    id,
+    slug,
+    nameAr: nameAr ?? undefined,
+    nameEn: nameEn ?? undefined,
+    shortDescription: readString(record.short_description) ?? undefined,
+    longDescription: readString(record.long_description) ?? undefined,
+    categorySlug,
+    categoryNameAr,
+    categoryNameEn,
+    primaryImageUrl: normalizePublicImageUrl(readString(record.primary_image_url)) ?? undefined,
+    galleryImageUrls: readImageUrlList(record.gallery_image_urls, 8),
+    startingPrice: readFiniteNonNegativeNumber(record.starting_price) ?? undefined,
+    currency: readCurrencyCode(record.currency) ?? undefined,
+    city: readString(record.city) ?? undefined,
+    features: readStringList(record.features, 10),
+    badge: readString(record.badge) ?? undefined,
   };
 }
 
@@ -471,5 +575,23 @@ export function adaptMarketplaceItemsResponse(input: unknown): MobileApiResult<M
       category,
       items,
     },
+  };
+}
+
+export function adaptMarketplaceItemDetailResponse(input: unknown): MobileApiResult<MarketplaceItemDetailResponse> {
+  const root = readRecord(input);
+
+  if (!root) {
+    return invalidResponseFailure();
+  }
+
+  const item = adaptMarketplaceItemDetail(root.item);
+  if (!item) {
+    return invalidResponseFailure();
+  }
+
+  return {
+    ok: true,
+    data: { item },
   };
 }
