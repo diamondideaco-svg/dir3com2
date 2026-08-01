@@ -18,3 +18,16 @@ export function getMobileEnv(): PublicMobileEnv {
     supabaseAnonKey: read('EXPO_PUBLIC_SUPABASE_ANON_KEY'),
   };
 }
+
+export function getRequiredMobileSupabaseEnv() {
+  const env = getMobileEnv();
+
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    throw new Error('Missing required mobile Supabase public configuration.');
+  }
+
+  return {
+    supabaseUrl: env.supabaseUrl,
+    supabaseAnonKey: env.supabaseAnonKey,
+  };
+}

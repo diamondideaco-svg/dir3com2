@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocale } from '@/app/providers/LocaleProvider';
 import { colors } from '@/constants/theme';
+import { resolveRouteForSession } from '@/navigation/guards';
 import { AUTH_ROUTES, PUBLIC_ROUTES } from '@/navigation/routes';
 import type { RouteKey } from '@/navigation/types';
 import { AccountScreen } from '@/screens/account/AccountScreen';
@@ -12,32 +13,37 @@ import { SignInScreen } from '@/screens/public/SignInScreen';
 import { useSession } from '@/session/SessionProvider';
 
 export function MobileRouter() {
-  const { status, signOut } = useSession();
+  const { status } = useSession();
   const { isRTL } = useLocale();
   const initialRoute: RouteKey = status === 'authenticated' ? 'home' : 'signIn';
   const [activeRoute, setActiveRoute] = useState<RouteKey>(initialRoute);
 
+  useEffect(() => {
+    setActiveRoute((previous) => resolveRouteForSession(previous, status));
+  }, [status]);
+
   const routes = useMemo(() => (status === 'authenticated' ? AUTH_ROUTES : PUBLIC_ROUTES), [status]);
+  const resolvedActiveRoute = resolveRouteForSession(activeRoute, status);
 
   const content = useMemo(() => {
-    if (activeRoute === 'home') {
+    if (resolvedActiveRoute === 'home') {
       return <HomeScreen />;
     }
 
-    if (activeRoute === 'marketplace') {
+    if (resolvedActiveRoute === 'marketplace') {
       return <MarketplaceScreen />;
     }
 
-    if (activeRoute === 'myBookings') {
+    if (resolvedActiveRoute === 'myBookings') {
       return <MyBookingsScreen />;
     }
 
-    if (activeRoute === 'account') {
-      return <AccountScreen onSignOut={signOut} />;
+    if (resolvedActiveRoute === 'account') {
+      return <AccountScreen />;
     }
 
     return <SignInScreen />;
-  }, [activeRoute, signOut]);
+  }, [resolvedActiveRoute]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -50,12 +56,12 @@ export function MobileRouter() {
 
       <View style={[styles.tabBar, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
         {routes.map((route) => {
-          const isActive = route.key === activeRoute;
+          const isActive = route.key === resolvedActiveRoute;
 
           return (
             <TouchableOpacity
               key={route.key}
-              onPress={() => setActiveRoute(route.key)}
+              onPress={() => setActiveRoute(resolveRouteForSession(route.key, status))}
               style={[styles.tab, isActive && styles.tabActive]}
             >
               <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{isRTL ? route.labelAr : route.labelEn}</Text>

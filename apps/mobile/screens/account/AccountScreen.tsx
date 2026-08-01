@@ -1,13 +1,11 @@
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocale } from '@/app/providers/LocaleProvider';
 import { colors } from '@/constants/theme';
+import { useSession } from '@/session/SessionProvider';
 
-type AccountScreenProps = {
-  onSignOut: () => void;
-};
-
-export function AccountScreen({ onSignOut }: AccountScreenProps) {
+export function AccountScreen() {
   const { isRTL, locale, setLocale } = useLocale();
+  const { signOut, authBusy, authActionError } = useSession();
 
   return (
     <View style={styles.card}>
@@ -29,8 +27,10 @@ export function AccountScreen({ onSignOut }: AccountScreenProps) {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity onPress={onSignOut} style={styles.primaryButton}>
-        <Text style={styles.primaryButtonText}>{isRTL ? 'تسجيل الخروج' : 'Sign Out'}</Text>
+      {authActionError ? <Text style={styles.errorText}>{authActionError}</Text> : null}
+
+      <TouchableOpacity onPress={() => void signOut()} style={styles.primaryButton} disabled={authBusy}>
+        <Text style={styles.primaryButtonText}>{authBusy ? (isRTL ? 'جارٍ الخروج...' : 'Signing out...') : (isRTL ? 'تسجيل الخروج' : 'Sign Out')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -75,6 +75,10 @@ const styles = StyleSheet.create({
   },
   secondaryButtonTextActive: {
     color: colors.navy,
+  },
+  errorText: {
+    color: '#fca5a5',
+    fontWeight: '600',
   },
   primaryButton: {
     alignSelf: 'flex-start',

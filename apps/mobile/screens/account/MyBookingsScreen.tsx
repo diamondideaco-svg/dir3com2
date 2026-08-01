@@ -1,14 +1,27 @@
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useLocale } from '@/app/providers/LocaleProvider';
 import { colors } from '@/constants/theme';
+import { createSessionApiClient } from '@/services/api/authenticated';
+import { useSession } from '@/session/SessionProvider';
 
 export function MyBookingsScreen() {
   const { isRTL } = useLocale();
+  const { getAccessToken } = useSession();
+
+  const authApiClientReady = useMemo(() => {
+    const client = createSessionApiClient(getAccessToken);
+    return Boolean(client);
+  }, [getAccessToken]);
 
   return (
     <View style={styles.card}>
       <Text style={[styles.title, { textAlign: isRTL ? 'right' : 'left' }]}>My Bookings</Text>
-      <Text style={[styles.body, { textAlign: isRTL ? 'right' : 'left' }]}>Authenticated route boundary is active. Booking list integration to Core API remains for the next batch.</Text>
+      <Text style={[styles.body, { textAlign: isRTL ? 'right' : 'left' }]}>
+        {authApiClientReady
+          ? 'Authenticated route boundary is active. Session token wiring for protected API calls is now established for the next booking integration batch.'
+          : 'Preparing authenticated booking API boundary.'}
+      </Text>
     </View>
   );
 }
