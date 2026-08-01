@@ -7,6 +7,9 @@ const PUBLISHED_STATUSES = ['published', 'active', 'featured'];
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 30;
+const MIN_SEARCH_LENGTH = 2;
+const MAX_SEARCH_LENGTH = 80;
+const ALLOWED_QUERY_PARAMS = new Set(['category', 'page', 'pageSize', 'q']);
 
 function readPositiveInt(value: string | null, fallback: number) {
   const parsed = Number(value);
@@ -18,15 +21,52 @@ function readPositiveInt(value: string | null, fallback: number) {
   return Math.floor(parsed);
 }
 
+function normalizeSearchQuery(value: string | null) {
+  if (value === null) {
+    return { value: null as string | null, error: null as string | null };
+  }
+
+  const compacted = value.trim().replace(/\s+/g, ' ');
+  if (!compacted) {
+    return { value: null as string | null, error: null as string | null };
+  }
+
+  if (compacted.length < MIN_SEARCH_LENGTH || compacted.length > MAX_SEARCH_LENGTH) {
+    return { value: null as string | null, error: 'Invalid search query length.' };
+  }
+
+  const sanitized = compacted.replace(/[^\p{L}\p{N}\s-]/gu, '').trim();
+  if (sanitized.length < MIN_SEARCH_LENGTH) {
+    return { value: null as string | null, error: 'Invalid search query.' };
+  }
+
+  return { value: sanitized, error: null as string | null };
+}
+
+function escapeIlikePattern(value: string) {
+  return value.replace(/[%_]/g, '');
+}
+
 export async function GET(request: NextRequest) {
   try {
     if (!supabaseAdmin) {
       return NextResponse.json({ error: 'Marketplace is unavailable right now.' }, { status: 503 });
     }
 
+    for (const key of request.nextUrl.searchParams.keys()) {
+      if (!ALLOWED_QUERY_PARAMS.has(key)) {
+        return NextResponse.json({ error: 'Invalid marketplace query parameter.' }, { status: 400 });
+      }
+    }
+
     const page = readPositiveInt(request.nextUrl.searchParams.get('page'), DEFAULT_PAGE);
     const pageSize = Math.min(readPositiveInt(request.nextUrl.searchParams.get('pageSize'), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE);
     const categorySlug = normalizeMarketplaceSlug(request.nextUrl.searchParams.get('category'));
+    const search = normalizeSearchQuery(request.nextUrl.searchParams.get('q'));
+
+    if (search.error) {
+      return NextResponse.json({ error: search.error }, { status: 400 });
+    }
 
     let categoryId: string | null = null;
     let categoryFilter: { slug: string; name_ar: string; name_en: string } | null = null;
@@ -72,6 +112,11 @@ export async function GET(request: NextRequest) {
 
     if (categoryId) {
       query = query.eq('category_id', categoryId);
+    }
+
+    if (search.value) {
+      const pattern = `%${escapeIlikePattern(search.value)}%`;
+      query = query.or(`name_ar.ilike.${pattern},name_en.ilike.${pattern},description_ar.ilike.${pattern}`);
     }
 
     const { data: products, count, error: productsError } = await query;
@@ -157,6 +202,7 @@ export async function GET(request: NextRequest) {
           total,
           totalPages,
           category: categoryFilter?.slug ?? null,
+          q: search.value,
         },
       },
       { status: 200 }
