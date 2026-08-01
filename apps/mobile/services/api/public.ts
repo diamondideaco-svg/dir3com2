@@ -7,7 +7,7 @@ import {
   type MarketplaceItemDetailResponse,
   type MarketplaceItemsResponse,
 } from '@/services/api/contracts';
-import { normalizeMarketplaceIdentifier } from '@/lib/marketplace';
+import { buildMarketplaceItemsQuery, normalizeMarketplaceIdentifier } from '@/lib/marketplace';
 import type { MobileApiResult } from '@/types/result';
 
 const publicApiClient = createApiClient();
@@ -23,12 +23,17 @@ export async function fetchMarketplaceCategories(signal?: AbortSignal): Promise<
 }
 
 export async function fetchMarketplaceItems(
-  category: string,
+  input: { category: string; query?: string | null },
   signal?: AbortSignal
 ): Promise<MobileApiResult<MarketplaceItemsResponse>> {
-  const normalizedCategory = normalizeMarketplaceIdentifier(category);
+  const built = buildMarketplaceItemsQuery({
+    category: input.category,
+    q: input.query,
+    page: 1,
+    pageSize: 12,
+  });
 
-  if (!normalizedCategory) {
+  if (!built) {
     return {
       ok: false,
       error: {
@@ -39,7 +44,18 @@ export async function fetchMarketplaceItems(
     };
   }
 
-  const result = await publicApiClient.get<unknown>(`/api/public/marketplace/items?category=${encodeURIComponent(normalizedCategory)}&page=1&pageSize=12`, {
+  if (built.error || !built.query) {
+    return {
+      ok: false,
+      error: {
+        code: 'http_error',
+        message: built.error ?? 'This search is unavailable.',
+        status: 400,
+      },
+    };
+  }
+
+  const result = await publicApiClient.get<unknown>(`/api/public/marketplace/items?${built.query}`, {
     signal,
   });
 

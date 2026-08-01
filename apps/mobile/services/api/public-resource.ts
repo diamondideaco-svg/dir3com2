@@ -13,9 +13,10 @@ export type PublicResourceState<T> = {
 type UsePublicResourceOptions<T> = {
   load: (signal: AbortSignal) => Promise<MobileApiResult<T>>;
   isEmpty: (data: T) => boolean;
+  reloadKey?: string;
 };
 
-export function usePublicResource<T>({ load, isEmpty }: UsePublicResourceOptions<T>) {
+export function usePublicResource<T>({ load, isEmpty, reloadKey }: UsePublicResourceOptions<T>) {
   const [state, setState] = useState<PublicResourceState<T>>({
     status: 'idle',
     data: null,
@@ -86,7 +87,7 @@ export function usePublicResource<T>({ load, isEmpty }: UsePublicResourceOptions
     return () => {
       abortRef.current?.abort();
     };
-  }, []);
+  }, [reloadKey]);
 
   return {
     state,
