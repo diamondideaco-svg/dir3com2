@@ -1,8 +1,7 @@
 import 'server-only';
 
 import { notFound, redirect } from 'next/navigation';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { isAdminRole, resolveCanonicalUserRole } from '@/lib/auth/identity';
+import { AuthorizationError, requireAdmin } from '@/lib/auth/authorization';
 
 function buildLoginTarget(destination: string) {
   const encoded = encodeURIComponent(destination);
@@ -10,37 +9,19 @@ function buildLoginTarget(destination: string) {
 }
 
 export async function requireAdminPageAccess(destination = '/admin') {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect(buildLoginTarget(destination));
+  try {
+    return await requireAdmin();
+  } catch (error) {
+    if (error instanceof AuthorizationError && error.status === 401) {
+      redirect(buildLoginTarget(destination));
+    }
+    if (error instanceof AuthorizationError && error.status === 403) {
+      notFound();
+    }
+    throw error;
   }
-
-  const role = await resolveCanonicalUserRole(supabase, user.id);
-  if (!role || !isAdminRole(role)) {
-    notFound();
-  }
-
-  return { user, role };
 }
 
 export async function requireAdminActionAccess() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error('Unauthorized');
-  }
-
-  const role = await resolveCanonicalUserRole(supabase, user.id);
-  if (!role || !isAdminRole(role)) {
-    throw new Error('Forbidden');
-  }
-
-  return { supabase, user, role };
+  return requireAdmin();
 }

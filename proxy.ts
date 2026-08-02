@@ -1,9 +1,10 @@
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const PUBLIC_PATHS = ['/', '/about', '/contact', '/services', '/services/', '/login', '/register', '/auth/signin', '/auth/callback'];
 const PUBLIC_CATEGORY_PATHS = ['/cars', '/hotels', '/experiences', '/concierge', '/offers', '/apartments', '/airport-transfers'];
-const PROTECTED_PREFIXES = ['/my-account', '/my-bookings', '/my-documents', '/my-profile', '/my-wallet'];
+const PROTECTED_PREFIXES = ['/admin', '/my-account', '/my-bookings', '/my-documents', '/my-profile', '/my-wallet'];
 
 function isPublicPath(pathname: string) {
   if (pathname === '/') return true;
@@ -16,16 +17,12 @@ function isPublicPath(pathname: string) {
   return PUBLIC_CATEGORY_PATHS.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 
-function hasSupabaseSessionCookie(request: NextRequest) {
-  return request.cookies.getAll().some((cookie) => cookie.name.includes('auth-token') || cookie.name.startsWith('sb-'));
-}
-
 function getDestinationPath(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   return `${pathname}${search}`;
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
@@ -33,9 +30,28 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const hasSession = hasSupabaseSessionCookie(request);
+  if (!isProtected) {
+    return NextResponse.next();
+  }
 
-  if (!hasSession) {
+  let response = NextResponse.next({ request });
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
+    {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        },
+      },
+    }
+  );
+  const { data: { user }, error } = await supabase.auth.getUser();
+
+  if (error || !user) {
     const destination = getDestinationPath(request);
     const redirectUrl = new URL('/login', request.url);
     redirectUrl.searchParams.set('redirect', destination);
@@ -43,11 +59,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (isProtected) {
-    return NextResponse.next();
-  }
-
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
