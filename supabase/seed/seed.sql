@@ -18,9 +18,27 @@ VALUES
   ('77777777-7777-7777-7777-777777777777', '55555555-5555-5555-5555-555555555555', 'الدوحة', 'Doha', 'doha', 'وجهة فاخرة في قلب الخليج', 'Premium destination in the Gulf', 'QA', 'الشرق الأوسط', true, 'active'),
   ('88888888-8888-8888-8888-888888888888', '66666666-6666-6666-6666-666666666666', 'دبي', 'Dubai', 'dubai', 'مدينة راقية وتجارب متطورة', 'Luxury city experience', 'AE', 'الشرق الأوسط', true, 'active');
 
-INSERT INTO partners (id, name, slug, website_url, description_ar, description_en, status)
+INSERT INTO partners (
+  id,
+  company_name,
+  contact_person,
+  email,
+  phone,
+  country,
+  city,
+  slug,
+  website_url,
+  logo_url,
+  description_ar,
+  description_en,
+  commercial_registration,
+  tax_number,
+  iban,
+  status,
+  shield_level
+)
 VALUES
-  ('99999999-9999-9999-9999-999999999999', 'Aurum Luxury', 'aurum-luxury', 'https://example.com', 'شريك خدمات فاخر', 'Luxury service partner', 'active');
+  ('99999999-9999-9999-9999-999999999999', 'Aurum Luxury', 'Sara Al Maktoum', 'sara@aurumluxury.com', '+966500000001', 'Saudi Arabia', 'Riyadh', 'aurum-luxury', 'https://example.com', NULL, 'شريك خدمات فاخر', 'Luxury service partner', 'CR-1001', 'TAX-1001', 'SA0310000000000000000000', 'active', 'gold');
 
 INSERT INTO promotions (id, service_id, code, title_ar, title_en, description_ar, description_en, discount_percentage, starts_at, ends_at, status)
 VALUES

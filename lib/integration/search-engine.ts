@@ -13,7 +13,7 @@ export async function runGlobalSearch(query: string) {
 
   const [customersRes, partnersRes, bookingsRes, productsRes, paymentsRes, invoicesRes, verificationsRes] = await Promise.all([
     supabase.from('profiles').select('id, full_name, email, role').ilike('full_name', `%${q}%`).limit(5),
-    supabase.from('partners').select('id, name, slug').ilike('name', `%${q}%`).limit(5),
+    supabase.from('partners').select('id, company_name, slug').ilike('company_name', `%${q}%`).limit(5),
     supabase.from('bookings').select('id, booking_reference, status').ilike('booking_reference', `%${q}%`).limit(5),
     supabase.from('products').select('id, name_en, slug').ilike('name_en', `%${q}%`).limit(5),
     supabase.from('payment_transactions').select('id, provider, status').ilike('provider', `%${q}%`).limit(5),
