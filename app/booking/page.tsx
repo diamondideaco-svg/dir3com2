@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
@@ -73,6 +73,7 @@ function BookingContent() {
   const [success, setSuccess] = useState(false);
   const [bookingRef, setBookingRef] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
+  const idempotencyKey = useRef(crypto.randomUUID());
 
   const [bookingForm, setBookingForm] = useState<BookingFormData>({
     city: 'الرياض',
@@ -297,6 +298,7 @@ function BookingContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setSubmitting(true);
     setError(null);
 
@@ -323,14 +325,14 @@ function BookingContent() {
 
       const response = await fetch('/api/bookings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey.current },
         body: JSON.stringify(bookingData),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'فشل الحجز');
+        throw new Error(data.error?.message || 'فشل الحجز');
       }
 
       if (!data.data) {

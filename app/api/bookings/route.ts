@@ -3,21 +3,19 @@ import { createSupabaseRequestClient, supabaseAdmin } from '@/lib/supabase/serve
 import { sanitizeMessage, sanitizeNumber, sanitizeText } from '@/lib/security/validation';
 import { logServerError } from '@/lib/security/safe-logger';
 
-type BookingCreateErrorCode = 'AUTH_REQUIRED' | 'INVALID_REQUEST' | 'BOOKING_CREATE_FAILED';
+type BookingCreateErrorCode = 'AUTH_REQUIRED' | 'INVALID_REQUEST' | 'PRODUCT_UNAVAILABLE' | 'BOOKING_CREATE_FAILED';
 
 const REQUIRED_FIELDS = [
   'product_id',
-  'product_name',
   'guest_name',
   'guest_phone',
   'arrival_date',
   'departure_date',
   'guests',
   'city',
-  'total_price',
 ] as const;
 
-// Transitional compatibility fields kept for existing web create flow until pricing-authority migration lands.
+// Legacy price/name fields remain accepted for compatibility, but are ignored by the server.
 const TRANSITIONAL_ALLOWED_KEYS = [
   'product_id',
   'product_name',
@@ -67,6 +65,21 @@ function isMissingRequiredValue(value: unknown) {
   }
 
   return value === null || value === undefined;
+}
+
+function parseDateOnly(value: unknown) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : date;
+}
+
+function getUtcDateOnly() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function createErrorResponse(status: number, code: BookingCreateErrorCode, message: string, fieldErrors?: Record<string, string>) {
@@ -178,47 +191,114 @@ export async function POST(request: NextRequest) {
     const guestName = sanitizeText(body.guest_name, '').slice(0, 80);
     const guestPhone = sanitizeText(body.guest_phone, '').slice(0, 20);
     const city = sanitizeText(body.city, '').slice(0, 80);
-    const productName = sanitizeText(body.product_name, '').slice(0, 200);
     const productId = sanitizeText(body.product_id, '').slice(0, 120);
-    const productPrice = sanitizeNumber(body.product_price, 0);
     const guestEmail = sanitizeText(body.guest_email, '');
     const notes = sanitizeMessage(body.notes, '');
     const specialRequests = sanitizeMessage(body.special_requests, '');
     const clientPassport = sanitizeText(body.client_passport, '').slice(0, 40);
     const clientNationality = sanitizeText(body.client_nationality, '').slice(0, 80);
-    const arrivalDate = sanitizeText(body.arrival_date, '').slice(0, 40);
-    const departureDate = sanitizeText(body.departure_date, '').slice(0, 40);
-    const totalPrice = sanitizeNumber(body.total_price, 0);
+    const arrivalDateValue = sanitizeText(body.arrival_date, '').slice(0, 10);
+    const departureDateValue = sanitizeText(body.departure_date, '').slice(0, 10);
     const guests = sanitizeNumber(body.guests, 1);
 
-    if (!guestName || !guestPhone || !city || !productName || !arrivalDate || !departureDate || totalPrice <= 0 || guests <= 0) {
+    const arrivalDate = parseDateOnly(arrivalDateValue);
+    const departureDate = parseDateOnly(departureDateValue);
+    if (!guestName || !guestPhone || !city || !isUuid(productId) || !arrivalDate || !departureDate || guests <= 0) {
       return createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.');
+    }
+
+    if (arrivalDate < getUtcDateOnly() || departureDate <= arrivalDate) {
+      return createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
+        dates: 'Arrival must be today or later and departure must be after arrival.',
+      });
     }
 
     if (!supabaseAdmin) {
       return createErrorResponse(500, 'BOOKING_CREATE_FAILED', 'تعذر إتمام الحجز حالياً');
     }
 
-    const bookingReference = `DIR3-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+    const requestKey = request.headers.get('idempotency-key')?.trim() ?? '';
+    if (!isUuid(requestKey)) {
+      return createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
+        idempotency_key: 'A valid Idempotency-Key header is required.',
+      });
+    }
+
+    const { data: existingBooking, error: existingError } = await supabaseAdmin
+      .from('bookings')
+      .select('booking_reference')
+      .eq('user_id', authContext.user.id)
+      .eq('request_key', requestKey)
+      .maybeSingle();
+
+    if (existingError) {
+      logServerError('api.bookings.idempotency_read_failed', existingError);
+      return createErrorResponse(500, 'BOOKING_CREATE_FAILED', 'تعذر إتمام الحجز حالياً');
+    }
+    if (existingBooking) {
+      return NextResponse.json({ ok: true, data: existingBooking, message: 'تم إنشاء الحجز بنجاح' });
+    }
+
+    const { data: product, error: productError } = await supabaseAdmin
+      .from('products')
+      .select('id, name_ar, base_price, currency, status, is_active')
+      .eq('id', productId)
+      .maybeSingle();
+
+    if (productError) {
+      logServerError('api.bookings.product_read_failed', productError);
+      return createErrorResponse(500, 'BOOKING_CREATE_FAILED', 'تعذر إتمام الحجز حالياً');
+    }
+    if (!product || product.status !== 'active' || product.is_active !== true) {
+      return createErrorResponse(404, 'PRODUCT_UNAVAILABLE', 'الخدمة غير متاحة للحجز.');
+    }
+
+    const { data: datedPrice, error: priceError } = await supabaseAdmin
+      .from('product_prices')
+      .select('price, currency')
+      .eq('product_id', productId)
+      .lte('valid_from', arrivalDateValue)
+      .gte('valid_to', departureDateValue)
+      .order('valid_from', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (priceError) {
+      logServerError('api.bookings.price_read_failed', priceError);
+      return createErrorResponse(500, 'BOOKING_CREATE_FAILED', 'تعذر إتمام الحجز حالياً');
+    }
+
+    const unitPrice = Number(datedPrice?.price ?? product.base_price);
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      return createErrorResponse(500, 'BOOKING_CREATE_FAILED', 'تعذر إتمام الحجز حالياً');
+    }
+    const guestCount = Math.max(1, Math.min(20, Math.round(guests)));
+    const dayCount = Math.ceil((departureDate.getTime() - arrivalDate.getTime()) / 86_400_000);
+    const totalPrice = Math.round(unitPrice * dayCount * guestCount * 100) / 100;
+    const bookingReference = `DIR3-${crypto.randomUUID().replaceAll('-', '').slice(0, 16).toUpperCase()}`;
 
     const bookingPayload = {
       user_id: authContext.user.id,
+      profile_id: authContext.user.id,
       product_id: productId || null,
-      product_name: productName,
-      product_price: Math.max(0, productPrice),
+      product_name: product.name_ar,
+      product_price: unitPrice,
       guest_name: guestName,
       guest_phone: guestPhone,
       guest_email: guestEmail || null,
-      arrival_date: arrivalDate,
-      departure_date: departureDate,
-      guests: Math.max(1, Math.min(20, Math.round(guests))),
+      arrival_date: arrivalDateValue,
+      departure_date: departureDateValue,
+      guests: guestCount,
       city,
-      total_price: Math.max(0, totalPrice),
+      total_price: totalPrice,
+      total_amount: totalPrice,
+      currency: datedPrice?.currency ?? product.currency,
       notes,
       special_requests: specialRequests || null,
       client_passport: clientPassport || null,
       client_nationality: clientNationality || null,
       booking_reference: bookingReference,
+      request_key: requestKey,
       status: 'pending',
       payment_status: 'pending',
       created_at: new Date().toISOString(),
@@ -229,6 +309,17 @@ export async function POST(request: NextRequest) {
       .insert(bookingPayload);
 
     if (error) {
+      if (error.code === '23505') {
+        const { data: duplicate } = await supabaseAdmin
+          .from('bookings')
+          .select('booking_reference')
+          .eq('user_id', authContext.user.id)
+          .eq('request_key', requestKey)
+          .maybeSingle();
+        if (duplicate) {
+          return NextResponse.json({ ok: true, data: duplicate, message: 'تم إنشاء الحجز بنجاح' });
+        }
+      }
       logServerError('api.bookings.insert_failed', error);
       return createErrorResponse(500, 'BOOKING_CREATE_FAILED', 'تعذر إتمام الحجز حالياً');
     }
