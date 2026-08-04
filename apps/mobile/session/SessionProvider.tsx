@@ -2,7 +2,7 @@ import { createContext, type Dispatch, ReactNode, type SetStateAction, useContex
 import { Linking } from 'react-native';
 import { parseAuthCallbackUrl } from '@/lib/auth/deep-link';
 import type { RouteDestination, RouteKey } from '@/navigation/types';
-import { getMobileSupabaseClient, mapSessionSnapshot } from '@/lib/supabase/client';
+import { getMobileSupabaseClient, mapSessionSnapshot } from '../lib/supabase/client';
 import type { SessionSnapshot, SessionStatus } from '@/session/types';
 
 type SignInInput = {
