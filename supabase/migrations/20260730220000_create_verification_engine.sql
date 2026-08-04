@@ -103,5 +103,9 @@ create table if not exists document_expiry_tracking (
 
 create index if not exists idx_verification_requests_owner on verification_requests(owner_type, owner_id);
 create index if not exists idx_verification_documents_owner on verification_documents(owner_type, owner_id);
+create index if not exists idx_verification_documents_request_id on verification_documents(verification_request_id);
+create index if not exists idx_verification_reviews_request_id on verification_reviews(verification_request_id);
+create index if not exists idx_verification_status_history_request_id on verification_status_history(verification_request_id);
+create index if not exists idx_document_expiry_tracking_document_id on document_expiry_tracking(document_id);
 create index if not exists idx_identity_profiles_owner on identity_profiles(owner_type, owner_id);
 create index if not exists idx_company_profiles_owner on company_profiles(owner_id);

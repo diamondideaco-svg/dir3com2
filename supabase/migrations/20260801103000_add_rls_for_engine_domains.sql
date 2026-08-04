@@ -123,13 +123,25 @@ BEGIN
   ]
   LOOP
     EXECUTE format(
-      'CREATE POLICY IF NOT EXISTS %I ON public.%I FOR ALL USING (public.is_admin_actor()) WITH CHECK (public.is_admin_actor())',
+      'DROP POLICY IF EXISTS %I ON public.%I',
       'admin_full_access',
       table_name
     );
 
     EXECUTE format(
-      'CREATE POLICY IF NOT EXISTS %I ON public.%I FOR ALL USING (auth.role() = ''service_role'') WITH CHECK (auth.role() = ''service_role'')',
+      'CREATE POLICY %I ON public.%I FOR ALL USING (public.is_admin_actor()) WITH CHECK (public.is_admin_actor())',
+      'admin_full_access',
+      table_name
+    );
+
+    EXECUTE format(
+      'DROP POLICY IF EXISTS %I ON public.%I',
+      'service_role_full_access',
+      table_name
+    );
+
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL USING (auth.role() = ''service_role'') WITH CHECK (auth.role() = ''service_role'')',
       'service_role_full_access',
       table_name
     );
@@ -137,7 +149,28 @@ BEGIN
 END;
 $$;
 
-CREATE POLICY IF NOT EXISTS "customer_read_own_booking_status_history" ON public.booking_status_history
+-- Normalize partners policies to canonical naming and role targets.
+DROP POLICY IF EXISTS "Service role full access" ON public.partners;
+DROP POLICY IF EXISTS "Service role full access partners" ON public.partners;
+DROP POLICY IF EXISTS "admin_full_access" ON public.partners;
+DROP POLICY IF EXISTS "service_role_full_access" ON public.partners;
+
+CREATE POLICY "admin_full_access"
+ON public.partners
+FOR ALL
+TO authenticated
+USING (public.is_admin_actor())
+WITH CHECK (public.is_admin_actor());
+
+CREATE POLICY "service_role_full_access"
+ON public.partners
+FOR ALL
+TO service_role
+USING (true)
+WITH CHECK (true);
+
+DROP POLICY IF EXISTS "customer_read_own_booking_status_history" ON public.booking_status_history;
+CREATE POLICY "customer_read_own_booking_status_history" ON public.booking_status_history
   FOR SELECT USING (
     EXISTS (
       SELECT 1
@@ -147,7 +180,8 @@ CREATE POLICY IF NOT EXISTS "customer_read_own_booking_status_history" ON public
     )
   );
 
-CREATE POLICY IF NOT EXISTS "customer_read_own_partner_assignments" ON public.partner_assignments
+DROP POLICY IF EXISTS "customer_read_own_partner_assignments" ON public.partner_assignments;
+CREATE POLICY "customer_read_own_partner_assignments" ON public.partner_assignments
   FOR SELECT USING (
     EXISTS (
       SELECT 1
@@ -157,7 +191,8 @@ CREATE POLICY IF NOT EXISTS "customer_read_own_partner_assignments" ON public.pa
     )
   );
 
-CREATE POLICY IF NOT EXISTS "customer_read_own_partner_settlements" ON public.partner_settlements
+DROP POLICY IF EXISTS "customer_read_own_partner_settlements" ON public.partner_settlements;
+CREATE POLICY "customer_read_own_partner_settlements" ON public.partner_settlements
   FOR SELECT USING (
     EXISTS (
       SELECT 1
@@ -167,7 +202,8 @@ CREATE POLICY IF NOT EXISTS "customer_read_own_partner_settlements" ON public.pa
     )
   );
 
-CREATE POLICY IF NOT EXISTS "customer_manage_own_booking_reviews" ON public.booking_reviews
+DROP POLICY IF EXISTS "customer_manage_own_booking_reviews" ON public.booking_reviews;
+CREATE POLICY "customer_manage_own_booking_reviews" ON public.booking_reviews
   FOR ALL USING (
     customer_id::text = auth.uid()::text
     OR EXISTS (
@@ -186,59 +222,78 @@ CREATE POLICY IF NOT EXISTS "customer_manage_own_booking_reviews" ON public.book
     )
   );
 
-CREATE POLICY IF NOT EXISTS "public_read_active_products" ON public.products
-  FOR SELECT USING (lower(coalesce(status, '')) IN ('active', 'featured'));
-
-CREATE POLICY IF NOT EXISTS "public_read_product_categories" ON public.product_categories
+DROP POLICY IF EXISTS "public_read_active_products" ON public.products;
+DROP POLICY IF EXISTS "public_read_product_categories" ON public.product_categories;
+CREATE POLICY "public_read_product_categories" ON public.product_categories
   FOR SELECT USING (true);
 
-CREATE POLICY IF NOT EXISTS "public_read_product_images" ON public.product_images
+DROP POLICY IF EXISTS "public_read_product_images" ON public.product_images;
+CREATE POLICY "public_read_product_images" ON public.product_images
   FOR SELECT USING (
     EXISTS (
       SELECT 1
       FROM public.products p
       WHERE p.id = product_images.product_id
-        AND lower(coalesce(p.status, '')) IN ('active', 'featured')
+        AND p.status = 'active'
+        AND p.is_active = true
     )
   );
 
-CREATE POLICY IF NOT EXISTS "public_read_product_prices" ON public.product_prices
+DROP POLICY IF EXISTS "public_read_product_prices" ON public.product_prices;
+CREATE POLICY "public_read_product_prices" ON public.product_prices
   FOR SELECT USING (
     EXISTS (
       SELECT 1
       FROM public.products p
       WHERE p.id = product_prices.product_id
-        AND lower(coalesce(p.status, '')) IN ('active', 'featured')
+        AND p.status = 'active'
+        AND p.is_active = true
     )
   );
 
-CREATE POLICY IF NOT EXISTS "public_read_product_features" ON public.product_features
+DROP POLICY IF EXISTS "public_read_product_features" ON public.product_features;
+CREATE POLICY "public_read_product_features" ON public.product_features
   FOR SELECT USING (
     EXISTS (
       SELECT 1
       FROM public.products p
       WHERE p.id = product_features.product_id
-        AND lower(coalesce(p.status, '')) IN ('active', 'featured')
+        AND p.status = 'active'
+        AND p.is_active = true
     )
   );
 
-CREATE POLICY IF NOT EXISTS "public_read_product_availability" ON public.product_availability
+DROP POLICY IF EXISTS "public_read_product_availability" ON public.product_availability;
+CREATE POLICY "public_read_product_availability" ON public.product_availability
   FOR SELECT USING (
     EXISTS (
       SELECT 1
       FROM public.products p
       WHERE p.id = product_availability.product_id
-        AND lower(coalesce(p.status, '')) IN ('active', 'featured')
+        AND p.status = 'active'
+        AND p.is_active = true
     )
   );
 
-CREATE POLICY IF NOT EXISTS "customer_read_own_wallets" ON public.wallets
+DROP POLICY IF EXISTS "customer_read_own_notifications" ON public.notifications;
+CREATE POLICY "customer_read_own_notifications" ON public.notifications
+  FOR SELECT USING (
+    profile_id::text = auth.uid()::text
+    OR (
+      recipient_type IN ('customer', 'user')
+      AND recipient_id::text = auth.uid()::text
+    )
+  );
+
+DROP POLICY IF EXISTS "customer_read_own_wallets" ON public.wallets;
+CREATE POLICY "customer_read_own_wallets" ON public.wallets
   FOR SELECT USING (
     owner_type = 'customer'
     AND owner_id::text = auth.uid()::text
   );
 
-CREATE POLICY IF NOT EXISTS "customer_read_own_wallet_transactions" ON public.wallet_transactions
+DROP POLICY IF EXISTS "customer_read_own_wallet_transactions" ON public.wallet_transactions;
+CREATE POLICY "customer_read_own_wallet_transactions" ON public.wallet_transactions
   FOR SELECT USING (
     EXISTS (
       SELECT 1
@@ -249,36 +304,42 @@ CREATE POLICY IF NOT EXISTS "customer_read_own_wallet_transactions" ON public.wa
     )
   );
 
-CREATE POLICY IF NOT EXISTS "customer_read_own_payment_transactions" ON public.payment_transactions
+DROP POLICY IF EXISTS "customer_read_own_payment_transactions" ON public.payment_transactions;
+CREATE POLICY "customer_read_own_payment_transactions" ON public.payment_transactions
   FOR SELECT USING (
     customer_id::text = auth.uid()::text
   );
 
-CREATE POLICY IF NOT EXISTS "customer_read_own_invoices" ON public.invoices
+DROP POLICY IF EXISTS "customer_read_own_invoices" ON public.invoices;
+CREATE POLICY "customer_read_own_invoices" ON public.invoices
   FOR SELECT USING (
     owner_type = 'customer'
     AND owner_id::text = auth.uid()::text
   );
 
-CREATE POLICY IF NOT EXISTS "customer_read_own_payment_methods" ON public.payment_methods
+DROP POLICY IF EXISTS "customer_read_own_payment_methods" ON public.payment_methods;
+CREATE POLICY "customer_read_own_payment_methods" ON public.payment_methods
   FOR SELECT USING (
     owner_type = 'customer'
     AND owner_id::text = auth.uid()::text
   );
 
-CREATE POLICY IF NOT EXISTS "customer_read_own_verification_requests" ON public.verification_requests
+DROP POLICY IF EXISTS "customer_read_own_verification_requests" ON public.verification_requests;
+CREATE POLICY "customer_read_own_verification_requests" ON public.verification_requests
   FOR SELECT USING (
     owner_type = 'customer'
     AND owner_id = auth.uid()::text
   );
 
-CREATE POLICY IF NOT EXISTS "customer_read_own_verification_documents" ON public.verification_documents
+DROP POLICY IF EXISTS "customer_read_own_verification_documents" ON public.verification_documents;
+CREATE POLICY "customer_read_own_verification_documents" ON public.verification_documents
   FOR SELECT USING (
     owner_type = 'customer'
     AND owner_id = auth.uid()::text
   );
 
-CREATE POLICY IF NOT EXISTS "customer_read_own_identity_profiles" ON public.identity_profiles
+DROP POLICY IF EXISTS "customer_read_own_identity_profiles" ON public.identity_profiles;
+CREATE POLICY "customer_read_own_identity_profiles" ON public.identity_profiles
   FOR SELECT USING (
     owner_type = 'customer'
     AND owner_id = auth.uid()::text

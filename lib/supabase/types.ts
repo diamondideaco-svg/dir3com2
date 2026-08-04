@@ -5,10 +5,10 @@ export type DestinationStatus = 'active' | 'inactive' | 'draft';
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'failed';
 export type BookingItemStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
 export type ReviewStatus = 'active' | 'pending' | 'hidden';
-export type PartnerStatus = 'active' | 'inactive' | 'pending';
+export type PartnerStatus = 'active' | 'inactive' | 'pending' | 'suspended';
 export type PromotionStatus = 'active' | 'inactive' | 'expired';
 export type MediaStatus = 'active' | 'inactive';
-export type NotificationStatus = 'active' | 'read' | 'archived';
+export type NotificationStatus = 'Pending' | 'Queued' | 'Sent' | 'Delivered' | 'Failed' | 'Cancelled';
 export type MediaKind = 'image' | 'video' | 'document';
 
 export interface Profile {
@@ -119,12 +119,21 @@ export interface Review {
 
 export interface Partner {
   id: string;
-  name: string;
+  company_name: string;
+  contact_person: string;
+  email: string;
+  phone?: string | null;
+  country?: string | null;
+  city?: string | null;
   slug: string;
   website_url?: string | null;
   logo_url?: string | null;
   description_ar?: string | null;
   description_en?: string | null;
+  commercial_registration?: string | null;
+  tax_number?: string | null;
+  iban?: string | null;
+  shield_level: 'basic' | 'silver' | 'gold' | 'platinum';
   status: PartnerStatus;
   deleted_at?: string | null;
   created_at: string;
@@ -166,11 +175,21 @@ export interface MediaItem {
 export interface NotificationItem {
   id: string;
   profile_id?: string | null;
-  title: string;
-  body?: string | null;
+  template_id?: string | null;
+  recipient_type?: string | null;
+  recipient_id?: string | null;
+  channel: string;
   kind: 'info' | 'booking' | 'promotion' | 'system';
+  title: string;
+  subject?: string | null;
+  body: string;
   read_at?: string | null;
+  sent_at?: string | null;
+  failed_at?: string | null;
+  error_message?: string | null;
   status: NotificationStatus;
+  provider?: string | null;
+  metadata?: Record<string, unknown> | null;
   deleted_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -254,11 +273,17 @@ export interface PartnerRecord {
   phone?: string | null;
   country?: string | null;
   city?: string | null;
+  slug: string;
+  website_url?: string | null;
+  logo_url?: string | null;
+  description_ar?: string | null;
+  description_en?: string | null;
   commercial_registration?: string | null;
   tax_number?: string | null;
   iban?: string | null;
   status: PartnerStatusValue;
   shield_level: ShieldLevel;
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string;
 }

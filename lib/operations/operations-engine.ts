@@ -98,9 +98,12 @@ export async function createNotificationRecord(supabase: SupabaseClient, input: 
   metadata?: Record<string, unknown>;
 }) {
   const { data, error } = await supabase.from('notifications').insert({
+    profile_id: input.recipientType === 'customer' || input.recipientType === 'user' ? input.recipientId ?? null : null,
     recipient_type: input.recipientType,
     recipient_id: input.recipientId,
     channel: input.channel,
+    kind: 'system',
+    title: input.subject ?? input.body,
     subject: input.subject,
     body: input.body,
     provider: input.provider ?? 'internal',

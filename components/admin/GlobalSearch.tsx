@@ -19,6 +19,7 @@ export async function GlobalSearch({ query }: { query: string }) {
                 {group.items.map((item: Record<string, unknown>, index: number) => {
                   const label = [
                     item.full_name,
+                    item.company_name,
                     item.name,
                     item.booking_reference,
                     item.name_en,

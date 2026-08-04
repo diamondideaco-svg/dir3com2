@@ -82,11 +82,13 @@ export async function createSettlement(supabase: SupabaseClient, bookingId: stri
   const { data, error } = await supabase.from('partner_settlements').insert({
     booking_id: bookingId,
     partner_id: partnerId,
+    amount: calculation.partnerEarnings,
     partner_earnings: calculation.partnerEarnings,
     commission_amount: calculation.commissionAmount,
     taxes: calculation.taxes,
     net_settlement: calculation.netSettlement,
     status: 'pending',
+    settlement_status: 'pending',
   }).select().single();
 
   if (error || !data) return { success: false, error: error?.message || 'Settlement failed' };

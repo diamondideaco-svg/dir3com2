@@ -115,20 +115,6 @@ CREATE TABLE IF NOT EXISTS reviews (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS partners (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  slug TEXT NOT NULL UNIQUE,
-  website_url TEXT,
-  logo_url TEXT,
-  description_ar TEXT,
-  description_en TEXT,
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive','pending')),
-  deleted_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS promotions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   service_id UUID REFERENCES services(id) ON DELETE CASCADE,
@@ -161,61 +147,49 @@ CREATE TABLE IF NOT EXISTS media (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS notifications (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  body TEXT,
-  kind TEXT NOT NULL DEFAULT 'info' CHECK (kind IN ('info','booking','promotion','system')),
-  read_at TIMESTAMPTZ,
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','read','archived')),
-  deleted_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
+DROP TRIGGER IF EXISTS set_profiles_updated_at ON profiles;
 CREATE TRIGGER set_profiles_updated_at
 BEFORE UPDATE ON profiles
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+DROP TRIGGER IF EXISTS set_service_categories_updated_at ON service_categories;
 CREATE TRIGGER set_service_categories_updated_at
 BEFORE UPDATE ON service_categories
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+DROP TRIGGER IF EXISTS set_services_updated_at ON services;
 CREATE TRIGGER set_services_updated_at
 BEFORE UPDATE ON services
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+DROP TRIGGER IF EXISTS set_destinations_updated_at ON destinations;
 CREATE TRIGGER set_destinations_updated_at
 BEFORE UPDATE ON destinations
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+DROP TRIGGER IF EXISTS set_bookings_updated_at ON bookings;
 CREATE TRIGGER set_bookings_updated_at
 BEFORE UPDATE ON bookings
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+DROP TRIGGER IF EXISTS set_booking_items_updated_at ON booking_items;
 CREATE TRIGGER set_booking_items_updated_at
 BEFORE UPDATE ON booking_items
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+DROP TRIGGER IF EXISTS set_reviews_updated_at ON reviews;
 CREATE TRIGGER set_reviews_updated_at
 BEFORE UPDATE ON reviews
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-CREATE TRIGGER set_partners_updated_at
-BEFORE UPDATE ON partners
-FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
+DROP TRIGGER IF EXISTS set_promotions_updated_at ON promotions;
 CREATE TRIGGER set_promotions_updated_at
 BEFORE UPDATE ON promotions
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+DROP TRIGGER IF EXISTS set_media_updated_at ON media;
 CREATE TRIGGER set_media_updated_at
 BEFORE UPDATE ON media
-FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
-CREATE TRIGGER set_notifications_updated_at
-BEFORE UPDATE ON notifications
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 CREATE INDEX IF NOT EXISTS idx_service_categories_parent_id ON service_categories(parent_id);
@@ -229,7 +203,6 @@ CREATE INDEX IF NOT EXISTS idx_reviews_service_id ON reviews(service_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
 CREATE INDEX IF NOT EXISTS idx_promotions_status ON promotions(status);
 CREATE INDEX IF NOT EXISTS idx_media_owner ON media(owner_type, owner_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_profile_id ON notifications(profile_id);
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE service_categories ENABLE ROW LEVEL SECURITY;
@@ -238,39 +211,43 @@ ALTER TABLE destinations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE booking_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
-ALTER TABLE partners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE promotions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE media ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Public read active categories" ON service_categories
+DROP POLICY IF EXISTS "Public read active categories" ON service_categories;
+CREATE POLICY "Public read active categories" ON service_categories
   FOR SELECT USING (status = 'active' AND deleted_at IS NULL);
 
-CREATE POLICY IF NOT EXISTS "Public read active services" ON services
+DROP POLICY IF EXISTS "Public read active services" ON services;
+CREATE POLICY "Public read active services" ON services
   FOR SELECT USING (status = 'active' AND deleted_at IS NULL);
 
-CREATE POLICY IF NOT EXISTS "Public read active destinations" ON destinations
+DROP POLICY IF EXISTS "Public read active destinations" ON destinations;
+CREATE POLICY "Public read active destinations" ON destinations
   FOR SELECT USING (status = 'active' AND deleted_at IS NULL);
 
-CREATE POLICY IF NOT EXISTS "Public read active reviews" ON reviews
+DROP POLICY IF EXISTS "Public read active reviews" ON reviews;
+CREATE POLICY "Public read active reviews" ON reviews
   FOR SELECT USING (status = 'active' AND deleted_at IS NULL);
 
-CREATE POLICY IF NOT EXISTS "Public read active partners" ON partners
-  FOR SELECT USING (status = 'active' AND deleted_at IS NULL);
-
-CREATE POLICY IF NOT EXISTS "Public read active promotions" ON promotions
+DROP POLICY IF EXISTS "Public read active promotions" ON promotions;
+CREATE POLICY "Public read active promotions" ON promotions
   FOR SELECT USING (status = 'active' AND deleted_at IS NULL AND (ends_at IS NULL OR ends_at > NOW()));
 
-CREATE POLICY IF NOT EXISTS "Public read active media" ON media
+DROP POLICY IF EXISTS "Public read active media" ON media;
+CREATE POLICY "Public read active media" ON media
   FOR SELECT USING (status = 'active' AND deleted_at IS NULL);
 
-CREATE POLICY IF NOT EXISTS "Users manage own profiles" ON profiles
+DROP POLICY IF EXISTS "Users manage own profiles" ON profiles;
+CREATE POLICY "Users manage own profiles" ON profiles
   FOR ALL USING (auth.uid()::text IS NOT NULL) WITH CHECK (auth.uid()::text IS NOT NULL);
 
-CREATE POLICY IF NOT EXISTS "Users manage own bookings" ON bookings
+DROP POLICY IF EXISTS "Users manage own bookings" ON bookings;
+CREATE POLICY "Users manage own bookings" ON bookings
   FOR ALL USING (profile_id IS NOT NULL AND profile_id::text = auth.uid()::text) WITH CHECK (profile_id IS NOT NULL AND profile_id::text = auth.uid()::text);
 
-CREATE POLICY IF NOT EXISTS "Users manage own booking items" ON booking_items
+DROP POLICY IF EXISTS "Users manage own booking items" ON booking_items;
+CREATE POLICY "Users manage own booking items" ON booking_items
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM bookings b
@@ -285,43 +262,44 @@ CREATE POLICY IF NOT EXISTS "Users manage own booking items" ON booking_items
     )
   );
 
-CREATE POLICY IF NOT EXISTS "Users manage own reviews" ON reviews
+DROP POLICY IF EXISTS "Users manage own reviews" ON reviews;
+CREATE POLICY "Users manage own reviews" ON reviews
   FOR ALL USING (profile_id IS NOT NULL AND profile_id::text = auth.uid()::text) WITH CHECK (profile_id IS NOT NULL AND profile_id::text = auth.uid()::text);
 
-CREATE POLICY IF NOT EXISTS "Users manage own notifications" ON notifications
-  FOR ALL USING (profile_id IS NOT NULL AND profile_id::text = auth.uid()::text) WITH CHECK (profile_id IS NOT NULL AND profile_id::text = auth.uid()::text);
-
-CREATE POLICY IF NOT EXISTS "Service role full access" ON profiles
+DROP POLICY IF EXISTS "Service role full access" ON profiles;
+CREATE POLICY "Service role full access" ON profiles
   FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
 
-CREATE POLICY IF NOT EXISTS "Service role full access" ON service_categories
+DROP POLICY IF EXISTS "Service role full access" ON service_categories;
+CREATE POLICY "Service role full access" ON service_categories
   FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
 
-CREATE POLICY IF NOT EXISTS "Service role full access" ON services
+DROP POLICY IF EXISTS "Service role full access" ON services;
+CREATE POLICY "Service role full access" ON services
   FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
 
-CREATE POLICY IF NOT EXISTS "Service role full access" ON destinations
+DROP POLICY IF EXISTS "Service role full access" ON destinations;
+CREATE POLICY "Service role full access" ON destinations
   FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
 
-CREATE POLICY IF NOT EXISTS "Service role full access" ON bookings
+DROP POLICY IF EXISTS "Service role full access" ON bookings;
+CREATE POLICY "Service role full access" ON bookings
   FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
 
-CREATE POLICY IF NOT EXISTS "Service role full access" ON booking_items
+DROP POLICY IF EXISTS "Service role full access" ON booking_items;
+CREATE POLICY "Service role full access" ON booking_items
   FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
 
-CREATE POLICY IF NOT EXISTS "Service role full access" ON reviews
+DROP POLICY IF EXISTS "Service role full access" ON reviews;
+CREATE POLICY "Service role full access" ON reviews
   FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
 
-CREATE POLICY IF NOT EXISTS "Service role full access" ON partners
+DROP POLICY IF EXISTS "Service role full access" ON promotions;
+CREATE POLICY "Service role full access" ON promotions
   FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
 
-CREATE POLICY IF NOT EXISTS "Service role full access" ON promotions
-  FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
-
-CREATE POLICY IF NOT EXISTS "Service role full access" ON media
-  FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
-
-CREATE POLICY IF NOT EXISTS "Service role full access" ON notifications
+DROP POLICY IF EXISTS "Service role full access" ON media;
+CREATE POLICY "Service role full access" ON media
   FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
 
 COMMIT;
