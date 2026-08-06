@@ -49,16 +49,6 @@ export async function resolveCanonicalUserRole(supabase: SupabaseClient, userId:
     return normalizeRole(profileData.role);
   }
 
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (!userError && userData?.role) {
-    return normalizeRole(userData.role);
-  }
-
   return null;
 }
 
