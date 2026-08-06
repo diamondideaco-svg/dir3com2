@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { normalizeRole } from '@/lib/auth/identity';
+import { getRoleLabel } from '@/lib/auth/identity-contract';
 
 function buildLoginTarget(destination: string) {
   const encoded = encodeURIComponent(destination);
@@ -31,7 +32,7 @@ export default async function MyAccountPage() {
   const { user, profile } = await getAccountProfile();
   const displayName = profile?.full_name || user.user_metadata?.full_name_ar || user.user_metadata?.full_name || user.email?.split('@')[0] || 'عميل dir3com';
   const displayEmail = profile?.email || user.email || '—';
-  const displayRole = normalizeRole(profile?.role);
+  const displayRole = getRoleLabel(normalizeRole(profile?.role));
   const joinedAt = profile?.created_at ? new Date(profile.created_at).toLocaleDateString('ar-SA') : '—';
 
   return (

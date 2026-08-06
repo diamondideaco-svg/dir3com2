@@ -18,9 +18,9 @@ function toSafeString(value: unknown) {
   return value.trim();
 }
 
-export function normalizeRole(value: unknown, fallback: CanonicalRole = 'customer'): CanonicalRole {
+export function normalizeRole(value: unknown): CanonicalRole | null {
   const normalized = ROLE_ALIASES[toSafeString(value).toLowerCase()];
-  return normalized ?? fallback;
+  return normalized ?? null;
 }
 
 export function isAdminRole(value: unknown) {
@@ -78,13 +78,11 @@ export async function ensureCanonicalProfileFromAuthUser(supabase: SupabaseClien
   }
 
   if (existingProfile?.id) {
-    const currentRole = normalizeRole(existingProfile.role);
     const { error: profileUpdateError } = await supabase
       .from('profiles')
       .update({
         full_name: fullName,
         email,
-        role: currentRole,
       })
       .eq('id', user.id);
 
@@ -98,7 +96,7 @@ export async function ensureCanonicalProfileFromAuthUser(supabase: SupabaseClien
         id: user.id,
         full_name: fullName,
         email,
-        role: metadataRole,
+        role: metadataRole ?? 'customer',
         status: 'active',
       });
 
@@ -107,15 +105,4 @@ export async function ensureCanonicalProfileFromAuthUser(supabase: SupabaseClien
     }
   }
 
-  const legacyRole = metadataRole;
-  await supabase.from('users').upsert(
-    {
-      id: user.id,
-      email,
-      full_name_ar: fullName,
-      role: legacyRole,
-      phone: '',
-    },
-    { onConflict: 'id' }
-  );
 }

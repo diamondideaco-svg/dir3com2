@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 const PUBLIC_PATHS = ['/', '/about', '/contact', '/services', '/services/', '/login', '/register', '/auth/signin', '/auth/callback'];
 const PUBLIC_CATEGORY_PATHS = ['/cars', '/hotels', '/experiences', '/concierge', '/offers', '/apartments', '/airport-transfers'];
-const PROTECTED_PREFIXES = ['/my-account', '/my-bookings', '/my-documents', '/my-profile', '/my-wallet'];
+const PROTECTED_PREFIXES = ['/profile', '/my-account', '/my-bookings', '/my-documents', '/my-profile', '/my-wallet', '/dashboard'];
 
 function isPublicPath(pathname: string) {
   if (pathname === '/') return true;

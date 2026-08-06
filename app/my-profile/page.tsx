@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { normalizeRole } from '@/lib/auth/identity';
+import { getRoleLabel } from '@/lib/auth/identity-contract';
 
 function buildLoginTarget(destination: string) {
   const encoded = encodeURIComponent(destination);
@@ -58,7 +59,7 @@ export default async function MyProfilePage() {
               </div>
               <div>
                 <p className="text-xs text-slate-400">الدور</p>
-                <p className="mt-2 text-sm font-semibold text-white">{normalizeRole(customer.role)}</p>
+                <p className="mt-2 text-sm font-semibold text-white">{getRoleLabel(normalizeRole(customer.role))}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-400">الحالة</p>
