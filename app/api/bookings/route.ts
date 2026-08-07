@@ -398,7 +398,7 @@ export async function GET(request: NextRequest) {
       total_amount: booking.total_amount,
       total_price: booking.total_price,
       currency: booking.currency,
-      service_name: booking.product_name ?? null,
+      service_name: booking.product_name ?? 'Product',
       arrival_date: booking.arrival_date,
       departure_date: booking.departure_date,
       created_at: booking.created_at,
