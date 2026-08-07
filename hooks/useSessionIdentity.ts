@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createAnonymousSessionIdentity, type SessionIdentity } from '@/lib/auth/identity-contract';
 import { normalizeSessionIdentityPayload } from '@/lib/auth/session-identity';
+import { supabase } from '@/lib/supabase/client';
 
 interface SessionIdentityState {
   identity: SessionIdentity;
@@ -74,10 +75,23 @@ export function useSessionIdentity(): SessionIdentityState {
 
     void loadInitialIdentity();
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (cancelled) {
+        return;
+      }
+
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        void refresh();
+      }
+    });
+
     return () => {
       cancelled = true;
+      subscription.unsubscribe();
     };
-  }, []);
+  }, [refresh]);
 
   return { identity, isLoading, error, refresh };
 }
