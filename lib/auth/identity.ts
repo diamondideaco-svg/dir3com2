@@ -55,7 +55,6 @@ export async function resolveCanonicalUserRole(supabase: SupabaseClient, userId:
 export async function ensureCanonicalProfileFromAuthUser(supabase: SupabaseClient, user: User) {
   const fullName = getAuthUserDisplayName(user);
   const email = toSafeString(user.email);
-  const metadataRole = normalizeRole(user.user_metadata?.role);
 
   const { data: existingProfile, error: profileReadError } = await supabase
     .from('profiles')
@@ -86,8 +85,6 @@ export async function ensureCanonicalProfileFromAuthUser(supabase: SupabaseClien
         id: user.id,
         full_name: fullName,
         email,
-        role: metadataRole ?? 'customer',
-        status: 'active',
       });
 
     if (profileInsertError) {
