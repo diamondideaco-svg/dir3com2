@@ -301,12 +301,8 @@ function BookingContent() {
     setError(null);
 
     try {
-      const totalPrice = calculateTotal();
-
       const bookingData = {
         product_id: product?.id || null,
-        product_name: product?.name_ar || '',
-        product_price: product?.price_per_unit || 0,
         guest_name: clientForm.fullName.trim(),
         guest_phone: clientForm.phone.trim(),
         guest_email: clientForm.email?.trim() || null,
@@ -316,7 +312,6 @@ function BookingContent() {
         notes: clientForm.notes?.trim() || null,
         special_requests: bookingForm.specialRequests?.trim() || null,
         city: bookingForm.city,
-        total_price: totalPrice,
         client_passport: clientForm.passportNumber?.trim() || null,
         client_nationality: clientForm.nationality || null,
       };
