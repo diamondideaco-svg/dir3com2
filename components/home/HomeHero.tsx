@@ -5,6 +5,7 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import { useRef } from 'react';
 import { FiArrowLeft, FiCheckCircle, FiShield } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
+import Dir3LogoLockup from '@/components/branding/Dir3LogoLockup';
 import { buttonVariants } from '@/components/ui/button';
 import { heroHighlights } from '@/components/home/dir3-home-data';
 import { fadeUpItem, revealViewport, sectionStagger, softScaleItem, subtleEasing } from '@/components/shared/motion';
@@ -20,10 +21,14 @@ export default function HomeHero() {
 
   return (
     <section ref={sectionRef} id="home" className="relative isolate overflow-hidden px-4 pb-14 pt-8 sm:px-6 lg:px-8 lg:pb-20 lg:pt-14">
+      <div className="identity-skyline-system" aria-hidden="true" />
       <motion.div style={{ y: glowY }} className="absolute inset-x-0 top-0 -z-10 h-[620px] bg-[radial-gradient(circle_at_80%_0%,rgba(212,175,55,0.34),transparent_36%),radial-gradient(circle_at_14%_8%,rgba(13,27,42,0.14),transparent_28%),linear-gradient(180deg,rgba(255,250,239,0.9)_0%,rgba(244,241,232,0)_86%)]" />
-      <div className="absolute inset-x-0 top-0 -z-10 h-[560px] bg-[linear-gradient(120deg,rgba(13,27,42,0.05)_0%,rgba(13,27,42,0.01)_35%,rgba(212,175,55,0.09)_100%)]" />
+      <div className="absolute inset-x-0 top-0 -z-10 h-[560px] bg-[linear-gradient(135deg,rgba(13,27,42,0.09)_0%,rgba(13,27,42,0.02)_36%,rgba(212,175,55,0.15)_100%)]" />
       <motion.div variants={sectionStagger} initial="hidden" animate="visible" className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.04fr_0.96fr] lg:items-center">
         <motion.div variants={sectionStagger}>
+          <div className="mb-5 flex justify-center sm:justify-start">
+            <Dir3LogoLockup className="hero-lockup-shell" compact reveal />
+          </div>
           <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 px-4 py-2 text-sm font-medium text-[var(--color-gold)]">
             <FiShield /> منصة عربية فاخرة ومحمية
           </span>
@@ -70,6 +75,7 @@ export default function HomeHero() {
 
         <motion.div variants={softScaleItem} viewport={revealViewport} whileInView="visible" initial="hidden" style={{ y: panelY }}>
           <div className="relative overflow-hidden rounded-[36px] border border-[color:var(--color-border)] bg-[linear-gradient(180deg,rgba(13,27,42,0.05)_0%,rgba(13,27,42,0.13)_100%)] p-4 shadow-[0_36px_80px_rgba(13,27,42,0.16)] sm:p-5">
+            <div className="identity-gold-arc" aria-hidden="true" />
             <div className="absolute -right-8 top-6 h-28 w-28 rounded-full bg-[var(--color-gold)]/18 blur-3xl" />
             <div className="absolute -left-6 bottom-6 h-24 w-24 rounded-full bg-[var(--color-navy)]/15 blur-3xl" />
             <div className="grid gap-4 sm:grid-cols-[1.1fr_0.9fr]">

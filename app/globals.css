@@ -227,3 +227,134 @@ button {
     width: calc(100% - 1.2rem);
   }
 }
+
+.dir3-mark {
+  position: relative;
+  display: inline-flex;
+  height: 3rem;
+  width: 3rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  background: linear-gradient(165deg, #0d1b2a 0%, #10253f 62%, #143052 100%);
+  color: var(--color-gold);
+  box-shadow: 0 16px 32px rgba(13, 27, 42, 0.2);
+  isolation: isolate;
+}
+
+.dir3-mark--compact {
+  height: 2.5rem;
+  width: 2.5rem;
+  border-radius: 0.9rem;
+}
+
+.dir3-mark__arc {
+  position: absolute;
+  top: -0.32rem;
+  left: 50%;
+  width: 78%;
+  height: 42%;
+  transform: translateX(-50%);
+  border-top: 2px solid rgba(212, 175, 55, 0.82);
+  border-left: 2px solid transparent;
+  border-right: 2px solid transparent;
+  border-radius: 999px 999px 0 0;
+  opacity: 0.95;
+}
+
+.dir3-mark__shell {
+  position: absolute;
+  inset: 0.22rem;
+  border-radius: 0.82rem;
+  border: 1px solid rgba(212, 175, 55, 0.34);
+}
+
+.dir3-mark--compact .dir3-mark__shell {
+  border-radius: 0.68rem;
+}
+
+.dir3-mark__icon {
+  position: relative;
+  z-index: 2;
+}
+
+.dir3-reveal-logo {
+  animation: dir3LogoReveal 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes dir3LogoReveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+    filter: saturate(0.72);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: saturate(1);
+  }
+}
+
+.hero-lockup-shell {
+  border-radius: 999px;
+  border: 1px solid rgba(13, 27, 42, 0.12);
+  background: rgba(255, 253, 248, 0.74);
+  padding: 0.5rem 0.9rem;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 14px 32px rgba(13, 27, 42, 0.08);
+}
+
+.identity-skyline-system {
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: -1;
+  height: 40%;
+  background:
+    linear-gradient(180deg, rgba(13, 27, 42, 0) 0%, rgba(13, 27, 42, 0.09) 84%, rgba(13, 27, 42, 0.14) 100%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(13, 27, 42, 0.15) 0,
+      rgba(13, 27, 42, 0.15) 12px,
+      rgba(13, 27, 42, 0.03) 12px,
+      rgba(13, 27, 42, 0.03) 34px
+    );
+  mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.7) 45%, black 100%);
+}
+
+.identity-gold-arc {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  top: -82px;
+  width: min(660px, 95%);
+  height: 210px;
+  transform: translateX(-50%);
+  border-top: 3px solid rgba(212, 175, 55, 0.52);
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-radius: 999px 999px 0 0;
+  opacity: 0.9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dir3-reveal-logo {
+    animation: none;
+    filter: none;
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .identity-gold-arc {
+    top: -64px;
+    height: 156px;
+    width: calc(100% - 1rem);
+  }
+
+  .identity-skyline-system {
+    height: 34%;
+  }
+}
