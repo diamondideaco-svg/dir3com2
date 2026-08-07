@@ -168,15 +168,29 @@ async function main() {
     }
     qaProductId = productInsert.data.id;
 
+    const bulkCompetingRows = Array.from({ length: 520 }, (_, index) => ({
+      product_id: qaProductId,
+      price: 180 + (index % 20),
+      currency: 'SAR',
+      valid_from: validFromA,
+      valid_to: null,
+      rule_name: `bulk_${index}`,
+    }));
+
+    const decisiveWinnerPrice = 777;
+    const seededRows = [
+      ...bulkCompetingRows,
+      { product_id: qaProductId, price: 999, currency: 'SAR', valid_from: addDays(-60), valid_to: expiredTo, rule_name: 'expired_high' },
+      { product_id: qaProductId, price: 400, currency: 'SAR', valid_from: futureFrom, valid_to: null, rule_name: 'future' },
+      { product_id: qaProductId, price: 200, currency: 'SAR', valid_from: validFromA, valid_to: null, rule_name: 'eligible_old' },
+      { product_id: qaProductId, price: 210, currency: 'SAR', valid_from: validFromA, valid_to: null, rule_name: 'eligible_same_from_newer' },
+      // This row is intentionally appended after the first 500+ competing rows.
+      { product_id: qaProductId, price: decisiveWinnerPrice, currency: 'SAR', valid_from: validFromB, valid_to: validToB, rule_name: 'eligible_latest_from_after_500' },
+    ];
+
     const pricesInsert = await admin
       .from('product_prices')
-      .insert([
-        { product_id: qaProductId, price: 999, currency: 'SAR', valid_from: addDays(-60), valid_to: expiredTo, rule_name: 'expired_high' },
-        { product_id: qaProductId, price: 400, currency: 'SAR', valid_from: futureFrom, valid_to: null, rule_name: 'future' },
-        { product_id: qaProductId, price: 200, currency: 'SAR', valid_from: validFromA, valid_to: null, rule_name: 'eligible_old' },
-        { product_id: qaProductId, price: 210, currency: 'SAR', valid_from: validFromA, valid_to: null, rule_name: 'eligible_same_from_newer' },
-        { product_id: qaProductId, price: 220, currency: 'SAR', valid_from: validFromB, valid_to: validToB, rule_name: 'eligible_latest_from' },
-      ]);
+      .insert(seededRows);
 
     if (pricesInsert.error) {
       throw new Error(`Unable to seed product_prices: ${pricesInsert.error.message}`);
@@ -204,10 +218,11 @@ async function main() {
     test('7. Malformed UUID controlled 4xx', malformedUuid.status >= 400 && malformedUuid.status < 500, `status=${malformedUuid.status}`);
 
     const quoteData = validQuote.body?.data;
-    test('8. Current effective product price selected', Number(quoteData?.unitPrice) === 220, `unit=${quoteData?.unitPrice}`);
+    test('8. Current effective product price selected', Number(quoteData?.unitPrice) === decisiveWinnerPrice, `unit=${quoteData?.unitPrice}`);
     test('9. Expired price ignored', Number(quoteData?.unitPrice) !== 999, `unit=${quoteData?.unitPrice}`);
     test('10. Future price ignored', Number(quoteData?.unitPrice) !== 400, `unit=${quoteData?.unitPrice}`);
-    test('11. Multiple eligible price records deterministic', Number(quoteData?.unitPrice) === 220, `unit=${quoteData?.unitPrice}`);
+    test('11. Multiple eligible price records deterministic', Number(quoteData?.unitPrice) === decisiveWinnerPrice, `unit=${quoteData?.unitPrice}`);
+    test('16. >500 competing prices boundary honored', seededRows.length > 500 && Number(quoteData?.unitPrice) === decisiveWinnerPrice, `seeded=${seededRows.length} unit=${quoteData?.unitPrice}`);
 
     const tamperPayload = {
       product_id: qaProductId,
@@ -255,10 +270,10 @@ async function main() {
     }
 
     const persisted = bookingRows[0];
-    const expectedTotal = roundMoney(220 * 3 * 2);
+    const expectedTotal = roundMoney(decisiveWinnerPrice * 3 * 2);
     test('15. Authenticated ownership preserved', persisted.user_id === qaUserId, `persistedUser=${persisted.user_id}`);
     test('Persisted authoritative product identity', persisted.product_id === qaProductId, `product=${persisted.product_id}`);
-    test('Persisted authoritative amounts', Number(persisted.product_price) === 220 && Number(persisted.total_price) === expectedTotal && Number(persisted.total_amount) === expectedTotal && String(persisted.currency).toUpperCase() === 'SAR');
+    test('Persisted authoritative amounts', Number(persisted.product_price) === decisiveWinnerPrice && Number(persisted.total_price) === expectedTotal && Number(persisted.total_amount) === expectedTotal && String(persisted.currency).toUpperCase() === 'SAR');
 
     console.log(JSON.stringify({ ok: true, baseUrl, results }, null, 2));
   } finally {

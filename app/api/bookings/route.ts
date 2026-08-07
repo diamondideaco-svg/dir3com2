@@ -55,15 +55,6 @@ const ALLOWED_KEY_SET = new Set<string>(CLIENT_ALLOWED_KEYS);
 const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-type EffectivePriceRow = {
-  id?: string | null;
-  price?: unknown;
-  currency?: unknown;
-  valid_from?: string | null;
-  valid_to?: string | null;
-  created_at?: string | null;
-};
-
 type BookingQuote = {
   productId: string;
   productName: string;
@@ -114,50 +105,6 @@ function toMoneyNumber(value: unknown) {
   return roundMoney(parsed);
 }
 
-function toDateKey(value: string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = parseIsoDate(value.slice(0, 10));
-  if (!parsed) {
-    return null;
-  }
-
-  return parsed.toISOString().slice(0, 10);
-}
-
-function isEffectivePriceForBooking(price: EffectivePriceRow, arrivalDate: string, departureDate: string) {
-  const validFrom = toDateKey(price.valid_from);
-  const validTo = toDateKey(price.valid_to);
-
-  if (validFrom && validFrom > arrivalDate) {
-    return false;
-  }
-
-  if (validTo && validTo < departureDate) {
-    return false;
-  }
-
-  return true;
-}
-
-function compareEffectivePricePriority(a: EffectivePriceRow, b: EffectivePriceRow) {
-  const aFrom = toDateKey(a.valid_from) ?? '0000-01-01';
-  const bFrom = toDateKey(b.valid_from) ?? '0000-01-01';
-  if (aFrom !== bFrom) {
-    return bFrom.localeCompare(aFrom);
-  }
-
-  const aCreatedAt = a.created_at ?? '';
-  const bCreatedAt = b.created_at ?? '';
-  if (aCreatedAt !== bCreatedAt) {
-    return bCreatedAt.localeCompare(aCreatedAt);
-  }
-
-  return (a.id ?? '').localeCompare(b.id ?? '');
-}
-
 function isProductBookable(product: Record<string, unknown>) {
   const status = sanitizeText(product.status, '').toLowerCase();
   if (status && status !== 'active') {
@@ -188,21 +135,22 @@ async function resolveServerUnitPrice(productId: string, product: Record<string,
   const fallbackPriceCandidates = [product.price_per_unit, product.base_price, product.price];
 
   if (supabaseAdmin) {
-    const { data: priceRows, error } = await supabaseAdmin
+    const { data: selectedPrice, error } = await supabaseAdmin
       .from('product_prices')
       .select('id, price, currency, valid_from, valid_to, created_at')
       .eq('product_id', productId)
-      .limit(500);
+      .or(`valid_from.is.null,valid_from.lte.${arrivalDate}`)
+      .or(`valid_to.is.null,valid_to.gte.${departureDate}`)
+      .order('valid_from', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false, nullsFirst: false })
+      .order('id', { ascending: true, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
       logServerError('api.bookings.product_price_lookup_failed', error);
     }
 
-    const effectivePrices = (Array.isArray(priceRows) ? priceRows : [])
-      .filter((row) => isEffectivePriceForBooking(row as EffectivePriceRow, arrivalDate, departureDate))
-      .sort((a, b) => compareEffectivePricePriority(a as EffectivePriceRow, b as EffectivePriceRow));
-
-    const selectedPrice = effectivePrices[0] ?? null;
     const selectedPriceValue = toMoneyNumber(selectedPrice?.price);
     if (Number.isFinite(selectedPriceValue) && selectedPriceValue > 0) {
       return {
