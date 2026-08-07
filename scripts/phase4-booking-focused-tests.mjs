@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const workspaceRoot = process.cwd();
@@ -121,7 +122,17 @@ async function main() {
 
   let qaUserId = null;
   let qaProductId = null;
+  let qaInactiveProductId = null;
   let bookingReference = null;
+  let runtimeBookingsCreated = 0;
+  let invalidBookingsPersisted = 0;
+  const cleanupCounts = {
+    bookings: 0,
+    productPrices: 0,
+    products: 0,
+    profiles: 0,
+    users: 0,
+  };
 
   const results = [];
 
@@ -183,6 +194,24 @@ async function main() {
       throw new Error(`Unable to create test product: ${productInsert.error?.message || 'unknown'}`);
     }
     qaProductId = productInsert.data.id;
+
+    const inactiveProductInsert = await admin
+      .from('products')
+      .insert({
+        name_ar: 'منتج غير نشط Phase4 QA',
+        name_en: 'Phase4 QA Inactive Product',
+        slug: `${productSlug}-inactive`,
+        status: 'inactive',
+        base_price: 320,
+        currency: 'SAR',
+      })
+      .select('*')
+      .single();
+
+    if (inactiveProductInsert.error || !inactiveProductInsert.data?.id) {
+      throw new Error(`Unable to create inactive test product: ${inactiveProductInsert.error?.message || 'unknown'}`);
+    }
+    qaInactiveProductId = inactiveProductInsert.data.id;
 
     const bulkCompetingRows = Array.from({ length: 520 }, (_, index) => ({
       product_id: qaProductId,
@@ -256,6 +285,84 @@ async function main() {
     const tamperResponse = await postBooking(tamperPayload, accessToken);
     test('14. Client attempt to send price fields rejected', tamperResponse.status === 400, `status=${tamperResponse.status}`);
 
+    const postMalformedProductIdPayload = {
+      product_id: 'bad-uuid',
+      guest_name: 'Product Validation QA',
+      guest_phone: '0500000010',
+      guest_email: email,
+      arrival_date: arrival,
+      departure_date: departure,
+      guests: 2,
+      city: 'Riyadh',
+    };
+    const postMalformedProductIdResponse = await postBooking(postMalformedProductIdPayload, accessToken);
+    test('POST rejects malformed product identifier', postMalformedProductIdResponse.status === 400, `status=${postMalformedProductIdResponse.status}`);
+
+    const postNonexistentProductPayload = {
+      product_id: randomUUID(),
+      guest_name: 'Product Validation QA',
+      guest_phone: '0500000011',
+      guest_email: email,
+      arrival_date: arrival,
+      departure_date: departure,
+      guests: 2,
+      city: 'Riyadh',
+    };
+    const postNonexistentProductResponse = await postBooking(postNonexistentProductPayload, accessToken);
+    test('POST rejects nonexistent product', postNonexistentProductResponse.status === 404, `status=${postNonexistentProductResponse.status}`);
+
+    const postInactiveProductPayload = {
+      product_id: qaInactiveProductId,
+      guest_name: 'Product Validation QA',
+      guest_phone: '0500000012',
+      guest_email: email,
+      arrival_date: arrival,
+      departure_date: departure,
+      guests: 2,
+      city: 'Riyadh',
+    };
+    const postInactiveProductResponse = await postBooking(postInactiveProductPayload, accessToken);
+    test('POST rejects inactive product', postInactiveProductResponse.status === 400, `status=${postInactiveProductResponse.status}`);
+
+    const postMalformedDatePayload = {
+      product_id: qaProductId,
+      guest_name: 'Date Validation QA',
+      guest_phone: '0500000013',
+      guest_email: email,
+      arrival_date: '2026-02-31',
+      departure_date: departure,
+      guests: 2,
+      city: 'Riyadh',
+    };
+    const postMalformedDateResponse = await postBooking(postMalformedDatePayload, accessToken);
+    test('POST rejects malformed arrival date', postMalformedDateResponse.status === 400, `status=${postMalformedDateResponse.status}`);
+
+    const postMalformedDeparturePayload = {
+      product_id: qaProductId,
+      guest_name: 'Date Validation QA',
+      guest_phone: '0500000014',
+      guest_email: email,
+      arrival_date: arrival,
+      departure_date: 'not-a-date',
+      guests: 2,
+      city: 'Riyadh',
+    };
+    const postMalformedDepartureResponse = await postBooking(postMalformedDeparturePayload, accessToken);
+    test('POST rejects malformed departure date', postMalformedDepartureResponse.status === 400, `status=${postMalformedDepartureResponse.status}`);
+
+    const postInvalidRangePayload = {
+      product_id: qaProductId,
+      guest_name: 'Date Validation QA',
+      guest_phone: '0500000015',
+      guest_email: email,
+      arrival_date: departure,
+      departure_date: departure,
+      guests: 2,
+      city: 'Riyadh',
+    };
+    const postInvalidRangeResponse = await postBooking(postInvalidRangePayload, accessToken);
+    test('POST rejects departure <= arrival', postInvalidRangeResponse.status === 400, `status=${postInvalidRangeResponse.status}`);
+
     const malformedGuestBasePayload = {
       product_id: qaProductId,
       guest_name: 'Malformed Guest QA',
@@ -294,6 +401,19 @@ async function main() {
     const malformedRawInfinityResponse = await postBookingRaw(malformedInfinityBody, accessToken);
     test('POST guest rejects JavaScript Infinity numeric payload', malformedRawInfinityResponse.status === 400, `status=${malformedRawInfinityResponse.status}`);
 
+    const { count: invalidPersistedCount, error: invalidCountError } = await admin
+      .from('bookings')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', qaUserId)
+      .in('guest_name', ['Malformed Guest QA', 'Product Validation QA', 'Date Validation QA']);
+
+    if (invalidCountError) {
+      throw new Error(`Unable to verify invalid booking persistence: ${invalidCountError.message}`);
+    }
+
+    invalidBookingsPersisted = Number(invalidPersistedCount || 0);
+    test('Invalid booking persistence count remains zero', invalidBookingsPersisted === 0, `count=${invalidBookingsPersisted}`);
+
     const validPayload = {
       product_id: qaProductId,
       guest_name: 'Valid Booking QA',
@@ -308,6 +428,7 @@ async function main() {
 
     const validBooking = await postBooking(validPayload, accessToken);
     bookingReference = validBooking.body?.data?.booking_reference || null;
+    runtimeBookingsCreated += validBooking.status === 200 ? 1 : 0;
     test('12. Authoritative server total returned to client', validBooking.status === 200 && Number.isFinite(Number(validBooking.body?.data?.quote?.totalAmount)), `status=${validBooking.status}`);
 
     const bookingQuote = validBooking.body?.data?.quote;
@@ -315,7 +436,7 @@ async function main() {
 
     const { data: bookingRows, error: bookingLookupError } = await admin
       .from('bookings')
-      .select('user_id,product_id,product_price,total_price,total_amount,currency,booking_reference')
+      .select('user_id,product_id,product_price,total_price,total_amount,currency,booking_reference,arrival_date,departure_date,guests')
       .eq('booking_reference', bookingReference)
       .limit(1);
 
@@ -327,23 +448,90 @@ async function main() {
     const expectedTotal = roundMoney(decisiveWinnerPrice * 3 * 2);
     test('15. Authenticated ownership preserved', persisted.user_id === qaUserId, `persistedUser=${persisted.user_id}`);
     test('Persisted authoritative product identity', persisted.product_id === qaProductId, `product=${persisted.product_id}`);
+    test('Persisted booking reference format', /^DIR3-\d+-\d{4}$/.test(String(persisted.booking_reference || '')), `reference=${persisted.booking_reference}`);
+    test('Persisted booking guest/date fields match request', Number(persisted.guests) === 2 && persisted.arrival_date === arrival && persisted.departure_date === departure, `guests=${persisted.guests} arrival=${persisted.arrival_date} departure=${persisted.departure_date}`);
     test('Persisted authoritative amounts', Number(persisted.product_price) === decisiveWinnerPrice && Number(persisted.total_price) === expectedTotal && Number(persisted.total_amount) === expectedTotal && String(persisted.currency).toUpperCase() === 'SAR');
 
-    console.log(JSON.stringify({ ok: true, baseUrl, results }, null, 2));
+    console.log(JSON.stringify({
+      ok: true,
+      baseUrl,
+      projectRefFromUrl: new URL(supabaseUrl).host.split('.')[0],
+      runtimeBookingsCreated,
+      invalidBookingsPersisted,
+      cleanupCounts,
+      results,
+    }, null, 2));
   } finally {
-    if (bookingReference) {
-      await admin.from('bookings').delete().eq('booking_reference', bookingReference);
+    if (qaUserId) {
+      const { data: deletedBookings, error: bookingsCleanupError } = await admin
+        .from('bookings')
+        .delete()
+        .eq('user_id', qaUserId)
+        .select('id');
+
+      if (!bookingsCleanupError && Array.isArray(deletedBookings)) {
+        cleanupCounts.bookings += deletedBookings.length;
+      }
     }
 
     if (qaProductId) {
-      await admin.from('product_prices').delete().eq('product_id', qaProductId);
-      await admin.from('products').delete().eq('id', qaProductId);
+      const { data: deletedProductPrices, error: pricesCleanupError } = await admin
+        .from('product_prices')
+        .delete()
+        .eq('product_id', qaProductId)
+        .select('id');
+
+      if (!pricesCleanupError && Array.isArray(deletedProductPrices)) {
+        cleanupCounts.productPrices += deletedProductPrices.length;
+      }
+
+      const { data: deletedProduct, error: productCleanupError } = await admin
+        .from('products')
+        .delete()
+        .eq('id', qaProductId)
+        .select('id');
+
+      if (!productCleanupError && Array.isArray(deletedProduct)) {
+        cleanupCounts.products += deletedProduct.length;
+      }
+    }
+
+    if (qaInactiveProductId) {
+      const { data: deletedInactiveProduct, error: inactiveProductCleanupError } = await admin
+        .from('products')
+        .delete()
+        .eq('id', qaInactiveProductId)
+        .select('id');
+
+      if (!inactiveProductCleanupError && Array.isArray(deletedInactiveProduct)) {
+        cleanupCounts.products += deletedInactiveProduct.length;
+      }
     }
 
     if (qaUserId) {
-      await admin.from('profiles').delete().eq('id', qaUserId);
-      await admin.auth.admin.deleteUser(qaUserId);
+      const { data: deletedProfiles, error: profilesCleanupError } = await admin
+        .from('profiles')
+        .delete()
+        .eq('id', qaUserId)
+        .select('id');
+
+      if (!profilesCleanupError && Array.isArray(deletedProfiles)) {
+        cleanupCounts.profiles += deletedProfiles.length;
+      }
+
+      const userDelete = await admin.auth.admin.deleteUser(qaUserId);
+      if (!userDelete.error) {
+        cleanupCounts.users += 1;
+      }
     }
+
+    console.log(JSON.stringify({
+      cleanupSummary: {
+        runtimeBookingsCreated,
+        invalidBookingsPersisted,
+        cleanupCounts,
+      },
+    }, null, 2));
   }
 }
 
