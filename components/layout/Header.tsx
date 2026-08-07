@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { FiBell, FiHeart, FiMenu, FiSearch, FiShield, FiUser, FiX } from 'react-icons/fi';
+import { FiBell, FiHeart, FiLogOut, FiMenu, FiSearch, FiShield, FiUser, FiX } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
 import { buttonVariants } from '@/components/ui/button';
 import { useSessionIdentity } from '@/hooks/useSessionIdentity';
 import { getRoleLabel } from '@/lib/auth/identity-contract';
+import { supabase } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -91,8 +92,10 @@ function Logo() {
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const pathname = usePathname();
-  const { identity, isLoading } = useSessionIdentity();
+  const router = useRouter();
+  const { identity, isLoading, refresh } = useSessionIdentity();
 
   const isAuthenticated = identity.authenticated;
   const isAdmin = identity.isAdmin;
@@ -102,7 +105,24 @@ export default function Header() {
   const profileHref = isAuthenticated ? '/my-profile' : buildLoginTarget('/my-profile');
   const currentAccountSection = isAuthenticated ? getAccountSection(pathname) : null;
   const accountAreaActive = Boolean(currentAccountSection);
-  const roleLabel = getRoleLabel(identity.role);
+  const roleLabel = getRoleLabel(identity.role, identity.roleRaw);
+
+  async function handleSignOut() {
+    if (isSigningOut) {
+      return;
+    }
+
+    try {
+      setIsSigningOut(true);
+      await supabase.auth.signOut();
+      await refresh();
+      setMobileOpen(false);
+      router.push('/login?redirect=%2Fmy-account&next=%2Fmy-account');
+      router.refresh();
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-[color:var(--color-border)] bg-[color:var(--color-shell)]/90 backdrop-blur-xl">
@@ -204,20 +224,34 @@ export default function Header() {
                 جاري التحقق...
               </span>
             ) : isAuthenticated ? (
-              <Link
-                href={accountHref}
-                className={cn(
-                  'inline-flex h-11 items-center gap-2 rounded-full border bg-white/70 px-3 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
-                  accountAreaActive ? 'border-[var(--color-gold)] text-[var(--color-gold)]' : 'border-[color:var(--color-border)]'
-                )}
-                aria-label={`الحساب: ${userDisplayName ?? identity.email ?? 'حسابي'}`}
-              >
-                <FiUser size={16} />
-                <span className="max-w-28 truncate text-sm font-medium">{userDisplayName ?? identity.email ?? 'حسابي'}</span>
-                <span className="rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-gold)]">
-                  {roleLabel}
-                </span>
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={accountHref}
+                  className={cn(
+                    'inline-flex h-11 items-center gap-2 rounded-full border bg-white/70 px-3 text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
+                    accountAreaActive ? 'border-[var(--color-gold)] text-[var(--color-gold)]' : 'border-[color:var(--color-border)]'
+                  )}
+                  aria-label={`الحساب: ${userDisplayName ?? identity.email ?? 'حسابي'}`}
+                >
+                  <FiUser size={16} />
+                  <span className="max-w-28 truncate text-sm font-medium">{userDisplayName ?? identity.email ?? 'حسابي'}</span>
+                  <span className="rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-gold)]">
+                    {roleLabel}
+                  </span>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleSignOut();
+                  }}
+                  disabled={isSigningOut}
+                  className="inline-flex h-11 items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-white/70 px-3 text-sm font-medium text-[var(--color-navy)] transition-all duration-200 hover:-translate-y-0.5 hover:border-rose-300 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  <FiLogOut size={16} />
+                  <span>{isSigningOut ? 'جاري تسجيل الخروج...' : 'تسجيل الخروج'}</span>
+                </button>
+              </div>
             ) : (
               <Link href={buildLoginTarget('/my-account')} className={buttonVariants({ variant: 'outline', size: 'default' })}>
                 تسجيل الدخول
@@ -310,16 +344,29 @@ export default function Header() {
                 جاري التحقق...
               </span>
             ) : isAuthenticated ? (
-              <Link
-                href={accountHref}
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  'rounded-2xl border bg-white/75 px-4 py-3 text-sm font-medium text-[var(--color-navy)] transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
-                  accountAreaActive ? 'border-[var(--color-gold)] text-[var(--color-gold)]' : 'border-[color:var(--color-border)]'
-                )}
-              >
-                {`حسابي: ${userDisplayName ?? identity.email ?? 'مستخدم'}`}
-              </Link>
+              <div className="grid gap-2">
+                <Link
+                  href={accountHref}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    'rounded-2xl border bg-white/75 px-4 py-3 text-sm font-medium text-[var(--color-navy)] transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
+                    accountAreaActive ? 'border-[var(--color-gold)] text-[var(--color-gold)]' : 'border-[color:var(--color-border)]'
+                  )}
+                >
+                  {`حسابي: ${userDisplayName ?? identity.email ?? 'مستخدم'}`}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleSignOut();
+                  }}
+                  disabled={isSigningOut}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[color:var(--color-border)] bg-white/75 px-4 py-3 text-sm font-medium text-[var(--color-navy)] transition hover:border-rose-300 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  <FiLogOut size={16} />
+                  <span>{isSigningOut ? 'جاري تسجيل الخروج...' : 'تسجيل الخروج'}</span>
+                </button>
+              </div>
             ) : (
               <Link
                 href={buildLoginTarget('/my-account')}

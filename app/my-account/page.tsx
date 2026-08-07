@@ -32,7 +32,8 @@ export default async function MyAccountPage() {
   const { user, profile } = await getAccountProfile();
   const displayName = profile?.full_name || user.user_metadata?.full_name_ar || user.user_metadata?.full_name || user.email?.split('@')[0] || 'عميل dir3com';
   const displayEmail = profile?.email || user.email || '—';
-  const displayRole = getRoleLabel(normalizeRole(profile?.role));
+  const displayRole = getRoleLabel(normalizeRole(profile?.role), typeof profile?.role === 'string' ? profile.role : null);
+  const accountStatus = profile?.status || 'unassigned';
   const joinedAt = profile?.created_at ? new Date(profile.created_at).toLocaleDateString('ar-SA') : '—';
 
   return (
@@ -65,7 +66,7 @@ export default async function MyAccountPage() {
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-white/10 bg-[#07111D] p-4">
               <p className="text-xs text-slate-400">حالة الحساب</p>
-              <p className="mt-2 text-sm font-semibold text-white">{profile?.status || 'active'}</p>
+              <p className="mt-2 text-sm font-semibold text-white">{accountStatus}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-[#07111D] p-4">
               <p className="text-xs text-slate-400">تاريخ الانضمام</p>

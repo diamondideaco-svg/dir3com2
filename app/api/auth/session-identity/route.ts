@@ -58,6 +58,7 @@ function buildAuthenticatedIdentity(args: {
     displayName: pickDisplayName(args.profile?.full_name, args.metadata, email),
     avatarUrl: pickAvatarUrl(args.profile?.avatar_url, args.metadata),
     role,
+    roleRaw: pickString(args.profile?.role),
     status: pickString(args.profile?.status),
     isAdmin: role === 'admin',
   };

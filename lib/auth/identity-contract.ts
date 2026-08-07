@@ -9,6 +9,7 @@ export interface SessionIdentity {
   displayName: string | null;
   avatarUrl: string | null;
   role: SessionRole | null;
+  roleRaw: string | null;
   status: string | null;
   isAdmin: boolean;
 }
@@ -25,12 +26,18 @@ export function normalizeSessionRole(value: unknown): SessionRole | null {
   return value;
 }
 
-export function getRoleLabel(role: SessionRole | null): string {
+export function getRoleLabel(role: SessionRole | null, roleRaw?: string | null): string {
   if (role === 'admin') return 'admin';
   if (role === 'partner') return 'partner';
   if (role === 'staff') return 'staff';
   if (role === 'customer') return 'customer';
-  return 'unknown';
+
+  const normalizedRawRole = roleRaw?.trim().toLowerCase() ?? '';
+  if (normalizedRawRole) {
+    return normalizedRawRole;
+  }
+
+  return 'unassigned';
 }
 
 export function createAnonymousSessionIdentity(): SessionIdentity {
@@ -41,6 +48,7 @@ export function createAnonymousSessionIdentity(): SessionIdentity {
     displayName: null,
     avatarUrl: null,
     role: null,
+    roleRaw: null,
     status: null,
     isAdmin: false,
   };
