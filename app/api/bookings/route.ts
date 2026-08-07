@@ -189,6 +189,32 @@ function isMissingRequiredValue(value: unknown) {
   return value === null || value === undefined;
 }
 
+function parseGuestCountFromInput(value: unknown) {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || !Number.isInteger(value)) {
+      return null;
+    }
+
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim();
+    if (!/^\d+$/.test(trimmedValue)) {
+      return null;
+    }
+
+    const parsed = Number(trimmedValue);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+      return null;
+    }
+
+    return parsed;
+  }
+
+  return null;
+}
+
 function createErrorResponse(status: number, code: BookingCreateErrorCode, message: string, fieldErrors?: Record<string, string>) {
   return NextResponse.json(
     {
@@ -449,7 +475,7 @@ export async function POST(request: NextRequest) {
     const clientNationality = sanitizeText(body.client_nationality, '').slice(0, 80);
     const arrivalDate = sanitizeText(body.arrival_date, '').slice(0, 40);
     const departureDate = sanitizeText(body.departure_date, '').slice(0, 40);
-    const guests = sanitizeNumber(body.guests, 1);
+    const guests = parseGuestCountFromInput(body.guests);
 
     if (!guestName || !guestPhone || !city || !productId || !arrivalDate || !departureDate) {
       return createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.');
@@ -461,7 +487,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (!Number.isFinite(guests) || !Number.isInteger(guests) || guests < 1 || guests > 20) {
+    if (guests === null || guests < 1 || guests > 20) {
       return createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
         guests: 'عدد الضيوف غير صالح.',
       });

@@ -57,6 +57,22 @@ async function postBooking(payload, accessToken) {
   return { status: response.status, body };
 }
 
+async function postBookingRaw(bodyText, accessToken) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetch(`${baseUrl}/api/bookings`, {
+    method: 'POST',
+    headers,
+    body: bodyText,
+  });
+
+  const body = await response.json().catch(() => null);
+  return { status: response.status, body };
+}
+
 async function getQuote(params, accessToken) {
   const query = new URLSearchParams({ action: 'quote', ...params });
   const headers = {};
@@ -239,6 +255,44 @@ async function main() {
     };
     const tamperResponse = await postBooking(tamperPayload, accessToken);
     test('14. Client attempt to send price fields rejected', tamperResponse.status === 400, `status=${tamperResponse.status}`);
+
+    const malformedGuestBasePayload = {
+      product_id: qaProductId,
+      guest_name: 'Malformed Guest QA',
+      guest_phone: '0500000009',
+      guest_email: email,
+      arrival_date: arrival,
+      departure_date: departure,
+      city: 'Riyadh',
+      notes: 'phase4 malformed guests',
+    };
+
+    const malformedGuestCases = [
+      { name: 'POST guest rejects nonnumeric string', payload: { ...malformedGuestBasePayload, guests: 'abc' } },
+      { name: 'POST guest rejects string NaN', payload: { ...malformedGuestBasePayload, guests: 'NaN' } },
+      { name: 'POST guest rejects string Infinity', payload: { ...malformedGuestBasePayload, guests: 'Infinity' } },
+      { name: 'POST guest rejects string negative infinity', payload: { ...malformedGuestBasePayload, guests: '-Infinity' } },
+      { name: 'POST guest rejects boolean', payload: { ...malformedGuestBasePayload, guests: true } },
+      { name: 'POST guest rejects array', payload: { ...malformedGuestBasePayload, guests: [2] } },
+      { name: 'POST guest rejects object', payload: { ...malformedGuestBasePayload, guests: { value: 2 } } },
+      { name: 'POST guest rejects fractional value', payload: { ...malformedGuestBasePayload, guests: 1.5 } },
+      { name: 'POST guest rejects zero', payload: { ...malformedGuestBasePayload, guests: 0 } },
+      { name: 'POST guest rejects negative value', payload: { ...malformedGuestBasePayload, guests: -1 } },
+      { name: 'POST guest rejects out of range value', payload: { ...malformedGuestBasePayload, guests: 21 } },
+    ];
+
+    for (const malformedCase of malformedGuestCases) {
+      const malformedResponse = await postBooking(malformedCase.payload, accessToken);
+      test(malformedCase.name, malformedResponse.status === 400, `status=${malformedResponse.status}`);
+    }
+
+    const malformedNaNBody = JSON.stringify(malformedGuestBasePayload).replace('}', ',"guests":NaN}');
+    const malformedRawNaNResponse = await postBookingRaw(malformedNaNBody, accessToken);
+    test('POST guest rejects JavaScript NaN numeric payload', malformedRawNaNResponse.status === 400, `status=${malformedRawNaNResponse.status}`);
+
+    const malformedInfinityBody = JSON.stringify(malformedGuestBasePayload).replace('}', ',"guests":Infinity}');
+    const malformedRawInfinityResponse = await postBookingRaw(malformedInfinityBody, accessToken);
+    test('POST guest rejects JavaScript Infinity numeric payload', malformedRawInfinityResponse.status === 400, `status=${malformedRawInfinityResponse.status}`);
 
     const validPayload = {
       product_id: qaProductId,
