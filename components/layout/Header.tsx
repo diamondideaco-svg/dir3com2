@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { FiBell, FiHeart, FiLogOut, FiMenu, FiSearch, FiShield, FiUser, FiX } from 'react-icons/fi';
+import { FiBell, FiHeart, FiLogOut, FiMenu, FiSearch, FiUser, FiX } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
+import Dir3LogoLockup from '@/components/branding/Dir3LogoLockup';
 import { buttonVariants } from '@/components/ui/button';
 import { useSessionIdentity } from '@/hooks/useSessionIdentity';
 import { getRoleLabel } from '@/lib/auth/identity-contract';
@@ -77,17 +78,7 @@ function pickUserDisplayName(displayName: string | null, email: string | null) {
 }
 
 function Logo() {
-  return (
-    <Link href="/#home" className="flex items-center gap-3" aria-label="dir3com">
-      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-navy)] text-[var(--color-gold)] shadow-[0_16px_32px_rgba(13,27,42,0.18)]">
-        <FiShield size={22} />
-      </span>
-      <span className="flex flex-col text-right">
-        <span className="font-[var(--font-display)] text-2xl font-semibold leading-none text-[var(--color-navy)]">dir3com</span>
-        <span className="mt-1 text-xs font-medium tracking-[0.18em] text-[var(--color-muted)]">درعكم للسياحة</span>
-      </span>
-    </Link>
-  );
+  return <Dir3LogoLockup reveal />;
 }
 
 export default function Header() {
