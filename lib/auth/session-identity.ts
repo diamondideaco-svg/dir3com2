@@ -32,6 +32,7 @@ export function normalizeSessionIdentityPayload(payload: unknown): SessionIdenti
     displayName: pickString(payload.displayName),
     avatarUrl: pickString(payload.avatarUrl),
     role,
+    roleRaw: pickString(payload.roleRaw),
     status: pickString(payload.status),
     isAdmin: role === 'admin',
   };

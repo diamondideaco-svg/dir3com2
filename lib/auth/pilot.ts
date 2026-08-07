@@ -1,4 +1,4 @@
-import { forbidden, redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
 
 const PILOT_ALLOWED_ROLES = new Set(['admin', 'staff', 'super_admin']);
@@ -131,7 +131,7 @@ export async function requirePilotPageAccess(destination = '/ai/pilot') {
 
   const decision = await authorizePilotUser(supabase, user.id);
   if (!decision.allowed) {
-    forbidden();
+    redirect(buildLoginTarget(destination));
   }
 
   return { user, role: decision.role };
