@@ -36,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { data, error } = await authContext.supabase
       .from('bookings')
-      .select('id, booking_reference, status, total_amount, total_price, payment_status, currency, service_name, product_name, arrival_date, departure_date, city, guests, guest_name, guest_phone, guest_email, notes, created_at')
+      .select('id, booking_reference, status, total_amount, total_price, payment_status, currency, product_name, arrival_date, departure_date, city, guests, guest_name, guest_phone, guest_email, notes, created_at')
       .eq('id', bookingId)
       .eq('user_id', authContext.user.id)
       .maybeSingle();
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           total_amount: data.total_amount,
           total_price: data.total_price,
           currency: data.currency ?? null,
-          service_name: data.service_name ?? data.product_name ?? null,
+          service_name: data.product_name ?? 'Product',
           arrival_date: data.arrival_date ?? null,
           departure_date: data.departure_date ?? null,
           city: data.city ?? null,

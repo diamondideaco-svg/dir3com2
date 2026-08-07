@@ -382,7 +382,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await authContext.supabase
       .from('bookings')
-      .select('id, booking_reference, status, total_amount, total_price, currency, service_name, product_name, arrival_date, departure_date, created_at')
+      .select('id, booking_reference, status, total_amount, total_price, currency, product_name, arrival_date, departure_date, created_at')
       .eq('user_id', authContext.user.id)
       .order('created_at', { ascending: false });
 
@@ -398,7 +398,7 @@ export async function GET(request: NextRequest) {
       total_amount: booking.total_amount,
       total_price: booking.total_price,
       currency: booking.currency,
-      service_name: booking.service_name ?? booking.product_name ?? null,
+      service_name: booking.product_name ?? 'Product',
       arrival_date: booking.arrival_date,
       departure_date: booking.departure_date,
       created_at: booking.created_at,
