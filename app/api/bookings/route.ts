@@ -260,16 +260,6 @@ async function buildBookingQuote(params: {
     };
   }
 
-  const pricing = await resolveServerUnitPrice(productId, product as Record<string, unknown>, arrivalDate, departureDate);
-  if (!pricing || pricing.unitPrice <= 0) {
-    return {
-      quote: null,
-      errorResponse: createErrorResponse(400, 'INVALID_REQUEST', 'المنتج غير متاح للحجز حالياً.', {
-        product_id: 'تعذر تحديد سعر المنتج من الخادم.',
-      }),
-    };
-  }
-
   const parsedArrivalDate = parseIsoDate(arrivalDate);
   const parsedDepartureDate = parseIsoDate(departureDate);
   if (!parsedArrivalDate || !parsedDepartureDate) {
@@ -288,6 +278,16 @@ async function buildBookingQuote(params: {
       quote: null,
       errorResponse: createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
         departure_date: 'تاريخ المغادرة يجب أن يكون بعد تاريخ الوصول.',
+      }),
+    };
+  }
+
+  const pricing = await resolveServerUnitPrice(productId, product as Record<string, unknown>, arrivalDate, departureDate);
+  if (!pricing || pricing.unitPrice <= 0) {
+    return {
+      quote: null,
+      errorResponse: createErrorResponse(400, 'INVALID_REQUEST', 'المنتج غير متاح للحجز حالياً.', {
+        product_id: 'تعذر تحديد سعر المنتج من الخادم.',
       }),
     };
   }
