@@ -1,0 +1,284 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { createClient } from '@supabase/supabase-js';
+
+const workspaceRoot = process.cwd();
+const envPath = path.join(workspaceRoot, '.env.local');
+const baseUrl = process.env.PHASE4_BASE_URL || 'http://localhost:3002';
+
+function loadEnvFromFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Missing env file at ${filePath}`);
+  }
+
+  const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) {
+      continue;
+    }
+
+    const [key, ...rest] = trimmed.split('=');
+    const rawValue = rest.join('=').trim();
+    const value = rawValue.startsWith('"') && rawValue.endsWith('"') ? rawValue.slice(1, -1) : rawValue;
+    if (!process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+}
+
+function toDateOnly(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(days) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + days);
+  return toDateOnly(d);
+}
+
+function roundMoney(value) {
+  return Math.round(value * 100) / 100;
+}
+
+async function postBooking(payload, accessToken) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetch(`${baseUrl}/api/bookings`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  const body = await response.json().catch(() => null);
+  return { status: response.status, body };
+}
+
+async function getQuote(params, accessToken) {
+  const query = new URLSearchParams({ action: 'quote', ...params });
+  const headers = {};
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetch(`${baseUrl}/api/bookings?${query.toString()}`, {
+    method: 'GET',
+    headers,
+  });
+
+  const body = await response.json().catch(() => null);
+  return { status: response.status, body };
+}
+
+async function main() {
+  loadEnvFromFile(envPath);
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !anonKey || !serviceKey) {
+    throw new Error('Missing Supabase env vars required for focused runtime tests.');
+  }
+
+  const admin = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const client = createClient(supabaseUrl, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const now = Date.now();
+  const email = `phase4.runtime.${now}@dir3com.local`;
+  const password = `Dir3com#${now}`;
+
+  const arrival = addDays(20);
+  const departure = addDays(23);
+  const expiredTo = addDays(10);
+  const validFromA = addDays(-30);
+  const validFromB = addDays(-10);
+  const validToB = addDays(60);
+  const futureFrom = addDays(40);
+
+  let qaUserId = null;
+  let qaProductId = null;
+  let bookingReference = null;
+
+  const results = [];
+
+  function test(name, condition, details = '') {
+    results.push({ name, pass: Boolean(condition), details });
+    if (!condition) {
+      throw new Error(`Test failed: ${name}${details ? ` (${details})` : ''}`);
+    }
+  }
+
+  try {
+    const userCreate = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: 'Phase4 Focused QA' },
+    });
+    if (userCreate.error || !userCreate.data?.user?.id) {
+      throw new Error(`Unable to create test auth user: ${userCreate.error?.message || 'unknown'}`);
+    }
+    qaUserId = userCreate.data.user.id;
+
+    const profileUpsert = await admin
+      .from('profiles')
+      .upsert({
+        id: qaUserId,
+        full_name: 'Phase4 Focused QA',
+        email,
+        role: 'customer',
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+    if (profileUpsert.error) {
+      // Some environments block profile writes; booking route auth still works with Supabase user identity.
+    }
+
+    const signIn = await client.auth.signInWithPassword({ email, password });
+    if (signIn.error || !signIn.data?.session?.access_token) {
+      throw new Error(`Unable to sign in test user: ${signIn.error?.message || 'no token'}`);
+    }
+    const accessToken = signIn.data.session.access_token;
+
+    const productSlug = `qa-phase4-${now}`;
+    const productInsert = await admin
+      .from('products')
+      .insert({
+        name_ar: 'منتج Phase4 QA',
+        name_en: 'Phase4 QA Product',
+        slug: productSlug,
+        status: 'active',
+        base_price: 150,
+        currency: 'SAR',
+      })
+      .select('*')
+      .single();
+
+    if (productInsert.error || !productInsert.data?.id) {
+      throw new Error(`Unable to create test product: ${productInsert.error?.message || 'unknown'}`);
+    }
+    qaProductId = productInsert.data.id;
+
+    const pricesInsert = await admin
+      .from('product_prices')
+      .insert([
+        { product_id: qaProductId, price: 999, currency: 'SAR', valid_from: addDays(-60), valid_to: expiredTo, rule_name: 'expired_high' },
+        { product_id: qaProductId, price: 400, currency: 'SAR', valid_from: futureFrom, valid_to: null, rule_name: 'future' },
+        { product_id: qaProductId, price: 200, currency: 'SAR', valid_from: validFromA, valid_to: null, rule_name: 'eligible_old' },
+        { product_id: qaProductId, price: 210, currency: 'SAR', valid_from: validFromA, valid_to: null, rule_name: 'eligible_same_from_newer' },
+        { product_id: qaProductId, price: 220, currency: 'SAR', valid_from: validFromB, valid_to: validToB, rule_name: 'eligible_latest_from' },
+      ]);
+
+    if (pricesInsert.error) {
+      throw new Error(`Unable to seed product_prices: ${pricesInsert.error.message}`);
+    }
+
+    const validQuote = await getQuote({ product_id: qaProductId, arrival_date: arrival, departure_date: departure, guests: '2' }, accessToken);
+    test('1. Valid real calendar date accepted', validQuote.status === 200, `status=${validQuote.status}`);
+
+    const invalidDateQuote = await getQuote({ product_id: qaProductId, arrival_date: '2026-02-31', departure_date: departure, guests: '2' }, accessToken);
+    test('2. 2026-02-31 rejected', invalidDateQuote.status === 400, `status=${invalidDateQuote.status}`);
+
+    const fractionalGuests = await getQuote({ product_id: qaProductId, arrival_date: arrival, departure_date: departure, guests: '1.4' }, accessToken);
+    test('3. Fractional guests rejected', fractionalGuests.status === 400, `status=${fractionalGuests.status}`);
+
+    const zeroGuests = await getQuote({ product_id: qaProductId, arrival_date: arrival, departure_date: departure, guests: '0' }, accessToken);
+    const negativeGuests = await getQuote({ product_id: qaProductId, arrival_date: arrival, departure_date: departure, guests: '-1' }, accessToken);
+    test('4. Zero/negative guests rejected', zeroGuests.status === 400 && negativeGuests.status === 400, `zero=${zeroGuests.status} neg=${negativeGuests.status}`);
+
+    test('5. Valid UUID passes validation', validQuote.status === 200);
+
+    const hyphenUuid = await getQuote({ product_id: '------------------------------------', arrival_date: arrival, departure_date: departure, guests: '2' }, accessToken);
+    test('6. 36 hyphens rejected before DB access', hyphenUuid.status === 400, `status=${hyphenUuid.status}`);
+
+    const malformedUuid = await getQuote({ product_id: 'bad-uuid', arrival_date: arrival, departure_date: departure, guests: '2' }, accessToken);
+    test('7. Malformed UUID controlled 4xx', malformedUuid.status >= 400 && malformedUuid.status < 500, `status=${malformedUuid.status}`);
+
+    const quoteData = validQuote.body?.data;
+    test('8. Current effective product price selected', Number(quoteData?.unitPrice) === 220, `unit=${quoteData?.unitPrice}`);
+    test('9. Expired price ignored', Number(quoteData?.unitPrice) !== 999, `unit=${quoteData?.unitPrice}`);
+    test('10. Future price ignored', Number(quoteData?.unitPrice) !== 400, `unit=${quoteData?.unitPrice}`);
+    test('11. Multiple eligible price records deterministic', Number(quoteData?.unitPrice) === 220, `unit=${quoteData?.unitPrice}`);
+
+    const tamperPayload = {
+      product_id: qaProductId,
+      guest_name: 'Tamper Test',
+      guest_phone: '0500000000',
+      arrival_date: arrival,
+      departure_date: departure,
+      guests: 2,
+      city: 'Riyadh',
+      product_price: 1,
+      total_price: 1,
+      total_amount: 1,
+      currency: 'USD',
+    };
+    const tamperResponse = await postBooking(tamperPayload, accessToken);
+    test('14. Client attempt to send price fields rejected', tamperResponse.status === 400, `status=${tamperResponse.status}`);
+
+    const validPayload = {
+      product_id: qaProductId,
+      guest_name: 'Valid Booking QA',
+      guest_phone: '0500000001',
+      guest_email: email,
+      arrival_date: arrival,
+      departure_date: departure,
+      guests: 2,
+      city: 'Riyadh',
+      notes: 'phase4 focused tests',
+    };
+
+    const validBooking = await postBooking(validPayload, accessToken);
+    bookingReference = validBooking.body?.data?.booking_reference || null;
+    test('12. Authoritative server total returned to client', validBooking.status === 200 && Number.isFinite(Number(validBooking.body?.data?.quote?.totalAmount)), `status=${validBooking.status}`);
+
+    const bookingQuote = validBooking.body?.data?.quote;
+    test('13. UI total matches authoritative server amount', Number(bookingQuote?.totalAmount) === Number(quoteData?.totalAmount), `quoteTotal=${bookingQuote?.totalAmount} preQuote=${quoteData?.totalAmount}`);
+
+    const { data: bookingRows, error: bookingLookupError } = await admin
+      .from('bookings')
+      .select('user_id,product_id,product_price,total_price,total_amount,currency,booking_reference')
+      .eq('booking_reference', bookingReference)
+      .limit(1);
+
+    if (bookingLookupError || !Array.isArray(bookingRows) || bookingRows.length === 0) {
+      throw new Error(`Unable to verify persisted booking: ${bookingLookupError?.message || 'not found'}`);
+    }
+
+    const persisted = bookingRows[0];
+    const expectedTotal = roundMoney(220 * 3 * 2);
+    test('15. Authenticated ownership preserved', persisted.user_id === qaUserId, `persistedUser=${persisted.user_id}`);
+    test('Persisted authoritative product identity', persisted.product_id === qaProductId, `product=${persisted.product_id}`);
+    test('Persisted authoritative amounts', Number(persisted.product_price) === 220 && Number(persisted.total_price) === expectedTotal && Number(persisted.total_amount) === expectedTotal && String(persisted.currency).toUpperCase() === 'SAR');
+
+    console.log(JSON.stringify({ ok: true, baseUrl, results }, null, 2));
+  } finally {
+    if (bookingReference) {
+      await admin.from('bookings').delete().eq('booking_reference', bookingReference);
+    }
+
+    if (qaProductId) {
+      await admin.from('product_prices').delete().eq('product_id', qaProductId);
+      await admin.from('products').delete().eq('id', qaProductId);
+    }
+
+    if (qaUserId) {
+      await admin.from('profiles').delete().eq('id', qaUserId);
+      await admin.auth.admin.deleteUser(qaUserId);
+    }
+  }
+}
+
+main().catch((error) => {
+  console.error(JSON.stringify({ ok: false, error: error?.message || String(error) }, null, 2));
+  process.exitCode = 1;
+});

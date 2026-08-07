@@ -52,15 +52,44 @@ const FORBIDDEN_INPUT_KEYS = [
 
 const ALLOWED_KEY_SET = new Set<string>(CLIENT_ALLOWED_KEYS);
 
-const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type EffectivePriceRow = {
+  id?: string | null;
+  price?: unknown;
+  currency?: unknown;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  created_at?: string | null;
+};
+
+type BookingQuote = {
+  productId: string;
+  productName: string;
+  unitPrice: number;
+  currency: string;
+  bookingDays: number;
+  guests: number;
+  totalAmount: number;
+};
 
 function parseIsoDate(value: string) {
-  if (!ISO_DATE_PATTERN.test(value)) {
+  const match = ISO_DATE_PATTERN.exec(value);
+  if (!match) {
     return null;
   }
 
-  const parsed = new Date(`${value}T00:00:00.000Z`);
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const parsed = new Date(Date.UTC(year, month - 1, day));
   if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) {
     return null;
   }
 
@@ -83,6 +112,50 @@ function toMoneyNumber(value: unknown) {
   }
 
   return roundMoney(parsed);
+}
+
+function toDateKey(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = parseIsoDate(value.slice(0, 10));
+  if (!parsed) {
+    return null;
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function isEffectivePriceForBooking(price: EffectivePriceRow, arrivalDate: string, departureDate: string) {
+  const validFrom = toDateKey(price.valid_from);
+  const validTo = toDateKey(price.valid_to);
+
+  if (validFrom && validFrom > arrivalDate) {
+    return false;
+  }
+
+  if (validTo && validTo < departureDate) {
+    return false;
+  }
+
+  return true;
+}
+
+function compareEffectivePricePriority(a: EffectivePriceRow, b: EffectivePriceRow) {
+  const aFrom = toDateKey(a.valid_from) ?? '0000-01-01';
+  const bFrom = toDateKey(b.valid_from) ?? '0000-01-01';
+  if (aFrom !== bFrom) {
+    return bFrom.localeCompare(aFrom);
+  }
+
+  const aCreatedAt = a.created_at ?? '';
+  const bCreatedAt = b.created_at ?? '';
+  if (aCreatedAt !== bCreatedAt) {
+    return bCreatedAt.localeCompare(aCreatedAt);
+  }
+
+  return (a.id ?? '').localeCompare(b.id ?? '');
 }
 
 function isProductBookable(product: Record<string, unknown>) {
@@ -111,27 +184,30 @@ function getProductCurrency(product: Record<string, unknown>, fallback = 'SAR') 
   return currency || fallback;
 }
 
-async function resolveServerUnitPrice(productId: string, product: Record<string, unknown>) {
+async function resolveServerUnitPrice(productId: string, product: Record<string, unknown>, arrivalDate: string, departureDate: string) {
   const fallbackPriceCandidates = [product.price_per_unit, product.base_price, product.price];
 
   if (supabaseAdmin) {
     const { data: priceRows, error } = await supabaseAdmin
       .from('product_prices')
-      .select('price, currency, created_at')
+      .select('id, price, currency, valid_from, valid_to, created_at')
       .eq('product_id', productId)
-      .order('created_at', { ascending: false })
-      .limit(1);
+      .limit(500);
 
     if (error) {
       logServerError('api.bookings.product_price_lookup_failed', error);
     }
 
-    const latestPrice = Array.isArray(priceRows) && priceRows.length > 0 ? priceRows[0] : null;
-    const latestPriceValue = toMoneyNumber(latestPrice?.price);
-    if (Number.isFinite(latestPriceValue) && latestPriceValue > 0) {
+    const effectivePrices = (Array.isArray(priceRows) ? priceRows : [])
+      .filter((row) => isEffectivePriceForBooking(row as EffectivePriceRow, arrivalDate, departureDate))
+      .sort((a, b) => compareEffectivePricePriority(a as EffectivePriceRow, b as EffectivePriceRow));
+
+    const selectedPrice = effectivePrices[0] ?? null;
+    const selectedPriceValue = toMoneyNumber(selectedPrice?.price);
+    if (Number.isFinite(selectedPriceValue) && selectedPriceValue > 0) {
       return {
-        unitPrice: latestPriceValue,
-        currency: getProductCurrency(latestPrice as Record<string, unknown>, getProductCurrency(product, 'SAR')),
+        unitPrice: selectedPriceValue,
+        currency: getProductCurrency(selectedPrice as Record<string, unknown>, getProductCurrency(product, 'SAR')),
       };
     }
   }
@@ -179,12 +255,155 @@ function createErrorResponse(status: number, code: BookingCreateErrorCode, messa
   );
 }
 
+async function buildBookingQuote(params: {
+  productId: string;
+  arrivalDate: string;
+  departureDate: string;
+  guests: number;
+}): Promise<{ quote: BookingQuote | null; errorResponse: NextResponse | null }> {
+  const { productId, arrivalDate, departureDate, guests } = params;
+
+  if (!supabaseAdmin) {
+    return {
+      quote: null,
+      errorResponse: createErrorResponse(500, 'BOOKING_CREATE_FAILED', 'تعذر إتمام الحجز حالياً'),
+    };
+  }
+
+  const { data: product, error: productLookupError } = await supabaseAdmin
+    .from('products')
+    .select('*')
+    .eq('id', productId)
+    .maybeSingle();
+
+  if (productLookupError) {
+    logServerError('api.bookings.product_lookup_failed', productLookupError);
+    return {
+      quote: null,
+      errorResponse: createErrorResponse(500, 'BOOKING_CREATE_FAILED', 'تعذر إتمام الحجز حالياً'),
+    };
+  }
+
+  if (!product) {
+    return {
+      quote: null,
+      errorResponse: createErrorResponse(404, 'INVALID_REQUEST', 'المنتج غير موجود.', {
+        product_id: 'المنتج غير موجود.',
+      }),
+    };
+  }
+
+  if (!isProductBookable(product as Record<string, unknown>)) {
+    return {
+      quote: null,
+      errorResponse: createErrorResponse(400, 'INVALID_REQUEST', 'المنتج غير متاح للحجز حالياً.', {
+        product_id: 'المنتج غير نشط أو غير قابل للحجز.',
+      }),
+    };
+  }
+
+  const maxGuests = Math.round(sanitizeNumber((product as Record<string, unknown>).max_guests, 0));
+  if (maxGuests > 0 && guests > maxGuests) {
+    return {
+      quote: null,
+      errorResponse: createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
+        guests: `الحد الأقصى للضيوف هو ${maxGuests}.`,
+      }),
+    };
+  }
+
+  const pricing = await resolveServerUnitPrice(productId, product as Record<string, unknown>, arrivalDate, departureDate);
+  if (!pricing || pricing.unitPrice <= 0) {
+    return {
+      quote: null,
+      errorResponse: createErrorResponse(400, 'INVALID_REQUEST', 'المنتج غير متاح للحجز حالياً.', {
+        product_id: 'تعذر تحديد سعر المنتج من الخادم.',
+      }),
+    };
+  }
+
+  const parsedArrivalDate = parseIsoDate(arrivalDate);
+  const parsedDepartureDate = parseIsoDate(departureDate);
+  if (!parsedArrivalDate || !parsedDepartureDate) {
+    return {
+      quote: null,
+      errorResponse: createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
+        arrival_date: 'صيغة تاريخ الوصول غير صالحة.',
+        departure_date: 'صيغة تاريخ المغادرة غير صالحة.',
+      }),
+    };
+  }
+
+  const bookingDays = calculateBookingDays(parsedArrivalDate, parsedDepartureDate);
+  if (bookingDays < 1) {
+    return {
+      quote: null,
+      errorResponse: createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
+        departure_date: 'تاريخ المغادرة يجب أن يكون بعد تاريخ الوصول.',
+      }),
+    };
+  }
+
+  const totalAmount = roundMoney(pricing.unitPrice * bookingDays * guests);
+
+  return {
+    quote: {
+      productId,
+      productName: getProductDisplayName(product as Record<string, unknown>),
+      unitPrice: roundMoney(Math.max(0, pricing.unitPrice)),
+      currency: pricing.currency,
+      bookingDays,
+      guests,
+      totalAmount: roundMoney(Math.max(0, totalAmount)),
+    },
+    errorResponse: null,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const authContext = await createSupabaseRequestClient(request);
 
     if (!authContext) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (request.nextUrl.searchParams.get('action') === 'quote') {
+      const productId = sanitizeText(request.nextUrl.searchParams.get('product_id'), '').slice(0, 120);
+      const arrivalDate = sanitizeText(request.nextUrl.searchParams.get('arrival_date'), '').slice(0, 40);
+      const departureDate = sanitizeText(request.nextUrl.searchParams.get('departure_date'), '').slice(0, 40);
+      const rawGuests = sanitizeNumber(request.nextUrl.searchParams.get('guests'), Number.NaN);
+
+      if (!productId || !arrivalDate || !departureDate || !Number.isFinite(rawGuests)) {
+        return createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
+          body: 'Missing quote parameters.',
+        });
+      }
+
+      if (!UUID_PATTERN.test(productId)) {
+        return createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
+          product_id: 'معرف المنتج غير صالح.',
+        });
+      }
+
+      if (!Number.isInteger(rawGuests) || rawGuests < 1 || rawGuests > 20) {
+        return createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
+          guests: 'عدد الضيوف غير صالح.',
+        });
+      }
+
+      const { quote, errorResponse } = await buildBookingQuote({
+        productId,
+        arrivalDate,
+        departureDate,
+        guests: rawGuests,
+      });
+
+      if (errorResponse) {
+        return errorResponse;
+      }
+
+      return NextResponse.json({ ok: true, data: quote }, { status: 200 });
     }
 
     const { data, error } = await authContext.supabase
@@ -288,18 +507,19 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.');
     }
 
-    if (!/^[0-9a-fA-F-]{36}$/.test(productId)) {
+    if (!UUID_PATTERN.test(productId)) {
       return createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
         product_id: 'معرف المنتج غير صالح.',
       });
     }
 
-    const normalizedGuests = Math.round(guests);
-    if (!Number.isFinite(guests) || !Number.isInteger(normalizedGuests) || normalizedGuests < 1 || normalizedGuests > 20) {
+    if (!Number.isFinite(guests) || !Number.isInteger(guests) || guests < 1 || guests > 20) {
       return createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
         guests: 'عدد الضيوف غير صالح.',
       });
     }
+
+    const normalizedGuests = guests;
 
     const parsedArrivalDate = parseIsoDate(arrivalDate);
     const parsedDepartureDate = parseIsoDate(departureDate);
@@ -317,56 +537,28 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const { quote, errorResponse } = await buildBookingQuote({
+      productId,
+      arrivalDate,
+      departureDate,
+      guests: normalizedGuests,
+    });
+
+    if (errorResponse || !quote) {
+      return errorResponse ?? createErrorResponse(500, 'BOOKING_CREATE_FAILED', 'تعذر إتمام الحجز حالياً');
+    }
+
+    const bookingReference = `DIR3-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+
     if (!supabaseAdmin) {
       return createErrorResponse(500, 'BOOKING_CREATE_FAILED', 'تعذر إتمام الحجز حالياً');
     }
 
-    const { data: product, error: productLookupError } = await supabaseAdmin
-      .from('products')
-      .select('*')
-      .eq('id', productId)
-      .maybeSingle();
-
-    if (productLookupError) {
-      logServerError('api.bookings.product_lookup_failed', productLookupError);
-      return createErrorResponse(500, 'BOOKING_CREATE_FAILED', 'تعذر إتمام الحجز حالياً');
-    }
-
-    if (!product) {
-      return createErrorResponse(404, 'INVALID_REQUEST', 'المنتج غير موجود.', {
-        product_id: 'المنتج غير موجود.',
-      });
-    }
-
-    if (!isProductBookable(product as Record<string, unknown>)) {
-      return createErrorResponse(400, 'INVALID_REQUEST', 'المنتج غير متاح للحجز حالياً.', {
-        product_id: 'المنتج غير نشط أو غير قابل للحجز.',
-      });
-    }
-
-    const maxGuests = Math.round(sanitizeNumber((product as Record<string, unknown>).max_guests, 0));
-    if (maxGuests > 0 && normalizedGuests > maxGuests) {
-      return createErrorResponse(400, 'INVALID_REQUEST', 'بيانات الحجز غير صالحة.', {
-        guests: `الحد الأقصى للضيوف هو ${maxGuests}.`,
-      });
-    }
-
-    const pricing = await resolveServerUnitPrice(productId, product as Record<string, unknown>);
-    if (!pricing || pricing.unitPrice <= 0) {
-      return createErrorResponse(400, 'INVALID_REQUEST', 'المنتج غير متاح للحجز حالياً.', {
-        product_id: 'تعذر تحديد سعر المنتج من الخادم.',
-      });
-    }
-
-    const totalPrice = roundMoney(pricing.unitPrice * bookingDays * normalizedGuests);
-
-    const bookingReference = `DIR3-${Date.now()}-${Math.floor(Math.random() * 9000 + 1000)}`;
-
     const bookingPayload = {
       user_id: authContext.user.id,
       product_id: productId,
-      product_name: getProductDisplayName(product as Record<string, unknown>),
-      product_price: Math.max(0, pricing.unitPrice),
+      product_name: quote.productName,
+      product_price: quote.unitPrice,
       guest_name: guestName,
       guest_phone: guestPhone,
       guest_email: guestEmail || null,
@@ -374,9 +566,9 @@ export async function POST(request: NextRequest) {
       departure_date: departureDate,
       guests: normalizedGuests,
       city,
-      currency: pricing.currency,
-      total_amount: Math.max(0, totalPrice),
-      total_price: Math.max(0, totalPrice),
+      currency: quote.currency,
+      total_amount: quote.totalAmount,
+      total_price: quote.totalAmount,
       notes,
       special_requests: specialRequests || null,
       client_passport: clientPassport || null,
@@ -401,6 +593,7 @@ export async function POST(request: NextRequest) {
         ok: true,
         data: {
           booking_reference: bookingReference,
+          quote,
         },
         message: 'تم إنشاء الحجز بنجاح',
       },
