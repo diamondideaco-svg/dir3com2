@@ -48,8 +48,15 @@ export async function GET(request: Request) {
         }
 
         if (data?.user) {
-            await ensureCanonicalProfileFromAuthUser(supabase, data.user);
-            logServerEvent('auth.callback.identity_synced');
+            try {
+                await ensureCanonicalProfileFromAuthUser(supabase, data.user);
+                logServerEvent('auth.callback.identity_synced');
+            } catch (profileSyncError) {
+                // Login must succeed even if profile enrichment fails due temporary DB policy/grant drift.
+                logServerError('auth.callback.identity_sync_failed_non_blocking', profileSyncError, {
+                    userId: data.user.id,
+                });
+            }
         }
 
         return NextResponse.redirect(`${origin}${next}`);

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ensurePartnerRecord, requirePortalActor } from '@/lib/partner-portal/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError } from '@/lib/security/safe-logger';
 
 const REQUIRED_DOCS = [
@@ -33,9 +33,10 @@ export async function GET() {
   }
 
   try {
+    const supabase = await createSupabaseServerClient();
     await ensurePartnerRecord(actor);
 
-    const { data: partnerDocs, error: docsError } = await supabaseAdmin
+    const { data: partnerDocs, error: docsError } = await supabase
       .from('partner_documents')
       .select('document_type, verified, verified_at, created_at')
       .eq('partner_id', actor.userId);
