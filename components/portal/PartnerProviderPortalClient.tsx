@@ -39,10 +39,21 @@ type ProductAvailabilityRow = {
     id: string;
     name_ar?: string;
     name_en?: string;
+    city?: string;
     base_price?: number;
     currency?: string;
     status?: string;
   } | null;
+};
+
+type EditableProduct = {
+  productId: string;
+  nameAr: string;
+  nameEn: string;
+  city: string;
+  basePrice: string;
+  currency: string;
+  status: string;
 };
 
 type BookingRow = {
@@ -178,6 +189,24 @@ function formatDate(value?: string | null, lang: Lang = 'ar') {
   return new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA' : 'en-US').format(date);
 }
 
+function buildProductDrafts(rows: ProductAvailabilityRow[]) {
+  const next: Record<string, EditableProduct> = {};
+  for (const row of rows) {
+    const productId = row.products?.id;
+    if (!productId) continue;
+    next[productId] = {
+      productId,
+      nameAr: row.products?.name_ar || '',
+      nameEn: row.products?.name_en || '',
+      city: row.products?.city || row.city || '',
+      basePrice: String(row.products?.base_price ?? 0),
+      currency: row.products?.currency || 'SAR',
+      status: row.products?.status || 'draft',
+    };
+  }
+  return next;
+}
+
 export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode }) {
   const { language, direction, toggleLanguage } = useLanguage();
   const [tab, setTab] = useState<'profile' | 'docs' | 'products' | 'bookings' | 'settlements' | 'compliance'>('profile');
@@ -187,6 +216,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
   const [profile, setProfile] = useState<ProfileData>({});
   const [documents, setDocuments] = useState<PartnerDocument[]>([]);
   const [products, setProducts] = useState<ProductAvailabilityRow[]>([]);
+  const [productDrafts, setProductDrafts] = useState<Record<string, EditableProduct>>({});
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [settlements, setSettlements] = useState<SettlementRow[]>([]);
   const [compliance, setCompliance] = useState<ComplianceData | null>(null);
@@ -230,7 +260,9 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
 
       setProfile((profileJson?.data?.partner || {}) as ProfileData);
       setDocuments(Array.isArray(docsJson?.data) ? (docsJson.data as PartnerDocument[]) : []);
-      setProducts(Array.isArray(productsJson?.data) ? (productsJson.data as ProductAvailabilityRow[]) : []);
+      const productRows = Array.isArray(productsJson?.data) ? (productsJson.data as ProductAvailabilityRow[]) : [];
+      setProducts(productRows);
+      setProductDrafts(buildProductDrafts(productRows));
       setBookings(Array.isArray(bookingsJson?.data) ? (bookingsJson.data as BookingRow[]) : []);
       setSettlements(Array.isArray(settlementsJson?.data) ? (settlementsJson.data as SettlementRow[]) : []);
       setCompliance((complianceJson?.data || null) as ComplianceData | null);
@@ -360,6 +392,54 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
 
       setProductImage({ productId: '', file: null });
       setMessage(t.done);
+    } catch {
+      setMessage(t.failed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function updateProductDraft(productId: string, field: keyof EditableProduct, value: string) {
+    setProductDrafts((prev) => {
+      const current = prev[productId];
+      if (!current) return prev;
+      return {
+        ...prev,
+        [productId]: {
+          ...current,
+          [field]: value,
+        },
+      };
+    });
+  }
+
+  async function saveExistingProduct(productId: string) {
+    const draft = productDrafts[productId];
+    if (!draft) return;
+
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch('/api/partner-portal/products', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: draft.productId,
+          nameAr: draft.nameAr,
+          nameEn: draft.nameEn,
+          city: draft.city,
+          basePrice: draft.basePrice,
+          currency: draft.currency,
+          status: draft.status,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('UPDATE_PRODUCT_FAILED');
+      }
+
+      setMessage(t.done);
+      void loadAll();
     } catch {
       setMessage(t.failed);
     } finally {
@@ -505,13 +585,59 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
             <div className="space-y-2">
               {products.map((row) => (
                 <div key={row.id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm [overflow-wrap:anywhere]">
-                  <span className="font-semibold text-[#F4F1E8]">{row.products?.name_ar || row.products?.name_en}</span>
-                  <span className="mx-2 text-[#9EB0C3]">|</span>
-                  <span>{row.products?.base_price ?? 0} {row.products?.currency || 'SAR'}</span>
-                  <span className="mx-2 text-[#9EB0C3]">|</span>
-                  <span>{row.city || 'all'}</span>
-                  <span className="mx-2 text-[#9EB0C3]">|</span>
-                  <span>{row.products?.status || 'draft'}</span>
+                  {row.products?.id ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <input
+                        className="rounded-xl bg-[#07111D] px-4 py-2"
+                        placeholder={t.serviceNameAr}
+                        value={productDrafts[row.products.id]?.nameAr || ''}
+                        onChange={(e) => updateProductDraft(row.products!.id, 'nameAr', e.target.value)}
+                      />
+                      <input
+                        className="rounded-xl bg-[#07111D] px-4 py-2"
+                        placeholder={t.serviceNameEn}
+                        value={productDrafts[row.products.id]?.nameEn || ''}
+                        onChange={(e) => updateProductDraft(row.products!.id, 'nameEn', e.target.value)}
+                      />
+                      <input
+                        className="rounded-xl bg-[#07111D] px-4 py-2"
+                        placeholder={t.city}
+                        value={productDrafts[row.products.id]?.city || ''}
+                        onChange={(e) => updateProductDraft(row.products!.id, 'city', e.target.value)}
+                      />
+                      <input
+                        className="rounded-xl bg-[#07111D] px-4 py-2"
+                        placeholder={t.price}
+                        value={productDrafts[row.products.id]?.basePrice || '0'}
+                        onChange={(e) => updateProductDraft(row.products!.id, 'basePrice', e.target.value)}
+                      />
+                      <input
+                        className="rounded-xl bg-[#07111D] px-4 py-2"
+                        placeholder={t.currency}
+                        value={productDrafts[row.products.id]?.currency || 'SAR'}
+                        onChange={(e) => updateProductDraft(row.products!.id, 'currency', e.target.value)}
+                      />
+                      <input
+                        className="rounded-xl bg-[#07111D] px-4 py-2"
+                        placeholder={t.status}
+                        value={productDrafts[row.products.id]?.status || 'draft'}
+                        onChange={(e) => updateProductDraft(row.products!.id, 'status', e.target.value)}
+                      />
+                      <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-[#9EB0C3]">ID: {row.products.id}</span>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void saveExistingProduct(row.products!.id)}
+                          className="rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B2A] disabled:opacity-60"
+                        >
+                          {t.save}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-[#9EB0C3]">Unknown product</span>
+                  )}
                 </div>
               ))}
             </div>
