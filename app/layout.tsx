@@ -8,7 +8,7 @@ import { DEFAULT_LANGUAGE, LANGUAGE_COOKIE_NAME, languageDirection, normalizeLan
 export const metadata: Metadata = {
   metadataBase: new URL('https://dir3com.com'),
   title: {
-    default: 'dir3com | درعكم الحامي للسياحة.',
+    default: 'dir3com | درعك الحامي للسياحة.',
     template: '%s | dir3com',
   },
   description: 'واجهة dir3com العربية الفاخرة للسفر والخدمات، مبنية RTL أولاً ومجهزة لتكاملات الدبرة مستقبلاً دون المساس بالمصادقة الحالية.',
@@ -17,14 +17,14 @@ export const metadata: Metadata = {
     canonical: 'https://dir3com.com',
   },
   openGraph: {
-    title: 'dir3com | درعكم الحامي للسياحة.',
+    title: 'dir3com | درعك الحامي للسياحة.',
     description: 'واجهة dir3com للحجوزات والخدمات المميزة مع هوية عربية راقية.',
     type: 'website',
     locale: 'ar_AR',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'dir3com | درعكم الحامي للسياحة.',
+    title: 'dir3com | درعك الحامي للسياحة.',
     description: 'رحلتكم... محمية بضمان الدرع.',
   },
 };
