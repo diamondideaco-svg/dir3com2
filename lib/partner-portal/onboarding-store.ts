@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import crypto from 'node:crypto';
 import type {
   ContractAssociation,
@@ -10,7 +11,8 @@ import type {
   ProductWorkflowStatus,
 } from '@/lib/partner-portal/onboarding-types';
 
-const STORE_FILE = path.join(process.cwd(), '.tmp', 'portal-onboarding-store.json');
+const STORE_FILE = path.join(os.tmpdir(), 'dir3com', 'portal-onboarding-store.json');
+let memoryStore: PortalOnboardingStore | null = null;
 
 const nowIso = () => new Date().toISOString();
 
@@ -192,17 +194,40 @@ function createSeedStore(): PortalOnboardingStore {
   };
 }
 
+function cloneStore(store: PortalOnboardingStore): PortalOnboardingStore {
+  return JSON.parse(JSON.stringify(store)) as PortalOnboardingStore;
+}
+
 async function ensureStoreFile() {
-  await fs.mkdir(path.dirname(STORE_FILE), { recursive: true });
+  try {
+    await fs.mkdir(path.dirname(STORE_FILE), { recursive: true });
+  } catch {
+    return false;
+  }
+
   try {
     await fs.access(STORE_FILE);
   } catch {
-    await fs.writeFile(STORE_FILE, JSON.stringify(createSeedStore(), null, 2), 'utf8');
+    try {
+      await fs.writeFile(STORE_FILE, JSON.stringify(createSeedStore(), null, 2), 'utf8');
+    } catch {
+      return false;
+    }
   }
+
+  return true;
 }
 
 export async function readOnboardingStore(): Promise<PortalOnboardingStore> {
-  await ensureStoreFile();
+  const fileReady = await ensureStoreFile();
+
+  if (!fileReady) {
+    if (!memoryStore) {
+      memoryStore = createSeedStore();
+    }
+    return cloneStore(memoryStore);
+  }
+
   const raw = await fs.readFile(STORE_FILE, 'utf8');
 
   try {
@@ -215,14 +240,30 @@ export async function readOnboardingStore(): Promise<PortalOnboardingStore> {
     };
   } catch {
     const seeded = createSeedStore();
-    await fs.writeFile(STORE_FILE, JSON.stringify(seeded, null, 2), 'utf8');
-    return seeded;
+    try {
+      await fs.writeFile(STORE_FILE, JSON.stringify(seeded, null, 2), 'utf8');
+      return seeded;
+    } catch {
+      memoryStore = seeded;
+      return cloneStore(seeded);
+    }
   }
 }
 
 export async function writeOnboardingStore(store: PortalOnboardingStore) {
-  await ensureStoreFile();
-  await fs.writeFile(STORE_FILE, JSON.stringify(store, null, 2), 'utf8');
+  const normalized = cloneStore(store);
+  const fileReady = await ensureStoreFile();
+
+  if (!fileReady) {
+    memoryStore = normalized;
+    return;
+  }
+
+  try {
+    await fs.writeFile(STORE_FILE, JSON.stringify(normalized, null, 2), 'utf8');
+  } catch {
+    memoryStore = normalized;
+  }
 }
 
 export function ownerFromDomain(domain: 'partner' | 'service_provider' | 'supplier' | null): PortalOwnerKind {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ensurePartnerRecord, requirePortalActor } from '@/lib/partner-portal/server';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 
@@ -50,9 +50,10 @@ export async function GET() {
   }
 
   try {
+    const supabase = await createSupabaseServerClient();
     await ensurePartnerRecord(actor);
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('partner_documents')
       .select('id, partner_id, document_type, file_url, verified, verified_at, created_at')
       .eq('partner_id', actor.userId)
@@ -86,6 +87,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const supabase = await createSupabaseServerClient();
     await ensurePartnerRecord(actor);
 
     const formData = (await request.formData()) as unknown as { get(name: string): FormDataEntryValue | null };
@@ -113,7 +115,7 @@ export async function POST(request: Request) {
       throw uploadError;
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('partner_documents')
       .insert({
         partner_id: actor.userId,
