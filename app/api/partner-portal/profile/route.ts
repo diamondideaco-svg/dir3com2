@@ -117,6 +117,44 @@ export async function PUT(request: Request) {
       throw error;
     }
 
+    const coverageCountry = safeText(data.country, 80);
+    const coverageCity = safeText(data.city, 80);
+
+    if (coverageCountry && coverageCity) {
+      const { data: existingCoverage, error: coverageReadError } = await supabaseAdmin
+        .from('partner_coverage')
+        .select('id')
+        .eq('partner_id', actor.userId)
+        .limit(1);
+
+      if (coverageReadError) {
+        throw coverageReadError;
+      }
+
+      if ((existingCoverage || []).length > 0) {
+        const { error: coverageUpdateError } = await supabaseAdmin
+          .from('partner_coverage')
+          .update({ country: coverageCountry, city: coverageCity })
+          .eq('partner_id', actor.userId);
+
+        if (coverageUpdateError) {
+          throw coverageUpdateError;
+        }
+      } else {
+        const { error: coverageInsertError } = await supabaseAdmin
+          .from('partner_coverage')
+          .insert({
+            partner_id: actor.userId,
+            country: coverageCountry,
+            city: coverageCity,
+          });
+
+        if (coverageInsertError) {
+          throw coverageInsertError;
+        }
+      }
+    }
+
     logServerEvent('api.partner_portal.profile.updated', {
       route: '/api/partner-portal/profile',
       actorId: actor.userId,
