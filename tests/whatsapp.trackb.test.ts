@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { NextRequest } from 'next/server';
-import { GET, POST } from '../app/api/integrations/whatsapp/webhook/route';
+import { GET, POST, __setWebhookBackgroundSchedulerForTests } from '../app/api/integrations/whatsapp/webhook/route';
 import { verifyWhatsAppSignature } from '../lib/whatsapp/security';
 import { parseInboundMessages, processInboundMessages } from '../lib/whatsapp/processor';
 
@@ -254,4 +254,47 @@ test('webhook POST returns quick acknowledgment payload', async () => {
   assert.equal(typeof body.data.processingMs, 'number');
   assert.ok(body.data.processingMs >= 0);
   assert.ok(body.data.blockers.includes('WHATSAPP_IDEMPOTENCY_MEMORY_FALLBACK_ACTIVE'));
+});
+
+test('webhook schedules detached lifecycle processing and acknowledges first', async () => {
+  process.env.NODE_ENV = 'development';
+  process.env.WHATSAPP_APP_SECRET = 'dev-secret';
+  process.env.WHATSAPP_IDEMPOTENCY_FORCE_MEMORY = 'true';
+  process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
+  process.env.WHATSAPP_PHONE_NUMBER_ID_SA = 'pnid-sa';
+
+  const queuedTasks: Array<() => Promise<void>> = [];
+  __setWebhookBackgroundSchedulerForTests((task) => {
+    queuedTasks.push(task);
+  });
+
+  try {
+    const rawBody = JSON.stringify(makeValidPayload('msg-lifecycle-1', 'pnid-eg'));
+    const request = new NextRequest('https://example.com/api/integrations/whatsapp/webhook', {
+      method: 'POST',
+      body: rawBody,
+      headers: {
+        'x-hub-signature-256': signBody(rawBody, 'dev-secret'),
+      },
+    });
+
+    const response = await POST(request);
+    const body = (await response.json()) as {
+      data: {
+        acknowledged: boolean;
+        detachedProcessing: boolean;
+        processedCount: number;
+      };
+    };
+
+    assert.equal(response.status, 200);
+    assert.equal(body.data.acknowledged, true);
+    assert.equal(body.data.detachedProcessing, true);
+    assert.equal(body.data.processedCount, 0);
+    assert.equal(queuedTasks.length, 1);
+
+    await queuedTasks[0]();
+  } finally {
+    __setWebhookBackgroundSchedulerForTests(null);
+  }
 });

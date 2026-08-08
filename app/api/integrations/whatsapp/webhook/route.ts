@@ -1,10 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { detectExternalBlockers } from '@/lib/whatsapp/config';
 import { parseInboundMessages, processInboundMessages } from '@/lib/whatsapp/processor';
 import { isUsingMemoryIdempotencyStore } from '@/lib/whatsapp/idempotency';
 import { verifyWhatsAppSignature } from '@/lib/whatsapp/security';
 
 export const dynamic = 'force-dynamic';
+
+type BackgroundTask = () => Promise<void>;
+type BackgroundScheduler = (task: BackgroundTask) => void;
+
+const defaultScheduler: BackgroundScheduler = (task) => {
+  try {
+    after(task);
+  } catch {
+    // Keep behavior deterministic in tests/non-request contexts.
+    void Promise.resolve().then(task);
+  }
+};
+
+let backgroundScheduler: BackgroundScheduler = defaultScheduler;
+
+export function __setWebhookBackgroundSchedulerForTests(scheduler: BackgroundScheduler | null) {
+  backgroundScheduler = scheduler ?? defaultScheduler;
+}
 
 function privateHeaders() {
   return {
@@ -112,28 +130,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const processingPromise = processInboundMessages(messages);
-
-  const processed: Awaited<typeof processingPromise> = [];
+  const processed: Awaited<ReturnType<typeof processInboundMessages>> = [];
   let degradedProcessing = false;
 
   // Process quickly for empty batches; otherwise detach to keep webhook acknowledgment fast.
   if (messages.length === 0) {
-    const immediate = await processingPromise;
+    const immediate = await processInboundMessages(messages);
     processed.push(...immediate);
   } else {
-    void processingPromise
-      .then((results) => {
-        const hasDegraded = results.some((item) => item.blockerCode?.startsWith('WHATSAPP_IDEMPOTENCY_DEGRADED'));
-        if (hasDegraded) {
-          // Keep logs non-sensitive: no phone numbers, message text, or secrets.
-          console.error('[whatsapp-webhook] DEGRADED durable idempotency detected during detached processing');
-        }
-      })
-      .catch(() => {
-        // Keep logs non-sensitive by logging only the failure class.
-        console.error('[whatsapp-webhook] detached processing failed');
-      });
+    backgroundScheduler(async () => {
+      const results = await processInboundMessages(messages);
+
+      const hasDegraded = results.some((item) => item.blockerCode?.startsWith('WHATSAPP_IDEMPOTENCY_DEGRADED'));
+      if (hasDegraded) {
+        // Keep logs non-sensitive: no phone numbers, message text, or secrets.
+        console.error('[whatsapp-webhook] DEGRADED durable idempotency detected during detached processing');
+      }
+    });
   }
 
   if (processed.some((item) => item.blockerCode?.startsWith('WHATSAPP_IDEMPOTENCY_DEGRADED'))) {
