@@ -18,9 +18,9 @@ function toSafeString(value: unknown) {
   return value.trim();
 }
 
-export function normalizeRole(value: unknown, fallback: CanonicalRole = 'customer'): CanonicalRole {
+export function normalizeRole(value: unknown): CanonicalRole | null {
   const normalized = ROLE_ALIASES[toSafeString(value).toLowerCase()];
-  return normalized ?? fallback;
+  return normalized ?? null;
 }
 
 export function isAdminRole(value: unknown) {
@@ -49,23 +49,12 @@ export async function resolveCanonicalUserRole(supabase: SupabaseClient, userId:
     return normalizeRole(profileData.role);
   }
 
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (!userError && userData?.role) {
-    return normalizeRole(userData.role);
-  }
-
   return null;
 }
 
 export async function ensureCanonicalProfileFromAuthUser(supabase: SupabaseClient, user: User) {
   const fullName = getAuthUserDisplayName(user);
   const email = toSafeString(user.email);
-  const metadataRole = normalizeRole(user.user_metadata?.role);
 
   const { data: existingProfile, error: profileReadError } = await supabase
     .from('profiles')
@@ -78,13 +67,11 @@ export async function ensureCanonicalProfileFromAuthUser(supabase: SupabaseClien
   }
 
   if (existingProfile?.id) {
-    const currentRole = normalizeRole(existingProfile.role);
     const { error: profileUpdateError } = await supabase
       .from('profiles')
       .update({
         full_name: fullName,
         email,
-        role: currentRole,
       })
       .eq('id', user.id);
 
@@ -98,8 +85,6 @@ export async function ensureCanonicalProfileFromAuthUser(supabase: SupabaseClien
         id: user.id,
         full_name: fullName,
         email,
-        role: metadataRole,
-        status: 'active',
       });
 
     if (profileInsertError) {
@@ -107,15 +92,4 @@ export async function ensureCanonicalProfileFromAuthUser(supabase: SupabaseClien
     }
   }
 
-  const legacyRole = metadataRole;
-  await supabase.from('users').upsert(
-    {
-      id: user.id,
-      email,
-      full_name_ar: fullName,
-      role: legacyRole,
-      phone: '',
-    },
-    { onConflict: 'id' }
-  );
 }

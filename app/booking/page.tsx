@@ -52,6 +52,16 @@ interface DocumentFile {
   name: string;
 }
 
+interface AuthoritativeQuote {
+  productId: string;
+  productName: string;
+  unitPrice: number;
+  currency: string;
+  bookingDays: number;
+  guests: number;
+  totalAmount: number;
+}
+
 export default function BookingPage() {
   return (
     <Suspense fallback={<div style={{ backgroundColor: '#0D1B2A', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37' }}>جاري التحميل...</div>}>
@@ -72,7 +82,11 @@ function BookingContent() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [bookingRef, setBookingRef] = useState('');
+  const [confirmedQuote, setConfirmedQuote] = useState<AuthoritativeQuote | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
+  const [authoritativeQuote, setAuthoritativeQuote] = useState<AuthoritativeQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
 
   const [bookingForm, setBookingForm] = useState<BookingFormData>({
     city: 'الرياض',
@@ -136,41 +150,15 @@ function BookingContent() {
     fetchProduct();
   }, [productSlug]);
 
-  // عرض شاشة تحميل أثناء التحقق من الجلسة
-  if (authLoading) {
-    return (
-      <div style={{
-        backgroundColor: '#0D1B2A',
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#D4AF37'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '50px',
-            height: '50px',
-            border: '3px solid rgba(212,175,55,0.1)',
-            borderTop: '3px solid #D4AF37',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto 20px'
-          }} />
-          جاري التحقق من الجلسة...
-        </div>
-        <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
-
-  // إذا لم يكن المستخدم مسجلاً، لا تعرض الصفحة
-  if (!user) {
-    return null;
-  }
-
   const handleBookingChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+
+    if (name === 'guests') {
+      const parsedGuests = Number(value);
+      setBookingForm(prev => ({ ...prev, guests: Number.isFinite(parsedGuests) ? parsedGuests : 1 }));
+      return;
+    }
+
     setBookingForm(prev => ({ ...prev, [name]: value }));
   };
 
@@ -276,6 +264,8 @@ function BookingContent() {
     } else if (currentStep === 1) {
       const isValid = validateClientData();
       if (!isValid) return;
+      setQuoteError(null);
+      setAuthoritativeQuote(null);
       setCurrentStep(2);
     }
   };
@@ -285,15 +275,53 @@ function BookingContent() {
     setError(null);
   };
 
-  const calculateTotal = (): number => {
-    if (!product) return 0;
-    
-    const arrival = new Date(bookingForm.arrivalDate);
-    const departure = new Date(bookingForm.departureDate);
-    const days = Math.ceil((departure.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24));
-    
-    return product.price_per_unit * days * bookingForm.guests;
-  };
+  useEffect(() => {
+    async function fetchAuthoritativeQuote() {
+      if (!product?.id || currentStep !== 2) {
+        return;
+      }
+
+      if (!bookingForm.arrivalDate || !bookingForm.departureDate || !Number.isInteger(bookingForm.guests) || bookingForm.guests < 1) {
+        setAuthoritativeQuote(null);
+        return;
+      }
+
+      const params = new URLSearchParams({
+        action: 'quote',
+        product_id: product.id,
+        arrival_date: bookingForm.arrivalDate,
+        departure_date: bookingForm.departureDate,
+        guests: String(bookingForm.guests),
+      });
+
+      setQuoteLoading(true);
+      setQuoteError(null);
+
+      try {
+        const response = await fetch(`/api/bookings?${params.toString()}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+        });
+
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data?.data) {
+          const message = data?.error?.message || 'تعذر تحميل التسعير النهائي من الخادم.';
+          throw new Error(message);
+        }
+
+        setAuthoritativeQuote(data.data as AuthoritativeQuote);
+      } catch (quoteFetchError) {
+        const message = quoteFetchError instanceof Error ? quoteFetchError.message : 'تعذر تحميل التسعير النهائي من الخادم.';
+        setQuoteError(message);
+        setAuthoritativeQuote(null);
+      } finally {
+        setQuoteLoading(false);
+      }
+    }
+
+    fetchAuthoritativeQuote();
+  }, [currentStep, product?.id, bookingForm.arrivalDate, bookingForm.departureDate, bookingForm.guests]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -301,12 +329,12 @@ function BookingContent() {
     setError(null);
 
     try {
-      const totalPrice = calculateTotal();
+      if (!authoritativeQuote) {
+        throw new Error('تعذر تأكيد الحجز دون تسعير خادمي معتمد.');
+      }
 
       const bookingData = {
         product_id: product?.id || null,
-        product_name: product?.name_ar || '',
-        product_price: product?.price_per_unit || 0,
         guest_name: clientForm.fullName.trim(),
         guest_phone: clientForm.phone.trim(),
         guest_email: clientForm.email?.trim() || null,
@@ -316,7 +344,6 @@ function BookingContent() {
         notes: clientForm.notes?.trim() || null,
         special_requests: bookingForm.specialRequests?.trim() || null,
         city: bookingForm.city,
-        total_price: totalPrice,
         client_passport: clientForm.passportNumber?.trim() || null,
         client_nationality: clientForm.nationality || null,
       };
@@ -338,6 +365,7 @@ function BookingContent() {
       }
 
       setBookingRef(data.data.booking_reference);
+      setConfirmedQuote((data.data.quote as AuthoritativeQuote) ?? authoritativeQuote);
       setSuccess(true);
       
     } catch (err: unknown) {
@@ -348,6 +376,39 @@ function BookingContent() {
       setSubmitting(false);
     }
   };
+
+  // عرض شاشة تحميل أثناء التحقق من الجلسة
+  if (authLoading) {
+    return (
+      <div style={{
+        backgroundColor: '#0D1B2A',
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#D4AF37'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: '50px',
+            height: '50px',
+            border: '3px solid rgba(212,175,55,0.1)',
+            borderTop: '3px solid #D4AF37',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 20px'
+          }} />
+          جاري التحقق من الجلسة...
+        </div>
+        <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  // إذا لم يكن المستخدم مسجلاً، لا تعرض الصفحة
+  if (!user) {
+    return null;
+  }
 
   if (loading) {
     return (
@@ -457,6 +518,21 @@ function BookingContent() {
           <p style={{ color: '#8A9BB0', marginTop: '10px', fontSize: '1.1rem' }}>
             رقم الحجز: <strong style={{ color: '#D4AF37', fontSize: '1.3rem' }}>{bookingRef}</strong>
           </p>
+          {confirmedQuote && (
+            <div style={{
+              background: 'rgba(212, 175, 55, 0.1)',
+              borderRadius: '12px',
+              padding: '12px',
+              marginTop: '15px'
+            }}>
+              <p style={{ color: '#F4F1E8', fontSize: '0.95rem', marginBottom: '6px' }}>
+                السعر المعتمد: {confirmedQuote.unitPrice} {confirmedQuote.currency} / ليلة
+              </p>
+              <p style={{ color: '#D4AF37', fontWeight: 'bold' }}>
+                الإجمالي المعتمد: {confirmedQuote.totalAmount} {confirmedQuote.currency}
+              </p>
+            </div>
+          )}
           <div style={{
             background: 'rgba(212, 175, 55, 0.1)',
             borderRadius: '12px',
@@ -663,9 +739,9 @@ function BookingContent() {
             <p style={{ color: '#D4AF37', fontSize: '1.1rem', fontWeight: 'bold' }}>
               {product.price_per_unit} ريال / {product.unit_type === 'day' ? 'يوم' : product.unit_type}
             </p>
-            {bookingForm.arrivalDate && bookingForm.departureDate && (
+            {authoritativeQuote && bookingForm.arrivalDate && bookingForm.departureDate && (
               <p style={{ color: '#8A9BB0', fontSize: '0.8rem' }}>
-                الإجمالي: {calculateTotal()} ريال
+                الإجمالي المعتمد: {authoritativeQuote.totalAmount} {authoritativeQuote.currency}
               </p>
             )}
           </div>
@@ -1304,6 +1380,12 @@ function BookingContent() {
                 border: '1px solid rgba(212, 175, 55, 0.1)'
               }}>
                 <h4 style={{ color: '#D4AF37', marginBottom: '10px' }}>📋 ملخص الحجز</h4>
+                {quoteLoading && (
+                  <p style={{ color: '#8A9BB0', marginBottom: '10px' }}>جاري تحميل التسعير النهائي من الخادم...</p>
+                )}
+                {quoteError && (
+                  <p style={{ color: '#ff8a8a', marginBottom: '10px' }}>{quoteError}</p>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.9rem' }}>
                   <span style={{ color: '#8A9BB0' }}>المنتج:</span>
                   <span style={{ color: '#F4F1E8' }}>{product.name_ar}</span>
@@ -1323,6 +1405,14 @@ function BookingContent() {
                   
                   <span style={{ color: '#8A9BB0' }}>عدد الضيوف:</span>
                   <span style={{ color: '#F4F1E8' }}>{bookingForm.guests}</span>
+
+                  <span style={{ color: '#8A9BB0' }}>عدد الليالي:</span>
+                  <span style={{ color: '#F4F1E8' }}>{authoritativeQuote?.bookingDays ?? '-'}</span>
+
+                  <span style={{ color: '#8A9BB0' }}>السعر/ليلة (خادم):</span>
+                  <span style={{ color: '#F4F1E8' }}>
+                    {authoritativeQuote ? `${authoritativeQuote.unitPrice} ${authoritativeQuote.currency}` : '—'}
+                  </span>
                   
                   <span style={{ color: '#8A9BB0' }}>اسم العميل:</span>
                   <span style={{ color: '#F4F1E8' }}>{clientForm.fullName}</span>
@@ -1332,7 +1422,7 @@ function BookingContent() {
                   
                   <span style={{ color: '#8A9BB0', fontWeight: 'bold' }}>الإجمالي:</span>
                   <span style={{ color: '#D4AF37', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                    {calculateTotal()} ريال
+                    {authoritativeQuote ? `${authoritativeQuote.totalAmount} ${authoritativeQuote.currency}` : '—'}
                   </span>
                 </div>
               </div>
@@ -1362,7 +1452,7 @@ function BookingContent() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || quoteLoading || !authoritativeQuote}
                   style={{
                     flex: 1,
                     padding: '14px',
@@ -1372,8 +1462,8 @@ function BookingContent() {
                     fontSize: '1rem',
                     border: 'none',
                     borderRadius: '30px',
-                    cursor: submitting ? 'not-allowed' : 'pointer',
-                    opacity: submitting ? 0.7 : 1,
+                    cursor: (submitting || quoteLoading || !authoritativeQuote) ? 'not-allowed' : 'pointer',
+                    opacity: (submitting || quoteLoading || !authoritativeQuote) ? 0.7 : 1,
                     transition: 'all 0.3s ease',
                     display: 'flex',
                     alignItems: 'center',
@@ -1381,13 +1471,13 @@ function BookingContent() {
                     gap: '10px'
                   }}
                   onMouseEnter={(e) => {
-                    if (!submitting) {
+                    if (!submitting && !quoteLoading && authoritativeQuote) {
                       e.currentTarget.style.background = '#c5a030';
                       e.currentTarget.style.transform = 'scale(1.02)';
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (!submitting) {
+                    if (!submitting && !quoteLoading && authoritativeQuote) {
                       e.currentTarget.style.background = '#D4AF37';
                       e.currentTarget.style.transform = 'scale(1)';
                     }
