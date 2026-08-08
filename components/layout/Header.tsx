@@ -84,7 +84,7 @@ function Logo() {
       </span>
       <span className="flex flex-col text-right">
         <span className="font-[var(--font-display)] text-2xl font-semibold leading-none text-[var(--color-navy)]">dir3com</span>
-        <span className="mt-1 text-xs font-medium tracking-[0.18em] text-[var(--color-muted)]">درعكم للسياحة</span>
+        <span className="mt-1 text-xs font-medium tracking-[0.18em] text-[var(--color-muted)]">درعك الحامي للسياحة.</span>
       </span>
     </Link>
   );
