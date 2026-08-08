@@ -83,7 +83,13 @@ export async function createSupabaseServerClient(): Promise<SupabaseClient> {
         return cookieStore.getAll();
       },
       setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
-        cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+        // In Next.js Server Component rendering, mutating cookies can throw.
+        // Route handlers/server actions still support writes normally.
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+        } catch {
+          // Swallow write failures in read-only render contexts.
+        }
       },
     },
   }) as unknown as SupabaseClient;

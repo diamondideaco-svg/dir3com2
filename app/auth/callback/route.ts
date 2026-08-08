@@ -1,6 +1,6 @@
 // src/app/auth/callback/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
 import { getPostLoginDestination } from '@/lib/auth/redirect';
 import { ensureCanonicalProfileFromAuthUser } from '@/lib/auth/identity';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
 
         if (data?.user) {
             try {
-                await ensureCanonicalProfileFromAuthUser(supabase, data.user);
+                await ensureCanonicalProfileFromAuthUser(supabaseAdmin ?? supabase, data.user);
                 logServerEvent('auth.callback.identity_synced');
             } catch (profileSyncError) {
                 // Login must succeed even if profile enrichment fails due temporary DB policy/grant drift.
