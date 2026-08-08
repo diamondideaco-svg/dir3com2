@@ -5,6 +5,10 @@ type MaybeErrorWithCode = {
   statusCode?: unknown;
 };
 
+function isSensitiveKey(key: string) {
+  return /(authorization|api[_-]?key|token|secret|password|service[_-]?role[_-]?key|cookie|set-cookie)/i.test(key);
+}
+
 function sanitizeMessage(input: string): string {
   return input
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[redacted-email]')
@@ -41,10 +45,53 @@ export function getSafeErrorDetails(error: unknown): { code?: string; message?: 
   };
 }
 
-export function logServerError(event: string, error: unknown): void {
-  console.error(event, getSafeErrorDetails(error));
+function sanitizeMetadataValue(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    return sanitizeMessage(value);
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 20).map((item) => sanitizeMetadataValue(item));
+  }
+
+  if (typeof value === 'object') {
+    const input = value as Record<string, unknown>;
+    const output: Record<string, unknown> = {};
+    for (const [key, raw] of Object.entries(input)) {
+      if (isSensitiveKey(key)) {
+        output[key] = '[redacted]';
+        continue;
+      }
+      output[key] = sanitizeMetadataValue(raw);
+    }
+    return output;
+  }
+
+  return String(value);
 }
 
-export function logServerEvent(event: string): void {
-  console.info(event);
+export function logServerError(event: string, error: unknown, metadata?: Record<string, unknown>): void {
+  console.error(event, {
+    ...getSafeErrorDetails(error),
+    ...(metadata ? { metadata: sanitizeMetadataValue(metadata) } : {}),
+  });
+}
+
+export function logServerEvent(event: string, metadata?: Record<string, unknown>): void {
+  if (!metadata) {
+    console.info(event);
+    return;
+  }
+
+  console.info(event, {
+    metadata: sanitizeMetadataValue(metadata),
+  });
 }
