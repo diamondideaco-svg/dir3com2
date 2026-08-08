@@ -1,14 +1,7 @@
 import Link from 'next/link';
 import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaXTwitter } from 'react-icons/fa6';
 import { FiArrowUpLeft, FiDownload, FiPhoneCall, FiShield, FiSmartphone } from 'react-icons/fi';
-
-const footerLinks = [
-  { label: 'الرئيسية', href: '/#home' },
-  { label: 'خدماتنا', href: '/services' },
-  { label: 'العروض', href: '/offers' },
-  { label: 'من نحن', href: '/about' },
-  { label: 'تواصل', href: '/contact' },
-];
+import { useLanguage } from '@/components/i18n/LanguageProvider';
 
 const socialLinks = [
   { href: 'https://wa.me/966532867009', label: 'WhatsApp', icon: FaWhatsapp },
@@ -18,39 +11,65 @@ const socialLinks = [
   { href: 'https://facebook.com', label: 'Facebook', icon: FaFacebookF },
 ];
 
-const footerCollections = [
-  { title: 'الاستكشاف', links: footerLinks },
-  {
-    title: 'الخدمات',
-    links: [
-      { label: 'السيارات', href: '/cars' },
-      { label: 'الفنادق', href: '/hotels' },
-      { label: 'التجارب', href: '/experiences' },
-      { label: 'الكونسيرج', href: '/concierge' },
+const copy = {
+  ar: {
+    footerCollections: [
+      { title: 'الاستكشاف', links: [{ label: 'الرئيسية', href: '/#home' }, { label: 'خدماتنا', href: '/services' }, { label: 'العروض', href: '/offers' }, { label: 'من نحن', href: '/about' }, { label: 'تواصل', href: '/contact' }] },
+      { title: 'الخدمات', links: [{ label: 'السيارات', href: '/cars' }, { label: 'الفنادق', href: '/hotels' }, { label: 'التجارب', href: '/experiences' }, { label: 'الكونسيرج', href: '/concierge' }] },
     ],
+    tagline: 'درعك الحامي للسياحة.',
+    description: 'هوية dir3com الجديدة توحد تجربة السفر والخدمات والعروض ضمن واجهة عربية تنفيذية، واضحة، فاخرة، وسهلة التنقل.',
+    assistant: 'الدبرة — عنصر بصري مساعد داخل تجربة dir3com',
+    contactDownload: 'تواصل وتنزيل',
+    appStore: 'App Store',
+    googlePlay: 'Google Play',
+    rights: '© 2026 dir3com. جميع الحقوق محفوظة.',
+    motto: 'هوية موحدة. خدمة واضحة. تجربة محمية.',
+    trustLabel: 'الوعد الرسمي',
   },
-];
+  en: {
+    footerCollections: [
+      { title: 'Explore', links: [{ label: 'Home', href: '/#home' }, { label: 'Services', href: '/services' }, { label: 'Offers', href: '/offers' }, { label: 'About', href: '/about' }, { label: 'Contact', href: '/contact' }] },
+      { title: 'Services', links: [{ label: 'Cars', href: '/cars' }, { label: 'Hotels', href: '/hotels' }, { label: 'Experiences', href: '/experiences' }, { label: 'Concierge', href: '/concierge' }] },
+    ],
+    tagline: 'Your protective shield for tourism.',
+    description: 'The new dir3com identity unifies travel, services, and offers in one executive public surface with stronger navigation and cleaner rhythm.',
+    assistant: 'DABRA — a visual companion inside the dir3com experience',
+    contactDownload: 'Contact & Download',
+    appStore: 'App Store',
+    googlePlay: 'Google Play',
+    rights: '© 2026 dir3com. All rights reserved.',
+    motto: 'One identity. Clear service. Protected experience.',
+    trustLabel: 'Official promise',
+  },
+} as const;
 
 export default function Footer() {
+  const { language, direction } = useLanguage();
+  const t = copy[language];
+
   return (
-    <footer className="border-t border-white/10 bg-[var(--color-navy)] text-[var(--color-light)]">
+    <footer className="border-t border-white/10 bg-[linear-gradient(160deg,#0d1a2a_0%,#14283d_56%,#9d5c4d_140%)] text-[var(--color-light)]" dir={direction}>
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-[1.2fr_0.7fr_0.7fr_0.9fr]">
           <div className="max-w-lg">
             <div className="flex items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/8 text-[var(--color-gold)]">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,rgba(200,168,107,0.24)_0%,rgba(255,255,255,0.08)_100%)] text-[var(--color-gold)] shadow-[0_18px_36px_rgba(0,0,0,0.16)]">
                 <FiShield size={22} />
               </span>
               <div>
                 <p className="font-[var(--font-display)] text-3xl font-semibold">dir3com</p>
-                <p className="text-sm text-[var(--color-light)]/65">رحلتكم محمية بضمان الدرع.</p>
+                <p className="text-sm text-[var(--color-light)]/65">{t.tagline}</p>
               </div>
             </div>
+            <div className="mt-5 inline-flex rounded-full border border-[var(--color-gold)]/22 bg-[var(--color-gold)]/12 px-4 py-2 text-xs font-semibold tracking-[0.18em] text-[var(--color-gold)]">
+              {t.trustLabel}
+            </div>
             <p className="mt-5 text-sm leading-8 text-[var(--color-light)]/72">
-              واجهة ضيافة وسفر عربية بروح فاخرة، مصممة لتخدم العميل أولاً وتجهز الدبرة لتكاملات المساعدة الذكية لاحقاً.
+              {t.description}
             </p>
-            <div className="mt-6 rounded-[24px] border border-white/10 bg-white/5 p-4 text-sm leading-8 text-[var(--color-light)]/78">
-              الدبرة — مستشارك الشخصي في dir3com
+            <div className="mt-6 rounded-[28px] border border-white/10 bg-white/6 p-4 text-sm leading-8 text-[var(--color-light)]/78 shadow-[0_18px_40px_rgba(0,0,0,0.16)]">
+              {t.assistant}
             </div>
             <div className="mt-6 flex flex-wrap gap-3 text-sm">
               <a href="https://dir3com.com" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
@@ -62,7 +81,7 @@ export default function Footer() {
             </div>
           </div>
 
-          {footerCollections.map((collection) => (
+          {t.footerCollections.map((collection) => (
             <div key={collection.title}>
               <h3 className="text-lg font-semibold">{collection.title}</h3>
               <div className="mt-5 grid gap-3 text-sm text-[var(--color-light)]/75">
@@ -76,7 +95,7 @@ export default function Footer() {
           ))}
 
           <div>
-            <h3 className="text-lg font-semibold">تواصل وتنزيل</h3>
+            <h3 className="text-lg font-semibold">{t.contactDownload}</h3>
             <div className="mt-5 flex items-center gap-2 text-sm text-[var(--color-light)]/75">
               <FiPhoneCall />
               <a href="tel:0532867009" className="rounded-md transition hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
@@ -84,11 +103,11 @@ export default function Footer() {
               </a>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 sm:gap-2 lg:grid-cols-1 lg:gap-3">
-              <button type="button" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
-                <FiDownload /> App Store
+              <button type="button" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/6 px-4 py-3 text-sm font-medium transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
+                <FiDownload /> {t.appStore}
               </button>
-              <button type="button" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
-                <FiSmartphone /> Google Play
+              <button type="button" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/6 px-4 py-3 text-sm font-medium transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
+                <FiSmartphone /> {t.googlePlay}
               </button>
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
@@ -109,8 +128,8 @@ export default function Footer() {
         </div>
 
         <div className="mt-10 border-t border-white/10 pt-6 text-sm text-[var(--color-light)]/65 sm:flex sm:items-center sm:justify-between">
-          <p>© 2026 dir3com. جميع الحقوق محفوظة.</p>
-          <p className="mt-3 sm:mt-0">قيم الخدمة قبل نحاسب.</p>
+          <p>{t.rights}</p>
+          <p className="mt-3 sm:mt-0">{t.motto}</p>
         </div>
       </div>
     </footer>
