@@ -112,7 +112,7 @@ function LoginContent() {
                     تسجيل الدخول
                 </h1>
                 <p style={{ color: '#6B7280', textAlign: 'center', marginBottom: '30px' }}>
-                    مرحباً بعودتك إلى DIR3COM
+                    مرحباً بعودتك إلى dir3com
                 </p>
 
                 {error && (

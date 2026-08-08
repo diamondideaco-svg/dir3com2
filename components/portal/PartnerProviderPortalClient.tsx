@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import OnboardingAssetsPanel from '@/components/portal/OnboardingAssetsPanel';
+import { DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_UPLOAD_LIMIT_BYTES, IMAGE_UPLOAD_ACCEPT, IMAGE_UPLOAD_LIMIT_BYTES } from '@/lib/security/document-validation';
+import {
+  convertAmountByPolicy,
+  CURRENCY_STORAGE_KEY,
+  formatLocalizedCurrency,
+  normalizeCurrencyPreference,
+  resolveUsdSarPolicy,
+  type SupportedCurrency,
+} from '@/lib/i18n/currency';
 
 type PortalMode = 'partner' | 'provider';
 type Lang = 'ar' | 'en';
@@ -84,6 +93,12 @@ type ComplianceData = {
   pendingReviews: number;
 };
 
+type LinkingSummary = {
+  assetsCount: number;
+  contractsCount: number;
+  ownerKind: 'drive_partner' | 'stay_supplier';
+};
+
 const reviewStatusOptions = ['Draft', 'Submitted', 'Needs Changes', 'Approved', 'Suspended'];
 
 const reviewStatusDisplay = {
@@ -107,7 +122,7 @@ const labels = {
   ar: {
     titlePartner: 'بوابة الشريك',
     titleProvider: 'بوابة مزود الخدمة',
-    subtitlePartner: 'إدارة onboarding والامتثال والخدمات والحجوزات والتسويات ضمن DIR3COM Core',
+    subtitlePartner: 'إدارة onboarding والامتثال والخدمات والحجوزات والتسويات ضمن dir3com Core',
     subtitleProvider: 'إدارة بيانات المزود، المستندات، الخدمات/المركبات، الأسعار والتوفر، والحجوزات',
     tabProfile: 'الملف',
     tabDocs: 'المستندات',
@@ -131,6 +146,8 @@ const labels = {
     iban: 'IBAN',
     reviewStatus: 'حالة المراجعة',
     docType: 'نوع المستند',
+    docUploadGuide: `PDF/JPG/PNG/WEBP - الحد الأقصى ${Math.floor(DOCUMENT_UPLOAD_LIMIT_BYTES / (1024 * 1024))}MB`,
+    imageUploadGuide: `JPG/PNG/WEBP - الحد الأقصى ${Math.floor(IMAGE_UPLOAD_LIMIT_BYTES / (1024 * 1024))}MB`,
     serviceNameAr: 'اسم الخدمة (عربي)',
     serviceNameEn: 'اسم الخدمة (English)',
     price: 'السعر',
@@ -138,6 +155,14 @@ const labels = {
     status: 'الحالة',
     done: 'تم التنفيذ بنجاح',
     failed: 'تعذر تنفيذ العملية',
+    linkingReady: 'ربط الحساب والعقود',
+    linkingPending: 'الربط يحتاج استكمال',
+    profileReady: 'الملف مكتمل',
+    profilePending: 'الملف يحتاج استكمال',
+    complianceReady: 'الامتثال مكتمل',
+    compliancePending: 'الامتثال يحتاج مستندات',
+    profileValidationFailed: 'تحقق من الملف: الاسم القانوني، المسؤول، البريد، الدولة، والمدينة مطلوبة.',
+    productValidationFailed: 'بيانات الخدمة غير مكتملة: الاسم، المدينة، العملة (SAR/USD)، وسعر أكبر من صفر.',
     missing: 'مستندات ناقصة',
     expired: 'مستندات منتهية',
     pending: 'طلبات قيد المراجعة',
@@ -145,7 +170,7 @@ const labels = {
   en: {
     titlePartner: 'Partner Portal',
     titleProvider: 'Service Provider Portal',
-    subtitlePartner: 'Manage onboarding, compliance, services, bookings, and settlements on DIR3COM Core',
+    subtitlePartner: 'Manage onboarding, compliance, services, bookings, and settlements on dir3com Core',
     subtitleProvider: 'Manage provider profile, documents, services/assets, pricing, availability, and bookings',
     tabProfile: 'Profile',
     tabDocs: 'Documents',
@@ -169,6 +194,8 @@ const labels = {
     iban: 'IBAN',
     reviewStatus: 'Review Status',
     docType: 'Document Type',
+    docUploadGuide: `PDF/JPG/PNG/WEBP - max ${Math.floor(DOCUMENT_UPLOAD_LIMIT_BYTES / (1024 * 1024))}MB`,
+    imageUploadGuide: `JPG/PNG/WEBP - max ${Math.floor(IMAGE_UPLOAD_LIMIT_BYTES / (1024 * 1024))}MB`,
     serviceNameAr: 'Service Name (Arabic)',
     serviceNameEn: 'Service Name (English)',
     price: 'Price',
@@ -176,6 +203,14 @@ const labels = {
     status: 'Status',
     done: 'Operation completed',
     failed: 'Operation failed',
+    linkingReady: 'Account and contract linking ready',
+    linkingPending: 'Linking requires completion',
+    profileReady: 'Profile complete',
+    profilePending: 'Profile requires completion',
+    complianceReady: 'Compliance complete',
+    compliancePending: 'Compliance requires documents',
+    profileValidationFailed: 'Profile validation failed: legal name, contact, email, country, and city are required.',
+    productValidationFailed: 'Service validation failed: name, city, currency (SAR/USD), and price > 0 are required.',
     missing: 'Missing Documents',
     expired: 'Expired Documents',
     pending: 'Pending Reviews',
@@ -207,6 +242,45 @@ function buildProductDrafts(rows: ProductAvailabilityRow[]) {
   return next;
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isProfileReadyDraft(input: ProfileData) {
+  return Boolean(
+    String(input.company_name || '').trim() &&
+      String(input.contact_person || '').trim() &&
+      isValidEmail(String(input.email || '').trim()) &&
+      String(input.country || '').trim() &&
+      String(input.city || '').trim(),
+  );
+}
+
+function isValidProductDraft(input: EditableProduct | { nameAr: string; nameEn: string; city: string; basePrice: string; currency: string }) {
+  const price = Number(input.basePrice);
+  const currency = normalizeCurrencyPreference(input.currency);
+  return Boolean(
+    String(input.nameAr || '').trim().length >= 2 &&
+      String(input.nameEn || '').trim().length >= 2 &&
+      String(input.city || '').trim().length >= 2 &&
+      Number.isFinite(price) &&
+      price > 0 &&
+      (currency === 'SAR' || currency === 'USD'),
+  );
+}
+
+function convertAndFormatAmount(
+  amount: number,
+  sourceCurrency: string,
+  targetCurrency: SupportedCurrency,
+  language: Lang,
+) {
+  const policy = resolveUsdSarPolicy();
+  const normalizedSource = normalizeCurrencyPreference(sourceCurrency);
+  const converted = convertAmountByPolicy(amount, normalizedSource, targetCurrency, policy);
+  return formatLocalizedCurrency(converted, targetCurrency, language);
+}
+
 export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode }) {
   const { language, direction, toggleLanguage } = useLanguage();
   const [tab, setTab] = useState<'profile' | 'docs' | 'products' | 'bookings' | 'settlements' | 'compliance'>('profile');
@@ -220,6 +294,13 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [settlements, setSettlements] = useState<SettlementRow[]>([]);
   const [compliance, setCompliance] = useState<ComplianceData | null>(null);
+  const [linking, setLinking] = useState<LinkingSummary | null>(null);
+  const [displayCurrency] = useState<SupportedCurrency>(() => {
+    if (typeof window === 'undefined') {
+      return 'SAR';
+    }
+    return normalizeCurrencyPreference(window.localStorage.getItem(CURRENCY_STORAGE_KEY));
+  });
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [docType, setDocType] = useState('commercial_registration');
@@ -237,6 +318,9 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
 
   const pageTitle = useMemo(() => (mode === 'partner' ? t.titlePartner : t.titleProvider), [mode, t]);
   const pageSubtitle = useMemo(() => (mode === 'partner' ? t.subtitlePartner : t.subtitleProvider), [mode, t]);
+  const profileReady = useMemo(() => isProfileReadyDraft(profile), [profile]);
+  const complianceReady = useMemo(() => Boolean(compliance && compliance.missingDocuments.length === 0 && compliance.expiredDocuments.length === 0), [compliance]);
+  const linkingReady = useMemo(() => Boolean(linking && linking.assetsCount > 0 && linking.contractsCount > 0), [linking]);
 
   const loadAll = useCallback(async () => {
     setBusy(true);
@@ -251,12 +335,16 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         fetch('/api/partner-portal/compliance', { cache: 'no-store' }),
       ]);
 
+      const ownerKind = mode === 'provider' ? 'stay_supplier' : 'drive_partner';
+      const assetsRes = await fetch(`/api/partner-portal/assets?ownerKind=${ownerKind}`, { cache: 'no-store' });
+
       const profileJson = await profileRes.json().catch(() => ({}));
       const docsJson = await docsRes.json().catch(() => ({}));
       const productsJson = await productsRes.json().catch(() => ({}));
       const bookingsJson = await bookingsRes.json().catch(() => ({}));
       const settlementsJson = await settlementsRes.json().catch(() => ({}));
       const complianceJson = await complianceRes.json().catch(() => ({}));
+      const assetsJson = await assetsRes.json().catch(() => ({}));
 
       setProfile((profileJson?.data?.partner || {}) as ProfileData);
       setDocuments(Array.isArray(docsJson?.data) ? (docsJson.data as PartnerDocument[]) : []);
@@ -266,12 +354,17 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
       setBookings(Array.isArray(bookingsJson?.data) ? (bookingsJson.data as BookingRow[]) : []);
       setSettlements(Array.isArray(settlementsJson?.data) ? (settlementsJson.data as SettlementRow[]) : []);
       setCompliance((complianceJson?.data || null) as ComplianceData | null);
+      setLinking({
+        ownerKind,
+        assetsCount: Array.isArray(assetsJson?.data?.assets) ? assetsJson.data.assets.length : 0,
+        contractsCount: Array.isArray(assetsJson?.data?.contracts) ? assetsJson.data.contracts.length : 0,
+      });
     } catch {
       setMessage(t.failed);
     } finally {
       setBusy(false);
     }
-  }, [t.failed]);
+  }, [mode, t.failed]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -282,6 +375,11 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
   }, [loadAll]);
 
   async function saveProfile() {
+    if (!isProfileReadyDraft(profile)) {
+      setMessage(t.profileValidationFailed);
+      return;
+    }
+
     setBusy(true);
     setMessage('');
     try {
@@ -332,7 +430,10 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
       });
 
       if (!response.ok) {
-        throw new Error('UPLOAD_FAILED');
+        const payload = await response.json().catch(() => ({}));
+        const reason = String(payload?.error?.message || payload?.error?.code || t.failed);
+        setMessage(reason);
+        return;
       }
 
       const payload = await response.json();
@@ -348,6 +449,11 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
   }
 
   async function createProduct() {
+    if (!isValidProductDraft(newProduct)) {
+      setMessage(t.productValidationFailed);
+      return;
+    }
+
     setBusy(true);
     setMessage('');
     try {
@@ -387,7 +493,10 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
       });
 
       if (!response.ok) {
-        throw new Error('UPLOAD_IMAGE_FAILED');
+        const payload = await response.json().catch(() => ({}));
+        const reason = String(payload?.error?.message || payload?.error?.code || t.failed);
+        setMessage(reason);
+        return;
       }
 
       setProductImage({ productId: '', file: null });
@@ -416,6 +525,11 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
   async function saveExistingProduct(productId: string) {
     const draft = productDrafts[productId];
     if (!draft) return;
+
+    if (!isValidProductDraft(draft)) {
+      setMessage(t.productValidationFailed);
+      return;
+    }
 
     setBusy(true);
     setMessage('');
@@ -499,6 +613,23 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
           <div className="mb-4 rounded-xl border border-[#D4AF37]/25 bg-[#D4AF37]/10 px-4 py-3 text-sm text-[#F4F1E8]">{message}</div>
         ) : null}
 
+        <section className="mb-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs text-[#9EB0C3]">{linkingReady ? t.linkingReady : t.linkingPending}</p>
+            <p className="mt-2 text-sm font-semibold text-[#F4F1E8]">
+              {(linking?.assetsCount || 0).toString()} assets / {(linking?.contractsCount || 0).toString()} contracts
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs text-[#9EB0C3]">{profileReady ? t.profileReady : t.profilePending}</p>
+            <p className="mt-2 text-sm font-semibold text-[#F4F1E8]">{String(profile.reviewStatus || 'Draft')}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs text-[#9EB0C3]">{complianceReady ? t.complianceReady : t.compliancePending}</p>
+            <p className="mt-2 text-sm font-semibold text-[#F4F1E8]">{(compliance?.missingDocuments || []).length} missing</p>
+          </div>
+        </section>
+
         {tab === 'profile' ? (
           <section className="grid gap-4 sm:grid-cols-2">
             <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.legalName} value={profile.company_name || ''} onChange={(e) => setProfile((prev) => ({ ...prev, company_name: e.target.value }))} />
@@ -536,11 +667,12 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                 <option value="insurance">insurance</option>
                 <option value="vehicle_registration">vehicle_registration</option>
               </select>
-              <input type="file" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="min-h-11 w-full rounded-xl bg-[#07111D] px-4 py-3 text-sm sm:w-auto sm:max-w-xs" />
+              <input type="file" accept={DOCUMENT_UPLOAD_ACCEPT} onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="min-h-11 w-full rounded-xl bg-[#07111D] px-4 py-3 text-sm sm:w-auto sm:max-w-xs" />
               <button type="button" disabled={busy || !selectedFile} onClick={() => void uploadDocument()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B2A] disabled:opacity-60 sm:w-auto">
                 {t.upload}
               </button>
             </div>
+            <p className="mb-3 text-xs text-[#9EB0C3]">{t.docUploadGuide}</p>
             <div className="space-y-2">
               {documents.map((doc) => (
                 <div key={doc.id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm [overflow-wrap:anywhere]">
@@ -578,9 +710,10 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                   <option key={row.id} value={row.products?.id || ''}>{row.products?.name_ar || row.products?.name_en || row.products?.id}</option>
                 ))}
               </select>
-              <input type="file" onChange={(e) => setProductImage((prev) => ({ ...prev, file: e.target.files?.[0] || null }))} className="min-h-11 w-full rounded-xl bg-[#07111D] px-4 py-2 text-sm sm:w-auto sm:max-w-xs" />
+              <input type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(e) => setProductImage((prev) => ({ ...prev, file: e.target.files?.[0] || null }))} className="min-h-11 w-full rounded-xl bg-[#07111D] px-4 py-2 text-sm sm:w-auto sm:max-w-xs" />
               <button type="button" disabled={busy || !productImage.productId || !productImage.file} onClick={() => void uploadProductImage()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B2A] disabled:opacity-60 sm:w-auto">{t.uploadImage}</button>
             </div>
+            <p className="mb-4 text-xs text-[#9EB0C3]">{t.imageUploadGuide}</p>
 
             <div className="space-y-2">
               {products.map((row) => (
@@ -656,7 +789,14 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                 <span className="mx-2 text-[#9EB0C3]">|</span>
                 <span>{booking.status || 'pending'}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
-                <span>{booking.total_amount ?? booking.total_price ?? 0} {booking.currency || 'SAR'}</span>
+                <span>
+                  {convertAndFormatAmount(
+                    Number(booking.total_amount ?? booking.total_price ?? 0),
+                    String(booking.currency || 'SAR'),
+                    displayCurrency,
+                    language as Lang,
+                  )}
+                </span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
                 <span>{booking.product_name || '—'}</span>
               </div>
@@ -668,7 +808,14 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
           <section className="space-y-2">
             {settlements.map((settlement) => (
               <div key={settlement.id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm [overflow-wrap:anywhere]">
-                <span className="font-semibold text-[#F4F1E8]">{settlement.amount} {settlement.currency || 'SAR'}</span>
+                <span className="font-semibold text-[#F4F1E8]">
+                  {convertAndFormatAmount(
+                    Number(settlement.amount || 0),
+                    String(settlement.currency || 'SAR'),
+                    displayCurrency,
+                    language as Lang,
+                  )}
+                </span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
                 <span>{settlement.settlement_status || 'pending'}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>

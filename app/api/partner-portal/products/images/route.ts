@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requirePortalActor } from '@/lib/partner-portal/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
-import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
+import { validateAndNormalizeImageFile } from '@/lib/security/document-validation';
 
 const BUCKET = 'partner-media';
 
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: { code: 'PRODUCT_ACCESS_DENIED' } }, { status: 403, headers: privateHeaders() });
     }
 
-    const validated = await validateAndNormalizeDocumentFile(file);
+    const validated = await validateAndNormalizeImageFile(file);
     if (!validated.ok) {
       return NextResponse.json(
         { error: { code: validated.code, message: validated.message } },

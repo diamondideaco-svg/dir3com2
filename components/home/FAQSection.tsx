@@ -7,7 +7,7 @@ import Reveal from '../shared/Reveal';
 
 const faqs = [
   {
-    question: 'كيف تبدأ رحلتك مع DIR3COM؟',
+    question: 'كيف تبدأ رحلتك مع dir3com؟',
     answer: 'يمكنك البدء عبر الصفحة الرئيسية أو التواصل مباشرة معنا، وسنرشدك خطوة بخطوة نحو اختيار الحل الأنسب لك.',
   },
   {

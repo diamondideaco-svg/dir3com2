@@ -9,7 +9,7 @@ export default function Newsletter() {
           <div className="max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">النشرة البريدية</p>
             <h2 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
-              انضم إلى قائمة مستقبليّات DIR3COM
+              انضم إلى قائمة مستقبليّات dir3com
             </h2>
             <p className="mt-4 text-lg leading-8 text-slate-300">
               تابع أحدث العروض، الوجهات المميزة، وأفكار الرحلات الفاخرة التي نشاركها لك.

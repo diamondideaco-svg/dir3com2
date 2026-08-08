@@ -12,7 +12,7 @@ export default function BookingCTA() {
               جاهز لتجربة تخدمك بلمسة فاخرة واحترافية؟
             </h2>
             <p className="mt-4 text-lg leading-8 text-slate-300">
-              ابدأ رحلتك مع فريق DIR3COM اليوم، وسنرافقك خطوة بخطوة نحو أفضل نتيجة.
+              ابدأ رحلتك مع فريق dir3com اليوم، وسنرافقك خطوة بخطوة نحو أفضل نتيجة.
             </p>
           </div>
 

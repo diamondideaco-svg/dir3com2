@@ -17,6 +17,8 @@ const PDF_MIN_BYTES = 32;
 const JPEG_MIN_BYTES = 20;
 const PNG_MIN_BYTES = 45;
 const WEBP_MIN_BYTES = 16;
+const DOCUMENT_ACCEPT_ATTRIBUTE = '.pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp';
+const IMAGE_ACCEPT_ATTRIBUTE = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp';
 
 export type VerifiedDocumentSignature = {
   extension: 'pdf' | 'jpg' | 'png' | 'webp';
@@ -282,6 +284,23 @@ export async function validateAndNormalizeDocumentFile(file: unknown): Promise<V
   };
 }
 
+export async function validateAndNormalizeImageFile(file: unknown): Promise<ValidationResult> {
+  const validated = await validateAndNormalizeDocumentFile(file);
+  if (!validated.ok) {
+    return validated;
+  }
+
+  if (validated.data.signature.extension === 'pdf') {
+    return {
+      ok: false,
+      code: 'DOCUMENT_UNSUPPORTED_SIGNATURE',
+      message: 'تنسيق الصورة غير مدعوم. استخدم JPG أو PNG أو WEBP.',
+    };
+  }
+
+  return validated;
+}
+
 export function buildPrivateDocumentObjectPath(userId: string, extension: VerifiedDocumentSignature['extension']) {
   const safeUserId = String(userId || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
   const normalizedUserId = safeUserId || 'unknown';
@@ -312,3 +331,6 @@ export function parsePrivateDocumentPath(path: unknown): { ownerPrefix: string; 
 }
 
 export const DOCUMENT_UPLOAD_LIMIT_BYTES = MAX_DOCUMENT_SIZE_BYTES;
+export const IMAGE_UPLOAD_LIMIT_BYTES = MAX_DOCUMENT_SIZE_BYTES;
+export const DOCUMENT_UPLOAD_ACCEPT = DOCUMENT_ACCEPT_ATTRIBUTE;
+export const IMAGE_UPLOAD_ACCEPT = IMAGE_ACCEPT_ATTRIBUTE;

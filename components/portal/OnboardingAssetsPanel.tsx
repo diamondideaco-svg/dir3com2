@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { IMAGE_UPLOAD_ACCEPT, IMAGE_UPLOAD_LIMIT_BYTES } from '@/lib/security/document-validation';
 
 type Mode = 'partner' | 'provider';
 type Lang = 'ar' | 'en';
@@ -126,6 +127,7 @@ const labels = {
     availability: 'التوفر',
     amenities: 'المزايا (comma separated)',
     videoUrl: 'رابط فيديو اختياري',
+    mediaUploadGuide: `الملفات المدعومة: JPG/PNG/WEBP - الحد الأقصى ${Math.floor(IMAGE_UPLOAD_LIMIT_BYTES / (1024 * 1024))}MB`,
   },
   en: {
     heading: 'Current Assets',
@@ -159,6 +161,7 @@ const labels = {
     availability: 'Availability',
     amenities: 'Amenities (comma separated)',
     videoUrl: 'Optional video URL',
+    mediaUploadGuide: `Supported files: JPG/PNG/WEBP - max ${Math.floor(IMAGE_UPLOAD_LIMIT_BYTES / (1024 * 1024))}MB`,
   },
 } as const;
 
@@ -473,9 +476,11 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
                   </select>
                   <input
                     type="file"
+                    accept={IMAGE_UPLOAD_ACCEPT}
                     onChange={(e) => setUploadByAsset((prev) => ({ ...prev, [asset.id]: { ...localUpload, file: e.target.files?.[0] || null } }))}
                     className="rounded-lg bg-[#07111D] px-3 py-2 text-sm sm:col-span-2"
                   />
+                  <p className="text-[11px] text-[#9EB0C3] sm:col-span-2">{t.mediaUploadGuide}</p>
                   <button
                     type="button"
                     disabled={loading || !localUpload.file}

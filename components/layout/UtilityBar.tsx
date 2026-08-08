@@ -6,6 +6,15 @@ import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaXTwitter } from 'reac
 import { FiCloud, FiGlobe, FiMoon, FiPhoneCall, FiSun } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { Button } from '@/components/ui/button';
+import {
+  buildUsdSarFxLine,
+  buildUsdSarSourceLabel,
+  CURRENCY_COOKIE_NAME,
+  CURRENCY_STORAGE_KEY,
+  normalizeCurrencyPreference,
+  resolveUsdSarPolicy,
+  type SupportedCurrency,
+} from '@/lib/i18n/currency';
 import { cn } from '@/lib/utils';
 
 type ThemeMode = 'light' | 'dark';
@@ -25,11 +34,11 @@ function applyTheme(theme: ThemeMode) {
 const copy = {
   ar: {
     weather: 'الرياض 36°',
-    fx: '1 USD = 3.75 SAR',
     languageButton: 'AR / EN',
     languageLabel: 'تبديل اللغة إلى الإنجليزية',
     shield: 'درعك الحامي للسياحة.',
     utilityNote: 'هوية dir3com الجديدة توحّد الواجهة العامة عبر الحجز والخدمات والتواصل.',
+    currencyLabel: 'العملة',
     darkMode: 'تفعيل الوضع الداكن',
     lightMode: 'تفعيل الوضع الفاتح',
     dark: 'داكن',
@@ -37,11 +46,11 @@ const copy = {
   },
   en: {
     weather: 'Riyadh 36°',
-    fx: '1 USD = 3.75 SAR',
     languageButton: 'EN / AR',
     languageLabel: 'Switch language to Arabic',
     shield: 'Your protective shield for tourism.',
     utilityNote: 'The new dir3com identity unifies the public journey across booking, services, and contact.',
+    currencyLabel: 'Currency',
     darkMode: 'Enable dark mode',
     lightMode: 'Enable light mode',
     dark: 'Dark',
@@ -51,6 +60,13 @@ const copy = {
 
 export default function UtilityBar() {
   const { language, direction, toggleLanguage } = useLanguage();
+  const fxPolicy = resolveUsdSarPolicy();
+  const [currency, setCurrency] = useState<SupportedCurrency>(() => {
+    if (typeof window === 'undefined') {
+      return 'SAR';
+    }
+    return normalizeCurrencyPreference(window.localStorage.getItem(CURRENCY_STORAGE_KEY));
+  });
   const [theme, setTheme] = useState<ThemeMode>(() => {
     if (typeof window === 'undefined') {
       return 'light';
@@ -65,6 +81,11 @@ export default function UtilityBar() {
     applyTheme(theme);
     window.localStorage.setItem('dir3com-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    window.localStorage.setItem(CURRENCY_STORAGE_KEY, currency);
+    document.cookie = `${CURRENCY_COOKIE_NAME}=${currency}; path=/; max-age=31536000; samesite=lax`;
+  }, [currency]);
 
   const toggleTheme = () => {
     const nextTheme: ThemeMode = theme === 'light' ? 'dark' : 'light';
@@ -82,8 +103,22 @@ export default function UtilityBar() {
               <FiCloud /> {t.weather}
             </span>
             <span className="rounded-full border border-white/12 bg-white/8 px-3 py-2 font-medium text-white/92 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
-              {t.fx}
+              {buildUsdSarFxLine(language, fxPolicy)}
             </span>
+            <span className="rounded-full border border-white/12 bg-white/8 px-3 py-2 font-medium text-white/78 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+              {buildUsdSarSourceLabel(language, fxPolicy)}
+            </span>
+            <label className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-2 text-white/92 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+              <span className="text-[11px] font-medium text-white/75">{t.currencyLabel}</span>
+              <select
+                value={currency}
+                onChange={(event) => setCurrency(normalizeCurrencyPreference(event.target.value))}
+                className="rounded-md border border-white/15 bg-[#102033] px-2 py-1 text-[11px] font-semibold text-white outline-none"
+              >
+                <option value="SAR">SAR</option>
+                <option value="USD">USD</option>
+              </select>
+            </label>
             <button
               type="button"
               onClick={toggleLanguage}

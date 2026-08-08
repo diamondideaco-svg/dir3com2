@@ -4,7 +4,7 @@ import { requirePortalActor } from '@/lib/partner-portal/server';
 import { ownerFromDomain, readOnboardingStore, writeOnboardingStore } from '@/lib/partner-portal/onboarding-store';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
-import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
+import { validateAndNormalizeImageFile } from '@/lib/security/document-validation';
 import type { PortalAssetMedia, PortalOwnerKind, ReviewQueueItem } from '@/lib/partner-portal/onboarding-types';
 
 const BUCKET = 'partner-media';
@@ -92,7 +92,7 @@ async function uploadWithBucketRecovery(input: { path: string; bytes: Uint8Array
   const create = await supabaseAdmin.storage.createBucket(BUCKET, {
     public: false,
     fileSizeLimit: 10 * 1024 * 1024,
-    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'],
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
   });
 
   if (create.error && !String(create.error.message || '').toLowerCase().includes('already exists')) {
@@ -210,7 +210,7 @@ export async function POST(request: Request) {
   }
 
   const file = formData.get('file');
-  const validation = await validateAndNormalizeDocumentFile(file);
+  const validation = await validateAndNormalizeImageFile(file);
 
   if (!validation.ok) {
     const failedMediaId = crypto.randomUUID();

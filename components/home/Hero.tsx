@@ -15,7 +15,7 @@ export default function Hero() {
         <div className="relative z-10 animate-fade-up">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-2 text-sm font-medium text-[#D4AF37]">
             <FiStar />
-            تجربة DIR3COM الراقية
+            تجربة dir3com الراقية
           </div>
           <h1 className="mt-6 text-4xl font-semibold leading-[1.15] tracking-tight text-white sm:text-5xl lg:text-6xl">
             رحلتك إلى الراحة والتميز تبدأ من هنا.

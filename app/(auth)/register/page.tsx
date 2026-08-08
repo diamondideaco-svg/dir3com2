@@ -78,7 +78,7 @@ export default function RegisterPage() {
                     إنشاء حساب
                 </h1>
                 <p style={{ color: '#6B7280', textAlign: 'center', marginBottom: '30px' }}>
-                    انضم إلى DIR3COM واستمتع بتجربة سفر مخصصة
+                    انضم إلى dir3com واستمتع بتجربة سفر مخصصة
                 </p>
 
                 {error && (
