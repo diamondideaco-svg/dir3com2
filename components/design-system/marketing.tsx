@@ -9,15 +9,15 @@ type BlockProps = {
 };
 
 export function HeroBlock({ children, className }: BlockProps) {
-  return <div className={cn('rounded-[36px] border border-[color:var(--color-border)] bg-[linear-gradient(145deg,rgba(13,27,42,0.95)_0%,rgba(30,53,73,0.78)_58%,rgba(212,175,55,0.44)_135%)] p-6 text-[var(--color-light)] shadow-[0_26px_58px_rgba(13,27,42,0.16)]', className)}>{children}</div>;
+  return <div className={cn('rounded-[36px] border border-[color:var(--color-border)] bg-[var(--brand-gradient-soft)] p-6 text-[var(--color-light)] shadow-[0_26px_58px_rgba(16,32,51,0.18)]', className)}>{children}</div>;
 }
 
 export function SectionSurface({ children, className }: BlockProps) {
-  return <div className={cn('rounded-[30px] border border-[color:var(--color-border)] bg-white/84 p-5 shadow-[0_20px_45px_rgba(13,27,42,0.08)] sm:p-6', className)}>{children}</div>;
+  return <div className={cn('rounded-[30px] border border-[color:var(--color-border)] bg-[var(--color-card-strong)] p-5 shadow-[0_20px_45px_rgba(16,32,51,0.08)] sm:p-6', className)}>{children}</div>;
 }
 
 export function CtaBlock({ children, className }: BlockProps) {
-  return <div className={cn('overflow-hidden rounded-[40px] border border-[var(--color-gold)]/18 bg-[linear-gradient(140deg,#0D1B2A_0%,#1C3954_62%,#D4AF37_180%)] p-6 text-[var(--color-light)] shadow-[0_30px_70px_rgba(13,27,42,0.2)] sm:p-8', className)}>{children}</div>;
+  return <div className={cn('overflow-hidden rounded-[40px] border border-[var(--color-gold)]/18 bg-[linear-gradient(140deg,#102033_0%,#1c3550_54%,#9d5c4d_120%,#c8a86b_180%)] p-6 text-[var(--color-light)] shadow-[0_30px_70px_rgba(16,32,51,0.22)] sm:p-8', className)}>{children}</div>;
 }
 
 export function TrustComponent({ title, note }: { title: string; note: string }) {

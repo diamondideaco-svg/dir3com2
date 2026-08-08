@@ -9,17 +9,17 @@ type PublicFeatureStripProps = {
 const features = [
   {
     title: 'الخدمة أولاً',
-    description: 'كل صفحة تحافظ على نفس رسالة الثقة والوضوح قبل أي خطوة تنفيذية.',
+    description: 'كل صفحة تحافظ على نفس رسالة الثقة والوضوح والنبرة الجديدة للعلامة.',
     icon: FiShield,
   },
   {
     title: 'مكونات قابلة للتوسعة',
-    description: 'البنية مبنية لتتوسع لاحقاً من دون تكرار أو كسر للهوية البصرية.',
+    description: 'السطح البصري الآن موحّد ويمكن تمديده عبر الصفحات العامة دون كسر الإيقاع.',
     icon: FiCheckCircle,
   },
   {
     title: 'تجربة فاخرة نظيفة',
-    description: 'هوية dir3com تبقى ثابتة عبر كل الصفحات العامة وبنفس المسافات والخطوط.',
+    description: 'هوية dir3com تبقى ثابتة عبر كل الصفحات العامة بنفس المسافات والخطوط والألوان.',
     icon: FiStar,
   },
 ];
@@ -32,9 +32,9 @@ export default function PublicFeatureStrip({ trustMessage }: PublicFeatureStripP
           <p className="text-center text-lg font-semibold text-[var(--color-gold)]">{trustMessage}</p>
           <ResponsiveGrid className="mt-6 gap-4 xl:grid-cols-3">
             {features.map(({ title, description, icon: Icon }) => (
-              <Card key={title} className="border-white/10 bg-white/6 text-[var(--color-light)] shadow-none">
+              <Card key={title} className="border-white/10 bg-white/7 text-[var(--color-light)] shadow-none backdrop-blur-sm">
                 <CardContent className="p-5">
-                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--color-gold)] text-[var(--color-navy)]">
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#e2c790_0%,#c8a86b_100%)] text-[var(--color-navy)]">
                     <Icon size={18} />
                   </span>
                   <p className="mt-4 text-lg font-semibold">{title}</p>
