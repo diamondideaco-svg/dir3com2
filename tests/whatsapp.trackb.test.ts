@@ -7,6 +7,9 @@ import {
   __setWhatsAppIdempotencyClientForTests,
   __setWhatsAppIdempotencyNowForTests,
   acquireWebhookEventLease,
+  beginWebhookEventSend,
+  completeWebhookEventLease,
+  markWebhookEventLeaseFailed,
 } from '../lib/whatsapp/idempotency';
 import { verifyWhatsAppSignature } from '../lib/whatsapp/security';
 import { parseInboundMessages, processInboundMessages } from '../lib/whatsapp/processor';
@@ -49,7 +52,7 @@ function setNodeEnv(value: 'development' | 'production') {
 }
 
 type DurableRecord = {
-  state: 'processing' | 'completed' | 'retryable_failed' | 'unknown_outcome' | 'permanent_failed';
+  state: 'processing' | 'send_started' | 'completed' | 'retryable_failed' | 'unknown_outcome' | 'permanent_failed';
   leaseOwner: string | null;
   leaseExpiresAt: number | null;
   retryAfter: number | null;
@@ -57,20 +60,30 @@ type DurableRecord = {
   outboundMessageId: string | null;
   lastErrorCode: string | null;
   expiresAt: number;
+  sendStartedAt: number | null;
+  destinationProfile: string | null;
+  inboundMessageId: string | null;
 };
 
-async function withFakeDurableStore(run: (helpers: { advanceMs: (ms: number) => void }) => Promise<void>) {
+async function withFakeDurableStore(
+  run: (helpers: { advanceMs: (ms: number) => void; failNextRpc: (name: string) => void }) => Promise<void>,
+) {
   let now = 1_000_000;
   const store = new Map<string, DurableRecord>();
   const ttlMs = 15 * 60 * 1000;
   const leaseMs = 60 * 1000;
   const retryDelayMs = 30 * 1000;
-  const unknownDelayMs = 120 * 1000;
+  const sendStartedGraceMs = 120 * 1000;
   const maxAttempts = 3;
+  let rpcFailure: string | null = null;
 
   __setWhatsAppIdempotencyNowForTests(() => now);
   __setWhatsAppIdempotencyClientForTests({
     async rpc(fn, args) {
+      if (rpcFailure === fn) {
+        rpcFailure = null;
+        return { data: null, error: { message: 'injected rpc failure' } };
+      }
       const key = String(args.p_event_key || '').trim();
       const owner = String(args.p_lease_owner || '').trim();
       const row = key ? store.get(key) : undefined;
@@ -86,6 +99,9 @@ async function withFakeDurableStore(run: (helpers: { advanceMs: (ms: number) => 
             outboundMessageId: null,
             lastErrorCode: null,
             expiresAt: now + ttlMs,
+            sendStartedAt: null,
+            destinationProfile: null,
+            inboundMessageId: null,
           });
           return { data: { decision: 'acquired', state: 'processing', lease_owner: owner, attempt_count: 1 }, error: null };
         }
@@ -98,16 +114,28 @@ async function withFakeDurableStore(run: (helpers: { advanceMs: (ms: number) => 
           return { data: { decision: 'permanent_failed', state: row.state, lease_owner: row.leaseOwner || '', attempt_count: row.attemptCount }, error: null };
         }
 
+        if (row.state === 'unknown_outcome') {
+          return { data: { decision: 'unknown_wait', state: row.state, lease_owner: '', attempt_count: row.attemptCount }, error: null };
+        }
+
+        if (row.state === 'send_started') {
+          if (row.sendStartedAt && row.sendStartedAt + sendStartedGraceMs <= now) {
+            row.state = 'unknown_outcome';
+            row.leaseOwner = null;
+            row.leaseExpiresAt = null;
+            row.retryAfter = null;
+            row.lastErrorCode = 'WORKER_LOST_AFTER_SEND_STARTED';
+            return { data: { decision: 'unknown_wait', state: row.state, lease_owner: '', attempt_count: row.attemptCount }, error: null };
+          }
+          return { data: { decision: 'send_in_progress', state: row.state, lease_owner: '', attempt_count: row.attemptCount }, error: null };
+        }
+
         if (row.state === 'processing' && row.leaseExpiresAt && row.leaseExpiresAt > now) {
           return { data: { decision: 'duplicate_processing', state: row.state, lease_owner: row.leaseOwner || '', attempt_count: row.attemptCount }, error: null };
         }
 
         if (row.state === 'retryable_failed' && row.retryAfter && row.retryAfter > now) {
           return { data: { decision: 'retry_wait', state: row.state, lease_owner: row.leaseOwner || '', attempt_count: row.attemptCount }, error: null };
-        }
-
-        if (row.state === 'unknown_outcome' && row.retryAfter && row.retryAfter > now) {
-          return { data: { decision: 'unknown_wait', state: row.state, lease_owner: row.leaseOwner || '', attempt_count: row.attemptCount }, error: null };
         }
 
         if (row.attemptCount >= maxAttempts) {
@@ -120,13 +148,29 @@ async function withFakeDurableStore(run: (helpers: { advanceMs: (ms: number) => 
         row.retryAfter = null;
         row.attemptCount += 1;
         row.lastErrorCode = null;
+        row.sendStartedAt = null;
+        row.destinationProfile = null;
+        row.inboundMessageId = null;
         row.expiresAt = now + ttlMs;
         return { data: { decision: 'acquired', state: row.state, lease_owner: owner, attempt_count: row.attemptCount }, error: null };
       }
 
+      if (fn === 'begin_whatsapp_event_send') {
+        const attemptNumber = Number(args.p_attempt_number || 0);
+        if (!row || row.leaseOwner !== owner || row.attemptCount !== attemptNumber || row.state !== 'processing' || !row.leaseExpiresAt || row.leaseExpiresAt <= now) {
+          return { data: false, error: null };
+        }
+        row.state = 'send_started';
+        row.sendStartedAt = now;
+        row.destinationProfile = String(args.p_destination_profile || '').trim();
+        row.inboundMessageId = String(args.p_inbound_message_id || '').trim();
+        return { data: true, error: null };
+      }
+
       if (fn === 'complete_whatsapp_event_lease') {
         const outboundMessageId = String(args.p_outbound_message_id || '').trim();
-        if (!row || row.leaseOwner !== owner || row.state !== 'processing') {
+        const attemptNumber = Number(args.p_attempt_number || 0);
+        if (!row || row.leaseOwner !== owner || row.attemptCount !== attemptNumber || row.state !== 'send_started') {
           return { data: false, error: null };
         }
         row.state = 'completed';
@@ -142,7 +186,8 @@ async function withFakeDurableStore(run: (helpers: { advanceMs: (ms: number) => 
       if (fn === 'fail_whatsapp_event_lease') {
         const failureState = String(args.p_failure_state || '').trim() as DurableRecord['state'];
         const errorCode = String(args.p_error_code || '').trim() || null;
-        if (!row || row.leaseOwner !== owner || row.state !== 'processing') {
+        const attemptNumber = Number(args.p_attempt_number || 0);
+        if (!row || row.leaseOwner !== owner || row.attemptCount !== attemptNumber || row.state !== 'send_started') {
           return { data: false, error: null };
         }
         row.state = failureState;
@@ -152,9 +197,7 @@ async function withFakeDurableStore(run: (helpers: { advanceMs: (ms: number) => 
         row.retryAfter =
           failureState === 'retryable_failed'
             ? now + retryDelayMs
-            : failureState === 'unknown_outcome'
-              ? now + unknownDelayMs
-              : null;
+            : null;
         row.expiresAt = now + ttlMs;
         return { data: true, error: null };
       }
@@ -169,6 +212,9 @@ async function withFakeDurableStore(run: (helpers: { advanceMs: (ms: number) => 
     await run({
       advanceMs(ms: number) {
         now += ms;
+      },
+      failNextRpc(name: string) {
+        rpcFailure = name;
       },
     });
   } finally {
@@ -560,7 +606,7 @@ test('durable lifecycle retries after 5xx and reaches a single successful outbou
   });
 });
 
-test('durable lifecycle retries after network failure and succeeds later', async () => {
+test('durable lifecycle network failure becomes unknown and never retries automatically', async () => {
   setNodeEnv('development');
   process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
 
@@ -578,7 +624,7 @@ test('durable lifecycle retries after network failure and succeeds later', async
 
     advanceMs(31_000);
 
-    const recovered = await processInboundMessages(messages, {
+    const blocked = await processInboundMessages(messages, {
       respondToMessage: () => 'reply',
       sendReply: async () => {
         call += 1;
@@ -586,12 +632,12 @@ test('durable lifecycle retries after network failure and succeeds later', async
       },
     });
 
-    assert.equal(recovered[0]?.outboundStatus, 'sent');
-    assert.equal(call, 2);
+    assert.equal(blocked[0]?.outboundStatus, 'skipped');
+    assert.equal(call, 1);
   });
 });
 
-test('durable lifecycle timeout is ambiguous and does not retry immediately', async () => {
+test('durable lifecycle timeout is ambiguous and never retries automatically', async () => {
   setNodeEnv('development');
   process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
 
@@ -626,8 +672,8 @@ test('durable lifecycle timeout is ambiguous and does not retry immediately', as
     });
 
     assert.equal(immediate[0]?.outboundStatus, 'skipped');
-    assert.equal(delayed[0]?.outboundStatus, 'sent');
-    assert.equal(call, 2);
+    assert.equal(delayed[0]?.outboundStatus, 'skipped');
+    assert.equal(call, 1);
   });
 });
 
@@ -881,4 +927,110 @@ test('webhook schedules detached lifecycle processing and acknowledges first', a
   } finally {
     __setWebhookBackgroundSchedulerForTests(null);
   }
+});
+
+test('failure transition error does not crash or permit an immediate duplicate send', async () => {
+  setNodeEnv('development');
+  process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
+
+  await withFakeDurableStore(async ({ failNextRpc }) => {
+    const messages = parseInboundMessages(makeValidPayload('msg-failure-transition', 'pnid-eg'));
+    let sends = 0;
+    failNextRpc('fail_whatsapp_event_lease');
+
+    const first = await processInboundMessages(messages, {
+      respondToMessage: () => 'reply',
+      sendReply: async () => {
+        sends += 1;
+        return { ok: false, classification: 'meta_5xx', statusCode: 500, errorCode: '2' };
+      },
+    });
+    const duplicate = await processInboundMessages(messages, {
+      respondToMessage: () => 'reply',
+      sendReply: async () => {
+        sends += 1;
+        return { ok: true, classification: 'sent', statusCode: 200, metaMessageId: 'wamid-must-not-send' };
+      },
+    });
+
+    assert.equal(first[0]?.blockerCode, 'WHATSAPP_IDEMPOTENCY_DEGRADED_RPC');
+    assert.equal(duplicate[0]?.outboundStatus, 'skipped');
+    assert.equal(sends, 1);
+  });
+});
+
+test('send_started fencing prevents lease-expiry takeover while the original Meta call completes', async () => {
+  setNodeEnv('development');
+  process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
+
+  await withFakeDurableStore(async ({ advanceMs }) => {
+    const messages = parseInboundMessages(makeValidPayload('msg-send-started-race', 'pnid-eg'));
+    let sends = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const firstPromise = processInboundMessages(messages, {
+      respondToMessage: () => 'first response',
+      sendReply: async () => {
+        sends += 1;
+        await gate;
+        return { ok: true, classification: 'sent', statusCode: 200, metaMessageId: 'wamid-first-only' };
+      },
+    });
+
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    advanceMs(61_000);
+
+    const second = await processInboundMessages(messages, {
+      respondToMessage: () => 'must not send',
+      sendReply: async () => {
+        sends += 1;
+        return { ok: true, classification: 'sent', statusCode: 200, metaMessageId: 'wamid-duplicate' };
+      },
+    });
+
+    release();
+    const first = await firstPromise;
+
+    assert.equal(sends, 1);
+    assert.equal(second[0]?.outboundStatus, 'skipped');
+    assert.equal(first[0]?.outboundStatus, 'sent');
+    assert.equal(first[0]?.outboundMessageId, 'wamid-first-only');
+  });
+});
+
+test('abandoned send_started becomes unknown_outcome without granting a new sender', async () => {
+  setNodeEnv('development');
+
+  await withFakeDurableStore(async ({ advanceMs }) => {
+    const first = await acquireWebhookEventLease('wa:worker-crash');
+    assert.equal(first.isNew, true);
+    assert.ok(first.leaseOwner);
+    assert.equal(await beginWebhookEventSend('wa:worker-crash', first.leaseOwner!, first.attemptCount, 'EG', 'worker-crash'), true);
+
+    advanceMs(121_000);
+    const recovery = await acquireWebhookEventLease('wa:worker-crash');
+
+    assert.equal(recovery.isNew, false);
+    assert.equal(recovery.decision, 'unknown_wait');
+    assert.equal(recovery.state, 'unknown_outcome');
+  });
+});
+
+test('stale owner and attempt cannot complete or fail a newer attempt', async () => {
+  setNodeEnv('development');
+
+  await withFakeDurableStore(async ({ advanceMs }) => {
+    const oldLease = await acquireWebhookEventLease('wa:attempt-fence');
+    advanceMs(61_000);
+    const currentLease = await acquireWebhookEventLease('wa:attempt-fence');
+    assert.ok(oldLease.leaseOwner && currentLease.leaseOwner);
+    assert.equal(await beginWebhookEventSend('wa:attempt-fence', currentLease.leaseOwner!, currentLease.attemptCount, 'SA', 'attempt-fence'), true);
+
+    assert.equal(await completeWebhookEventLease('wa:attempt-fence', oldLease.leaseOwner!, oldLease.attemptCount, 'wamid-stale'), false);
+    assert.equal(await markWebhookEventLeaseFailed('wa:attempt-fence', oldLease.leaseOwner!, oldLease.attemptCount, 'retryable_failed', '500'), false);
+    assert.equal(await completeWebhookEventLease('wa:attempt-fence', currentLease.leaseOwner!, currentLease.attemptCount, 'wamid-current'), true);
+  });
 });

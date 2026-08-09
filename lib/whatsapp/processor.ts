@@ -1,6 +1,6 @@
 import { buildAI2ChatResponse } from '@/lib/ai2/runtime/chat';
 import { shouldEscalateToHuman, resolveCountryProfileByPhoneNumberId, toCountryCode } from '@/lib/whatsapp/country-router';
-import { acquireWebhookEventLease, completeWebhookEventLease, markWebhookEventLeaseFailed } from '@/lib/whatsapp/idempotency';
+import { acquireWebhookEventLease, beginWebhookEventSend, completeWebhookEventLease, markWebhookEventLeaseFailed } from '@/lib/whatsapp/idempotency';
 import { sendWhatsAppReply, type WhatsAppOutboundResult } from '@/lib/whatsapp/outbound';
 import type { WhatsAppInboundMessage, WhatsAppProcessResult } from '@/lib/whatsapp/types';
 
@@ -75,7 +75,7 @@ export async function processInboundMessages(
   const sendReply = options?.sendReply ?? sendWhatsAppReply;
 
   function mapOutboundFailureState(outbound: WhatsAppOutboundResult) {
-    if (outbound.classification === 'meta_5xx' || outbound.classification === 'network_error') {
+    if (outbound.classification === 'meta_5xx') {
       return 'retryable_failed' as const;
     }
 
@@ -89,12 +89,31 @@ export async function processInboundMessages(
   async function finalizeResult(
     message: WhatsAppInboundMessage,
     leaseOwner: string | undefined,
+    attemptNumber: number,
     base: Omit<WhatsAppProcessResult, 'outboundStatus' | 'outboundMessageId' | 'outboundErrorCode'>,
   ) {
     if (!base.responseText || base.action === 'ignored' || !leaseOwner) {
       results.push({
         ...base,
         outboundStatus: 'skipped',
+      });
+      return;
+    }
+
+    const sendStarted = await beginWebhookEventSend(
+      `wa:${message.messageId}`,
+      leaseOwner,
+      attemptNumber,
+      base.country,
+      message.messageId,
+    );
+
+    if (!sendStarted) {
+      results.push({
+        ...base,
+        outboundStatus: 'skipped',
+        outboundErrorCode: 'WHATSAPP_IDEMPOTENCY_BEGIN_SEND_FAILED',
+        blockerCode: 'WHATSAPP_IDEMPOTENCY_DEGRADED_RPC',
       });
       return;
     }
@@ -107,7 +126,7 @@ export async function processInboundMessages(
     });
 
     if (outbound.ok && outbound.metaMessageId) {
-      const completed = await completeWebhookEventLease(`wa:${message.messageId}`, leaseOwner, outbound.metaMessageId);
+      const completed = await completeWebhookEventLease(`wa:${message.messageId}`, leaseOwner, attemptNumber, outbound.metaMessageId);
 
       results.push({
         ...base,
@@ -120,7 +139,7 @@ export async function processInboundMessages(
     }
 
     const failureState = mapOutboundFailureState(outbound);
-    const failed = await markWebhookEventLeaseFailed(`wa:${message.messageId}`, leaseOwner, failureState, outbound.errorCode);
+    const failed = await markWebhookEventLeaseFailed(`wa:${message.messageId}`, leaseOwner, attemptNumber, failureState, outbound.errorCode);
 
     results.push({
       ...base,
@@ -138,7 +157,7 @@ export async function processInboundMessages(
     const country = profile ? toCountryCode(profile) : 'UNKNOWN';
 
     if (dedupe.degraded) {
-      await finalizeResult(message, dedupe.leaseOwner, {
+      await finalizeResult(message, dedupe.leaseOwner, dedupe.attemptCount, {
         messageId: message.messageId,
         deduplicated: false,
         country,
@@ -153,7 +172,7 @@ export async function processInboundMessages(
     }
 
     if (!profile) {
-      await finalizeResult(message, dedupe.leaseOwner, {
+      await finalizeResult(message, dedupe.leaseOwner, dedupe.attemptCount, {
         messageId: message.messageId,
         deduplicated: false,
         country,
@@ -165,7 +184,7 @@ export async function processInboundMessages(
     }
 
     if (!dedupe.isNew) {
-      await finalizeResult(message, dedupe.leaseOwner, {
+      await finalizeResult(message, dedupe.leaseOwner, dedupe.attemptCount, {
         messageId: message.messageId,
         deduplicated: true,
         country,
@@ -176,7 +195,7 @@ export async function processInboundMessages(
     }
 
     if (shouldEscalateToHuman(message.text)) {
-      await finalizeResult(message, dedupe.leaseOwner, {
+      await finalizeResult(message, dedupe.leaseOwner, dedupe.attemptCount, {
         messageId: message.messageId,
         deduplicated: false,
         country,
@@ -192,7 +211,7 @@ export async function processInboundMessages(
 
     try {
       const answer = responder(message.text);
-      await finalizeResult(message, dedupe.leaseOwner, {
+      await finalizeResult(message, dedupe.leaseOwner, dedupe.attemptCount, {
         messageId: message.messageId,
         deduplicated: false,
         country,
@@ -201,7 +220,7 @@ export async function processInboundMessages(
         responseText: answer,
       });
     } catch {
-      await finalizeResult(message, dedupe.leaseOwner, {
+      await finalizeResult(message, dedupe.leaseOwner, dedupe.attemptCount, {
         messageId: message.messageId,
         deduplicated: false,
         country,

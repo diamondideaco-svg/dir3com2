@@ -4,13 +4,13 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 const DEFAULT_TTL_SECONDS = 60 * 15;
 const DEFAULT_LEASE_SECONDS = 60;
 const DEFAULT_RETRYABLE_DELAY_SECONDS = 30;
-const DEFAULT_UNKNOWN_DELAY_SECONDS = 120;
 const DEFAULT_MAX_ATTEMPTS = 3;
 
-type DurableState = 'processing' | 'completed' | 'retryable_failed' | 'unknown_outcome' | 'permanent_failed';
+type DurableState = 'processing' | 'send_started' | 'completed' | 'retryable_failed' | 'unknown_outcome' | 'permanent_failed';
 type LeaseDecision =
   | 'acquired'
   | 'duplicate_processing'
+  | 'send_in_progress'
   | 'duplicate_completed'
   | 'retry_wait'
   | 'unknown_wait'
@@ -26,6 +26,9 @@ type MemoryRecord = {
   attemptCount: number;
   outboundMessageId: string | null;
   lastErrorCode: string | null;
+  sendStartedAt: number | null;
+  destinationProfile: string | null;
+  inboundMessageId: string | null;
 };
 
 type IdempotencyRpcClient = {
@@ -67,11 +70,6 @@ function retryableDelaySeconds() {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_RETRYABLE_DELAY_SECONDS;
 }
 
-function unknownDelaySeconds() {
-  const parsed = Number(process.env.WHATSAPP_IDEMPOTENCY_UNKNOWN_DELAY_SECONDS || DEFAULT_UNKNOWN_DELAY_SECONDS);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_UNKNOWN_DELAY_SECONDS;
-}
-
 function maxAttempts() {
   const parsed = Number(process.env.WHATSAPP_IDEMPOTENCY_MAX_ATTEMPTS || DEFAULT_MAX_ATTEMPTS);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_MAX_ATTEMPTS;
@@ -83,7 +81,7 @@ function nowMs() {
 
 function sweepExpired(now: number, store: Map<string, MemoryRecord>) {
   for (const [key, record] of store.entries()) {
-    if (record.expiresAt <= now) {
+    if (record.expiresAt <= now && record.state !== 'send_started' && record.state !== 'unknown_outcome') {
       store.delete(key);
     }
   }
@@ -170,6 +168,9 @@ function acquireMemoryLease(eventId: string): IdempotencyReservation {
       attemptCount: 1,
       outboundMessageId: null,
       lastErrorCode: null,
+      sendStartedAt: null,
+      destinationProfile: null,
+      inboundMessageId: null,
     });
     return {
       isNew: true,
@@ -207,6 +208,32 @@ function acquireMemoryLease(eventId: string): IdempotencyReservation {
     };
   }
 
+  if (existing.state === 'unknown_outcome') {
+    return {
+      isNew: false, deduplicated: true, decision: 'unknown_wait', state: existing.state,
+      attemptCount: existing.attemptCount, store: 'memory', degraded: false,
+    };
+  }
+
+  if (existing.state === 'send_started') {
+    const grace = Math.max(leaseSeconds() * 2, 120) * 1000;
+    if (existing.sendStartedAt && existing.sendStartedAt + grace <= now) {
+      existing.state = 'unknown_outcome';
+      existing.leaseOwner = null;
+      existing.leaseExpiresAt = null;
+      existing.retryAfter = null;
+      existing.lastErrorCode = 'WORKER_LOST_AFTER_SEND_STARTED';
+      return {
+        isNew: false, deduplicated: true, decision: 'unknown_wait', state: existing.state,
+        attemptCount: existing.attemptCount, store: 'memory', degraded: false,
+      };
+    }
+    return {
+      isNew: false, deduplicated: true, decision: 'send_in_progress', state: existing.state,
+      attemptCount: existing.attemptCount, store: 'memory', degraded: false,
+    };
+  }
+
   if (existing.state === 'processing' && existing.leaseExpiresAt && existing.leaseExpiresAt > now) {
     return {
       isNew: false,
@@ -219,11 +246,11 @@ function acquireMemoryLease(eventId: string): IdempotencyReservation {
     };
   }
 
-  if ((existing.state === 'retryable_failed' || existing.state === 'unknown_outcome') && existing.retryAfter && existing.retryAfter > now) {
+  if (existing.state === 'retryable_failed' && existing.retryAfter && existing.retryAfter > now) {
     return {
       isNew: false,
       deduplicated: true,
-      decision: existing.state === 'retryable_failed' ? 'retry_wait' : 'unknown_wait',
+      decision: 'retry_wait',
       state: existing.state,
       attemptCount: existing.attemptCount,
       store: 'memory',
@@ -253,6 +280,9 @@ function acquireMemoryLease(eventId: string): IdempotencyReservation {
     retryAfter: null,
     attemptCount: nextAttempt,
     lastErrorCode: null,
+    sendStartedAt: null,
+    destinationProfile: null,
+    inboundMessageId: null,
   });
 
   return {
@@ -267,9 +297,21 @@ function acquireMemoryLease(eventId: string): IdempotencyReservation {
   };
 }
 
-function completeMemoryLease(eventId: string, leaseOwner: string, outboundMessageId: string) {
+function beginMemorySend(eventId: string, leaseOwner: string, attemptNumber: number, destinationProfile: string, inboundMessageId: string) {
   const record = getStore().get(eventId);
-  if (!record || record.leaseOwner !== leaseOwner || record.state !== 'processing') {
+  if (!record || record.leaseOwner !== leaseOwner || record.attemptCount !== attemptNumber || record.state !== 'processing' || !record.leaseExpiresAt || record.leaseExpiresAt <= nowMs()) {
+    return false;
+  }
+  record.state = 'send_started';
+  record.sendStartedAt = nowMs();
+  record.destinationProfile = destinationProfile;
+  record.inboundMessageId = inboundMessageId;
+  return true;
+}
+
+function completeMemoryLease(eventId: string, leaseOwner: string, attemptNumber: number, outboundMessageId: string) {
+  const record = getStore().get(eventId);
+  if (!record || record.leaseOwner !== leaseOwner || record.attemptCount !== attemptNumber || record.state !== 'send_started') {
     return false;
   }
 
@@ -283,9 +325,9 @@ function completeMemoryLease(eventId: string, leaseOwner: string, outboundMessag
   return true;
 }
 
-function failMemoryLease(eventId: string, leaseOwner: string, state: IdempotencyFailureState, errorCode?: string) {
+function failMemoryLease(eventId: string, leaseOwner: string, attemptNumber: number, state: IdempotencyFailureState, errorCode?: string) {
   const record = getStore().get(eventId);
-  if (!record || record.leaseOwner !== leaseOwner || record.state !== 'processing') {
+  if (!record || record.leaseOwner !== leaseOwner || record.attemptCount !== attemptNumber || record.state !== 'send_started') {
     return false;
   }
 
@@ -296,9 +338,7 @@ function failMemoryLease(eventId: string, leaseOwner: string, state: Idempotency
   record.retryAfter =
     state === 'retryable_failed'
       ? makeRetryTimestamp(retryableDelaySeconds())
-      : state === 'unknown_outcome'
-        ? makeRetryTimestamp(unknownDelaySeconds())
-        : null;
+      : null;
   record.expiresAt = nowMs() + ttlSeconds() * 1000;
   return true;
 }
@@ -409,23 +449,59 @@ export async function acquireWebhookEventLease(eventId: string): Promise<Idempot
   }
 }
 
-export async function completeWebhookEventLease(eventId: string, leaseOwner: string, outboundMessageId: string) {
+export async function beginWebhookEventSend(
+  eventId: string,
+  leaseOwner: string,
+  attemptNumber: number,
+  destinationProfile: string,
+  inboundMessageId: string,
+) {
   const normalized = normalizeEventId(eventId);
   const normalizedLease = String(leaseOwner || '').trim();
-  const normalizedOutboundId = String(outboundMessageId || '').trim();
+  const normalizedProfile = String(destinationProfile || '').trim();
+  const normalizedInboundId = String(inboundMessageId || '').trim();
 
-  if (!normalized || !normalizedLease || !normalizedOutboundId) {
+  if (!normalized || !normalizedLease || !Number.isInteger(attemptNumber) || attemptNumber < 1 || !normalizedProfile || !normalizedInboundId) {
     return false;
   }
 
   if (isUsingMemoryIdempotencyStore()) {
-    return completeMemoryLease(normalized, normalizedLease, normalizedOutboundId);
+    return beginMemorySend(normalized, normalizedLease, attemptNumber, normalizedProfile, normalizedInboundId);
+  }
+
+  try {
+    const { data, error } = await idempotencyRpcClient!.rpc('begin_whatsapp_event_send', {
+      p_event_key: normalized,
+      p_lease_owner: normalizedLease,
+      p_attempt_number: attemptNumber,
+      p_destination_profile: normalizedProfile,
+      p_inbound_message_id: normalizedInboundId,
+      p_ttl_seconds: ttlSeconds(),
+    });
+    return !error && Boolean(data);
+  } catch {
+    return false;
+  }
+}
+
+export async function completeWebhookEventLease(eventId: string, leaseOwner: string, attemptNumber: number, outboundMessageId: string) {
+  const normalized = normalizeEventId(eventId);
+  const normalizedLease = String(leaseOwner || '').trim();
+  const normalizedOutboundId = String(outboundMessageId || '').trim();
+
+  if (!normalized || !normalizedLease || !Number.isInteger(attemptNumber) || attemptNumber < 1 || !normalizedOutboundId) {
+    return false;
+  }
+
+  if (isUsingMemoryIdempotencyStore()) {
+    return completeMemoryLease(normalized, normalizedLease, attemptNumber, normalizedOutboundId);
   }
 
   try {
     const { data, error } = await idempotencyRpcClient!.rpc('complete_whatsapp_event_lease', {
       p_event_key: normalized,
       p_lease_owner: normalizedLease,
+      p_attempt_number: attemptNumber,
       p_outbound_message_id: normalizedOutboundId,
       p_ttl_seconds: ttlSeconds(),
     });
@@ -443,33 +519,33 @@ export async function completeWebhookEventLease(eventId: string, leaseOwner: str
 export async function markWebhookEventLeaseFailed(
   eventId: string,
   leaseOwner: string,
+  attemptNumber: number,
   state: IdempotencyFailureState,
   errorCode?: string,
 ) {
   const normalized = normalizeEventId(eventId);
   const normalizedLease = String(leaseOwner || '').trim();
 
-  if (!normalized || !normalizedLease) {
+  if (!normalized || !normalizedLease || !Number.isInteger(attemptNumber) || attemptNumber < 1) {
     return false;
   }
 
   if (isUsingMemoryIdempotencyStore()) {
-    return failMemoryLease(normalized, normalizedLease, state, errorCode);
+    return failMemoryLease(normalized, normalizedLease, attemptNumber, state, errorCode);
   }
 
   try {
     const { data, error } = await idempotencyRpcClient!.rpc('fail_whatsapp_event_lease', {
       p_event_key: normalized,
       p_lease_owner: normalizedLease,
+      p_attempt_number: attemptNumber,
       p_failure_state: state,
       p_error_code: errorCode || null,
       p_ttl_seconds: ttlSeconds(),
       p_retry_after_seconds:
         state === 'retryable_failed'
           ? retryableDelaySeconds()
-          : state === 'unknown_outcome'
-            ? unknownDelaySeconds()
-            : null,
+          : null,
     });
 
     if (error) {
