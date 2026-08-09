@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server';
 import { GET, POST, __setWebhookBackgroundSchedulerForTests } from '../app/api/integrations/whatsapp/webhook/route';
 import { verifyWhatsAppSignature } from '../lib/whatsapp/security';
 import { parseInboundMessages, processInboundMessages } from '../lib/whatsapp/processor';
+import { sendWhatsAppReply } from '../lib/whatsapp/outbound';
 
 function signBody(rawBody: string, secret: string) {
   const digest = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
@@ -36,6 +37,10 @@ function makeValidPayload(messageId: string, phoneNumberId = 'pnid-eg') {
       },
     ],
   };
+}
+
+function setNodeEnv(value: 'development' | 'production') {
+  Object.assign(process.env, { NODE_ENV: value });
 }
 
 test('GET verification passes with correct token and challenge', async () => {
@@ -72,7 +77,7 @@ test('signature verification is based on raw body and timing-safe comparator', (
 });
 
 test('POST invalid JSON does not return 500', async () => {
-  process.env.NODE_ENV = 'development';
+  setNodeEnv('development');
 
   const request = new NextRequest('https://example.com/api/integrations/whatsapp/webhook', {
     method: 'POST',
@@ -87,7 +92,7 @@ test('POST invalid JSON does not return 500', async () => {
 });
 
 test('POST unsupported payload shape is safely acknowledged without 500', async () => {
-  process.env.NODE_ENV = 'development';
+  setNodeEnv('development');
 
   const request = new NextRequest('https://example.com/api/integrations/whatsapp/webhook', {
     method: 'POST',
@@ -106,7 +111,7 @@ test('POST unsupported payload shape is safely acknowledged without 500', async 
 });
 
 test('POST in production rejects invalid signature', async () => {
-  process.env.NODE_ENV = 'production';
+  setNodeEnv('production');
   process.env.WHATSAPP_APP_SECRET = 'prod-secret';
 
   const request = new NextRequest('https://example.com/api/integrations/whatsapp/webhook', {
@@ -125,7 +130,7 @@ test('POST in production rejects invalid signature', async () => {
 });
 
 test('POST in production fails safe when durable idempotency is unavailable', async () => {
-  process.env.NODE_ENV = 'production';
+  setNodeEnv('production');
   process.env.WHATSAPP_APP_SECRET = 'prod-secret';
   process.env.WHATSAPP_IDEMPOTENCY_FORCE_MEMORY = 'true';
 
@@ -146,7 +151,7 @@ test('POST in production fails safe when durable idempotency is unavailable', as
 });
 
 test('duplicate event is deduplicated', async () => {
-  process.env.NODE_ENV = 'development';
+  setNodeEnv('development');
   process.env.WHATSAPP_IDEMPOTENCY_FORCE_MEMORY = 'true';
   process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
   process.env.WHATSAPP_PHONE_NUMBER_ID_SA = 'pnid-sa';
@@ -160,6 +165,221 @@ test('duplicate event is deduplicated', async () => {
   assert.equal(first[0]?.deduplicated, false);
   assert.equal(second[0]?.deduplicated, true);
   assert.equal(second[0]?.action, 'ignored');
+  assert.equal(second[0]?.outboundStatus, 'skipped');
+});
+
+test('EG inbound sends reply via EG sender configuration', async () => {
+  process.env.WHATSAPP_IDEMPOTENCY_FORCE_MEMORY = 'true';
+  process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
+  process.env.WHATSAPP_PHONE_NUMBER_ID_SA = 'pnid-sa';
+
+  const sent: Array<{ to: string; phoneNumberId: string; replyToMessageId: string; text: string }> = [];
+  const messages = parseInboundMessages(makeValidPayload('msg-eg-send', 'pnid-eg'));
+
+  const processed = await processInboundMessages(messages, {
+    respondToMessage() {
+      return 'اهلا من مصر';
+    },
+    async sendReply(input) {
+      sent.push(input);
+      return {
+        ok: true,
+        classification: 'sent',
+        statusCode: 200,
+        metaMessageId: 'wamid-eg-1',
+      };
+    },
+  });
+
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]?.phoneNumberId, 'pnid-eg');
+  assert.equal(sent[0]?.to, '201111111111');
+  assert.equal(processed[0]?.outboundStatus, 'sent');
+  assert.equal(processed[0]?.outboundMessageId, 'wamid-eg-1');
+});
+
+test('SA inbound sends reply via SA sender configuration', async () => {
+  process.env.WHATSAPP_IDEMPOTENCY_FORCE_MEMORY = 'true';
+  process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
+  process.env.WHATSAPP_PHONE_NUMBER_ID_SA = 'pnid-sa';
+
+  const sent: Array<{ to: string; phoneNumberId: string; replyToMessageId: string; text: string }> = [];
+  const messages = parseInboundMessages(makeValidPayload('msg-sa-send', 'pnid-sa'));
+
+  const processed = await processInboundMessages(messages, {
+    respondToMessage() {
+      return 'hello from saudi';
+    },
+    async sendReply(input) {
+      sent.push(input);
+      return {
+        ok: true,
+        classification: 'sent',
+        statusCode: 200,
+        metaMessageId: 'wamid-sa-1',
+      };
+    },
+  });
+
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]?.phoneNumberId, 'pnid-sa');
+  assert.equal(processed[0]?.outboundStatus, 'sent');
+  assert.equal(processed[0]?.outboundMessageId, 'wamid-sa-1');
+});
+
+test('duplicate message_id does not send outbound twice', async () => {
+  process.env.WHATSAPP_IDEMPOTENCY_FORCE_MEMORY = 'true';
+  process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
+
+  let sendCount = 0;
+  const messages = parseInboundMessages(makeValidPayload('msg-dup-send', 'pnid-eg'));
+
+  await processInboundMessages(messages, {
+    respondToMessage() {
+      return 'first';
+    },
+    async sendReply() {
+      sendCount += 1;
+      return { ok: true, classification: 'sent', statusCode: 200, metaMessageId: 'wamid-dup-1' };
+    },
+  });
+
+  const second = await processInboundMessages(messages, {
+    respondToMessage() {
+      return 'second';
+    },
+    async sendReply() {
+      sendCount += 1;
+      return { ok: true, classification: 'sent', statusCode: 200, metaMessageId: 'wamid-dup-2' };
+    },
+  });
+
+  assert.equal(sendCount, 1);
+  assert.equal(second[0]?.deduplicated, true);
+  assert.equal(second[0]?.outboundStatus, 'skipped');
+});
+
+test('process result records safe outbound failure for responder output', async () => {
+  process.env.WHATSAPP_IDEMPOTENCY_FORCE_MEMORY = 'true';
+  process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
+
+  const messages = parseInboundMessages(makeValidPayload('msg-outbound-failure', 'pnid-eg'));
+  const processed = await processInboundMessages(messages, {
+    respondToMessage() {
+      return 'reply body';
+    },
+    async sendReply() {
+      return {
+        ok: false,
+        classification: 'meta_5xx',
+        statusCode: 500,
+        errorCode: '131000',
+      };
+    },
+  });
+
+  assert.equal(processed[0]?.outboundStatus, 'failed');
+  assert.equal(processed[0]?.outboundErrorCode, '131000');
+});
+
+test('sendWhatsAppReply uses EG token and phone_number_id with reply context', async () => {
+  process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
+  process.env.WHATSAPP_PHONE_NUMBER_ID_SA = 'pnid-sa';
+  process.env.WHATSAPP_ACCESS_TOKEN_EG = 'token-eg';
+  process.env.WHATSAPP_ACCESS_TOKEN_SA = 'token-sa';
+
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const result = await sendWhatsAppReply({
+    to: '201111111111',
+    phoneNumberId: 'pnid-eg',
+    replyToMessageId: 'msg-eg-graph',
+    text: 'reply-eg',
+    fetchImpl: async (url, init) => {
+      calls.push({ url: String(url), init });
+      return new Response(JSON.stringify({ messages: [{ id: 'wamid-graph-eg' }] }), { status: 200 });
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.metaMessageId, 'wamid-graph-eg');
+  assert.match(calls[0]?.url || '', /pnid-eg\/messages$/);
+  assert.equal((calls[0]?.init?.headers as Record<string, string>)?.Authorization, 'Bearer token-eg');
+  const body = JSON.parse(String(calls[0]?.init?.body || '{}')) as { context?: { message_id?: string }; to?: string };
+  assert.equal(body.context?.message_id, 'msg-eg-graph');
+  assert.equal(body.to, '201111111111');
+});
+
+test('sendWhatsAppReply uses SA token and phone_number_id', async () => {
+  process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
+  process.env.WHATSAPP_PHONE_NUMBER_ID_SA = 'pnid-sa';
+  process.env.WHATSAPP_ACCESS_TOKEN_EG = 'token-eg';
+  process.env.WHATSAPP_ACCESS_TOKEN_SA = 'token-sa';
+
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const result = await sendWhatsAppReply({
+    to: '966500000000',
+    phoneNumberId: 'pnid-sa',
+    replyToMessageId: 'msg-sa-graph',
+    text: 'reply-sa',
+    fetchImpl: async (url, init) => {
+      calls.push({ url: String(url), init });
+      return new Response(JSON.stringify({ messages: [{ id: 'wamid-graph-sa' }] }), { status: 200 });
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.match(calls[0]?.url || '', /pnid-sa\/messages$/);
+  assert.equal((calls[0]?.init?.headers as Record<string, string>)?.Authorization, 'Bearer token-sa');
+});
+
+test('sendWhatsAppReply fails safe when token is missing', async () => {
+  process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
+  delete process.env.WHATSAPP_ACCESS_TOKEN_EG;
+
+  const result = await sendWhatsAppReply({
+    to: '201111111111',
+    phoneNumberId: 'pnid-eg',
+    replyToMessageId: 'msg-no-token',
+    text: 'reply',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.classification, 'missing_token');
+});
+
+test('sendWhatsAppReply classifies meta 4xx/5xx and timeout safely', async () => {
+  process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
+  process.env.WHATSAPP_ACCESS_TOKEN_EG = 'token-eg';
+
+  const badRequest = await sendWhatsAppReply({
+    to: '201111111111',
+    phoneNumberId: 'pnid-eg',
+    replyToMessageId: 'msg-4xx',
+    text: 'reply',
+    fetchImpl: async () => new Response(JSON.stringify({ error: { code: 131051 } }), { status: 400 }),
+  });
+
+  const serverError = await sendWhatsAppReply({
+    to: '201111111111',
+    phoneNumberId: 'pnid-eg',
+    replyToMessageId: 'msg-5xx',
+    text: 'reply',
+    fetchImpl: async () => new Response(JSON.stringify({ error: { code: 2 } }), { status: 500 }),
+  });
+
+  const timeoutResult = await sendWhatsAppReply({
+    to: '201111111111',
+    phoneNumberId: 'pnid-eg',
+    replyToMessageId: 'msg-timeout',
+    text: 'reply',
+    fetchImpl: async () => {
+      throw new DOMException('aborted', 'AbortError');
+    },
+  });
+
+  assert.equal(badRequest.classification, 'meta_4xx');
+  assert.equal(serverError.classification, 'meta_5xx');
+  assert.equal(timeoutResult.classification, 'timeout');
 });
 
 test('unregistered phone_number_id is rejected', async () => {
@@ -223,7 +443,7 @@ test('DABRA fallback is returned when responder throws', async () => {
 });
 
 test('webhook POST returns quick acknowledgment payload', async () => {
-  process.env.NODE_ENV = 'development';
+  setNodeEnv('development');
   process.env.WHATSAPP_APP_SECRET = 'dev-secret';
   process.env.WHATSAPP_IDEMPOTENCY_FORCE_MEMORY = 'true';
   process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';
@@ -257,7 +477,7 @@ test('webhook POST returns quick acknowledgment payload', async () => {
 });
 
 test('webhook schedules detached lifecycle processing and acknowledges first', async () => {
-  process.env.NODE_ENV = 'development';
+  setNodeEnv('development');
   process.env.WHATSAPP_APP_SECRET = 'dev-secret';
   process.env.WHATSAPP_IDEMPOTENCY_FORCE_MEMORY = 'true';
   process.env.WHATSAPP_PHONE_NUMBER_ID_EG = 'pnid-eg';

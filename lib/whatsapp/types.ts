@@ -25,4 +25,7 @@ export type WhatsAppProcessResult = {
   idempotencyStore?: 'supabase' | 'memory';
   responseText?: string;
   blockerCode?: string;
+  outboundStatus?: 'sent' | 'failed' | 'skipped';
+  outboundMessageId?: string;
+  outboundErrorCode?: string;
 };

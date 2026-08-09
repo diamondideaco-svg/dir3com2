@@ -1,6 +1,7 @@
 import { buildAI2ChatResponse } from '@/lib/ai2/runtime/chat';
 import { shouldEscalateToHuman, resolveCountryProfileByPhoneNumberId, toCountryCode } from '@/lib/whatsapp/country-router';
 import { reserveWebhookEventIfNew } from '@/lib/whatsapp/idempotency';
+import { sendWhatsAppReply, type WhatsAppOutboundResult } from '@/lib/whatsapp/outbound';
 import type { WhatsAppInboundMessage, WhatsAppProcessResult } from '@/lib/whatsapp/types';
 
 type WhatsAppWebhookPayload = {
@@ -59,10 +60,46 @@ const DABRA_RUNTIME_FALLBACK_AR = 'تعذر الوصول إلى DABRA مؤقتً
 
 export async function processInboundMessages(
   messages: WhatsAppInboundMessage[],
-  options?: { respondToMessage?: (text: string) => string },
+  options?: {
+    respondToMessage?: (text: string) => string;
+    sendReply?: (input: {
+      to: string;
+      phoneNumberId: string;
+      replyToMessageId: string;
+      text: string;
+    }) => Promise<WhatsAppOutboundResult>;
+  },
 ): Promise<WhatsAppProcessResult[]> {
   const results: WhatsAppProcessResult[] = [];
   const responder = options?.respondToMessage ?? ((text: string) => buildAI2ChatResponse(text).answer);
+  const sendReply = options?.sendReply ?? sendWhatsAppReply;
+
+  async function finalizeResult(
+    message: WhatsAppInboundMessage,
+    base: Omit<WhatsAppProcessResult, 'outboundStatus' | 'outboundMessageId' | 'outboundErrorCode'>,
+  ) {
+    if (!base.responseText || base.action === 'ignored') {
+      results.push({
+        ...base,
+        outboundStatus: 'skipped',
+      });
+      return;
+    }
+
+    const outbound = await sendReply({
+      to: message.from,
+      phoneNumberId: message.phoneNumberId,
+      replyToMessageId: message.messageId,
+      text: base.responseText,
+    });
+
+    results.push({
+      ...base,
+      outboundStatus: outbound.ok ? 'sent' : 'failed',
+      outboundMessageId: outbound.metaMessageId,
+      outboundErrorCode: outbound.errorCode,
+    });
+  }
 
   for (const message of messages) {
     const eventKey = `wa:${message.messageId}`;
@@ -71,7 +108,7 @@ export async function processInboundMessages(
     const country = profile ? toCountryCode(profile) : 'UNKNOWN';
 
     if (dedupe.degraded) {
-      results.push({
+      await finalizeResult(message, {
         messageId: message.messageId,
         deduplicated: false,
         country,
@@ -86,7 +123,7 @@ export async function processInboundMessages(
     }
 
     if (!profile) {
-      results.push({
+      await finalizeResult(message, {
         messageId: message.messageId,
         deduplicated: false,
         country,
@@ -98,7 +135,7 @@ export async function processInboundMessages(
     }
 
     if (!dedupe.isNew) {
-      results.push({
+      await finalizeResult(message, {
         messageId: message.messageId,
         deduplicated: true,
         country,
@@ -109,7 +146,7 @@ export async function processInboundMessages(
     }
 
     if (shouldEscalateToHuman(message.text)) {
-      results.push({
+      await finalizeResult(message, {
         messageId: message.messageId,
         deduplicated: false,
         country,
@@ -125,7 +162,7 @@ export async function processInboundMessages(
 
     try {
       const answer = responder(message.text);
-      results.push({
+      await finalizeResult(message, {
         messageId: message.messageId,
         deduplicated: false,
         country,
@@ -134,7 +171,7 @@ export async function processInboundMessages(
         responseText: answer,
       });
     } catch {
-      results.push({
+      await finalizeResult(message, {
         messageId: message.messageId,
         deduplicated: false,
         country,
