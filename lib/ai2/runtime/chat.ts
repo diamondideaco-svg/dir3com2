@@ -1,17 +1,28 @@
 import { AI2_KNOWLEDGE_REGISTRY, type AI2KnowledgeRecord } from '@/lib/ai2/knowledge/registry';
 import { AI2_DABRA_SYSTEM_PROMPT, AI2_DABRA_PROMPT_VERSION } from '@/lib/ai2/prompt/contract';
 import { buildAI2RagChunks, rankAI2RagMatches } from '@/lib/ai2/rag/index-design';
+import { callOpenAIResponsesWebSearch } from '@/lib/ai2/runtime/openai-web';
 
 export type AI2ChatLanguage = 'ar' | 'en';
 
-export type AI2ChatGroundingStatus = 'grounded' | 'fallback-no-source';
+export type AI2ChatGroundingStatus =
+  | 'grounded'
+  | 'grounded-global-web'
+  | 'fallback-no-source'
+  | 'fallback-provider-unavailable';
+
+export type AI2Provider = 'local' | 'openai';
+
+export type AI2RetrievalMode = 'internal-rag' | 'openai-web-search';
 
 export type AI2ChatSource = {
   sourceId: string;
   sourceName: string;
-  language: AI2KnowledgeRecord['language'];
-  updateState: AI2KnowledgeRecord['updateState'];
-  knowledgeVersion: string;
+  sourceType: 'internal' | 'web';
+  url?: string;
+  language?: AI2KnowledgeRecord['language'];
+  updateState?: AI2KnowledgeRecord['updateState'];
+  knowledgeVersion?: string;
 };
 
 export type AI2ChatResponse = {
@@ -21,22 +32,38 @@ export type AI2ChatResponse = {
   groundingStatus: AI2ChatGroundingStatus;
   promptBound: true;
   promptVersion: typeof AI2_DABRA_PROMPT_VERSION;
-  retrievalMode: 'internal-rag';
+  retrievalMode: AI2RetrievalMode;
+  provider: AI2Provider;
 };
 
 const REFUSAL_TERMS = [
   'book',
   'booking',
+  'reserve',
+  'reservation',
   'pay',
   'payment',
   'purchase',
-  'tool',
   'checkout',
+  'refund',
+  'cancel my booking',
+  'change my account',
+  'change account',
+  'account update',
+  'database',
+  'write to database',
+  'charge card',
+  'tool call',
   'احجز',
   'حجز',
+  'احجز لي',
   'ادفع',
   'دفع',
   'شراء',
+  'سداد',
+  'حسابي',
+  'تعديل الحساب',
+  'اشتر',
 ] as const;
 
 const NO_SOURCE_FALLBACK: Record<AI2ChatLanguage, string> = {
@@ -49,9 +76,14 @@ const OUT_OF_SCOPE_FALLBACK: Record<AI2ChatLanguage, string> = {
   en: 'I cannot execute bookings, payments, or operational actions in this slice. I can provide guidance grounded in internal sources only.',
 };
 
+const PROVIDER_UNAVAILABLE_FALLBACK: Record<AI2ChatLanguage, string> = {
+  ar: 'المزوّد الخارجي غير متاح حاليًا. يمكنني متابعة الإرشاد عبر مصادر DIR3COM الداخلية المتاحة فقط.',
+  en: 'The external provider is currently unavailable. I can continue with available DIR3COM internal sources only.',
+};
+
 const AI2_CHUNKS = buildAI2RagChunks(AI2_KNOWLEDGE_REGISTRY);
 
-export function buildAI2ChatResponse(message: string): AI2ChatResponse {
+export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResponse> {
   const language = detectLanguage(message);
 
   if (isOutOfScopeIntent(message)) {
@@ -63,12 +95,83 @@ export function buildAI2ChatResponse(message: string): AI2ChatResponse {
       promptBound: true,
       promptVersion: AI2_DABRA_PROMPT_VERSION,
       retrievalMode: 'internal-rag',
+      provider: 'local',
     };
   }
 
   const matches = rankAI2RagMatches(message, AI2_CHUNKS, 3);
+  const internalSources = uniqueSourcesFromMatches(matches);
+  const globalWebEnabled = String(process.env.DABRA_GLOBAL_WEB_ENABLED ?? '').toLowerCase() === 'true';
+  const openAIKey = (process.env.OPENAI_API_KEY ?? '').trim();
 
-  if (matches.length === 0) {
+  if (globalWebEnabled && openAIKey) {
+    const openAIResult = await callOpenAIResponsesWebSearch({
+      message,
+      language,
+      prompt: AI2_DABRA_SYSTEM_PROMPT,
+      model: process.env.DABRA_OPENAI_MODEL,
+      apiKey: openAIKey,
+    });
+
+    if (openAIResult.ok && openAIResult.citations.length > 0) {
+      return {
+        answer: openAIResult.answer,
+        sources: openAIResult.citations.map((url, index) => ({
+          sourceId: `web-${index + 1}`,
+          sourceName: url,
+          sourceType: 'web',
+          url,
+        })),
+        language,
+        groundingStatus: 'grounded-global-web',
+        promptBound: true,
+        promptVersion: AI2_DABRA_PROMPT_VERSION,
+        retrievalMode: 'openai-web-search',
+        provider: 'openai',
+      };
+    }
+
+    if (openAIResult.ok && openAIResult.citations.length === 0 && internalSources.length > 0) {
+      return {
+        answer: composeGroundedAnswer(matches, language),
+        sources: internalSources,
+        language,
+        groundingStatus: 'grounded',
+        promptBound: true,
+        promptVersion: AI2_DABRA_PROMPT_VERSION,
+        retrievalMode: 'internal-rag',
+        provider: 'local',
+      };
+    }
+
+    if (!openAIResult.ok && internalSources.length > 0) {
+      return {
+        answer: composeGroundedAnswer(matches, language),
+        sources: internalSources,
+        language,
+        groundingStatus: 'grounded',
+        promptBound: true,
+        promptVersion: AI2_DABRA_PROMPT_VERSION,
+        retrievalMode: 'internal-rag',
+        provider: 'local',
+      };
+    }
+
+    if (!openAIResult.ok && internalSources.length === 0) {
+      return {
+        answer: PROVIDER_UNAVAILABLE_FALLBACK[language],
+        sources: [],
+        language,
+        groundingStatus: 'fallback-provider-unavailable',
+        promptBound: true,
+        promptVersion: AI2_DABRA_PROMPT_VERSION,
+        retrievalMode: 'internal-rag',
+        provider: 'local',
+      };
+    }
+  }
+
+  if (internalSources.length === 0) {
     return {
       answer: NO_SOURCE_FALLBACK[language],
       sources: [],
@@ -77,20 +180,21 @@ export function buildAI2ChatResponse(message: string): AI2ChatResponse {
       promptBound: true,
       promptVersion: AI2_DABRA_PROMPT_VERSION,
       retrievalMode: 'internal-rag',
+      provider: 'local',
     };
   }
 
-  const sources = uniqueSourcesFromMatches(matches);
   const answer = composeGroundedAnswer(matches, language);
 
   return {
     answer,
-    sources,
+    sources: internalSources,
     language,
     groundingStatus: 'grounded',
     promptBound: true,
     promptVersion: AI2_DABRA_PROMPT_VERSION,
     retrievalMode: 'internal-rag',
+    provider: 'local',
   };
 }
 
@@ -98,7 +202,7 @@ function detectLanguage(message: string): AI2ChatLanguage {
   return /[\u0600-\u06FF]/.test(message) ? 'ar' : 'en';
 }
 
-function isOutOfScopeIntent(message: string): boolean {
+export function isOutOfScopeIntent(message: string): boolean {
   const normalized = message.toLowerCase();
   return REFUSAL_TERMS.some((term) => normalized.includes(term));
 }
@@ -112,6 +216,7 @@ function uniqueSourcesFromMatches(matches: ReturnType<typeof rankAI2RagMatches>)
     .map((record) => ({
       sourceId: record.sourceId,
       sourceName: record.sourceName,
+      sourceType: 'internal',
       language: record.language,
       updateState: record.updateState,
       knowledgeVersion: record.knowledgeVersion,

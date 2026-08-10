@@ -25,6 +25,7 @@
     "eval:sandbox:generate": "node scripts/sandbox/generate-eval-suite.mjs",
     "eval:sandbox": "node scripts/sandbox/run-eval-suite.mjs",
     "test:sandbox": "node --import tsx --test tests/dabra-sandbox.test.ts",
+    "test:ai-global": "node --import tsx --test tests/ai-global.test.ts",
     "test:schema-compat": "node --import tsx --test tests/schema-compatibility.integration.test.ts",
     "mobile:dev": "npm --workspace @dir3com/mobile run start",
     "mobile:typecheck": "npm --workspace @dir3com/mobile run typecheck"

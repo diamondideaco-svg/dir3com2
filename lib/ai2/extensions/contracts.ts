@@ -8,7 +8,9 @@ export type AI2PromptVersion = {
 export type AI2AnswerEnvelope = {
   answer: string;
   language: 'ar' | 'en';
-  groundingStatus: 'grounded' | 'fallback-no-source' | 'fallback-provider-unavailable';
+  groundingStatus: 'grounded' | 'grounded-global-web' | 'fallback-no-source' | 'fallback-provider-unavailable';
+  retrievalMode: 'internal-rag' | 'openai-web-search';
+  provider: 'local' | 'openai';
   sourceTrace: readonly AI2RagMatch[];
   promptVersion: AI2PromptVersion;
 };
