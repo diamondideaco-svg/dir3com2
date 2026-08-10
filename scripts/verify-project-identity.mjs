@@ -65,6 +65,10 @@ function requestedVercelProjectName() {
   return normalizeProjectName(process.env.VERCEL_PROJECT_NAME || process.env.VERCEL_PROJECT || process.env.NEXT_PUBLIC_VERCEL_PROJECT_NAME);
 }
 
+function isVercelProductionEnvironment() {
+  return normalizeProjectName(process.env.VERCEL_ENV) === 'production';
+}
+
 function walkFiles(startPath) {
   if (!fs.existsSync(startPath)) return [];
   const files = [];
@@ -118,6 +122,7 @@ function verify() {
 
   const operation = requestedOperation();
   const targetRef = requestedTargetRef();
+  const isProductionContext = sensitiveProductionOperations.has(operation) || isVercelProductionEnvironment();
   const requestedVercelProject = requestedVercelProjectName();
   const legacySupabaseRefs = new Set(registry.legacyIdentifiers.filter((entry) => entry.type === 'supabase_project_ref').map((entry) => entry.value));
   const legacyVercelProjectNames = new Set(registry.legacyIdentifiers.filter((entry) => entry.type === 'vercel_project_name').map((entry) => normalizeProjectName(entry.value)));
@@ -128,17 +133,13 @@ function verify() {
     fail('sandbox migration requires the exact canonical Staging Supabase ref');
   }
 
-  if (sensitiveProductionOperations.has(operation)) {
+  if (isProductionContext) {
     const vercelProjectId = String(process.env.VERCEL_PROJECT_ID || '').trim();
     if (!vercelProjectId) fail('Production operation requires VERCEL_PROJECT_ID');
     if (vercelProjectId !== registry.vercel.projectId) fail('Production deployment is not targeting the canonical Vercel project');
-    if (registry.supabase.productionStatus !== 'VERIFIED' || !registry.supabase.productionRef) fail(`Production Supabase is ${registry.supabase.productionStatus || 'UNVERIFIED'}`);
     if (!targetRef) fail('Production operation target is UNKNOWN');
+    if (registry.supabase.productionStatus !== 'VERIFIED' || !registry.supabase.productionRef) fail(`Production Supabase is ${registry.supabase.productionStatus || 'UNVERIFIED'}`);
     if (targetRef !== registry.supabase.productionRef) fail('Production operation target does not match the verified Production Supabase ref');
-  }
-
-  if (process.env.VERCEL_ENV === 'production' && process.env.VERCEL_PROJECT_ID && process.env.VERCEL_PROJECT_ID !== registry.vercel.projectId) {
-    fail('Production deployment is not targeting the canonical Vercel project');
   }
 
   console.log(JSON.stringify({ ok: true, repository: expectedRepository, vercelProject: registry.vercel.projectName, operation, productionSupabaseStatus: registry.supabase.productionStatus, productionDatabaseOperationsBlocked: registry.supabase.productionStatus !== 'VERIFIED' }, null, 2));

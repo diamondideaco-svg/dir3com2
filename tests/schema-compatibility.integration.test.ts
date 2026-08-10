@@ -209,6 +209,49 @@ test('identity guard keeps production supabase unverified state blocked', () => 
   assert.match(result.output, /Production Supabase is UNVERIFIED/i);
 });
 
+test('identity guard blocks production environment when VERCEL_PROJECT_ID is missing without explicit operation', () => {
+  const result = runIdentityGuard({
+    VERCEL_ENV: 'production',
+    TARGET_SUPABASE_REF: canonicalStagingRef,
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /Production operation requires VERCEL_PROJECT_ID/i);
+});
+
+test('identity guard blocks production environment when VERCEL_PROJECT_ID is empty without explicit operation', () => {
+  const result = runIdentityGuard({
+    VERCEL_ENV: 'production',
+    VERCEL_PROJECT_ID: '   ',
+    TARGET_SUPABASE_REF: canonicalStagingRef,
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /Production operation requires VERCEL_PROJECT_ID/i);
+});
+
+test('identity guard blocks production environment when VERCEL_PROJECT_ID is wrong without explicit operation', () => {
+  const result = runIdentityGuard({
+    VERCEL_ENV: 'production',
+    VERCEL_PROJECT_ID: 'prj_Opnf0pOAm1nsL3E7n7awjyEaKHm4',
+    TARGET_SUPABASE_REF: canonicalStagingRef,
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /not targeting the canonical Vercel project/i);
+});
+
+test('identity guard blocks production environment with canonical Vercel project ID while production supabase is unverified', () => {
+  const result = runIdentityGuard({
+    VERCEL_ENV: 'production',
+    VERCEL_PROJECT_ID: canonicalVercelProjectId,
+    TARGET_SUPABASE_REF: canonicalStagingRef,
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /Production Supabase is UNVERIFIED/i);
+});
+
 test('sandbox canonical flow stays allowed and defaults to DRY_RUN_ONLY path', () => {
   const guardResult = runIdentityGuard({
     PROJECT_IDENTITY_OPERATION: 'sandbox-migration',
