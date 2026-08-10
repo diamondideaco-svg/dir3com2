@@ -4,12 +4,8 @@ import { logServerError } from '@/lib/security/safe-logger';
 import { normalizeMarketplaceSlug, toPublicMarketplaceItemSummary } from '@/lib/marketplace/public-serializer';
 import { applyPublicCategoryFilters, applyPublicProductFilters } from '@/lib/marketplace/public-filters';
 import {
-  keepPublicAssetsNonSynthetic,
-  keepPublicCategoryNonSynthetic,
-  keepPublicNonSynthetic,
-  looksSyntheticRecord,
-  resolveArrayWithSyntheticCompatibility,
-  resolveSingleWithSyntheticCompatibility,
+  getSyntheticSchemaOperationalMessage,
+  isOperationalSyntheticSchemaError,
 } from '@/lib/marketplace/synthetic-compat';
 
 const DEFAULT_PAGE = 1;
@@ -86,25 +82,18 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid marketplace category.' }, { status: 400 });
       }
 
-      const { data: category, error: categoryError } = await resolveSingleWithSyntheticCompatibility(
-        () =>
-          applyPublicCategoryFilters(
-            client
-              .from('product_categories')
-              .select('id, slug, name_ar, name_en, synthetic')
-              .eq('slug', categorySlug)
-          ).maybeSingle(),
-        () =>
-          client
-            .from('product_categories')
-            .select('id, slug, name_ar, name_en')
-            .eq('slug', categorySlug)
-            .maybeSingle(),
-        (row) => looksSyntheticRecord(row)
-      );
+      const { data: category, error: categoryError } = await applyPublicCategoryFilters(
+        client
+          .from('product_categories')
+          .select('id, slug, name_ar, name_en, synthetic')
+          .eq('slug', categorySlug)
+      ).maybeSingle();
 
       if (categoryError) {
         logServerError('api.public.marketplace.items.category_read_failed', categoryError);
+        if (isOperationalSyntheticSchemaError(categoryError)) {
+          return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
+        }
         return NextResponse.json({ error: 'Unable to load marketplace items right now.' }, { status: 500 });
       }
 
@@ -123,12 +112,12 @@ export async function GET(request: NextRequest) {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const buildProductsQuery = (withSyntheticFilter: boolean) => {
-      const base = client
+    const buildProductsQuery = () => {
+      let query = applyPublicProductFilters(
+        client
         .from('products')
-        .select('*', { count: 'exact' });
-
-      let query = withSyntheticFilter ? applyPublicProductFilters(base) : base;
+        .select('*', { count: 'exact' })
+      );
       query = query
         .order('featured', { ascending: false })
         .order('created_at', { ascending: false })
@@ -146,17 +135,13 @@ export async function GET(request: NextRequest) {
       return query;
     };
 
-    const filteredProducts = await resolveArrayWithSyntheticCompatibility(
-      () => buildProductsQuery(true),
-      () => buildProductsQuery(false),
-      keepPublicNonSynthetic
-    );
-    const products = filteredProducts.data;
-    const productsError = filteredProducts.error;
-    const count = products.length;
+    const { data: products, error: productsError, count } = await buildProductsQuery();
 
     if (productsError) {
       logServerError('api.public.marketplace.items.read_failed', productsError);
+      if (isOperationalSyntheticSchemaError(productsError)) {
+        return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
+      }
       return NextResponse.json({ error: 'Unable to load marketplace items right now.' }, { status: 500 });
     }
 
@@ -164,22 +149,17 @@ export async function GET(request: NextRequest) {
       new Set((products ?? []).map((product: Record<string, unknown>) => (typeof product.category_id === 'string' ? product.category_id : null)).filter(Boolean))
     ) as string[];
 
-    const categoriesResult = categoryIds.length
-      ? await resolveArrayWithSyntheticCompatibility(
-          () =>
-            applyPublicCategoryFilters(
-              client.from('product_categories').select('id, slug, name_ar, name_en, synthetic').in('id', categoryIds)
-            ),
-          () => client.from('product_categories').select('id, slug, name_ar, name_en').in('id', categoryIds),
-          keepPublicCategoryNonSynthetic
+    const { data: categories, error: categoriesError } = categoryIds.length
+      ? await applyPublicCategoryFilters(
+          client.from('product_categories').select('id, slug, name_ar, name_en, synthetic').in('id', categoryIds)
         )
       : { data: [], error: null };
 
-    const categories = categoriesResult.data;
-    const categoriesError = categoriesResult.error;
-
     if (categoriesError) {
       logServerError('api.public.marketplace.items.categories_read_failed', categoriesError);
+      if (isOperationalSyntheticSchemaError(categoriesError)) {
+        return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
+      }
       return NextResponse.json({ error: 'Unable to load marketplace items right now.' }, { status: 500 });
     }
 
@@ -189,32 +169,21 @@ export async function GET(request: NextRequest) {
       .map((product: Record<string, unknown>) => (typeof product.id === 'string' ? product.id : null))
       .filter((value: string | null): value is string => value !== null);
 
-    const imagesResult = productIds.length
-      ? await resolveArrayWithSyntheticCompatibility(
-          () =>
-            client
-              .from('product_images')
-              .select('product_id, image_url, is_primary, created_at, synthetic')
-              .in('product_id', productIds)
-              .eq('synthetic', false)
-              .order('is_primary', { ascending: false })
-              .order('created_at', { ascending: true }),
-          () =>
-            client
-              .from('product_images')
-              .select('product_id, image_url, is_primary, created_at')
-              .in('product_id', productIds)
-              .order('is_primary', { ascending: false })
-              .order('created_at', { ascending: true }),
-          keepPublicAssetsNonSynthetic
-        )
+    const { data: images, error: imagesError } = productIds.length
+      ? await client
+          .from('product_images')
+          .select('product_id, image_url, is_primary, created_at, synthetic')
+          .in('product_id', productIds)
+          .eq('synthetic', false)
+          .order('is_primary', { ascending: false })
+          .order('created_at', { ascending: true })
       : { data: [], error: null };
-
-    const images = imagesResult.data;
-    const imagesError = imagesResult.error;
 
     if (imagesError) {
       logServerError('api.public.marketplace.items.images_read_failed', imagesError);
+      if (isOperationalSyntheticSchemaError(imagesError)) {
+        return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
+      }
       return NextResponse.json({ error: 'Unable to load marketplace items right now.' }, { status: 500 });
     }
 

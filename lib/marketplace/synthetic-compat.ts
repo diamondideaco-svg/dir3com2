@@ -2,9 +2,8 @@ type ErrorLike = {
   code?: string;
   message?: string;
   details?: string;
+  hint?: string;
 };
-
-type Awaitable<T> = T | PromiseLike<T>;
 
 function text(value: unknown) {
   return String(value || '').toLowerCase();
@@ -23,12 +22,23 @@ function startsWithTestReference(value: unknown) {
   return String(value || '').toUpperCase().startsWith('TEST-');
 }
 
-export function isMissingSyntheticColumnError(error: unknown) {
+export function isSyntheticSchemaRolloutError(error: unknown) {
   if (!error || typeof error !== 'object') return false;
+
   const value = error as ErrorLike;
-  const message = text(value.message);
-  const details = text(value.details);
-  return value.code === '42703' || message.includes('synthetic') || details.includes('synthetic');
+  const haystack = `${text(value.message)} ${text(value.details)} ${text(value.hint)}`;
+
+  // Only treat explicit missing synthetic column failures as rollout gaps.
+  const missingColumnShape = /column\s+"?synthetic"?\s+does\s+not\s+exist/.test(haystack);
+  return value.code === '42703' && missingColumnShape;
+}
+
+export function isOperationalSyntheticSchemaError(error: unknown) {
+  return isSyntheticSchemaRolloutError(error);
+}
+
+export function getSyntheticSchemaOperationalMessage() {
+  return 'Marketplace schema rollout is incomplete. Please retry after infrastructure migration verification.';
 }
 
 export function looksSyntheticRecord(input: Record<string, unknown>) {
@@ -49,54 +59,6 @@ export function keepPublicCategoryNonSynthetic<T extends Record<string, unknown>
 
 export function keepPublicAssetsNonSynthetic<T extends Record<string, unknown>>(rows: T[]) {
   return rows.filter((row) => !looksSyntheticRecord(row));
-}
-
-export async function resolveArrayWithSyntheticCompatibility<T extends Record<string, unknown>>(
-  runWithSyntheticFilter: () => Awaitable<{ data: T[] | null; error: unknown }>,
-  runWithoutSyntheticFilter: () => Awaitable<{ data: T[] | null; error: unknown }>,
-  cleaner: (rows: T[]) => T[]
-) {
-  const filtered = await runWithSyntheticFilter();
-  if (!isMissingSyntheticColumnError(filtered.error)) {
-    return { data: filtered.data ?? [], error: filtered.error, usedCompatibilityFallback: false };
-  }
-
-  const fallback = await runWithoutSyntheticFilter();
-  if (fallback.error) {
-    return { data: [] as T[], error: fallback.error, usedCompatibilityFallback: true };
-  }
-
-  return {
-    data: cleaner(fallback.data ?? []),
-    error: null,
-    usedCompatibilityFallback: true,
-  };
-}
-
-export async function resolveSingleWithSyntheticCompatibility<T extends Record<string, unknown>>(
-  runWithSyntheticFilter: () => Awaitable<{ data: T | null; error: unknown }>,
-  runWithoutSyntheticFilter: () => Awaitable<{ data: T | null; error: unknown }>,
-  isSynthetic: (row: T) => boolean
-) {
-  const filtered = await runWithSyntheticFilter();
-  if (!isMissingSyntheticColumnError(filtered.error)) {
-    return { data: filtered.data, error: filtered.error, usedCompatibilityFallback: false };
-  }
-
-  const fallback = await runWithoutSyntheticFilter();
-  if (fallback.error) {
-    return { data: null as T | null, error: fallback.error, usedCompatibilityFallback: true };
-  }
-
-  if (!fallback.data || isSynthetic(fallback.data)) {
-    return { data: null as T | null, error: null, usedCompatibilityFallback: true };
-  }
-
-  return {
-    data: fallback.data,
-    error: null,
-    usedCompatibilityFallback: true,
-  };
 }
 
 export function sanitizeServiceProductsForCompatibility(products: unknown[]) {

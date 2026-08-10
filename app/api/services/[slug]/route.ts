@@ -3,10 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { getMarketplaceSnapshot } from '@/lib/marketplace/server';
 import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters } from '@/lib/marketplace/public-filters';
 import {
-    keepPublicAssetsNonSynthetic,
-    looksSyntheticRecord,
-    resolveArrayWithSyntheticCompatibility,
-    resolveSingleWithSyntheticCompatibility,
+    getSyntheticSchemaOperationalMessage,
+    isOperationalSyntheticSchemaError,
     sanitizeServiceProductsForCompatibility,
 } from '@/lib/marketplace/synthetic-compat';
 
@@ -53,8 +51,8 @@ export async function GET(
         if (supabaseAdmin) {
             const client = supabaseAdmin;
 
-            const readService = async (withSyntheticFilter: boolean) => {
-                let query = client
+            const readService = async () => {
+                return client
                     .from('services')
                     .select(`
                         *,
@@ -65,22 +63,24 @@ export async function GET(
                             region:regions(*)
                         )
                     `)
-                    .eq('slug', normalizedSlug);
-
-                if (withSyntheticFilter) {
-                    query = query.eq('products.synthetic', false);
-                }
-
-                return query.single();
+                    .eq('slug', normalizedSlug)
+                    .eq('products.synthetic', false)
+                    .single();
             };
 
-            const { data: service, error } = await resolveSingleWithSyntheticCompatibility(
-                () => readService(true),
-                () => readService(false),
-                (row) => looksSyntheticRecord(row)
-            );
+            const { data: service, error } = await readService();
 
-            if (!error && service) {
+            if (error) {
+                if (isOperationalSyntheticSchemaError(error)) {
+                    return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
+                }
+
+                if (String((error as { code?: string }).code || '') !== 'PGRST116') {
+                    return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
+                }
+            }
+
+            if (service) {
                 const safeProducts = sanitizeServiceProductsForCompatibility(Array.isArray(service.products) ? service.products : []);
 
                 return NextResponse.json({
@@ -89,58 +89,48 @@ export async function GET(
                 });
             }
 
-            const { data: product, error: productError } = await resolveSingleWithSyntheticCompatibility(
-                () =>
-                    applyPublicProductFilters(
-                        client
-                            .from('products')
-                            .select('*, synthetic')
-                            .eq('slug', normalizedSlug)
-                    ).single(),
-                () =>
+            const { data: product, error: productError } = await applyPublicProductFilters(
+                client
+                    .from('products')
+                    .select('*, synthetic')
+                    .eq('slug', normalizedSlug)
+            ).single();
+
+            if (productError && String((productError as { code?: string }).code || '') !== 'PGRST116') {
+                if (isOperationalSyntheticSchemaError(productError)) {
+                    return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
+                }
+                return buildErrorResponse('internal_error', 'Unable to load service product right now.', 500);
+            }
+
+            if (product) {
+                const { data: category, error: categoryError } = await applyPublicCategoryFilters(
                     client
-                        .from('products')
-                        .select('*')
-                        .eq('slug', normalizedSlug)
-                        .in('status', ['published', 'active', 'featured'])
-                        .single(),
-                (row) => looksSyntheticRecord(row)
-            );
+                        .from('product_categories')
+                        .select('id,slug,name_en,name_ar,synthetic')
+                        .eq('id', product.category_id)
+                ).maybeSingle();
 
-            if (!productError && product) {
-                const { data: category } = await resolveSingleWithSyntheticCompatibility(
-                    () =>
-                        applyPublicCategoryFilters(
-                            client
-                                .from('product_categories')
-                                .select('id,slug,name_en,name_ar,synthetic')
-                                .eq('id', product.category_id)
-                        ).maybeSingle(),
-                    () =>
-                        client
-                            .from('product_categories')
-                            .select('id,slug,name_en,name_ar')
-                            .eq('id', product.category_id)
-                            .maybeSingle(),
-                    (row) => looksSyntheticRecord(row)
-                );
+                if (categoryError) {
+                    if (isOperationalSyntheticSchemaError(categoryError)) {
+                        return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
+                    }
+                    return buildErrorResponse('internal_error', 'Unable to load service category right now.', 500);
+                }
 
-                const { data: images } = await resolveArrayWithSyntheticCompatibility(
-                    () =>
-                        applyPublicAssetSyntheticFilter(
-                            client
-                                .from('product_images')
-                                .select('*, synthetic')
-                                .eq('product_id', product.id)
-                        ).order('created_at', { ascending: true }),
-                    () =>
-                        client
-                            .from('product_images')
-                            .select('*')
-                            .eq('product_id', product.id)
-                            .order('created_at', { ascending: true }),
-                    keepPublicAssetsNonSynthetic
-                );
+                const { data: images, error: imagesError } = await applyPublicAssetSyntheticFilter(
+                    client
+                        .from('product_images')
+                        .select('*, synthetic')
+                        .eq('product_id', product.id)
+                ).order('created_at', { ascending: true });
+
+                if (imagesError) {
+                    if (isOperationalSyntheticSchemaError(imagesError)) {
+                        return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
+                    }
+                    return buildErrorResponse('internal_error', 'Unable to load service images right now.', 500);
+                }
 
                 return NextResponse.json({
                     id: product.id,
