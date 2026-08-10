@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError } from '@/lib/security/safe-logger';
 import { normalizeMarketplaceSlug, toPublicMarketplaceItemSummary } from '@/lib/marketplace/public-serializer';
+import { applyPublicCategoryFilters, applyPublicProductFilters } from '@/lib/marketplace/public-filters';
 
-const PUBLISHED_STATUSES = ['published', 'active', 'featured'];
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 30;
@@ -76,11 +76,12 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid marketplace category.' }, { status: 400 });
       }
 
-      const { data: category, error: categoryError } = await supabaseAdmin
-        .from('product_categories')
-        .select('id, slug, name_ar, name_en')
-        .eq('slug', categorySlug)
-        .maybeSingle();
+      const { data: category, error: categoryError } = await applyPublicCategoryFilters(
+        supabaseAdmin
+          .from('product_categories')
+          .select('id, slug, name_ar, name_en')
+          .eq('slug', categorySlug)
+      ).maybeSingle();
 
       if (categoryError) {
         logServerError('api.public.marketplace.items.category_read_failed', categoryError);
@@ -102,10 +103,11 @@ export async function GET(request: NextRequest) {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    let query = supabaseAdmin
-      .from('products')
-      .select('id, slug, name_ar, name_en, description_ar, base_price, currency, category_id, status, featured, created_at', { count: 'exact' })
-      .in('status', PUBLISHED_STATUSES)
+    let query = applyPublicProductFilters(
+      supabaseAdmin
+        .from('products')
+        .select('id, slug, name_ar, name_en, description_ar, base_price, currency, category_id, status, featured, created_at', { count: 'exact' })
+    )
       .order('featured', { ascending: false })
       .order('created_at', { ascending: false })
       .range(from, to);
@@ -127,11 +129,11 @@ export async function GET(request: NextRequest) {
     }
 
     const categoryIds = Array.from(
-      new Set((products ?? []).map((product) => (typeof product.category_id === 'string' ? product.category_id : null)).filter(Boolean))
+      new Set((products ?? []).map((product: Record<string, unknown>) => (typeof product.category_id === 'string' ? product.category_id : null)).filter(Boolean))
     ) as string[];
 
     const { data: categories, error: categoriesError } = categoryIds.length
-      ? await supabaseAdmin.from('product_categories').select('id, slug, name_ar, name_en').in('id', categoryIds)
+      ? await applyPublicCategoryFilters(supabaseAdmin.from('product_categories').select('id, slug, name_ar, name_en').in('id', categoryIds))
       : { data: [], error: null };
 
     if (categoriesError) {
@@ -142,14 +144,15 @@ export async function GET(request: NextRequest) {
     const categoryById = new Map((categories ?? []).map((category) => [category.id, category]));
 
     const productIds = (products ?? [])
-      .map((product) => (typeof product.id === 'string' ? product.id : null))
-      .filter((value): value is string => value !== null);
+      .map((product: Record<string, unknown>) => (typeof product.id === 'string' ? product.id : null))
+      .filter((value: string | null): value is string => value !== null);
 
     const { data: images, error: imagesError } = productIds.length
       ? await supabaseAdmin
           .from('product_images')
           .select('product_id, image_url, is_primary, created_at')
           .in('product_id', productIds)
+          .eq('synthetic', false)
           .order('is_primary', { ascending: false })
           .order('created_at', { ascending: true })
       : { data: [], error: null };
@@ -167,14 +170,19 @@ export async function GET(request: NextRequest) {
     }
 
     const safeItems = (products ?? [])
-      .map((product) => {
+      .map((product: Record<string, unknown>) => {
+        const productId = typeof product.id === 'string' ? product.id : null;
+        if (!productId) {
+          return null;
+        }
+
         const category = product.category_id ? categoryById.get(product.category_id) : undefined;
         if (!category) {
           return null;
         }
 
         return toPublicMarketplaceItemSummary({
-          id: product.id,
+          id: productId,
           slug: product.slug,
           name_ar: product.name_ar,
           name_en: product.name_en,
@@ -182,12 +190,12 @@ export async function GET(request: NextRequest) {
           category_slug: category.slug,
           category_name_ar: category.name_ar,
           category_name_en: category.name_en,
-          image_url: imageByProductId.get(product.id),
+          image_url: imageByProductId.get(productId),
           starting_price: product.base_price,
           currency: product.currency,
         });
       })
-      .filter((item): item is NonNullable<typeof item> => item !== null);
+      .filter((item: ReturnType<typeof toPublicMarketplaceItemSummary> | null): item is NonNullable<typeof item> => item !== null);
 
     const total = typeof count === 'number' && count >= 0 ? count : safeItems.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));

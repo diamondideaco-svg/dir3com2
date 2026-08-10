@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { getMarketplaceSnapshot } from '@/lib/marketplace/server';
+import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters } from '@/lib/marketplace/public-filters';
 
 type ServiceApiErrorCode = 'invalid_slug' | 'not_found' | 'internal_error';
 
@@ -58,28 +59,37 @@ export async function GET(
                 .single();
 
             if (!error && service) {
-                return NextResponse.json(service);
+                const safeProducts = Array.isArray(service.products)
+                    ? service.products.filter((product: Record<string, unknown>) => product && product.synthetic === false)
+                    : [];
+
+                return NextResponse.json({
+                    ...service,
+                    products: safeProducts,
+                });
             }
 
-            const { data: product, error: productError } = await supabaseAdmin
-                .from('products')
-                .select('*')
-                .eq('slug', normalizedSlug)
-                .in('status', ['published', 'active', 'featured'])
-                .single();
+            const { data: product, error: productError } = await applyPublicProductFilters(
+                supabaseAdmin
+                    .from('products')
+                    .select('*')
+                    .eq('slug', normalizedSlug)
+            ).single();
 
             if (!productError && product) {
-                const { data: category } = await supabaseAdmin
-                    .from('product_categories')
-                    .select('id,slug,name_en,name_ar')
-                    .eq('id', product.category_id)
-                    .maybeSingle();
+                const { data: category } = await applyPublicCategoryFilters(
+                    supabaseAdmin
+                        .from('product_categories')
+                        .select('id,slug,name_en,name_ar')
+                        .eq('id', product.category_id)
+                ).maybeSingle();
 
-                const { data: images } = await supabaseAdmin
-                    .from('product_images')
-                    .select('*')
-                    .eq('product_id', product.id)
-                    .order('created_at', { ascending: true });
+                const { data: images } = await applyPublicAssetSyntheticFilter(
+                    supabaseAdmin
+                        .from('product_images')
+                        .select('*')
+                        .eq('product_id', product.id)
+                ).order('created_at', { ascending: true });
 
                 return NextResponse.json({
                     id: product.id,
