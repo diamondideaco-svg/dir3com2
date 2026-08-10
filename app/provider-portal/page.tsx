@@ -24,8 +24,7 @@ export default async function ProviderPortalPage() {
     .eq('id', user.id)
     .maybeSingle();
 
-  const metadata = (user.app_metadata as Record<string, unknown> | null) || (user.user_metadata as Record<string, unknown> | null) || {};
-  const role = normalizeAuthRole(profile?.role || metadata.role);
+  const role = normalizeAuthRole(profile?.role);
   if (!['partner', 'admin', 'staff'].includes(role)) {
     redirect('/my-account');
   }

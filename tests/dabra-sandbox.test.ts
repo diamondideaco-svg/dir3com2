@@ -220,3 +220,17 @@ test('Arabic input text remains valid UTF-8 content through normalization', () =
   const output = normalizeString(input);
   assert.equal(output, 'احجز لي رحلة من القاهرة إلى جدة');
 });
+
+test('partner portal authorization never trusts user-editable auth metadata', () => {
+  const sources = [
+    'lib/partner-portal/server.ts',
+    'app/partner-portal/page.tsx',
+    'app/provider-portal/page.tsx',
+  ].map((filePath) => fs.readFileSync(path.resolve(filePath), 'utf8'));
+
+  for (const source of sources) {
+    assert.match(source, /normalizeAuthRole\(profile\?\.role\)/);
+    assert.doesNotMatch(source, /normalizeAuthRole\([^\n]*user_metadata/);
+    assert.doesNotMatch(source, /profile\?\.role\s*\|\|\s*metadata\.role/);
+  }
+});
