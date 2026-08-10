@@ -9,6 +9,22 @@ function fail(message) {
   throw new Error(message);
 }
 
+function runProjectIdentityGuard() {
+  const identityGuard = spawnSync(process.execPath, ['scripts/verify-project-identity.mjs'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PROJECT_IDENTITY_OPERATION: 'sandbox-migration',
+      TARGET_SUPABASE_REF: STAGING_PROJECT_REF,
+    },
+  });
+
+  if (identityGuard.status !== 0) {
+    throw new Error(String(identityGuard.stderr || identityGuard.stdout || 'Project identity guard failed.').trim());
+  }
+}
+
 function runTargetGuard() {
   const guard = spawnSync(process.execPath, ['scripts/sandbox/resolve-target-env.mjs'], {
     cwd: process.cwd(),
@@ -49,6 +65,7 @@ export function runStagingSqlWithGuard(filePath, mode) {
   }
 
   const execute = process.argv.includes('--execute');
+  runProjectIdentityGuard();
   const guard = runTargetGuard();
 
   if (!execute) {

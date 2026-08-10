@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "application": "dir3com",
+  "repository": {
+    "fullName": "diamondideaco-svg/dir3com2",
+    "defaultBranch": "master"
+  },
+  "vercel": {
+    "projectName": "dir3com2",
+    "projectId": "prj_V2AquQE4YbkpKWoq5GNtT4ImxWon",
+    "teamId": "team_ixPiuZYgyOtaR4vFoPxJQdqu"
+  },
+  "productionDomains": [
+    "dir3com.com",
+    "www.dir3com.com"
+  ],
+  "supabase": {
+    "stagingRef": "ynupwivgvwcyrsdhtkcc",
+    "productionRef": null,
+    "productionStatus": "UNVERIFIED"
+  },
+  "legacyIdentifiers": [
+    {
+      "type": "github_repository",
+      "value": "diamondideaco-svg/dir3com",
+      "classification": "LEGACY_DO_NOT_USE"
+    },
+    {
+      "type": "vercel_project_name",
+      "value": "dir3com",
+      "classification": "LEGACY_DO_NOT_USE"
+    },
+    {
+      "type": "vercel_project_id",
+      "value": "prj_Opnf0pOAm1nsL3E7n7awjyEaKHm4",
+      "classification": "LEGACY_DO_NOT_USE"
+    },
+    {
+      "type": "supabase_project_ref",
+      "value": "qbuhbgzyiaoseuegjkgf",
+      "classification": "LEGACY_DO_NOT_USE"
+    }
+  ]
+}

@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "verify:project-identity": "node scripts/verify-project-identity.mjs",
     "seed:sandbox": "node scripts/sandbox/synthetic-dataset.mjs seed",
     "reset:sandbox": "node scripts/sandbox/synthetic-dataset.mjs reset",
     "purge:synthetic": "node scripts/sandbox/synthetic-dataset.mjs purge",

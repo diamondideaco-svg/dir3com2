@@ -23,6 +23,9 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Verify Canonical Project Identity
+        run: npm run verify:project-identity
+
       - name: Install Dependencies
         run: npm ci
 

@@ -26,6 +26,20 @@ Rules:
 - Mobile and DABRA clients receive client-safe contracts and configuration only.
 - Future standalone DABRA must reuse DIR3COM Core APIs rather than creating a parallel platform.
 
+## Mandatory Project Identity Check
+
+Before any task involving Supabase, Vercel, Production, backups, migrations,
+releases, or deployments, read `PROJECT_IDENTITY.md` in full first.
+
+- No agent may infer environment identity from a project name, creation date,
+  region, inactive status, or historical configuration.
+- `UNKNOWN` and `UNVERIFIED` never mean Production.
+- Run `npm run verify:project-identity` before every migration or deployment
+  workflow.
+- Production database writes and migrations remain blocked while
+  `PRODUCTION_SUPABASE_REF = UNVERIFIED`.
+- Never substitute the canonical Staging Supabase ref for Production.
+
 Target architecture:
 
 DIR3COM CORE
