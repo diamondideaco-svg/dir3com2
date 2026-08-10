@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import process from 'node:process';
+import { spawnSync } from 'node:child_process';
 
 import {
   isMissingSyntheticColumnError,
@@ -15,9 +17,55 @@ const coreMigrationPath = path.resolve('supabase/migrations/20260810102000_dgr07
 const stagingMigrationPath = path.resolve('supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.sql');
 const rollbackPath = path.resolve('supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.rollback.sql');
 const runbookPath = path.resolve('docs/DABRA_SANDBOX_LOCAL_STAGING_RUNBOOK.md');
+const verifyIdentityPath = path.resolve('scripts/verify-project-identity.mjs');
+const stagingRunnerPath = path.resolve('scripts/sandbox/staging-sql-runner.mjs');
+const canonicalRepository = 'diamondideaco-svg/dir3com2';
+const canonicalStagingRef = 'ynupwivgvwcyrsdhtkcc';
+const canonicalVercelProjectId = 'prj_V2AquQE4YbkpKWoq5GNtT4ImxWon';
 
 function read(filePath: string) {
   return fs.readFileSync(filePath, 'utf8');
+}
+
+function runIdentityGuard(overrides: Record<string, string | undefined>) {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const key of [
+    'PROJECT_IDENTITY_OPERATION',
+    'TARGET_SUPABASE_REF',
+    'SUPABASE_PROJECT_REF',
+    'SUPABASE_URL',
+    'NEXT_PUBLIC_SUPABASE_URL',
+    'DATABASE_URL',
+    'POSTGRES_URL',
+    'VERCEL_PROJECT_ID',
+    'VERCEL_PROJECT_NAME',
+    'VERCEL_PROJECT',
+    'NEXT_PUBLIC_VERCEL_PROJECT_NAME',
+    'VERCEL_ENV',
+  ]) {
+    delete env[key];
+  }
+
+  env.GITHUB_REPOSITORY = canonicalRepository;
+
+  for (const [key, value] of Object.entries(overrides)) {
+    if (typeof value === 'undefined') {
+      delete env[key];
+    } else {
+      env[key] = value;
+    }
+  }
+
+  const result = spawnSync(process.execPath, [verifyIdentityPath], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    env,
+  });
+
+  return {
+    status: result.status,
+    output: String(result.stderr || result.stdout || '').trim(),
+  };
 }
 
 test('schema compatibility: core migration adds required synthetic columns only', () => {
@@ -106,6 +154,73 @@ test('guard remains fail-closed for production, mismatch, and unverified target'
   assert.match(resolver, /stagingRefAllowed/);
   assert.match(resolver, /isProbablyProduction/);
   assert.match(resolver, /decision: 'BLOCKED'/);
+});
+
+test('identity guard blocks legacy Vercel project name', () => {
+  const result = runIdentityGuard({
+    VERCEL_PROJECT_NAME: 'dir3com',
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /Vercel project name dir3com is explicitly LEGACY/i);
+});
+
+test('identity guard blocks production operation when VERCEL_PROJECT_ID is missing', () => {
+  const result = runIdentityGuard({
+    PROJECT_IDENTITY_OPERATION: 'production-deployment',
+    TARGET_SUPABASE_REF: canonicalStagingRef,
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /Production operation requires VERCEL_PROJECT_ID/i);
+});
+
+test('identity guard blocks production operation when VERCEL_PROJECT_ID is wrong', () => {
+  const result = runIdentityGuard({
+    PROJECT_IDENTITY_OPERATION: 'production-deployment',
+    TARGET_SUPABASE_REF: canonicalStagingRef,
+    VERCEL_PROJECT_ID: 'prj_Opnf0pOAm1nsL3E7n7awjyEaKHm4',
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /not targeting the canonical Vercel project/i);
+});
+
+test('identity guard does not block canonical Vercel project ID on its own', () => {
+  const result = runIdentityGuard({
+    PROJECT_IDENTITY_OPERATION: 'production-deployment',
+    TARGET_SUPABASE_REF: canonicalStagingRef,
+    VERCEL_PROJECT_ID: canonicalVercelProjectId,
+  });
+
+  assert.equal(result.status, 1);
+  assert.doesNotMatch(result.output, /not targeting the canonical Vercel project/i);
+  assert.match(result.output, /Production Supabase is UNVERIFIED/i);
+});
+
+test('identity guard keeps production supabase unverified state blocked', () => {
+  const result = runIdentityGuard({
+    PROJECT_IDENTITY_OPERATION: 'production-migration',
+    TARGET_SUPABASE_REF: canonicalStagingRef,
+    VERCEL_PROJECT_ID: canonicalVercelProjectId,
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /Production Supabase is UNVERIFIED/i);
+});
+
+test('sandbox canonical flow stays allowed and defaults to DRY_RUN_ONLY path', () => {
+  const guardResult = runIdentityGuard({
+    PROJECT_IDENTITY_OPERATION: 'sandbox-migration',
+    TARGET_SUPABASE_REF: canonicalStagingRef,
+  });
+
+  assert.equal(guardResult.status, 0);
+  assert.match(guardResult.output, /"ok"\s*:\s*true/);
+
+  const runner = read(stagingRunnerPath);
+  assert.match(runner, /if \(!execute\)/);
+  assert.match(runner, /decision:\s*'DRY_RUN_ONLY'/);
 });
 
 test('migration ordering is documented and verifiable', () => {

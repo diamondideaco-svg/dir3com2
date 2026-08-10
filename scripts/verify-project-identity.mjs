@@ -57,6 +57,14 @@ function requestedTargetRef() {
   return projectRefFromValue(process.env.TARGET_SUPABASE_REF) || projectRefFromValue(process.env.SUPABASE_PROJECT_REF) || projectRefFromValue(process.env.SUPABASE_URL) || projectRefFromValue(process.env.NEXT_PUBLIC_SUPABASE_URL) || projectRefFromValue(process.env.DATABASE_URL) || projectRefFromValue(process.env.POSTGRES_URL);
 }
 
+function normalizeProjectName(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function requestedVercelProjectName() {
+  return normalizeProjectName(process.env.VERCEL_PROJECT_NAME || process.env.VERCEL_PROJECT || process.env.NEXT_PUBLIC_VERCEL_PROJECT_NAME);
+}
+
 function walkFiles(startPath) {
   if (!fs.existsSync(startPath)) return [];
   const files = [];
@@ -70,15 +78,31 @@ function walkFiles(startPath) {
 }
 
 function assertNoLegacyProductionReferences(registry) {
-  const legacyValues = registry.legacyIdentifiers.filter((entry) => entry.type !== 'vercel_project_name').map((entry) => String(entry.value));
+  const legacyChecks = registry.legacyIdentifiers.map((entry) => ({
+    type: String(entry.type || '').trim(),
+    value: String(entry.value || '').trim(),
+  }));
   const candidates = [...walkFiles(path.join(root, '.github')), ...walkFiles(path.join(root, 'scripts')), path.join(root, 'package.json'), path.join(root, 'vercel.json')].filter((file) => fs.existsSync(file));
   const allowedFiles = new Set([path.normalize(path.join(root, 'scripts', 'verify-project-identity.mjs'))]);
   const violations = [];
   for (const file of candidates) {
     if (allowedFiles.has(path.normalize(file))) continue;
     const content = fs.readFileSync(file, 'utf8');
-    for (const legacy of legacyValues) {
-      if (content.includes(legacy)) violations.push(`${path.relative(root, file)} -> ${legacy}`);
+    for (const legacy of legacyChecks) {
+      if (!legacy.value) continue;
+      if (legacy.type === 'vercel_project_name') {
+        const escaped = legacy.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const contextualPatterns = [
+          new RegExp(`"projectName"\\s*:\\s*"${escaped}"`, 'i'),
+          new RegExp(`['\"]VERCEL_PROJECT_NAME['\"]?\\s*[:=]\\s*['\"]${escaped}['\"]`, 'i'),
+          new RegExp(`\\b--project\\s+${escaped}\\b`, 'i'),
+        ];
+        if (contextualPatterns.some((pattern) => pattern.test(content))) {
+          violations.push(`${path.relative(root, file)} -> ${legacy.value}`);
+        }
+        continue;
+      }
+      if (content.includes(legacy.value)) violations.push(`${path.relative(root, file)} -> ${legacy.value}`);
     }
   }
   if (violations.length) fail(`legacy identifiers found in production-sensitive files: ${violations.join(', ')}`);
@@ -94,14 +118,20 @@ function verify() {
 
   const operation = requestedOperation();
   const targetRef = requestedTargetRef();
+  const requestedVercelProject = requestedVercelProjectName();
   const legacySupabaseRefs = new Set(registry.legacyIdentifiers.filter((entry) => entry.type === 'supabase_project_ref').map((entry) => entry.value));
+  const legacyVercelProjectNames = new Set(registry.legacyIdentifiers.filter((entry) => entry.type === 'vercel_project_name').map((entry) => normalizeProjectName(entry.value)));
   if (targetRef && legacySupabaseRefs.has(targetRef)) fail(`target Supabase ref ${targetRef} is explicitly LEGACY — DO NOT USE`);
+  if (requestedVercelProject && legacyVercelProjectNames.has(requestedVercelProject)) fail(`Vercel project name ${requestedVercelProject} is explicitly LEGACY — DO NOT USE`);
 
   if (operation === 'sandbox-migration' && (!targetRef || targetRef !== registry.supabase.stagingRef)) {
     fail('sandbox migration requires the exact canonical Staging Supabase ref');
   }
 
   if (sensitiveProductionOperations.has(operation)) {
+    const vercelProjectId = String(process.env.VERCEL_PROJECT_ID || '').trim();
+    if (!vercelProjectId) fail('Production operation requires VERCEL_PROJECT_ID');
+    if (vercelProjectId !== registry.vercel.projectId) fail('Production deployment is not targeting the canonical Vercel project');
     if (registry.supabase.productionStatus !== 'VERIFIED' || !registry.supabase.productionRef) fail(`Production Supabase is ${registry.supabase.productionStatus || 'UNVERIFIED'}`);
     if (!targetRef) fail('Production operation target is UNKNOWN');
     if (targetRef !== registry.supabase.productionRef) fail('Production operation target does not match the verified Production Supabase ref');
