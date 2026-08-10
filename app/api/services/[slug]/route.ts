@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { getMarketplaceSnapshot } from '@/lib/marketplace/server';
 import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters } from '@/lib/marketplace/public-filters';
+import {
+    keepPublicAssetsNonSynthetic,
+    looksSyntheticRecord,
+    resolveArrayWithSyntheticCompatibility,
+    resolveSingleWithSyntheticCompatibility,
+    sanitizeServiceProductsForCompatibility,
+} from '@/lib/marketplace/synthetic-compat';
 
 type ServiceApiErrorCode = 'invalid_slug' | 'not_found' | 'internal_error';
 
@@ -44,24 +51,37 @@ export async function GET(
         }
 
         if (supabaseAdmin) {
-            const { data: service, error } = await supabaseAdmin
-                .from('services')
-                .select(`
-                    *,
-                    products:products(
+            const client = supabaseAdmin;
+
+            const readService = async (withSyntheticFilter: boolean) => {
+                let query = client
+                    .from('services')
+                    .select(`
                         *,
-                        partner:partners(*),
-                        images:product_images(*),
-                        region:regions(*)
-                    )
-                `)
-                .eq('slug', normalizedSlug)
-                .single();
+                        products:products(
+                            *,
+                            partner:partners(*),
+                            images:product_images(*),
+                            region:regions(*)
+                        )
+                    `)
+                    .eq('slug', normalizedSlug);
+
+                if (withSyntheticFilter) {
+                    query = query.eq('products.synthetic', false);
+                }
+
+                return query.single();
+            };
+
+            const { data: service, error } = await resolveSingleWithSyntheticCompatibility(
+                () => readService(true),
+                () => readService(false),
+                (row) => looksSyntheticRecord(row)
+            );
 
             if (!error && service) {
-                const safeProducts = Array.isArray(service.products)
-                    ? service.products.filter((product: Record<string, unknown>) => product && product.synthetic === false)
-                    : [];
+                const safeProducts = sanitizeServiceProductsForCompatibility(Array.isArray(service.products) ? service.products : []);
 
                 return NextResponse.json({
                     ...service,
@@ -69,27 +89,58 @@ export async function GET(
                 });
             }
 
-            const { data: product, error: productError } = await applyPublicProductFilters(
-                supabaseAdmin
-                    .from('products')
-                    .select('*')
-                    .eq('slug', normalizedSlug)
-            ).single();
+            const { data: product, error: productError } = await resolveSingleWithSyntheticCompatibility(
+                () =>
+                    applyPublicProductFilters(
+                        client
+                            .from('products')
+                            .select('*, synthetic')
+                            .eq('slug', normalizedSlug)
+                    ).single(),
+                () =>
+                    client
+                        .from('products')
+                        .select('*')
+                        .eq('slug', normalizedSlug)
+                        .in('status', ['published', 'active', 'featured'])
+                        .single(),
+                (row) => looksSyntheticRecord(row)
+            );
 
             if (!productError && product) {
-                const { data: category } = await applyPublicCategoryFilters(
-                    supabaseAdmin
-                        .from('product_categories')
-                        .select('id,slug,name_en,name_ar')
-                        .eq('id', product.category_id)
-                ).maybeSingle();
+                const { data: category } = await resolveSingleWithSyntheticCompatibility(
+                    () =>
+                        applyPublicCategoryFilters(
+                            client
+                                .from('product_categories')
+                                .select('id,slug,name_en,name_ar,synthetic')
+                                .eq('id', product.category_id)
+                        ).maybeSingle(),
+                    () =>
+                        client
+                            .from('product_categories')
+                            .select('id,slug,name_en,name_ar')
+                            .eq('id', product.category_id)
+                            .maybeSingle(),
+                    (row) => looksSyntheticRecord(row)
+                );
 
-                const { data: images } = await applyPublicAssetSyntheticFilter(
-                    supabaseAdmin
-                        .from('product_images')
-                        .select('*')
-                        .eq('product_id', product.id)
-                ).order('created_at', { ascending: true });
+                const { data: images } = await resolveArrayWithSyntheticCompatibility(
+                    () =>
+                        applyPublicAssetSyntheticFilter(
+                            client
+                                .from('product_images')
+                                .select('*, synthetic')
+                                .eq('product_id', product.id)
+                        ).order('created_at', { ascending: true }),
+                    () =>
+                        client
+                            .from('product_images')
+                            .select('*')
+                            .eq('product_id', product.id)
+                            .order('created_at', { ascending: true }),
+                    keepPublicAssetsNonSynthetic
+                );
 
                 return NextResponse.json({
                     id: product.id,

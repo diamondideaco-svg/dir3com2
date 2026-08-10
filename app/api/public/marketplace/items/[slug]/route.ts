@@ -3,6 +3,12 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError } from '@/lib/security/safe-logger';
 import { normalizeMarketplaceSlug, toPublicMarketplaceItemDetail } from '@/lib/marketplace/public-serializer';
 import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters } from '@/lib/marketplace/public-filters';
+import {
+  keepPublicAssetsNonSynthetic,
+  looksSyntheticRecord,
+  resolveArrayWithSyntheticCompatibility,
+  resolveSingleWithSyntheticCompatibility,
+} from '@/lib/marketplace/synthetic-compat';
 
 function buildUnavailableResponse() {
   return NextResponse.json({ error: 'This marketplace item is unavailable.' }, { status: 404 });
@@ -16,6 +22,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Unable to load marketplace item right now.' }, { status: 500 });
     }
 
+    const client = supabaseAdmin;
+
     const { slug } = await params;
     const normalizedSlug = normalizeMarketplaceSlug(slug);
 
@@ -23,12 +31,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Invalid marketplace item slug.' }, { status: 400 });
     }
 
-    const { data: product, error: productError } = await applyPublicProductFilters(
-      supabaseAdmin
-        .from('products')
-        .select('id, slug, name_ar, name_en, description_ar, description_en, city, base_price, currency, featured, category_id')
-        .eq('slug', normalizedSlug)
-    ).maybeSingle();
+    const { data: product, error: productError } = await resolveSingleWithSyntheticCompatibility(
+      () =>
+        applyPublicProductFilters(
+          client
+            .from('products')
+            .select('id, slug, name_ar, name_en, description_ar, description_en, city, base_price, currency, featured, category_id, synthetic')
+            .eq('slug', normalizedSlug)
+        ).maybeSingle(),
+      () =>
+        client
+          .from('products')
+          .select('id, slug, name_ar, name_en, description_ar, description_en, city, base_price, currency, featured, category_id')
+          .eq('slug', normalizedSlug)
+          .in('status', ['published', 'active', 'featured'])
+          .maybeSingle(),
+      (row) => looksSyntheticRecord(row)
+    );
 
     if (productError) {
       logServerError('api.public.marketplace.item_detail.read_failed', productError);
@@ -39,12 +58,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return buildUnavailableResponse();
     }
 
-    const { data: category, error: categoryError } = await applyPublicCategoryFilters(
-      supabaseAdmin
-        .from('product_categories')
-        .select('slug, name_ar, name_en')
-        .eq('id', product.category_id)
-    ).maybeSingle();
+    const { data: category, error: categoryError } = await resolveSingleWithSyntheticCompatibility(
+      () =>
+        applyPublicCategoryFilters(
+          client
+            .from('product_categories')
+            .select('slug, name_ar, name_en, synthetic')
+            .eq('id', product.category_id)
+        ).maybeSingle(),
+      () =>
+        client
+          .from('product_categories')
+          .select('slug, name_ar, name_en')
+          .eq('id', product.category_id)
+          .maybeSingle(),
+      (row) => looksSyntheticRecord(row)
+    );
 
     if (categoryError) {
       logServerError('api.public.marketplace.item_detail.category_read_failed', categoryError);
@@ -55,27 +84,49 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return buildUnavailableResponse();
     }
 
-    const { data: images, error: imagesError } = await applyPublicAssetSyntheticFilter(
-      supabaseAdmin
-        .from('product_images')
-        .select('image_url, is_primary, sort_order, created_at')
-        .eq('product_id', product.id)
-    )
-      .order('is_primary', { ascending: false })
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: true });
+    const { data: images, error: imagesError } = await resolveArrayWithSyntheticCompatibility(
+      () =>
+        applyPublicAssetSyntheticFilter(
+          client
+            .from('product_images')
+            .select('image_url, is_primary, sort_order, created_at, synthetic')
+            .eq('product_id', product.id)
+        )
+          .order('is_primary', { ascending: false })
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: true }),
+      () =>
+        client
+          .from('product_images')
+          .select('image_url, is_primary, sort_order, created_at')
+          .eq('product_id', product.id)
+          .order('is_primary', { ascending: false })
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: true }),
+      keepPublicAssetsNonSynthetic
+    );
 
     if (imagesError) {
       logServerError('api.public.marketplace.item_detail.images_read_failed', imagesError);
       return NextResponse.json({ error: 'Unable to load marketplace item right now.' }, { status: 500 });
     }
 
-    const { data: features, error: featuresError } = await applyPublicAssetSyntheticFilter(
-      supabaseAdmin
-        .from('product_features')
-        .select('feature_text_ar, feature_text_en, created_at')
-        .eq('product_id', product.id)
-    ).order('created_at', { ascending: true });
+    const { data: features, error: featuresError } = await resolveArrayWithSyntheticCompatibility(
+      () =>
+        applyPublicAssetSyntheticFilter(
+          client
+            .from('product_features')
+            .select('feature_text_ar, feature_text_en, created_at, synthetic')
+            .eq('product_id', product.id)
+        ).order('created_at', { ascending: true }),
+      () =>
+        client
+          .from('product_features')
+          .select('feature_text_ar, feature_text_en, created_at')
+          .eq('product_id', product.id)
+          .order('created_at', { ascending: true }),
+      keepPublicAssetsNonSynthetic
+    );
 
     if (featuresError) {
       logServerError('api.public.marketplace.item_detail.features_read_failed', featuresError);

@@ -3,6 +3,14 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError } from '@/lib/security/safe-logger';
 import { normalizeMarketplaceSlug, toPublicMarketplaceItemSummary } from '@/lib/marketplace/public-serializer';
 import { applyPublicCategoryFilters, applyPublicProductFilters } from '@/lib/marketplace/public-filters';
+import {
+  keepPublicAssetsNonSynthetic,
+  keepPublicCategoryNonSynthetic,
+  keepPublicNonSynthetic,
+  looksSyntheticRecord,
+  resolveArrayWithSyntheticCompatibility,
+  resolveSingleWithSyntheticCompatibility,
+} from '@/lib/marketplace/synthetic-compat';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 12;
@@ -53,6 +61,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Marketplace is unavailable right now.' }, { status: 503 });
     }
 
+    const client = supabaseAdmin;
+
     for (const key of request.nextUrl.searchParams.keys()) {
       if (!ALLOWED_QUERY_PARAMS.has(key)) {
         return NextResponse.json({ error: 'Invalid marketplace query parameter.' }, { status: 400 });
@@ -76,12 +86,22 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid marketplace category.' }, { status: 400 });
       }
 
-      const { data: category, error: categoryError } = await applyPublicCategoryFilters(
-        supabaseAdmin
-          .from('product_categories')
-          .select('id, slug, name_ar, name_en')
-          .eq('slug', categorySlug)
-      ).maybeSingle();
+      const { data: category, error: categoryError } = await resolveSingleWithSyntheticCompatibility(
+        () =>
+          applyPublicCategoryFilters(
+            client
+              .from('product_categories')
+              .select('id, slug, name_ar, name_en, synthetic')
+              .eq('slug', categorySlug)
+          ).maybeSingle(),
+        () =>
+          client
+            .from('product_categories')
+            .select('id, slug, name_ar, name_en')
+            .eq('slug', categorySlug)
+            .maybeSingle(),
+        (row) => looksSyntheticRecord(row)
+      );
 
       if (categoryError) {
         logServerError('api.public.marketplace.items.category_read_failed', categoryError);
@@ -92,36 +112,48 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ items: [], meta: { page, pageSize, total: 0, totalPages: 1, category: categorySlug } }, { status: 200 });
       }
 
-      categoryId = category.id;
+      categoryId = String(category.id);
       categoryFilter = {
-        slug: category.slug,
-        name_ar: category.name_ar,
-        name_en: category.name_en,
+        slug: String(category.slug),
+        name_ar: String(category.name_ar),
+        name_en: String(category.name_en),
       };
     }
 
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    let query = applyPublicProductFilters(
-      supabaseAdmin
+    const buildProductsQuery = (withSyntheticFilter: boolean) => {
+      const base = client
         .from('products')
-        .select('id, slug, name_ar, name_en, description_ar, base_price, currency, category_id, status, featured, created_at', { count: 'exact' })
-    )
-      .order('featured', { ascending: false })
-      .order('created_at', { ascending: false })
-      .range(from, to);
+        .select('*', { count: 'exact' });
 
-    if (categoryId) {
-      query = query.eq('category_id', categoryId);
-    }
+      let query = withSyntheticFilter ? applyPublicProductFilters(base) : base;
+      query = query
+        .order('featured', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-    if (search.value) {
-      const pattern = `%${escapeIlikePattern(search.value)}%`;
-      query = query.or(`name_ar.ilike.${pattern},name_en.ilike.${pattern},description_ar.ilike.${pattern}`);
-    }
+      if (categoryId) {
+        query = query.eq('category_id', categoryId);
+      }
 
-    const { data: products, count, error: productsError } = await query;
+      if (search.value) {
+        const pattern = `%${escapeIlikePattern(search.value)}%`;
+        query = query.or(`name_ar.ilike.${pattern},name_en.ilike.${pattern},description_ar.ilike.${pattern}`);
+      }
+
+      return query;
+    };
+
+    const filteredProducts = await resolveArrayWithSyntheticCompatibility(
+      () => buildProductsQuery(true),
+      () => buildProductsQuery(false),
+      keepPublicNonSynthetic
+    );
+    const products = filteredProducts.data;
+    const productsError = filteredProducts.error;
+    const count = products.length;
 
     if (productsError) {
       logServerError('api.public.marketplace.items.read_failed', productsError);
@@ -132,9 +164,19 @@ export async function GET(request: NextRequest) {
       new Set((products ?? []).map((product: Record<string, unknown>) => (typeof product.category_id === 'string' ? product.category_id : null)).filter(Boolean))
     ) as string[];
 
-    const { data: categories, error: categoriesError } = categoryIds.length
-      ? await applyPublicCategoryFilters(supabaseAdmin.from('product_categories').select('id, slug, name_ar, name_en').in('id', categoryIds))
+    const categoriesResult = categoryIds.length
+      ? await resolveArrayWithSyntheticCompatibility(
+          () =>
+            applyPublicCategoryFilters(
+              client.from('product_categories').select('id, slug, name_ar, name_en, synthetic').in('id', categoryIds)
+            ),
+          () => client.from('product_categories').select('id, slug, name_ar, name_en').in('id', categoryIds),
+          keepPublicCategoryNonSynthetic
+        )
       : { data: [], error: null };
+
+    const categories = categoriesResult.data;
+    const categoriesError = categoriesResult.error;
 
     if (categoriesError) {
       logServerError('api.public.marketplace.items.categories_read_failed', categoriesError);
@@ -147,15 +189,29 @@ export async function GET(request: NextRequest) {
       .map((product: Record<string, unknown>) => (typeof product.id === 'string' ? product.id : null))
       .filter((value: string | null): value is string => value !== null);
 
-    const { data: images, error: imagesError } = productIds.length
-      ? await supabaseAdmin
-          .from('product_images')
-          .select('product_id, image_url, is_primary, created_at')
-          .in('product_id', productIds)
-          .eq('synthetic', false)
-          .order('is_primary', { ascending: false })
-          .order('created_at', { ascending: true })
+    const imagesResult = productIds.length
+      ? await resolveArrayWithSyntheticCompatibility(
+          () =>
+            client
+              .from('product_images')
+              .select('product_id, image_url, is_primary, created_at, synthetic')
+              .in('product_id', productIds)
+              .eq('synthetic', false)
+              .order('is_primary', { ascending: false })
+              .order('created_at', { ascending: true }),
+          () =>
+            client
+              .from('product_images')
+              .select('product_id, image_url, is_primary, created_at')
+              .in('product_id', productIds)
+              .order('is_primary', { ascending: false })
+              .order('created_at', { ascending: true }),
+          keepPublicAssetsNonSynthetic
+        )
       : { data: [], error: null };
+
+    const images = imagesResult.data;
+    const imagesError = imagesResult.error;
 
     if (imagesError) {
       logServerError('api.public.marketplace.items.images_read_failed', imagesError);
@@ -164,8 +220,9 @@ export async function GET(request: NextRequest) {
 
     const imageByProductId = new Map<string, string>();
     for (const image of images ?? []) {
-      if (!imageByProductId.has(image.product_id) && typeof image.image_url === 'string') {
-        imageByProductId.set(image.product_id, image.image_url);
+      const productId = typeof image.product_id === 'string' ? image.product_id : null;
+      if (productId && !imageByProductId.has(productId) && typeof image.image_url === 'string') {
+        imageByProductId.set(productId, image.image_url);
       }
     }
 

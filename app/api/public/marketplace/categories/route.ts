@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError } from '@/lib/security/safe-logger';
 import { toPublicMarketplaceCategory } from '@/lib/marketplace/public-serializer';
 import { applyPublicCategoryFilters, applyPublicProductFilters } from '@/lib/marketplace/public-filters';
+import { keepPublicCategoryNonSynthetic, keepPublicNonSynthetic, resolveArrayWithSyntheticCompatibility } from '@/lib/marketplace/synthetic-compat';
 
 export async function GET(request: NextRequest) {
   void request;
@@ -12,10 +13,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Marketplace is unavailable right now.' }, { status: 503 });
     }
 
-    const { data: products, error: productsError } = await applyPublicProductFilters(
-      supabaseAdmin
-        .from('products')
-        .select('category_id')
+    const client = supabaseAdmin;
+
+    const { data: products, error: productsError } = await resolveArrayWithSyntheticCompatibility(
+      () =>
+        applyPublicProductFilters(
+          client
+            .from('products')
+            .select('category_id, slug, name_ar, name_en, synthetic')
+        ),
+      () =>
+        client
+          .from('products')
+          .select('category_id, slug, name_ar, name_en'),
+      keepPublicNonSynthetic
     );
 
     if (productsError) {
@@ -38,12 +49,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ categories: [] }, { status: 200 });
     }
 
-    const { data: categories, error: categoriesError } = await applyPublicCategoryFilters(
-      supabaseAdmin
-        .from('product_categories')
-        .select('id, slug, name_ar, name_en')
-        .in('id', categoryIds)
-    ).order('name_en', { ascending: true });
+    const { data: categories, error: categoriesError } = await resolveArrayWithSyntheticCompatibility(
+      () =>
+        applyPublicCategoryFilters(
+          client
+            .from('product_categories')
+            .select('id, slug, name_ar, name_en, synthetic')
+            .in('id', categoryIds)
+        ).order('name_en', { ascending: true }),
+      () =>
+        client
+          .from('product_categories')
+          .select('id, slug, name_ar, name_en')
+          .in('id', categoryIds)
+          .order('name_en', { ascending: true }),
+      keepPublicCategoryNonSynthetic
+    );
 
     if (categoriesError) {
       logServerError('api.public.marketplace.categories.read_failed', categoriesError);
