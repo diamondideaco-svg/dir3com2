@@ -27,6 +27,11 @@ export const metadata: Metadata = {
     title: 'dir3com | درعك الحامي للسياحة.',
     description: 'dir3com بهوية جديدة: درعك الحامي للسياحة.',
   },
+  verification: {
+    other: {
+      'facebook-domain-verification': 'g6sefyrfpysoavwv6ggtzpomhcyzhw',
+    },
+  },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
