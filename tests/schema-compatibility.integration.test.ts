@@ -245,21 +245,25 @@ test('real db: error classifier does not trigger for unrelated schema/permission
       assert.equal(isSyntheticSchemaRolloutError(dbErr), false);
     }
 
-    await client.query('CREATE ROLE no_select_role NOLOGIN;');
-    await client.query('REVOKE SELECT ON public.products FROM PUBLIC;');
-    await client.query('GRANT USAGE ON SCHEMA public TO no_select_role;');
-    await client.query('SET ROLE no_select_role;');
+    await client.query("CREATE ROLE limited_reader LOGIN PASSWORD 'limited_pw';");
+    await client.query('GRANT USAGE ON SCHEMA public TO limited_reader;');
+    await client.query('REVOKE ALL ON public.products FROM limited_reader;');
+
+    const limitedUrl = new URL(requireDatabaseUrl());
+    limitedUrl.username = 'limited_reader';
+    limitedUrl.password = 'limited_pw';
+    const limitedClient = new Client({ connectionString: limitedUrl.toString() });
+    await limitedClient.connect();
     try {
-      await client.query('SELECT id FROM public.products WHERE synthetic = false');
+      await limitedClient.query('SELECT id FROM public.products WHERE synthetic = false');
       assert.fail('Expected permission error');
     } catch (error) {
       const dbErr = error as { code?: string; message?: string };
       assert.equal(dbErr.code, '42501');
       assert.equal(isSyntheticSchemaRolloutError(dbErr), false);
     } finally {
-      await client.query('RESET ROLE;');
-      await client.query('GRANT SELECT ON public.products TO PUBLIC;');
-      await client.query('DROP ROLE IF EXISTS no_select_role;');
+      await limitedClient.end();
+      await client.query('DROP ROLE IF EXISTS limited_reader;');
     }
 
     try {
