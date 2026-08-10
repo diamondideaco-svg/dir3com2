@@ -8,6 +8,7 @@ import { Client } from 'pg';
 import { isSyntheticSchemaRolloutError } from '@/lib/marketplace/synthetic-compat';
 
 const coreMigrationPath = path.resolve('supabase/migrations/20260810102000_dgr071_core_synthetic_compatibility.sql');
+const servicesMigrationPath = path.resolve('supabase/migrations/20260810113000_dgr072_services_synthetic_compatibility.sql');
 const stagingMigrationPath = path.resolve('supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.sql');
 const rollbackPath = path.resolve('supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.rollback.sql');
 
@@ -84,6 +85,7 @@ async function createProductionLikeSchema(client: Client) {
 
     CREATE TABLE public.products (
       id uuid PRIMARY KEY,
+      service_id uuid,
       slug text,
       status text,
       name_ar text,
@@ -92,12 +94,36 @@ async function createProductionLikeSchema(client: Client) {
       description_en text,
       city text,
       base_price numeric(12,2),
+      price_per_unit numeric(12,2),
       currency text,
       featured boolean DEFAULT false,
+      partner_id uuid,
+      region_id uuid,
       created_at timestamptz DEFAULT now(),
       category_id uuid REFERENCES public.product_categories(id),
       verified boolean DEFAULT false,
       shield_certified boolean DEFAULT false
+    );
+
+    CREATE TABLE public.services (
+      id uuid PRIMARY KEY,
+      slug text,
+      status text,
+      name_ar text,
+      name_en text,
+      description_ar text,
+      description_en text,
+      base_price numeric(12,2),
+      currency text,
+      featured boolean DEFAULT false,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now()
+    );
+
+    CREATE TABLE public.regions (
+      id uuid PRIMARY KEY,
+      name_ar text,
+      name_en text
     );
 
     CREATE TABLE public.product_images (
@@ -173,6 +199,7 @@ async function createProductionLikeSchema(client: Client) {
 
 test('real db: migration SQL payloads are UTF-8 without BOM', () => {
   assertSqlWithoutBom(coreMigrationPath);
+  assertSqlWithoutBom(servicesMigrationPath);
   assertSqlWithoutBom(stagingMigrationPath);
   assertSqlWithoutBom(rollbackPath);
 });
@@ -185,16 +212,31 @@ test('real db: core migration enforces synthetic schema and preserves bookings c
     const categoryId = randomId('1001');
     const businessProductId = randomId('2001');
     const syntheticProductId = randomId('2002');
+    const businessServiceId = randomId('1501');
+    const syntheticServiceId = randomId('1502');
+    const regionId = randomId('1601');
+    const partnerId = randomId('1701');
 
     await client.query(
       `INSERT INTO public.product_categories (id, slug, name_ar, name_en) VALUES ($1, 'cars', 'سيارات', 'Cars')`,
       [categoryId],
     );
 
+    await client.query(`INSERT INTO public.regions (id, name_ar, name_en) VALUES ($1, 'الرياض', 'Riyadh')`, [regionId]);
+    await client.query(`INSERT INTO public.partners (id) VALUES ($1)`, [partnerId]);
+
     await client.query(
-      `INSERT INTO public.products (id, slug, status, name_ar, name_en, category_id, currency, base_price, featured)
-       VALUES ($1, 'city-transfer', 'published', 'انتقال مدينة', 'City Transfer', $2, 'SAR', 100, true)`,
-      [businessProductId, categoryId],
+      `INSERT INTO public.services (id, slug, status, name_ar, name_en, description_ar, description_en, base_price, currency, featured)
+       VALUES
+       ($1, 'business-service', 'published', 'خدمة أعمال', 'Business Service', 'وصف', 'Description', 350, 'SAR', true),
+       ($2, 'synthetic-service', 'published', 'خدمة صناعية', 'Synthetic Service', 'وصف', 'Description', 120, 'SAR', false)`,
+      [businessServiceId, syntheticServiceId],
+    );
+
+    await client.query(
+      `INSERT INTO public.products (id, slug, service_id, status, name_ar, name_en, category_id, currency, base_price, featured, price_per_unit, partner_id, region_id)
+       VALUES ($1, 'city-transfer', $3, 'published', 'انتقال مدينة', 'City Transfer', $2, 'SAR', 100, true, 95, $4, $5)`,
+      [businessProductId, categoryId, businessServiceId, partnerId, regionId],
     );
 
     await client.query(
@@ -208,8 +250,9 @@ test('real db: core migration enforces synthetic schema and preserves bookings c
     );
 
     await client.query(assertSqlWithoutBom(coreMigrationPath));
+    await client.query(assertSqlWithoutBom(servicesMigrationPath));
 
-    const expectedTables = ['products', 'product_categories', 'product_images', 'product_features'];
+    const expectedTables = ['products', 'product_categories', 'product_images', 'product_features', 'services'];
     for (const tableName of expectedTables) {
       const { rows } = await client.query(
         `SELECT data_type, is_nullable, column_default
@@ -240,6 +283,18 @@ test('real db: core migration enforces synthetic schema and preserves bookings c
     );
 
     await client.query(
+      `UPDATE public.products
+       SET service_id = $2,
+           status = 'published',
+           price_per_unit = 90,
+           partner_id = $3,
+           region_id = $4
+       WHERE id = $1`,
+      [syntheticProductId, syntheticServiceId, partnerId, regionId],
+    );
+    await client.query(`UPDATE public.services SET synthetic = true WHERE id = $1`, [syntheticServiceId]);
+
+    await client.query(
       `INSERT INTO public.product_images (id, product_id, image_url, is_primary, synthetic) VALUES ($1, $2, 'https://img/synth', true, true)`,
       [randomId('3002'), syntheticProductId],
     );
@@ -261,6 +316,55 @@ test('real db: core migration enforces synthetic schema and preserves bookings c
       [businessProductId],
     );
     assert.equal(visibleImages.rows.length, 1);
+
+    const adapterContractRows = await client.query(
+      `SELECT s.slug AS service_slug, p.slug AS product_slug
+       FROM public.services s
+       LEFT JOIN public.products p
+         ON p.service_id = s.id
+        AND p.synthetic = false
+       LEFT JOIN public.product_categories c
+         ON c.id = p.category_id
+        AND c.synthetic = false
+       WHERE s.synthetic = false
+       ORDER BY s.slug`,
+    );
+
+    assert.deepEqual(adapterContractRows.rows.map((row) => row.service_slug), ['business-service']);
+    assert.deepEqual(adapterContractRows.rows.map((row) => row.product_slug).filter(Boolean), ['city-transfer']);
+
+    const serviceDetailRows = await client.query(
+      `SELECT s.slug AS service_slug, p.slug AS product_slug, i.image_url
+       FROM public.services s
+       LEFT JOIN public.products p
+         ON p.service_id = s.id
+        AND p.synthetic = false
+        AND p.status IN ('published', 'active', 'featured')
+       LEFT JOIN public.product_images i
+         ON i.product_id = p.id
+        AND i.synthetic = false
+       WHERE s.slug = $1
+         AND s.synthetic = false`,
+      ['business-service'],
+    );
+
+    assert.equal(serviceDetailRows.rows.length > 0, true);
+    assert.equal(serviceDetailRows.rows.some((row) => row.product_slug === 'city-transfer'), true);
+    assert.equal(serviceDetailRows.rows.some((row) => String(row.image_url).includes('synth')), false);
+
+    const syntheticDetailRows = await client.query(
+      `SELECT s.slug
+       FROM public.services s
+       LEFT JOIN public.products p
+         ON p.service_id = s.id
+        AND p.synthetic = false
+        AND p.status IN ('published', 'active', 'featured')
+       WHERE s.slug = $1
+         AND s.synthetic = false`,
+      ['synthetic-service'],
+    );
+
+    assert.equal(syntheticDetailRows.rows.length, 0);
   });
 });
 

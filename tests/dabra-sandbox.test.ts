@@ -188,6 +188,11 @@ test('public adapters and service API keep DB-level synthetic isolation and avoi
   assert.match(serviceRoute, /eq\('products\.images\.synthetic', false\)/);
   assert.doesNotMatch(serviceRoute, /resolveSingleWithSyntheticCompatibility/);
   assert.doesNotMatch(serviceRoute, /resolveArrayWithSyntheticCompatibility/);
+
+  const searchRoute = fs.readFileSync(path.resolve('app/api/search/marketplace/route.ts'), 'utf8');
+  assert.match(searchRoute, /getMarketplaceSnapshot/);
+  assert.doesNotMatch(searchRoute, /supabaseAdmin/);
+  assert.doesNotMatch(searchRoute, /from\('products'\)|from\('services'\)|from\('product_categories'\)/);
 });
 
 test('public isolation script covers search, service detail, and synthetic image leakage checks', () => {
