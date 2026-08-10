@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { applyPublicCategoryFilters, applyPublicProductFilters, applyPublicServiceFilters } from '@/lib/marketplace/public-filters';
 
 export type RawMarketplaceServiceRecord = {
   id?: string | number | null;
@@ -58,14 +59,7 @@ export interface MarketplaceProviderAdapter {
   fetchServices(): Promise<MarketplaceProviderResult | null>;
 }
 
-const servicesSelect = `
-  *,
-  products:products(
-    id,
-    price_per_unit,
-    region:regions(name_ar,name_en)
-  )
-`;
+const servicesSelect = '*';
 
 export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
   id: 'supabase',
@@ -79,13 +73,14 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
       { data: productsData, error: productsError },
       { data: categoriesData, error: categoriesError },
     ] = await Promise.all([
-      supabaseAdmin.from('services').select(servicesSelect).order('created_at', { ascending: true }),
-      supabaseAdmin
-        .from('products')
-        .select('id,slug,name_ar,name_en,description_ar,description_en,base_price,currency,status,featured,verified,category_id,created_at,updated_at')
-        .in('status', ['published', 'active', 'featured'])
+      applyPublicServiceFilters(supabaseAdmin.from('services').select(servicesSelect))
         .order('created_at', { ascending: true }),
-      supabaseAdmin.from('product_categories').select('id,slug,name_en,name_ar'),
+      applyPublicProductFilters(
+        supabaseAdmin
+          .from('products')
+          .select('id,slug,name_ar,name_en,description_ar,description_en,base_price,currency,status,featured,verified,category_id,created_at,updated_at')
+      ).order('created_at', { ascending: true }),
+      applyPublicCategoryFilters(supabaseAdmin.from('product_categories').select('id,slug,name_en,name_ar')),
     ]);
 
     if (servicesError && productsError && categoriesError) {

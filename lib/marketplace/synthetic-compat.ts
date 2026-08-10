@@ -23,13 +23,15 @@ function startsWithTestReference(value: unknown) {
   return String(value || '').toUpperCase().startsWith('TEST-');
 }
 
-export function isMissingSyntheticColumnError(error: unknown) {
+export function isSyntheticSchemaRolloutError(error: unknown) {
   if (!error || typeof error !== 'object') return false;
   const value = error as ErrorLike;
   const message = text(value.message);
   const details = text(value.details);
-  return value.code === '42703' || message.includes('synthetic') || details.includes('synthetic');
+  return value.code === '42703' && (message.includes('synthetic') || details.includes('synthetic'));
 }
+
+export const isMissingSyntheticColumnError = isSyntheticSchemaRolloutError;
 
 export function looksSyntheticRecord(input: Record<string, unknown>) {
   if (input.synthetic === true) return true;
@@ -53,50 +55,24 @@ export function keepPublicAssetsNonSynthetic<T extends Record<string, unknown>>(
 
 export async function resolveArrayWithSyntheticCompatibility<T extends Record<string, unknown>>(
   runWithSyntheticFilter: () => Awaitable<{ data: T[] | null; error: unknown }>,
-  runWithoutSyntheticFilter: () => Awaitable<{ data: T[] | null; error: unknown }>,
-  cleaner: (rows: T[]) => T[]
+  _runWithoutSyntheticFilter: () => Awaitable<{ data: T[] | null; error: unknown }>,
+  _cleaner: (rows: T[]) => T[]
 ) {
+  void _runWithoutSyntheticFilter;
+  void _cleaner;
   const filtered = await runWithSyntheticFilter();
-  if (!isMissingSyntheticColumnError(filtered.error)) {
-    return { data: filtered.data ?? [], error: filtered.error, usedCompatibilityFallback: false };
-  }
-
-  const fallback = await runWithoutSyntheticFilter();
-  if (fallback.error) {
-    return { data: [] as T[], error: fallback.error, usedCompatibilityFallback: true };
-  }
-
-  return {
-    data: cleaner(fallback.data ?? []),
-    error: null,
-    usedCompatibilityFallback: true,
-  };
+  return { data: filtered.data ?? [], error: filtered.error, usedCompatibilityFallback: false };
 }
 
 export async function resolveSingleWithSyntheticCompatibility<T extends Record<string, unknown>>(
   runWithSyntheticFilter: () => Awaitable<{ data: T | null; error: unknown }>,
-  runWithoutSyntheticFilter: () => Awaitable<{ data: T | null; error: unknown }>,
-  isSynthetic: (row: T) => boolean
+  _runWithoutSyntheticFilter: () => Awaitable<{ data: T | null; error: unknown }>,
+  _isSynthetic: (row: T) => boolean
 ) {
+  void _runWithoutSyntheticFilter;
+  void _isSynthetic;
   const filtered = await runWithSyntheticFilter();
-  if (!isMissingSyntheticColumnError(filtered.error)) {
-    return { data: filtered.data, error: filtered.error, usedCompatibilityFallback: false };
-  }
-
-  const fallback = await runWithoutSyntheticFilter();
-  if (fallback.error) {
-    return { data: null as T | null, error: fallback.error, usedCompatibilityFallback: true };
-  }
-
-  if (!fallback.data || isSynthetic(fallback.data)) {
-    return { data: null as T | null, error: null, usedCompatibilityFallback: true };
-  }
-
-  return {
-    data: fallback.data,
-    error: null,
-    usedCompatibilityFallback: true,
-  };
+  return { data: filtered.data, error: filtered.error, usedCompatibilityFallback: false };
 }
 
 export function sanitizeServiceProductsForCompatibility(products: unknown[]) {

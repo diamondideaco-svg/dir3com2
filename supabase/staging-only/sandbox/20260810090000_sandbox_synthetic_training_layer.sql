@@ -1,4 +1,4 @@
-﻿BEGIN;
+BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.sandbox_migration_journal (
   migration_key text PRIMARY KEY,

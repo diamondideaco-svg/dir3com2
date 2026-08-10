@@ -29,19 +29,61 @@ async function getJson(url) {
   return json;
 }
 
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(`${url} => ${response.status}`);
+  }
+  return json;
+}
+
 function containsSyntheticToken(value) {
   return String(value || '').toLowerCase().includes('sandbox') || String(value || '').startsWith('TEST-');
+}
+
+function hasSyntheticLeak(input) {
+  if (Array.isArray(input)) {
+    return input.some((entry) => hasSyntheticLeak(entry));
+  }
+  if (input && typeof input === 'object') {
+    return Object.values(input).some((entry) => hasSyntheticLeak(entry));
+  }
+  return containsSyntheticToken(input);
 }
 
 async function main() {
   const categories = await getJson(`${baseUrl}/api/public/marketplace/categories`);
   const items = await getJson(`${baseUrl}/api/public/marketplace/items?page=1&pageSize=20&q=sandbox`);
+  const services = await getJson(`${baseUrl}/api/services?page=1&pageSize=20&query=sandbox`);
+  const search = await postJson(`${baseUrl}/api/search/marketplace`, {
+    query: 'sandbox',
+    language: 'ar',
+    page: 1,
+    pageSize: 20,
+  });
+
+  const firstPublicItemSlug = (items.items || []).find((row) => typeof row?.slug === 'string')?.slug || null;
+  const serviceDetail = firstPublicItemSlug ? await getJson(`${baseUrl}/api/services/${encodeURIComponent(firstPublicItemSlug)}`) : null;
 
   const categoryLeak = (categories.categories || []).some((row) => containsSyntheticToken(row.slug) || containsSyntheticToken(row.name_en) || containsSyntheticToken(row.name_ar));
 
   const itemLeak = (items.items || []).some((row) => containsSyntheticToken(row.slug) || containsSyntheticToken(row.name_en) || containsSyntheticToken(row.name_ar));
 
-  const pass = !categoryLeak && !itemLeak;
+  const servicesLeak = hasSyntheticLeak(services.services || []);
+  const searchLeak = hasSyntheticLeak(search.services || []);
+  const detailLeak = hasSyntheticLeak(serviceDetail);
+  const detailSyntheticImageLeak = Array.isArray(serviceDetail?.products)
+    ? serviceDetail.products.some((product) => Array.isArray(product?.images) && product.images.some((image) => hasSyntheticLeak(image)))
+    : false;
+
+  const pass = !categoryLeak && !itemLeak && !servicesLeak && !searchLeak && !detailLeak && !detailSyntheticImageLeak;
 
   console.log(
     JSON.stringify(
@@ -50,8 +92,15 @@ async function main() {
         baseUrl,
         categoryCount: (categories.categories || []).length,
         itemCount: (items.items || []).length,
+        servicesCount: (services.services || []).length,
+        searchCount: (search.services || []).length,
+        serviceDetailSlug: firstPublicItemSlug,
         categoryLeak,
         itemLeak,
+        servicesLeak,
+        searchLeak,
+        detailLeak,
+        detailSyntheticImageLeak,
       },
       null,
       2,

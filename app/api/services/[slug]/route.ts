@@ -2,13 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { getMarketplaceSnapshot } from '@/lib/marketplace/server';
 import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters } from '@/lib/marketplace/public-filters';
-import {
-    keepPublicAssetsNonSynthetic,
-    looksSyntheticRecord,
-    resolveArrayWithSyntheticCompatibility,
-    resolveSingleWithSyntheticCompatibility,
-    sanitizeServiceProductsForCompatibility,
-} from '@/lib/marketplace/synthetic-compat';
 
 type ServiceApiErrorCode = 'invalid_slug' | 'not_found' | 'internal_error';
 
@@ -53,94 +46,39 @@ export async function GET(
         if (supabaseAdmin) {
             const client = supabaseAdmin;
 
-            const readService = async (withSyntheticFilter: boolean) => {
-                let query = client
-                    .from('services')
-                    .select(`
-                        *,
-                        products:products(
-                            *,
-                            partner:partners(*),
-                            images:product_images(*),
-                            region:regions(*)
-                        )
-                    `)
-                    .eq('slug', normalizedSlug);
+            const { data: product, error: productError } = await applyPublicProductFilters(
+                client
+                    .from('products')
+                    .select('*')
+                    .eq('slug', normalizedSlug)
+            ).maybeSingle();
 
-                if (withSyntheticFilter) {
-                    query = query.eq('products.synthetic', false);
-                }
-
-                return query.single();
-            };
-
-            const { data: service, error } = await resolveSingleWithSyntheticCompatibility(
-                () => readService(true),
-                () => readService(false),
-                (row) => looksSyntheticRecord(row)
-            );
-
-            if (!error && service) {
-                const safeProducts = sanitizeServiceProductsForCompatibility(Array.isArray(service.products) ? service.products : []);
-
-                return NextResponse.json({
-                    ...service,
-                    products: safeProducts,
-                });
+            if (productError) {
+                return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
             }
 
-            const { data: product, error: productError } = await resolveSingleWithSyntheticCompatibility(
-                () =>
-                    applyPublicProductFilters(
-                        client
-                            .from('products')
-                            .select('*, synthetic')
-                            .eq('slug', normalizedSlug)
-                    ).single(),
-                () =>
+            if (product) {
+                const { data: category, error: categoryError } = await applyPublicCategoryFilters(
                     client
-                        .from('products')
+                        .from('product_categories')
+                        .select('id,slug,name_en,name_ar')
+                        .eq('id', product.category_id)
+                ).maybeSingle();
+
+                if (categoryError) {
+                    return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
+                }
+
+                const { data: images, error: imagesError } = await applyPublicAssetSyntheticFilter(
+                    client
+                        .from('product_images')
                         .select('*')
-                        .eq('slug', normalizedSlug)
-                        .in('status', ['published', 'active', 'featured'])
-                        .single(),
-                (row) => looksSyntheticRecord(row)
-            );
+                        .eq('product_id', product.id)
+                ).order('created_at', { ascending: true });
 
-            if (!productError && product) {
-                const { data: category } = await resolveSingleWithSyntheticCompatibility(
-                    () =>
-                        applyPublicCategoryFilters(
-                            client
-                                .from('product_categories')
-                                .select('id,slug,name_en,name_ar,synthetic')
-                                .eq('id', product.category_id)
-                        ).maybeSingle(),
-                    () =>
-                        client
-                            .from('product_categories')
-                            .select('id,slug,name_en,name_ar')
-                            .eq('id', product.category_id)
-                            .maybeSingle(),
-                    (row) => looksSyntheticRecord(row)
-                );
-
-                const { data: images } = await resolveArrayWithSyntheticCompatibility(
-                    () =>
-                        applyPublicAssetSyntheticFilter(
-                            client
-                                .from('product_images')
-                                .select('*, synthetic')
-                                .eq('product_id', product.id)
-                        ).order('created_at', { ascending: true }),
-                    () =>
-                        client
-                            .from('product_images')
-                            .select('*')
-                            .eq('product_id', product.id)
-                            .order('created_at', { ascending: true }),
-                    keepPublicAssetsNonSynthetic
-                );
+                if (imagesError) {
+                    return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
+                }
 
                 return NextResponse.json({
                     id: product.id,
@@ -169,7 +107,7 @@ export async function GET(
                             slug: product.slug,
                             partner: null,
                             region: null,
-                            images: (images ?? []).map((image) => ({
+                            images: (images ?? []).map((image: { image_url?: string | null; is_primary?: boolean | null }) => ({
                                 image_url: image.image_url,
                                 is_primary: Boolean(image.is_primary),
                             })),
