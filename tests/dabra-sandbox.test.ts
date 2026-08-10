@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import { isTrustedSandboxAutomation, normalizeString, toClientErrorMessage } from '@/app/api/ai2/sandbox/route';
 import {
@@ -10,7 +12,7 @@ import {
   buildStayDates,
   evaluateSandboxRuntimeGuard,
 } from '@/lib/ai2/sandbox/service';
-import { applyPublicProductFilters, isPublicMarketplaceProduct } from '@/lib/marketplace/public-filters';
+import { applyPublicProductFilters, applyPublicServiceFilters, isPublicMarketplaceProduct } from '@/lib/marketplace/public-filters';
 
 test('authorization token trust is constant-time and strict', () => {
   const valid = 'sandbox-internal-token-0001';
@@ -159,6 +161,40 @@ test('public marketplace isolation excludes synthetic items even if status is pu
 
   assert.equal(calls.some((call) => call.type === 'in' && call.column === 'status'), true);
   assert.equal(calls.some((call) => call.type === 'eq' && call.column === 'synthetic' && call.value === false), true);
+
+  const serviceCalls: Array<{ type: string; column: string; value: unknown }> = [];
+  const fakeServiceQuery = {
+    eq(column: string, value: unknown) {
+      serviceCalls.push({ type: 'eq', column, value });
+      return this;
+    },
+  };
+
+  applyPublicServiceFilters(fakeServiceQuery);
+  assert.equal(serviceCalls.some((call) => call.type === 'eq' && call.column === 'synthetic' && call.value === false), true);
+});
+
+test('public adapters and service API keep DB-level synthetic isolation and avoid unfiltered retries', () => {
+  const adapters = fs.readFileSync(path.resolve('lib/marketplace/adapters.ts'), 'utf8');
+  assert.match(adapters, /applyPublicServiceFilters/);
+  assert.match(adapters, /applyPublicProductFilters/);
+  assert.match(adapters, /applyPublicCategoryFilters/);
+  assert.match(adapters, /eq\('products\.synthetic', false\)/);
+
+  const serviceRoute = fs.readFileSync(path.resolve('app/api/services/[slug]/route.ts'), 'utf8');
+  assert.match(serviceRoute, /applyPublicServiceFilters/);
+  assert.match(serviceRoute, /applyPublicProductFilters/);
+  assert.match(serviceRoute, /applyPublicAssetSyntheticFilter/);
+  assert.match(serviceRoute, /eq\('products\.images\.synthetic', false\)/);
+  assert.doesNotMatch(serviceRoute, /resolveSingleWithSyntheticCompatibility/);
+  assert.doesNotMatch(serviceRoute, /resolveArrayWithSyntheticCompatibility/);
+});
+
+test('public isolation script covers search, service detail, and synthetic image leakage checks', () => {
+  const script = fs.readFileSync(path.resolve('scripts/sandbox/check-public-isolation.mjs'), 'utf8');
+  assert.match(script, /\/api\/search\/marketplace/);
+  assert.match(script, /\/api\/services\//);
+  assert.match(script, /detailSyntheticImageLeak/);
 });
 
 test('errors are sanitized and do not leak Supabase internals', () => {

@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { getMarketplaceSnapshot } from '@/lib/marketplace/server';
-import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters } from '@/lib/marketplace/public-filters';
+import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters, applyPublicServiceFilters } from '@/lib/marketplace/public-filters';
 import {
-    getSyntheticSchemaOperationalMessage,
-    isOperationalSyntheticSchemaError,
     sanitizeServiceProductsForCompatibility,
 } from '@/lib/marketplace/synthetic-compat';
 
@@ -51,8 +49,8 @@ export async function GET(
         if (supabaseAdmin) {
             const client = supabaseAdmin;
 
-            const readService = async () => {
-                return client
+            const { data: service, error } = await applyPublicServiceFilters(
+                client
                     .from('services')
                     .select(`
                         *,
@@ -64,20 +62,14 @@ export async function GET(
                         )
                     `)
                     .eq('slug', normalizedSlug)
-                    .eq('products.synthetic', false)
-                    .single();
-            };
-
-            const { data: service, error } = await readService();
+            )
+                .eq('products.synthetic', false)
+                .in('products.status', ['published', 'active', 'featured'])
+                .eq('products.images.synthetic', false)
+                .maybeSingle();
 
             if (error) {
-                if (isOperationalSyntheticSchemaError(error)) {
-                    return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
-                }
-
-                if (String((error as { code?: string }).code || '') !== 'PGRST116') {
-                    return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
-                }
+                return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
             }
 
             if (service) {
@@ -92,44 +84,35 @@ export async function GET(
             const { data: product, error: productError } = await applyPublicProductFilters(
                 client
                     .from('products')
-                    .select('*, synthetic')
+                    .select('*')
                     .eq('slug', normalizedSlug)
-            ).single();
+            ).maybeSingle();
 
-            if (productError && String((productError as { code?: string }).code || '') !== 'PGRST116') {
-                if (isOperationalSyntheticSchemaError(productError)) {
-                    return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
-                }
-                return buildErrorResponse('internal_error', 'Unable to load service product right now.', 500);
+            if (productError) {
+                return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
             }
 
             if (product) {
                 const { data: category, error: categoryError } = await applyPublicCategoryFilters(
                     client
                         .from('product_categories')
-                        .select('id,slug,name_en,name_ar,synthetic')
+                        .select('id,slug,name_en,name_ar')
                         .eq('id', product.category_id)
                 ).maybeSingle();
 
                 if (categoryError) {
-                    if (isOperationalSyntheticSchemaError(categoryError)) {
-                        return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
-                    }
-                    return buildErrorResponse('internal_error', 'Unable to load service category right now.', 500);
+                    return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
                 }
 
                 const { data: images, error: imagesError } = await applyPublicAssetSyntheticFilter(
                     client
                         .from('product_images')
-                        .select('*, synthetic')
+                        .select('*')
                         .eq('product_id', product.id)
                 ).order('created_at', { ascending: true });
 
                 if (imagesError) {
-                    if (isOperationalSyntheticSchemaError(imagesError)) {
-                        return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
-                    }
-                    return buildErrorResponse('internal_error', 'Unable to load service images right now.', 500);
+                    return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
                 }
 
                 return NextResponse.json({
@@ -159,7 +142,7 @@ export async function GET(
                             slug: product.slug,
                             partner: null,
                             region: null,
-                            images: (images ?? []).map((image) => ({
+                            images: (images ?? []).map((image: { image_url?: string | null; is_primary?: boolean | null }) => ({
                                 image_url: image.image_url,
                                 is_primary: Boolean(image.is_primary),
                             })),
