@@ -4,6 +4,7 @@ import path from 'node:path';
 const coreMigrationPath = path.resolve('supabase/migrations/20260810102000_dgr071_core_synthetic_compatibility.sql');
 const stagingMigrationPath = path.resolve('supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.sql');
 const rollbackPath = path.resolve('supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.rollback.sql');
+const sqlRootPath = path.resolve('supabase');
 
 function read(filePath) {
   if (!fs.existsSync(filePath)) {
@@ -22,10 +23,33 @@ function includesAll(text, values) {
   return values.every((value) => text.includes(value));
 }
 
+function collectSqlFiles(dirPath) {
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectSqlFiles(fullPath));
+    } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.sql')) {
+      files.push(fullPath);
+    }
+  }
+  return files;
+}
+
+function startsWithUtf8Bom(filePath) {
+  const bytes = fs.readFileSync(filePath);
+  return bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+}
+
 try {
   const core = read(coreMigrationPath);
   const staging = read(stagingMigrationPath);
   const rollback = read(rollbackPath);
+  const sqlFiles = collectSqlFiles(sqlRootPath);
+  const bomFiles = sqlFiles.filter(startsWithUtf8Bom);
+
+  assert(bomFiles.length === 0, `SQL files must be UTF-8 without BOM. Found BOM in: ${bomFiles.join(', ')}`);
 
   assert(
     includesAll(core, [
@@ -63,6 +87,7 @@ try {
           rollbackNoBroadSyntheticDeletes: true,
           rollbackNoBookingsCurrencyMutation: true,
           rollbackOwnershipAware: true,
+          noSqlUtf8Bom: true,
         },
       },
       null,

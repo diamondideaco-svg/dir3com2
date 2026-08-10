@@ -13,8 +13,14 @@ const rollbackPath = path.resolve('supabase/staging-only/sandbox/20260810090000_
 
 const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
 
-function read(filePath: string) {
-  return fs.readFileSync(filePath, 'utf8');
+function assertSqlWithoutBom(filePath: string) {
+  const raw = fs.readFileSync(filePath);
+  const hasUtf8Bom = raw.length >= 3 && raw[0] === 0xef && raw[1] === 0xbb && raw[2] === 0xbf;
+  assert.equal(hasUtf8Bom, false, `${path.basename(filePath)} must be UTF-8 without BOM`);
+
+  const text = raw.toString('utf8');
+  assert.equal(text.startsWith('\uFEFF'), false, `${path.basename(filePath)} SQL text must not start with BOM`);
+  return text;
 }
 
 function requireDatabaseUrl() {
@@ -165,6 +171,12 @@ async function createProductionLikeSchema(client: Client) {
   `);
 }
 
+test('real db: migration SQL payloads are UTF-8 without BOM', () => {
+  assertSqlWithoutBom(coreMigrationPath);
+  assertSqlWithoutBom(stagingMigrationPath);
+  assertSqlWithoutBom(rollbackPath);
+});
+
 test('real db: core migration enforces synthetic schema and preserves bookings currency default', { concurrency: false }, async () => {
   await withDb(async (client) => {
     await resetPublicSchema(client);
@@ -195,7 +207,7 @@ test('real db: core migration enforces synthetic schema and preserves bookings c
       [randomId('4001'), businessProductId],
     );
 
-    await client.query(read(coreMigrationPath));
+    await client.query(assertSqlWithoutBom(coreMigrationPath));
 
     const expectedTables = ['products', 'product_categories', 'product_images', 'product_features'];
     for (const tableName of expectedTables) {
@@ -256,7 +268,7 @@ test('real db: error classifier does not trigger for unrelated schema/permission
   await withDb(async (client) => {
     await resetPublicSchema(client);
     await createProductionLikeSchema(client);
-    await client.query(read(coreMigrationPath));
+    await client.query(assertSqlWithoutBom(coreMigrationPath));
 
     try {
       await client.query('SELECT missing_col FROM public.products WHERE synthetic = false');
@@ -296,7 +308,7 @@ test('real db: staging rollback stays non-destructive and purge fails closed wit
   await withDb(async (client) => {
     await resetPublicSchema(client);
     await createProductionLikeSchema(client);
-    await client.query(read(stagingMigrationPath));
+    await client.query(assertSqlWithoutBom(stagingMigrationPath));
 
     const categoryId = randomId('5001');
     const productIdOwned = randomId('5002');
@@ -316,7 +328,7 @@ test('real db: staging rollback stays non-destructive and purge fails closed wit
       [productIdOwned, productIdOther, categoryId],
     );
 
-    await client.query(read(rollbackPath));
+    await client.query(assertSqlWithoutBom(rollbackPath));
 
     const afterRollback = await client.query(
       `SELECT slug FROM public.products WHERE slug IN ('sandbox-owned', 'sandbox-unowned') ORDER BY slug`,
