@@ -74,6 +74,13 @@ async function resetPublicSchema(client: Client) {
 
 async function createProductionLikeSchema(client: Client) {
   await client.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        CREATE ROLE authenticated NOLOGIN;
+      END IF;
+    END
+    $$;
     CREATE TABLE public.product_categories (
       id uuid PRIMARY KEY,
       slug text,
@@ -269,6 +276,18 @@ test('real db: core migration enforces synthetic schema and preserves bookings c
       assert.equal(Number(nullCheck.rows[0].c), 0, `${tableName} contains null synthetic values`);
     }
 
+    const bookingReadPolicy = await client.query(
+      `SELECT roles, cmd, qual
+       FROM pg_policies
+       WHERE schemaname = 'public'
+         AND tablename = 'products'
+         AND policyname = 'Authenticated read bookable products'`,
+    );
+    assert.equal(bookingReadPolicy.rows.length, 1);
+    assert.match(String(bookingReadPolicy.rows[0].roles), /authenticated/);
+    assert.equal(String(bookingReadPolicy.rows[0].cmd), 'SELECT');
+    assert.match(String(bookingReadPolicy.rows[0].qual), /synthetic = false/);
+    assert.match(String(bookingReadPolicy.rows[0].qual), /published/);
     const bookingDefault = await client.query(
       `SELECT column_default
        FROM information_schema.columns

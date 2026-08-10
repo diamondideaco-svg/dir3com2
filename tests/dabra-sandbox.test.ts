@@ -179,16 +179,19 @@ test('public adapters and service API keep DB-level synthetic isolation and avoi
   assert.match(adapters, /applyPublicServiceFilters/);
   assert.match(adapters, /applyPublicProductFilters/);
   assert.match(adapters, /applyPublicCategoryFilters/);
-  assert.match(adapters, /eq\('products\.synthetic', false\)/);
+  assert.doesNotMatch(adapters, /products:products\(/);
 
   const serviceRoute = fs.readFileSync(path.resolve('app/api/services/[slug]/route.ts'), 'utf8');
-  assert.match(serviceRoute, /applyPublicServiceFilters/);
   assert.match(serviceRoute, /applyPublicProductFilters/);
+  assert.match(serviceRoute, /applyPublicCategoryFilters/);
   assert.match(serviceRoute, /applyPublicAssetSyntheticFilter/);
-  assert.match(serviceRoute, /eq\('products\.images\.synthetic', false\)/);
+  assert.doesNotMatch(serviceRoute, /from\('services'\)/);
   assert.doesNotMatch(serviceRoute, /resolveSingleWithSyntheticCompatibility/);
   assert.doesNotMatch(serviceRoute, /resolveArrayWithSyntheticCompatibility/);
 
+  const bookingPage = fs.readFileSync(path.resolve('app/booking/page.tsx'), 'utf8');
+  assert.match(bookingPage, /\.in\('status', \['published', 'active', 'featured'\]\)/);
+  assert.match(bookingPage, /\.eq\('synthetic', false\)/);
   const searchRoute = fs.readFileSync(path.resolve('app/api/search/marketplace/route.ts'), 'utf8');
   assert.match(searchRoute, /getMarketplaceSnapshot/);
   assert.doesNotMatch(searchRoute, /supabaseAdmin/);

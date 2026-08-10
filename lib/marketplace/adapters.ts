@@ -59,14 +59,7 @@ export interface MarketplaceProviderAdapter {
   fetchServices(): Promise<MarketplaceProviderResult | null>;
 }
 
-const servicesSelect = `
-  *,
-  products:products(
-    id,
-    price_per_unit,
-    region:regions(name_ar,name_en)
-  )
-`;
+const servicesSelect = '*';
 
 export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
   id: 'supabase',
@@ -81,7 +74,6 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
       { data: categoriesData, error: categoriesError },
     ] = await Promise.all([
       applyPublicServiceFilters(supabaseAdmin.from('services').select(servicesSelect))
-        .eq('products.synthetic', false)
         .order('created_at', { ascending: true }),
       applyPublicProductFilters(
         supabaseAdmin

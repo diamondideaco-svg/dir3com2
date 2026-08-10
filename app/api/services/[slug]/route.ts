@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { getMarketplaceSnapshot } from '@/lib/marketplace/server';
-import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters, applyPublicServiceFilters } from '@/lib/marketplace/public-filters';
-import {
-    sanitizeServiceProductsForCompatibility,
-} from '@/lib/marketplace/synthetic-compat';
+import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters } from '@/lib/marketplace/public-filters';
 
 type ServiceApiErrorCode = 'invalid_slug' | 'not_found' | 'internal_error';
 
@@ -48,38 +45,6 @@ export async function GET(
 
         if (supabaseAdmin) {
             const client = supabaseAdmin;
-
-            const { data: service, error } = await applyPublicServiceFilters(
-                client
-                    .from('services')
-                    .select(`
-                        *,
-                        products:products(
-                            *,
-                            partner:partners(*),
-                            images:product_images(*),
-                            region:regions(*)
-                        )
-                    `)
-                    .eq('slug', normalizedSlug)
-            )
-                .eq('products.synthetic', false)
-                .in('products.status', ['published', 'active', 'featured'])
-                .eq('products.images.synthetic', false)
-                .maybeSingle();
-
-            if (error) {
-                return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
-            }
-
-            if (service) {
-                const safeProducts = sanitizeServiceProductsForCompatibility(Array.isArray(service.products) ? service.products : []);
-
-                return NextResponse.json({
-                    ...service,
-                    products: safeProducts,
-                });
-            }
 
             const { data: product, error: productError } = await applyPublicProductFilters(
                 client

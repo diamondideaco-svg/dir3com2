@@ -13,4 +13,15 @@ ALTER TABLE IF EXISTS public.services
 CREATE INDEX IF NOT EXISTS idx_services_public_synthetic
   ON public.services (synthetic);
 
+-- The booking page reads its selected product with the authenticated user's
+-- token. Limit that read to the same public/bookable contract used by APIs.
+DROP POLICY IF EXISTS "Authenticated read bookable products" ON public.products;
+CREATE POLICY "Authenticated read bookable products"
+  ON public.products
+  FOR SELECT
+  TO authenticated
+  USING (
+    synthetic = false
+    AND status IN ('published', 'active', 'featured')
+  );
 COMMIT;

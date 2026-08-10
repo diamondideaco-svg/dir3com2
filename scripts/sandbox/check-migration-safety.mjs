@@ -72,6 +72,10 @@ try {
       'UPDATE public.services SET synthetic = false WHERE synthetic IS NULL',
       'ALTER COLUMN synthetic SET DEFAULT false',
       'ALTER COLUMN synthetic SET NOT NULL',
+      'CREATE POLICY "Authenticated read bookable products"',
+      'TO authenticated',
+      'synthetic = false',
+      "status IN ('published', 'active', 'featured')",
     ]),
     'Services compatibility migration is missing required synthetic column changes.',
   );
@@ -100,6 +104,7 @@ try {
           servicesSyntheticCompatibility: true,
           servicesNoSyntheticSeedWrites: true,
           servicesAdditiveNonDestructive: true,
+          authenticatedBookingReadIsPublicOnly: true,
           stagingNoBookingsCurrencyMutation: true,
           rollbackNonDestructive: true,
           rollbackNoBroadSyntheticDeletes: true,

@@ -134,6 +134,8 @@ function BookingContent() {
           .from('products')
           .select('*')
           .eq('slug', productSlug)
+          .in('status', ['published', 'active', 'featured'])
+          .eq('synthetic', false)
           .single();
 
         if (error) throw error;
