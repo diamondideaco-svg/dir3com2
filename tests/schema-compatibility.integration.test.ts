@@ -30,13 +30,35 @@ function randomId(seed: string) {
 }
 
 async function withDb<T>(run: (client: Client) => Promise<T>) {
-  const client = new Client({ connectionString: requireDatabaseUrl() });
-  await client.connect();
-  try {
-    return await run(client);
-  } finally {
-    await client.end();
+  const connectionString = requireDatabaseUrl();
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= 20; attempt += 1) {
+    const client = new Client({ connectionString });
+    try {
+      await client.connect();
+      try {
+        return await run(client);
+      } finally {
+        await client.end();
+      }
+    } catch (error) {
+      lastError = error;
+      try {
+        await client.end();
+      } catch {
+        // Best effort cleanup between retries.
+      }
+
+      if (attempt < 20) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
   }
+
+  throw new Error(
+    `Failed to connect to test PostgreSQL after retries: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  );
 }
 
 async function resetPublicSchema(client: Client) {
