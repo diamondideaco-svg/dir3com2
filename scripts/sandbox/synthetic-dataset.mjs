@@ -203,30 +203,6 @@ async function insert(table, rows) {
   }
 }
 
-async function removeSyntheticRows() {
-  const filters = (query) => query.eq('synthetic', true).eq('environment', TARGET_ENV);
-
-  const deleteFrom = async (table) => {
-    const { error } = await filters(supabase.from(table).delete()).not('id', 'is', null);
-    if (error && !/column .* does not exist|Could not find the table|relation .* does not exist/i.test(error.message)) {
-      throw new Error(`[${table}] ${error.message}`);
-    }
-  };
-
-  await deleteFrom('payment_transactions');
-  await deleteFrom('booking_status_history');
-  await deleteFrom('bookings');
-  await deleteFrom('product_availability');
-  await deleteFrom('product_features');
-  await deleteFrom('product_prices');
-  await deleteFrom('product_images');
-  await deleteFrom('products');
-  await deleteFrom('partner_coverage');
-  await deleteFrom('partner_services');
-  await deleteFrom('partners');
-  await deleteFrom('product_categories');
-}
-
 function buildCategories() {
   return [
     ['cars', 'سيارات', 'Cars'],
@@ -893,9 +869,7 @@ async function resetSandbox() {
 }
 
 async function purgeSynthetic() {
-  console.log(`[sandbox] Purging synthetic rows for ${TARGET_ENV} ...`);
-  await removeSyntheticRows();
-  console.log('[sandbox] Purge complete.');
+  fail('Blocked: generic synthetic purge is disabled. Use sandbox:purge-owned with an ownership marker column/value.');
 }
 
 async function main() {

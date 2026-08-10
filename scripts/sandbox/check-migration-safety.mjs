@@ -46,7 +46,8 @@ try {
   assert(/sandbox_migration_journal/i.test(staging), 'Staging migration must track ownership in sandbox_migration_journal.');
 
   assert(!/DROP\s+COLUMN/i.test(rollback), 'Rollback must be non-destructive and cannot drop columns.');
-  assert(/ALTER\s+TABLE\s+IF\s+EXISTS\s+public\.bookings\s+\s*ALTER\s+COLUMN\s+currency\s+SET\s+DEFAULT\s+'SAR'/i.test(rollback), 'Rollback must restore bookings.currency default to SAR.');
+  assert(!/DELETE\s+FROM\s+public\.[a-z_]+\s+WHERE\s+synthetic\s*=\s*true/i.test(rollback), 'Rollback must not perform broad synthetic row deletions.');
+  assert(!/ALTER\s+TABLE\s+IF\s+EXISTS\s+public\.bookings[\s\S]*ALTER\s+COLUMN\s+currency\s+SET\s+DEFAULT/i.test(rollback), 'Rollback must not mutate bookings.currency defaults.');
   assert(/sandbox_migration_journal/i.test(rollback), 'Rollback must verify ownership tracking before actions.');
 
   console.log(
@@ -59,7 +60,8 @@ try {
           coreNoSyntheticSeedWrites: true,
           stagingNoBookingsCurrencyMutation: true,
           rollbackNonDestructive: true,
-          rollbackRestoresSarDefault: true,
+          rollbackNoBroadSyntheticDeletes: true,
+          rollbackNoBookingsCurrencyMutation: true,
           rollbackOwnershipAware: true,
         },
       },

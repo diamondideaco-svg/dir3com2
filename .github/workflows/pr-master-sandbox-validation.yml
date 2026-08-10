@@ -12,6 +12,23 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dir3com_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dir3com_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dir3com_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dir3com_test
 
     steps:
       - name: Checkout
@@ -31,6 +48,11 @@ jobs:
 
       - name: Schema Compatibility Integration Tests
         run: npm run test:schema-compat
+
+      - name: Pre-deployment Core Schema Verification (read-only)
+        run: |
+          node scripts/sandbox/apply-core-migration-to-db.mjs
+          npm run sandbox:core-schema:verify
 
       - name: Migration Safety Checks
         run: npm run sandbox:migration-safety

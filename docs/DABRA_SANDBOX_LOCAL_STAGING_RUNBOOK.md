@@ -42,8 +42,8 @@
    - `npm run seed:sandbox`
 3. Reset synthetic inventory/bookings:
    - `npm run reset:sandbox`
-4. Purge all synthetic rows:
-   - `npm run purge:synthetic`
+4. Purge owned synthetic rows only (requires ownership marker column/value):
+   - `npm run sandbox:purge-owned`
 5. Run DABRA sandbox chain test:
    - `npm run sandbox:e2e`
 6. Run evaluation suite:
@@ -56,6 +56,8 @@
    - execute mode: `npm run sandbox:schema:rollback -- --execute`
 9. Migration safety check:
    - `npm run sandbox:migration-safety`
+10. Core schema pre-deployment verification (read-only, target DB):
+   - `npm run sandbox:core-schema:verify`
 
 ## Staging-Only Schema Setup
 - Apply only on verified staging target:
@@ -63,17 +65,26 @@
 - Roll back only on verified staging target:
    - `supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.rollback.sql`
 - Do not copy these files into `supabase/migrations`.
-- Rollback is non-destructive and ownership-aware: it cleans synthetic rows and restores `bookings.currency` default to `SAR` without dropping columns.
+- Rollback is non-destructive and idempotent: it does not delete rows and does not mutate core commercial defaults.
+- Data cleanup is not part of schema rollback. Use an ownership-aware purge command only.
+- If ownership markers are absent, purge must fail closed and refuse execution.
 - If structural schema removal is ever required, handle it as a separate forward-fix migration after explicit review.
 
 ## Safe Rollout Order
 1. Apply Core additive migration:
     - `supabase/migrations/20260810102000_dgr071_core_synthetic_compatibility.sql`
 2. Verify Production schema compatibility:
-    - `products/product_categories/product_images/product_features.synthetic` exist as `NOT NULL DEFAULT false`
-3. Deploy code that depends on synthetic filters.
+   - `products/product_categories/product_images/product_features.synthetic` exist as `NOT NULL DEFAULT false`
+   - verify indexes and null backfill using `npm run sandbox:core-schema:verify`
+3. Run Public API smoke tests (categories/items/item detail/services).
+4. Only then allow merge/deploy of code that depends on DB-level synthetic filters.
 
 This order is documented for release safety only. Do not run production migration or deployment from this sandbox workflow.
+
+## Infrastructure Handoff
+- Release decision for this track: `CODE APPROVED - INFRASTRUCTURE MIGRATION GATE REQUIRED`.
+- Infrastructure reference package: `docs/INFRASTRUCTURE_MIGRATION_GATE.md`.
+- Read-only SQL verification pack: `docs/sql/core_synthetic_predeploy_checks.sql`.
 
 ## PASS/NO-GO Policy
 - PASS requires:

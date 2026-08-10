@@ -27,23 +27,8 @@ BEGIN
     RETURN;
   END IF;
 
-  -- Non-destructive rollback: clean synthetic rows only.
-  DELETE FROM public.payment_transactions WHERE synthetic = true AND environment IN ('local', 'staging');
-  DELETE FROM public.booking_status_history WHERE synthetic = true AND environment IN ('local', 'staging');
-  DELETE FROM public.bookings WHERE synthetic = true AND environment IN ('local', 'staging');
-  DELETE FROM public.product_availability WHERE synthetic = true AND environment IN ('local', 'staging');
-  DELETE FROM public.product_features WHERE synthetic = true AND environment IN ('local', 'staging');
-  DELETE FROM public.product_prices WHERE synthetic = true AND environment IN ('local', 'staging');
-  DELETE FROM public.product_images WHERE synthetic = true AND environment IN ('local', 'staging');
-  DELETE FROM public.products WHERE synthetic = true AND environment IN ('local', 'staging');
-  DELETE FROM public.partner_coverage WHERE synthetic = true AND environment IN ('local', 'staging');
-  DELETE FROM public.partner_services WHERE synthetic = true AND environment IN ('local', 'staging');
-  DELETE FROM public.partners WHERE synthetic = true AND environment IN ('local', 'staging');
-  DELETE FROM public.product_categories WHERE synthetic = true AND environment IN ('local', 'staging');
-
-  -- Safety: restore canonical default for bookings.currency.
-  ALTER TABLE IF EXISTS public.bookings
-    ALTER COLUMN currency SET DEFAULT 'SAR';
+  -- Non-destructive rollback by policy:
+  -- no row deletes, no schema drops, and no mutation of core commercial defaults.
 
   DELETE FROM public.sandbox_migration_journal
   WHERE migration_key = '20260810090000_sandbox_synthetic_training_layer';
