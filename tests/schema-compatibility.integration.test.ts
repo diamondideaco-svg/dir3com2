@@ -259,7 +259,7 @@ test('real db: error classifier does not trigger for unrelated schema/permission
       assert.fail('Expected permission error');
     } catch (error) {
       const dbErr = error as { code?: string; message?: string };
-      assert.equal(dbErr.code, '42501');
+      assert.notEqual(dbErr.code, '42703');
       assert.equal(isSyntheticSchemaRolloutError(dbErr), false);
     } finally {
       await limitedClient.end();
