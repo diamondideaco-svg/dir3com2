@@ -24,6 +24,8 @@ const copy = {
     appStore: 'App Store',
     googlePlay: 'Google Play',
     rights: '© 2026 dir3com. جميع الحقوق محفوظة.',
+    operator: 'المشغل القانوني: شركة الفكرة الماسية للتجارة (Diamond Idea Company).',
+    verificationNote: 'بيان التحقق التجاري: dir3com علامة تشغيلية، والكيان القانوني هو شركة الفكرة الماسية للتجارة.',
     motto: 'هوية موحدة. خدمة واضحة. تجربة محمية.',
     trustLabel: 'الوعد الرسمي',
   },
@@ -39,6 +41,8 @@ const copy = {
     appStore: 'App Store',
     googlePlay: 'Google Play',
     rights: '© 2026 dir3com. All rights reserved.',
+    operator: 'Legal operator: Diamond Idea Company (شركة الفكرة الماسية للتجارة).',
+    verificationNote: 'Business verification statement: dir3com is the operating brand, and Diamond Idea Company is the legal entity.',
     motto: 'One identity. Clear service. Protected experience.',
     trustLabel: 'Official promise',
   },
@@ -70,6 +74,10 @@ export default function Footer() {
             </p>
             <div className="mt-6 rounded-[28px] border border-white/10 bg-white/6 p-4 text-sm leading-8 text-[var(--color-light)]/78 shadow-[0_18px_40px_rgba(0,0,0,0.16)]">
               {t.assistant}
+            </div>
+            <div className="mt-4 rounded-[20px] border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 p-4 text-sm leading-7 text-[var(--color-light)]/88">
+              <p className="font-semibold text-[var(--color-gold)]">{t.operator}</p>
+              <p className="mt-1 text-[var(--color-light)]/80">{t.verificationNote}</p>
             </div>
             <div className="mt-6 flex flex-wrap gap-3 text-sm">
               <a href="https://dir3com.com" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45">
