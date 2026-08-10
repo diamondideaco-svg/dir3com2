@@ -143,7 +143,7 @@ async function createProductionLikeSchema(client: Client) {
   `);
 }
 
-test('real db: core migration enforces synthetic schema and preserves bookings currency default', async () => {
+test('real db: core migration enforces synthetic schema and preserves bookings currency default', { concurrency: false }, async () => {
   await withDb(async (client) => {
     await resetPublicSchema(client);
     await createProductionLikeSchema(client);
@@ -230,7 +230,7 @@ test('real db: core migration enforces synthetic schema and preserves bookings c
   });
 });
 
-test('real db: error classifier does not trigger for unrelated schema/permission/errors', async () => {
+test('real db: error classifier does not trigger for unrelated schema/permission/errors', { concurrency: false }, async () => {
   await withDb(async (client) => {
     await resetPublicSchema(client);
     await createProductionLikeSchema(client);
@@ -270,7 +270,7 @@ test('real db: error classifier does not trigger for unrelated schema/permission
   });
 });
 
-test('real db: staging rollback stays non-destructive and purge fails closed without ownership marker', async () => {
+test('real db: staging rollback stays non-destructive and purge fails closed without ownership marker', { concurrency: false }, async () => {
   await withDb(async (client) => {
     await resetPublicSchema(client);
     await createProductionLikeSchema(client);
