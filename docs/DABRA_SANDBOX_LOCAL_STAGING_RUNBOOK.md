@@ -1,0 +1,97 @@
+# DABRA Local/Staging Synthetic Sandbox Runbook
+
+## Scope Lock
+- Local and staging only.
+- Runtime/UI is local (`localhost`) and synthetic database target can be staging when local Supabase is unavailable.
+- Production is explicitly blocked by scripts and API guards.
+- Schema setup is staging-only and is intentionally excluded from `supabase/migrations`.
+- Core compatibility schema for production-safe public APIs is additive-only and lives in `supabase/migrations/20260810102000_dgr071_core_synthetic_compatibility.sql`.
+- WhatsApp/Meta flows are untouched in this track.
+- Synthetic rows are tagged with:
+  - `synthetic=true`
+  - `environment=local|staging`
+  - `reference_code` prefixed with `TEST-`
+
+## Preview
+- DABRA Pilot UI: http://localhost:3001/ai/pilot
+- Sandbox API endpoint: http://localhost:3001/api/ai2/sandbox
+
+## Test Credentials
+- No fixed reusable passwords are shipped in this repository.
+- Optional user provisioning is disabled by default.
+- If `SANDBOX_PROVISION_USERS=1` is enabled, ephemeral random passwords are generated at seed time and are not logged by scripts.
+
+## Test Images
+- Synthetic images use external placeholder URLs (`picsum.photos`) for visual testing only.
+- They are external placeholders, not licensed production assets.
+
+## Required Environment Variables
+- `SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SANDBOX_TARGET_ENV=staging`
+- `SUPABASE_PROJECT_REF=ynupwivgvwcyrsdhtkcc`
+- `SANDBOX_INTERNAL_TOKEN=<strong-random-token>`
+- `SANDBOX_ALLOW_STAGING=1` (required only when target is staging)
+- Optional for endpoint checks:
+  - `SANDBOX_BASE_URL=http://localhost:3001`
+
+## Safe Commands
+1. Generate evaluation corpus (100 customer + 30 partner/provider + 20 injection):
+   - `npm run eval:sandbox:generate`
+2. Seed synthetic inventory/bookings:
+   - `npm run seed:sandbox`
+3. Reset synthetic inventory/bookings:
+   - `npm run reset:sandbox`
+4. Purge owned synthetic rows only (requires ownership marker column/value):
+   - `npm run sandbox:purge-owned`
+5. Run DABRA sandbox chain test:
+   - `npm run sandbox:e2e`
+6. Run evaluation suite:
+   - `npm run eval:sandbox`
+7. Staging-only schema apply (guarded, dry-run by default):
+   - `npm run sandbox:schema:apply`
+   - execute mode: `npm run sandbox:schema:apply -- --execute`
+8. Staging-only schema rollback (guarded, dry-run by default):
+   - `npm run sandbox:schema:rollback`
+   - execute mode: `npm run sandbox:schema:rollback -- --execute`
+9. Migration safety check:
+   - `npm run sandbox:migration-safety`
+10. Core schema pre-deployment verification (read-only, target DB):
+   - `npm run sandbox:core-schema:verify`
+
+## Staging-Only Schema Setup
+- Apply only on verified staging target:
+   - `supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.sql`
+- Roll back only on verified staging target:
+   - `supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.rollback.sql`
+- Do not copy these files into `supabase/migrations`.
+- Rollback is non-destructive and idempotent: it does not delete rows and does not mutate core commercial defaults.
+- Data cleanup is not part of schema rollback. Use an ownership-aware purge command only.
+- If ownership markers are absent, purge must fail closed and refuse execution.
+- If structural schema removal is ever required, handle it as a separate forward-fix migration after explicit review.
+
+## Safe Rollout Order
+1. Apply Core additive migration:
+    - `supabase/migrations/20260810102000_dgr071_core_synthetic_compatibility.sql`
+2. Verify Production schema compatibility:
+   - `products/product_categories/product_images/product_features.synthetic` exist as `NOT NULL DEFAULT false`
+   - verify indexes and null backfill using `npm run sandbox:core-schema:verify`
+3. Run Public API smoke tests (categories/items/item detail/services).
+4. Only then allow merge/deploy of code that depends on DB-level synthetic filters.
+
+This order is documented for release safety only. Do not run production migration or deployment from this sandbox workflow.
+
+## Infrastructure Handoff
+- Release decision for this track: `CODE APPROVED - INFRASTRUCTURE MIGRATION GATE REQUIRED`.
+- Infrastructure reference package: `docs/INFRASTRUCTURE_MIGRATION_GATE.md`.
+- Read-only SQL verification pack: `docs/sql/core_synthetic_predeploy_checks.sql`.
+
+## PASS/NO-GO Policy
+- PASS requires:
+  - `npm run sandbox:e2e` returns `pass: true`
+  - `npm run eval:sandbox` returns `decision: PASS`
+  - report generated at `docs/AI2_SANDBOX_EVAL_REPORT.md`
+- If either fails, decision is NO-GO and report failure reasons are used to tune retrieval/prompts only.
+
+## OTA Adapter Readiness (Post-PASS Only)
+After PASS only, prepare adapter layer contracts for Booking.com/Expedia/Airbnb in disabled mode, with no external activation until CEO approval.

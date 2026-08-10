@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { getMarketplaceSnapshot } from '@/lib/marketplace/server';
+import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters, applyPublicServiceFilters } from '@/lib/marketplace/public-filters';
+import {
+    sanitizeServiceProductsForCompatibility,
+} from '@/lib/marketplace/synthetic-compat';
 
 type ServiceApiErrorCode = 'invalid_slug' | 'not_found' | 'internal_error';
 
@@ -43,43 +47,73 @@ export async function GET(
         }
 
         if (supabaseAdmin) {
-            const { data: service, error } = await supabaseAdmin
-                .from('services')
-                .select(`
-                    *,
-                    products:products(
-                        *,
-                        partner:partners(*),
-                        images:product_images(*),
-                        region:regions(*)
-                    )
-                `)
-                .eq('slug', normalizedSlug)
-                .single();
+            const client = supabaseAdmin;
 
-            if (!error && service) {
-                return NextResponse.json(service);
+            const { data: service, error } = await applyPublicServiceFilters(
+                client
+                    .from('services')
+                    .select(`
+                        *,
+                        products:products(
+                            *,
+                            partner:partners(*),
+                            images:product_images(*),
+                            region:regions(*)
+                        )
+                    `)
+                    .eq('slug', normalizedSlug)
+            )
+                .eq('products.synthetic', false)
+                .in('products.status', ['published', 'active', 'featured'])
+                .eq('products.images.synthetic', false)
+                .maybeSingle();
+
+            if (error) {
+                return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
             }
 
-            const { data: product, error: productError } = await supabaseAdmin
-                .from('products')
-                .select('*')
-                .eq('slug', normalizedSlug)
-                .in('status', ['published', 'active', 'featured'])
-                .single();
+            if (service) {
+                const safeProducts = sanitizeServiceProductsForCompatibility(Array.isArray(service.products) ? service.products : []);
 
-            if (!productError && product) {
-                const { data: category } = await supabaseAdmin
-                    .from('product_categories')
-                    .select('id,slug,name_en,name_ar')
-                    .eq('id', product.category_id)
-                    .maybeSingle();
+                return NextResponse.json({
+                    ...service,
+                    products: safeProducts,
+                });
+            }
 
-                const { data: images } = await supabaseAdmin
-                    .from('product_images')
+            const { data: product, error: productError } = await applyPublicProductFilters(
+                client
+                    .from('products')
                     .select('*')
-                    .eq('product_id', product.id)
-                    .order('created_at', { ascending: true });
+                    .eq('slug', normalizedSlug)
+            ).maybeSingle();
+
+            if (productError) {
+                return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
+            }
+
+            if (product) {
+                const { data: category, error: categoryError } = await applyPublicCategoryFilters(
+                    client
+                        .from('product_categories')
+                        .select('id,slug,name_en,name_ar')
+                        .eq('id', product.category_id)
+                ).maybeSingle();
+
+                if (categoryError) {
+                    return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
+                }
+
+                const { data: images, error: imagesError } = await applyPublicAssetSyntheticFilter(
+                    client
+                        .from('product_images')
+                        .select('*')
+                        .eq('product_id', product.id)
+                ).order('created_at', { ascending: true });
+
+                if (imagesError) {
+                    return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
+                }
 
                 return NextResponse.json({
                     id: product.id,
@@ -108,7 +142,7 @@ export async function GET(
                             slug: product.slug,
                             partner: null,
                             region: null,
-                            images: (images ?? []).map((image) => ({
+                            images: (images ?? []).map((image: { image_url?: string | null; is_primary?: boolean | null }) => ({
                                 image_url: image.image_url,
                                 is_primary: Boolean(image.is_primary),
                             })),

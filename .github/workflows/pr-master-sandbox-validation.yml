@@ -1,0 +1,82 @@
+name: PR Master Sandbox Validation
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dir3com_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dir3com_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/dir3com_test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/dir3com_test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Wait for PostgreSQL readiness
+        run: |
+          node -e "const { Client } = require('pg'); const url = process.env.DATABASE_URL; let attempts = 0; (async () => { while (attempts < 30) { attempts += 1; const client = new Client({ connectionString: url }); try { await client.connect(); await client.query('SELECT 1'); await client.end(); console.log('postgres_ready'); process.exit(0); } catch (error) { try { await client.end(); } catch {} console.log('postgres_not_ready_attempt_' + attempts); await new Promise((r) => setTimeout(r, 2000)); } } console.error('PostgreSQL service did not become ready in time.'); process.exit(1); })();"
+
+      - name: Sandbox Unit Tests
+        run: npm run test:sandbox
+
+      - name: Schema Compatibility Integration Tests
+        run: |
+          set -o pipefail
+          npm run test:schema-compat 2>&1 | tee schema-compat.log
+          test_exit=${PIPESTATUS[0]}
+          if [ "$test_exit" -ne 0 ]; then
+            echo "::group::Schema compatibility failure tail"
+            tail -n 120 schema-compat.log || true
+            echo "::endgroup::"
+            summary=$(tail -n 20 schema-compat.log | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-900)
+            echo "::error title=Schema compatibility failure::$summary"
+            exit "$test_exit"
+          fi
+
+      - name: Pre-deployment Core Schema Verification (read-only)
+        run: |
+          node scripts/sandbox/apply-core-migration-to-db.mjs
+          npm run sandbox:core-schema:verify
+
+      - name: Migration Safety Checks
+        run: npm run sandbox:migration-safety
+
+      - name: Lint
+        run: npm run lint
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build

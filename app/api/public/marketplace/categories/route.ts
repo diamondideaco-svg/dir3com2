@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError } from '@/lib/security/safe-logger';
 import { toPublicMarketplaceCategory } from '@/lib/marketplace/public-serializer';
-
-const PUBLISHED_STATUSES = ['published', 'active', 'featured'];
+import { applyPublicCategoryFilters, applyPublicProductFilters } from '@/lib/marketplace/public-filters';
+import { getSyntheticSchemaOperationalMessage, isOperationalSyntheticSchemaError } from '@/lib/marketplace/synthetic-compat';
 
 export async function GET(request: NextRequest) {
   void request;
@@ -13,13 +13,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Marketplace is unavailable right now.' }, { status: 503 });
     }
 
-    const { data: products, error: productsError } = await supabaseAdmin
-      .from('products')
-      .select('category_id')
-      .in('status', PUBLISHED_STATUSES);
+    const client = supabaseAdmin;
+
+    const { data: products, error: productsError } = await applyPublicProductFilters(
+      client
+        .from('products')
+        .select('category_id, slug, name_ar, name_en, synthetic')
+    );
 
     if (productsError) {
       logServerError('api.public.marketplace.categories.products_read_failed', productsError);
+      if (isOperationalSyntheticSchemaError(productsError)) {
+        return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
+      }
       return NextResponse.json({ error: 'Unable to load marketplace categories right now.' }, { status: 500 });
     }
 
@@ -38,14 +44,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ categories: [] }, { status: 200 });
     }
 
-    const { data: categories, error: categoriesError } = await supabaseAdmin
-      .from('product_categories')
-      .select('id, slug, name_ar, name_en')
-      .in('id', categoryIds)
-      .order('name_en', { ascending: true });
+    const { data: categories, error: categoriesError } = await applyPublicCategoryFilters(
+      client
+        .from('product_categories')
+        .select('id, slug, name_ar, name_en, synthetic')
+        .in('id', categoryIds)
+    ).order('name_en', { ascending: true });
 
     if (categoriesError) {
       logServerError('api.public.marketplace.categories.read_failed', categoriesError);
+      if (isOperationalSyntheticSchemaError(categoriesError)) {
+        return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
+      }
       return NextResponse.json({ error: 'Unable to load marketplace categories right now.' }, { status: 500 });
     }
 
