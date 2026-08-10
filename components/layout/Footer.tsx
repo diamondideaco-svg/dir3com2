@@ -23,7 +23,8 @@ const copy = {
     contactDownload: 'تواصل وتنزيل',
     appStore: 'App Store',
     googlePlay: 'Google Play',
-    rights: '© 2026 dir3com. جميع الحقوق محفوظة.',
+    rights: 'جميع الحقوق محفوظة © 2026 dir3com — تُدار بواسطة شركة الفكرة الماسية للتجارة.',
+    operator: null,
     motto: 'هوية موحدة. خدمة واضحة. تجربة محمية.',
     trustLabel: 'الوعد الرسمي',
   },
@@ -39,6 +40,7 @@ const copy = {
     appStore: 'App Store',
     googlePlay: 'Google Play',
     rights: '© 2026 dir3com. All rights reserved.',
+    operator: 'Operated by شركة الفكرة الماسية للتجارة (Diamond Idea Company).',
     motto: 'One identity. Clear service. Protected experience.',
     trustLabel: 'Official promise',
   },
@@ -128,7 +130,10 @@ export default function Footer() {
         </div>
 
         <div className="mt-10 border-t border-white/10 pt-6 text-sm text-[var(--color-light)]/65 sm:flex sm:items-center sm:justify-between">
-          <p>{t.rights}</p>
+          <div>
+            <p>{t.rights}</p>
+            {t.operator ? <p className="mt-1">{t.operator}</p> : null}
+          </div>
           <p className="mt-3 sm:mt-0">{t.motto}</p>
         </div>
       </div>
