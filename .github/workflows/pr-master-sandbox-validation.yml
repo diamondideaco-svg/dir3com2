@@ -51,7 +51,18 @@ jobs:
         run: npm run test:sandbox
 
       - name: Schema Compatibility Integration Tests
-        run: npm run test:schema-compat
+        run: |
+          set -o pipefail
+          npm run test:schema-compat 2>&1 | tee schema-compat.log
+          test_exit=${PIPESTATUS[0]}
+          if [ "$test_exit" -ne 0 ]; then
+            echo "::group::Schema compatibility failure tail"
+            tail -n 120 schema-compat.log || true
+            echo "::endgroup::"
+            summary=$(tail -n 20 schema-compat.log | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-900)
+            echo "::error title=Schema compatibility failure::$summary"
+            exit "$test_exit"
+          fi
 
       - name: Pre-deployment Core Schema Verification (read-only)
         run: |
