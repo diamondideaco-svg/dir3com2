@@ -1,0 +1,73 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
+const coreMigrationPath = path.resolve('supabase/migrations/20260810102000_dgr071_core_synthetic_compatibility.sql');
+const stagingMigrationPath = path.resolve('supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.sql');
+const rollbackPath = path.resolve('supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.rollback.sql');
+
+function read(filePath) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Missing file: ${filePath}`);
+  }
+  return fs.readFileSync(filePath, 'utf8');
+}
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function includesAll(text, values) {
+  return values.every((value) => text.includes(value));
+}
+
+try {
+  const core = read(coreMigrationPath);
+  const staging = read(stagingMigrationPath);
+  const rollback = read(rollbackPath);
+
+  assert(
+    includesAll(core, [
+      'ALTER TABLE IF EXISTS public.products',
+      'ALTER TABLE IF EXISTS public.product_categories',
+      'ALTER TABLE IF EXISTS public.product_images',
+      'ALTER TABLE IF EXISTS public.product_features',
+      'ALTER COLUMN synthetic SET DEFAULT false',
+      'ALTER COLUMN synthetic SET NOT NULL',
+    ]),
+    'Core compatibility migration is missing required synthetic column changes.',
+  );
+
+  assert(!/ALTER\s+COLUMN\s+currency\s+SET\s+DEFAULT\s+'EGP'/i.test(core), 'Core migration must not change currency defaults.');
+  assert(!/INSERT\s+INTO\s+public\.products/i.test(core), 'Core migration must not insert synthetic data.');
+
+  assert(!/ALTER\s+TABLE\s+IF\s+EXISTS\s+public\.bookings\s+\s*ALTER\s+COLUMN\s+currency\s+SET\s+DEFAULT\s+'EGP'/i.test(staging), 'Staging migration must not set bookings.currency default to EGP.');
+  assert(/sandbox_migration_journal/i.test(staging), 'Staging migration must track ownership in sandbox_migration_journal.');
+
+  assert(!/DROP\s+COLUMN/i.test(rollback), 'Rollback must be non-destructive and cannot drop columns.');
+  assert(/ALTER\s+TABLE\s+IF\s+EXISTS\s+public\.bookings\s+\s*ALTER\s+COLUMN\s+currency\s+SET\s+DEFAULT\s+'SAR'/i.test(rollback), 'Rollback must restore bookings.currency default to SAR.');
+  assert(/sandbox_migration_journal/i.test(rollback), 'Rollback must verify ownership tracking before actions.');
+
+  console.log(
+    JSON.stringify(
+      {
+        pass: true,
+        checks: {
+          coreSyntheticCompatibility: true,
+          coreNoCurrencyDefaultMutation: true,
+          coreNoSyntheticSeedWrites: true,
+          stagingNoBookingsCurrencyMutation: true,
+          rollbackNonDestructive: true,
+          rollbackRestoresSarDefault: true,
+          rollbackOwnershipAware: true,
+        },
+      },
+      null,
+      2,
+    ),
+  );
+} catch (error) {
+  console.error(error instanceof Error ? error.message : 'Migration safety check failed.');
+  process.exitCode = 1;
+}

@@ -1,5 +1,11 @@
 ﻿BEGIN;
 
+CREATE TABLE IF NOT EXISTS public.sandbox_migration_journal (
+  migration_key text PRIMARY KEY,
+  applied_at timestamptz NOT NULL DEFAULT now(),
+  notes text
+);
+
 -- Canonical sandbox markers across inventory and bookings.
 ALTER TABLE IF EXISTS public.products
   ADD COLUMN IF NOT EXISTS synthetic boolean NOT NULL DEFAULT false,
@@ -154,8 +160,7 @@ ALTER TABLE IF EXISTS public.bookings
   ADD COLUMN IF NOT EXISTS escalated_to_staff boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS escalation_reason text;
 
-ALTER TABLE IF EXISTS public.bookings
-  ALTER COLUMN currency SET DEFAULT 'EGP';
+-- Do not touch core commercial defaults (for example bookings.currency).
 
 ALTER TABLE IF EXISTS public.bookings
   DROP CONSTRAINT IF EXISTS bookings_environment_check;
@@ -232,5 +237,9 @@ ALTER TABLE IF EXISTS public.payment_transactions
 ALTER TABLE IF EXISTS public.payment_transactions
   ADD CONSTRAINT payment_transactions_environment_check
   CHECK (environment IS NULL OR environment IN ('local', 'staging'));
+
+INSERT INTO public.sandbox_migration_journal (migration_key, notes)
+VALUES ('20260810090000_sandbox_synthetic_training_layer', 'staging-only synthetic sandbox schema')
+ON CONFLICT (migration_key) DO NOTHING;
 
 COMMIT;

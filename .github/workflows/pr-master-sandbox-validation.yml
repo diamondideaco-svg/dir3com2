@@ -1,0 +1,45 @@
+name: PR Master Sandbox Validation
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Sandbox Unit Tests
+        run: npm run test:sandbox
+
+      - name: Schema Compatibility Integration Tests
+        run: npm run test:schema-compat
+
+      - name: Migration Safety Checks
+        run: npm run sandbox:migration-safety
+
+      - name: Lint
+        run: npm run lint
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build

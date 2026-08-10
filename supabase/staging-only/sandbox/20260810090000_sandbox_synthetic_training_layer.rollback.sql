@@ -1,112 +1,52 @@
 BEGIN;
 
--- Remove sandbox-only marker columns and indexes from staging if rollback is required.
-DROP INDEX IF EXISTS public.idx_products_sandbox_flags;
-DROP INDEX IF EXISTS public.idx_products_reference_code;
-DROP INDEX IF EXISTS public.idx_product_images_product_primary;
-DROP INDEX IF EXISTS public.idx_product_prices_date_window;
-DROP INDEX IF EXISTS public.ux_product_availability_daily_sandbox;
-DROP INDEX IF EXISTS public.idx_product_availability_lookup;
-DROP INDEX IF EXISTS public.idx_bookings_sandbox_flags;
-DROP INDEX IF EXISTS public.idx_bookings_product_dates;
-DROP INDEX IF EXISTS public.idx_bookings_duplicate_chain;
+DO $$
+DECLARE
+  has_journal boolean;
+  has_entry boolean;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'sandbox_migration_journal'
+  ) INTO has_journal;
 
-ALTER TABLE IF EXISTS public.payment_transactions
-  DROP COLUMN IF EXISTS synthetic,
-  DROP COLUMN IF EXISTS environment,
-  DROP COLUMN IF EXISTS reference_code;
+  IF NOT has_journal THEN
+    RAISE NOTICE 'sandbox_migration_journal not found, nothing to rollback safely.';
+    RETURN;
+  END IF;
 
-ALTER TABLE IF EXISTS public.booking_status_history
-  DROP COLUMN IF EXISTS synthetic,
-  DROP COLUMN IF EXISTS environment,
-  DROP COLUMN IF EXISTS reference_code;
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.sandbox_migration_journal
+    WHERE migration_key = '20260810090000_sandbox_synthetic_training_layer'
+  ) INTO has_entry;
 
-ALTER TABLE IF EXISTS public.partner_coverage
-  DROP COLUMN IF EXISTS synthetic,
-  DROP COLUMN IF EXISTS environment,
-  DROP COLUMN IF EXISTS reference_code;
+  IF NOT has_entry THEN
+    RAISE NOTICE 'rollback skipped: migration ownership entry missing.';
+    RETURN;
+  END IF;
 
-ALTER TABLE IF EXISTS public.partner_services
-  DROP COLUMN IF EXISTS synthetic,
-  DROP COLUMN IF EXISTS environment,
-  DROP COLUMN IF EXISTS reference_code;
+  -- Non-destructive rollback: clean synthetic rows only.
+  DELETE FROM public.payment_transactions WHERE synthetic = true AND environment IN ('local', 'staging');
+  DELETE FROM public.booking_status_history WHERE synthetic = true AND environment IN ('local', 'staging');
+  DELETE FROM public.bookings WHERE synthetic = true AND environment IN ('local', 'staging');
+  DELETE FROM public.product_availability WHERE synthetic = true AND environment IN ('local', 'staging');
+  DELETE FROM public.product_features WHERE synthetic = true AND environment IN ('local', 'staging');
+  DELETE FROM public.product_prices WHERE synthetic = true AND environment IN ('local', 'staging');
+  DELETE FROM public.product_images WHERE synthetic = true AND environment IN ('local', 'staging');
+  DELETE FROM public.products WHERE synthetic = true AND environment IN ('local', 'staging');
+  DELETE FROM public.partner_coverage WHERE synthetic = true AND environment IN ('local', 'staging');
+  DELETE FROM public.partner_services WHERE synthetic = true AND environment IN ('local', 'staging');
+  DELETE FROM public.partners WHERE synthetic = true AND environment IN ('local', 'staging');
+  DELETE FROM public.product_categories WHERE synthetic = true AND environment IN ('local', 'staging');
 
-ALTER TABLE IF EXISTS public.partners
-  DROP COLUMN IF EXISTS synthetic,
-  DROP COLUMN IF EXISTS environment,
-  DROP COLUMN IF EXISTS reference_code,
-  DROP COLUMN IF EXISTS country,
-  DROP COLUMN IF EXISTS city;
+  -- Safety: restore canonical default for bookings.currency.
+  ALTER TABLE IF EXISTS public.bookings
+    ALTER COLUMN currency SET DEFAULT 'SAR';
 
-ALTER TABLE IF EXISTS public.bookings
-  DROP COLUMN IF EXISTS synthetic,
-  DROP COLUMN IF EXISTS environment,
-  DROP COLUMN IF EXISTS reference_code,
-  DROP COLUMN IF EXISTS scenario_code,
-  DROP COLUMN IF EXISTS source_channel,
-  DROP COLUMN IF EXISTS failure_reason,
-  DROP COLUMN IF EXISTS duplicate_of_booking_id,
-  DROP COLUMN IF EXISTS rescheduled_from_booking_id,
-  DROP COLUMN IF EXISTS escalated_to_staff,
-  DROP COLUMN IF EXISTS escalation_reason;
-
-ALTER TABLE IF EXISTS public.product_availability
-  DROP COLUMN IF EXISTS date,
-  DROP COLUMN IF EXISTS availability_status,
-  DROP COLUMN IF EXISTS capacity,
-  DROP COLUMN IF EXISTS booked_count,
-  DROP COLUMN IF EXISTS price,
-  DROP COLUMN IF EXISTS currency,
-  DROP COLUMN IF EXISTS weekend_price,
-  DROP COLUMN IF EXISTS seasonal_price,
-  DROP COLUMN IF EXISTS discount_percent,
-  DROP COLUMN IF EXISTS taxes_percent,
-  DROP COLUMN IF EXISTS insurance_amount,
-  DROP COLUMN IF EXISTS deposit_amount,
-  DROP COLUMN IF EXISTS addons_amount,
-  DROP COLUMN IF EXISTS notes,
-  DROP COLUMN IF EXISTS synthetic,
-  DROP COLUMN IF EXISTS environment,
-  DROP COLUMN IF EXISTS reference_code;
-
-ALTER TABLE IF EXISTS public.product_features
-  DROP COLUMN IF EXISTS synthetic,
-  DROP COLUMN IF EXISTS environment,
-  DROP COLUMN IF EXISTS reference_code;
-
-ALTER TABLE IF EXISTS public.product_prices
-  DROP COLUMN IF EXISTS synthetic,
-  DROP COLUMN IF EXISTS environment,
-  DROP COLUMN IF EXISTS reference_code,
-  DROP COLUMN IF EXISTS is_weekend,
-  DROP COLUMN IF EXISTS is_seasonal,
-  DROP COLUMN IF EXISTS discount_percent,
-  DROP COLUMN IF EXISTS taxes_percent,
-  DROP COLUMN IF EXISTS insurance_amount,
-  DROP COLUMN IF EXISTS deposit_amount,
-  DROP COLUMN IF EXISTS addons_amount;
-
-ALTER TABLE IF EXISTS public.product_images
-  DROP COLUMN IF EXISTS is_primary,
-  DROP COLUMN IF EXISTS synthetic,
-  DROP COLUMN IF EXISTS environment,
-  DROP COLUMN IF EXISTS reference_code;
-
-ALTER TABLE IF EXISTS public.product_categories
-  DROP COLUMN IF EXISTS synthetic,
-  DROP COLUMN IF EXISTS environment,
-  DROP COLUMN IF EXISTS reference_code;
-
-ALTER TABLE IF EXISTS public.products
-  DROP COLUMN IF EXISTS synthetic,
-  DROP COLUMN IF EXISTS environment,
-  DROP COLUMN IF EXISTS reference_code,
-  DROP COLUMN IF EXISTS country,
-  DROP COLUMN IF EXISTS taxes_percent,
-  DROP COLUMN IF EXISTS insurance_amount,
-  DROP COLUMN IF EXISTS deposit_amount,
-  DROP COLUMN IF EXISTS addons_amount,
-  DROP COLUMN IF EXISTS max_guests,
-  DROP COLUMN IF EXISTS deleted_at;
+  DELETE FROM public.sandbox_migration_journal
+  WHERE migration_key = '20260810090000_sandbox_synthetic_training_layer';
+END $$;
 
 COMMIT;

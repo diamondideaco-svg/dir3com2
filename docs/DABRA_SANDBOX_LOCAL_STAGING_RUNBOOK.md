@@ -5,6 +5,7 @@
 - Runtime/UI is local (`localhost`) and synthetic database target can be staging when local Supabase is unavailable.
 - Production is explicitly blocked by scripts and API guards.
 - Schema setup is staging-only and is intentionally excluded from `supabase/migrations`.
+- Core compatibility schema for production-safe public APIs is additive-only and lives in `supabase/migrations/20260810102000_dgr071_core_synthetic_compatibility.sql`.
 - WhatsApp/Meta flows are untouched in this track.
 - Synthetic rows are tagged with:
   - `synthetic=true`
@@ -47,6 +48,14 @@
    - `npm run sandbox:e2e`
 6. Run evaluation suite:
    - `npm run eval:sandbox`
+7. Staging-only schema apply (guarded, dry-run by default):
+   - `npm run sandbox:schema:apply`
+   - execute mode: `npm run sandbox:schema:apply -- --execute`
+8. Staging-only schema rollback (guarded, dry-run by default):
+   - `npm run sandbox:schema:rollback`
+   - execute mode: `npm run sandbox:schema:rollback -- --execute`
+9. Migration safety check:
+   - `npm run sandbox:migration-safety`
 
 ## Staging-Only Schema Setup
 - Apply only on verified staging target:
@@ -54,6 +63,17 @@
 - Roll back only on verified staging target:
    - `supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.rollback.sql`
 - Do not copy these files into `supabase/migrations`.
+- Rollback is non-destructive and ownership-aware: it cleans synthetic rows and restores `bookings.currency` default to `SAR` without dropping columns.
+- If structural schema removal is ever required, handle it as a separate forward-fix migration after explicit review.
+
+## Safe Rollout Order
+1. Apply Core additive migration:
+    - `supabase/migrations/20260810102000_dgr071_core_synthetic_compatibility.sql`
+2. Verify Production schema compatibility:
+    - `products/product_categories/product_images/product_features.synthetic` exist as `NOT NULL DEFAULT false`
+3. Deploy code that depends on synthetic filters.
+
+This order is documented for release safety only. Do not run production migration or deployment from this sandbox workflow.
 
 ## PASS/NO-GO Policy
 - PASS requires:
