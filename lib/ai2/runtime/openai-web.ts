@@ -1,6 +1,6 @@
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
-const DEFAULT_MODEL = 'gpt-5.5';
+const DEFAULT_MODEL = 'gpt-5';
 const DEFAULT_TIMEOUT_MS = 20_000;
 
 type OpenAIWebCallParams = {

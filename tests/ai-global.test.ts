@@ -100,7 +100,7 @@ test('openai web mode returns grounded-global-web with citations and safe provid
 
   process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
   process.env.OPENAI_API_KEY = 'test-key';
-  process.env.DABRA_OPENAI_MODEL = 'gpt-5.5';
+  process.env.DABRA_OPENAI_MODEL = 'gpt-5';
 
   let capturedBody = '';
 
@@ -144,7 +144,7 @@ test('openai web mode returns grounded-global-web with citations and safe provid
     assert.match(capturedBody, /"web_search"/);
     assert.match(capturedBody, /"tool_choice":"required"/);
     assert.match(capturedBody, /"include":\["web_search_call.action.sources"\]/);
-    assert.match(capturedBody, /"model":"gpt-5\.5"/);
+    assert.match(capturedBody, /"model":"gpt-5"/);
   } finally {
     process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
     process.env.OPENAI_API_KEY = originalKey;
