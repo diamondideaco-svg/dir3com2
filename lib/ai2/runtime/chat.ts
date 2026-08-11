@@ -36,34 +36,38 @@ export type AI2ChatResponse = {
   provider: AI2Provider;
 };
 
-const REFUSAL_TERMS = [
-  'book',
-  'booking',
-  'reserve',
-  'reservation',
-  'pay',
-  'payment',
-  'purchase',
-  'checkout',
-  'refund',
-  'cancel my booking',
-  'change my account',
-  'change account',
-  'account update',
-  'database',
-  'write to database',
-  'charge card',
-  'tool call',
-  'احجز',
-  'حجز',
-  'احجز لي',
-  'ادفع',
-  'دفع',
-  'شراء',
-  'سداد',
-  'حسابي',
-  'تعديل الحساب',
-  'اشتر',
+const INFORMATIONAL_INTENT_PATTERNS = [
+  /^(?:how (?:do|can|should|would) i|what (?:happens|would happen) if|what is|where (?:do|can) i|can you (?:explain|tell me))\b/,
+  /^(?:كيف|ماذا يحدث اذا|ماذا لو|ما الذي يحدث اذا|ما هو|ما هي|هل يمكنك (?:شرح|توضيح))\b/,
+] as const;
+
+const EXPLICIT_EXECUTION_CUES = [
+  /\b(?:now|for me|on my behalf|go ahead|do it|execute it)\b/,
+  /(?:الان|حالا|لي|نيابة عني|نفذ|قم بذلك)/,
+] as const;
+
+const EXECUTION_INTENT_PATTERNS = [
+  // Booking, payment, and purchase execution.
+  /\b(?:book|reserve|cancel|change|modify|reschedule)\b(?:\s+\S+){0,5}\s+\b(?:booking|reservation|appointment|service|trip|room|table|ticket)\b/,
+  /\b(?:pay|refund|charge)\b(?:\s+\S+){0,5}\s+\b(?:invoice|bill|payment|card|order|booking|this|that)\b/,
+  /\b(?:purchase|buy|checkout|order)\b(?:\s+\S+){0,5}\s+\b(?:this|that|item|product|service|order)\b/,
+  /(?:^| )(?:احجز|احجز لي|الغي الحجز|الغ الحجز|عدل الحجز|غير الحجز|اجل الحجز)(?: |$)/,
+  /(?:^| )(?:ادفع|سدد|حول المبلغ|استرد المبلغ)(?: |$)/,
+  /(?:^| )(?:اشتر|اشتري|قم بشراء)(?: |$)/,
+
+  // Database and record mutations.
+  /\b(?:write|insert|update|delete|modify|save|change|add|remove)\b(?:\s+\S+){0,5}\s+\b(?:database|db|data|records?)\b/,
+  /(?:^| )(?:اكتب|اضف|ادخل|حدث|عدل|احذف|امسح|ازل|غير|احفظ)(?:\s+\S+){0,5}\s+(?:قاعده البيانات|البيانات|السجلات?|سجلات?)(?: |$)/,
+
+  // Account mutations.
+  /\b(?:delete|remove|close|deactivate|disable|update|modify|change|edit)\b(?:\s+\S+){0,4}\s+\b(?:my account|the account|account)\b/,
+  /(?:^| )(?:احذف|ازل|الغي|الغ|اغلق|عطل|حدث|عدل|غير|حرر)(?:\s+\S+){0,4}\s+(?:حسابي|حسابنا|الحساب|حساب المستخدم)(?: |$)/,
+
+  // Profile mutations.
+  /\b(?:update|modify|change|edit|delete|remove)\b(?:\s+\S+){0,4}\s+\b(?:my profile|the profile|profile)\b/,
+  /(?:^| )(?:احذف|ازل|حدث|عدل|غير|حرر)(?:\s+\S+){0,4}\s+(?:ملفي الشخصي|الملف الشخصي|ملف المستخدم)(?: |$)/,
+
+  /\btool call\b/,
 ] as const;
 
 const NO_SOURCE_FALLBACK: Record<AI2ChatLanguage, string> = {
@@ -203,8 +207,31 @@ function detectLanguage(message: string): AI2ChatLanguage {
 }
 
 export function isOutOfScopeIntent(message: string): boolean {
-  const normalized = message.toLowerCase();
-  return REFUSAL_TERMS.some((term) => normalized.includes(term));
+  const normalized = normalizeIntentText(message);
+  const informational = INFORMATIONAL_INTENT_PATTERNS.some((pattern) => pattern.test(normalized));
+  const explicitExecution = EXPLICIT_EXECUTION_CUES.some((pattern) => pattern.test(normalized));
+
+  if (informational && !explicitExecution) {
+    return false;
+  }
+
+  return EXECUTION_INTENT_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function normalizeIntentText(message: string): string {
+  return message
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
+    .replace(/ـ/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/[^a-z0-9\u0600-\u06FF]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
 }
 
 function uniqueSourcesFromMatches(matches: ReturnType<typeof rankAI2RagMatches>): AI2ChatSource[] {

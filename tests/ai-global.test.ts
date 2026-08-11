@@ -7,6 +7,144 @@ import {
 } from '@/lib/ai2/runtime/chat';
 import { extractValidWebCitations } from '@/lib/ai2/runtime/openai-web';
 
+const refusalScenarios = [
+  {
+    category: 'booking',
+    language: 'en',
+    messages: ['book a service for me now', 'reserve a room now', 'cancel my booking now'],
+  },
+  {
+    category: 'booking',
+    language: 'ar',
+    messages: ['احجز لي خدمة الآن', 'ألغِ الحجز الآن', 'عدّل الحجز الآن'],
+  },
+  {
+    category: 'payment',
+    language: 'en',
+    messages: ['pay this invoice now', 'charge my card now', 'refund this payment now'],
+  },
+  {
+    category: 'payment',
+    language: 'ar',
+    messages: ['ادفع الفاتورة الآن', 'سدّد الفاتورة الآن', 'استرد المبلغ الآن'],
+  },
+  {
+    category: 'purchase',
+    language: 'en',
+    messages: ['purchase this item now', 'buy that product for me', 'checkout this order now'],
+  },
+  {
+    category: 'purchase',
+    language: 'ar',
+    messages: ['اشتري هذا الآن', 'اشتر المنتج الآن', 'قم بشراء الخدمة الآن'],
+  },
+  {
+    category: 'database mutation',
+    language: 'en',
+    messages: [
+      'write to database now',
+      'insert into database now',
+      'update database records now',
+      'delete from database now',
+      'modify database now',
+      'save these records now',
+      'change the records now',
+    ],
+  },
+  {
+    category: 'database mutation',
+    language: 'ar',
+    messages: [
+      'اكتب في قاعدة البيانات الآن',
+      'أضف إلى قاعدة البيانات الآن',
+      'حدّث قاعدة البيانات الآن',
+      'عدّل قاعدة البيانات الآن',
+      'احذف من قاعدة البيانات الآن',
+      'غيّر البيانات الآن',
+      'احفظ في قاعدة البيانات الآن',
+    ],
+  },
+  {
+    category: 'account mutation',
+    language: 'en',
+    messages: [
+      'delete my account now',
+      'remove my account now',
+      'close my account now',
+      'deactivate my account now',
+      'update my account now',
+      'modify my account now',
+    ],
+  },
+  {
+    category: 'account mutation',
+    language: 'ar',
+    messages: [
+      'احذف الحساب الآن',
+      'ألغِ الحساب الآن',
+      'أغلق الحساب الآن',
+      'عطّل الحساب الآن',
+      'عدّل الحساب الآن',
+      'حدّث الحساب الآن',
+    ],
+  },
+  {
+    category: 'profile mutation',
+    language: 'en',
+    messages: [
+      'update my profile now',
+      'modify my profile now',
+      'change my profile now',
+      'edit my profile now',
+    ],
+  },
+  {
+    category: 'profile mutation',
+    language: 'ar',
+    messages: [
+      'عدل ملفي الشخصي الآن',
+      'عدّل ملفي الشخصي الآن',
+      'حدّث ملفي الشخصي الآن',
+      'غيّر ملفي الشخصي الآن',
+      'حرر ملفي الشخصي الآن',
+    ],
+  },
+] as const;
+
+async function assertRefusedBeforeProvider(messages: readonly string[]) {
+  const originalEnabled = process.env.DABRA_GLOBAL_WEB_ENABLED;
+  const originalKey = process.env.OPENAI_API_KEY;
+  const originalFetch = globalThis.fetch;
+
+  process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.OPENAI_API_KEY = 'test-key';
+
+  let providerCalls = 0;
+  globalThis.fetch = (async () => {
+    providerCalls += 1;
+    throw new Error('provider must not be called for execution intent');
+  }) as typeof fetch;
+
+  try {
+    for (const message of messages) {
+      const response = await buildAI2ChatResponse(message);
+      assert.equal(isOutOfScopeIntent(message), true, message);
+      assert.equal(response.provider, 'local', message);
+      assert.equal(response.retrievalMode, 'internal-rag', message);
+      assert.equal(response.groundingStatus, 'fallback-no-source', message);
+      assert.equal(providerCalls, 0, message);
+    }
+  } finally {
+    if (originalEnabled === undefined) delete process.env.DABRA_GLOBAL_WEB_ENABLED;
+    else process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
+
+    if (originalKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalKey;
+
+    globalThis.fetch = originalFetch;
+  }
+}
+
 test('extractValidWebCitations removes duplicates and rejects unsafe schemes', () => {
   const payload = {
     output: [
@@ -61,6 +199,58 @@ test('out-of-scope booking/payment intent is refused before provider', async () 
   } finally {
     process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
     process.env.OPENAI_API_KEY = originalKey;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+for (const scenario of refusalScenarios) {
+  test(`${scenario.category} execution intent is refused before provider (${scenario.language})`, async () => {
+    await assertRefusedBeforeProvider(scenario.messages);
+  });
+}
+
+test('informational mutation questions remain answerable', async () => {
+  const originalEnabled = process.env.DABRA_GLOBAL_WEB_ENABLED;
+  const originalKey = process.env.OPENAI_API_KEY;
+  const originalFetch = globalThis.fetch;
+
+  process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.OPENAI_API_KEY = 'test-key';
+
+  let providerCalls = 0;
+  globalThis.fetch = (async () => {
+    providerCalls += 1;
+    return new Response(
+      JSON.stringify({
+        output_text: 'Informational guidance only.',
+        output: [{ content: [{ type: 'url_citation', url: 'https://example.com/guidance' }] }],
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  const messages = [
+    'How do I update my profile?',
+    'What happens if I delete my account?',
+    'كيف أعدل ملفي الشخصي؟',
+    'ماذا يحدث إذا حذفت الحساب؟',
+  ];
+
+  try {
+    for (const message of messages) {
+      const response = await buildAI2ChatResponse(message);
+      assert.equal(isOutOfScopeIntent(message), false, message);
+      assert.equal(response.provider, 'openai', message);
+      assert.equal(response.groundingStatus, 'grounded-global-web', message);
+    }
+    assert.equal(providerCalls, messages.length);
+  } finally {
+    if (originalEnabled === undefined) delete process.env.DABRA_GLOBAL_WEB_ENABLED;
+    else process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
+
+    if (originalKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalKey;
+
     globalThis.fetch = originalFetch;
   }
 });
