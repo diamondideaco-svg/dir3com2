@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import { GoogleTagManager } from '@next/third-parties/google';
 import { LanguageProvider } from '@/components/i18n/LanguageProvider';
 import SiteShell from '@/components/layout/SiteShell';
 import { DEFAULT_LANGUAGE, LANGUAGE_COOKIE_NAME, languageDirection, normalizeLanguage } from '@/lib/i18n/config';
@@ -40,6 +41,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang={initialLanguage} dir={languageDirection(initialLanguage)} suppressHydrationWarning>
+      <GoogleTagManager gtmId="GTM-PJMMCPSW" />
       <body className="antialiased">
         <LanguageProvider initialLanguage={initialLanguage}>
           <SiteShell>{children}</SiteShell>
