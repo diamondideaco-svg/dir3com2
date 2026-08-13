@@ -20,11 +20,11 @@ export default function HomeCta() {
         <div className="grid gap-7 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           <motion.div variants={fadeUpItem}>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-4 py-2 text-sm text-[var(--color-gold)]">
-              <HiSparkles /> الدبرة قريباً داخل رحلتك
+              <HiSparkles /> الدبرة معك لاكتشاف الخيارات
             </span>
-            <h2 className="mt-5 text-3xl font-semibold leading-[1.25] sm:text-4xl lg:text-[2.7rem]">ابدأ تجربة dir3com الآن، واترك مساحة للذكاء حين يحين وقته.</h2>
+            <h2 className="mt-5 text-3xl font-semibold leading-[1.25] sm:text-4xl lg:text-[2.7rem]">ابدأ تجربة dir3com الآن وخطط رحلتك بثقة.</h2>
             <p className="mt-4 max-w-2xl text-base leading-8 text-white/78 sm:text-lg">
-              الصفحة أصبحت جاهزة لتوجيه الزوار، عرض الخدمات، إبراز الثقة، وتقديم دعوات واضحة لاتخاذ القرار من دون إدخال أي منطق غير مطلوب في هذه المرحلة. إذا صار شيء... حنا معك.
+              استعرض الخدمات، قارن الخيارات، وتواصل مع فريق dir3com عند الحاجة. إذا صار شيء... حنا معك.
             </p>
           </motion.div>
 

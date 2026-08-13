@@ -1,22 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { type ComponentType, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaXTwitter } from 'react-icons/fa6';
+import { FaFacebookF, FaInstagram, FaLinkedinIn, FaTiktok, FaWhatsapp, FaXTwitter } from 'react-icons/fa6';
 import { FiCloud, FiGlobe, FiMoon, FiPhoneCall, FiSun } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { Button } from '@/components/ui/button';
+import { getOfficialSocialLinks } from '@/lib/config/social';
 import { cn } from '@/lib/utils';
 
 type ThemeMode = 'light' | 'dark';
 
-const socialLinks = [
-  { href: 'https://wa.me/966532867009', label: 'WhatsApp', icon: FaWhatsapp },
-  { href: 'https://instagram.com', label: 'Instagram', icon: FaInstagram },
-  { href: 'https://tiktok.com', label: 'TikTok', icon: FaTiktok },
-  { href: 'https://x.com', label: 'X', icon: FaXTwitter },
-  { href: 'https://facebook.com', label: 'Facebook', icon: FaFacebookF },
-];
+const socialIconByLabel: Record<string, ComponentType<{ size?: number }>> = {
+  WhatsApp: FaWhatsapp,
+  Instagram: FaInstagram,
+  TikTok: FaTiktok,
+  X: FaXTwitter,
+  Facebook: FaFacebookF,
+  LinkedIn: FaLinkedinIn,
+  واتساب: FaWhatsapp,
+};
 
 function applyTheme(theme: ThemeMode) {
   document.documentElement.dataset.theme = theme;
@@ -24,24 +27,24 @@ function applyTheme(theme: ThemeMode) {
 
 const copy = {
   ar: {
-    weather: 'الرياض 36°',
-    fx: '1 USD = 3.75 SAR',
+    weatherUnavailable: 'الطقس غير متاح حاليا',
+    fxUnavailable: 'سعر الصرف غير متاح حاليا',
     languageButton: 'AR / EN',
     languageLabel: 'تبديل اللغة إلى الإنجليزية',
     shield: 'درعك الحامي للسياحة.',
-    utilityNote: 'هوية dir3com الجديدة توحّد الواجهة العامة عبر الحجز والخدمات والتواصل.',
+    utilityNote: 'dir3com تجمع حجوزات السفر والخدمات والعروض في تجربة واضحة وسهلة التنقل.',
     darkMode: 'تفعيل الوضع الداكن',
     lightMode: 'تفعيل الوضع الفاتح',
     dark: 'داكن',
     light: 'فاتح',
   },
   en: {
-    weather: 'Riyadh 36°',
-    fx: '1 USD = 3.75 SAR',
+    weatherUnavailable: 'Weather unavailable',
+    fxUnavailable: 'FX rate unavailable',
     languageButton: 'EN / AR',
     languageLabel: 'Switch language to Arabic',
     shield: 'Your protective shield for tourism.',
-    utilityNote: 'The new dir3com identity unifies the public journey across booking, services, and contact.',
+    utilityNote: 'dir3com brings travel booking, services, and offers into one clear and easy-to-navigate journey.',
     darkMode: 'Enable dark mode',
     lightMode: 'Enable light mode',
     dark: 'Dark',
@@ -51,6 +54,10 @@ const copy = {
 
 export default function UtilityBar() {
   const { language, direction, toggleLanguage } = useLanguage();
+  const socialLinks = getOfficialSocialLinks(language);
+  const [weatherText, setWeatherText] = useState('');
+  const [fxText, setFxText] = useState('');
+
   const [theme, setTheme] = useState<ThemeMode>(() => {
     if (typeof window === 'undefined') {
       return 'light';
@@ -66,6 +73,50 @@ export default function UtilityBar() {
     window.localStorage.setItem('dir3com-theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const loadRuntimeContext = async () => {
+      try {
+        const response = await fetch(`/api/public/runtime?lang=${language}&currency=SAR`, { method: 'GET', cache: 'no-store' });
+        const payload = (await response.json().catch(() => null)) as {
+          weather?: { cityLabel?: string; temperature?: number | null; condition?: string; unit?: 'c' | 'f' };
+          fx?: { available?: boolean; quote?: { source?: string; target?: string; rate?: number }; message?: string | null };
+        } | null;
+
+        if (!mounted || !payload) {
+          return;
+        }
+
+        if (payload.weather?.temperature == null || !payload.weather.cityLabel) {
+          setWeatherText(copy[language].weatherUnavailable);
+        } else {
+          const unitSymbol = payload.weather.unit === 'f' ? '°F' : '°C';
+          const condition = payload.weather.condition ? ` - ${payload.weather.condition}` : '';
+          setWeatherText(`${payload.weather.cityLabel} ${payload.weather.temperature}${unitSymbol}${condition}`);
+        }
+
+        if (!payload.fx?.available || !payload.fx.quote?.rate || !payload.fx.quote.source || !payload.fx.quote.target) {
+          setFxText(payload.fx?.message || copy[language].fxUnavailable);
+        } else {
+          setFxText(`1 ${payload.fx.quote.source} = ${payload.fx.quote.rate.toFixed(2)} ${payload.fx.quote.target}`);
+        }
+      } catch {
+        if (!mounted) {
+          return;
+        }
+        setWeatherText(copy[language].weatherUnavailable);
+        setFxText(copy[language].fxUnavailable);
+      }
+    };
+
+    void loadRuntimeContext();
+
+    return () => {
+      mounted = false;
+    };
+  }, [language]);
+
   const toggleTheme = () => {
     const nextTheme: ThemeMode = theme === 'light' ? 'dark' : 'light';
     setTheme(nextTheme);
@@ -79,10 +130,10 @@ export default function UtilityBar() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-2 font-medium text-white/92 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
-              <FiCloud /> {t.weather}
+              <FiCloud /> {weatherText || t.weatherUnavailable}
             </span>
             <span className="rounded-full border border-white/12 bg-white/8 px-3 py-2 font-medium text-white/92 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
-              {t.fx}
+              {fxText || t.fxUnavailable}
             </span>
             <button
               type="button"
@@ -121,21 +172,24 @@ export default function UtilityBar() {
             <span>{t.utilityNote}</span>
           </div>
           <div className="flex items-center gap-2">
-            {socialLinks.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={label}
-                href={href}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={label}
-                className={cn(
-                  'inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 transition',
-                  'hover:-translate-y-0.5 hover:border-[var(--color-gold)]/50 hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45'
-                )}
-              >
-                <Icon size={14} />
-              </Link>
-            ))}
+            {socialLinks.map(({ href, label }) => {
+              const Icon = socialIconByLabel[label] ?? FaWhatsapp;
+              return (
+                <Link
+                  key={`${label}:${href}`}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label={label}
+                  className={cn(
+                    'inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 transition',
+                    'hover:-translate-y-0.5 hover:border-[var(--color-gold)]/50 hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45'
+                  )}
+                >
+                  <Icon size={14} />
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { convertCurrency } from '@/lib/currency/service';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError } from '@/lib/security/safe-logger';
 import { normalizeMarketplaceSlug, toPublicMarketplaceItemSummary } from '@/lib/marketplace/public-serializer';
@@ -13,7 +14,16 @@ const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 30;
 const MIN_SEARCH_LENGTH = 2;
 const MAX_SEARCH_LENGTH = 80;
-const ALLOWED_QUERY_PARAMS = new Set(['category', 'page', 'pageSize', 'q']);
+const ALLOWED_QUERY_PARAMS = new Set(['category', 'page', 'pageSize', 'q', 'currency']);
+
+function parseDisplayCurrency(value: string | null) {
+  const normalized = (value ?? '').trim().toUpperCase();
+  if (normalized === 'SAR' || normalized === 'EGP' || normalized === 'USD' || normalized === 'EUR' || normalized === 'AED') {
+    return normalized;
+  }
+
+  return 'SAR';
+}
 
 function readPositiveInt(value: string | null, fallback: number) {
   const parsed = Number(value);
@@ -68,6 +78,7 @@ export async function GET(request: NextRequest) {
     const page = readPositiveInt(request.nextUrl.searchParams.get('page'), DEFAULT_PAGE);
     const pageSize = Math.min(readPositiveInt(request.nextUrl.searchParams.get('pageSize'), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE);
     const categorySlug = normalizeMarketplaceSlug(request.nextUrl.searchParams.get('category'));
+    const displayCurrency = parseDisplayCurrency(request.nextUrl.searchParams.get('currency'));
     const search = normalizeSearchQuery(request.nextUrl.searchParams.get('q'));
 
     if (search.error) {
@@ -223,13 +234,38 @@ export async function GET(request: NextRequest) {
       })
       .filter((item: ReturnType<typeof toPublicMarketplaceItemSummary> | null): item is NonNullable<typeof item> => item !== null);
 
+    const items = await Promise.all(
+      safeItems.map(async (item) => {
+        if (typeof item.starting_price !== 'number' || !item.currency) {
+          return { ...item, display_price: null };
+        }
+
+        const converted = await convertCurrency({
+          amount: item.starting_price,
+          sourceCurrency: item.currency,
+          targetCurrency: displayCurrency,
+        });
+
+        return {
+          ...item,
+          display_price: {
+            amount: converted.quote.convertedAmount,
+            currency: converted.quote.target,
+            base_amount: item.starting_price,
+            base_currency: item.currency,
+            live: converted.ok,
+          },
+        };
+      })
+    );
+
     const total = typeof count === 'number' && count >= 0 ? count : safeItems.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
     return NextResponse.json(
       {
         category: categoryFilter,
-        items: safeItems,
+        items,
         meta: {
           page,
           pageSize,
@@ -237,6 +273,7 @@ export async function GET(request: NextRequest) {
           totalPages,
           category: categoryFilter?.slug ?? null,
           q: search.value,
+          displayCurrency,
         },
       },
       { status: 200 }
