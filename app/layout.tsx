@@ -11,21 +11,21 @@ export const metadata: Metadata = {
     default: 'dir3com | درعك الحامي للسياحة.',
     template: '%s | dir3com',
   },
-  description: 'dir3com بهوية عربية تنفيذية جديدة للسفر والخدمات، مع تجربة RTL/LTR متوازنة وسطح بصري موحد عبر المنصة العامة.',
+  description: 'dir3com منصة للسفر والخدمات والعروض بتجربة واضحة وسلسة تدعم العربية والإنجليزية.',
   keywords: ['dir3com', 'رحلات', 'خدمات فاخرة', 'حجوزات', 'العروض', 'الدبرة'],
   alternates: {
     canonical: 'https://dir3com.com',
   },
   openGraph: {
     title: 'dir3com | درعك الحامي للسياحة.',
-    description: 'هوية dir3com الجديدة لمنصة السفر والخدمات المميزة، بتجربة عربية تنفيذية واضحة وفاخرة.',
+    description: 'اكتشف خدمات السفر والعروض مع dir3com بتجربة موثوقة وواضحة.',
     type: 'website',
     locale: 'ar_AR',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'dir3com | درعك الحامي للسياحة.',
-    description: 'dir3com بهوية جديدة: درعك الحامي للسياحة.',
+    description: 'dir3com: درعك الحامي للسياحة.',
   },
   verification: {
     other: {

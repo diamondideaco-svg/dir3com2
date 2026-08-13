@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { convertCurrency } from '@/lib/currency/service';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError } from '@/lib/security/safe-logger';
 import { normalizeMarketplaceSlug, toPublicMarketplaceItemDetail } from '@/lib/marketplace/public-serializer';
@@ -13,7 +14,15 @@ function buildUnavailableResponse() {
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
-  void request;
+  const displayCurrencyRaw = request.nextUrl.searchParams.get('currency');
+  const displayCurrency =
+    displayCurrencyRaw === 'SAR' ||
+    displayCurrencyRaw === 'EGP' ||
+    displayCurrencyRaw === 'USD' ||
+    displayCurrencyRaw === 'EUR' ||
+    displayCurrencyRaw === 'AED'
+      ? displayCurrencyRaw
+      : 'SAR';
 
   try {
     if (!supabaseAdmin) {
@@ -143,7 +152,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return buildUnavailableResponse();
     }
 
-    return NextResponse.json({ item: safeItem }, { status: 200 });
+    const displayPrice =
+      typeof safeItem.starting_price === 'number' && safeItem.currency
+        ? await convertCurrency({
+            amount: safeItem.starting_price,
+            sourceCurrency: safeItem.currency,
+            targetCurrency: displayCurrency,
+          })
+        : null;
+
+    return NextResponse.json(
+      {
+        item: {
+          ...safeItem,
+          display_price: displayPrice
+            ? {
+                amount: displayPrice.quote.convertedAmount,
+                currency: displayPrice.quote.target,
+                base_amount: safeItem.starting_price,
+                base_currency: safeItem.currency,
+                live: displayPrice.ok,
+              }
+            : null,
+        },
+      },
+      { status: 200 }
+    );
   } catch (error) {
     logServerError('api.public.marketplace.item_detail.unexpected_error', error);
     return NextResponse.json({ error: 'Unable to load marketplace item right now.' }, { status: 500 });

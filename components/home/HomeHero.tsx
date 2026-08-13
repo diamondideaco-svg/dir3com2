@@ -28,14 +28,14 @@ export default function HomeHero() {
       <motion.div variants={sectionStagger} initial="hidden" animate="visible" className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.04fr_0.96fr] lg:items-center">
         <motion.div variants={sectionStagger}>
           <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-gold)]/25 bg-[linear-gradient(135deg,rgba(200,168,107,0.18)_0%,rgba(255,255,255,0.6)_100%)] px-4 py-2 text-sm font-medium text-[var(--color-gold)] shadow-[0_14px_34px_rgba(16,32,51,0.08)]">
-            <FiShield /> {language === 'ar' ? 'Brand rollout | dir3com' : 'Brand rollout | dir3com'}
+            <FiShield /> {language === 'ar' ? 'dir3com | منصة السفر والخدمات' : 'dir3com | Travel and services platform'}
           </span>
           <h1 className="mt-6 max-w-2xl text-4xl font-semibold leading-[1.13] text-[var(--color-navy)] sm:text-6xl lg:text-7xl">
-            {language === 'ar' ? 'dir3com بهوية' : 'dir3com with a'}
-            <span className="mt-2 block font-[var(--font-display)] text-[var(--color-gold)] drop-shadow-[0_8px_28px_rgba(200,168,107,0.22)]">{language === 'ar' ? 'تنفيذية جديدة.' : 'new executive identity.'}</span>
+            {language === 'ar' ? 'خطط سفرك' : 'Plan your travel'}
+            <span className="mt-2 block font-[var(--font-display)] text-[var(--color-gold)] drop-shadow-[0_8px_28px_rgba(200,168,107,0.22)]">{language === 'ar' ? 'بوضوح وثقة مع dir3com.' : 'with clarity and confidence at dir3com.'}</span>
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--color-muted)] sm:text-lg sm:leading-9 lg:text-xl">
-            {language === 'ar' ? 'الواجهة الجديدة تثبّت الاسم الرسمي dir3com وتعيد صياغة الإيقاع البصري للعناوين، البطاقات، والتنقل لتبدو أكثر ثقة ووضوحاً على الجوال وسطح المكتب.' : 'The new surface locks the official dir3com name and reshapes the visual rhythm of titles, cards, and navigation for a clearer, more premium experience on mobile and desktop.'}
+            {language === 'ar' ? 'نساعدك على حجز الخدمات السياحية المناسبة بسرعة، مع معلومات واضحة وتجربة سلسة على الجوال وسطح المكتب.' : 'Find and book suitable travel services quickly with clear information and a smooth experience on mobile and desktop.'}
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -86,14 +86,14 @@ export default function HomeHero() {
             <div className="absolute -left-6 bottom-6 h-24 w-24 rounded-full bg-[var(--color-clay)]/18 blur-3xl" />
             <div className="grid gap-4 sm:grid-cols-[1.1fr_0.9fr]">
               <div className="min-h-[360px] rounded-[30px] bg-[linear-gradient(165deg,#9d5c4d_0%,#d7bf92_38%,#102033_100%)] p-5 text-[var(--color-light)] sm:min-h-[420px] sm:p-6">
-                <p className="text-sm text-white/80">{language === 'ar' ? 'اللغة الجديدة للعلامة' : 'The new brand language'}</p>
+                <p className="text-sm text-white/80">{language === 'ar' ? 'رحلتك تبدأ من هنا' : 'Your journey starts here'}</p>
                 <p className="mt-4 max-w-xs text-2xl font-semibold leading-tight sm:text-3xl">
-                  {language === 'ar' ? 'ألوان أهدأ، طبقات أعمق، وعلامة تبدو أقرب إلى منصة سفر تنفيذية لا مجرد صفحة عرض.' : 'Calmer tones, deeper layers, and a brand that feels closer to an executive travel platform than a simple showcase.'}
+                  {language === 'ar' ? 'اختَر من خدمات السفر والإقامة والتنقل بما يناسب خطتك وميزانيتك، بخطوات سهلة وواضحة.' : 'Choose flights, stays, and transport services that match your plan and budget through simple, clear steps.'}
                 </p>
                 <div className="mt-8 grid gap-3 text-sm">
-                  <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">{language === 'ar' ? 'Header + Navigation أكثر وضوحاً' : 'Clearer header + navigation'}</div>
-                  <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">{language === 'ar' ? 'Buttons + Cards بملمس تنفيذي' : 'Buttons + cards with executive tactility'}</div>
-                  <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">{language === 'ar' ? 'Responsive rhythm للجوال وسطح المكتب' : 'Responsive rhythm for mobile and desktop'}</div>
+                  <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">{language === 'ar' ? 'خيارات متنوعة عبر فئات السفر' : 'Diverse options across travel categories'}</div>
+                  <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">{language === 'ar' ? 'تفاصيل واضحة قبل تأكيد أي طلب' : 'Clear details before any confirmation'}</div>
+                  <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">{language === 'ar' ? 'تجربة متوافقة مع الجوال وسطح المكتب' : 'A consistent mobile and desktop experience'}</div>
                 </div>
               </div>
               <div className="flex flex-col gap-4">
@@ -102,7 +102,7 @@ export default function HomeHero() {
                   <p className="mt-3 text-2xl font-semibold text-[var(--color-navy)]">{language === 'ar' ? 'درعك الحامي للسياحة.' : 'Your protective shield for tourism.'}</p>
                 </div>
                 <div id="dibrah-section" className="flex-1 rounded-[28px] bg-[linear-gradient(145deg,#102033_0%,#1c3550_62%,#9d5c4d_130%)] p-5 text-[var(--color-light)] shadow-[0_22px_55px_rgba(16,32,51,0.2)]">
-                  <p className="text-sm text-white/70">{language === 'ar' ? 'واجهة الذكاء المستقبلي' : 'Future intelligence surface'}</p>
+                  <p className="text-sm text-white/70">{language === 'ar' ? 'المساعد الذكي DABRA' : 'DABRA smart assistant'}</p>
                   <div className="mt-4 flex items-center gap-3">
                     <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(180deg,#f7e9c0_0%,#d4af37_100%)]">
                       <span className="absolute top-1 h-3 w-9 rounded-full bg-[#9B1C31] opacity-85" />
@@ -111,11 +111,11 @@ export default function HomeHero() {
                     </span>
                     <div>
                       <p className="font-semibold">DABRA</p>
-                      <p className="text-sm text-white/70">{language === 'ar' ? 'واجهة مرئية متوافقة مع الهوية الجديدة' : 'A visual surface aligned with the new identity'}</p>
+                      <p className="text-sm text-white/70">{language === 'ar' ? 'مساعدك الذكي للعثور على خيارات مناسبة' : 'Your smart helper for finding suitable options'}</p>
                     </div>
                   </div>
                   <p className="mt-6 text-sm leading-7 text-white/72">
-                    {language === 'ar' ? 'المساحة هنا تحافظ على مكان الدبرة كعنصر بصري مألوف ضمن العلامة، من دون إدخال أي تغيير على المنطق أو طبقات التكامل.' : 'This space keeps DABRA present as a familiar visual element in the brand without introducing any logic or integration changes.'}
+                    {language === 'ar' ? 'اسأل الدبرة عن الخيارات المتاحة لتسهيل التخطيط لرحلتك، مع الحفاظ على قرارات الحجز والدفع تحت تحكمك الكامل.' : 'Ask DABRA about available options to simplify planning, while keeping booking and payment decisions fully under your control.'}
                   </p>
                 </div>
               </div>

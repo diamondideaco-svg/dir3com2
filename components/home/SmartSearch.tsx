@@ -21,7 +21,7 @@ export default function SmartSearch() {
         <SectionHeading
           eyebrow="SMART SEARCH"
           title="بحث ذكي جاهز لعرض الرحلات والخدمات بوضوح أنيق."
-          description="اسأل الدبرة. واجهة بحث مرنة تجهز أنواع الخدمات والبيانات المطلوبة وتضع الدبرة في موضع المساعد، من دون تنفيذ منطق فعلي حتى الآن."
+          description="اسأل الدبرة للعثور على خيارات مناسبة حسب الوجهة ونوع الخدمة، ثم أكمل قرارك بخطوات واضحة." 
         />
 
         <motion.div variants={sectionStagger} initial="hidden" whileInView="visible" viewport={revealViewport} className="mt-8 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
@@ -82,7 +82,7 @@ export default function SmartSearch() {
                 </div>
                 <h3 className="mt-5 text-3xl font-semibold">الدبرة</h3>
                 <p className="mt-4 text-base leading-8 text-white/72">
-                  هذه الواجهة مهيأة لمستقبل يستطيع فيه الدبرة اقتراح رحلات وخيارات حسب الوجهة، أسلوب الضيافة، ونوع الخدمة المفضل.
+                  الدبرة تساعدك في استكشاف الخيارات المتاحة حسب الوجهة، أسلوب الضيافة، ونوع الخدمة الذي تفضله.
                 </p>
 
                 <div className="mt-4 rounded-[24px] border border-[var(--color-gold)]/20 bg-[var(--color-gold)]/10 px-4 py-4 text-sm leading-8 text-white/85">
@@ -103,7 +103,7 @@ export default function SmartSearch() {
                   ))}
                 </div>
 
-                <div className="mt-auto pt-6 text-sm text-white/60">واجهة فقط. لا يوجد منطق ذكاء اصطناعي مفعّل في هذه المرحلة.</div>
+                <div className="mt-auto pt-6 text-sm text-white/60">اسأل الدبرة ثم راجع الخيارات بهدوء قبل اتخاذ قرار الحجز.</div>
               </CardContent>
             </Card>
           </motion.div>
