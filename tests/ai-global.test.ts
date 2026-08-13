@@ -5,7 +5,7 @@ import {
   buildAI2ChatResponse,
   isOutOfScopeIntent,
 } from '@/lib/ai2/runtime/chat';
-import { extractValidWebCitations } from '@/lib/ai2/runtime/openai-web';
+import { callOpenAIResponsesWebSearch, extractValidWebCitations } from '@/lib/ai2/runtime/openai-web';
 import { AI2_DABRA_GLOBAL_WEB_PROMPT } from '@/lib/ai2/prompt/contract';
 
 const refusalScenarios = [
@@ -311,6 +311,48 @@ test('global AR and EN route to openai web search when live provider returns cit
     process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
     process.env.OPENAI_API_KEY = originalKey;
     process.env.DABRA_OPENAI_MODEL = originalModel;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('openai web search defaults to gpt-4.1-mini when no override is set', async () => {
+  const originalModel = process.env.DABRA_OPENAI_MODEL;
+  const originalFetch = globalThis.fetch;
+
+  delete process.env.DABRA_OPENAI_MODEL;
+
+  const requestBodies: unknown[] = [];
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.body) {
+      requestBodies.push(JSON.parse(String(init.body)));
+    }
+
+    return new Response(
+      JSON.stringify({
+        output_text: 'Global answer with citations',
+        output: [
+          {
+            content: [{ type: 'url_citation', url: 'https://example.com/global' }],
+          },
+        ],
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    await callOpenAIResponsesWebSearch({
+      message: 'Global travel news?',
+      language: 'en',
+      prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+      apiKey: 'test-key',
+    });
+
+    assert.equal((requestBodies[0] as { model?: string }).model, 'gpt-4.1-mini');
+  } finally {
+    if (originalModel === undefined) delete process.env.DABRA_OPENAI_MODEL;
+    else process.env.DABRA_OPENAI_MODEL = originalModel;
+
     globalThis.fetch = originalFetch;
   }
 });
