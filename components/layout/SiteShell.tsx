@@ -10,7 +10,7 @@ import UtilityBar from '@/components/layout/UtilityBar';
 const FloatingDibrah = dynamic(() => import('@/components/layout/FloatingDibrah'), { ssr: false });
 
 const hiddenPathPrefixes = ['/admin'];
-const hiddenExactPaths = ['/auth/callback'];
+const hiddenExactPaths = ['/', '/login', '/auth/callback'];
 
 export default function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();

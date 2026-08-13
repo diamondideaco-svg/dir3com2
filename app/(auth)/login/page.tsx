@@ -1,7 +1,7 @@
 // src/app/(auth)/login/page.tsx
-'use client';
+ 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
@@ -9,7 +9,7 @@ import { getPostLoginDestination } from '@/lib/auth/redirect';
 
 export default function LoginPage() {
     return (
-        <Suspense fallback={<div style={{ backgroundColor: '#0D1B2A', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37' }}>جاري التحميل...</div>}>
+        <Suspense fallback={<div style={{ backgroundColor: '#08111c', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37' }}>جاري التحميل...</div>}>
             <LoginContent />
         </Suspense>
     );
@@ -85,44 +85,58 @@ function LoginContent() {
 
     return (
         <div style={{
-            backgroundColor: '#0D1B2A',
+            background: 'radial-gradient(circle at 80% 14%, rgba(212,175,55,0.12), transparent 22%), linear-gradient(180deg, #08111c 0%, #050b13 100%)',
             minHeight: '100vh',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '40px 20px',
+            padding: '28px 16px',
             fontFamily: 'Tajawal, sans-serif',
-            direction: 'rtl'
+            direction: 'rtl',
+            color: '#FFFFFF'
         }}>
             <div style={{
-                maxWidth: '420px',
                 width: '100%',
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(212, 175, 55, 0.15)',
-                borderRadius: '24px',
-                padding: '40px 30px'
+                maxWidth: '520px',
+                position: 'relative',
+                overflow: 'hidden',
+                borderRadius: '28px',
+                border: '1px solid rgba(212, 175, 55, 0.24)',
+                background: 'linear-gradient(180deg, rgba(7,13,24,0.97) 0%, rgba(10,18,30,0.98) 100%)',
+                boxShadow: '0 36px 80px rgba(0,0,0,0.35)',
+                padding: '28px 20px'
             }}>
-                <h1 style={{
-                    fontFamily: 'Playfair Display, serif',
-                    fontSize: '2rem',
-                    color: '#D4AF37',
-                    textAlign: 'center',
-                    marginBottom: '5px'
-                }}>
-                    تسجيل الدخول
-                </h1>
-                <p style={{ color: '#6B7280', textAlign: 'center', marginBottom: '30px' }}>
-                    مرحباً بعودتك إلى DIR3COM
-                </p>
+                <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 8%, rgba(212,175,55,0.13), transparent 34%)' }} />
+                <div style={{ position: 'relative', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
+                        <div style={{ width: '84px', height: '84px', borderRadius: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(212,175,55,0.5)', background: 'linear-gradient(180deg, #24150d 0%, #09101a 100%)', color: '#D4AF37', fontSize: '2.2rem', fontWeight: 900 }}>
+                            3
+                        </div>
+                    </div>
+                    <div style={{ fontSize: '2rem', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.03em' }}>dir3com</div>
+                    <div style={{ marginTop: '6px', color: '#D4AF37', fontSize: '0.78rem', letterSpacing: '0.24em' }}>YOUR SHIELD FOR TOURISM.</div>
+                    <h1 style={{
+                        fontSize: '2rem',
+                        color: '#D4AF37',
+                        textAlign: 'center',
+                        marginTop: '18px',
+                        marginBottom: '8px'
+                    }}>
+                        تسجيل الدخول
+                    </h1>
+                    <p style={{ color: 'rgba(245,245,245,0.72)', textAlign: 'center', marginBottom: '24px', lineHeight: 1.8 }}>
+                        مرحباً بعودتك إلى dir3com
+                    </p>
+                </div>
 
                 {error && (
                     <div style={{
-                        background: 'rgba(255,0,0,0.1)',
-                        border: '1px solid #ff4444',
-                        borderRadius: '12px',
-                        padding: '10px',
-                        marginBottom: '20px',
-                        color: '#ff6666',
+                        background: 'rgba(255,0,0,0.12)',
+                        border: '1px solid rgba(255,120,120,0.7)',
+                        borderRadius: '16px',
+                        padding: '12px 14px',
+                        marginBottom: '18px',
+                        color: '#FFB4B4',
                         textAlign: 'center'
                     }}>
                         {error}
@@ -134,11 +148,11 @@ function LoginContent() {
                     disabled={loading}
                     style={{
                         width: '100%',
-                        padding: '12px',
-                        background: '#1A1A2E',
+                        padding: '12px 14px',
+                        background: 'rgba(255,255,255,0.04)',
                         color: '#FFFFFF',
-                        border: '1px solid #2A2A3E',
-                        borderRadius: '12px',
+                        border: '1px solid rgba(212,175,55,0.24)',
+                        borderRadius: '18px',
                         fontSize: '1rem',
                         fontWeight: 'bold',
                         cursor: 'pointer',
@@ -146,7 +160,7 @@ function LoginContent() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '12px',
-                        marginBottom: '20px'
+                        marginBottom: '18px'
                     }}
                 >
                     <svg width="20" height="20" viewBox="0 0 48 48">
@@ -158,15 +172,15 @@ function LoginContent() {
                     {loading ? 'جاري التحميل...' : 'تسجيل الدخول بـ Google'}
                 </button>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', margin: '20px 0' }}>
-                    <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #2A2A3E' }} />
-                    <span style={{ color: '#4A5A6E', fontSize: '0.85rem' }}>أو</span>
-                    <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #2A2A3E' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', margin: '18px 0' }}>
+                    <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(212,175,55,0.18)' }} />
+                    <span style={{ color: 'rgba(245,245,245,0.52)', fontSize: '0.85rem' }}>أو</span>
+                    <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(212,175,55,0.18)' }} />
                 </div>
 
                 <form onSubmit={handleEmailLogin}>
                     <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>البريد الإلكتروني</label>
+                        <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(245,245,245,0.74)' }}>البريد الإلكتروني</label>
                         <input
                             type="email"
                             value={email}
@@ -175,11 +189,11 @@ function LoginContent() {
                             required
                             style={{
                                 width: '100%',
-                                padding: '12px',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: '#F4F1E8',
+                                padding: '12px 14px',
+                                borderRadius: '16px',
+                                border: '1px solid rgba(212,175,55,0.16)',
+                                background: 'rgba(255,255,255,0.03)',
+                                color: '#FFFFFF',
                                 fontSize: '1rem',
                                 outline: 'none'
                             }}
@@ -187,7 +201,7 @@ function LoginContent() {
                     </div>
 
                     <div style={{ marginBottom: '20px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>كلمة المرور</label>
+                        <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(245,245,245,0.74)' }}>كلمة المرور</label>
                         <input
                             type="password"
                             value={password}
@@ -196,11 +210,11 @@ function LoginContent() {
                             required
                             style={{
                                 width: '100%',
-                                padding: '12px',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: '#F4F1E8',
+                                padding: '12px 14px',
+                                borderRadius: '16px',
+                                border: '1px solid rgba(212,175,55,0.16)',
+                                background: 'rgba(255,255,255,0.03)',
+                                color: '#FFFFFF',
                                 fontSize: '1rem',
                                 outline: 'none'
                             }}
@@ -213,10 +227,10 @@ function LoginContent() {
                         style={{
                             width: '100%',
                             padding: '14px',
-                            background: '#D4AF37',
-                            color: '#0D1B2A',
+                            background: 'linear-gradient(180deg, #f1d27d 0%, #c9972f 100%)',
+                            color: '#08111c',
                             border: 'none',
-                            borderRadius: '30px',
+                            borderRadius: '999px',
                             fontWeight: 'bold',
                             fontSize: '1rem',
                             cursor: 'pointer'
@@ -226,7 +240,7 @@ function LoginContent() {
                     </button>
                 </form>
 
-                <p style={{ textAlign: 'center', color: '#6B7280', marginTop: '20px' }}>
+                <p style={{ textAlign: 'center', color: 'rgba(245,245,245,0.7)', marginTop: '20px' }}>
                     ليس لديك حساب؟{' '}
                     <Link href="/register" style={{ color: '#D4AF37', textDecoration: 'none' }}>
                         إنشاء حساب جديد
