@@ -22,6 +22,7 @@ const eslintConfig = defineConfig([
     ".tmp/**",
     ".i/**",
     "apps/mobile/**",
+    "supabase/.temp/**",
   ]),
 ]);
 
