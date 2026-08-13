@@ -1,5 +1,9 @@
 import { AI2_KNOWLEDGE_REGISTRY, type AI2KnowledgeRecord } from '@/lib/ai2/knowledge/registry';
-import { AI2_DABRA_SYSTEM_PROMPT, AI2_DABRA_PROMPT_VERSION } from '@/lib/ai2/prompt/contract';
+import {
+  AI2_DABRA_GLOBAL_WEB_PROMPT,
+  AI2_DABRA_INTERNAL_SYSTEM_PROMPT,
+  AI2_DABRA_PROMPT_VERSION,
+} from '@/lib/ai2/prompt/contract';
 import { buildAI2RagChunks, evaluateAI2InternalMatchGate, rankAI2RagMatches } from '@/lib/ai2/rag/index-design';
 import { callOpenAIResponsesWebSearch } from '@/lib/ai2/runtime/openai-web';
 
@@ -128,7 +132,7 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
       const openAIResult = await callOpenAIResponsesWebSearch({
         message,
         language,
-        prompt: AI2_DABRA_SYSTEM_PROMPT,
+        prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
         model: process.env.DABRA_OPENAI_MODEL,
         apiKey: openAIKey,
       });
@@ -236,7 +240,7 @@ function uniqueSourcesFromMatches(matches: ReturnType<typeof rankAI2RagMatches>)
 }
 
 function composeGroundedAnswer(matches: ReturnType<typeof rankAI2RagMatches>, language: AI2ChatLanguage): string {
-  const promptConstraint = AI2_DABRA_SYSTEM_PROMPT.toLowerCase();
+  const promptConstraint = AI2_DABRA_INTERNAL_SYSTEM_PROMPT.toLowerCase();
 
   const snippets = matches
     .map((match) => {

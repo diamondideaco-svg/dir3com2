@@ -6,6 +6,7 @@ import {
   isOutOfScopeIntent,
 } from '@/lib/ai2/runtime/chat';
 import { extractValidWebCitations } from '@/lib/ai2/runtime/openai-web';
+import { AI2_DABRA_GLOBAL_WEB_PROMPT } from '@/lib/ai2/prompt/contract';
 
 const refusalScenarios = [
   {
@@ -267,8 +268,12 @@ test('global AR and EN route to openai web search when live provider returns cit
   process.env.DABRA_OPENAI_MODEL = 'gpt-5';
 
   let providerCalls = 0;
-  globalThis.fetch = (async () => {
+  const requestBodies: unknown[] = [];
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
     providerCalls += 1;
+    if (init?.body) {
+      requestBodies.push(JSON.parse(String(init.body)));
+    }
     return new Response(
       JSON.stringify({
         output_text: 'Global answer with citations',
@@ -300,10 +305,51 @@ test('global AR and EN route to openai web search when live provider returns cit
     assert.ok(en.sources.length > 0);
 
     assert.equal(providerCalls, 2);
+    assert.equal((requestBodies[0] as { instructions?: string }).instructions, AI2_DABRA_GLOBAL_WEB_PROMPT);
+    assert.equal((requestBodies[1] as { instructions?: string }).instructions, AI2_DABRA_GLOBAL_WEB_PROMPT);
   } finally {
     process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
     process.env.OPENAI_API_KEY = originalKey;
     process.env.DABRA_OPENAI_MODEL = originalModel;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generic global questions stay on the web route and do not ground locally', async () => {
+  const originalEnabled = process.env.DABRA_GLOBAL_WEB_ENABLED;
+  const originalKey = process.env.OPENAI_API_KEY;
+  const originalFetch = globalThis.fetch;
+
+  process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.OPENAI_API_KEY = 'test-key';
+
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        output_text: 'Global answer with citations',
+        output: [{ content: [{ type: 'url_citation', url: 'https://example.com/global' }] }],
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    )) as typeof fetch;
+
+  const messages = [
+    'What is OpenAI authentication policy?',
+    'What is the latest sandbox technology news?',
+    'Global customer support trends today',
+    'ما أحدث سياسات السفر العالمية؟',
+    'ما أخبار المصادقة الإلكترونية عالميًا؟',
+  ];
+
+  try {
+    for (const message of messages) {
+      const response = await buildAI2ChatResponse(message);
+      assert.equal(response.provider, 'openai', message);
+      assert.equal(response.retrievalMode, 'openai-web-search', message);
+      assert.equal(response.groundingStatus, 'grounded-global-web', message);
+    }
+  } finally {
+    process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
+    process.env.OPENAI_API_KEY = originalKey;
     globalThis.fetch = originalFetch;
   }
 });
@@ -337,6 +383,45 @@ test('internal AR and EN stay grounded locally without provider calls', async ()
     assert.ok(en.sources.length > 0);
 
     assert.equal(providerCalls, 0);
+  } finally {
+    process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
+    process.env.OPENAI_API_KEY = originalKey;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('internal anchor queries stay grounded locally while generic policy queries do not', async () => {
+  const originalEnabled = process.env.DABRA_GLOBAL_WEB_ENABLED;
+  const originalKey = process.env.OPENAI_API_KEY;
+  const originalFetch = globalThis.fetch;
+
+  process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.OPENAI_API_KEY = 'test-key';
+
+  let providerCalls = 0;
+  globalThis.fetch = (async () => {
+    providerCalls += 1;
+    return new Response(
+      JSON.stringify({
+        output_text: 'Global answer with citations',
+        output: [{ content: [{ type: 'url_citation', url: 'https://example.com/global' }] }],
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const positive = await buildAI2ChatResponse('What is the dir3com authentication policy?');
+    assert.equal(positive.provider, 'local');
+    assert.equal(positive.retrievalMode, 'internal-rag');
+    assert.equal(positive.groundingStatus, 'grounded');
+
+    const negative = await buildAI2ChatResponse('What is OpenAI authentication policy?');
+    assert.equal(negative.provider, 'openai');
+    assert.equal(negative.retrievalMode, 'openai-web-search');
+    assert.equal(negative.groundingStatus, 'grounded-global-web');
+
+    assert.equal(providerCalls, 1);
   } finally {
     process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
     process.env.OPENAI_API_KEY = originalKey;
