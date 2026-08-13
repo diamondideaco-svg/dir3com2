@@ -1,6 +1,6 @@
 import { AI2_KNOWLEDGE_REGISTRY, type AI2KnowledgeRecord } from '@/lib/ai2/knowledge/registry';
 import { AI2_DABRA_SYSTEM_PROMPT, AI2_DABRA_PROMPT_VERSION } from '@/lib/ai2/prompt/contract';
-import { buildAI2RagChunks, rankAI2RagMatches } from '@/lib/ai2/rag/index-design';
+import { buildAI2RagChunks, evaluateAI2InternalMatchGate, rankAI2RagMatches } from '@/lib/ai2/rag/index-design';
 import { callOpenAIResponsesWebSearch } from '@/lib/ai2/runtime/openai-web';
 
 export type AI2ChatLanguage = 'ar' | 'en';
@@ -105,63 +105,52 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
 
   const matches = rankAI2RagMatches(message, AI2_CHUNKS, 3);
   const internalSources = uniqueSourcesFromMatches(matches);
+  const internalMatchGate = evaluateAI2InternalMatchGate(message, matches);
   const globalWebEnabled = String(process.env.DABRA_GLOBAL_WEB_ENABLED ?? '').toLowerCase() === 'true';
   const openAIKey = (process.env.OPENAI_API_KEY ?? '').trim();
+  const canUseOpenAI = globalWebEnabled && Boolean(openAIKey);
 
-  if (globalWebEnabled && openAIKey) {
-    const openAIResult = await callOpenAIResponsesWebSearch({
-      message,
+  if (internalMatchGate.hasStrongMatch && internalSources.length > 0) {
+    return {
+      answer: composeGroundedAnswer(matches, language),
+      sources: internalSources,
       language,
-      prompt: AI2_DABRA_SYSTEM_PROMPT,
-      model: process.env.DABRA_OPENAI_MODEL,
-      apiKey: openAIKey,
-    });
+      groundingStatus: 'grounded',
+      promptBound: true,
+      promptVersion: AI2_DABRA_PROMPT_VERSION,
+      retrievalMode: 'internal-rag',
+      provider: 'local',
+    };
+  }
 
-    if (openAIResult.ok && openAIResult.citations.length > 0) {
-      return {
-        answer: openAIResult.answer,
-        sources: openAIResult.citations.map((url, index) => ({
-          sourceId: `web-${index + 1}`,
-          sourceName: url,
-          sourceType: 'web',
-          url,
-        })),
+  if (internalSources.length === 0 || !internalMatchGate.hasStrongMatch) {
+    if (canUseOpenAI) {
+      const openAIResult = await callOpenAIResponsesWebSearch({
+        message,
         language,
-        groundingStatus: 'grounded-global-web',
-        promptBound: true,
-        promptVersion: AI2_DABRA_PROMPT_VERSION,
-        retrievalMode: 'openai-web-search',
-        provider: 'openai',
-      };
-    }
+        prompt: AI2_DABRA_SYSTEM_PROMPT,
+        model: process.env.DABRA_OPENAI_MODEL,
+        apiKey: openAIKey,
+      });
 
-    if (openAIResult.ok && openAIResult.citations.length === 0 && internalSources.length > 0) {
-      return {
-        answer: composeGroundedAnswer(matches, language),
-        sources: internalSources,
-        language,
-        groundingStatus: 'grounded',
-        promptBound: true,
-        promptVersion: AI2_DABRA_PROMPT_VERSION,
-        retrievalMode: 'internal-rag',
-        provider: 'local',
-      };
-    }
+      if (openAIResult.ok && openAIResult.citations.length > 0) {
+        return {
+          answer: openAIResult.answer,
+          sources: openAIResult.citations.map((url, index) => ({
+            sourceId: `web-${index + 1}`,
+            sourceName: url,
+            sourceType: 'web',
+            url,
+          })),
+          language,
+          groundingStatus: 'grounded-global-web',
+          promptBound: true,
+          promptVersion: AI2_DABRA_PROMPT_VERSION,
+          retrievalMode: 'openai-web-search',
+          provider: 'openai',
+        };
+      }
 
-    if (!openAIResult.ok && internalSources.length > 0) {
-      return {
-        answer: composeGroundedAnswer(matches, language),
-        sources: internalSources,
-        language,
-        groundingStatus: 'grounded',
-        promptBound: true,
-        promptVersion: AI2_DABRA_PROMPT_VERSION,
-        retrievalMode: 'internal-rag',
-        provider: 'local',
-      };
-    }
-
-    if (!openAIResult.ok && internalSources.length === 0) {
       return {
         answer: PROVIDER_UNAVAILABLE_FALLBACK[language],
         sources: [],
@@ -173,9 +162,7 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
         provider: 'local',
       };
     }
-  }
 
-  if (internalSources.length === 0) {
     return {
       answer: NO_SOURCE_FALLBACK[language],
       sources: [],
@@ -188,10 +175,8 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
     };
   }
 
-  const answer = composeGroundedAnswer(matches, language);
-
   return {
-    answer,
+    answer: composeGroundedAnswer(matches, language),
     sources: internalSources,
     language,
     groundingStatus: 'grounded',

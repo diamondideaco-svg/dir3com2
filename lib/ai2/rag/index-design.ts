@@ -24,6 +24,20 @@ export type AI2RagIndexBlueprint = {
   sourceAllowList: readonly string[];
 };
 
+export type AI2InternalMatchGate = {
+  hasStrongMatch: boolean;
+  maxScore: number;
+  threshold: number;
+  matchedSourceIds: readonly string[];
+};
+
+export const AI2_INTERNAL_MATCH_THRESHOLD = 1;
+
+const INTERNAL_TOPIC_SIGNAL_PATTERNS = [
+  /\b(?:dir3com|dabra|ai2|ai-2|pilot|baseline|policy|internal|auth|grounding|fallback|support|sandbox)\b/,
+  /(?:الدرع|الدبرة|دابرا|اي2|آي2|البايلوت|الداخلي|السياسة|المصادقة|الاسترجاع|المرجع|المعرفة)/,
+] as const;
+
 export const AI2_RAG_INDEX_BLUEPRINT: AI2RagIndexBlueprint = {
   mode: 'lexical-only',
   maxMatches: 8,
@@ -58,6 +72,34 @@ export function buildAI2RagChunks(registry: readonly AI2KnowledgeRecord[]): AI2R
 
     return chunks;
   });
+}
+
+export function evaluateAI2InternalMatchGate(query: string, matches: readonly AI2RagMatch[]): AI2InternalMatchGate {
+  const maxScore = matches.reduce((currentMax, match) => Math.max(currentMax, match.score), 0);
+  const matchedSourceIds = [...new Set(matches.map((match) => match.sourceId))];
+
+  return {
+    hasStrongMatch: maxScore >= AI2_INTERNAL_MATCH_THRESHOLD && hasInternalTopicSignal(query),
+    maxScore,
+    threshold: AI2_INTERNAL_MATCH_THRESHOLD,
+    matchedSourceIds,
+  };
+}
+
+function hasInternalTopicSignal(query: string): boolean {
+  const normalized = query.trim().toLowerCase();
+
+  if (!normalized) {
+    return false;
+  }
+
+  for (const pattern of INTERNAL_TOPIC_SIGNAL_PATTERNS) {
+    if (pattern.test(normalized)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function rankAI2RagMatches(query: string, chunks: readonly AI2RagChunk[], maxMatches = 5): AI2RagMatch[] {
