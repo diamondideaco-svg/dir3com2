@@ -1,7 +1,8 @@
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
-const DEFAULT_MODEL = 'gpt-5';
+const DEFAULT_MODEL = 'gpt-4.1-mini';
 const DEFAULT_TIMEOUT_MS = 20_000;
+const MAX_TIMEOUT_MS = 60_000;
 
 type OpenAIWebCallParams = {
   message: string;
@@ -24,7 +25,7 @@ function normalizeTimeout(input: string | undefined): number {
     return DEFAULT_TIMEOUT_MS;
   }
 
-  const bounded = Math.min(30_000, Math.max(5_000, Math.trunc(parsed)));
+  const bounded = Math.min(MAX_TIMEOUT_MS, Math.max(5_000, Math.trunc(parsed)));
   return bounded;
 }
 
@@ -161,27 +162,9 @@ export async function callOpenAIResponsesWebSearch(params: OpenAIWebCallParams):
       signal: controller.signal,
       body: JSON.stringify({
         model,
-        input: [
-          {
-            role: 'system',
-            content: [
-              {
-                type: 'input_text',
-                text: params.prompt,
-              },
-            ],
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'input_text',
-                text: params.message,
-              },
-            ],
-          },
-        ],
-        tools: [{ type: 'web_search' }],
+        instructions: params.prompt,
+        input: params.message,
+        tools: [{ type: 'web_search', search_context_size: 'low' }],
         tool_choice: 'required',
         include: ['web_search_call.action.sources'],
       }),
