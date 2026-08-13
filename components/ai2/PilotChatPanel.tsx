@@ -3,35 +3,33 @@
 import { useMemo, useState } from 'react';
 
 type SafeSource = {
-  sourceName?: string;
-};
-
-type SafeHandoff = {
-  safeSummary?: string | null;
+  sourceName: string;
+  sourceType?: 'internal' | 'web';
+  url?: string;
 };
 
 type SafePilotResponse = {
-  status?: 'ok' | 'rejected' | 'unavailable' | 'error';
-  message?: string;
-  data?: {
-    clarificationNeeded?: boolean;
-  } | null;
+  answer?: string;
   sources?: SafeSource[];
-  handoff?: SafeHandoff;
+  provider?: 'local' | 'openai';
+  retrievalMode?: 'internal-rag' | 'openai-web-search';
+  groundingStatus?: 'grounded' | 'grounded-global-web' | 'fallback-no-source' | 'fallback-provider-unavailable';
+  language?: 'ar' | 'en';
 };
 
-function toSafeStatusLabel(status: SafePilotResponse['status']) {
-  if (status === 'ok') return 'Completed safely';
-  if (status === 'rejected') return 'Rejected by safety controls';
-  if (status === 'unavailable') return 'Temporarily unavailable';
-  return 'Unable to process now';
+function toSafeStatusLabel(payload: SafePilotResponse) {
+  if (payload.groundingStatus === 'grounded-global-web') return 'Grounded by global web';
+  if (payload.groundingStatus === 'grounded') return 'Grounded by internal sources';
+  if (payload.groundingStatus === 'fallback-provider-unavailable') return 'Provider unavailable fallback';
+  return 'Fallback without approved source';
 }
 
 function safeSourceLabel(source: SafeSource) {
-  if (source.sourceName) {
-    return source.sourceName;
+  const label = (source.sourceName || '').trim();
+  if (label) {
+    return label;
   }
-  return 'Approved source';
+  return source.sourceType === 'web' ? 'Global web source' : 'Approved internal source';
 }
 
 export function PilotChatPanel() {
@@ -87,17 +85,16 @@ export function PilotChatPanel() {
       }
 
       setResponse({
-        status: payload?.status,
-        message: payload?.message,
-        data: payload?.data && typeof payload.data === 'object'
-          ? { clarificationNeeded: Boolean((payload.data as { clarificationNeeded?: boolean }).clarificationNeeded) }
-          : null,
-        handoff: {
-          safeSummary: payload?.handoff?.safeSummary ?? null,
-        },
+        answer: payload?.answer,
+        provider: payload?.provider,
+        retrievalMode: payload?.retrievalMode,
+        groundingStatus: payload?.groundingStatus,
+        language: payload?.language,
         sources: Array.isArray(payload?.sources)
           ? payload.sources.map((source) => ({
-              sourceName: source?.sourceName,
+              sourceName: source?.sourceName || '',
+              sourceType: source?.sourceType,
+              url: source?.url,
             }))
           : [],
       });
@@ -138,23 +135,30 @@ export function PilotChatPanel() {
 
       {response ? (
         <div className="mt-4 space-y-3 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
-          <p className="text-sm font-medium text-cyan-200">{toSafeStatusLabel(response.status)}</p>
-          <p className="text-sm leading-6 text-slate-200">{response.message || 'No safe message available.'}</p>
-
-          {response.data?.clarificationNeeded ? (
-            <p className="text-xs text-slate-300">This response needs clarification before continuing.</p>
-          ) : null}
-
-          {response.handoff?.safeSummary ? (
-            <p className="text-xs text-slate-300">{response.handoff.safeSummary}</p>
-          ) : null}
+          <p className="text-sm font-medium text-cyan-200">{toSafeStatusLabel(response)}</p>
+          <p className="text-sm leading-6 text-slate-200">{response.answer || 'No safe answer available.'}</p>
+          <p className="text-xs text-slate-400">
+            Provider: {response.provider || 'local'} | Retrieval: {response.retrievalMode || 'internal-rag'}
+          </p>
 
           {sources.length > 0 ? (
             <div className="flex flex-wrap gap-2">
-              {sources.map((label) => (
-                <span key={label} className="rounded-full border border-white/15 bg-slate-800 px-3 py-1 text-xs text-slate-300">
-                  {label}
-                </span>
+              {response.sources?.map((source) => (
+                source.url ? (
+                  <a
+                    key={`${source.sourceName}-${source.url}`}
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-200"
+                  >
+                    {safeSourceLabel(source)}
+                  </a>
+                ) : (
+                  <span key={source.sourceName} className="rounded-full border border-white/15 bg-slate-800 px-3 py-1 text-xs text-slate-300">
+                    {safeSourceLabel(source)}
+                  </span>
+                )
               ))}
             </div>
           ) : null}

@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const response = buildAI2ChatResponse(message);
+  const response = await buildAI2ChatResponse(message);
 
   return NextResponse.json(response, {
     headers: {
