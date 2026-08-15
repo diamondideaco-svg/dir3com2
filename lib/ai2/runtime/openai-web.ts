@@ -12,6 +12,7 @@ export type OpenAIWebErrorCategory =
   | 'missing_key'
   | 'invalid_key'
   | 'invalid_request'
+  | 'malformed_response'
   | 'insufficient_quota'
   | 'billing_or_identity'
   | 'model_not_found'
@@ -282,7 +283,10 @@ async function executeResponsesWebRequest(
     };
   }
 
-  const payload = (await response.json()) as unknown;
+  const payload = (await response.json().catch(() => null)) as unknown;
+  if (payload === null) {
+    return { ok: false, answer: '', citations: [], errorCategory: 'malformed_response', status: response.status, requestId, model };
+  }
   const answer = extractOutputText(payload);
   const citations = extractValidWebCitations(payload);
 
@@ -291,7 +295,7 @@ async function executeResponsesWebRequest(
       ok: false,
       answer: '',
       citations,
-      errorCategory: 'upstream_error',
+      errorCategory: 'malformed_response',
       status: response.status,
       requestId,
       model,

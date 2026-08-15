@@ -5,6 +5,7 @@ export type OpenAICompatibleErrorCategory =
   | 'missing_key'
   | 'invalid_key'
   | 'invalid_request'
+  | 'malformed_response'
   | 'insufficient_quota'
   | 'model_not_found'
   | 'web_search_unavailable'
@@ -335,7 +336,7 @@ async function callChatCompletions(
         ok: false,
         answer: '',
         citations: [],
-        errorCategory: 'upstream_error',
+        errorCategory: 'malformed_response',
         status: response.status,
         model,
       };
