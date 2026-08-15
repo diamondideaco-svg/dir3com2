@@ -1,8 +1,19 @@
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
+const OPENAI_MODELS_URL = 'https://api.openai.com/v1/models';
 
 const DEFAULT_MODEL = 'gpt-4.1-mini';
-const DEFAULT_TIMEOUT_MS = 20_000;
-const MAX_TIMEOUT_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = 45_000;
+const MIN_TIMEOUT_MS = 15_000;
+const MAX_TIMEOUT_MS = 90_000;
+
+export type OpenAIWebErrorCategory =
+  | 'missing_key'
+  | 'invalid_key'
+  | 'insufficient_quota'
+  | 'model_not_found'
+  | 'web_search_unavailable'
+  | 'timeout'
+  | 'upstream_error';
 
 type OpenAIWebCallParams = {
   message: string;
@@ -17,6 +28,21 @@ type OpenAIWebCallResult = {
   ok: boolean;
   answer: string;
   citations: string[];
+  errorCategory?: OpenAIWebErrorCategory;
+  status?: number;
+  requestId?: string | null;
+};
+
+type OpenAIErrorPayload = {
+  error?: {
+    type?: string;
+    code?: string;
+    message?: string;
+  };
+};
+
+type ModelsPayload = {
+  data?: Array<{ id?: string }>;
 };
 
 function normalizeTimeout(input: string | undefined): number {
@@ -25,13 +51,25 @@ function normalizeTimeout(input: string | undefined): number {
     return DEFAULT_TIMEOUT_MS;
   }
 
-  const bounded = Math.min(MAX_TIMEOUT_MS, Math.max(5_000, Math.trunc(parsed)));
+  const bounded = Math.min(MAX_TIMEOUT_MS, Math.max(MIN_TIMEOUT_MS, Math.trunc(parsed)));
   return bounded;
 }
 
 function normalizeModel(input: string | undefined): string {
   const candidate = (input ?? '').trim();
   return candidate || DEFAULT_MODEL;
+}
+
+function pickAvailableModel(ids: string[]): string {
+  const preferred = ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini', 'gpt-4o', 'gpt-5-mini', 'gpt-5'];
+  for (const model of preferred) {
+    if (ids.includes(model)) {
+      return model;
+    }
+  }
+
+  const fallback = ids.find((id) => id.startsWith('gpt-'));
+  return fallback ?? DEFAULT_MODEL;
 }
 
 function extractOutputText(payload: unknown): string {
@@ -145,63 +183,190 @@ export function extractValidWebCitations(payload: unknown): string[] {
   return [...unique];
 }
 
-export async function callOpenAIResponsesWebSearch(params: OpenAIWebCallParams): Promise<OpenAIWebCallResult> {
-  const model = normalizeModel(params.model ?? process.env.DABRA_OPENAI_MODEL);
-  const timeoutMs = params.timeoutMs ?? normalizeTimeout(process.env.DABRA_OPENAI_TIMEOUT_MS);
+function classifyOpenAIError(status: number, payload: OpenAIErrorPayload): OpenAIWebErrorCategory {
+  const type = String(payload.error?.type ?? '').toLowerCase();
+  const code = String(payload.error?.code ?? '').toLowerCase();
+  const message = String(payload.error?.message ?? '').toLowerCase();
 
+  if (status === 401 || type.includes('authentication') || code.includes('invalid_api_key')) {
+    return 'invalid_key';
+  }
+
+  if (status === 429 || code.includes('insufficient_quota')) {
+    return 'insufficient_quota';
+  }
+
+  if (status === 404 || code.includes('model_not_found')) {
+    return 'model_not_found';
+  }
+
+  if (code.includes('unsupported') || message.includes('web_search') || message.includes('tool')) {
+    return 'web_search_unavailable';
+  }
+
+  return 'upstream_error';
+}
+
+async function getBestAvailableModel(apiKey: string, timeoutMs: number): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.min(15_000, timeoutMs));
+  try {
+    const response = await fetch(OPENAI_MODELS_URL, {
+    method: 'GET',
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+    },
+    cache: 'no-store',
+    signal: controller.signal,
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json().catch(() => null)) as ModelsPayload | null;
+  const ids = (payload?.data ?? [])
+    .map((item) => (typeof item.id === 'string' ? item.id : ''))
+    .filter((id) => Boolean(id));
+
+  if (ids.length === 0) {
+    return null;
+  }
+
+    return pickAvailableModel(ids);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function executeResponsesWebRequest(
+  apiKey: string,
+  model: string,
+  prompt: string,
+  message: string,
+  timeoutMs: number,
+): Promise<OpenAIWebCallResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(OPENAI_RESPONSES_URL, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${params.apiKey}`,
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model,
-        instructions: params.prompt,
-        input: params.message,
-        tools: [{ type: 'web_search', search_context_size: 'low' }],
-        tool_choice: 'required',
-        include: ['web_search_call.action.sources'],
-      }),
-    });
+  const response = await fetch(OPENAI_RESPONSES_URL, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`,
+    },
+    signal: controller.signal,
+    body: JSON.stringify({
+      model,
+      instructions: prompt,
+      input: message,
+      tools: [{ type: 'web_search', search_context_size: 'low' }],
+      tool_choice: 'required',
+      include: ['web_search_call.action.sources'],
+    }),
+  });
 
-    if (!response.ok) {
-      return {
-        ok: false,
-        answer: '',
-        citations: [],
-      };
-    }
+  const requestId = response.headers.get('x-request-id');
 
-    const payload = (await response.json()) as unknown;
-    const answer = extractOutputText(payload);
-    const citations = extractValidWebCitations(payload);
-
-    if (!answer) {
-      return {
-        ok: false,
-        answer: '',
-        citations,
-      };
-    }
-
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as OpenAIErrorPayload | null;
+    const category = classifyOpenAIError(response.status, payload ?? {});
     return {
-      ok: true,
-      answer,
-      citations,
+      ok: false,
+      answer: '',
+      citations: [],
+      errorCategory: category,
+      status: response.status,
+      requestId,
     };
+  }
+
+  const payload = (await response.json()) as unknown;
+  const answer = extractOutputText(payload);
+  const citations = extractValidWebCitations(payload);
+
+  if (!answer) {
+    return {
+      ok: false,
+      answer: '',
+      citations,
+      errorCategory: 'upstream_error',
+      status: response.status,
+      requestId,
+    };
+  }
+
+  return {
+    ok: true,
+    answer,
+    citations,
+    status: response.status,
+    requestId,
+  };
+  } catch (error) {
+    const timedOut = error instanceof Error && /aborted|abort/i.test(error.message);
+    return {
+      ok: false,
+      answer: '',
+      citations: [],
+      errorCategory: timedOut ? 'timeout' : 'upstream_error',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function callOpenAIResponsesWebSearch(params: OpenAIWebCallParams): Promise<OpenAIWebCallResult> {
+  if (!params.apiKey.trim()) {
+    return {
+      ok: false,
+      answer: '',
+      citations: [],
+      errorCategory: 'missing_key',
+    };
+  }
+
+  const model = normalizeModel(params.model ?? process.env.DABRA_OPENAI_MODEL);
+  const timeoutMs = params.timeoutMs ?? normalizeTimeout(process.env.DABRA_OPENAI_TIMEOUT_MS);
+
+  try {
+    let firstAttempt = await executeResponsesWebRequest(params.apiKey, model, params.prompt, params.message, timeoutMs);
+
+    if (!firstAttempt.ok && (firstAttempt.errorCategory === 'timeout' || firstAttempt.errorCategory === 'upstream_error')) {
+      firstAttempt = await executeResponsesWebRequest(params.apiKey, model, params.prompt, params.message, timeoutMs);
+    }
+
+    if (firstAttempt.ok) {
+      return firstAttempt;
+    }
+
+    if (firstAttempt.errorCategory === 'model_not_found') {
+      const fallbackModel = await getBestAvailableModel(params.apiKey, timeoutMs);
+      if (fallbackModel && fallbackModel !== model) {
+        const retry = await executeResponsesWebRequest(
+          params.apiKey,
+          fallbackModel,
+          params.prompt,
+          params.message,
+          timeoutMs,
+        );
+        if (retry.ok) {
+          return retry;
+        }
+        return retry;
+      }
+    }
+
+    return firstAttempt;
   } catch {
     return {
       ok: false,
       answer: '',
       citations: [],
+      errorCategory: 'upstream_error',
     };
-  } finally {
-    clearTimeout(timer);
   }
 }
