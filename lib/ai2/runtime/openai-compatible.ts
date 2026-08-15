@@ -277,13 +277,14 @@ export async function discoverOpenAICompatibleModel(
   baseUrl: string,
   preferredModels: string[],
   extraHeaders?: Record<string, string>,
+  timeoutMs = MODEL_DISCOVERY_TIMEOUT_MS,
 ): Promise<string | null> {
   const cacheKey = discoveryCacheKey(apiKey, baseUrl);
   const cached = discoveredModelCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.model;
   if (cached) discoveredModelCache.delete(cacheKey);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), MODEL_DISCOVERY_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), Math.min(MODEL_DISCOVERY_TIMEOUT_MS, timeoutMs));
   try {
     const response = await fetch(`${baseUrl}/models`, {
       method: 'GET',
@@ -341,7 +342,7 @@ export async function callOpenAICompatibleProvider(params: OpenAICompatibleParam
 
   const discovered = params.model
     ? null
-    : await discoverOpenAICompatibleModel(params.apiKey, params.baseUrl, params.preferredModels, params.extraHeaders);
+    : await discoverOpenAICompatibleModel(params.apiKey, params.baseUrl, params.preferredModels, params.extraHeaders, params.timeoutMs);
 
   const selectedModel = params.model ?? discovered ?? params.preferredModels[0];
   let result = await callChatCompletions(params, selectedModel, params.timeoutMs);
@@ -356,6 +357,7 @@ export async function callOpenAICompatibleProvider(params: OpenAICompatibleParam
       params.baseUrl,
       params.preferredModels,
       params.extraHeaders,
+      params.timeoutMs,
     );
 
     if (fallbackModel && fallbackModel !== selectedModel) {

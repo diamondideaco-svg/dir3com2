@@ -132,13 +132,13 @@ function extractAnswer(payload: unknown): string {
     .trim();
 }
 
-export async function discoverAnthropicModel(apiKey: string): Promise<string | null> {
+export async function discoverAnthropicModel(apiKey: string, timeoutMs = MODEL_DISCOVERY_TIMEOUT_MS): Promise<string | null> {
   const cacheKey = createHash('sha256').update(apiKey).digest('hex');
   const cached = modelCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.model;
   if (cached) modelCache.delete(cacheKey);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), MODEL_DISCOVERY_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), Math.min(MODEL_DISCOVERY_TIMEOUT_MS, timeoutMs));
   try {
     const response = await fetch(`${ANTHROPIC_API_BASE}/models`, {
       method: 'GET',
@@ -259,7 +259,7 @@ export async function callAnthropicMessagesWeb(params: AnthropicWebCallParams): 
 
   const timeoutMs = params.timeoutMs ?? normalizeTimeout(process.env.DABRA_ANTHROPIC_TIMEOUT_MS);
   const configuredModel = normalizeModel(params.model ?? process.env.DABRA_ANTHROPIC_MODEL);
-  const discoveredModel = params.model ? null : await discoverAnthropicModel(params.apiKey);
+  const discoveredModel = params.model ? null : await discoverAnthropicModel(params.apiKey, timeoutMs);
   const model = discoveredModel ?? configuredModel;
 
   let result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, timeoutMs);

@@ -207,9 +207,9 @@ function classifyOpenAIError(status: number, payload: OpenAIErrorPayload): OpenA
   return 'upstream_error';
 }
 
-async function getBestAvailableModel(apiKey: string): Promise<string | null> {
+async function getBestAvailableModel(apiKey: string, timeoutMs: number): Promise<string | null> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15_000);
+  const timer = setTimeout(() => controller.abort(), Math.min(15_000, timeoutMs));
   try {
     const response = await fetch(OPENAI_MODELS_URL, {
     method: 'GET',
@@ -344,7 +344,7 @@ export async function callOpenAIResponsesWebSearch(params: OpenAIWebCallParams):
     }
 
     if (firstAttempt.errorCategory === 'model_not_found') {
-      const fallbackModel = await getBestAvailableModel(params.apiKey);
+      const fallbackModel = await getBestAvailableModel(params.apiKey, timeoutMs);
       if (fallbackModel && fallbackModel !== model) {
         const retry = await executeResponsesWebRequest(
           params.apiKey,

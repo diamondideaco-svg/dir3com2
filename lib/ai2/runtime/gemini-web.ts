@@ -128,13 +128,13 @@ async function executeRequest(params: GeminiWebCallParams, model: string, timeou
   }
 }
 
-async function discoverFallbackModel(apiKey: string): Promise<string | null> {
+async function discoverFallbackModel(apiKey: string, timeoutMs = MODEL_DISCOVERY_TIMEOUT_MS): Promise<string | null> {
   const cacheKey = createHash('sha256').update(apiKey).digest('hex');
   const cached = fallbackModelCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.model;
   if (cached) fallbackModelCache.delete(cacheKey);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), MODEL_DISCOVERY_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), Math.min(MODEL_DISCOVERY_TIMEOUT_MS, timeoutMs));
   try {
     const response = await fetch(`${GEMINI_API_BASE}/models?pageSize=1000`, {
       headers: { 'x-goog-api-key': apiKey },
@@ -166,7 +166,7 @@ export async function callGeminiGoogleSearch(params: GeminiWebCallParams): Promi
     result = await executeRequest(params, model, timeoutMs);
   }
   if (!result.ok && result.errorCategory === 'model_not_found') {
-    const fallback = await discoverFallbackModel(params.apiKey);
+    const fallback = await discoverFallbackModel(params.apiKey, timeoutMs);
     if (fallback && fallback !== model) result = await executeRequest(params, fallback, timeoutMs);
   }
   return result;

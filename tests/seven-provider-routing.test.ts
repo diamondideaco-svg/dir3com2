@@ -121,3 +121,16 @@ test('hanging model discovery is aborted and returns a classified safe failure',
     globalThis.setTimeout=originalSetTimeout;
   }
 });
+
+test('model discovery timeout is capped by the remaining provider budget', async()=>{
+  const originalSetTimeout=globalThis.setTimeout;
+  const delays:number[]=[];
+  globalThis.setTimeout=((callback: (...args: unknown[])=>void,delay?:number)=>{delays.push(Number(delay));queueMicrotask(callback);return 1 as unknown as NodeJS.Timeout}) as typeof setTimeout;
+  globalThis.fetch=(async(_input,init)=>new Promise<Response>((_resolve,reject)=>init?.signal?.addEventListener('abort',()=>reject(new Error('aborted')),{once:true}))) as typeof fetch;
+  try {
+    await discoverOpenAICompatibleModel('key-budget','https://provider.test/v1',['model-a'],undefined,1_234);
+    assert.equal(delays[0],1_234);
+  } finally {
+    globalThis.setTimeout=originalSetTimeout;
+  }
+});
