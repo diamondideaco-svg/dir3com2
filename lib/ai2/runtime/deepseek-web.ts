@@ -38,7 +38,10 @@ export async function discoverDeepSeekModel(apiKey: string): Promise<string | nu
 export async function callDeepSeekWebSearch(params: DeepSeekWebCallParams): Promise<DeepSeekWebCallResult> {
   const timeoutMs = params.timeoutMs ?? normalizeTimeout(process.env.DABRA_DEEPSEEK_TIMEOUT_MS);
   const retryCount = normalizeRetries(process.env.DABRA_DEEPSEEK_MAX_RETRIES);
-  const model = normalizeModel(params.model ?? process.env.DABRA_DEEPSEEK_MODEL, DEEPSEEK_DEFAULT_MODEL);
+  const explicitModelRaw = params.model ?? process.env.DABRA_DEEPSEEK_MODEL;
+  const model = explicitModelRaw && explicitModelRaw.trim()
+    ? normalizeModel(explicitModelRaw, DEEPSEEK_DEFAULT_MODEL)
+    : undefined;
 
   return callOpenAICompatibleProvider({
     providerName: 'deepseek',

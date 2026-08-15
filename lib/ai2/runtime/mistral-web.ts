@@ -38,7 +38,10 @@ export async function discoverMistralModel(apiKey: string): Promise<string | nul
 export async function callMistralWebSearch(params: MistralWebCallParams): Promise<MistralWebCallResult> {
   const timeoutMs = params.timeoutMs ?? normalizeTimeout(process.env.DABRA_MISTRAL_TIMEOUT_MS);
   const retryCount = normalizeRetries(process.env.DABRA_MISTRAL_MAX_RETRIES);
-  const model = normalizeModel(params.model ?? process.env.DABRA_MISTRAL_MODEL, MISTRAL_DEFAULT_MODEL);
+  const explicitModelRaw = params.model ?? process.env.DABRA_MISTRAL_MODEL;
+  const model = explicitModelRaw && explicitModelRaw.trim()
+    ? normalizeModel(explicitModelRaw, MISTRAL_DEFAULT_MODEL)
+    : undefined;
 
   return callOpenAICompatibleProvider({
     providerName: 'mistral',

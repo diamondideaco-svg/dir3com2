@@ -1,16 +1,23 @@
+import { createHash } from 'node:crypto';
+
+import { sanitizeCitationUrl } from '@/lib/ai2/runtime/openai-compatible';
+
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_MODEL = 'gemini-3.6-flash';
 const DEFAULT_TIMEOUT_MS = 45_000;
 const MIN_TIMEOUT_MS = 15_000;
 const MAX_TIMEOUT_MS = 90_000;
 const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
+export const GEMINI_DISCOVERY_CACHE_MAX_ENTRIES = 128;
 const MODEL_DISCOVERY_CACHE_TTL_MS = 5 * 60_000;
 const fallbackModelCache = new Map<string, { model: string; expiresAt: number }>();
 
 export type GeminiWebErrorCategory =
   | 'missing_key'
   | 'invalid_key'
+  | 'invalid_request'
   | 'insufficient_quota'
+  | 'billing_or_identity'
   | 'model_not_found'
   | 'web_search_unavailable'
   | 'safety_blocked'
@@ -23,6 +30,7 @@ export type GeminiWebCallResult = {
   citations: string[];
   errorCategory?: GeminiWebErrorCategory;
   status?: number;
+  model?: string;
 };
 
 type GeminiWebCallParams = {
@@ -57,21 +65,14 @@ function classifyError(status: number, payload: GeminiErrorPayload): GeminiWebEr
   const message = String(payload.error?.message ?? '').toLowerCase();
   if (status === 401 || status === 403 || code.includes('unauthenticated') || code.includes('permission_denied')) return 'invalid_key';
   if (status === 429 || code.includes('resource_exhausted')) return 'insufficient_quota';
+  if (message.includes('billing') || message.includes('credit') || message.includes('identity')) return 'billing_or_identity';
   if (status === 404 || code.includes('not_found')) return 'model_not_found';
   if (message.includes('google_search') || message.includes('tool')) return 'web_search_unavailable';
+  if ((status >= 400 && status < 500) || message.includes('invalid request') || message.includes('bad request') || message.includes('malformed')) return 'invalid_request';
   return 'upstream_error';
 }
 
-function isSafeWebUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:';
-  } catch {
-    return false;
-  }
-}
-
-function parseResponse(payload: unknown, status: number): GeminiWebCallResult {
+function parseResponse(payload: unknown, status: number, model: string): GeminiWebCallResult {
   if (!payload || typeof payload !== 'object') return { ok: false, answer: '', citations: [], errorCategory: 'upstream_error', status };
   const root = payload as Record<string, unknown>;
   const candidates = Array.isArray(root.candidates) ? root.candidates : [];
@@ -92,11 +93,41 @@ function parseResponse(payload: unknown, status: number): GeminiWebCallResult {
   const citations = [...new Set(chunks.flatMap((chunk) => {
     if (!chunk || typeof chunk !== 'object') return [];
     const web = (chunk as Record<string, unknown>).web as Record<string, unknown> | undefined;
-    const uri = typeof web?.uri === 'string' ? web.uri.trim() : '';
-    return uri && isSafeWebUrl(uri) ? [uri] : [];
+    const uri = typeof web?.uri === 'string' ? sanitizeCitationUrl(web.uri) : null;
+    return uri ? [uri] : [];
   }))];
-  if (!answer) return { ok: false, answer: '', citations, errorCategory: 'upstream_error', status };
-  return { ok: true, answer, citations, status };
+  if (!answer) return { ok: false, answer: '', citations, errorCategory: 'upstream_error', status, model };
+  return { ok: true, answer, citations, status, model };
+}
+
+function pruneExpiredCacheEntries(now = Date.now()): void {
+  for (const [key, value] of fallbackModelCache.entries()) {
+    if (value.expiresAt <= now) fallbackModelCache.delete(key);
+  }
+}
+
+function setCacheEntry(cacheKey: string, model: string): void {
+  const now = Date.now();
+  pruneExpiredCacheEntries(now);
+  if (fallbackModelCache.has(cacheKey)) fallbackModelCache.delete(cacheKey);
+  fallbackModelCache.set(cacheKey, { model, expiresAt: now + MODEL_DISCOVERY_CACHE_TTL_MS });
+  while (fallbackModelCache.size > GEMINI_DISCOVERY_CACHE_MAX_ENTRIES) {
+    const oldest = fallbackModelCache.keys().next().value;
+    if (!oldest) break;
+    fallbackModelCache.delete(oldest);
+  }
+}
+
+export function clearGeminiModelCacheForTests(): void {
+  fallbackModelCache.clear();
+}
+
+export function getGeminiModelCacheSizeForTests(): number {
+  return fallbackModelCache.size;
+}
+
+export function getGeminiModelCacheKeysForTests(): string[] {
+  return [...fallbackModelCache.keys()];
 }
 
 async function executeRequest(params: GeminiWebCallParams, model: string, timeoutMs: number): Promise<GeminiWebCallResult> {
@@ -117,12 +148,12 @@ async function executeRequest(params: GeminiWebCallParams, model: string, timeou
     });
     const payload = (await response.json().catch(() => null)) as unknown;
     if (!response.ok) {
-      return { ok: false, answer: '', citations: [], errorCategory: classifyError(response.status, (payload ?? {}) as GeminiErrorPayload), status: response.status };
+      return { ok: false, answer: '', citations: [], errorCategory: classifyError(response.status, (payload ?? {}) as GeminiErrorPayload), status: response.status, model };
     }
-    return parseResponse(payload, response.status);
+    return parseResponse(payload, response.status, model);
   } catch (error) {
     const timeout = error instanceof Error && /abort/i.test(error.message);
-    return { ok: false, answer: '', citations: [], errorCategory: timeout ? 'timeout' : 'upstream_error' };
+    return { ok: false, answer: '', citations: [], errorCategory: timeout ? 'timeout' : 'upstream_error', model };
   } finally {
     clearTimeout(timer);
   }
@@ -130,6 +161,7 @@ async function executeRequest(params: GeminiWebCallParams, model: string, timeou
 
 async function discoverFallbackModel(apiKey: string, timeoutMs = MODEL_DISCOVERY_TIMEOUT_MS): Promise<string | null> {
   const cacheKey = createHash('sha256').update(apiKey).digest('hex');
+  pruneExpiredCacheEntries();
   const cached = fallbackModelCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.model;
   if (cached) fallbackModelCache.delete(cacheKey);
@@ -148,7 +180,7 @@ async function discoverFallbackModel(apiKey: string, timeoutMs = MODEL_DISCOVERY
       .map((model) => String(model.name ?? '').replace(/^models\//, ''));
     const preferred = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-flash-latest'];
     const selected = preferred.find((model) => available.includes(model)) ?? available.find((model) => model.startsWith('gemini-')) ?? null;
-    if (selected) fallbackModelCache.set(cacheKey, { model: selected, expiresAt: Date.now() + MODEL_DISCOVERY_CACHE_TTL_MS });
+    if (selected) setCacheEntry(cacheKey, selected);
     return selected;
   } catch {
     return null;
@@ -157,18 +189,25 @@ async function discoverFallbackModel(apiKey: string, timeoutMs = MODEL_DISCOVERY
   }
 }
 
+export async function discoverGeminiModel(apiKey: string, timeoutMs = MODEL_DISCOVERY_TIMEOUT_MS): Promise<string | null> {
+  return discoverFallbackModel(apiKey, timeoutMs);
+}
+
 export async function callGeminiGoogleSearch(params: GeminiWebCallParams): Promise<GeminiWebCallResult> {
   if (!params.apiKey.trim()) return { ok: false, answer: '', citations: [], errorCategory: 'missing_key' };
   const timeoutMs = params.timeoutMs ?? normalizeTimeout(process.env.DABRA_GEMINI_TIMEOUT_MS);
+  const deadlineAt = Date.now() + timeoutMs;
+  const remainingMs = () => Math.max(0, deadlineAt - Date.now());
   const model = normalizeModel(params.model ?? process.env.DABRA_GEMINI_MODEL);
-  let result = await executeRequest(params, model, timeoutMs);
+  let result = await executeRequest(params, model, remainingMs());
   if (!result.ok && (result.errorCategory === 'timeout' || result.errorCategory === 'upstream_error')) {
-    result = await executeRequest(params, model, timeoutMs);
+    if (remainingMs() <= 0) return { ...result, errorCategory: 'timeout' };
+    result = await executeRequest(params, model, remainingMs());
   }
   if (!result.ok && result.errorCategory === 'model_not_found') {
-    const fallback = await discoverFallbackModel(params.apiKey, timeoutMs);
-    if (fallback && fallback !== model) result = await executeRequest(params, fallback, timeoutMs);
+    if (remainingMs() <= 0) return { ...result, errorCategory: 'timeout' };
+    const fallback = await discoverFallbackModel(params.apiKey, remainingMs());
+    if (fallback && fallback !== model && remainingMs() > 0) result = await executeRequest(params, fallback, remainingMs());
   }
   return result;
 }
-import { createHash } from 'node:crypto';

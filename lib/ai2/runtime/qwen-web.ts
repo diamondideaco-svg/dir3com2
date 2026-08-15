@@ -38,7 +38,10 @@ export async function discoverQwenModel(apiKey: string): Promise<string | null> 
 export async function callQwenWebSearch(params: QwenWebCallParams): Promise<QwenWebCallResult> {
   const timeoutMs = params.timeoutMs ?? normalizeTimeout(process.env.DABRA_QWEN_TIMEOUT_MS);
   const retryCount = normalizeRetries(process.env.DABRA_QWEN_MAX_RETRIES);
-  const model = normalizeModel(params.model ?? process.env.DABRA_QWEN_MODEL, QWEN_DEFAULT_MODEL);
+  const explicitModelRaw = params.model ?? process.env.DABRA_QWEN_MODEL;
+  const model = explicitModelRaw && explicitModelRaw.trim()
+    ? normalizeModel(explicitModelRaw, QWEN_DEFAULT_MODEL)
+    : undefined;
 
   return callOpenAICompatibleProvider({
     providerName: 'qwen',

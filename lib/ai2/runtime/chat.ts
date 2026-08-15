@@ -139,6 +139,7 @@ const DEFAULT_GLOBAL_DEADLINE_MS = 60_000;
 const DEFAULT_MAX_FALLBACK_HOPS = 3;
 const MIN_GLOBAL_DEADLINE_MS = 5_000;
 const MAX_GLOBAL_DEADLINE_MS = 120_000;
+const MIN_PROVIDER_ATTEMPT_BUDGET_MS = 250;
 
 export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResponse> {
   const language = detectLanguage(message);
@@ -201,12 +202,12 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
 
       for (const provider of configuredProviders) {
         const remainingMs = globalDeadlineMs - (Date.now() - startedAt);
-        if (remainingMs <= 0) {
+        if (remainingMs < MIN_PROVIDER_ATTEMPT_BUDGET_MS) {
           finalError = 'deadline_exceeded';
           break;
         }
         attemptedProviders.push(provider);
-        const perAttemptTimeoutMs = Math.max(1_000, Math.floor(remainingMs / 3));
+        const perAttemptTimeoutMs = Math.max(1, Math.min(remainingMs, Math.floor(remainingMs / 3) || remainingMs));
         const result = await callProvider(provider, message, language, perAttemptTimeoutMs);
         if (result.ok && (result.citations.length > 0 || providerAcceptsNoCitations(result.provider))) {
           return {
@@ -357,7 +358,7 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       provider,
       retrievalMode: 'gemini-google-search',
       errorCategory: result.errorCategory,
-      model: process.env.DABRA_GEMINI_MODEL,
+      model: result.model,
     };
   }
 
@@ -378,7 +379,7 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       provider,
       retrievalMode: 'openai-web-search',
       errorCategory: result.errorCategory,
-      model: process.env.DABRA_OPENAI_MODEL,
+      model: result.model,
     };
   }
 

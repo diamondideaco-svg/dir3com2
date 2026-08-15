@@ -187,7 +187,7 @@ test('router selects xai when requested and keeps safety refusal local', async (
 
     const refused = await buildAI2ChatResponse('Book this trip for me now');
     assert.equal(refused.provider, 'local');
-    assert.equal(calls, 1);
+    assert.equal(calls, 2);
   } finally {
     restoreEnv('XAI_API_KEY', oldXai);
   }

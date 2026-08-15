@@ -38,7 +38,10 @@ export async function discoverXAIModel(apiKey: string): Promise<string | null> {
 export async function callXAIWebSearch(params: XAIWebCallParams): Promise<XAIWebCallResult> {
   const timeoutMs = params.timeoutMs ?? normalizeTimeout(process.env.DABRA_XAI_TIMEOUT_MS);
   const retryCount = normalizeRetries(process.env.DABRA_XAI_MAX_RETRIES);
-  const model = normalizeModel(params.model ?? process.env.DABRA_XAI_MODEL, XAI_DEFAULT_MODEL);
+  const explicitModelRaw = params.model ?? process.env.DABRA_XAI_MODEL;
+  const model = explicitModelRaw && explicitModelRaw.trim()
+    ? normalizeModel(explicitModelRaw, XAI_DEFAULT_MODEL)
+    : undefined;
 
   const result = await callOpenAICompatibleProvider({
     providerName: 'xai',
