@@ -5,6 +5,7 @@ import {
   AI2_DABRA_PROMPT_VERSION,
 } from '@/lib/ai2/prompt/contract';
 import { buildAI2RagChunks, evaluateAI2InternalMatchGate, rankAI2RagMatches } from '@/lib/ai2/rag/index-design';
+import { callDeepSeekChat, type DeepSeekErrorCategory } from '@/lib/ai2/runtime/deepseek-web';
 import { callOpenAIResponsesWebSearch } from '@/lib/ai2/runtime/openai-web';
 
 export type AI2ChatLanguage = 'ar' | 'en';
@@ -12,12 +13,13 @@ export type AI2ChatLanguage = 'ar' | 'en';
 export type AI2ChatGroundingStatus =
   | 'grounded'
   | 'grounded-global-web'
+  | 'grounded-external'
   | 'fallback-no-source'
   | 'fallback-provider-unavailable';
 
-export type AI2Provider = 'local' | 'openai';
+export type AI2Provider = 'local' | 'openai' | 'deepseek';
 
-export type AI2RetrievalMode = 'internal-rag' | 'openai-web-search';
+export type AI2RetrievalMode = 'internal-rag' | 'openai-web-search' | 'deepseek-chat-completions';
 
 export type AI2ChatSource = {
   sourceId: string;
@@ -38,6 +40,7 @@ export type AI2ChatResponse = {
   promptVersion: typeof AI2_DABRA_PROMPT_VERSION;
   retrievalMode: AI2RetrievalMode;
   provider: AI2Provider;
+  providerErrorCategory?: DeepSeekErrorCategory;
 };
 
 const INFORMATIONAL_INTENT_PATTERNS = [
@@ -112,7 +115,7 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
   const internalMatchGate = evaluateAI2InternalMatchGate(message, matches);
   const globalWebEnabled = String(process.env.DABRA_GLOBAL_WEB_ENABLED ?? '').toLowerCase() === 'true';
   const openAIKey = (process.env.OPENAI_API_KEY ?? '').trim();
-  const canUseOpenAI = globalWebEnabled && Boolean(openAIKey);
+  const deepSeekKey = (process.env.DEEPSEEK_API_KEY ?? '').trim();
 
   if (internalMatchGate.hasStrongMatch && internalSources.length > 0) {
     return {
@@ -128,19 +131,45 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
   }
 
   if (internalSources.length === 0 || !internalMatchGate.hasStrongMatch) {
-    if (canUseOpenAI) {
-      const openAIResult = await callOpenAIResponsesWebSearch({
-        message,
-        language,
-        prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
-        model: process.env.DABRA_OPENAI_MODEL,
-        apiKey: openAIKey,
-      });
+    const providers = globalWebEnabled ? buildProviderOrder(deepSeekKey, openAIKey) : [];
+    if (providers.length > 0) {
+      let lastDeepSeekError: DeepSeekErrorCategory | undefined;
+      for (const provider of providers) {
+        if (provider === 'deepseek') {
+          const result = await callDeepSeekChat({
+            message,
+            language,
+            prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+            model: process.env.DABRA_DEEPSEEK_MODEL,
+            apiKey: deepSeekKey,
+          });
+          if (result.ok) {
+            return {
+              answer: result.answer,
+              sources: [],
+              language,
+              groundingStatus: 'grounded-external',
+              promptBound: true,
+              promptVersion: AI2_DABRA_PROMPT_VERSION,
+              retrievalMode: 'deepseek-chat-completions',
+              provider: 'deepseek',
+            };
+          }
+          lastDeepSeekError = result.errorCategory;
+          continue;
+        }
 
-      if (openAIResult.ok && openAIResult.citations.length > 0) {
-        return {
-          answer: openAIResult.answer,
-          sources: openAIResult.citations.map((url, index) => ({
+        const result = await callOpenAIResponsesWebSearch({
+          message,
+          language,
+          prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+          model: process.env.DABRA_OPENAI_MODEL,
+          apiKey: openAIKey,
+        });
+        if (result.ok && result.citations.length > 0) {
+          return {
+            answer: result.answer,
+            sources: result.citations.map((url, index) => ({
             sourceId: `web-${index + 1}`,
             sourceName: url,
             sourceType: 'web',
@@ -152,7 +181,8 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
           promptVersion: AI2_DABRA_PROMPT_VERSION,
           retrievalMode: 'openai-web-search',
           provider: 'openai',
-        };
+          };
+        }
       }
 
       return {
@@ -164,6 +194,7 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
         promptVersion: AI2_DABRA_PROMPT_VERSION,
         retrievalMode: 'internal-rag',
         provider: 'local',
+        providerErrorCategory: lastDeepSeekError,
       };
     }
 
@@ -189,6 +220,18 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
     retrievalMode: 'internal-rag',
     provider: 'local',
   };
+}
+
+function buildProviderOrder(deepSeekKey: string, openAIKey: string): Array<'deepseek' | 'openai'> {
+  const primary = String(process.env.DABRA_AI_PRIMARY_PROVIDER ?? process.env.DABRA_AI_PROVIDER ?? 'openai').trim().toLowerCase();
+  if (primary !== 'deepseek') return openAIKey ? ['openai'] : [];
+  const explicitlyEnabled = process.env.DABRA_DEEPSEEK_ENABLED;
+  const deepSeekEnabled = explicitlyEnabled === undefined || explicitlyEnabled.trim().toLowerCase() === 'true';
+  const fallbackEnabled = String(process.env.DABRA_PROVIDER_FALLBACK_ENABLED ?? 'true').trim().toLowerCase() !== 'false';
+  const providers: Array<'deepseek' | 'openai'> = [];
+  if (deepSeekEnabled && deepSeekKey) providers.push('deepseek');
+  if (fallbackEnabled && openAIKey) providers.push('openai');
+  return providers;
 }
 
 function detectLanguage(message: string): AI2ChatLanguage {

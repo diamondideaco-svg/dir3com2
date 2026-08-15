@@ -8,9 +8,9 @@ export type AI2PromptVersion = {
 export type AI2AnswerEnvelope = {
   answer: string;
   language: 'ar' | 'en';
-  groundingStatus: 'grounded' | 'grounded-global-web' | 'fallback-no-source' | 'fallback-provider-unavailable';
-  retrievalMode: 'internal-rag' | 'openai-web-search';
-  provider: 'local' | 'openai';
+  groundingStatus: 'grounded' | 'grounded-global-web' | 'grounded-external' | 'fallback-no-source' | 'fallback-provider-unavailable';
+  retrievalMode: 'internal-rag' | 'openai-web-search' | 'deepseek-chat-completions';
+  provider: 'local' | 'openai' | 'deepseek';
   sourceTrace: readonly AI2RagMatch[];
   promptVersion: AI2PromptVersion;
 };

@@ -7,7 +7,7 @@ import type {
   MarketplaceSortKey,
 } from '@/lib/marketplace/data';
 
-export type AIProviderId = 'openai' | 'anthropic' | 'gemini' | 'azure-openai' | 'local';
+export type AIProviderId = 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'azure-openai' | 'local';
 
 export type SearchLanguage = 'ar' | 'en' | 'mixed';
 

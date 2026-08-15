@@ -28,6 +28,7 @@ export function getAISearchConfig(): AISearchConfig {
   const openaiKey = key(process.env.OPENAI_API_KEY);
   const anthropicKey = key(process.env.ANTHROPIC_API_KEY);
   const geminiKey = key(process.env.GOOGLE_GEMINI_API_KEY);
+  const deepSeekKey = key(process.env.DEEPSEEK_API_KEY);
   const azureOpenAIKey = key(process.env.AZURE_OPENAI_API_KEY);
 
   const provider = (process.env.AI_SEARCH_PROVIDER?.trim() as AIProviderId | undefined) ?? 'local';
@@ -39,6 +40,7 @@ export function getAISearchConfig(): AISearchConfig {
       openai: providerConfig('openai', openaiKey),
       anthropic: providerConfig('anthropic', anthropicKey),
       gemini: providerConfig('gemini', geminiKey),
+      deepseek: providerConfig('deepseek', deepSeekKey),
       'azure-openai': providerConfig('azure-openai', azureOpenAIKey),
       local: {
         enabled: true,
