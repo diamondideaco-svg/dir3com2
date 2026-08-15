@@ -87,6 +87,30 @@ for (const [provider, key, modelKey] of [
   });
 }
 
+for (const [provider, key, modelKey] of [
+  ['openai', 'OPENAI_API_KEY', 'DABRA_OPENAI_MODEL'],
+  ['gemini', 'GOOGLE_GENERATIVE_AI_API_KEY', 'DABRA_GEMINI_MODEL'],
+  ['anthropic', 'ANTHROPIC_API_KEY', 'DABRA_ANTHROPIC_MODEL'],
+  ['xai', 'XAI_API_KEY', 'DABRA_XAI_MODEL'],
+] as const) {
+  test(`${provider} malformed success response is fatal with zero fallback`, async () => {
+    const fallbackKey = provider === 'openai' ? 'GOOGLE_GENERATIVE_AI_API_KEY' : 'OPENAI_API_KEY';
+    enable([key, fallbackKey]);
+    process.env.DABRA_AI_PROVIDER = provider;
+    process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+    process.env[modelKey] = 'test-model';
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+    const result = await buildAI2ChatResponse('qzvxx external topic 91837');
+    assert.equal(result.primaryProviderErrorCategory, 'malformed_response');
+    assert.deepEqual(result.fallbackAttempts, []);
+    assert.equal(calls, 1);
+  });
+}
+
 test('safety rejection forbids fallback', async()=>{
   enable(['GOOGLE_GENERATIVE_AI_API_KEY','OPENAI_API_KEY']); process.env.DABRA_AI_PROVIDER='gemini'; process.env.DABRA_PROVIDER_FALLBACK_ENABLED='true'; process.env.DABRA_GEMINI_MODEL='gemini-test';
   let calls=0; globalThis.fetch=(async()=>{calls+=1;return new Response(JSON.stringify({candidates:[{finishReason:'SAFETY'}]}),{status:200})}) as typeof fetch;

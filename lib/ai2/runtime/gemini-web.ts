@@ -16,6 +16,7 @@ export type GeminiWebErrorCategory =
   | 'missing_key'
   | 'invalid_key'
   | 'invalid_request'
+  | 'malformed_response'
   | 'insufficient_quota'
   | 'billing_or_identity'
   | 'model_not_found'
@@ -73,7 +74,7 @@ function classifyError(status: number, payload: GeminiErrorPayload): GeminiWebEr
 }
 
 function parseResponse(payload: unknown, status: number, model: string): GeminiWebCallResult {
-  if (!payload || typeof payload !== 'object') return { ok: false, answer: '', citations: [], errorCategory: 'upstream_error', status };
+  if (!payload || typeof payload !== 'object') return { ok: false, answer: '', citations: [], errorCategory: 'malformed_response', status, model };
   const root = payload as Record<string, unknown>;
   const candidates = Array.isArray(root.candidates) ? root.candidates : [];
   const candidate = candidates[0] as Record<string, unknown> | undefined;
@@ -96,7 +97,7 @@ function parseResponse(payload: unknown, status: number, model: string): GeminiW
     const uri = typeof web?.uri === 'string' ? sanitizeCitationUrl(web.uri) : null;
     return uri ? [uri] : [];
   }))];
-  if (!answer) return { ok: false, answer: '', citations, errorCategory: 'upstream_error', status, model };
+  if (!answer) return { ok: false, answer: '', citations, errorCategory: 'malformed_response', status, model };
   return { ok: true, answer, citations, status, model };
 }
 
