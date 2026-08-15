@@ -6,6 +6,7 @@ import {
   MODEL_DISCOVERY_CACHE_MAX_ENTRIES,
   clearOpenAICompatibleModelCacheForTests,
   discoverOpenAICompatibleModel,
+  getOpenAICompatibleModelCacheKeysForTests,
   getOpenAICompatibleModelCacheSizeForTests,
   sanitizeCitationUrl,
 } from '@/lib/ai2/runtime/openai-compatible';
@@ -21,6 +22,7 @@ import {
   discoverGeminiModel,
   getGeminiModelCacheSizeForTests,
 } from '@/lib/ai2/runtime/gemini-web';
+import { discoverOpenAIModel } from '@/lib/ai2/runtime/openai-web';
 import { callDeepSeekWebSearch } from '@/lib/ai2/runtime/deepseek-web';
 import { callMistralWebSearch } from '@/lib/ai2/runtime/mistral-web';
 import { callQwenWebSearch } from '@/lib/ai2/runtime/qwen-web';
@@ -54,9 +56,12 @@ test('citation URL sanitizer rejects private and unsafe URLs and accepts safe ht
     'javascript:alert(1)',
     'https://localhost/admin',
     'https://127.0.0.1:8080/private',
+    'https://0.0.0.0/private',
+    'https://100.64.0.1/private',
     'https://169.254.2.3/local',
     'https://192.168.1.11/dashboard',
     'https://[::1]/root',
+    'https://service.internal/private',
     'https://user:pass@example.com/secret',
   ];
 
@@ -80,6 +85,30 @@ test('openai-compatible discovery cache remains bounded', async () => {
   }
 
   assert.equal(getOpenAICompatibleModelCacheSizeForTests(), MODEL_DISCOVERY_CACHE_MAX_ENTRIES);
+});
+
+test('openai-compatible cache isolates hashed credentials and prunes expired entries', async () => {
+  const realNow = Date.now;
+  let now = 1_000;
+  Date.now = () => now;
+  globalThis.fetch = (async () => new Response(JSON.stringify({ data: [{ id: 'model-a' }] }), { status: 200 })) as typeof fetch;
+  try {
+    await discoverOpenAICompatibleModel('raw-secret-a', 'https://provider.example/v1', ['model-a']);
+    await discoverOpenAICompatibleModel('raw-secret-b', 'https://provider.example/v1', ['model-a']);
+    const keys = getOpenAICompatibleModelCacheKeysForTests();
+    assert.equal(keys.length, 2);
+    assert.equal(keys.some((key) => key.includes('raw-secret-a') || key.includes('raw-secret-b')), false);
+    now += 5 * 60_000 + 1;
+    await discoverOpenAICompatibleModel('raw-secret-c', 'https://provider.example/v1', ['model-a']);
+    assert.equal(getOpenAICompatibleModelCacheSizeForTests(), 1);
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test('OpenAI discovery rejects a successful models response with no usable GPT model', async () => {
+  globalThis.fetch = (async () => new Response(JSON.stringify({ data: [{ id: 'text-embedding-3-small' }] }), { status: 200 })) as typeof fetch;
+  assert.equal(await discoverOpenAIModel('openai-test-key', 1_000), null);
 });
 
 test('gemini discovery cache remains bounded', async () => {
@@ -228,6 +257,9 @@ test('matrix auth truthfulness requires positive evidence', () => {
   assert.equal(deriveAuthCell({ ok: false, errorCategory: 'invalid_key' }, { ok: false, errorCategory: 'upstream_error' }), 'WAIT_AUTH');
   assert.equal(deriveAuthCell({ ok: true }, { ok: false, errorCategory: 'invalid_key' }), 'PASS');
   assert.equal(mapRuntimeResultToCell({ ok: false, errorCategory: 'billing_or_identity' }), 'EXTERNAL_BLOCKER');
+  for (const category of ['invalid_request', 'model_not_found', 'upstream_error', 'malformed_response']) {
+    assert.equal(mapRuntimeResultToCell({ ok: false, errorCategory: category }), 'FAIL');
+  }
 });
 
 test('matrix final status treats attempted routing and missing discovery as failures', () => {

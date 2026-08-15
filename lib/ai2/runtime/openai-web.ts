@@ -65,7 +65,7 @@ function normalizeModel(input: string | undefined): string {
   return candidate || DEFAULT_MODEL;
 }
 
-function pickAvailableModel(ids: string[]): string {
+function pickAvailableModel(ids: string[]): string | null {
   const preferred = ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini', 'gpt-4o', 'gpt-5-mini', 'gpt-5'];
   for (const model of preferred) {
     if (ids.includes(model)) {
@@ -74,7 +74,7 @@ function pickAvailableModel(ids: string[]): string {
   }
 
   const fallback = ids.find((id) => id.startsWith('gpt-'));
-  return fallback ?? DEFAULT_MODEL;
+  return fallback ?? null;
 }
 
 function extractOutputText(payload: unknown): string {
