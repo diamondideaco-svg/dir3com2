@@ -5,7 +5,13 @@ import {
   AI2_DABRA_PROMPT_VERSION,
 } from '@/lib/ai2/prompt/contract';
 import { buildAI2RagChunks, evaluateAI2InternalMatchGate, rankAI2RagMatches } from '@/lib/ai2/rag/index-design';
-import { callOpenAIResponsesWebSearch } from '@/lib/ai2/runtime/openai-web';
+import { callAnthropicMessagesWeb, type AnthropicWebCallResult } from '@/lib/ai2/runtime/anthropic-web';
+import { callDeepSeekWebSearch, type DeepSeekWebErrorCategory } from '@/lib/ai2/runtime/deepseek-web';
+import { callGeminiGoogleSearch, type GeminiWebErrorCategory } from '@/lib/ai2/runtime/gemini-web';
+import { callMistralWebSearch, type MistralWebErrorCategory } from '@/lib/ai2/runtime/mistral-web';
+import { callOpenAIResponsesWebSearch, type OpenAIWebErrorCategory } from '@/lib/ai2/runtime/openai-web';
+import { callQwenWebSearch, type QwenWebErrorCategory } from '@/lib/ai2/runtime/qwen-web';
+import { callXAIWebSearch, type XAIWebErrorCategory } from '@/lib/ai2/runtime/xai-web';
 
 export type AI2ChatLanguage = 'ar' | 'en';
 
@@ -15,9 +21,26 @@ export type AI2ChatGroundingStatus =
   | 'fallback-no-source'
   | 'fallback-provider-unavailable';
 
-export type AI2Provider = 'local' | 'openai';
+export type AI2Provider = 'local' | 'openai' | 'gemini' | 'anthropic' | 'xai' | 'deepseek' | 'qwen' | 'mistral';
 
-export type AI2RetrievalMode = 'internal-rag' | 'openai-web-search';
+export type AI2RetrievalMode =
+  | 'internal-rag'
+  | 'openai-web-search'
+  | 'gemini-google-search'
+  | 'anthropic-messages'
+  | 'xai-chat-completions'
+  | 'deepseek-chat-completions'
+  | 'qwen-chat-completions'
+  | 'mistral-chat-completions';
+
+export type AI2ProviderErrorCategory =
+  | OpenAIWebErrorCategory
+  | GeminiWebErrorCategory
+  | XAIWebErrorCategory
+  | DeepSeekWebErrorCategory
+  | QwenWebErrorCategory
+  | MistralWebErrorCategory
+  | NonNullable<AnthropicWebCallResult['errorCategory']>;
 
 export type AI2ChatSource = {
   sourceId: string;
@@ -38,6 +61,20 @@ export type AI2ChatResponse = {
   promptVersion: typeof AI2_DABRA_PROMPT_VERSION;
   retrievalMode: AI2RetrievalMode;
   provider: AI2Provider;
+  providerErrorCategory?: AI2ProviderErrorCategory;
+  providerModel?: string;
+};
+
+type RemoteProvider = Exclude<AI2Provider, 'local'>;
+
+type ProviderResult = {
+  ok: boolean;
+  answer: string;
+  citations: string[];
+  provider: RemoteProvider;
+  retrievalMode: AI2RetrievalMode;
+  errorCategory?: AI2ProviderErrorCategory;
+  model?: string;
 };
 
 const INFORMATIONAL_INTENT_PATTERNS = [
@@ -111,8 +148,6 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
   const internalSources = uniqueSourcesFromMatches(matches);
   const internalMatchGate = evaluateAI2InternalMatchGate(message, matches);
   const globalWebEnabled = String(process.env.DABRA_GLOBAL_WEB_ENABLED ?? '').toLowerCase() === 'true';
-  const openAIKey = (process.env.OPENAI_API_KEY ?? '').trim();
-  const canUseOpenAI = globalWebEnabled && Boolean(openAIKey);
 
   if (internalMatchGate.hasStrongMatch && internalSources.length > 0) {
     return {
@@ -128,31 +163,32 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
   }
 
   if (internalSources.length === 0 || !internalMatchGate.hasStrongMatch) {
-    if (canUseOpenAI) {
-      const openAIResult = await callOpenAIResponsesWebSearch({
-        message,
-        language,
-        prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
-        model: process.env.DABRA_OPENAI_MODEL,
-        apiKey: openAIKey,
-      });
+    const configuredProviders = buildProviderOrder();
+    if (globalWebEnabled && configuredProviders.length > 0) {
+      let lastError: AI2ProviderErrorCategory | undefined;
 
-      if (openAIResult.ok && openAIResult.citations.length > 0) {
-        return {
-          answer: openAIResult.answer,
-          sources: openAIResult.citations.map((url, index) => ({
-            sourceId: `web-${index + 1}`,
-            sourceName: url,
-            sourceType: 'web',
-            url,
-          })),
-          language,
-          groundingStatus: 'grounded-global-web',
-          promptBound: true,
-          promptVersion: AI2_DABRA_PROMPT_VERSION,
-          retrievalMode: 'openai-web-search',
-          provider: 'openai',
-        };
+      for (const provider of configuredProviders) {
+        const result = await callProvider(provider, message, language);
+        if (result.ok && (result.citations.length > 0 || providerAcceptsNoCitations(result.provider))) {
+          return {
+            answer: result.answer,
+            sources: result.citations.map((url, index) => ({
+              sourceId: `web-${index + 1}`,
+              sourceName: url,
+              sourceType: 'web',
+              url,
+            })),
+            language,
+            groundingStatus: 'grounded-global-web',
+            promptBound: true,
+            promptVersion: AI2_DABRA_PROMPT_VERSION,
+            retrievalMode: result.retrievalMode,
+            provider: result.provider,
+            providerModel: result.model,
+          };
+        }
+
+        lastError = result.errorCategory;
       }
 
       return {
@@ -164,6 +200,7 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
         promptVersion: AI2_DABRA_PROMPT_VERSION,
         retrievalMode: 'internal-rag',
         provider: 'local',
+        providerErrorCategory: lastError,
       };
     }
 
@@ -188,6 +225,194 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
     promptVersion: AI2_DABRA_PROMPT_VERSION,
     retrievalMode: 'internal-rag',
     provider: 'local',
+  };
+}
+
+function providerKey(provider: RemoteProvider): string {
+  if (provider === 'gemini') {
+    return (process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY ?? '').trim();
+  }
+
+  if (provider === 'openai') {
+    return (process.env.OPENAI_API_KEY ?? '').trim();
+  }
+
+  if (provider === 'anthropic') {
+    return (process.env.ANTHROPIC_API_KEY ?? '').trim();
+  }
+
+  if (provider === 'xai') {
+    return (process.env.XAI_API_KEY ?? '').trim();
+  }
+
+  if (provider === 'deepseek') {
+    return (process.env.DEEPSEEK_API_KEY ?? '').trim();
+  }
+
+  if (provider === 'qwen') {
+    return (process.env.QWEN_API_KEY ?? process.env.DASHSCOPE_API_KEY ?? '').trim();
+  }
+
+  return (process.env.MISTRAL_API_KEY ?? '').trim();
+}
+
+function providerAcceptsNoCitations(provider: RemoteProvider): boolean {
+  return provider !== 'openai' && provider !== 'gemini';
+}
+
+function buildProviderOrder(): RemoteProvider[] {
+  const requested = String(process.env.DABRA_AI_PROVIDER ?? 'auto').trim().toLowerCase();
+  const fallbackEnabled = String(process.env.DABRA_PROVIDER_FALLBACK_ENABLED ?? 'true').trim().toLowerCase() !== 'false';
+  const allProviders: RemoteProvider[] = ['gemini', 'openai', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'];
+
+  const primary = (['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'] as const)
+    .find((provider) => provider === requested);
+
+  const preferred = primary
+    ? [primary, ...allProviders.filter((provider) => provider !== primary)]
+    : allProviders;
+
+  const available = preferred.filter((provider) => Boolean(providerKey(provider)));
+  return fallbackEnabled ? available : available.slice(0, 1);
+}
+
+async function callProvider(provider: RemoteProvider, message: string, language: AI2ChatLanguage): Promise<ProviderResult> {
+  if (provider === 'gemini') {
+    const result = await callGeminiGoogleSearch({
+      message,
+      language,
+      prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+      model: process.env.DABRA_GEMINI_MODEL,
+      apiKey: providerKey('gemini'),
+    });
+
+    return {
+      ok: result.ok,
+      answer: result.answer,
+      citations: result.citations,
+      provider,
+      retrievalMode: 'gemini-google-search',
+      errorCategory: result.errorCategory,
+      model: process.env.DABRA_GEMINI_MODEL,
+    };
+  }
+
+  if (provider === 'openai') {
+    const result = await callOpenAIResponsesWebSearch({
+      message,
+      language,
+      prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+      model: process.env.DABRA_OPENAI_MODEL,
+      apiKey: providerKey('openai'),
+    });
+
+    return {
+      ok: result.ok,
+      answer: result.answer,
+      citations: result.citations,
+      provider,
+      retrievalMode: 'openai-web-search',
+      errorCategory: result.errorCategory,
+      model: process.env.DABRA_OPENAI_MODEL,
+    };
+  }
+
+  if (provider === 'anthropic') {
+    const result = await callAnthropicMessagesWeb({
+      message,
+      language,
+      prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+      model: process.env.DABRA_ANTHROPIC_MODEL,
+      apiKey: providerKey('anthropic'),
+    });
+
+    return {
+      ok: result.ok,
+      answer: result.answer,
+      citations: result.citations,
+      provider,
+      retrievalMode: 'anthropic-messages',
+      errorCategory: result.errorCategory,
+      model: result.model,
+    };
+  }
+
+  if (provider === 'xai') {
+    const result = await callXAIWebSearch({
+      message,
+      language,
+      prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+      model: process.env.DABRA_XAI_MODEL,
+      apiKey: providerKey('xai'),
+    });
+
+    return {
+      ok: result.ok,
+      answer: result.answer,
+      citations: result.citations,
+      provider,
+      retrievalMode: 'xai-chat-completions',
+      errorCategory: result.errorCategory,
+      model: result.model,
+    };
+  }
+
+  if (provider === 'deepseek') {
+    const result = await callDeepSeekWebSearch({
+      message,
+      language,
+      prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+      model: process.env.DABRA_DEEPSEEK_MODEL,
+      apiKey: providerKey('deepseek'),
+    });
+
+    return {
+      ok: result.ok,
+      answer: result.answer,
+      citations: result.citations,
+      provider,
+      retrievalMode: 'deepseek-chat-completions',
+      errorCategory: result.errorCategory,
+      model: result.model,
+    };
+  }
+
+  if (provider === 'qwen') {
+    const result = await callQwenWebSearch({
+      message,
+      language,
+      prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+      model: process.env.DABRA_QWEN_MODEL,
+      apiKey: providerKey('qwen'),
+    });
+
+    return {
+      ok: result.ok,
+      answer: result.answer,
+      citations: result.citations,
+      provider,
+      retrievalMode: 'qwen-chat-completions',
+      errorCategory: result.errorCategory,
+      model: result.model,
+    };
+  }
+
+  const result = await callMistralWebSearch({
+    message,
+    language,
+    prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+    model: process.env.DABRA_MISTRAL_MODEL,
+    apiKey: providerKey('mistral'),
+  });
+
+  return {
+    ok: result.ok,
+    answer: result.answer,
+    citations: result.citations,
+    provider,
+    retrievalMode: 'mistral-chat-completions',
+    errorCategory: result.errorCategory,
+    model: result.model,
   };
 }
 

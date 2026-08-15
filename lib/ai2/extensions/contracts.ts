@@ -9,8 +9,16 @@ export type AI2AnswerEnvelope = {
   answer: string;
   language: 'ar' | 'en';
   groundingStatus: 'grounded' | 'grounded-global-web' | 'fallback-no-source' | 'fallback-provider-unavailable';
-  retrievalMode: 'internal-rag' | 'openai-web-search';
-  provider: 'local' | 'openai';
+  retrievalMode:
+    | 'internal-rag'
+    | 'openai-web-search'
+    | 'gemini-google-search'
+    | 'anthropic-messages'
+    | 'xai-chat-completions'
+    | 'deepseek-chat-completions'
+    | 'qwen-chat-completions'
+    | 'mistral-chat-completions';
+  provider: 'local' | 'openai' | 'gemini' | 'anthropic' | 'xai' | 'deepseek' | 'qwen' | 'mistral';
   sourceTrace: readonly AI2RagMatch[];
   promptVersion: AI2PromptVersion;
 };

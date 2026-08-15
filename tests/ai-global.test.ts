@@ -118,6 +118,8 @@ async function assertRefusedBeforeProvider(messages: readonly string[]) {
   const originalFetch = globalThis.fetch;
 
   process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'false';
   process.env.OPENAI_API_KEY = 'test-key';
 
   let providerCalls = 0;
@@ -138,6 +140,9 @@ async function assertRefusedBeforeProvider(messages: readonly string[]) {
   } finally {
     if (originalEnabled === undefined) delete process.env.DABRA_GLOBAL_WEB_ENABLED;
     else process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
+
+    delete process.env.DABRA_AI_PROVIDER;
+    delete process.env.DABRA_PROVIDER_FALLBACK_ENABLED;
 
     if (originalKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = originalKey;
@@ -182,6 +187,8 @@ test('out-of-scope booking/payment intent is refused before provider', async () 
   const originalFetch = globalThis.fetch;
 
   process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'false';
   process.env.OPENAI_API_KEY = 'test-key';
 
   let called = false;
@@ -199,6 +206,8 @@ test('out-of-scope booking/payment intent is refused before provider', async () 
     assert.equal(isOutOfScopeIntent('احجز وادفع لي الآن'), true);
   } finally {
     process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
+    delete process.env.DABRA_AI_PROVIDER;
+    delete process.env.DABRA_PROVIDER_FALLBACK_ENABLED;
     process.env.OPENAI_API_KEY = originalKey;
     globalThis.fetch = originalFetch;
   }
@@ -216,6 +225,8 @@ test('informational mutation questions remain answerable', async () => {
   const originalFetch = globalThis.fetch;
 
   process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'false';
   process.env.OPENAI_API_KEY = 'test-key';
 
   let providerCalls = 0;
@@ -309,6 +320,8 @@ test('global AR and EN route to openai web search when live provider returns cit
     assert.equal((requestBodies[1] as { instructions?: string }).instructions, AI2_DABRA_GLOBAL_WEB_PROMPT);
   } finally {
     process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
+    delete process.env.DABRA_AI_PROVIDER;
+    delete process.env.DABRA_PROVIDER_FALLBACK_ENABLED;
     process.env.OPENAI_API_KEY = originalKey;
     process.env.DABRA_OPENAI_MODEL = originalModel;
     globalThis.fetch = originalFetch;
@@ -363,6 +376,8 @@ test('generic global questions stay on the web route and do not ground locally',
   const originalFetch = globalThis.fetch;
 
   process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'false';
   process.env.OPENAI_API_KEY = 'test-key';
 
   globalThis.fetch = (async () =>
@@ -391,6 +406,8 @@ test('generic global questions stay on the web route and do not ground locally',
     }
   } finally {
     process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
+    delete process.env.DABRA_AI_PROVIDER;
+    delete process.env.DABRA_PROVIDER_FALLBACK_ENABLED;
     process.env.OPENAI_API_KEY = originalKey;
     globalThis.fetch = originalFetch;
   }
@@ -402,6 +419,8 @@ test('internal AR and EN stay grounded locally without provider calls', async ()
   const originalFetch = globalThis.fetch;
 
   process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'false';
   process.env.OPENAI_API_KEY = 'test-key';
 
   let providerCalls = 0;
@@ -488,9 +507,12 @@ test('provider failure with no strong internal match returns provider unavailabl
     assert.equal(response.provider, 'local');
     assert.equal(response.groundingStatus, 'fallback-provider-unavailable');
     assert.equal(response.retrievalMode, 'internal-rag');
-    assert.equal(response.answer.includes('sk-test-123456'), false);
+    assert.equal(response.providerErrorCategory, 'upstream_error');
+    assert.equal(response.answer.includes('secret-marker-123456'), false);
   } finally {
     process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
+    delete process.env.DABRA_AI_PROVIDER;
+    delete process.env.DABRA_PROVIDER_FALLBACK_ENABLED;
     process.env.OPENAI_API_KEY = originalKey;
     globalThis.fetch = originalFetch;
   }
@@ -499,10 +521,26 @@ test('provider failure with no strong internal match returns provider unavailabl
 test('missing key does not call provider and returns internal/fallback safely', async () => {
   const originalEnabled = process.env.DABRA_GLOBAL_WEB_ENABLED;
   const originalKey = process.env.OPENAI_API_KEY;
+  const originalGeminiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  const originalAnthropicKey = process.env.ANTHROPIC_API_KEY;
+  const originalXaiKey = process.env.XAI_API_KEY;
+  const originalDeepSeekKey = process.env.DEEPSEEK_API_KEY;
+  const originalQwenKey = process.env.QWEN_API_KEY;
+  const originalDashScopeKey = process.env.DASHSCOPE_API_KEY;
+  const originalMistralKey = process.env.MISTRAL_API_KEY;
   const originalFetch = globalThis.fetch;
 
   process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'false';
   delete process.env.OPENAI_API_KEY;
+  delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.XAI_API_KEY;
+  delete process.env.DEEPSEEK_API_KEY;
+  delete process.env.QWEN_API_KEY;
+  delete process.env.DASHSCOPE_API_KEY;
+  delete process.env.MISTRAL_API_KEY;
 
   let called = false;
   globalThis.fetch = (async () => {
@@ -514,11 +552,129 @@ test('missing key does not call provider and returns internal/fallback safely', 
     const response = await buildAI2ChatResponse('What is the approved fallback policy?');
     assert.equal(response.provider, 'local');
     assert.equal(response.retrievalMode, 'internal-rag');
+    assert.equal(response.providerErrorCategory, undefined);
     assert.equal(called, false);
     assert.notEqual(response.answer.length, 0);
   } finally {
     process.env.DABRA_GLOBAL_WEB_ENABLED = originalEnabled;
+    delete process.env.DABRA_AI_PROVIDER;
+    delete process.env.DABRA_PROVIDER_FALLBACK_ENABLED;
     process.env.OPENAI_API_KEY = originalKey;
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = originalGeminiKey;
+    process.env.ANTHROPIC_API_KEY = originalAnthropicKey;
+    process.env.XAI_API_KEY = originalXaiKey;
+    process.env.DEEPSEEK_API_KEY = originalDeepSeekKey;
+    process.env.QWEN_API_KEY = originalQwenKey;
+    process.env.DASHSCOPE_API_KEY = originalDashScopeKey;
+    process.env.MISTRAL_API_KEY = originalMistralKey;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('model_not_found retries using available models list and succeeds', async () => {
+  const originalFetch = globalThis.fetch;
+
+  let call = 0;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    call += 1;
+
+    if (url.endsWith('/v1/responses') && call === 1) {
+      return new Response(
+        JSON.stringify({
+          error: {
+            type: 'invalid_request_error',
+            code: 'model_not_found',
+            message: 'model not found',
+          },
+        }),
+        { status: 404, headers: { 'content-type': 'application/json', 'x-request-id': 'req-first' } },
+      );
+    }
+
+    if (url.endsWith('/v1/models')) {
+      return new Response(
+        JSON.stringify({
+          data: [{ id: 'gpt-4.1-mini' }],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json', 'x-request-id': 'req-models' } },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        output_text: 'Recovered answer',
+        output: [{ content: [{ type: 'url_citation', url: 'https://example.com/recovered' }] }],
+      }),
+      { status: 200, headers: { 'content-type': 'application/json', 'x-request-id': 'req-retry' } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const result = await callOpenAIResponsesWebSearch({
+      message: 'latest news',
+      language: 'en',
+      prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+      apiKey: 'test-key',
+      model: 'bad-model-name',
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.citations.length > 0, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('web_search unavailable is classified and sanitized', async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        error: {
+          type: 'invalid_request_error',
+          code: 'unsupported_tool',
+          message: 'web_search is not available for this project',
+        },
+      }),
+      { status: 400, headers: { 'content-type': 'application/json', 'x-request-id': 'req-web-tool' } },
+    )) as typeof fetch;
+
+  try {
+    const result = await callOpenAIResponsesWebSearch({
+      message: 'latest news',
+      language: 'en',
+      prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+      apiKey: 'test-key',
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.errorCategory, 'web_search_unavailable');
+    assert.equal(result.requestId, 'req-web-tool');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('timeout is classified as timeout', async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () => {
+    throw new Error('The operation was aborted.');
+  }) as typeof fetch;
+
+  try {
+    const result = await callOpenAIResponsesWebSearch({
+      message: 'latest news',
+      language: 'en',
+      prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
+      apiKey: 'test-key',
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.errorCategory, 'timeout');
+  } finally {
     globalThis.fetch = originalFetch;
   }
 });
