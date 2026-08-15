@@ -1,3 +1,5 @@
+import { sanitizeCitationUrl } from '@/lib/ai2/runtime/openai-compatible';
+
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const OPENAI_MODELS_URL = 'https://api.openai.com/v1/models';
 
@@ -9,7 +11,9 @@ const MAX_TIMEOUT_MS = 90_000;
 export type OpenAIWebErrorCategory =
   | 'missing_key'
   | 'invalid_key'
+  | 'invalid_request'
   | 'insufficient_quota'
+  | 'billing_or_identity'
   | 'model_not_found'
   | 'web_search_unavailable'
   | 'timeout'
@@ -31,6 +35,7 @@ type OpenAIWebCallResult = {
   errorCategory?: OpenAIWebErrorCategory;
   status?: number;
   requestId?: string | null;
+  model?: string;
 };
 
 type OpenAIErrorPayload = {
@@ -115,15 +120,6 @@ function extractOutputText(payload: unknown): string {
   return fragments.join('\n').trim();
 }
 
-function isValidCitationUrl(input: string): boolean {
-  try {
-    const url = new URL(input);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
 function walkForCitationUrls(value: unknown, urls: string[]) {
   if (!value) {
     return;
@@ -168,15 +164,8 @@ export function extractValidWebCitations(payload: unknown): string[] {
 
   const unique = new Set<string>();
   for (const entry of raw) {
-    const normalized = entry.trim();
-    if (!normalized) {
-      continue;
-    }
-
-    if (!isValidCitationUrl(normalized)) {
-      continue;
-    }
-
+    const normalized = sanitizeCitationUrl(entry);
+    if (!normalized) continue;
     unique.add(normalized);
   }
 
@@ -196,6 +185,10 @@ function classifyOpenAIError(status: number, payload: OpenAIErrorPayload): OpenA
     return 'insufficient_quota';
   }
 
+  if (message.includes('billing') || message.includes('credit') || message.includes('identity verification')) {
+    return 'billing_or_identity';
+  }
+
   if (status === 404 || code.includes('model_not_found')) {
     return 'model_not_found';
   }
@@ -204,10 +197,14 @@ function classifyOpenAIError(status: number, payload: OpenAIErrorPayload): OpenA
     return 'web_search_unavailable';
   }
 
+  if ((status >= 400 && status < 500) || message.includes('invalid request') || message.includes('bad request') || message.includes('malformed')) {
+    return 'invalid_request';
+  }
+
   return 'upstream_error';
 }
 
-async function getBestAvailableModel(apiKey: string, timeoutMs: number): Promise<string | null> {
+export async function discoverOpenAIModel(apiKey: string, timeoutMs: number): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.min(15_000, timeoutMs));
   try {
@@ -281,6 +278,7 @@ async function executeResponsesWebRequest(
       errorCategory: category,
       status: response.status,
       requestId,
+      model,
     };
   }
 
@@ -296,6 +294,7 @@ async function executeResponsesWebRequest(
       errorCategory: 'upstream_error',
       status: response.status,
       requestId,
+      model,
     };
   }
 
@@ -305,6 +304,7 @@ async function executeResponsesWebRequest(
     citations,
     status: response.status,
     requestId,
+    model,
   };
   } catch (error) {
     const timedOut = error instanceof Error && /aborted|abort/i.test(error.message);
@@ -313,6 +313,7 @@ async function executeResponsesWebRequest(
       answer: '',
       citations: [],
       errorCategory: timedOut ? 'timeout' : 'upstream_error',
+      model,
     };
   } finally {
     clearTimeout(timer);
@@ -331,12 +332,15 @@ export async function callOpenAIResponsesWebSearch(params: OpenAIWebCallParams):
 
   const model = normalizeModel(params.model ?? process.env.DABRA_OPENAI_MODEL);
   const timeoutMs = params.timeoutMs ?? normalizeTimeout(process.env.DABRA_OPENAI_TIMEOUT_MS);
+  const deadlineAt = Date.now() + timeoutMs;
+  const remainingMs = () => Math.max(0, deadlineAt - Date.now());
 
   try {
-    let firstAttempt = await executeResponsesWebRequest(params.apiKey, model, params.prompt, params.message, timeoutMs);
+    let firstAttempt = await executeResponsesWebRequest(params.apiKey, model, params.prompt, params.message, remainingMs());
 
     if (!firstAttempt.ok && (firstAttempt.errorCategory === 'timeout' || firstAttempt.errorCategory === 'upstream_error')) {
-      firstAttempt = await executeResponsesWebRequest(params.apiKey, model, params.prompt, params.message, timeoutMs);
+      if (remainingMs() <= 0) return { ...firstAttempt, errorCategory: 'timeout' };
+      firstAttempt = await executeResponsesWebRequest(params.apiKey, model, params.prompt, params.message, remainingMs());
     }
 
     if (firstAttempt.ok) {
@@ -344,14 +348,15 @@ export async function callOpenAIResponsesWebSearch(params: OpenAIWebCallParams):
     }
 
     if (firstAttempt.errorCategory === 'model_not_found') {
-      const fallbackModel = await getBestAvailableModel(params.apiKey, timeoutMs);
-      if (fallbackModel && fallbackModel !== model) {
+      if (remainingMs() <= 0) return { ...firstAttempt, errorCategory: 'timeout' };
+      const fallbackModel = await discoverOpenAIModel(params.apiKey, remainingMs());
+      if (fallbackModel && fallbackModel !== model && remainingMs() > 0) {
         const retry = await executeResponsesWebRequest(
           params.apiKey,
           fallbackModel,
           params.prompt,
           params.message,
-          timeoutMs,
+          remainingMs(),
         );
         if (retry.ok) {
           return retry;

@@ -1,6 +1,10 @@
+import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
+
 export type OpenAICompatibleErrorCategory =
   | 'missing_key'
   | 'invalid_key'
+  | 'invalid_request'
   | 'insufficient_quota'
   | 'model_not_found'
   | 'web_search_unavailable'
@@ -31,6 +35,7 @@ export type OpenAICompatibleParams = {
 };
 
 export const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
+export const MODEL_DISCOVERY_CACHE_MAX_ENTRIES = 128;
 const MODEL_DISCOVERY_CACHE_TTL_MS = 5 * 60_000;
 const discoveredModelCache = new Map<string, { model: string; expiresAt: number }>();
 
@@ -41,6 +46,14 @@ function discoveryCacheKey(apiKey: string, baseUrl: string): string {
 
 export function clearOpenAICompatibleModelCacheForTests(): void {
   discoveredModelCache.clear();
+}
+
+export function getOpenAICompatibleModelCacheSizeForTests(): number {
+  return discoveredModelCache.size;
+}
+
+export function getOpenAICompatibleModelCacheKeysForTests(): string[] {
+  return [...discoveredModelCache.keys()];
 }
 
 type OpenAICompatibleErrorPayload = {
@@ -133,6 +146,15 @@ function classifyError(status: number, payload: OpenAICompatibleErrorPayload): O
     return 'web_search_unavailable';
   }
 
+  if (
+    (status >= 400 && status < 500)
+    || joined.includes('invalid request')
+    || joined.includes('bad request')
+    || joined.includes('malformed')
+  ) {
+    return 'invalid_request';
+  }
+
   return 'upstream_error';
 }
 
@@ -184,17 +206,83 @@ function isSafeUrl(value: string): boolean {
   }
 }
 
+function isPrivateIpv4(hostname: string): boolean {
+  const parts = hostname.split('.').map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return false;
+  }
+  if (parts[0] === 10) return true;
+  if (parts[0] === 127) return true;
+  if (parts[0] === 169 && parts[1] === 254) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  return false;
+}
+
+function isPrivateIpv6(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  if (normalized === '::1') return true;
+  if (normalized.startsWith('fe8') || normalized.startsWith('fe9') || normalized.startsWith('fea') || normalized.startsWith('feb')) {
+    return true;
+  }
+  if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
+  return false;
+}
+
+export function sanitizeCitationUrl(input: string): string | null {
+  const trimmed = input.trim().replace(/[\]\)>,.;!?]+$/g, '');
+  if (!trimmed) return null;
+  if (!isSafeUrl(trimmed)) return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return null;
+  }
+
+  if (parsed.username || parsed.password) return null;
+
+  const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (!host) return null;
+  if (host === 'localhost' || host.endsWith('.localhost')) return null;
+
+  const ipType = isIP(host);
+  if (ipType === 4 && isPrivateIpv4(host)) return null;
+  if (ipType === 6 && isPrivateIpv6(host)) return null;
+
+  return trimmed;
+}
+
 function extractCitations(text: string): string[] {
   const matches = text.match(/https?:\/\/[^\s)\]]+/g) ?? [];
   const unique = new Set<string>();
   for (const entry of matches) {
-    const normalized = entry.trim();
-    if (isSafeUrl(normalized)) {
+    const normalized = sanitizeCitationUrl(entry);
+    if (normalized) {
       unique.add(normalized);
     }
   }
 
   return [...unique];
+}
+
+function pruneExpiredCacheEntries(now = Date.now()): void {
+  for (const [key, value] of discoveredModelCache.entries()) {
+    if (value.expiresAt <= now) discoveredModelCache.delete(key);
+  }
+}
+
+function setCacheEntry(cacheKey: string, model: string): void {
+  const now = Date.now();
+  pruneExpiredCacheEntries(now);
+  if (discoveredModelCache.has(cacheKey)) discoveredModelCache.delete(cacheKey);
+  discoveredModelCache.set(cacheKey, { model, expiresAt: now + MODEL_DISCOVERY_CACHE_TTL_MS });
+  while (discoveredModelCache.size > MODEL_DISCOVERY_CACHE_MAX_ENTRIES) {
+    const oldest = discoveredModelCache.keys().next().value;
+    if (!oldest) break;
+    discoveredModelCache.delete(oldest);
+  }
 }
 
 async function callChatCompletions(
@@ -278,8 +366,11 @@ export async function discoverOpenAICompatibleModel(
   preferredModels: string[],
   extraHeaders?: Record<string, string>,
   timeoutMs = MODEL_DISCOVERY_TIMEOUT_MS,
+  forceRefresh = false,
 ): Promise<string | null> {
   const cacheKey = discoveryCacheKey(apiKey, baseUrl);
+  pruneExpiredCacheEntries();
+  if (forceRefresh) discoveredModelCache.delete(cacheKey);
   const cached = discoveredModelCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.model;
   if (cached) discoveredModelCache.delete(cacheKey);
@@ -311,13 +402,13 @@ export async function discoverOpenAICompatibleModel(
 
     for (const preferred of preferredModels) {
       if (ids.includes(preferred)) {
-        discoveredModelCache.set(cacheKey, { model: preferred, expiresAt: Date.now() + MODEL_DISCOVERY_CACHE_TTL_MS });
+        setCacheEntry(cacheKey, preferred);
         return preferred;
       }
     }
 
     const selected = ids[0] ?? null;
-    if (selected) discoveredModelCache.set(cacheKey, { model: selected, expiresAt: Date.now() + MODEL_DISCOVERY_CACHE_TTL_MS });
+    if (selected) setCacheEntry(cacheKey, selected);
     return selected;
   } catch {
     return null;
@@ -340,31 +431,36 @@ export async function callOpenAICompatibleProvider(params: OpenAICompatibleParam
     };
   }
 
+  const deadlineAt = Date.now() + params.timeoutMs;
+  const remainingMs = () => Math.max(0, deadlineAt - Date.now());
   const discovered = params.model
     ? null
-    : await discoverOpenAICompatibleModel(params.apiKey, params.baseUrl, params.preferredModels, params.extraHeaders, params.timeoutMs);
+    : await discoverOpenAICompatibleModel(params.apiKey, params.baseUrl, params.preferredModels, params.extraHeaders, remainingMs());
 
   const selectedModel = params.model ?? discovered ?? params.preferredModels[0];
-  let result = await callChatCompletions(params, selectedModel, params.timeoutMs);
+  if (remainingMs() <= 0) return { ok: false, answer: '', citations: [], errorCategory: 'timeout', model: selectedModel };
+  let result = await callChatCompletions(params, selectedModel, remainingMs());
 
   for (let attempt = 0; attempt < params.retryCount && !result.ok && shouldRetry(result.errorCategory); attempt += 1) {
-    result = await callChatCompletions(params, selectedModel, params.timeoutMs);
+    if (remainingMs() <= 0) return { ...result, errorCategory: 'timeout' };
+    result = await callChatCompletions(params, selectedModel, remainingMs());
   }
 
   if (!result.ok && result.errorCategory === 'model_not_found' && !params.model) {
+    if (remainingMs() <= 0) return { ...result, errorCategory: 'timeout' };
     const fallbackModel = await discoverOpenAICompatibleModel(
       params.apiKey,
       params.baseUrl,
       params.preferredModels,
       params.extraHeaders,
-      params.timeoutMs,
+      remainingMs(),
+      true,
     );
 
-    if (fallbackModel && fallbackModel !== selectedModel) {
-      result = await callChatCompletions(params, fallbackModel, params.timeoutMs);
+    if (fallbackModel && fallbackModel !== selectedModel && remainingMs() > 0) {
+      result = await callChatCompletions(params, fallbackModel, remainingMs());
     }
   }
 
   return result;
 }
-import { createHash } from 'node:crypto';

@@ -3,9 +3,9 @@ import { spawnSync } from 'node:child_process';
 
 import { callAnthropicMessagesWeb, discoverAnthropicModel } from '@/lib/ai2/runtime/anthropic-web';
 import { callDeepSeekWebSearch, discoverDeepSeekModel } from '@/lib/ai2/runtime/deepseek-web';
-import { callGeminiGoogleSearch } from '@/lib/ai2/runtime/gemini-web';
+import { callGeminiGoogleSearch, discoverGeminiModel } from '@/lib/ai2/runtime/gemini-web';
 import { callMistralWebSearch, discoverMistralModel } from '@/lib/ai2/runtime/mistral-web';
-import { callOpenAIResponsesWebSearch } from '@/lib/ai2/runtime/openai-web';
+import { callOpenAIResponsesWebSearch, discoverOpenAIModel } from '@/lib/ai2/runtime/openai-web';
 import { callQwenWebSearch, discoverQwenModel } from '@/lib/ai2/runtime/qwen-web';
 import { buildAI2ChatResponse } from '@/lib/ai2/runtime/chat';
 import { callXAIWebSearch, discoverXAIModel } from '@/lib/ai2/runtime/xai-web';
@@ -14,24 +14,25 @@ import { AI2_DABRA_GLOBAL_WEB_PROMPT } from '@/lib/ai2/prompt/contract';
 loadEnvConfig(process.cwd());
 
 type ProviderFinalStatus = 'PASS' | 'FAIL_CODE' | 'WAIT_AUTH' | 'EXTERNAL_BLOCKER';
+type EvidenceCell = 'PASS' | 'FAIL' | 'WAIT_AUTH' | 'NOT_RUN' | 'NOT_APPLICABLE' | 'EXTERNAL_BLOCKER' | 'ATTEMPTED_FAIL';
 
-type ProviderMatrixRow = {
+export type ProviderMatrixRow = {
   Provider: string;
-  Adapter: string;
-  Router: string;
-  Auth: string;
-  'Model Discovery': string;
-  'EN Live': string;
-  'AR Live': string;
-  'DABRA Routing': string;
-  'Safety Regression': string;
-  Fallback: string;
-  'Targeted Tests': string;
+  Adapter: EvidenceCell;
+  Router: EvidenceCell;
+  Auth: EvidenceCell;
+  'Model Discovery': EvidenceCell;
+  'EN Live': EvidenceCell;
+  'AR Live': EvidenceCell;
+  'DABRA Routing': EvidenceCell;
+  'Safety Regression': EvidenceCell;
+  Fallback: EvidenceCell;
+  'Targeted Tests': EvidenceCell;
   'Final Status': ProviderFinalStatus;
   Blocker: string;
 };
 
-type ProviderRuntimeResult = {
+export type ProviderRuntimeResult = {
   ok: boolean;
   errorCategory?: string;
 };
@@ -49,6 +50,45 @@ function isExternalBlocker(category: string | undefined): boolean {
 function isWaitAuth(category: string | undefined): boolean {
   const c = String(category ?? '').toLowerCase();
   return c.includes('missing_key') || c.includes('invalid_key') || c.includes('incorrect api key');
+}
+
+export function mapRuntimeResultToCell(res: ProviderRuntimeResult): LiveCell {
+  if (res.ok) return 'PASS';
+  if (isWaitAuth(res.errorCategory)) return 'WAIT_AUTH';
+  if (isExternalBlocker(res.errorCategory)) return 'EXTERNAL_BLOCKER';
+  return 'FAIL';
+}
+
+export function deriveAuthCell(en: ProviderRuntimeResult, ar: ProviderRuntimeResult): EvidenceCell {
+  if (en.ok || ar.ok) return 'PASS';
+  const enCell = mapRuntimeResultToCell(en);
+  const arCell = mapRuntimeResultToCell(ar);
+  if (enCell === 'WAIT_AUTH' || arCell === 'WAIT_AUTH') return 'WAIT_AUTH';
+  return 'FAIL';
+}
+
+export function resolveFinalStatus(row: ProviderMatrixRow): ProviderMatrixRow {
+  const hasWaitAuth = [row.Auth, row['EN Live'], row['AR Live'], row['DABRA Routing']].includes('WAIT_AUTH');
+  const hasExternal = [row['EN Live'], row['AR Live'], row['DABRA Routing']].includes('EXTERNAL_BLOCKER');
+  const required = [row.Adapter, row.Router, row.Auth, row['EN Live'], row['AR Live'], row['DABRA Routing'], row['Safety Regression'], row.Fallback, row['Targeted Tests']];
+  const hasFail = required.some((value) => value === 'FAIL' || value === 'NOT_RUN' || value === 'ATTEMPTED_FAIL');
+  const discoveryFailed = row['Model Discovery'] === 'FAIL' || row['Model Discovery'] === 'NOT_RUN';
+
+  if (hasWaitAuth) {
+    row['Final Status'] = 'WAIT_AUTH';
+    row.Blocker = `KEY_INVALID_OR_MISSING:${providerEnvKey(row.Provider)}`;
+  } else if (hasExternal) {
+    row['Final Status'] = 'EXTERNAL_BLOCKER';
+    row.Blocker = row.Provider === 'Anthropic' ? 'ANTHROPIC_BILLING_OR_IDENTITY' : 'EXTERNAL_BILLING_OR_IDENTITY';
+  } else if (hasFail || discoveryFailed) {
+    row['Final Status'] = 'FAIL_CODE';
+    row.Blocker = 'LIVE_VALIDATION_FAILED';
+  } else {
+    row['Final Status'] = 'PASS';
+    row.Blocker = '';
+  }
+
+  return row;
 }
 
 function providerEnvKey(name: string): string {
@@ -71,7 +111,7 @@ function getKey(name: string): string {
   return String(process.env.MISTRAL_API_KEY ?? '').trim();
 }
 
-async function runRoutedCheck(provider: string): Promise<'PASS' | 'FAIL'> {
+async function runRoutedCheck(provider: string): Promise<EvidenceCell> {
   const prevEnabled = process.env.DABRA_GLOBAL_WEB_ENABLED;
   const prevProvider = process.env.DABRA_AI_PROVIDER;
   const prevFallback = process.env.DABRA_PROVIDER_FALLBACK_ENABLED;
@@ -92,12 +132,10 @@ async function runRoutedCheck(provider: string): Promise<'PASS' | 'FAIL'> {
     const ar = await buildAI2ChatResponse(arPrompt);
     const expected = provider.toLowerCase();
     const directRoute = en.provider === expected && ar.provider === expected;
-    const primaryRouteWithLocalFallback =
-      en.provider === 'local'
-      && ar.provider === 'local'
-      && en.primaryProvider === expected
-      && ar.primaryProvider === expected;
-    return directRoute || primaryRouteWithLocalFallback ? 'PASS' : 'FAIL';
+    if (directRoute) return 'PASS';
+    const attemptedPrimary = (en.primaryProvider === expected || en.provider === expected)
+      || (ar.primaryProvider === expected || ar.provider === expected);
+    return attemptedPrimary ? 'ATTEMPTED_FAIL' : 'FAIL';
   } catch {
     return 'FAIL';
   } finally {
@@ -145,7 +183,7 @@ function restoreEnv(name: string, value: string | undefined): void {
   else process.env[name] = value;
 }
 
-function runTargetedTests(name: string): 'PASS' | 'FAIL' {
+function runTargetedTests(name: string): EvidenceCell {
   const fileByProvider: Record<string, string> = {
     OpenAI: 'tests/openai-web.test.ts',
     Gemini: 'tests/gemini-web.test.ts',
@@ -203,7 +241,7 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
       Adapter: 'PASS',
       Router: 'PASS',
       Auth: 'WAIT_AUTH',
-      'Model Discovery': 'WAIT_AUTH',
+      'Model Discovery': 'NOT_RUN',
       'EN Live': 'WAIT_AUTH',
       'AR Live': 'WAIT_AUTH',
       'DABRA Routing': 'WAIT_AUTH',
@@ -233,40 +271,25 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
 
   let model: string | null = null;
 
-  const mapResult = (res: ProviderRuntimeResult): LiveCell => {
-    if (res.ok) {
-      return 'PASS';
-    }
-
-    if (isWaitAuth(res.errorCategory)) {
-      return 'WAIT_AUTH';
-    }
-
-    if (isExternalBlocker(res.errorCategory)) {
-      return 'EXTERNAL_BLOCKER';
-    }
-
-    return 'FAIL';
-  };
-
   if (name === 'OpenAI') {
-    const en = await callOpenAIResponsesWebSearch({ message: enPrompt, language: 'en', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key });
-    row.Auth = en.errorCategory === 'missing_key' || en.errorCategory === 'invalid_key' ? 'WAIT_AUTH' : 'PASS';
-    row['Model Discovery'] = 'PASS';
-    row['EN Live'] = en.ok ? 'PASS' : mapResult(en);
-    const ar = await callOpenAIResponsesWebSearch({ message: arPrompt, language: 'ar', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key });
-    row['AR Live'] = ar.ok ? 'PASS' : mapResult(ar);
+    model = await discoverOpenAIModel(key, 15_000);
+    row['Model Discovery'] = model ? 'PASS' : 'FAIL';
+    const en = await callOpenAIResponsesWebSearch({ message: enPrompt, language: 'en', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
+    row['EN Live'] = mapRuntimeResultToCell(en);
+    const ar = await callOpenAIResponsesWebSearch({ message: arPrompt, language: 'ar', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
+    row['AR Live'] = mapRuntimeResultToCell(ar);
+    row.Auth = deriveAuthCell(en, ar);
     row['DABRA Routing'] = await runRoutedCheck('openai');
   }
 
   if (name === 'Gemini') {
-    model = process.env.DABRA_GEMINI_MODEL ?? 'gemini-3.6-flash';
-    const en = await callGeminiGoogleSearch({ message: enPrompt, language: 'en', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model });
-    row.Auth = en.errorCategory === 'invalid_key' || en.errorCategory === 'missing_key' ? 'WAIT_AUTH' : 'PASS';
-    row['Model Discovery'] = 'PASS';
-    row['EN Live'] = en.ok ? 'PASS' : mapResult(en);
-    const ar = await callGeminiGoogleSearch({ message: arPrompt, language: 'ar', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model });
-    row['AR Live'] = ar.ok ? 'PASS' : mapResult(ar);
+    model = await discoverGeminiModel(key);
+    const en = await callGeminiGoogleSearch({ message: enPrompt, language: 'en', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
+    row['Model Discovery'] = model ? 'PASS' : 'FAIL';
+    row['EN Live'] = mapRuntimeResultToCell(en);
+    const ar = await callGeminiGoogleSearch({ message: arPrompt, language: 'ar', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
+    row['AR Live'] = mapRuntimeResultToCell(ar);
+    row.Auth = deriveAuthCell(en, ar);
     row['DABRA Routing'] = await runRoutedCheck('gemini');
   }
 
@@ -274,10 +297,10 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
     model = await discoverAnthropicModel(key);
     row['Model Discovery'] = model ? 'PASS' : 'FAIL';
     const en = await callAnthropicMessagesWeb({ message: enPrompt, language: 'en', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
-    row.Auth = en.errorCategory === 'missing_key' || en.errorCategory === 'invalid_key' ? 'WAIT_AUTH' : 'PASS';
-    row['EN Live'] = en.ok ? 'PASS' : mapResult(en);
+    row['EN Live'] = mapRuntimeResultToCell(en);
     const ar = await callAnthropicMessagesWeb({ message: arPrompt, language: 'ar', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
-    row['AR Live'] = ar.ok ? 'PASS' : mapResult(ar);
+    row['AR Live'] = mapRuntimeResultToCell(ar);
+    row.Auth = deriveAuthCell(en, ar);
     row['DABRA Routing'] = await runRoutedCheck('anthropic');
   }
 
@@ -285,10 +308,10 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
     model = await discoverXAIModel(key);
     row['Model Discovery'] = model ? 'PASS' : 'FAIL';
     const en = await callXAIWebSearch({ message: enPrompt, language: 'en', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
-    row.Auth = en.errorCategory === 'missing_key' || en.errorCategory === 'invalid_key' ? 'WAIT_AUTH' : 'PASS';
-    row['EN Live'] = en.ok ? 'PASS' : mapResult(en);
+    row['EN Live'] = mapRuntimeResultToCell(en);
     const ar = await callXAIWebSearch({ message: arPrompt, language: 'ar', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
-    row['AR Live'] = ar.ok ? 'PASS' : mapResult(ar);
+    row['AR Live'] = mapRuntimeResultToCell(ar);
+    row.Auth = deriveAuthCell(en, ar);
     row['DABRA Routing'] = await runRoutedCheck('xai');
   }
 
@@ -296,10 +319,10 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
     model = await discoverDeepSeekModel(key);
     row['Model Discovery'] = model ? 'PASS' : 'FAIL';
     const en = await callDeepSeekWebSearch({ message: enPrompt, language: 'en', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
-    row.Auth = en.errorCategory === 'missing_key' || en.errorCategory === 'invalid_key' ? 'WAIT_AUTH' : 'PASS';
-    row['EN Live'] = en.ok ? 'PASS' : mapResult(en);
+    row['EN Live'] = mapRuntimeResultToCell(en);
     const ar = await callDeepSeekWebSearch({ message: arPrompt, language: 'ar', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
-    row['AR Live'] = ar.ok ? 'PASS' : mapResult(ar);
+    row['AR Live'] = mapRuntimeResultToCell(ar);
+    row.Auth = deriveAuthCell(en, ar);
     row['DABRA Routing'] = await runRoutedCheck('deepseek');
   }
 
@@ -307,10 +330,10 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
     model = await discoverQwenModel(key);
     row['Model Discovery'] = model ? 'PASS' : 'FAIL';
     const en = await callQwenWebSearch({ message: enPrompt, language: 'en', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
-    row.Auth = en.errorCategory === 'missing_key' || en.errorCategory === 'invalid_key' ? 'WAIT_AUTH' : 'PASS';
-    row['EN Live'] = en.ok ? 'PASS' : mapResult(en);
+    row['EN Live'] = mapRuntimeResultToCell(en);
     const ar = await callQwenWebSearch({ message: arPrompt, language: 'ar', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
-    row['AR Live'] = ar.ok ? 'PASS' : mapResult(ar);
+    row['AR Live'] = mapRuntimeResultToCell(ar);
+    row.Auth = deriveAuthCell(en, ar);
     row['DABRA Routing'] = await runRoutedCheck('qwen');
   }
 
@@ -318,10 +341,10 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
     model = await discoverMistralModel(key);
     row['Model Discovery'] = model ? 'PASS' : 'FAIL';
     const en = await callMistralWebSearch({ message: enPrompt, language: 'en', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
-    row.Auth = en.errorCategory === 'missing_key' || en.errorCategory === 'invalid_key' ? 'FAIL' : 'PASS';
-    row['EN Live'] = en.ok ? 'PASS' : mapResult(en);
+    row['EN Live'] = mapRuntimeResultToCell(en);
     const ar = await callMistralWebSearch({ message: arPrompt, language: 'ar', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: key, model: model ?? undefined });
-    row['AR Live'] = ar.ok ? 'PASS' : mapResult(ar);
+    row['AR Live'] = mapRuntimeResultToCell(ar);
+    row.Auth = deriveAuthCell(en, ar);
     row['DABRA Routing'] = await runRoutedCheck('mistral');
   }
 
@@ -329,34 +352,15 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
   row.Fallback = await runFallbackCheck(name);
   row['Targeted Tests'] = runTargetedTests(name);
 
-  if (row['DABRA Routing'] === 'FAIL' && (row['EN Live'] === 'EXTERNAL_BLOCKER' || row['AR Live'] === 'EXTERNAL_BLOCKER')) {
+  if ((row['DABRA Routing'] === 'FAIL' || row['DABRA Routing'] === 'ATTEMPTED_FAIL') && (row['EN Live'] === 'EXTERNAL_BLOCKER' || row['AR Live'] === 'EXTERNAL_BLOCKER')) {
     row['DABRA Routing'] = 'EXTERNAL_BLOCKER';
   }
 
-  if (row['DABRA Routing'] === 'FAIL' && (row['EN Live'] === 'WAIT_AUTH' || row['AR Live'] === 'WAIT_AUTH')) {
+  if ((row['DABRA Routing'] === 'FAIL' || row['DABRA Routing'] === 'ATTEMPTED_FAIL') && (row['EN Live'] === 'WAIT_AUTH' || row['AR Live'] === 'WAIT_AUTH')) {
     row['DABRA Routing'] = 'WAIT_AUTH';
   }
 
-  const hasWaitAuth = [row.Auth, row['EN Live'], row['AR Live'], row['DABRA Routing']].includes('WAIT_AUTH');
-  const hasExternal = [row['EN Live'], row['AR Live'], row['DABRA Routing']].includes('EXTERNAL_BLOCKER');
-  const required = [row.Adapter, row.Router, row.Auth, row['Model Discovery'], row['EN Live'], row['AR Live'], row['DABRA Routing'], row['Safety Regression'], row.Fallback, row['Targeted Tests']];
-  const hasFail = required.some((value) => value === 'FAIL' || value === 'NOT_RUN');
-
-  if (hasWaitAuth) {
-    row['Final Status'] = 'WAIT_AUTH';
-    row.Blocker = `KEY_INVALID_OR_MISSING:${providerEnvKey(name)}`;
-  } else if (hasExternal) {
-    row['Final Status'] = 'EXTERNAL_BLOCKER';
-    row.Blocker = name === 'Anthropic' ? 'ANTHROPIC_BILLING_OR_IDENTITY' : 'EXTERNAL_BILLING_OR_IDENTITY';
-  } else if (hasFail) {
-    row['Final Status'] = 'FAIL_CODE';
-    row.Blocker = 'LIVE_VALIDATION_FAILED';
-  } else {
-    row['Final Status'] = 'PASS';
-    row.Blocker = '';
-  }
-
-  return row;
+  return resolveFinalStatus(row);
 }
 
 async function main() {
@@ -370,4 +374,11 @@ async function main() {
   console.log(JSON.stringify(rows, null, 2));
 }
 
-void main();
+function isDirectExecution(): boolean {
+  const entry = process.argv[1] ?? '';
+  return entry.endsWith('provider-matrix-live.ts');
+}
+
+if (isDirectExecution()) {
+  void main();
+}

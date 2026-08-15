@@ -1,12 +1,18 @@
+import { createHash } from 'node:crypto';
+
+import { sanitizeCitationUrl } from '@/lib/ai2/runtime/openai-compatible';
+
 const ANTHROPIC_API_BASE = 'https://api.anthropic.com/v1';
 const DEFAULT_MODEL = 'claude-3-5-haiku-latest';
 const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
+export const ANTHROPIC_DISCOVERY_CACHE_MAX_ENTRIES = 128;
 const MODEL_DISCOVERY_CACHE_TTL_MS = 5 * 60_000;
 const modelCache = new Map<string, { model: string; expiresAt: number }>();
 
 type AnthropicErrorCategory =
   | 'missing_key'
   | 'invalid_key'
+  | 'invalid_request'
   | 'insufficient_quota'
   | 'model_not_found'
   | 'timeout'
@@ -84,24 +90,19 @@ function classifyError(status: number, payload: AnthropicErrorPayload): Anthropi
     return 'model_not_found';
   }
 
-  return 'upstream_error';
-}
-
-function isSafeUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
+  if ((status >= 400 && status < 500) || joined.includes('invalid request') || joined.includes('bad request') || joined.includes('malformed')) {
+    return 'invalid_request';
   }
+
+  return 'upstream_error';
 }
 
 function extractCitations(answer: string): string[] {
   const matches = answer.match(/https?:\/\/[^\s)\]]+/g) ?? [];
   const unique = new Set<string>();
   for (const entry of matches) {
-    const normalized = entry.trim();
-    if (isSafeUrl(normalized)) {
+    const normalized = sanitizeCitationUrl(entry);
+    if (normalized) {
       unique.add(normalized);
     }
   }
@@ -134,6 +135,7 @@ function extractAnswer(payload: unknown): string {
 
 export async function discoverAnthropicModel(apiKey: string, timeoutMs = MODEL_DISCOVERY_TIMEOUT_MS): Promise<string | null> {
   const cacheKey = createHash('sha256').update(apiKey).digest('hex');
+  pruneExpiredCacheEntries();
   const cached = modelCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.model;
   if (cached) modelCache.delete(cacheKey);
@@ -159,19 +161,49 @@ export async function discoverAnthropicModel(apiKey: string, timeoutMs = MODEL_D
 
     for (const model of PREFERRED_MODELS) {
       if (ids.includes(model)) {
-        modelCache.set(cacheKey, { model, expiresAt: Date.now() + MODEL_DISCOVERY_CACHE_TTL_MS });
+        setCacheEntry(cacheKey, model);
         return model;
       }
     }
 
     const selected = ids[0] ?? null;
-    if (selected) modelCache.set(cacheKey, { model: selected, expiresAt: Date.now() + MODEL_DISCOVERY_CACHE_TTL_MS });
+    if (selected) setCacheEntry(cacheKey, selected);
     return selected;
   } catch {
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+function pruneExpiredCacheEntries(now = Date.now()): void {
+  for (const [key, value] of modelCache.entries()) {
+    if (value.expiresAt <= now) modelCache.delete(key);
+  }
+}
+
+function setCacheEntry(cacheKey: string, model: string): void {
+  const now = Date.now();
+  pruneExpiredCacheEntries(now);
+  if (modelCache.has(cacheKey)) modelCache.delete(cacheKey);
+  modelCache.set(cacheKey, { model, expiresAt: now + MODEL_DISCOVERY_CACHE_TTL_MS });
+  while (modelCache.size > ANTHROPIC_DISCOVERY_CACHE_MAX_ENTRIES) {
+    const oldest = modelCache.keys().next().value;
+    if (!oldest) break;
+    modelCache.delete(oldest);
+  }
+}
+
+export function clearAnthropicModelCacheForTests(): void {
+  modelCache.clear();
+}
+
+export function getAnthropicModelCacheSizeForTests(): number {
+  return modelCache.size;
+}
+
+export function getAnthropicModelCacheKeysForTests(): string[] {
+  return [...modelCache.keys()];
 }
 
 async function callAnthropicOnce(
@@ -258,15 +290,18 @@ export async function callAnthropicMessagesWeb(params: AnthropicWebCallParams): 
   }
 
   const timeoutMs = params.timeoutMs ?? normalizeTimeout(process.env.DABRA_ANTHROPIC_TIMEOUT_MS);
+  const deadlineAt = Date.now() + timeoutMs;
+  const remainingMs = () => Math.max(0, deadlineAt - Date.now());
   const configuredModel = normalizeModel(params.model ?? process.env.DABRA_ANTHROPIC_MODEL);
-  const discoveredModel = params.model ? null : await discoverAnthropicModel(params.apiKey, timeoutMs);
+  const discoveredModel = params.model ? null : await discoverAnthropicModel(params.apiKey, remainingMs());
   const model = discoveredModel ?? configuredModel;
 
-  let result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, timeoutMs);
+  if (remainingMs() <= 0) return { ok: false, answer: '', citations: [], errorCategory: 'timeout', model };
+  let result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, remainingMs());
   if (!result.ok && (result.errorCategory === 'timeout' || result.errorCategory === 'upstream_error')) {
-    result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, timeoutMs);
+    if (remainingMs() <= 0) return { ...result, errorCategory: 'timeout' };
+    result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, remainingMs());
   }
 
   return result;
 }
-import { createHash } from 'node:crypto';

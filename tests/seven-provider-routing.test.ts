@@ -62,6 +62,7 @@ async function assertFatalStops(status: number, body: unknown, expected: string)
 test('invalid credentials forbid fallback',()=>assertFatalStops(401,{error:{message:'invalid key'}},'invalid_key'));
 test('billing failure forbids fallback',()=>assertFatalStops(400,{error:{message:'billing required'}},'billing_or_identity'));
 test('invalid model forbids fallback',()=>assertFatalStops(404,{error:{message:'model not found'}},'model_not_found'));
+test('generic bad request forbids fallback',()=>assertFatalStops(400,{error:{message:'bad request payload'}},'invalid_request'));
 
 test('safety rejection forbids fallback', async()=>{
   enable(['GOOGLE_GENERATIVE_AI_API_KEY','OPENAI_API_KEY']); process.env.DABRA_AI_PROVIDER='gemini'; process.env.DABRA_PROVIDER_FALLBACK_ENABLED='true'; process.env.DABRA_GEMINI_MODEL='gemini-test';
@@ -97,6 +98,19 @@ test('global deadline stops additional provider hops', async()=>{
   const realNow=Date.now; let reads=0; Date.now=()=>{reads+=1;return reads <= 2 ? 1_000 : 7_000};
   let calls=0; globalThis.fetch=(async()=>{calls+=1;return new Response('{}',{status:503})}) as typeof fetch;
   try { const result=await buildAI2ChatResponse('qzvxx external topic 91837'); assert.equal(result.finalProviderErrorCategory,'deadline_exceeded'); assert.equal(result.fallbackAttempts?.length,0); assert.equal(calls,2); } finally { Date.now=realNow; }
+});
+
+test('sub-second remaining budget skips provider call and returns deadline_exceeded', async()=>{
+  enable(['XAI_API_KEY','OPENAI_API_KEY']); process.env.DABRA_AI_PROVIDER='xai'; process.env.DABRA_PROVIDER_FALLBACK_ENABLED='true'; process.env.DABRA_AI_GLOBAL_DEADLINE_MS='5000';
+  const realNow=Date.now; let reads=0; Date.now=()=>{reads+=1; return reads === 1 ? 1_000 : 5_900};
+  let calls=0; globalThis.fetch=(async()=>{calls+=1;return new Response('{}',{status:503})}) as typeof fetch;
+  try {
+    const result=await buildAI2ChatResponse('qzvxx external topic 91837');
+    assert.equal(result.provider,'local');
+    assert.equal(result.finalProviderErrorCategory,'deadline_exceeded');
+    assert.equal(result.fallbackAttempts?.length,0);
+    assert.equal(calls,0);
+  } finally { Date.now=realNow; }
 });
 
 test('model discovery is abortable and successful results are cached', async()=>{
