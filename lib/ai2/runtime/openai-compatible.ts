@@ -211,8 +211,10 @@ function isPrivateIpv4(hostname: string): boolean {
   if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
     return false;
   }
+  if (parts[0] === 0) return true;
   if (parts[0] === 10) return true;
   if (parts[0] === 127) return true;
+  if (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127) return true;
   if (parts[0] === 169 && parts[1] === 254) return true;
   if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
   if (parts[0] === 192 && parts[1] === 168) return true;
@@ -245,7 +247,7 @@ export function sanitizeCitationUrl(input: string): string | null {
 
   const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (!host) return null;
-  if (host === 'localhost' || host.endsWith('.localhost')) return null;
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return null;
 
   const ipType = isIP(host);
   if (ipType === 4 && isPrivateIpv4(host)) return null;

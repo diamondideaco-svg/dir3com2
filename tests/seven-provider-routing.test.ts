@@ -64,6 +64,29 @@ test('billing failure forbids fallback',()=>assertFatalStops(400,{error:{message
 test('invalid model forbids fallback',()=>assertFatalStops(404,{error:{message:'model not found'}},'model_not_found'));
 test('generic bad request forbids fallback',()=>assertFatalStops(400,{error:{message:'bad request payload'}},'invalid_request'));
 
+for (const [provider, key, modelKey] of [
+  ['openai', 'OPENAI_API_KEY', 'DABRA_OPENAI_MODEL'],
+  ['gemini', 'GOOGLE_GENERATIVE_AI_API_KEY', 'DABRA_GEMINI_MODEL'],
+  ['anthropic', 'ANTHROPIC_API_KEY', 'DABRA_ANTHROPIC_MODEL'],
+] as const) {
+  test(`${provider} generic HTTP 400 is fatal with zero fallback`, async () => {
+    const fallbackKey = provider === 'openai' ? 'GOOGLE_GENERATIVE_AI_API_KEY' : 'OPENAI_API_KEY';
+    enable([key, fallbackKey]);
+    process.env.DABRA_AI_PROVIDER = provider;
+    process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+    process.env[modelKey] = 'test-model';
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ error: { message: 'unrecognized client payload failure' } }), { status: 400 });
+    }) as typeof fetch;
+    const result = await buildAI2ChatResponse('qzvxx external topic 91837');
+    assert.equal(result.primaryProviderErrorCategory, 'invalid_request');
+    assert.deepEqual(result.fallbackAttempts, []);
+    assert.equal(calls, 1);
+  });
+}
+
 test('safety rejection forbids fallback', async()=>{
   enable(['GOOGLE_GENERATIVE_AI_API_KEY','OPENAI_API_KEY']); process.env.DABRA_AI_PROVIDER='gemini'; process.env.DABRA_PROVIDER_FALLBACK_ENABLED='true'; process.env.DABRA_GEMINI_MODEL='gemini-test';
   let calls=0; globalThis.fetch=(async()=>{calls+=1;return new Response(JSON.stringify({candidates:[{finishReason:'SAFETY'}]}),{status:200})}) as typeof fetch;
