@@ -22,6 +22,7 @@ import {
   discoverGeminiModel,
   getGeminiModelCacheSizeForTests,
 } from '@/lib/ai2/runtime/gemini-web';
+import { discoverOpenAIModel } from '@/lib/ai2/runtime/openai-web';
 import { callDeepSeekWebSearch } from '@/lib/ai2/runtime/deepseek-web';
 import { callMistralWebSearch } from '@/lib/ai2/runtime/mistral-web';
 import { callQwenWebSearch } from '@/lib/ai2/runtime/qwen-web';
@@ -103,6 +104,11 @@ test('openai-compatible cache isolates hashed credentials and prunes expired ent
   } finally {
     Date.now = realNow;
   }
+});
+
+test('OpenAI discovery rejects a successful models response with no usable GPT model', async () => {
+  globalThis.fetch = (async () => new Response(JSON.stringify({ data: [{ id: 'text-embedding-3-small' }] }), { status: 200 })) as typeof fetch;
+  assert.equal(await discoverOpenAIModel('openai-test-key', 1_000), null);
 });
 
 test('gemini discovery cache remains bounded', async () => {
