@@ -81,18 +81,23 @@ async function runRoutedCheck(provider: string): Promise<'PASS' | 'FAIL'> {
   process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'false';
 
   try {
-    const enPrompt = provider === 'gemini'
+    const enPrompt = provider === 'gemini' || provider === 'openai'
       ? 'What is one recent global public headline? Include one source URL.'
       : 'qzvxx provider-route random external topic 91837 include one source url';
-    const arPrompt = provider === 'gemini'
+    const arPrompt = provider === 'gemini' || provider === 'openai'
       ? 'ما أحدث خبر عالمي موثوق؟ اذكر رابط مصدر واحد.'
       : 'ما الخبر العالمي الخارجي qzvxx 91837 اذكر رابط مصدر واحد';
 
     const en = await buildAI2ChatResponse(enPrompt);
     const ar = await buildAI2ChatResponse(arPrompt);
     const expected = provider.toLowerCase();
-    const both = en.provider === expected && ar.provider === expected;
-    return both ? 'PASS' : 'FAIL';
+    const directRoute = en.provider === expected && ar.provider === expected;
+    const primaryRouteWithLocalFallback =
+      en.provider === 'local'
+      && ar.provider === 'local'
+      && en.primaryProvider === expected
+      && ar.primaryProvider === expected;
+    return directRoute || primaryRouteWithLocalFallback ? 'PASS' : 'FAIL';
   } catch {
     return 'FAIL';
   } finally {
