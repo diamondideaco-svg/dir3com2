@@ -208,12 +208,16 @@ function classifyOpenAIError(status: number, payload: OpenAIErrorPayload): OpenA
 }
 
 async function getBestAvailableModel(apiKey: string): Promise<string | null> {
-  const response = await fetch(OPENAI_MODELS_URL, {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(OPENAI_MODELS_URL, {
     method: 'GET',
     headers: {
       authorization: `Bearer ${apiKey}`,
     },
     cache: 'no-store',
+    signal: controller.signal,
   });
 
   if (!response.ok) {
@@ -229,7 +233,12 @@ async function getBestAvailableModel(apiKey: string): Promise<string | null> {
     return null;
   }
 
-  return pickAvailableModel(ids);
+    return pickAvailableModel(ids);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function executeResponsesWebRequest(
@@ -327,8 +336,7 @@ export async function callOpenAIResponsesWebSearch(params: OpenAIWebCallParams):
     let firstAttempt = await executeResponsesWebRequest(params.apiKey, model, params.prompt, params.message, timeoutMs);
 
     if (!firstAttempt.ok && (firstAttempt.errorCategory === 'timeout' || firstAttempt.errorCategory === 'upstream_error')) {
-      const retryTimeout = Math.min(MAX_TIMEOUT_MS, timeoutMs + 15_000);
-      firstAttempt = await executeResponsesWebRequest(params.apiKey, model, params.prompt, params.message, retryTimeout);
+      firstAttempt = await executeResponsesWebRequest(params.apiKey, model, params.prompt, params.message, timeoutMs);
     }
 
     if (firstAttempt.ok) {
@@ -343,7 +351,7 @@ export async function callOpenAIResponsesWebSearch(params: OpenAIWebCallParams):
           fallbackModel,
           params.prompt,
           params.message,
-          Math.min(MAX_TIMEOUT_MS, timeoutMs + 10_000),
+          timeoutMs,
         );
         if (retry.ok) {
           return retry;

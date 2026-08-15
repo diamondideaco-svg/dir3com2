@@ -30,6 +30,19 @@ export type OpenAICompatibleParams = {
   extraHeaders?: Record<string, string>;
 };
 
+export const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
+const MODEL_DISCOVERY_CACHE_TTL_MS = 5 * 60_000;
+const discoveredModelCache = new Map<string, { model: string; expiresAt: number }>();
+
+function discoveryCacheKey(apiKey: string, baseUrl: string): string {
+  const credentialFingerprint = createHash('sha256').update(apiKey).digest('hex');
+  return `${baseUrl}\u0000${credentialFingerprint}`;
+}
+
+export function clearOpenAICompatibleModelCacheForTests(): void {
+  discoveredModelCache.clear();
+}
+
 type OpenAICompatibleErrorPayload = {
   code?: string;
   message?: string;
@@ -265,6 +278,12 @@ export async function discoverOpenAICompatibleModel(
   preferredModels: string[],
   extraHeaders?: Record<string, string>,
 ): Promise<string | null> {
+  const cacheKey = discoveryCacheKey(apiKey, baseUrl);
+  const cached = discoveredModelCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.model;
+  if (cached) discoveredModelCache.delete(cacheKey);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MODEL_DISCOVERY_TIMEOUT_MS);
   try {
     const response = await fetch(`${baseUrl}/models`, {
       method: 'GET',
@@ -273,6 +292,7 @@ export async function discoverOpenAICompatibleModel(
         ...(extraHeaders ?? {}),
       },
       cache: 'no-store',
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -290,13 +310,18 @@ export async function discoverOpenAICompatibleModel(
 
     for (const preferred of preferredModels) {
       if (ids.includes(preferred)) {
+        discoveredModelCache.set(cacheKey, { model: preferred, expiresAt: Date.now() + MODEL_DISCOVERY_CACHE_TTL_MS });
         return preferred;
       }
     }
 
-    return ids[0] ?? null;
+    const selected = ids[0] ?? null;
+    if (selected) discoveredModelCache.set(cacheKey, { model: selected, expiresAt: Date.now() + MODEL_DISCOVERY_CACHE_TTL_MS });
+    return selected;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -322,7 +347,7 @@ export async function callOpenAICompatibleProvider(params: OpenAICompatibleParam
   let result = await callChatCompletions(params, selectedModel, params.timeoutMs);
 
   for (let attempt = 0; attempt < params.retryCount && !result.ok && shouldRetry(result.errorCategory); attempt += 1) {
-    result = await callChatCompletions(params, selectedModel, Math.min(90_000, params.timeoutMs + 10_000));
+    result = await callChatCompletions(params, selectedModel, params.timeoutMs);
   }
 
   if (!result.ok && result.errorCategory === 'model_not_found' && !params.model) {
@@ -334,9 +359,10 @@ export async function callOpenAICompatibleProvider(params: OpenAICompatibleParam
     );
 
     if (fallbackModel && fallbackModel !== selectedModel) {
-      result = await callChatCompletions(params, fallbackModel, Math.min(90_000, params.timeoutMs + 10_000));
+      result = await callChatCompletions(params, fallbackModel, params.timeoutMs);
     }
   }
 
   return result;
 }
+import { createHash } from 'node:crypto';

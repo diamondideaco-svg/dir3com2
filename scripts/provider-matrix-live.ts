@@ -1,4 +1,5 @@
 import { loadEnvConfig } from '@next/env';
+import { spawnSync } from 'node:child_process';
 
 import { callAnthropicMessagesWeb, discoverAnthropicModel } from '@/lib/ai2/runtime/anthropic-web';
 import { callDeepSeekWebSearch, discoverDeepSeekModel } from '@/lib/ai2/runtime/deepseek-web';
@@ -106,6 +107,89 @@ async function runRoutedCheck(provider: string): Promise<'PASS' | 'FAIL'> {
   }
 }
 
+async function runSafetyCheck(provider: string): Promise<'PASS' | 'FAIL'> {
+  const previous = {
+    enabled: process.env.DABRA_GLOBAL_WEB_ENABLED,
+    provider: process.env.DABRA_AI_PROVIDER,
+    fallback: process.env.DABRA_PROVIDER_FALLBACK_ENABLED,
+  };
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.DABRA_AI_PROVIDER = provider.toLowerCase();
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+    calls += 1;
+    return originalFetch(...args);
+  }) as typeof fetch;
+  try {
+    const refused = await buildAI2ChatResponse('Book a room for me now');
+    return refused.provider === 'local' && calls === 0 ? 'PASS' : 'FAIL';
+  } catch {
+    return 'FAIL';
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreEnv('DABRA_GLOBAL_WEB_ENABLED', previous.enabled);
+    restoreEnv('DABRA_AI_PROVIDER', previous.provider);
+    restoreEnv('DABRA_PROVIDER_FALLBACK_ENABLED', previous.fallback);
+  }
+}
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
+
+function runTargetedTests(name: string): 'PASS' | 'FAIL' {
+  const fileByProvider: Record<string, string> = {
+    OpenAI: 'tests/openai-web.test.ts',
+    Gemini: 'tests/gemini-web.test.ts',
+    Anthropic: 'tests/ai-anthropic.test.ts',
+    xAI: 'tests/ai-xai.test.ts',
+    DeepSeek: 'tests/ai-deepseek.test.ts',
+    Qwen: 'tests/ai-qwen.test.ts',
+    Mistral: 'tests/mistral-web.test.ts',
+  };
+  const result = spawnSync(process.execPath, ['--import', 'tsx', '--test', fileByProvider[name]], {
+    cwd: process.cwd(),
+    env: process.env,
+    encoding: 'utf8',
+    stdio: 'ignore',
+  });
+  return result.status === 0 ? 'PASS' : 'FAIL';
+}
+
+async function runFallbackCheck(provider: string): Promise<'PASS' | 'FAIL'> {
+  const envNames = ['OPENAI_API_KEY','GOOGLE_GENERATIVE_AI_API_KEY','ANTHROPIC_API_KEY','XAI_API_KEY','DEEPSEEK_API_KEY','QWEN_API_KEY','DASHSCOPE_API_KEY','MISTRAL_API_KEY','DABRA_GLOBAL_WEB_ENABLED','DABRA_AI_PROVIDER','DABRA_PROVIDER_FALLBACK_ENABLED'];
+  const previous = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
+  const originalFetch = globalThis.fetch;
+  const primary = provider.toLowerCase();
+  const target = primary === 'xai' ? 'deepseek' : 'xai';
+  const keyName: Record<string, string> = { openai:'OPENAI_API_KEY', gemini:'GOOGLE_GENERATIVE_AI_API_KEY', anthropic:'ANTHROPIC_API_KEY', xai:'XAI_API_KEY', deepseek:'DEEPSEEK_API_KEY', qwen:'DASHSCOPE_API_KEY', mistral:'MISTRAL_API_KEY' };
+  for (const name of envNames.filter((name) => name.endsWith('_API_KEY'))) delete process.env[name];
+  process.env[keyName[primary]] = 'matrix-primary-test-key';
+  process.env[keyName[target]] = 'matrix-fallback-test-key';
+  process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.DABRA_AI_PROVIDER = primary;
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith('/models') || url.includes('/models?')) return new Response(JSON.stringify({ data: [{ id: target === 'deepseek' ? 'deepseek-chat' : 'grok-3' }] }), { status: 200 });
+    const isTarget = target === 'xai' ? url.includes('api.x.ai') : url.includes('api.deepseek.com');
+    if (!isTarget) return new Response(JSON.stringify({ error: { message: 'temporary unavailable' } }), { status: 503 });
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'fallback success' } }] }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const response = await buildAI2ChatResponse('qzvxx fallback matrix topic 91837');
+    return response.provider === target && response.primaryProvider === primary && response.primaryProviderErrorCategory === 'upstream_error' ? 'PASS' : 'FAIL';
+  } catch {
+    return 'FAIL';
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const name of envNames) restoreEnv(name, previous[name]);
+  }
+}
+
 async function runProvider(name: string): Promise<ProviderMatrixRow> {
   const key = getKey(name);
   if (!key) {
@@ -118,9 +202,9 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
       'EN Live': 'WAIT_AUTH',
       'AR Live': 'WAIT_AUTH',
       'DABRA Routing': 'WAIT_AUTH',
-      'Safety Regression': 'PASS',
-      Fallback: 'PASS',
-      'Targeted Tests': 'PASS',
+      'Safety Regression': 'NOT_RUN',
+      Fallback: 'NOT_RUN',
+      'Targeted Tests': runTargetedTests(name),
       'Final Status': 'WAIT_AUTH',
       Blocker: `KEY_MISSING:${providerEnvKey(name)}`,
     };
@@ -135,9 +219,9 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
     'EN Live': 'FAIL',
     'AR Live': 'FAIL',
     'DABRA Routing': 'FAIL',
-    'Safety Regression': 'PASS',
-    Fallback: 'PASS',
-    'Targeted Tests': 'PASS',
+    'Safety Regression': 'NOT_RUN',
+    Fallback: 'NOT_RUN',
+    'Targeted Tests': 'NOT_RUN',
     'Final Status': 'FAIL_CODE',
     Blocker: '',
   };
@@ -236,6 +320,10 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
     row['DABRA Routing'] = await runRoutedCheck('mistral');
   }
 
+  row['Safety Regression'] = await runSafetyCheck(name);
+  row.Fallback = await runFallbackCheck(name);
+  row['Targeted Tests'] = runTargetedTests(name);
+
   if (row['DABRA Routing'] === 'FAIL' && (row['EN Live'] === 'EXTERNAL_BLOCKER' || row['AR Live'] === 'EXTERNAL_BLOCKER')) {
     row['DABRA Routing'] = 'EXTERNAL_BLOCKER';
   }
@@ -246,7 +334,8 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
 
   const hasWaitAuth = [row.Auth, row['EN Live'], row['AR Live'], row['DABRA Routing']].includes('WAIT_AUTH');
   const hasExternal = [row['EN Live'], row['AR Live'], row['DABRA Routing']].includes('EXTERNAL_BLOCKER');
-  const hasFail = [row['Model Discovery'], row['EN Live'], row['AR Live'], row['DABRA Routing']].includes('FAIL');
+  const required = [row.Adapter, row.Router, row.Auth, row['Model Discovery'], row['EN Live'], row['AR Live'], row['DABRA Routing'], row['Safety Regression'], row.Fallback, row['Targeted Tests']];
+  const hasFail = required.some((value) => value === 'FAIL' || value === 'NOT_RUN');
 
   if (hasWaitAuth) {
     row['Final Status'] = 'WAIT_AUTH';

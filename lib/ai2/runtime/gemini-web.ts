@@ -3,6 +3,9 @@ const DEFAULT_MODEL = 'gemini-3.6-flash';
 const DEFAULT_TIMEOUT_MS = 45_000;
 const MIN_TIMEOUT_MS = 15_000;
 const MAX_TIMEOUT_MS = 90_000;
+const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
+const MODEL_DISCOVERY_CACHE_TTL_MS = 5 * 60_000;
+const fallbackModelCache = new Map<string, { model: string; expiresAt: number }>();
 
 export type GeminiWebErrorCategory =
   | 'missing_key'
@@ -126,10 +129,17 @@ async function executeRequest(params: GeminiWebCallParams, model: string, timeou
 }
 
 async function discoverFallbackModel(apiKey: string): Promise<string | null> {
+  const cacheKey = createHash('sha256').update(apiKey).digest('hex');
+  const cached = fallbackModelCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.model;
+  if (cached) fallbackModelCache.delete(cacheKey);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MODEL_DISCOVERY_TIMEOUT_MS);
   try {
     const response = await fetch(`${GEMINI_API_BASE}/models?pageSize=1000`, {
       headers: { 'x-goog-api-key': apiKey },
       cache: 'no-store',
+      signal: controller.signal,
     });
     if (!response.ok) return null;
     const payload = (await response.json()) as GeminiModelsPayload;
@@ -137,9 +147,13 @@ async function discoverFallbackModel(apiKey: string): Promise<string | null> {
       .filter((model) => model.supportedGenerationMethods?.includes('generateContent'))
       .map((model) => String(model.name ?? '').replace(/^models\//, ''));
     const preferred = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-flash-latest'];
-    return preferred.find((model) => available.includes(model)) ?? available.find((model) => model.startsWith('gemini-')) ?? null;
+    const selected = preferred.find((model) => available.includes(model)) ?? available.find((model) => model.startsWith('gemini-')) ?? null;
+    if (selected) fallbackModelCache.set(cacheKey, { model: selected, expiresAt: Date.now() + MODEL_DISCOVERY_CACHE_TTL_MS });
+    return selected;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -149,11 +163,12 @@ export async function callGeminiGoogleSearch(params: GeminiWebCallParams): Promi
   const model = normalizeModel(params.model ?? process.env.DABRA_GEMINI_MODEL);
   let result = await executeRequest(params, model, timeoutMs);
   if (!result.ok && (result.errorCategory === 'timeout' || result.errorCategory === 'upstream_error')) {
-    result = await executeRequest(params, model, Math.min(MAX_TIMEOUT_MS, timeoutMs + 15_000));
+    result = await executeRequest(params, model, timeoutMs);
   }
   if (!result.ok && result.errorCategory === 'model_not_found') {
     const fallback = await discoverFallbackModel(params.apiKey);
-    if (fallback && fallback !== model) result = await executeRequest(params, fallback, Math.min(MAX_TIMEOUT_MS, timeoutMs + 10_000));
+    if (fallback && fallback !== model) result = await executeRequest(params, fallback, timeoutMs);
   }
   return result;
 }
+import { createHash } from 'node:crypto';

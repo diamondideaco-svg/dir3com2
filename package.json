@@ -35,6 +35,7 @@
     "test:qwen": "node --import tsx --test tests/ai-qwen.test.ts",
     "test:mistral": "node --import tsx --test tests/mistral-web.test.ts",
     "test:providers-matrix": "node --import tsx --test tests/providers-matrix.test.ts",
+    "test:seven-provider-routing": "node --import tsx --test tests/seven-provider-routing.test.ts",
     "smoke:anthropic": "node --import tsx scripts/anthropic-live-smoke.ts",
     "smoke:deepseek": "node --import tsx scripts/deepseek-live-smoke.ts",
     "smoke:xai": "node --import tsx scripts/xai-live-smoke.ts",

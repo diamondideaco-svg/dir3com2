@@ -1,5 +1,8 @@
 const ANTHROPIC_API_BASE = 'https://api.anthropic.com/v1';
 const DEFAULT_MODEL = 'claude-3-5-haiku-latest';
+const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
+const MODEL_DISCOVERY_CACHE_TTL_MS = 5 * 60_000;
+const modelCache = new Map<string, { model: string; expiresAt: number }>();
 
 type AnthropicErrorCategory =
   | 'missing_key'
@@ -130,6 +133,12 @@ function extractAnswer(payload: unknown): string {
 }
 
 export async function discoverAnthropicModel(apiKey: string): Promise<string | null> {
+  const cacheKey = createHash('sha256').update(apiKey).digest('hex');
+  const cached = modelCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.model;
+  if (cached) modelCache.delete(cacheKey);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MODEL_DISCOVERY_TIMEOUT_MS);
   try {
     const response = await fetch(`${ANTHROPIC_API_BASE}/models`, {
       method: 'GET',
@@ -138,6 +147,7 @@ export async function discoverAnthropicModel(apiKey: string): Promise<string | n
         'anthropic-version': '2023-06-01',
       },
       cache: 'no-store',
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -149,13 +159,18 @@ export async function discoverAnthropicModel(apiKey: string): Promise<string | n
 
     for (const model of PREFERRED_MODELS) {
       if (ids.includes(model)) {
+        modelCache.set(cacheKey, { model, expiresAt: Date.now() + MODEL_DISCOVERY_CACHE_TTL_MS });
         return model;
       }
     }
 
-    return ids[0] ?? null;
+    const selected = ids[0] ?? null;
+    if (selected) modelCache.set(cacheKey, { model: selected, expiresAt: Date.now() + MODEL_DISCOVERY_CACHE_TTL_MS });
+    return selected;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -249,8 +264,9 @@ export async function callAnthropicMessagesWeb(params: AnthropicWebCallParams): 
 
   let result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, timeoutMs);
   if (!result.ok && (result.errorCategory === 'timeout' || result.errorCategory === 'upstream_error')) {
-    result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, Math.min(90_000, timeoutMs + 10_000));
+    result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, timeoutMs);
   }
 
   return result;
 }
+import { createHash } from 'node:crypto';

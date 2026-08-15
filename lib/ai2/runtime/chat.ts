@@ -40,7 +40,9 @@ export type AI2ProviderErrorCategory =
   | DeepSeekWebErrorCategory
   | QwenWebErrorCategory
   | MistralWebErrorCategory
-  | NonNullable<AnthropicWebCallResult['errorCategory']>;
+  | NonNullable<AnthropicWebCallResult['errorCategory']>
+  | 'configuration_error'
+  | 'deadline_exceeded';
 
 export type AI2ChatSource = {
   sourceId: string;
@@ -63,6 +65,10 @@ export type AI2ChatResponse = {
   provider: AI2Provider;
   providerErrorCategory?: AI2ProviderErrorCategory;
   providerModel?: string;
+  primaryProvider?: RemoteProvider;
+  primaryProviderErrorCategory?: AI2ProviderErrorCategory;
+  fallbackAttempts?: RemoteProvider[];
+  finalProviderErrorCategory?: AI2ProviderErrorCategory;
 };
 
 type RemoteProvider = Exclude<AI2Provider, 'local'>;
@@ -127,6 +133,12 @@ const PROVIDER_UNAVAILABLE_FALLBACK: Record<AI2ChatLanguage, string> = {
 };
 
 const AI2_CHUNKS = buildAI2RagChunks(AI2_KNOWLEDGE_REGISTRY);
+const REMOTE_PROVIDERS = ['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'] as const;
+const AUTO_PROVIDER_ORDER: RemoteProvider[] = ['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'];
+const DEFAULT_GLOBAL_DEADLINE_MS = 60_000;
+const DEFAULT_MAX_FALLBACK_HOPS = 3;
+const MIN_GLOBAL_DEADLINE_MS = 5_000;
+const MAX_GLOBAL_DEADLINE_MS = 120_000;
 
 export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResponse> {
   const language = detectLanguage(message);
@@ -163,12 +175,39 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
   }
 
   if (internalSources.length === 0 || !internalMatchGate.hasStrongMatch) {
-    const configuredProviders = buildProviderOrder();
+    const providerPlan = buildProviderOrder();
+    if (!providerPlan.ok) {
+      return {
+        answer: PROVIDER_UNAVAILABLE_FALLBACK[language],
+        sources: [],
+        language,
+        groundingStatus: 'fallback-provider-unavailable',
+        promptBound: true,
+        promptVersion: AI2_DABRA_PROMPT_VERSION,
+        retrievalMode: 'internal-rag',
+        provider: 'local',
+        providerErrorCategory: 'configuration_error',
+        finalProviderErrorCategory: 'configuration_error',
+        fallbackAttempts: [],
+      };
+    }
+    const configuredProviders = providerPlan.providers;
     if (globalWebEnabled && configuredProviders.length > 0) {
-      let lastError: AI2ProviderErrorCategory | undefined;
+      const startedAt = Date.now();
+      const globalDeadlineMs = normalizeBoundedInteger(process.env.DABRA_AI_GLOBAL_DEADLINE_MS, DEFAULT_GLOBAL_DEADLINE_MS, MIN_GLOBAL_DEADLINE_MS, MAX_GLOBAL_DEADLINE_MS);
+      const attemptedProviders: RemoteProvider[] = [];
+      let primaryError: AI2ProviderErrorCategory | undefined;
+      let finalError: AI2ProviderErrorCategory | undefined;
 
       for (const provider of configuredProviders) {
-        const result = await callProvider(provider, message, language);
+        const remainingMs = globalDeadlineMs - (Date.now() - startedAt);
+        if (remainingMs <= 0) {
+          finalError = 'deadline_exceeded';
+          break;
+        }
+        attemptedProviders.push(provider);
+        const perAttemptTimeoutMs = Math.max(1_000, Math.floor(remainingMs / 3));
+        const result = await callProvider(provider, message, language, perAttemptTimeoutMs);
         if (result.ok && (result.citations.length > 0 || providerAcceptsNoCitations(result.provider))) {
           return {
             answer: result.answer,
@@ -185,10 +224,15 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
             retrievalMode: result.retrievalMode,
             provider: result.provider,
             providerModel: result.model,
+            primaryProvider: configuredProviders[0],
+            primaryProviderErrorCategory: primaryError,
+            fallbackAttempts: attemptedProviders.slice(1),
           };
         }
 
-        lastError = result.errorCategory;
+        finalError = result.errorCategory ?? 'upstream_error';
+        primaryError ??= finalError;
+        if (!isTransientFallbackError(finalError)) break;
       }
 
       return {
@@ -200,7 +244,11 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
         promptVersion: AI2_DABRA_PROMPT_VERSION,
         retrievalMode: 'internal-rag',
         provider: 'local',
-        providerErrorCategory: lastError,
+        providerErrorCategory: primaryError ?? finalError,
+        primaryProvider: configuredProviders[0],
+        primaryProviderErrorCategory: primaryError,
+        fallbackAttempts: attemptedProviders.slice(1),
+        finalProviderErrorCategory: finalError,
       };
     }
 
@@ -260,23 +308,38 @@ function providerAcceptsNoCitations(provider: RemoteProvider): boolean {
   return provider !== 'openai' && provider !== 'gemini';
 }
 
-function buildProviderOrder(): RemoteProvider[] {
-  const requested = String(process.env.DABRA_AI_PROVIDER ?? 'auto').trim().toLowerCase();
-  const fallbackEnabled = String(process.env.DABRA_PROVIDER_FALLBACK_ENABLED ?? 'true').trim().toLowerCase() !== 'false';
-  const allProviders: RemoteProvider[] = ['gemini', 'openai', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'];
+type ProviderPlan = { ok: true; providers: RemoteProvider[] } | { ok: false };
 
-  const primary = (['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'] as const)
-    .find((provider) => provider === requested);
-
-  const preferred = primary
-    ? [primary, ...allProviders.filter((provider) => provider !== primary)]
-    : allProviders;
-
-  const available = preferred.filter((provider) => Boolean(providerKey(provider)));
-  return fallbackEnabled ? available : available.slice(0, 1);
+function isRemoteProvider(value: string): value is RemoteProvider {
+  return (REMOTE_PROVIDERS as readonly string[]).includes(value);
 }
 
-async function callProvider(provider: RemoteProvider, message: string, language: AI2ChatLanguage): Promise<ProviderResult> {
+function normalizeBoundedInteger(value: string | undefined, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(parsed)));
+}
+
+function isTransientFallbackError(error: AI2ProviderErrorCategory): boolean {
+  return error === 'timeout' || error === 'upstream_error' || error === 'deadline_exceeded';
+}
+
+function buildProviderOrder(): ProviderPlan {
+  const rawRequested = process.env.DABRA_AI_PROVIDER;
+  const requested = rawRequested === undefined || rawRequested.trim() === '' ? 'openai' : rawRequested.trim().toLowerCase();
+  const fallbackEnabled = String(process.env.DABRA_PROVIDER_FALLBACK_ENABLED ?? 'true').trim().toLowerCase() !== 'false';
+  if (requested !== 'auto' && !isRemoteProvider(requested)) return { ok: false };
+  const preferred = requested === 'auto'
+    ? AUTO_PROVIDER_ORDER
+    : [requested, ...AUTO_PROVIDER_ORDER.filter((provider) => provider !== requested)];
+
+  const available = preferred.filter((provider) => Boolean(providerKey(provider)));
+  const configuredMaxHops = normalizeBoundedInteger(process.env.DABRA_AI_MAX_FALLBACK_HOPS, DEFAULT_MAX_FALLBACK_HOPS, 0, REMOTE_PROVIDERS.length - 1);
+  const maxProviders = fallbackEnabled ? Math.min(available.length, configuredMaxHops + 1) : 1;
+  return { ok: true, providers: available.slice(0, maxProviders) };
+}
+
+async function callProvider(provider: RemoteProvider, message: string, language: AI2ChatLanguage, timeoutMs: number): Promise<ProviderResult> {
   if (provider === 'gemini') {
     const result = await callGeminiGoogleSearch({
       message,
@@ -284,6 +347,7 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
       model: process.env.DABRA_GEMINI_MODEL,
       apiKey: providerKey('gemini'),
+      timeoutMs,
     });
 
     return {
@@ -304,6 +368,7 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
       model: process.env.DABRA_OPENAI_MODEL,
       apiKey: providerKey('openai'),
+      timeoutMs,
     });
 
     return {
@@ -324,6 +389,7 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
       model: process.env.DABRA_ANTHROPIC_MODEL,
       apiKey: providerKey('anthropic'),
+      timeoutMs,
     });
 
     return {
@@ -344,6 +410,7 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
       model: process.env.DABRA_XAI_MODEL,
       apiKey: providerKey('xai'),
+      timeoutMs,
     });
 
     return {
@@ -364,6 +431,7 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
       model: process.env.DABRA_DEEPSEEK_MODEL,
       apiKey: providerKey('deepseek'),
+      timeoutMs,
     });
 
     return {
@@ -384,6 +452,7 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
       model: process.env.DABRA_QWEN_MODEL,
       apiKey: providerKey('qwen'),
+      timeoutMs,
     });
 
     return {
@@ -403,6 +472,7 @@ async function callProvider(provider: RemoteProvider, message: string, language:
     prompt: AI2_DABRA_GLOBAL_WEB_PROMPT,
     model: process.env.DABRA_MISTRAL_MODEL,
     apiKey: providerKey('mistral'),
+    timeoutMs,
   });
 
   return {
