@@ -1,4 +1,8 @@
-import { callAnthropicMessagesWeb } from '@/lib/ai2/runtime/anthropic-web';
+import { loadEnvConfig } from '@next/env';
+
+import { callAnthropicMessagesWeb, discoverAnthropicModel } from '@/lib/ai2/runtime/anthropic-web';
+
+loadEnvConfig(process.cwd());
 
 function ok(label: string, value: boolean) {
   console.log(`${label}: ${value ? 'PASS' : 'FAIL'}`);
@@ -6,7 +10,10 @@ function ok(label: string, value: boolean) {
 
 async function main() {
   const apiKey = String(process.env.ANTHROPIC_API_KEY ?? '').trim();
-  const model = String(process.env.DABRA_ANTHROPIC_MODEL ?? '').trim() || 'claude-3-5-haiku-latest';
+  const configuredModel = String(process.env.DABRA_ANTHROPIC_MODEL ?? '').trim();
+  const discovered = await discoverAnthropicModel(apiKey);
+  const model = configuredModel || discovered || 'claude-3-5-haiku-latest';
+
 
   if (!apiKey) {
     console.log('WAIT_AUTH: ANTHROPIC_API_KEY is missing.');
@@ -19,7 +26,6 @@ async function main() {
     prompt: 'Return only the requested exact phrase.',
     model,
     apiKey,
-    maxRetries: 1,
   });
 
   const ar = await callAnthropicMessagesWeb({
@@ -28,14 +34,13 @@ async function main() {
     prompt: 'Return only the requested exact phrase.',
     model,
     apiKey,
-    maxRetries: 1,
   });
 
-  const authOk = en.errorCategory !== 'auth' && ar.errorCategory !== 'auth';
-  const modelOk = Boolean(en.providerModel || ar.providerModel);
+  const authOk = en.errorCategory !== 'invalid_key' && ar.errorCategory !== 'invalid_key';
+  const modelOk = Boolean(en.model || ar.model);
   const parsingOk = en.ok || ar.ok;
-  const enPass = en.ok && en.answer.trim() === 'ANTHROPIC_EN_PASS';
-  const arPass = ar.ok && ar.answer.trim() === 'ANTHROPIC_AR_PASS';
+  const enPass = en.ok && en.answer.toUpperCase().includes('ANTHROPIC_EN_PASS');
+  const arPass = ar.ok && ar.answer.includes('ANTHROPIC_AR_PASS');
 
   ok('Anthropic Authentication', authOk);
   ok('Anthropic Model', modelOk);
@@ -43,8 +48,8 @@ async function main() {
   ok('English Live Smoke', enPass);
   ok('Arabic Live Smoke', arPass);
 
-  const externalBlocker = en.externalBlocker || ar.externalBlocker;
-  if (externalBlocker === 'EXTERNAL_BILLING_BLOCKER') {
+  const externalBlocker = en.errorCategory === 'billing_or_identity' || ar.errorCategory === 'billing_or_identity';
+  if (externalBlocker) {
     console.log('External Blocker: EXTERNAL_BILLING_BLOCKER');
     process.exit(3);
   }

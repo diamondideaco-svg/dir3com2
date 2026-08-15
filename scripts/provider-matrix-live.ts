@@ -80,12 +80,12 @@ async function runRoutedCheck(provider: string): Promise<'PASS' | 'FAIL'> {
   process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'false';
 
   try {
-    const enPrompt = (provider === 'openai' || provider === 'gemini')
+    const enPrompt = provider === 'gemini'
       ? 'What is one recent global public headline? Include one source URL.'
-      : 'qzvxx provider-route random external topic 91837';
-    const arPrompt = (provider === 'openai' || provider === 'gemini')
+      : 'qzvxx provider-route random external topic 91837 include one source url';
+    const arPrompt = provider === 'gemini'
       ? 'ما أحدث خبر عالمي موثوق؟ اذكر رابط مصدر واحد.'
-      : 'ما الخبر العالمي الخارجي qzvxx 91837';
+      : 'ما الخبر العالمي الخارجي qzvxx 91837 اذكر رابط مصدر واحد';
 
     const en = await buildAI2ChatResponse(enPrompt);
     const ar = await buildAI2ChatResponse(arPrompt);
