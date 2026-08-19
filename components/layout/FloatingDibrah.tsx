@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
@@ -29,6 +30,9 @@ type DibrahMessage = {
   content: string;
 };
 
+const DIBRAH_POSITION_STORAGE_KEY = 'dir3com:dibrah-position:v1';
+const DIBRAH_POLICY_ACCEPTED_KEY = 'dir3com:dibrah-policy-accepted:v1';
+
 function buildSeedMessages(context: DibrahAssistantContext | null): DibrahMessage[] {
   const sourceLine = context?.hasRealData ? 'البيانات الحالية مرتبطة بسوق حي.' : 'حالياً نعرض كتالوجاً احتياطياً حتى اكتمال الربط.';
 
@@ -43,7 +47,7 @@ function buildSeedMessages(context: DibrahAssistantContext | null): DibrahMessag
 
 export default function FloatingDibrah() {
   const controlRef = useRef<HTMLDivElement | null>(null);
-  const dragStateRef = useRef({ active: false, moved: false, startX: 0, startY: 0 });
+  const dragStateRef = useRef({ active: false, moved: false, pointerId: -1, startX: 0, startY: 0, originX: 0, originY: 0 });
   const pointerOffsetRef = useRef({ x: 0, y: 0 });
 
   const [position, setPosition] = useState<{ x: number; y: number }>(() => {
@@ -52,15 +56,20 @@ export default function FloatingDibrah() {
     }
 
     return {
-      x: Math.max(window.innerWidth - 248, 12),
+      x: 12,
       y: Math.max(window.innerHeight - 124, 84),
     };
   });
   const [dragging, setDragging] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [policyOpen, setPolicyOpen] = useState(false);
+  const [policyChecked, setPolicyChecked] = useState(false);
   const [assistantContext, setAssistantContext] = useState<DibrahAssistantContext | null>(null);
   const [messages, setMessages] = useState<DibrahMessage[]>(() => buildSeedMessages(null));
   const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const draftRef = useRef<HTMLTextAreaElement | null>(null);
 
   const clampPosition = useCallback((x: number, y: number) => {
     const width = controlRef.current?.offsetWidth ?? 220;
@@ -81,6 +90,15 @@ export default function FloatingDibrah() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [clampPosition]);
+
+  useEffect(() => {
+    if (!panelOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPanelOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [panelOpen]);
 
   useEffect(() => {
     async function loadAssistantContext() {
@@ -108,7 +126,7 @@ export default function FloatingDibrah() {
       const deltaX = Math.abs(event.clientX - dragStateRef.current.startX);
       const deltaY = Math.abs(event.clientY - dragStateRef.current.startY);
 
-      if (!dragStateRef.current.moved && deltaX + deltaY > 5) {
+      if (!dragStateRef.current.moved && Math.hypot(deltaX, deltaY) >= 6) {
         dragStateRef.current.moved = true;
         setDragging(true);
       }
@@ -134,7 +152,9 @@ export default function FloatingDibrah() {
         const width = controlRef.current.offsetWidth;
         const snapToRight = previous.x + width / 2 > window.innerWidth / 2;
         const snappedX = snapToRight ? window.innerWidth - width - 12 : 12;
-        return clampPosition(snappedX, previous.y);
+        const next = clampPosition(snappedX, previous.y);
+        window.localStorage.setItem(DIBRAH_POSITION_STORAGE_KEY, JSON.stringify(next));
+        return next;
       });
 
       window.setTimeout(() => {
@@ -158,8 +178,11 @@ export default function FloatingDibrah() {
     dragStateRef.current = {
       active: true,
       moved: false,
+      pointerId: -1,
       startX: event.clientX,
       startY: event.clientY,
+      originX: position.x,
+      originY: position.y,
     };
     pointerOffsetRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
@@ -172,12 +195,54 @@ export default function FloatingDibrah() {
 
   const quickLinks = useMemo(() => assistantContext?.topServices.slice(0, 3) ?? [], [assistantContext]);
 
+  const openAssistant = () => {
+    setPanelOpen(true);
+    if (window.localStorage.getItem(DIBRAH_POLICY_ACCEPTED_KEY) !== 'true') {
+      setPolicyChecked(false);
+      setPolicyOpen(true);
+    }
+  };
+
+  useEffect(() => {
+    if (panelOpen && !policyOpen) window.requestAnimationFrame(() => draftRef.current?.focus());
+  }, [panelOpen, policyOpen]);
+
+  const acceptPolicy = () => {
+    window.localStorage.setItem(DIBRAH_POLICY_ACCEPTED_KEY, 'true');
+    setPolicyOpen(false);
+    setPolicyChecked(false);
+  };
+
+  const sendDraft = useCallback(async () => {
+    const trimmed = draft.trim();
+    if (!trimmed || sending) return;
+    const timestamp = Date.now();
+    setSending(true);
+    setSendError(null);
+    setMessages((previous) => [...previous, { id: `user-${timestamp}`, role: 'user', content: trimmed }]);
+    setDraft('');
+    try {
+      const response = await fetch('/api/ai2/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: trimmed }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { answer?: string };
+      if (!response.ok) throw new Error('DABRA_REQUEST_FAILED');
+      setMessages((previous) => [...previous, { id: `assistant-${timestamp}`, role: 'assistant', content: payload.answer || 'لا تتوفر إجابة آمنة حاليًا.' }]);
+    } catch {
+      setSendError('تعذر الاتصال بالدبرة حاليًا. حاول مرة أخرى لاحقًا.');
+    } finally {
+      setSending(false);
+      window.requestAnimationFrame(() => draftRef.current?.focus());
+    }
+  }, [draft, sending]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 32 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.45, ease: subtleEasing }}
-      whileHover={{ y: -2 }}
       ref={controlRef}
       id="dibrah"
       className={`group fixed z-50 select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
@@ -261,43 +326,50 @@ export default function FloatingDibrah() {
             </div>
 
             <div className="border-t border-[color:var(--color-border)] px-4 py-3">
-              <div className="flex items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-white/70 px-3 py-2">
+              {sendError ? <p className="mb-2 text-xs text-rose-700">{sendError}</p> : null}
+              <div className="flex items-end gap-2 rounded-[20px] border border-[color:var(--color-border)] bg-white/70 px-3 py-2">
                 <FiMessageCircle className="text-[var(--color-gold)]" />
-                <input
+                <textarea
+                  ref={draftRef}
+                  rows={1}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  placeholder="اكتب سؤالك... (واجهة جاهزة لربط LLM)"
-                  className="w-full bg-transparent text-sm text-[var(--color-navy)] outline-none"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault();
+                      void sendDraft();
+                    }
+                  }}
+                  placeholder="ابدأ الكتابة"
+                  className="max-h-24 min-h-6 w-full resize-none overflow-y-auto bg-transparent text-sm leading-6 text-[var(--color-navy)] outline-none"
                 />
                 <button
                   type="button"
                   aria-label="إرسال"
-                  onClick={() => {
-                    if (!draft.trim()) return;
-
-                    const userMessage: DibrahMessage = {
-                      id: `user-${Date.now()}`,
-                      role: 'user',
-                      content: draft.trim(),
-                    };
-
-                    const assistantReply: DibrahMessage = {
-                      id: `assistant-${Date.now()}`,
-                      role: 'assistant',
-                      content:
-                        'تم تسجيل سؤالك. في DEV-020 سنربط هذه الواجهة بمحرك LLM فعلي مع سياق السوق المباشر.',
-                    };
-
-                    setMessages((previous) => [...previous, userMessage, assistantReply]);
-                    setDraft('');
-                  }}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-navy)] text-[var(--color-light)] transition hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)]"
+                  onClick={() => void sendDraft()}
+                  disabled={sending || !draft.trim()}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-navy)] text-[var(--color-light)] transition hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FiSend size={14} />
                 </button>
               </div>
             </div>
           </div>
+          {policyOpen ? (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] bg-[var(--color-navy)]/35 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="dabra-policy-title">
+              <div className="max-h-full w-full overflow-hidden rounded-[20px] border border-[var(--color-gold)]/30 bg-[var(--color-shell)] shadow-[0_24px_60px_rgba(13,27,42,0.3)]" dir="rtl">
+                <div className="border-b border-[color:var(--color-border)] px-4 py-3"><h2 id="dabra-policy-title" className="text-lg font-semibold text-[var(--color-navy)]">إخلاء مسؤولية</h2></div>
+                <div className="max-h-[min(48vh,360px)] overflow-y-auto px-4 py-3 text-sm leading-7 text-[var(--color-muted)]">
+                  <p>إن تطبيق الدَّبْرَة هو نموذج لغوي للذكاء الاصطناعي، يستخدم البيانات الخاصة بمواقع dir3com لتسهيل الوصول إلى المعلومات المتعلقة بالبحث والحجز للسيارات والفنادق والشقق والتأشيرات والتجارب والفعاليات وخطط الرحلات السياحية. وعليه، لا يجب اعتبار الردود الصادرة عنه استشارة مهنية أو بديلًا عن استشارة خبير متخصص ومؤهل.</p>
+                  <p className="mt-3">لا تتحمل dir3com ولا الدَّبْرَة، مساعد الذكاء الاصطناعي، المسؤولية عن أي إجراء أو إجراءات يتم اتخاذها أو التخلي عنها بناءً على المعلومات التي يقدمها. كما قد لا يوفر مساعد الذكاء الاصطناعي دائمًا إجابات دقيقة أو كاملة، وقد يُنشئ أحيانًا إجابات غير مناسبة أو غير صحيحة نظرًا لطبيعة بيانات التدريب الخاصة به.</p>
+                  <p className="mt-3">يتحمل المستخدم بالكامل مسؤولية استخدامه لتطبيق مساعد الذكاء الاصطناعي الدَّبْرَة.</p>
+                  <p className="mt-3 font-semibold text-[var(--color-navy)]">تحت الاختبار.</p>
+                  <label className="mt-4 flex items-start gap-3 text-[var(--color-navy)]"><input type="checkbox" checked={policyChecked} onChange={(event) => setPolicyChecked(event.target.checked)} className="mt-1 h-4 w-4" /><span>أوافق على أنني قد قرأت <Link href="/terms" className="font-semibold text-[var(--color-gold)] underline">الشروط والأحكام</Link> و<Link href="/privacy" className="font-semibold text-[var(--color-gold)] underline">سياسة الخصوصية</Link>، وأوافق أيضًا على معالجة اسمي وعنوان بريدي الإلكتروني عند تسجيل الدخول. أفهم أن الاسم الكامل وعنوان البريد الإلكتروني يُستخدمان لتتبع المحادثات وتوفير تجربة مخصصة.</span></label>
+                </div>
+                <div className="border-t border-[color:var(--color-border)] px-4 py-3"><button type="button" onClick={acceptPolicy} disabled={!policyChecked} className="w-full rounded-xl bg-[var(--color-gold)] px-4 py-3 text-sm font-semibold text-[var(--color-navy)] disabled:cursor-not-allowed disabled:opacity-40">متابعة</button></div>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -306,18 +378,21 @@ export default function FloatingDibrah() {
         title="اسأل الدبرة"
         aria-label="الدبرة"
         onPointerDown={handlePointerDown}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          if (panelOpen) setPanelOpen(false); else openAssistant();
+        }}
         onClick={(event) => {
           event.stopPropagation();
           if (dragStateRef.current.moved) return;
-          setPanelOpen((previous) => !previous);
+          if (panelOpen) setPanelOpen(false); else openAssistant();
         }}
         className="group relative flex min-h-14 items-center gap-3 overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-[linear-gradient(150deg,#0d1b2a_0%,#163149_100%)] px-3 py-3 text-right text-[var(--color-light)] shadow-[0_26px_56px_rgba(13,27,42,0.3)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45"
       >
         <span className="pointer-events-none absolute -right-4 top-1/2 h-12 w-12 -translate-y-1/2 rounded-full bg-[var(--color-gold)]/20 blur-2xl" />
-        <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(180deg,#f7e9c0_0%,#d4af37_100%)]">
-          <span className="absolute top-1 h-3 w-9 rounded-full bg-[#9B1C31] opacity-85" />
-          <span className="absolute top-3 h-5 w-10 rounded-b-[14px] rounded-t-sm bg-white/85" />
-          <span className="absolute bottom-1 h-5 w-5 rounded-full bg-[#F5D8BF]" />
+        <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-white/60">
+          <Image src="/brand/runtime/DABRA emoji.png" alt="DABRA avatar" fill sizes="48px" unoptimized className="object-cover" />
         </span>
         <span className="hidden flex-col sm:flex">
           <span className="inline-flex items-center gap-2 text-xs text-[var(--color-gold)]">
