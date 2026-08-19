@@ -255,11 +255,20 @@ export default function FloatingDibrah() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ message: trimmed }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { answer?: string };
-      if (!response.ok) throw new Error('DABRA_REQUEST_FAILED');
+      const payload = (await response.json().catch(() => ({}))) as { answer?: string; error?: string };
+      if (!response.ok) {
+        if (response.status === 400) {
+          setSendError('الرسالة غير صالحة، حاول صياغتها بشكل مختلف.');
+        } else if (response.status === 401 || response.status === 403) {
+          setSendError('تعذر التحقق من الجلسة. حدّث الصفحة وحاول مرة أخرى.');
+        } else {
+          setSendError('تعذر الاتصال بالدبرة حاليًا. حاول مرة أخرى لاحقًا.');
+        }
+        return;
+      }
       setMessages((previous) => [...previous, { id: `assistant-${timestamp}`, role: 'assistant', content: payload.answer || 'لا تتوفر إجابة آمنة حاليًا.' }]);
     } catch {
-      setSendError('تعذر الاتصال بالدبرة حاليًا. حاول مرة أخرى لاحقًا.');
+      setSendError('تعذر الاتصال بالدبرة حاليًا. تحقّق من الاتصال بالإنترنت وحاول مرة أخرى.');
     } finally {
       setSending(false);
       window.requestAnimationFrame(() => draftRef.current?.focus());
