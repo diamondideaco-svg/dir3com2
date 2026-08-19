@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buildAI2ChatResponse } from '@/lib/ai2/runtime/chat';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,14 +8,8 @@ type AI2ChatRequest = {
 };
 
 export async function POST(request: NextRequest) {
-  // Public floating DABRA chat: session is resolved for future personalization only.
-  // General conversational inference must never require pilot authorization.
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  void user;
-
+  // Public floating DABRA chat: no auth/pilot lookup on this hot path, general
+  // conversational inference must never require pilot authorization.
   let body: AI2ChatRequest | null = null;
 
   try {

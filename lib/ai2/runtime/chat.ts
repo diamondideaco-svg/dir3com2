@@ -18,6 +18,7 @@ export type AI2ChatLanguage = 'ar' | 'en';
 export type AI2ChatGroundingStatus =
   | 'grounded'
   | 'grounded-global-web'
+  | 'answered-general'
   | 'fallback-no-source'
   | 'fallback-provider-unavailable';
 
@@ -135,16 +136,58 @@ const PROVIDER_UNAVAILABLE_FALLBACK: Record<AI2ChatLanguage, string> = {
 const AI2_CHUNKS = buildAI2RagChunks(AI2_KNOWLEDGE_REGISTRY);
 const REMOTE_PROVIDERS = ['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'] as const;
 const AUTO_PROVIDER_ORDER: RemoteProvider[] = ['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'];
-const DEFAULT_GLOBAL_DEADLINE_MS = 60_000;
-const DEFAULT_MAX_FALLBACK_HOPS = 3;
+// Public floating DABRA must feel immediate: short deadline, at most one fallback hop (env-overridable for pilot/backend testing).
+const DEFAULT_GLOBAL_DEADLINE_MS = 10_000;
+const DEFAULT_MAX_FALLBACK_HOPS = 1;
 const MIN_GLOBAL_DEADLINE_MS = 5_000;
 const MAX_GLOBAL_DEADLINE_MS = 120_000;
 const MIN_PROVIDER_ATTEMPT_BUDGET_MS = 250;
 
+// Only genuinely time-sensitive/factual asks should pay the cost of live web grounding.
+const FRESHNESS_INTENT_PATTERNS = [
+  /\b(?:now|today|currently|current|latest|right now|as of today|this week)\b/,
+  /(?:الان|الآن|اليوم|حاليا|حالياً|الحين|هذه اللحظة|آخر أخبار|أحدث مواعيد|احدث مواعيد)/,
+] as const;
+
+type DabraChatIntent = 'fresh-web' | 'general';
+type DabraLatencyRoute = 'internal' | 'fast-chat' | 'web' | 'out-of-scope' | 'unavailable';
+
+function classifyDabraIntent(message: string): DabraChatIntent {
+  const normalized = normalizeIntentText(message);
+  return FRESHNESS_INTENT_PATTERNS.some((pattern) => pattern.test(normalized)) ? 'fresh-web' : 'general';
+}
+
+const CONCISE_ANSWER_HINT: Record<AI2ChatLanguage, string> = {
+  ar: 'تعليمة تنسيق لواجهة الدردشة العائمة فقط: أجب بإيجاز شديد (من ٣ إلى ٦ أسطر أو نقاط قصيرة)، ولا تكتب مقالاً طويلاً إلا إذا طلب المستخدم تفصيلاً صريحاً، وإذا احتجت لمزيد من المعلومات فاطرح سؤالاً واحداً مفيداً.',
+  en: 'Floating-chat formatting instruction only: answer concisely (3-6 short lines/points), avoid long essay-style Markdown unless explicit detail is requested, and ask at most one useful follow-up question if needed.',
+};
+
+function logDabraLatency(input: {
+  totalMs: number;
+  route: DabraLatencyRoute;
+  provider?: AI2Provider;
+  providerMs?: number;
+  fallbackCount?: number;
+  grounded: boolean;
+}) {
+  // No message/answer content is logged, only timing/routing metadata.
+  console.log('DABRA_LATENCY', JSON.stringify({
+    totalMs: input.totalMs,
+    route: input.route,
+    provider: input.provider ?? 'local',
+    providerMs: input.providerMs ?? 0,
+    fallbackCount: input.fallbackCount ?? 0,
+    grounded: input.grounded,
+  }));
+}
+
 export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResponse> {
+  const requestStartedAt = Date.now();
   const language = detectLanguage(message);
+  const intent = classifyDabraIntent(message);
 
   if (isOutOfScopeIntent(message)) {
+    logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'out-of-scope', grounded: false });
     return {
       answer: OUT_OF_SCOPE_FALLBACK[language],
       sources: [],
@@ -163,6 +206,7 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
   const globalWebEnabled = String(process.env.DABRA_GLOBAL_WEB_ENABLED ?? '').toLowerCase() === 'true';
 
   if (internalMatchGate.hasStrongMatch && internalSources.length > 0) {
+    logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'internal', provider: 'local', grounded: true });
     return {
       answer: composeGroundedAnswer(matches, language),
       sources: internalSources,
@@ -175,9 +219,12 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
     };
   }
 
+  const latencyRoute: DabraLatencyRoute = intent === 'fresh-web' ? 'web' : 'fast-chat';
+
   if (internalSources.length === 0 || !internalMatchGate.hasStrongMatch) {
     const providerPlan = buildProviderOrder();
     if (!providerPlan.ok) {
+      logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'unavailable', grounded: false });
       return {
         answer: PROVIDER_UNAVAILABLE_FALLBACK[language],
         sources: [],
@@ -193,23 +240,39 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
       };
     }
     const configuredProviders = providerPlan.providers;
+    // Conversational asks skip forced citation grounding; the model still answers with the same canonical persona/prompt.
+    const outgoingMessage = `${CONCISE_ANSWER_HINT[language]}\n\n${message}`;
     if (globalWebEnabled && configuredProviders.length > 0) {
-      const startedAt = Date.now();
       const globalDeadlineMs = normalizeBoundedInteger(process.env.DABRA_AI_GLOBAL_DEADLINE_MS, DEFAULT_GLOBAL_DEADLINE_MS, MIN_GLOBAL_DEADLINE_MS, MAX_GLOBAL_DEADLINE_MS);
       const attemptedProviders: RemoteProvider[] = [];
       let primaryError: AI2ProviderErrorCategory | undefined;
       let finalError: AI2ProviderErrorCategory | undefined;
 
       for (const provider of configuredProviders) {
-        const remainingMs = globalDeadlineMs - (Date.now() - startedAt);
+        const remainingMs = globalDeadlineMs - (Date.now() - requestStartedAt);
         if (remainingMs < MIN_PROVIDER_ATTEMPT_BUDGET_MS) {
           finalError = 'deadline_exceeded';
           break;
         }
         attemptedProviders.push(provider);
-        const perAttemptTimeoutMs = Math.max(1, Math.min(remainingMs, Math.floor(remainingMs / 3) || remainingMs));
-        const result = await callProvider(provider, message, language, perAttemptTimeoutMs);
-        if (result.ok && (result.citations.length > 0 || providerAcceptsNoCitations(result.provider))) {
+        // Split the remaining budget across only the attempts actually left (not a fixed /3), so a
+        // short public deadline with max one fallback doesn't starve every attempt.
+        const remainingProviderCount = configuredProviders.length - attemptedProviders.length + 1;
+        const perAttemptTimeoutMs = Math.max(MIN_PROVIDER_ATTEMPT_BUDGET_MS, Math.min(remainingMs, Math.floor(remainingMs / remainingProviderCount) || remainingMs));
+        const attemptStartedAt = Date.now();
+        const result = await callProvider(provider, outgoingMessage, language, perAttemptTimeoutMs);
+        const attemptMs = Date.now() - attemptStartedAt;
+        const hasCitations = result.citations.length > 0;
+        const isGroundedResult = hasCitations || providerAcceptsNoCitations(result.provider);
+        if (result.ok && (isGroundedResult || intent === 'general')) {
+          logDabraLatency({
+            totalMs: Date.now() - requestStartedAt,
+            route: latencyRoute,
+            provider: result.provider,
+            providerMs: attemptMs,
+            fallbackCount: attemptedProviders.length - 1,
+            grounded: isGroundedResult,
+          });
           return {
             answer: result.answer,
             sources: result.citations.map((url, index) => ({
@@ -219,7 +282,7 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
               url,
             })),
             language,
-            groundingStatus: 'grounded-global-web',
+            groundingStatus: isGroundedResult ? 'grounded-global-web' : 'answered-general',
             promptBound: true,
             promptVersion: AI2_DABRA_PROMPT_VERSION,
             retrievalMode: result.retrievalMode,
@@ -236,6 +299,13 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
         if (!isTransientFallbackError(finalError)) break;
       }
 
+      logDabraLatency({
+        totalMs: Date.now() - requestStartedAt,
+        route: latencyRoute,
+        provider: 'local',
+        fallbackCount: Math.max(0, attemptedProviders.length - 1),
+        grounded: false,
+      });
       return {
         answer: PROVIDER_UNAVAILABLE_FALLBACK[language],
         sources: [],
@@ -253,6 +323,7 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
       };
     }
 
+    logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: latencyRoute, grounded: false });
     return {
       answer: NO_SOURCE_FALLBACK[language],
       sources: [],
@@ -265,6 +336,7 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
     };
   }
 
+  logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'internal', provider: 'local', grounded: true });
   return {
     answer: composeGroundedAnswer(matches, language),
     sources: internalSources,
