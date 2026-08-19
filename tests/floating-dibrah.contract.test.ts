@@ -26,3 +26,15 @@ test('floating DABRA has no hover-driven movement and keeps drag movement explic
   assert.match(source, /pointermove/);
   assert.match(source, /Math\.hypot/);
 });
+
+test('floating DABRA registers repeatable global pointer lifecycle handlers', () => {
+  assert.doesNotMatch(source, /if \(!dragStateRef\.current\.active\) return;\s*\n\s*const handleMove/);
+  assert.match(source, /window\.addEventListener\('pointermove', handleMove\)/);
+  assert.match(source, /window\.addEventListener\('pointerup', finalizeDrag\)/);
+  assert.match(source, /window\.addEventListener\('pointercancel', finalizeDrag\)/);
+  assert.doesNotMatch(source, /addEventListener\('pointerup',[^\n]+once: true/);
+  assert.match(source, /pointerId: event\.pointerId/);
+  assert.match(source, /setPointerCapture\(event\.pointerId\)/);
+  assert.match(source, /releasePointerCapture\(event\.pointerId\)/);
+  assert.match(source, /localStorage\.getItem\(DIBRAH_POSITION_STORAGE_KEY\)/);
+});

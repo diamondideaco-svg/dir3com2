@@ -53,11 +53,27 @@ function buildSeedMessages(context: DibrahAssistantContext | null): DibrahMessag
 export default function FloatingDibrah() {
   const controlRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef({ active: false, moved: false, pointerId: -1, startX: 0, startY: 0, originX: 0, originY: 0 });
-  const pointerOffsetRef = useRef({ x: 0, y: 0 });
+  const pointerTargetRef = useRef<HTMLButtonElement | null>(null);
+  const suppressClickRef = useRef(false);
 
   const [position, setPosition] = useState<{ x: number; y: number }>(() => {
     if (typeof window === 'undefined') {
       return { x: 12, y: 120 };
+    }
+
+    const stored = window.localStorage.getItem(DIBRAH_POSITION_STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as { x?: unknown; y?: unknown };
+        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+          return {
+            x: Math.min(Math.max(parsed.x, 12), window.innerWidth - 220 - 12),
+            y: Math.min(Math.max(parsed.y, 84), window.innerHeight - 72 - 12),
+          };
+        }
+      } catch {
+        window.localStorage.removeItem(DIBRAH_POSITION_STORAGE_KEY);
+      }
     }
 
     return {
@@ -125,11 +141,11 @@ export default function FloatingDibrah() {
   }, []);
 
   useEffect(() => {
-    if (!dragStateRef.current.active) return;
-
     const handleMove = (event: PointerEvent) => {
-      const deltaX = Math.abs(event.clientX - dragStateRef.current.startX);
-      const deltaY = Math.abs(event.clientY - dragStateRef.current.startY);
+      if (!dragStateRef.current.active || event.pointerId !== dragStateRef.current.pointerId) return;
+
+      const deltaX = event.clientX - dragStateRef.current.startX;
+      const deltaY = event.clientY - dragStateRef.current.startY;
 
       if (!dragStateRef.current.moved && Math.hypot(deltaX, deltaY) >= 6) {
         dragStateRef.current.moved = true;
@@ -140,16 +156,26 @@ export default function FloatingDibrah() {
         return;
       }
 
-      setPosition(clampPosition(event.clientX - pointerOffsetRef.current.x, event.clientY - pointerOffsetRef.current.y));
+      setPosition(clampPosition(dragStateRef.current.originX + deltaX, dragStateRef.current.originY + deltaY));
     };
 
-    const handleUp = () => {
+    const finalizeDrag = (event: PointerEvent) => {
+      if (!dragStateRef.current.active || event.pointerId !== dragStateRef.current.pointerId) return;
+
+      try {
+        pointerTargetRef.current?.releasePointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture may already be released by the browser.
+      }
       dragStateRef.current.active = false;
+      dragStateRef.current.pointerId = -1;
 
       if (!dragStateRef.current.moved) {
+        setDragging(false);
         return;
       }
 
+      suppressClickRef.current = true;
       setDragging(false);
       setPosition((previous) => {
         if (!controlRef.current) return previous;
@@ -162,34 +188,39 @@ export default function FloatingDibrah() {
         return next;
       });
 
-      window.setTimeout(() => {
-        dragStateRef.current.moved = false;
-      }, 0);
+      dragStateRef.current.moved = false;
     };
 
     window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp, { once: true });
+    window.addEventListener('pointerup', finalizeDrag);
+    window.addEventListener('pointercancel', finalizeDrag);
 
     return () => {
       window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointerup', finalizeDrag);
+      window.removeEventListener('pointercancel', finalizeDrag);
     };
   }, [clampPosition]);
 
-  const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+  const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!controlRef.current) return;
 
-    const rect = controlRef.current.getBoundingClientRect();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Continue with window listeners when capture is unavailable.
+    }
+    pointerTargetRef.current = event.currentTarget;
+    suppressClickRef.current = false;
     dragStateRef.current = {
       active: true,
       moved: false,
-      pointerId: -1,
+      pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
       originX: position.x,
       originY: position.y,
     };
-    pointerOffsetRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
 
   const quickLinks = useMemo(() => assistantContext?.topServices.slice(0, 3) ?? [], [assistantContext]);
@@ -388,7 +419,10 @@ export default function FloatingDibrah() {
         }}
         onClick={(event) => {
           event.stopPropagation();
-          if (dragStateRef.current.moved) return;
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            return;
+          }
           if (panelOpen) setPanelOpen(false); else openAssistant();
         }}
         className="group relative flex min-h-14 items-center gap-3 overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-[linear-gradient(150deg,#0d1b2a_0%,#163149_100%)] px-3 py-3 text-right text-[var(--color-light)] shadow-[0_26px_56px_rgba(13,27,42,0.3)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45"
