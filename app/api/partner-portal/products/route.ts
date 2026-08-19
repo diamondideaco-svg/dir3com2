@@ -16,8 +16,8 @@ function safeText(value: unknown, max = 160) {
 
 function normalizeProductStatus(value: unknown) {
   const normalized = safeText(value, 30).toLowerCase();
-  const supported = new Set(['draft', 'active', 'inactive', 'featured']);
-  return supported.has(normalized) ? normalized : 'draft';
+  const partnerEditableStatuses = new Set(['draft', 'inactive']);
+  return partnerEditableStatuses.has(normalized) ? normalized : 'draft';
 }
 
 function normalizeCurrency(value: unknown) {
