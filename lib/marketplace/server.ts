@@ -44,6 +44,11 @@ export function classifyMarketplaceAssistantDataQuality(
   return hasPilotMarkers || !hasRealData ? 'pilot-test' : 'live-verified';
 }
 
+export function filterAssistantServices<T extends Pick<MarketplaceService, 'source' | 'slug' | 'name_ar' | 'name_en' | 'description_ar' | 'description_en' | 'badge'>>(services: T[]) {
+  return services.filter((service) => service.source !== 'fallback')
+    .filter((service) => ![service.slug, service.name_ar, service.name_en, service.description_ar, service.description_en, service.badge].some(containsPilotMarker));
+}
+
 function withDestination(records: Array<Record<string, unknown>>) {
   return records.map((record) => {
     const products = Array.isArray(record.products)
@@ -157,8 +162,7 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery) {
 export async function getMarketplaceAssistantContext() {
   const snapshot = await getMarketplaceSnapshot();
   const services = snapshot.services;
-  const topServices = services
-    .filter((service) => service.source !== 'fallback')
+  const topServices = filterAssistantServices(services)
     .slice(0, 6)
     .map((service) => ({
       id: service.id,

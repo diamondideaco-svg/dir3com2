@@ -2,11 +2,9 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { FiExternalLink, FiMessageCircle, FiSend, FiX } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
-import { subtleEasing } from '@/components/shared/motion';
 
 type DibrahAssistantContext = {
   source: 'supabase' | 'api' | 'fallback';
@@ -269,12 +267,10 @@ export default function FloatingDibrah() {
   }, [draft, sending]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 32 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.45, ease: subtleEasing }}
+    <div
       ref={controlRef}
       id="dibrah"
+      data-dabra-runtime="canonical-v2"
       className={`group fixed z-50 select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
       style={{ left: position.x, top: position.y }}
     >
@@ -439,6 +435,6 @@ export default function FloatingDibrah() {
           <span className="text-[11px] text-[var(--color-light)]/70">اسأل الدبرة</span>
         </span>
       </button>
-    </motion.div>
+    </div>
   );
 }

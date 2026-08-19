@@ -38,3 +38,8 @@ test('floating DABRA registers repeatable global pointer lifecycle handlers', ()
   assert.match(source, /releasePointerCapture\(event\.pointerId\)/);
   assert.match(source, /localStorage\.getItem\(DIBRAH_POSITION_STORAGE_KEY\)/);
 });
+
+test('floating DABRA remains a single viewport-level canonical runtime', () => {
+  assert.match(source, /data-dabra-runtime="canonical-v2"/);
+  assert.doesNotMatch(source, /<motion\.div/);
+});

@@ -1,4 +1,3 @@
-import DabraJourneyPanel from '@/components/ai2/DabraJourneyPanel';
 import { requirePilotPageAccess } from '@/lib/auth/pilot';
 import { FiShield } from 'react-icons/fi';
 
@@ -30,7 +29,6 @@ export default async function AiPilotPage() {
         </div>
       </section>
 
-      <DabraJourneyPanel />
     </div>
   );
 }
