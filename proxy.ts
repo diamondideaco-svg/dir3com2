@@ -8,6 +8,7 @@ const PROTECTED_PREFIXES = ['/profile', '/my-account', '/my-bookings', '/my-docu
 function isPublicPath(pathname: string) {
   if (pathname === '/') return true;
   if (pathname.startsWith('/_next') || pathname.startsWith('/api/')) return true;
+  if (pathname.startsWith('/brand/')) return true;
 
   if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/services/')) {
     return true;
