@@ -11,6 +11,7 @@ import { subtleEasing } from '@/components/shared/motion';
 type DibrahAssistantContext = {
   source: 'supabase' | 'api' | 'fallback';
   hasRealData: boolean;
+  dataQuality?: 'live-verified' | 'pilot-test' | 'unavailable';
   totalServices: number;
   categories: Array<{ category: string; label: string; count: number }>;
   topServices: Array<{
@@ -34,7 +35,11 @@ const DIBRAH_POSITION_STORAGE_KEY = 'dir3com:dibrah-position:v1';
 const DIBRAH_POLICY_ACCEPTED_KEY = 'dir3com:dibrah-policy-accepted:v1';
 
 function buildSeedMessages(context: DibrahAssistantContext | null): DibrahMessage[] {
-  const sourceLine = context?.hasRealData ? 'البيانات الحالية مرتبطة بسوق حي.' : 'حالياً نعرض كتالوجاً احتياطياً حتى اكتمال الربط.';
+  const sourceLine = context?.dataQuality === 'live-verified'
+    ? 'البيانات الحالية موثقة ضمن السوق الحي.'
+    : context?.dataQuality === 'pilot-test'
+      ? 'البيانات الحالية تجريبية أو ضمن نطاق الاختبار، وليست إثباتًا للتوفر الحي.'
+      : 'لا تتوفر حاليًا بيانات سوق موثقة كافية.';
 
   return [
     {
@@ -187,12 +192,6 @@ export default function FloatingDibrah() {
     pointerOffsetRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
 
-  const isPanelOnLeft = position.x > (typeof window === 'undefined' ? 0 : window.innerWidth * 0.55);
-
-  const panelPositionClass = isPanelOnLeft
-    ? 'right-0 translate-x-[-104%] sm:translate-x-[-108%]'
-    : 'left-0 translate-x-[0%] sm:translate-x-[108%]';
-
   const quickLinks = useMemo(() => assistantContext?.topServices.slice(0, 3) ?? [], [assistantContext]);
 
   const openAssistant = () => {
@@ -253,7 +252,7 @@ export default function FloatingDibrah() {
       </span>
 
       {panelOpen ? (
-        <div className={`absolute top-0 w-[min(86vw,360px)] ${panelPositionClass}`}>
+        <div className="fixed inset-x-3 bottom-3 top-auto w-auto sm:inset-x-auto sm:bottom-4 sm:right-4 sm:top-auto sm:w-[min(88vw,380px)]">
           <div className="overflow-hidden rounded-[24px] border border-[var(--color-gold)]/25 bg-[var(--color-shell)]/95 shadow-[0_30px_70px_rgba(13,27,42,0.26)] backdrop-blur-xl">
             <div className="flex items-center justify-between border-b border-[color:var(--color-border)] px-4 py-3">
               <div>
@@ -276,7 +275,11 @@ export default function FloatingDibrah() {
             <div className="max-h-[62vh] overflow-y-auto px-4 py-3">
               <div className="mb-3 flex flex-wrap gap-2 text-xs">
                 <span className="rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-3 py-1.5 text-[var(--color-navy)]">
-                  {assistantContext?.hasRealData ? 'Live Marketplace' : 'Fallback Mode'}
+                  {assistantContext?.dataQuality === 'live-verified'
+                    ? 'بيانات سوق موثقة'
+                    : assistantContext?.dataQuality === 'pilot-test'
+                      ? 'بيانات تجريبية للاختبار'
+                      : 'بيانات غير متاحة'}
                 </span>
                 <span className="rounded-full border border-[color:var(--color-border)] bg-white/70 px-3 py-1.5 text-[var(--color-muted)]">
                   {assistantContext?.totalServices ?? 0} خدمة

@@ -26,6 +26,24 @@ export type MarketplaceSnapshot = {
   generatedAt: string;
 };
 
+export type MarketplaceAssistantDataQuality = 'live-verified' | 'pilot-test' | 'unavailable';
+
+function containsPilotMarker(value: unknown) {
+  return /(?:phase[- ]?\d+|test|synthetic|staging|seed|provisional|review)/i.test(String(value ?? ''));
+}
+
+export function classifyMarketplaceAssistantDataQuality(
+  services: Array<Pick<MarketplaceService, 'slug' | 'name_ar' | 'name_en' | 'description_ar' | 'description_en' | 'badge'>>,
+  hasRealData: boolean,
+): MarketplaceAssistantDataQuality {
+  if (services.length === 0) return 'unavailable';
+  const hasPilotMarkers = services.some((service) =>
+    [service.slug, service.name_ar, service.name_en, service.description_ar, service.description_en, service.badge]
+      .some(containsPilotMarker),
+  );
+  return hasPilotMarkers || !hasRealData ? 'pilot-test' : 'live-verified';
+}
+
 function withDestination(records: Array<Record<string, unknown>>) {
   return records.map((record) => {
     const products = Array.isArray(record.products)
@@ -152,11 +170,14 @@ export async function getMarketplaceAssistantContext() {
       href: service.href,
     }));
 
+  const dataQuality = classifyMarketplaceAssistantDataQuality(services, snapshot.hasRealData);
+
   const facets = summarizeMarketplace(services);
 
   return {
     source: snapshot.source,
     hasRealData: snapshot.hasRealData,
+    dataQuality,
     totalServices: services.length,
     categories: facets.categories,
     collections: facets.collections,
