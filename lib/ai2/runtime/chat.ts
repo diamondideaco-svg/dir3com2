@@ -157,9 +157,81 @@ function classifyDabraIntent(message: string): DabraChatIntent {
   return FRESHNESS_INTENT_PATTERNS.some((pattern) => pattern.test(normalized)) ? 'fresh-web' : 'general';
 }
 
+const DETAIL_REQUEST_PATTERNS = [
+  /\b(?:detail|detailed|elaborate|elaborated|in depth|comprehensive|full plan|long answer|explain in detail)\b/,
+  /(?:بالتفصيل|تفصيلي|فصّل|فصل لي|بالتفاصيل|موسع|شرح مطول|شرح مفصل|خطة كاملة|اشرح.{0,15}بالتفصيل)/,
+] as const;
+
+function wantsDetailedAnswer(message: string): boolean {
+  const normalized = normalizeIntentText(message);
+  return DETAIL_REQUEST_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+const MEMORY_OR_ACCOUNT_QUESTION_PATTERNS = [
+  /\b(?:memory|remember|conversation history|account access|access (?:my|your) account|my account|my bookings?|access (?:my|your) bookings?|my data)\b/,
+  /(?:تتذكر|ذاكرة|ذاكرتك|حسابي|بياناتي|محادثاتي السابقة|تاريخ المحادثة|تتذكرين|حجوزاتي|الوصول (?:إلى|الى) حسابي|الوصول (?:إلى|الى) حجوزاتي)/,
+] as const;
+
+function userAskedAboutMemoryOrAccount(message: string): boolean {
+  const normalized = normalizeIntentText(message);
+  return MEMORY_OR_ACCOUNT_QUESTION_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+// Provider output may still contain markdown syntax; the floating panel renders plain text only.
+function stripMarkdownFormatting(text: string): string {
+  let out = text;
+  out = out.replace(/^\s{0,3}#{1,6}\s+/gm, '');
+  out = out.replace(/\*\*\*([^*]+)\*\*\*/g, '$1');
+  out = out.replace(/\*\*([^*]+)\*\*/g, '$1');
+  out = out.replace(/__([^_]+)__/g, '$1');
+  out = out.replace(/(^|[^\w*])\*([^*\n]+)\*(?!\w)/g, '$1$2');
+  out = out.replace(/(^|[^\w_])_([^_\n]+)_(?!\w)/g, '$1$2');
+  out = out.replace(/`{1,3}([^`]+)`{1,3}/g, '$1');
+  out = out.replace(/^\s{0,3}[-*+]\s+/gm, '• ');
+  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1 ($2)');
+  out = out.replace(/^\s{0,3}\|.*\|\s*$/gm, '');
+  out = out.replace(/^\s{0,3}-{3,}\s*$/gm, '');
+  out = out.replace(/[ \t]+\n/g, '\n');
+  out = out.replace(/\n{3,}/g, '\n\n');
+  return out.trim();
+}
+
+const UNSOLICITED_MEMORY_DISCLAIMER_PATTERNS = [
+  /[^.!؟\n]*\bi (?:have|don't have|do not have) (?:no |any )?memory\b[^.!؟\n]*[.!؟]?/gi,
+  /[^.!؟\n]*\bi cannot access your account\b[^.!؟\n]*[.!؟]?/gi,
+  /[^.!؟\n]*\bevery conversation starts from (?:zero|scratch)\b[^.!؟\n]*[.!؟]?/gi,
+  /[^.!؟\n]*لا (?:أملك|امتلك) ذاكرة[^.!؟\n]*[.!؟]?/g,
+  /[^.!؟\n]*لا (?:يمكنني|أستطيع) الوصول (?:إلى|الى) حسابك[^.!؟\n]*[.!؟]?/g,
+  /[^.!؟\n]*كل محادثة تبدأ من (?:الصفر|جديد)[^.!؟\n]*[.!؟]?/g,
+] as const;
+
+function stripUnsolicitedMemoryDisclaimer(text: string, message: string): string {
+  if (userAskedAboutMemoryOrAccount(message)) return text;
+  let out = text;
+  for (const pattern of UNSOLICITED_MEMORY_DISCLAIMER_PATTERNS) {
+    out = out.replace(pattern, '');
+  }
+  return out.replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
+}
+
+const CONCISE_DEFAULT_MAX_LINES = 6;
+
+function enforceConciseDefault(text: string, message: string): string {
+  if (wantsDetailedAnswer(message)) return text;
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+  if (lines.length <= CONCISE_DEFAULT_MAX_LINES) return text;
+  return lines.slice(0, CONCISE_DEFAULT_MAX_LINES).join('\n');
+}
+
+function finalizeDabraAnswer(rawAnswer: string, message: string): string {
+  const plain = stripMarkdownFormatting(rawAnswer);
+  const withoutUnsolicitedDisclaimer = stripUnsolicitedMemoryDisclaimer(plain, message);
+  return enforceConciseDefault(withoutUnsolicitedDisclaimer, message);
+}
+
 const CONCISE_ANSWER_HINT: Record<AI2ChatLanguage, string> = {
-  ar: 'تعليمة تنسيق لواجهة الدردشة العائمة فقط: أجب بإيجاز شديد (من ٣ إلى ٦ أسطر أو نقاط قصيرة)، ولا تكتب مقالاً طويلاً إلا إذا طلب المستخدم تفصيلاً صريحاً، وإذا احتجت لمزيد من المعلومات فاطرح سؤالاً واحداً مفيداً.',
-  en: 'Floating-chat formatting instruction only: answer concisely (3-6 short lines/points), avoid long essay-style Markdown unless explicit detail is requested, and ask at most one useful follow-up question if needed.',
+  ar: 'تعليمة تنسيق لواجهة الدردشة العائمة فقط: أجب بإيجاز شديد (من ٣ إلى ٦ أسطر أو نقاط قصيرة) بنص عادي بدون رموز تنسيق مثل ** أو ###، ولا تكتب مقالاً طويلاً إلا إذا طلب المستخدم تفصيلاً صريحاً. عرّف عن نفسك كالدَّبْرَة، مساعد السفر الذكي والحارس السياحي في dir3com، لا كباحث ويب عام. لا تذكر عدم امتلاك ذاكرة أو عدم الوصول للحساب إلا إذا سأل المستخدم عن ذلك تحديدًا. وإذا احتجت لمزيد من المعلومات فاطرح سؤالاً واحداً مفيداً.',
+  en: 'Floating-chat formatting instruction only: answer concisely (3-6 short lines/points) in plain text with no markdown symbols like ** or ###, and avoid long essay-style output unless explicit detail is requested. Introduce yourself as DABRA, the dir3com travel guardian and smart travel assistant, never as a generic web researcher. Do not mention lacking memory or account access unless the user specifically asks about that. Ask at most one useful follow-up question if needed.',
 };
 
 function logDabraLatency(input: {
@@ -208,7 +280,7 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
   if (internalMatchGate.hasStrongMatch && internalSources.length > 0) {
     logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'internal', provider: 'local', grounded: true });
     return {
-      answer: composeGroundedAnswer(matches, language),
+      answer: finalizeDabraAnswer(composeGroundedAnswer(matches, language), message),
       sources: internalSources,
       language,
       groundingStatus: 'grounded',
@@ -274,7 +346,7 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
             grounded: isGroundedResult,
           });
           return {
-            answer: result.answer,
+            answer: finalizeDabraAnswer(result.answer, message),
             sources: result.citations.map((url, index) => ({
               sourceId: `web-${index + 1}`,
               sourceName: url,
@@ -338,7 +410,7 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
 
   logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'internal', provider: 'local', grounded: true });
   return {
-    answer: composeGroundedAnswer(matches, language),
+    answer: finalizeDabraAnswer(composeGroundedAnswer(matches, language), message),
     sources: internalSources,
     language,
     groundingStatus: 'grounded',
