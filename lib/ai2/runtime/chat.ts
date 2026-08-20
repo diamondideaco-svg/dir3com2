@@ -203,6 +203,23 @@ function stripMarkdownFormatting(text: string): string {
   return out.trim();
 }
 
+const LINK_REQUEST_PATTERNS = [
+  /\b(?:link|url|website|source address|web address)\b/i,
+  /(?:الرابط|رابط|عنوان الموقع|المصدر)/,
+] as const;
+
+function stripRawUrlLeakage(text: string, message: string): string {
+  if (LINK_REQUEST_PATTERNS.some((pattern) => pattern.test(message))) return text;
+  return text
+    .replace(/https?:\/\/[^\s)\]}]+/gi, '')
+    .replace(/\S*%(?:[0-9a-f]{2})\S*/gi, '')
+    .replace(/\butm_(?:source|medium|campaign|term|content)=[^\s&]+/gi, '')
+    .replace(/\(\s*\)/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 const UNSOLICITED_MEMORY_DISCLAIMER_PATTERNS = [
   /[^.!؟\n]*\bi (?:have|don't have|do not have) (?:no |any )?memory\b[^.!؟\n]*[.!؟]?/gi,
   /[^.!؟\n]*\bi cannot access your account\b[^.!؟\n]*[.!؟]?/gi,
@@ -233,8 +250,24 @@ function enforceConciseDefault(text: string, message: string): string {
 function finalizeDabraAnswer(rawAnswer: string, message: string): string {
   const plain = stripMarkdownFormatting(rawAnswer);
   const withoutUnsolicitedDisclaimer = stripUnsolicitedMemoryDisclaimer(plain, message);
-  return enforceConciseDefault(withoutUnsolicitedDisclaimer, message);
+  const withoutRawUrls = stripRawUrlLeakage(withoutUnsolicitedDisclaimer, message);
+  return enforceConciseDefault(withoutRawUrls, message);
 }
+
+const TECHNICAL_OUT_OF_SCOPE_PATTERNS = [
+  /\b(?:mui(?: x)?|chatbox|chat ui kit|tawk\.to|javascript api|react component|typescript|npm package|software development|write code|build (?:a )?(?:chat|widget|api))\b/i,
+  /(?:كيف (?:ابني|أبني|اصمم|أصمم|ابرمج|أبرمج).{0,30}(?:شات|واجهه|واجهة|تطبيق|كود|برمج)|جافاسكربت|برمجه|برمجة)/,
+] as const;
+
+function isTechnicalOutOfScopeIntent(message: string): boolean {
+  const normalized = normalizeIntentText(message);
+  return TECHNICAL_OUT_OF_SCOPE_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+const TECHNICAL_SCOPE_REPLY: Record<AI2ChatLanguage, string> = {
+  ar: 'هذا الطلب التقني خارج نطاق الدَّبْرَة. أنا مساعد السفر الذكي والحارس السياحي في dir3com، ويسعدني مساعدتك في التخطيط للرحلات والخدمات السياحية.',
+  en: 'That technical request is outside DABRA’s scope. I am dir3com’s travel guardian and smart travel assistant, and I can help with trips and travel services.',
+};
 
 const CONCISE_ANSWER_HINT: Record<AI2ChatLanguage, string> = {
   ar: 'تعليمة تنسيق لواجهة الدردشة العائمة فقط: أجب بإيجاز شديد (من ٣ إلى ٦ أسطر أو نقاط قصيرة) بنص عادي بدون رموز تنسيق مثل ** أو ###، ولا تكتب مقالاً طويلاً إلا إذا طلب المستخدم تفصيلاً صريحاً. عرّف عن نفسك كالدَّبْرَة، مساعد السفر الذكي والحارس السياحي في dir3com، لا كباحث ويب عام. لا تذكر عدم امتلاك ذاكرة أو عدم الوصول للحساب إلا إذا سأل المستخدم عن ذلك تحديدًا. وإذا احتجت لمزيد من المعلومات فاطرح سؤالاً واحداً مفيداً.',
@@ -367,6 +400,7 @@ export async function buildAI2ChatResponse(
   const requestStartedAt = Date.now();
   const language = detectLanguage(message);
   const intent = classifyDabraIntent(message);
+  const technicalOutOfScope = isTechnicalOutOfScopeIntent(message);
 
   if (isOutOfScopeIntent(message)) {
     logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'out-of-scope', grounded: false });
@@ -387,7 +421,7 @@ export async function buildAI2ChatResponse(
   const internalMatchGate = evaluateAI2InternalMatchGate(message, matches);
   const globalWebEnabled = String(process.env.DABRA_GLOBAL_WEB_ENABLED ?? '').toLowerCase() === 'true';
 
-  if (internalMatchGate.hasStrongMatch && internalSources.length > 0) {
+  if (!technicalOutOfScope && internalMatchGate.hasStrongMatch && internalSources.length > 0) {
     logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'internal', provider: 'local', grounded: true });
     return {
       answer: finalizeDabraAnswer(composeGroundedAnswer(matches, language), message),
@@ -467,7 +501,7 @@ export async function buildAI2ChatResponse(
             grounded: isGroundedResult,
           });
           return {
-            answer: finalizeDabraAnswer(result.answer, message),
+            answer: technicalOutOfScope ? TECHNICAL_SCOPE_REPLY[language] : finalizeDabraAnswer(result.answer, message),
             sources: result.citations.map((url, index) => ({
               sourceId: `web-${index + 1}`,
               sourceName: url,

@@ -59,7 +59,10 @@ export default function Header() {
 
   useEffect(() => {
     queueMicrotask(() => {
-      setDark(window.localStorage.getItem('dir3com-theme') === 'dark');
+      const storedDark = window.localStorage.getItem('dir3com-theme') === 'dark';
+      setDark(storedDark);
+      document.documentElement.dataset.theme = storedDark ? 'dark' : 'light';
+      document.body.dataset.theme = storedDark ? 'dark' : 'light';
       setLargeText(window.localStorage.getItem('dir3com-accessibility') === 'enhanced');
     });
   }, []);
@@ -68,6 +71,7 @@ export default function Header() {
     const next = !dark;
     setDark(next);
     document.documentElement.dataset.theme = next ? 'dark' : 'light';
+    document.body.dataset.theme = next ? 'dark' : 'light';
     window.localStorage.setItem('dir3com-theme', next ? 'dark' : 'light');
   }
 
@@ -81,7 +85,7 @@ export default function Header() {
   const utilityClass = 'inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-[#d4af37]/25 bg-white px-2 text-sm font-semibold text-[#2a2118] transition hover:border-[#d4af37] hover:text-[#a66d10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/40';
 
   return (
-    <header dir={direction} className="sticky top-0 z-40 border-b border-[#d4af37]/20 bg-[#fffdf9]/95 shadow-[0_8px_28px_rgba(76,53,18,0.07)] backdrop-blur-xl">
+    <header dir={direction} className="site-header sticky top-0 z-40 border-b border-[#d4af37]/20 bg-[#fffdf9]/95 shadow-[0_8px_28px_rgba(76,53,18,0.07)] backdrop-blur-xl">
       <div className="mx-auto flex min-h-[92px] max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="relative block h-[72px] w-[180px] shrink-0" aria-label="dir3com">
           <Image src="/brand/runtime/dir3com-logo-approved-cropped.png" alt="dir3com — Your shield for tourism" fill preload unoptimized sizes="180px" className="object-contain" />

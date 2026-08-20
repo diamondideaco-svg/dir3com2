@@ -72,6 +72,55 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --color-navy: #f2eadb;
+  --color-ink-strong: #fffaf0;
+  --color-shell: rgba(28, 31, 38, 0.96);
+  --color-card: rgba(34, 38, 46, 0.92);
+  --color-card-strong: #22262e;
+  --color-muted: #b7c0cc;
+  --color-border: rgba(226, 185, 95, 0.24);
+  --color-light: #fffaf0;
+}
+
+html[data-theme='dark'] body {
+  background: linear-gradient(180deg, #16181d 0%, #20242b 100%);
+  color: var(--color-navy);
+}
+
+html[data-theme='dark'] .site-header,
+html[data-theme='dark'] .home-identity,
+html[data-theme='dark'] .home-identity > section,
+html[data-theme='dark'] .service-search-table,
+html[data-theme='dark'] .drive-master-products,
+html[data-theme='dark'] .home-stories-section,
+html[data-theme='dark'] .home-partners-section,
+html[data-theme='dark'] .home-utilities {
+  background-color: #1c1f26 !important;
+  background-image: none !important;
+}
+
+html[data-theme='dark'] .site-header a:not([class*='bg-[#c89536]']),
+html[data-theme='dark'] .site-header button,
+html[data-theme='dark'] .home-identity p,
+html[data-theme='dark'] .home-identity h1,
+html[data-theme='dark'] .home-identity h2,
+html[data-theme='dark'] .home-identity h3 {
+  color: var(--color-navy);
+}
+
+html[data-theme='dark'] .site-header [class*='bg-white'],
+html[data-theme='dark'] .service-search-table__shell,
+html[data-theme='dark'] .drive-core-service-card,
+html[data-theme='dark'] .home-stories-track article,
+html[data-theme='dark'] .home-partner-mark,
+html[data-theme='dark'] .home-utility-card,
+html[data-theme='dark'] .home-support-card {
+  background: #262a33 !important;
+  border-color: rgba(226, 185, 95, 0.28) !important;
+}
+
 section {
   scroll-margin-top: 6rem;
 }
@@ -810,6 +859,16 @@ button {
   will-change: transform;
 }
 
+.home-partners-track,
+.home-stories-track {
+  gap: 0;
+}
+
+.home-partners-track > *,
+.home-stories-track > * {
+  margin-inline-end: 1rem;
+}
+
 .home-partners-marquee,
 .home-stories-marquee {
   scrollbar-width: none;
@@ -858,12 +917,12 @@ button {
 
 @keyframes homePartnersTicker {
   from { transform: translateX(0); }
-  to { transform: translateX(calc(-50% - 0.5rem)); }
+  to { transform: translateX(-50%); }
 }
 
 @keyframes homeStoriesTicker {
   from { transform: translateX(0); }
-  to { transform: translateX(calc(-50% - 0.5rem)); }
+  to { transform: translateX(-50%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1053,6 +1112,9 @@ button {
   .home-support-card::before { display: none; }
   .home-utility-card__description,
   .home-utility-card__meta { line-height: 1.5; }
+  .home-utility-card--currency { grid-column: auto; }
+  .home-utility-field input,
+  .home-utility-field select { min-width: 0; width: 100%; }
 }
 
 /* ---- Beta usability: search table stacks fully on mobile ---- */

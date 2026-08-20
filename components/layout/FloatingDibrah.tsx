@@ -385,7 +385,7 @@ export default function FloatingDibrah() {
                 {messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`rounded-[16px] px-3 py-2 text-sm leading-7 ${
+                    className={`min-w-0 max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] rounded-[16px] px-3 py-2 text-sm leading-7 ${
                       message.role === 'assistant'
                         ? 'border border-[color:var(--color-border)] bg-white text-[#172033]'
                         : 'bg-[var(--color-surface-strong)] text-[var(--color-light)]'

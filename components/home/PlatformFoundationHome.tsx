@@ -11,6 +11,7 @@ import PartnersTicker from '@/components/shared/PartnersTicker';
 import StoriesCarousel from '@/components/shared/StoriesCarousel';
 import { partners } from '@/lib/content/partners';
 import { travelStories } from '@/lib/content/travel-stories';
+import { canonicalServices } from '@/lib/services/canonical';
 
 const copy = {
   ar: {
@@ -107,6 +108,29 @@ export default function PlatformFoundationHome({
       </section>
 
       <ServiceSearchTable />
+
+      <section id="core-services" className="drive-master-products px-4 py-10 sm:px-6 lg:px-10">
+        <div className="mx-auto max-w-7xl">
+          <p className="text-xs font-semibold tracking-[0.22em] text-[var(--home-gold)]">DIR3COM SERVICES</p>
+          <h2 className="mt-3 text-3xl font-semibold text-[var(--color-navy)] sm:text-4xl">{t.servicesTitle}</h2>
+          <div className="drive-core-services mt-7">
+            {canonicalServices.map((service) => (
+              <article key={service.slug} className="drive-core-service-card">
+                <Link href={`/services/${service.slug}`} className="drive-core-service-card__media" aria-label={service.name}>
+                  <Image src={service.hero} alt={service.name} width={800} height={450} sizes="(min-width: 1100px) 25vw, (min-width: 640px) 50vw, 100vw" className="h-full w-full object-cover" />
+                </Link>
+                <div className="drive-core-service-card__body">
+                  <h3>{service.name}</h3>
+                  <p>{language === 'ar' ? service.descriptionAr : service.descriptionEn}</p>
+                  <Link href={`/services/${service.slug}`} className="drive-core-service-card__cta">
+                    {language === 'ar' ? 'اكتشف الخدمة' : 'Explore service'}
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <StoriesCarousel stories={stories} />
       <PartnersTicker partners={partners} />
