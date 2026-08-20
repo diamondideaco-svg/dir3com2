@@ -224,16 +224,16 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
             </div>
             <HeroBlock>
               <div>
-                <Badge className="border-white/10 bg-white/8 text-sm">
+                <Badge className="border-[color:var(--color-border)] bg-[var(--color-surface)] text-sm">
                   <FiShield /> ضمان الدرع
                 </Badge>
                 <p className="mt-5 text-2xl font-semibold leading-[1.5]">الخدمة أول... والحساب بعد رضاك.</p>
                 {marketplaceService ? (
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-white/72">
-                    <div className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3">
+                    <div className="rounded-[20px] border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
                       featured: {marketplaceService.featured ? 'نعم' : 'لا'}
                     </div>
-                    <div className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3">
+                    <div className="rounded-[20px] border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
                       recommended: {marketplaceService.recommended ? 'نعم' : 'لا'}
                     </div>
                   </div>

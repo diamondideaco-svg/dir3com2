@@ -39,7 +39,7 @@ export default async function AdminCustomerDetailsPage({ params }: { params: Pro
           </div>
           <div className="flex items-center gap-3">
             <CustomerShieldBadge shieldLevel={customer.shield_level} />
-            <Link href="/admin/customers" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة</Link>
+            <Link href="/admin/customers" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
           </div>
         </div>
 

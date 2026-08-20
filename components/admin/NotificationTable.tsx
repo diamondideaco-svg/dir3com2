@@ -16,13 +16,13 @@ export async function NotificationTable() {
     <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
       <h3 className="text-lg font-semibold text-white">Notifications</h3>
       {summary.notifications.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-400">لا توجد إشعارات حالياً.</p>
+        <p className="mt-4 text-sm text-[var(--color-muted)]">لا توجد إشعارات حالياً.</p>
       ) : (
         <div className="mt-4 space-y-2">
           {summary.notifications.map((item: { id: string; subject?: string | null; body?: string | null; status?: string | null }) => (
-            <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-800 px-3 py-2 text-sm text-slate-300">
+            <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-800 px-3 py-2 text-sm text-[var(--color-muted)]">
               <span>{item.subject ?? item.body}</span>
-              <span className="text-slate-400">{item.status}</span>
+              <span className="text-[var(--color-muted)]">{item.status}</span>
             </div>
           ))}
         </div>

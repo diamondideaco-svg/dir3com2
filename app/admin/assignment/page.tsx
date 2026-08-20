@@ -45,8 +45,8 @@ export default async function AssignmentPage({ searchParams }: { searchParams: P
             <h1 className="mt-2 text-3xl font-semibold text-white">إدارة التعيينات</h1>
           </div>
           <div className="flex gap-2">
-            <Link href="/admin/assignment/rules" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">القواعد</Link>
-            <Link href="/admin/assignment/logs" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">السجلات</Link>
+            <Link href="/admin/assignment/rules" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">القواعد</Link>
+            <Link href="/admin/assignment/logs" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">السجلات</Link>
           </div>
         </div>
 

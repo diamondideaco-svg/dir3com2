@@ -18,12 +18,12 @@ export default async function OperationsPage({ searchParams }: { searchParams: P
   const resultMessage = params?.result ? resultMessages[params.result] : null;
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
+    <main className="min-h-screen bg-slate-950 px-4 py-8 text-[var(--color-navy)]">
       <div className="mx-auto max-w-7xl space-y-6">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-gold-400">DIR3 Operations Engine</p>
           <h1 className="mt-2 text-3xl font-semibold">Notifications, audit, timeline, and system events</h1>
-          <p className="mt-3 max-w-3xl text-slate-400">Every important action in the platform is now traceable through one operational backbone.</p>
+          <p className="mt-3 max-w-3xl text-[var(--color-muted)]">Every important action in the platform is now traceable through one operational backbone.</p>
         </div>
 
         {resultMessage ? (

@@ -44,11 +44,11 @@ export async function VerificationTable({ returnPath = '/admin/verification', re
         <div className="mt-4 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-100">{actionErrorMessage}</div>
       ) : null}
       {overview.requests.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-400">لا توجد طلبات تحقق حالياً.</p>
+        <p className="mt-4 text-sm text-[var(--color-muted)]">لا توجد طلبات تحقق حالياً.</p>
       ) : (
         <div className="mt-4 space-y-2">
           {overview.requests.map((item: { id: string; request_type: string; status: string; owner_type: string; owner_id: string }) => (
-            <div key={item.id} className="rounded-xl border border-slate-800 px-3 py-2 text-sm text-slate-300">
+            <div key={item.id} className="rounded-xl border border-slate-800 px-3 py-2 text-sm text-[var(--color-muted)]">
               <div className="flex items-center justify-between">
                 <span>{item.request_type}</span>
                 <VerificationStatusBadge status={item.status} />

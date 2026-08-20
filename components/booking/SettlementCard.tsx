@@ -4,12 +4,12 @@ type SettlementCardProps = {
 
 export default function SettlementCard({ settlement }: SettlementCardProps) {
   return (
-    <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
+    <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
       <h3 className="text-lg font-semibold text-white">التسوية</h3>
-      <p className="mt-3 text-sm text-slate-300">المبلغ: {settlement.amount} {settlement.currency || 'SAR'}</p>
-      <p className="mt-2 text-sm text-slate-300">الحالة: {settlement.settlement_status || 'pending'}</p>
-      <p className="mt-2 text-sm text-slate-300">{settlement.notes || 'لا توجد ملاحظات.'}</p>
-      {settlement.release_date ? <p className="mt-3 text-xs text-slate-400">{new Date(settlement.release_date).toLocaleString('ar-SA')}</p> : null}
+      <p className="mt-3 text-sm text-[var(--color-muted)]">المبلغ: {settlement.amount} {settlement.currency || 'SAR'}</p>
+      <p className="mt-2 text-sm text-[var(--color-muted)]">الحالة: {settlement.settlement_status || 'pending'}</p>
+      <p className="mt-2 text-sm text-[var(--color-muted)]">{settlement.notes || 'لا توجد ملاحظات.'}</p>
+      {settlement.release_date ? <p className="mt-3 text-xs text-[var(--color-muted)]">{new Date(settlement.release_date).toLocaleString('ar-SA')}</p> : null}
     </div>
   );
 }

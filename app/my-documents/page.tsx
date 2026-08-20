@@ -50,11 +50,11 @@ export default async function MyDocumentsPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">مستنداتي</p>
             <h1 className="mt-2 text-3xl font-semibold text-white">المستندات</h1>
           </div>
-          <Link href="/my-account" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة</Link>
+          <Link href="/my-account" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
         </div>
         <div className="space-y-4">
           {documents.length === 0 ? (
-            <div className="rounded-[1.5rem] border border-dashed border-white/20 bg-white/5 p-6 text-sm text-slate-300">
+            <div className="rounded-[1.5rem] border border-dashed border-white/20 bg-[var(--color-surface)] p-6 text-sm text-[var(--color-muted)]">
               لا توجد مستندات مرتبطة بحسابك حالياً.
             </div>
           ) : (
@@ -62,13 +62,13 @@ export default async function MyDocumentsPage() {
               const resolvedStatus = normalizeVerificationStatus(document.verification_requests?.status ?? document.verification_status);
 
               return (
-                <div key={document.id} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
+                <div key={document.id} className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-lg font-semibold text-white">{document.document_type}</p>
                     <span className="rounded-full border border-[#D4AF37]/25 bg-[#D4AF37]/10 px-3 py-1 text-xs text-[#D4AF37]">{resolvedStatus}</span>
                   </div>
-                  <p className="mt-2 text-sm text-slate-300 break-all">{document.file_url || '—'}</p>
-                  <p className="mt-2 text-xs text-slate-400">تاريخ الانتهاء: {document.expiry_date ? new Date(document.expiry_date).toLocaleDateString('ar-SA') : 'غير محدد'}</p>
+                  <p className="mt-2 text-sm text-[var(--color-muted)] break-all">{document.file_url || '—'}</p>
+                  <p className="mt-2 text-xs text-[var(--color-muted)]">تاريخ الانتهاء: {document.expiry_date ? new Date(document.expiry_date).toLocaleDateString('ar-SA') : 'غير محدد'}</p>
                 </div>
               );
             })

@@ -10,7 +10,7 @@ export default function NewPartnerPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">الشركاء</p>
             <h1 className="mt-2 text-3xl font-semibold text-white">إضافة شريك جديد</h1>
           </div>
-          <Link href="/admin/partners" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة</Link>
+          <Link href="/admin/partners" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
         </div>
         <PartnerForm />
       </div>

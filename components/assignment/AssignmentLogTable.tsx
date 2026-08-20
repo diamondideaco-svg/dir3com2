@@ -12,13 +12,13 @@ type AssignmentLogTableProps = {
 
 export default function AssignmentLogTable({ logs }: AssignmentLogTableProps) {
   if (!logs.length) {
-    return <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6 text-slate-300">لا توجد سجلات حتى الآن.</div>;
+    return <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6 text-[var(--color-muted)]">لا توجد سجلات حتى الآن.</div>;
   }
 
   return (
-    <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/5">
+    <div className="overflow-hidden rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)]">
       <table className="min-w-full text-right">
-        <thead className="bg-[#07111D] text-sm text-slate-400">
+        <thead className="bg-white text-sm text-[var(--color-muted)]">
           <tr>
             <th className="px-5 py-3">الحجز</th>
             <th className="px-5 py-3">الشريك</th>
@@ -29,7 +29,7 @@ export default function AssignmentLogTable({ logs }: AssignmentLogTableProps) {
         </thead>
         <tbody>
           {logs.map((log) => (
-            <tr key={log.id} className="border-t border-white/10 text-sm text-slate-300">
+            <tr key={log.id} className="border-t border-[color:var(--color-border)] text-sm text-[var(--color-muted)]">
               <td className="px-5 py-4">{log.booking_id}</td>
               <td className="px-5 py-4">{log.partner_id || '—'}</td>
               <td className="px-5 py-4">{log.score ?? '—'}</td>

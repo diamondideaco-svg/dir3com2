@@ -6,10 +6,10 @@ type CustomerCardProps = {
 
 export default function CustomerCard({ customer }: CustomerCardProps) {
   return (
-    <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6 text-right">
+    <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6 text-right">
       <p className="text-lg font-semibold text-white">{customer.full_name}</p>
-      <p className="mt-2 text-sm text-slate-300">{customer.email}</p>
-      <p className="mt-2 text-sm text-slate-400">{customer.city || '—'}</p>
+      <p className="mt-2 text-sm text-[var(--color-muted)]">{customer.email}</p>
+      <p className="mt-2 text-sm text-[var(--color-muted)]">{customer.city || '—'}</p>
     </div>
   );
 }

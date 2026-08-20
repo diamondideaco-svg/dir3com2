@@ -487,7 +487,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
               type="button"
               onClick={() => setTab(id as typeof tab)}
               className={`min-h-11 rounded-xl border px-3 py-2 text-sm ${
-                tab === id ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-[#334155]' : 'border-white/10 bg-white/5 text-[#C9D3DF]'
+                tab === id ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-[#334155]' : 'border-[color:var(--color-border)] bg-[var(--color-surface)] text-[#C9D3DF]'
               }`}
             >
               {label}
@@ -501,16 +501,16 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
 
         {tab === 'profile' ? (
           <section className="grid gap-4 sm:grid-cols-2">
-            <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.legalName} value={profile.company_name || ''} onChange={(e) => setProfile((prev) => ({ ...prev, company_name: e.target.value }))} />
-            <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.contactPerson} value={profile.contact_person || ''} onChange={(e) => setProfile((prev) => ({ ...prev, contact_person: e.target.value }))} />
-            <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.email} value={profile.email || ''} onChange={(e) => setProfile((prev) => ({ ...prev, email: e.target.value }))} />
-            <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.phone} value={profile.phone || ''} onChange={(e) => setProfile((prev) => ({ ...prev, phone: e.target.value }))} />
-            <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.country} value={profile.country || ''} onChange={(e) => setProfile((prev) => ({ ...prev, country: e.target.value }))} />
-            <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.city} value={profile.city || ''} onChange={(e) => setProfile((prev) => ({ ...prev, city: e.target.value }))} />
-            <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.commercialReg} value={profile.commercial_registration || ''} onChange={(e) => setProfile((prev) => ({ ...prev, commercial_registration: e.target.value }))} />
-            <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.taxNumber} value={profile.tax_number || ''} onChange={(e) => setProfile((prev) => ({ ...prev, tax_number: e.target.value }))} />
-            <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.iban} value={profile.iban || ''} onChange={(e) => setProfile((prev) => ({ ...prev, iban: e.target.value }))} />
-            <select className="rounded-xl bg-[#07111D] px-4 py-3" value={profile.reviewStatus || 'Draft'} onChange={(e) => setProfile((prev) => ({ ...prev, reviewStatus: e.target.value }))}>
+            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.legalName} value={profile.company_name || ''} onChange={(e) => setProfile((prev) => ({ ...prev, company_name: e.target.value }))} />
+            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.contactPerson} value={profile.contact_person || ''} onChange={(e) => setProfile((prev) => ({ ...prev, contact_person: e.target.value }))} />
+            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.email} value={profile.email || ''} onChange={(e) => setProfile((prev) => ({ ...prev, email: e.target.value }))} />
+            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.phone} value={profile.phone || ''} onChange={(e) => setProfile((prev) => ({ ...prev, phone: e.target.value }))} />
+            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.country} value={profile.country || ''} onChange={(e) => setProfile((prev) => ({ ...prev, country: e.target.value }))} />
+            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.city} value={profile.city || ''} onChange={(e) => setProfile((prev) => ({ ...prev, city: e.target.value }))} />
+            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.commercialReg} value={profile.commercial_registration || ''} onChange={(e) => setProfile((prev) => ({ ...prev, commercial_registration: e.target.value }))} />
+            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.taxNumber} value={profile.tax_number || ''} onChange={(e) => setProfile((prev) => ({ ...prev, tax_number: e.target.value }))} />
+            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.iban} value={profile.iban || ''} onChange={(e) => setProfile((prev) => ({ ...prev, iban: e.target.value }))} />
+            <select className="rounded-xl bg-white px-4 py-3" value={profile.reviewStatus || 'Draft'} onChange={(e) => setProfile((prev) => ({ ...prev, reviewStatus: e.target.value }))}>
               {reviewStatusOptions.map((value) => (
                 <option key={value} value={value}>{reviewStatusDisplay[language as Lang][value as keyof (typeof reviewStatusDisplay)['en']]}</option>
               ))}
@@ -526,7 +526,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         {tab === 'docs' ? (
           <section>
             <div className="mb-4 flex flex-wrap items-stretch gap-2 sm:items-center">
-              <select className="min-h-11 w-full rounded-xl bg-[#07111D] px-4 py-3 text-sm sm:w-auto" value={docType} onChange={(e) => setDocType(e.target.value)}>
+              <select className="min-h-11 w-full rounded-xl bg-white px-4 py-3 text-sm sm:w-auto" value={docType} onChange={(e) => setDocType(e.target.value)}>
                 <option value="commercial_registration">commercial_registration</option>
                 <option value="tax_card">tax_card</option>
                 <option value="manager_id">manager_id</option>
@@ -536,14 +536,14 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                 <option value="insurance">insurance</option>
                 <option value="vehicle_registration">vehicle_registration</option>
               </select>
-              <input type="file" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="min-h-11 w-full rounded-xl bg-[#07111D] px-4 py-3 text-sm sm:w-auto sm:max-w-xs" />
+              <input type="file" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="min-h-11 w-full rounded-xl bg-white px-4 py-3 text-sm sm:w-auto sm:max-w-xs" />
               <button type="button" disabled={busy || !selectedFile} onClick={() => void uploadDocument()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60 sm:w-auto">
                 {t.upload}
               </button>
             </div>
             <div className="space-y-2">
               {documents.map((doc) => (
-                <div key={doc.id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm [overflow-wrap:anywhere]">
+                <div key={doc.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm [overflow-wrap:anywhere]">
                   <span className="font-semibold text-[#334155]">{doc.document_type}</span>
                   <span className="mx-2 text-[#9EB0C3]">|</span>
                   <span>{doc.status || 'pending'}</span>
@@ -560,65 +560,65 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         {tab === 'products' ? (
           <section>
             <div className="mb-4 grid gap-3 sm:grid-cols-2">
-              <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.serviceNameAr} value={newProduct.nameAr} onChange={(e) => setNewProduct((prev) => ({ ...prev, nameAr: e.target.value }))} />
-              <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.serviceNameEn} value={newProduct.nameEn} onChange={(e) => setNewProduct((prev) => ({ ...prev, nameEn: e.target.value }))} />
-              <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.city} value={newProduct.city} onChange={(e) => setNewProduct((prev) => ({ ...prev, city: e.target.value }))} />
-              <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.price} value={newProduct.basePrice} onChange={(e) => setNewProduct((prev) => ({ ...prev, basePrice: e.target.value }))} />
-              <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.currency} value={newProduct.currency} onChange={(e) => setNewProduct((prev) => ({ ...prev, currency: e.target.value }))} />
-              <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.status} value={newProduct.status} onChange={(e) => setNewProduct((prev) => ({ ...prev, status: e.target.value }))} />
+              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.serviceNameAr} value={newProduct.nameAr} onChange={(e) => setNewProduct((prev) => ({ ...prev, nameAr: e.target.value }))} />
+              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.serviceNameEn} value={newProduct.nameEn} onChange={(e) => setNewProduct((prev) => ({ ...prev, nameEn: e.target.value }))} />
+              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.city} value={newProduct.city} onChange={(e) => setNewProduct((prev) => ({ ...prev, city: e.target.value }))} />
+              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.price} value={newProduct.basePrice} onChange={(e) => setNewProduct((prev) => ({ ...prev, basePrice: e.target.value }))} />
+              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.currency} value={newProduct.currency} onChange={(e) => setNewProduct((prev) => ({ ...prev, currency: e.target.value }))} />
+              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.status} value={newProduct.status} onChange={(e) => setNewProduct((prev) => ({ ...prev, status: e.target.value }))} />
               <div className="sm:col-span-2">
                 <button type="button" disabled={busy} onClick={() => void createProduct()} className="rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60">{t.addService}</button>
               </div>
             </div>
 
-            <div className="mb-4 flex flex-wrap items-stretch gap-2 rounded-xl border border-white/10 bg-white/5 p-3 sm:items-center">
-              <select className="min-h-11 w-full rounded-xl bg-[#07111D] px-4 py-2 text-sm sm:w-auto" value={productImage.productId} onChange={(e) => setProductImage((prev) => ({ ...prev, productId: e.target.value }))}>
+            <div className="mb-4 flex flex-wrap items-stretch gap-2 rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-3 sm:items-center">
+              <select className="min-h-11 w-full rounded-xl bg-white px-4 py-2 text-sm sm:w-auto" value={productImage.productId} onChange={(e) => setProductImage((prev) => ({ ...prev, productId: e.target.value }))}>
                 <option value="">Select product</option>
                 {products.map((row) => (
                   <option key={row.id} value={row.products?.id || ''}>{row.products?.name_ar || row.products?.name_en || row.products?.id}</option>
                 ))}
               </select>
-              <input type="file" onChange={(e) => setProductImage((prev) => ({ ...prev, file: e.target.files?.[0] || null }))} className="min-h-11 w-full rounded-xl bg-[#07111D] px-4 py-2 text-sm sm:w-auto sm:max-w-xs" />
+              <input type="file" onChange={(e) => setProductImage((prev) => ({ ...prev, file: e.target.files?.[0] || null }))} className="min-h-11 w-full rounded-xl bg-white px-4 py-2 text-sm sm:w-auto sm:max-w-xs" />
               <button type="button" disabled={busy || !productImage.productId || !productImage.file} onClick={() => void uploadProductImage()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60 sm:w-auto">{t.uploadImage}</button>
             </div>
 
             <div className="space-y-2">
               {products.map((row) => (
-                <div key={row.id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm [overflow-wrap:anywhere]">
+                <div key={row.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm [overflow-wrap:anywhere]">
                   {row.products?.id ? (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <input
-                        className="rounded-xl bg-[#07111D] px-4 py-2"
+                        className="rounded-xl bg-white px-4 py-2"
                         placeholder={t.serviceNameAr}
                         value={productDrafts[row.products.id]?.nameAr || ''}
                         onChange={(e) => updateProductDraft(row.products!.id, 'nameAr', e.target.value)}
                       />
                       <input
-                        className="rounded-xl bg-[#07111D] px-4 py-2"
+                        className="rounded-xl bg-white px-4 py-2"
                         placeholder={t.serviceNameEn}
                         value={productDrafts[row.products.id]?.nameEn || ''}
                         onChange={(e) => updateProductDraft(row.products!.id, 'nameEn', e.target.value)}
                       />
                       <input
-                        className="rounded-xl bg-[#07111D] px-4 py-2"
+                        className="rounded-xl bg-white px-4 py-2"
                         placeholder={t.city}
                         value={productDrafts[row.products.id]?.city || ''}
                         onChange={(e) => updateProductDraft(row.products!.id, 'city', e.target.value)}
                       />
                       <input
-                        className="rounded-xl bg-[#07111D] px-4 py-2"
+                        className="rounded-xl bg-white px-4 py-2"
                         placeholder={t.price}
                         value={productDrafts[row.products.id]?.basePrice || '0'}
                         onChange={(e) => updateProductDraft(row.products!.id, 'basePrice', e.target.value)}
                       />
                       <input
-                        className="rounded-xl bg-[#07111D] px-4 py-2"
+                        className="rounded-xl bg-white px-4 py-2"
                         placeholder={t.currency}
                         value={productDrafts[row.products.id]?.currency || 'SAR'}
                         onChange={(e) => updateProductDraft(row.products!.id, 'currency', e.target.value)}
                       />
                       <input
-                        className="rounded-xl bg-[#07111D] px-4 py-2"
+                        className="rounded-xl bg-white px-4 py-2"
                         placeholder={t.status}
                         value={productDrafts[row.products.id]?.status || 'draft'}
                         onChange={(e) => updateProductDraft(row.products!.id, 'status', e.target.value)}
@@ -651,7 +651,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         {tab === 'bookings' ? (
           <section className="space-y-2">
             {bookings.map((booking) => (
-              <div key={booking.id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm [overflow-wrap:anywhere]">
+              <div key={booking.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm [overflow-wrap:anywhere]">
                 <span className="font-semibold text-[#334155]">{booking.booking_reference || booking.id}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
                 <span>{booking.status || 'pending'}</span>
@@ -667,7 +667,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         {tab === 'settlements' ? (
           <section className="space-y-2">
             {settlements.map((settlement) => (
-              <div key={settlement.id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm [overflow-wrap:anywhere]">
+              <div key={settlement.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm [overflow-wrap:anywhere]">
                 <span className="font-semibold text-[#334155]">{settlement.amount} {settlement.currency || 'SAR'}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
                 <span>{settlement.settlement_status || 'pending'}</span>
@@ -680,17 +680,17 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
 
         {tab === 'compliance' ? (
           <section className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4">
               <p className="text-xs text-[#9EB0C3]">{t.missing}</p>
               <p className="mt-2 text-sm text-[#334155]">{(compliance?.missingDocuments || []).join(', ') || '—'}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4">
               <p className="text-xs text-[#9EB0C3]">{t.expired}</p>
               <p className="mt-2 text-sm text-[#334155]">
                 {(compliance?.expiredDocuments || []).map((doc) => `${doc.documentType} (${formatDate(doc.expiryDate, language as Lang)})`).join(', ') || '—'}
               </p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4">
               <p className="text-xs text-[#9EB0C3]">{t.pending}</p>
               <p className="mt-2 text-lg font-semibold text-[#334155]">{compliance?.pendingReviews ?? 0}</p>
             </div>

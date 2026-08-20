@@ -12,10 +12,10 @@ export function ShieldAnalytics() {
       <h3 className="text-lg font-semibold text-white">Shield analytics</h3>
       <div className="mt-4 space-y-2">
         {shields.map((shield) => (
-          <div key={shield.label} className="rounded-xl border border-slate-800 px-3 py-2 text-sm text-slate-300">
+          <div key={shield.label} className="rounded-xl border border-slate-800 px-3 py-2 text-sm text-[var(--color-muted)]">
             <div className="flex items-center justify-between">
               <span>{shield.label}</span>
-              <span className="text-slate-400">{shield.customers} customers</span>
+              <span className="text-[var(--color-muted)]">{shield.customers} customers</span>
             </div>
             <p className="mt-1 text-xs text-slate-500">Partners: {shield.partners} • Products: {shield.products}</p>
           </div>

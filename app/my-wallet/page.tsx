@@ -54,20 +54,20 @@ export default async function MyWalletPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">محفظتي</p>
             <h1 className="mt-2 text-3xl font-semibold text-white">الرصيد</h1>
           </div>
-          <Link href="/my-account" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة</Link>
+          <Link href="/my-account" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
         </div>
-        <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
+        <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
           {wallet ? (
             <div className="space-y-3">
               <p className="text-lg font-semibold text-white">الرصيد الحالي: {Number(reconciliation?.ledger.balance ?? wallet.balance ?? 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
-              <p className="text-sm text-slate-300">الرصيد المتاح: {Number(reconciliation?.ledger.availableBalance ?? wallet.available_balance ?? 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
-              <p className="text-sm text-slate-400">الرصيد المعلق: {Number(reconciliation?.ledger.heldBalance ?? wallet.held_balance ?? 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
+              <p className="text-sm text-[var(--color-muted)]">الرصيد المتاح: {Number(reconciliation?.ledger.availableBalance ?? wallet.available_balance ?? 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
+              <p className="text-sm text-[var(--color-muted)]">الرصيد المعلق: {Number(reconciliation?.ledger.heldBalance ?? wallet.held_balance ?? 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
               {reconciliation && !reconciliation.isConsistent ? (
                 <p className="text-xs text-amber-300">تم عرض الرصيد وفق دفتر القيود المالي لحماية اتساق البيانات.</p>
               ) : null}
             </div>
           ) : (
-            <p className="text-sm text-slate-300">لا توجد محفظة مرتبطة بحسابك حالياً.</p>
+            <p className="text-sm text-[var(--color-muted)]">لا توجد محفظة مرتبطة بحسابك حالياً.</p>
           )}
         </div>
       </div>

@@ -36,8 +36,8 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
             <h1 className="mt-2 text-3xl font-semibold text-white">إدارة المنتجات</h1>
           </div>
           <div className="flex gap-2">
-            <Link href="/admin/categories" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">التصنيفات</Link>
-            <Link href="/admin/pricing" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">التسعير</Link>
+            <Link href="/admin/categories" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">التصنيفات</Link>
+            <Link href="/admin/pricing" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">التسعير</Link>
           </div>
         </div>
 

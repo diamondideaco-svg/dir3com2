@@ -16,7 +16,7 @@ export async function VerificationCard() {
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-      <p className="text-sm text-slate-400">Pending reviews</p>
+      <p className="text-sm text-[var(--color-muted)]">Pending reviews</p>
       <p className="mt-2 text-2xl font-semibold text-white">{pending}</p>
     </div>
   );

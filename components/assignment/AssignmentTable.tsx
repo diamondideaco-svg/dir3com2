@@ -16,7 +16,7 @@ type AssignmentTableProps = {
 
 export default function AssignmentTable({ assignments }: AssignmentTableProps) {
   if (!assignments.length) {
-    return <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6 text-slate-300">لا توجد Assignments حتى الآن.</div>;
+    return <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6 text-[var(--color-muted)]">لا توجد Assignments حتى الآن.</div>;
   }
 
   return (

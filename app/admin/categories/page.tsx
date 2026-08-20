@@ -19,14 +19,14 @@ export default async function AdminCategoriesPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">التصنيفات</p>
             <h1 className="mt-2 text-3xl font-semibold text-white">إدارة الفئات</h1>
           </div>
-          <Link href="/admin/products" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة</Link>
+          <Link href="/admin/products" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
         </div>
 
         <div className="space-y-4">
           {categories.map((category) => (
-            <div key={category.id} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
+            <div key={category.id} className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
               <p className="text-lg font-semibold text-white">{category.name_en}</p>
-              <p className="mt-2 text-sm text-slate-300">{category.slug}</p>
+              <p className="mt-2 text-sm text-[var(--color-muted)]">{category.slug}</p>
             </div>
           ))}
         </div>

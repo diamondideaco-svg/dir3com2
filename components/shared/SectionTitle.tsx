@@ -17,7 +17,7 @@ export default function SectionTitle({
         {eyebrow}
       </p>
       <h2 className="text-3xl font-semibold text-white sm:text-4xl">{title}</h2>
-      <p className="mt-4 text-lg leading-8 text-slate-300">{description}</p>
+      <p className="mt-4 text-lg leading-8 text-[var(--color-muted)]">{description}</p>
     </div>
   );
 }

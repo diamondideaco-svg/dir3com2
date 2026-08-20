@@ -47,16 +47,16 @@ export default function PublicHero({ eyebrow, title, description, highlight, chi
         </div>
 
         <HeroBlock>
-          <Badge className="border-white/12 bg-white/8 text-sm text-[var(--color-gold)]">
+          <Badge className="border-[color:var(--color-border)] bg-[var(--color-surface)] text-sm text-[var(--color-gold)]">
             <FiShield /> dir3com Shield
           </Badge>
           <p className="mt-6 text-3xl font-semibold leading-[1.4]">{highlight}</p>
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-[24px] border border-white/10 bg-white/6 px-4 py-4">
+            <div className="rounded-[24px] border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-4">
               <p className="text-sm text-white/65">لغة التصميم</p>
               <p className="mt-2 text-lg font-semibold">RTL / LTR بثبات موحد</p>
             </div>
-            <div id="dibrah" className="rounded-[24px] border border-white/10 bg-white/6 px-4 py-4">
+            <div id="dibrah" className="rounded-[24px] border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-4">
               <p className="text-sm text-white/65">الهوية العامة</p>
               <p className="mt-2 text-lg font-semibold">Buttons, Cards, Footer, Navigation</p>
             </div>

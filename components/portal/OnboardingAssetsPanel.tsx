@@ -373,17 +373,17 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
   }
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-[#07111D] p-4" dir={direction}>
+    <section className="rounded-2xl border border-[color:var(--color-border)] bg-white p-4" dir={direction}>
       <h3 className="text-lg font-semibold text-[#334155]">{t.heading}</h3>
       <p className="mt-1 text-xs text-[#9EB0C3]">{t.subheading}</p>
 
       {message ? <div className="mt-3 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-xs text-[#334155]">{message}</div> : null}
 
-      <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
+      <div className="mt-4 rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-3">
         <p className="text-xs font-semibold text-[#C9D3DF]">{t.contracts}</p>
         <div className="mt-2 space-y-2 text-xs">
           {contracts.map((contract) => (
-            <div key={contract.id} className="rounded-lg border border-white/10 bg-[#FAF8F4] px-3 py-2">
+            <div key={contract.id} className="rounded-lg border border-[color:var(--color-border)] bg-[#FAF8F4] px-3 py-2">
               <p className="font-semibold text-[#334155]">{contract.ownerLabel}</p>
               <p className="text-[#9EB0C3]">{contract.contractRef}</p>
               <p className="text-[#D4AF37]">{contract.contractStatus}</p>
@@ -400,7 +400,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
           const localUpload = uploadByAsset[asset.id] || { file: null, label: '', replaceMediaId: '' };
 
           return (
-            <article key={asset.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <article key={asset.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4">
               <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
                 <span className="rounded-full bg-[#D4AF37]/20 px-2 py-1 text-[#334155]">{asset.assetType}</span>
                 <span className="rounded-full bg-[#243447] px-2 py-1 text-[#DCE6F2]">{asset.dataStatus}</span>
@@ -432,7 +432,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
                 <p className="text-xs font-semibold text-[#C9D3DF]">{t.media}</p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {assetMedia.map((item, index) => (
-                    <div key={item.id} className="rounded-lg border border-white/10 bg-[#FAF8F4] p-2">
+                    <div key={item.id} className="rounded-lg border border-[color:var(--color-border)] bg-[#FAF8F4] p-2">
                       <div className="aspect-[4/3] overflow-hidden rounded bg-black/20">
                         {publicImageUrl(item.url) ? (
                           <img src={publicImageUrl(item.url)} alt={item.label} className="h-full w-full object-cover" />
@@ -451,20 +451,20 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
                 </div>
               </div>
 
-              <div className="mt-4 rounded-lg border border-white/10 bg-[#FAF8F4] p-3">
+              <div className="mt-4 rounded-lg border border-[color:var(--color-border)] bg-[#FAF8F4] p-3">
                 <p className="mb-2 text-xs font-semibold text-[#C9D3DF]">{t.upload}</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <input
                     type="text"
                     value={localUpload.label}
                     onChange={(e) => setUploadByAsset((prev) => ({ ...prev, [asset.id]: { ...localUpload, label: e.target.value } }))}
-                    className="rounded-lg bg-[#07111D] px-3 py-2 text-sm"
+                    className="rounded-lg bg-white px-3 py-2 text-sm"
                     placeholder="Label"
                   />
                   <select
                     value={localUpload.replaceMediaId}
                     onChange={(e) => setUploadByAsset((prev) => ({ ...prev, [asset.id]: { ...localUpload, replaceMediaId: e.target.value } }))}
-                    className="rounded-lg bg-[#07111D] px-3 py-2 text-sm"
+                    className="rounded-lg bg-white px-3 py-2 text-sm"
                   >
                     <option value="">{t.replaceHint}</option>
                     {assetMedia.map((item) => (
@@ -474,7 +474,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
                   <input
                     type="file"
                     onChange={(e) => setUploadByAsset((prev) => ({ ...prev, [asset.id]: { ...localUpload, file: e.target.files?.[0] || null } }))}
-                    className="rounded-lg bg-[#07111D] px-3 py-2 text-sm sm:col-span-2"
+                    className="rounded-lg bg-white px-3 py-2 text-sm sm:col-span-2"
                   />
                   <button
                     type="button"
@@ -491,11 +491,11 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
         })}
       </div>
 
-      <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
+      <div className="mt-6 rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4">
         <p className="text-sm font-semibold text-[#334155]">{t.reviewQueue}</p>
         <div className="mt-3 space-y-2">
           {queue.map((item) => (
-            <div key={item.id} className="rounded-lg border border-white/10 bg-[#FAF8F4] p-3 text-xs">
+            <div key={item.id} className="rounded-lg border border-[color:var(--color-border)] bg-[#FAF8F4] p-3 text-xs">
               <p className="font-semibold text-[#334155]">{item.partnerOrSupplier}</p>
               <p className="text-[#9EB0C3]">{item.status}</p>
               <p className="text-[#9EB0C3]">{item.technicalSummary.join(' | ')}</p>

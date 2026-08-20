@@ -7,9 +7,9 @@ type ProductTableProps = {
 
 export default function ProductTable({ products }: ProductTableProps) {
   return (
-    <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/5">
+    <div className="overflow-hidden rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)]">
       <table className="min-w-full text-right">
-        <thead className="bg-[#07111D] text-sm text-slate-400">
+        <thead className="bg-white text-sm text-[var(--color-muted)]">
           <tr>
             <th className="px-5 py-3">الاسم</th>
             <th className="px-5 py-3">المدينة</th>
@@ -19,12 +19,12 @@ export default function ProductTable({ products }: ProductTableProps) {
         </thead>
         <tbody>
           {products.length === 0 ? (
-            <tr className="border-t border-white/10 text-sm text-slate-300">
-              <td colSpan={4} className="px-5 py-8 text-center text-slate-400">لا توجد سجلات منتجات حالياً.</td>
+            <tr className="border-t border-[color:var(--color-border)] text-sm text-[var(--color-muted)]">
+              <td colSpan={4} className="px-5 py-8 text-center text-[var(--color-muted)]">لا توجد سجلات منتجات حالياً.</td>
             </tr>
           ) : (
             products.map((product) => (
-              <tr key={product.id} className="border-t border-white/10 text-sm text-slate-300">
+              <tr key={product.id} className="border-t border-[color:var(--color-border)] text-sm text-[var(--color-muted)]">
                 <td className="px-5 py-4">{product.name_en}</td>
                 <td className="px-5 py-4">{product.city || '—'}</td>
                 <td className="px-5 py-4">{product.status}</td>
@@ -36,7 +36,7 @@ export default function ProductTable({ products }: ProductTableProps) {
                     </form>
                     <form action={deleteProductAction}>
                       <input type="hidden" name="id" value={product.id} />
-                      <button type="submit" className="rounded-full border border-white/10 px-3 py-2 text-xs text-slate-200">حذف</button>
+                      <button type="submit" className="rounded-full border border-[color:var(--color-border)] px-3 py-2 text-xs text-[var(--color-navy)]">حذف</button>
                     </form>
                   </div>
                 </td>

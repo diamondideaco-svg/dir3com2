@@ -7,9 +7,9 @@ type CustomerTableProps = {
 
 export default function CustomerTable({ customers }: CustomerTableProps) {
   return (
-    <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/5">
+    <div className="overflow-hidden rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)]">
       <table className="min-w-full text-right">
-        <thead className="bg-[#07111D] text-sm text-slate-400">
+        <thead className="bg-white text-sm text-[var(--color-muted)]">
           <tr>
             <th className="px-5 py-3">الاسم</th>
             <th className="px-5 py-3">البريد</th>
@@ -20,12 +20,12 @@ export default function CustomerTable({ customers }: CustomerTableProps) {
         </thead>
         <tbody>
           {customers.length === 0 ? (
-            <tr className="border-t border-white/10 text-sm text-slate-300">
-              <td colSpan={5} className="px-5 py-8 text-center text-slate-400">لا توجد سجلات عملاء حالياً.</td>
+            <tr className="border-t border-[color:var(--color-border)] text-sm text-[var(--color-muted)]">
+              <td colSpan={5} className="px-5 py-8 text-center text-[var(--color-muted)]">لا توجد سجلات عملاء حالياً.</td>
             </tr>
           ) : (
             customers.map((customer) => (
-              <tr key={customer.id} className="border-t border-white/10 text-sm text-slate-300">
+              <tr key={customer.id} className="border-t border-[color:var(--color-border)] text-sm text-[var(--color-muted)]">
                 <td className="px-5 py-4">{customer.full_name}</td>
                 <td className="px-5 py-4">{customer.email}</td>
                 <td className="px-5 py-4">{customer.city || '—'}</td>
@@ -39,7 +39,7 @@ export default function CustomerTable({ customers }: CustomerTableProps) {
                     </form>
                     <form action={deactivateCustomerAction}>
                       <input type="hidden" name="id" value={customer.id} />
-                      <button type="submit" className="rounded-full border border-white/10 px-3 py-2 text-xs text-slate-200">تعطيل</button>
+                      <button type="submit" className="rounded-full border border-[color:var(--color-border)] px-3 py-2 text-xs text-[var(--color-navy)]">تعطيل</button>
                     </form>
                   </div>
                 </td>

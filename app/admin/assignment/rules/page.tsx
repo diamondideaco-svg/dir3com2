@@ -31,7 +31,7 @@ export default async function AssignmentRulesPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">القواعد</p>
             <h1 className="mt-2 text-3xl font-semibold text-white">قواعد التعيين</h1>
           </div>
-          <Link href="/admin/assignment" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة</Link>
+          <Link href="/admin/assignment" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
         </div>
 
         {error ? (
@@ -40,13 +40,13 @@ export default async function AssignmentRulesPage() {
 
         <div className="space-y-4">
           {rules.length === 0 ? (
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6 text-slate-300">لا توجد قواعد تعيين حالياً.</div>
+            <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6 text-[var(--color-muted)]">لا توجد قواعد تعيين حالياً.</div>
           ) : (
             rules.map((rule) => (
-              <div key={rule.id} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
+              <div key={rule.id} className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
                 <p className="text-lg font-semibold text-white">{rule.service_type}</p>
-                <p className="mt-2 text-sm text-slate-300">الوزن: {rule.priority_weight}</p>
-                <p className="mt-2 text-sm text-slate-300">الحالة: {rule.enabled ? 'مفعل' : 'معطل'}</p>
+                <p className="mt-2 text-sm text-[var(--color-muted)]">الوزن: {rule.priority_weight}</p>
+                <p className="mt-2 text-sm text-[var(--color-muted)]">الحالة: {rule.enabled ? 'مفعل' : 'معطل'}</p>
               </div>
             ))
           )}

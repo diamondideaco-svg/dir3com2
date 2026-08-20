@@ -622,3 +622,514 @@ button {
     width: calc(100% - 1.2rem);
   }
 }
+/* Platform page system (utility cards, stories, partners, service hero/cards) — ported from the approved 2026-08-19 stylesheet. */
+.home-premium-icon--5,
+.home-premium-icon--6 {
+  mix-blend-mode: screen;
+}
+
+.home-utility-card {
+  position: relative;
+  z-index: 0;
+  min-width: 0;
+  border: 1px solid rgba(200, 146, 46, 0.2);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 1.25rem;
+  box-shadow: 0 14px 32px rgba(88, 65, 31, 0.06);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  isolation: isolate;
+}
+
+.home-utility-card::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 253, 249, 0.84);
+  content: '';
+  pointer-events: none;
+}
+
+.home-utility-card--currency { z-index: 2; }
+
+.home-utility-card--weather { background-image: url('/brand/runtime/dir3com-weather-card-reference.jpeg'); }
+.home-utility-card--currency { background-image: url('/brand/runtime/dir3com-currency-converter-card.jpeg'); }
+.home-utility-card--maps { background-image: url('/brand/runtime/dir3com-maps-card.png.jpeg'); }
+
+.home-support-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background-image: url('/brand/runtime/dir3com-travel-support-card.jpeg');
+  background-position: center;
+  background-size: cover;
+}
+
+.home-support-card::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: rgba(255, 253, 249, 0.84);
+  content: '';
+}
+
+.home-utility-card__icon {
+  display: inline-flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(200, 146, 46, 0.24);
+  border-radius: 0.75rem;
+  background: rgba(200, 146, 46, 0.08);
+  color: var(--home-gold);
+}
+
+.home-utility-card__icon--small {
+  height: 2.25rem;
+  width: 2.25rem;
+  flex: 0 0 auto;
+}
+
+.home-utility-card h3 {
+  margin-top: 0.75rem;
+  color: var(--color-navy);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.home-utility-card__value {
+  margin-top: 0.75rem;
+  color: var(--color-navy);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+.home-utility-card__description,
+.home-utility-card__meta {
+  display: block;
+  margin-top: 0.55rem;
+  color: #68717c;
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.home-utility-card__status {
+  border: 1px solid rgba(200, 146, 46, 0.22);
+  border-radius: 999px;
+  background: rgba(200, 146, 46, 0.08);
+  padding: 0.35rem 0.6rem;
+  color: var(--home-gold);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.home-utility-field {
+  display: grid;
+  gap: 0.35rem;
+  color: #68717c;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.home-utility-field input,
+.home-utility-field select {
+  min-height: 2.75rem;
+  min-width: 0;
+  border: 1px solid rgba(13, 27, 42, 0.14);
+  border-radius: 0.7rem;
+  background: #fffdf9;
+  padding: 0.55rem 0.65rem;
+  color: var(--color-navy);
+  outline: none;
+}
+
+.home-utility-field input:focus,
+.home-utility-field select:focus {
+  border-color: var(--home-gold);
+  box-shadow: 0 0 0 3px rgba(200, 146, 46, 0.14);
+}
+
+.home-utility-action {
+  min-height: 2.75rem;
+  border: 1px solid var(--home-gold);
+  border-radius: 999px;
+  background: var(--home-gold);
+  padding: 0.55rem 1rem;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition: filter 180ms ease, transform 180ms ease;
+}
+
+.home-utility-action:hover:not(:disabled),
+.home-utility-action:focus-visible:not(:disabled) {
+  filter: brightness(0.96);
+  transform: translateY(-1px);
+}
+
+.home-utility-action:focus-visible,
+.home-utility-link:focus-visible {
+  outline: 2px solid var(--home-gold);
+  outline-offset: 3px;
+}
+
+.home-utility-card__result {
+  min-height: 1.75rem;
+  margin-top: 0.8rem;
+  color: var(--color-navy);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.home-utility-card__result--error {
+  color: #a23c35;
+}
+
+.home-utility-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--home-gold);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+
+.home-partners-section {
+  overflow: hidden;
+  background: #fcfaf6;
+}
+
+.home-partners-track {
+  animation: homePartnersTicker 48s linear infinite;
+  will-change: transform;
+}
+
+.home-partners-section:hover .home-partners-track,
+.home-partners-section:focus-within .home-partners-track {
+  animation-play-state: paused;
+}
+
+.home-partner-mark {
+  display: inline-flex;
+  min-width: 150px;
+  min-height: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  border-inline-end: 1px solid rgba(200, 146, 46, 0.2);
+  padding-inline: 1.5rem;
+  color: var(--color-navy);
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.home-partner-mark:hover,
+.home-partner-mark:focus-visible {
+  color: var(--home-gold);
+  outline: none;
+}
+
+.home-stories-section {
+  overflow: hidden;
+  background: #fcfaf6;
+}
+
+.home-stories-track {
+  width: max-content;
+  scrollbar-width: thin;
+  scrollbar-color: var(--home-gold) transparent;
+  animation: homeStoriesTicker 42s linear infinite;
+}
+
+.home-stories-track:hover,
+.home-stories-track:focus-within {
+  animation-play-state: paused;
+}
+
+.home-stories-track > article {
+  flex: 0 0 min(320px, 82vw);
+}
+
+@keyframes homePartnersTicker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes homeStoriesTicker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-partners-track,
+  .home-stories-track { animation: none; }
+}
+
+.drive-master-hero {
+  background: linear-gradient(180deg, #fffdf9 0%, #fcfaf6 100%);
+}
+
+.drive-master-hero__image {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid rgba(200, 146, 46, 0.2);
+  border-radius: 1.5rem;
+  background: #f5eee3;
+}
+
+.drive-master-hero__image img {
+  object-fit: cover;
+  object-position: center 36%;
+}
+
+.drive-master-hero__asset {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 36%;
+}
+
+.drive-master-products {
+  background: #fcfaf6;
+}
+
+.drive-core-services {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.drive-core-service-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  border: 1px solid rgba(200, 146, 46, 0.2);
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(88, 65, 31, 0.08);
+}
+
+.drive-core-service-card__media {
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #f5eee3;
+}
+
+.drive-core-service-card__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.drive-core-service-card__media img[src*='1000467134'] { object-position: 50% 35%; }
+.drive-core-service-card__media img[src*='1000467131'] { object-position: 50% 45%; }
+.drive-core-service-card__media img[src*='1000467128'] { object-position: 50% 38%; }
+
+.drive-core-service-card__body {
+  display: flex;
+  min-height: 196px;
+  flex-direction: column;
+  padding: 1.25rem;
+}
+
+.drive-core-service-card__body h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.drive-core-service-card__body p {
+  margin-top: 0.75rem;
+  color: #5d6672;
+  line-height: 1.75;
+}
+
+.drive-core-service-card__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 1.25rem;
+  font-weight: 600;
+  color: var(--home-gold);
+}
+
+@media (max-width: 1100px) {
+  .drive-core-services { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 639px) {
+  .drive-core-services { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 800px) {
+  .service-search-table__tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+/* ---- Beta usability: deterministic service hero + mobile-safe carousels ---- */
+
+/* Lock the hero to a fixed ratio so repeated refreshes never vertically stretch it. */
+.drive-master-hero__image {
+  aspect-ratio: 16 / 10;
+  min-height: 0;
+  height: auto;
+}
+
+.drive-master-hero__image img,
+.drive-master-hero__asset {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 1023px) {
+  .drive-master-hero__image { aspect-ratio: 16 / 9; }
+}
+
+@media (max-width: 640px) {
+  .drive-master-hero__image { aspect-ratio: 4 / 3; }
+}
+
+/* Global travel ecosystem: a real block, clearly separated from stories. */
+.home-partners-section {
+  border-top: 1px solid rgba(212, 175, 55, 0.18);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.18);
+  background: #fffdf9;
+}
+
+.home-partners-section__inner {
+  margin-inline: auto;
+  max-width: 80rem;
+}
+
+.home-partner-mark {
+  border-inline-end: none;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+/* Mobile: stop the auto-ticker and let the user swipe readable cards. */
+@media (max-width: 900px) {
+  .home-partners-track,
+  .home-stories-track {
+    animation: none;
+    width: auto;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.5rem;
+  }
+
+  .home-stories-track > article {
+    flex: 0 0 86vw;
+    scroll-snap-align: center;
+  }
+
+  .home-partner-mark {
+    scroll-snap-align: center;
+    min-width: 44vw;
+  }
+}
+
+@media (max-width: 380px) {
+  .home-stories-track > article { flex-basis: 88vw; }
+}
+
+/* Travel tools stack cleanly on small screens. */
+@media (max-width: 640px) {
+  .home-utility-card,
+  .home-support-card { width: 100%; }
+}
+
+/* ---- Beta usability: search table stacks fully on mobile ---- */
+.service-search-table__field select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .service-search-table__fields {
+    grid-template-columns: 1fr;
+  }
+
+  .service-search-table__field,
+  .service-search-table__submit {
+    width: 100%;
+  }
+
+  .service-search-table__field span {
+    font-size: 0.8125rem;
+  }
+
+  .service-search-table__field input,
+  .service-search-table__field select {
+    width: 100%;
+    min-height: 3rem;
+    font-size: 1rem;
+  }
+
+  .service-search-table__submit {
+    min-height: 3rem;
+    justify-content: center;
+  }
+}
+
+/* ---- Beta usability: DABRA mobile panel ---- */
+.dabra-panel {
+  max-height: 100%;
+}
+
+.dabra-composer {
+  min-height: 1.5rem;
+  max-height: 7.5rem; /* ~5 lines then internal scroll */
+  field-sizing: content;
+}
+
+@supports not (field-sizing: content) {
+  .dabra-composer { height: auto; }
+}
+
+@media (max-width: 639px) {
+  .dabra-panel-shell {
+    padding: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .dabra-panel {
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    border-inline: none;
+  }
+
+  /* Messages own the free space; header and composer stay pinned. */
+  .dabra-panel .dabra-messages {
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .dabra-composer { max-height: 9rem; }
+}
+
+/* Floating launcher must never sit on top of CTAs, inputs or consent actions. */
+#dibrah {
+  margin-bottom: env(safe-area-inset-bottom);
+}

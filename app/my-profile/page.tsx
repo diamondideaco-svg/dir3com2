@@ -39,40 +39,40 @@ export default async function MyProfilePage() {
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">ملفي</p>
             <h1 className="mt-2 text-3xl font-semibold text-white">الملف الشخصي</h1>
           </div>
-          <Link href="/my-account" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة</Link>
+          <Link href="/my-account" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
         </div>
 
         {customer ? (
-          <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
+          <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <p className="text-xs text-slate-400">الاسم</p>
+                <p className="text-xs text-[var(--color-muted)]">الاسم</p>
                 <p className="mt-2 text-sm font-semibold text-white">{customer.full_name || '—'}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400">البريد الإلكتروني</p>
+                <p className="text-xs text-[var(--color-muted)]">البريد الإلكتروني</p>
                 <p className="mt-2 text-sm font-semibold text-white">{customer.email || '—'}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400">الهاتف</p>
+                <p className="text-xs text-[var(--color-muted)]">الهاتف</p>
                 <p className="mt-2 text-sm font-semibold text-white">{customer.phone || '—'}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400">الدور</p>
+                <p className="text-xs text-[var(--color-muted)]">الدور</p>
                 <p className="mt-2 text-sm font-semibold text-white">{getRoleLabel(normalizeRole(customer.role))}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400">الحالة</p>
+                <p className="text-xs text-[var(--color-muted)]">الحالة</p>
                 <p className="mt-2 text-sm font-semibold text-white">{customer.status || 'active'}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-400">آخر تحديث</p>
+                <p className="text-xs text-[var(--color-muted)]">آخر تحديث</p>
                 <p className="mt-2 text-sm font-semibold text-white">{customer.updated_at ? new Date(customer.updated_at).toLocaleDateString('ar-SA') : '—'}</p>
               </div>
             </div>
           </div>
         ) : (
-          <div className="rounded-[1.5rem] border border-dashed border-white/20 bg-white/5 p-6 text-sm text-slate-300">
+          <div className="rounded-[1.5rem] border border-dashed border-white/20 bg-[var(--color-surface)] p-6 text-sm text-[var(--color-muted)]">
             لم يتم العثور على ملف شخصي مرتبط بحسابك بعد.
           </div>
         )}

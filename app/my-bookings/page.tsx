@@ -51,25 +51,25 @@ export default async function MyBookingsPage() {
 
         <div className="space-y-4">
           {bookings.map((booking) => (
-            <div key={booking.id} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6">
+            <div key={booking.id} className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm text-slate-400">المرجع</p>
+                  <p className="text-sm text-[var(--color-muted)]">المرجع</p>
                   <p className="text-lg font-semibold text-white">{booking.booking_reference}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-slate-400">الخدمة</p>
+                  <p className="text-sm text-[var(--color-muted)]">الخدمة</p>
                   <p className="text-lg font-semibold text-white">{getBookingServiceName(booking)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-slate-400">المبلغ</p>
+                  <p className="text-sm text-[var(--color-muted)]">المبلغ</p>
                   <p className="text-lg font-semibold text-white">{getBookingAmount(booking)} {booking.currency || 'SAR'}</p>
                 </div>
                 <BookingStatusBadge status={booking.status} />
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link href={`/my-bookings/${booking.id}`} className="rounded-full bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155]">عرض التفاصيل</Link>
-                <Link href={`/my-bookings/${booking.id}/review`} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">تقييم الحجز</Link>
+                <Link href={`/my-bookings/${booking.id}/review`} className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">تقييم الحجز</Link>
               </div>
             </div>
           ))}
