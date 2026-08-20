@@ -810,9 +810,16 @@ button {
   will-change: transform;
 }
 
-.home-partners-section:hover .home-partners-track,
-.home-partners-section:focus-within .home-partners-track {
-  animation-play-state: paused;
+.home-partners-marquee,
+.home-stories-marquee {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+
+.home-partners-marquee::-webkit-scrollbar,
+.home-stories-marquee::-webkit-scrollbar {
+  display: none;
 }
 
 .home-partner-mark {
@@ -841,15 +848,8 @@ button {
 }
 
 .home-stories-track {
-  width: max-content;
-  scrollbar-width: thin;
-  scrollbar-color: var(--home-gold) transparent;
   animation: homeStoriesTicker 42s linear infinite;
-}
-
-.home-stories-track:hover,
-.home-stories-track:focus-within {
-  animation-play-state: paused;
+  will-change: transform;
 }
 
 .home-stories-track > article {
@@ -858,12 +858,12 @@ button {
 
 @keyframes homePartnersTicker {
   from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+  to { transform: translateX(calc(-50% - 0.5rem)); }
 }
 
 @keyframes homeStoriesTicker {
   from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+  to { transform: translateX(calc(-50% - 0.5rem)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1024,25 +1024,13 @@ button {
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
 }
 
-/* Mobile: stop the auto-ticker and let the user swipe readable cards. */
+/* Mobile keeps the seamless loop while preserving native horizontal touch panning. */
 @media (max-width: 900px) {
-  .home-partners-track,
-  .home-stories-track {
-    animation: none;
-    width: auto;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.5rem;
-  }
-
   .home-stories-track > article {
     flex: 0 0 86vw;
-    scroll-snap-align: center;
   }
 
   .home-partner-mark {
-    scroll-snap-align: center;
     min-width: 44vw;
   }
 }
@@ -1053,8 +1041,18 @@ button {
 
 /* Travel tools stack cleanly on small screens. */
 @media (max-width: 640px) {
+  .home-utilities { padding-block: 1.5rem; }
+  .home-utilities .mt-7 { margin-top: 1.25rem; }
   .home-utility-card,
-  .home-support-card { width: 100%; }
+  .home-support-card {
+    width: 100%;
+    background-image: none;
+    padding: 1rem;
+  }
+  .home-utility-card::before,
+  .home-support-card::before { display: none; }
+  .home-utility-card__description,
+  .home-utility-card__meta { line-height: 1.5; }
 }
 
 /* ---- Beta usability: search table stacks fully on mobile ---- */
@@ -1095,6 +1093,15 @@ button {
   max-height: 100%;
 }
 
+.dabra-mic--listening {
+  animation: dabraMicPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes dabraMicPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 149, 54, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(200, 149, 54, 0); }
+}
+
 .dabra-composer {
   min-height: 1.5rem;
   max-height: 7.5rem; /* ~5 lines then internal scroll */
@@ -1126,7 +1133,7 @@ button {
     min-height: 0;
   }
 
-  .dabra-composer { max-height: 9rem; }
+  .dabra-composer { max-height: 7.5rem; }
 }
 
 /* Floating launcher must never sit on top of CTAs, inputs or consent actions. */

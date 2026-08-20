@@ -78,25 +78,21 @@ export default function Header() {
     window.localStorage.setItem('dir3com-accessibility', next ? 'enhanced' : 'standard');
   }
 
-  function scrollToTool(id: string) {
-    document.getElementById(id)?.scrollIntoView({ block: 'center' });
-  }
-
   const utilityClass = 'inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-[#d4af37]/25 bg-white px-2 text-sm font-semibold text-[#2a2118] transition hover:border-[#d4af37] hover:text-[#a66d10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/40';
 
   return (
     <header dir={direction} className="sticky top-0 z-40 border-b border-[#d4af37]/20 bg-[#fffdf9]/95 shadow-[0_8px_28px_rgba(76,53,18,0.07)] backdrop-blur-xl">
-      <div className="mx-auto flex min-h-[92px] max-w-[1440px] items-center gap-5 px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="relative block h-[72px] w-[190px] shrink-0" aria-label="dir3com">
-          <Image src="/brand/runtime/dir3com-logo-approved-cropped.png" alt="dir3com — Your shield for tourism" fill priority unoptimized sizes="190px" className="object-contain" />
+      <div className="mx-auto flex min-h-[92px] max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-8">
+        <Link href="/" className="relative block h-[72px] w-[180px] shrink-0" aria-label="dir3com">
+          <Image src="/brand/runtime/dir3com-logo-approved-cropped.png" alt="dir3com — Your shield for tourism" fill preload unoptimized sizes="180px" className="object-contain" />
         </Link>
 
-        <nav aria-label={t.menu} className="hidden min-w-0 flex-1 items-center justify-center gap-1 xl:flex">
-          <div className="flex items-center gap-1 rounded-full border border-[#d4af37]/20 bg-white p-1.5 shadow-[0_6px_20px_rgba(76,53,18,0.05)]">
+        <nav aria-label={t.menu} className="hidden min-w-0 flex-1 items-center justify-center xl:flex">
+          <div className="flex items-center justify-center gap-5 xl:gap-7">
             {t.nav.map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
-                <Link key={item.href} href={item.href} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${active ? 'bg-[#d4af37] text-white' : 'text-[#2a2118] hover:bg-[#d4af37]/10 hover:text-[#a66d10]'}`}>
+                <Link key={item.href} href={item.href} className={`whitespace-nowrap border-b-2 px-0.5 py-2 text-sm font-semibold transition ${active ? 'border-[#c89536] text-[#a66d10]' : 'border-transparent text-[#2a2118] hover:border-[#d4af37]/45 hover:text-[#a66d10]'}`}>
                   {item.label}
                 </Link>
               );
@@ -106,8 +102,8 @@ export default function Header() {
 
         <div className="ms-auto hidden shrink-0 items-center gap-1.5 md:flex" role="group" aria-label={language === 'ar' ? 'أدوات العرض' : 'Display controls'}>
           <Link href="/services#service-search" className={utilityClass} aria-label={t.search}><FiSearch /></Link>
-          <button type="button" onClick={() => scrollToTool('home-weather')} className={utilityClass} aria-label={t.weather}><FiCloud /></button>
-          <button type="button" onClick={() => scrollToTool('home-currency')} className={utilityClass} aria-label={t.currency}><FiDollarSign /></button>
+          <Link href="/services#home-weather" className={utilityClass} aria-label={t.weather}><FiCloud /></Link>
+          <Link href="/services#home-currency" className={utilityClass} aria-label={t.currency}><FiDollarSign /></Link>
           <button type="button" onClick={toggleLanguage} className={utilityClass} aria-label={language === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}><FiGlobe /><span className="ms-1">{language === 'ar' ? 'EN' : 'AR'}</span></button>
           <button type="button" onClick={toggleTheme} className={utilityClass} aria-label={t.theme} aria-pressed={dark}>{dark ? <FiSun /> : <FiMoon />}</button>
           <button type="button" onClick={toggleTextSize} className={utilityClass} aria-label={t.accessibility} aria-pressed={largeText}><FiType /></button>
@@ -128,6 +124,8 @@ export default function Header() {
             {t.nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className="rounded-xl border border-[#d4af37]/15 bg-white px-4 py-3 text-sm font-semibold text-[#2a2118]">{item.label}</Link>)}
             <div className="mt-2 flex flex-wrap gap-2 md:hidden">
               <Link href="/services#service-search" className={utilityClass} aria-label={t.search}><FiSearch /></Link>
+              <Link href="/services#home-weather" className={utilityClass} aria-label={t.weather}><FiCloud /></Link>
+              <Link href="/services#home-currency" className={utilityClass} aria-label={t.currency}><FiDollarSign /></Link>
               <button type="button" onClick={toggleLanguage} className={utilityClass}><FiGlobe /> {language === 'ar' ? 'EN' : 'AR'}</button>
               <button type="button" onClick={toggleTheme} className={utilityClass}>{dark ? <FiSun /> : <FiMoon />}</button>
               <button type="button" onClick={toggleTextSize} className={utilityClass}><FiType /></button>

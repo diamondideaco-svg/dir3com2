@@ -267,6 +267,16 @@ export default function FloatingDibrah() {
     draftRef.current?.focus();
   });
 
+  const resizeComposer = useCallback((node: HTMLTextAreaElement | null) => {
+    if (!node) return;
+    node.style.height = 'auto';
+    node.style.height = `${Math.min(node.scrollHeight, 120)}px`;
+  }, []);
+
+  useEffect(() => {
+    resizeComposer(draftRef.current);
+  }, [draft, resizeComposer]);
+
   const openAssistant = () => {
     setPanelOpen(true);
     if (window.localStorage.getItem(DIBRAH_POLICY_ACCEPTED_KEY) !== 'true') {
@@ -360,7 +370,7 @@ export default function FloatingDibrah() {
               </button>
             </div>
 
-            <div ref={messagesRef} className="dabra-messages max-h-[62vh] flex-1 overflow-y-auto px-4 py-3">
+            <div ref={messagesRef} className="dabra-messages min-h-0 flex-1 overflow-y-auto px-4 py-3">
               <div className="mb-3 flex flex-wrap gap-2 text-xs">
                 <span className="rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-3 py-1.5 text-[var(--color-navy)]">
                   {assistantContext?.dataQuality === 'live-verified'
@@ -377,7 +387,7 @@ export default function FloatingDibrah() {
                     key={message.id}
                     className={`rounded-[16px] px-3 py-2 text-sm leading-7 ${
                       message.role === 'assistant'
-                        ? 'border border-[color:var(--color-border)] bg-white/75 text-[var(--color-navy)]'
+                        ? 'border border-[color:var(--color-border)] bg-white text-[#172033]'
                         : 'bg-[var(--color-surface-strong)] text-[var(--color-light)]'
                     }`}
                   >
@@ -414,7 +424,7 @@ export default function FloatingDibrah() {
               <div ref={messagesEndRef} aria-hidden="true" />
             </div>
 
-            <div className="border-t border-[color:var(--color-border)] px-4 py-3">
+            <div className="shrink-0 border-t border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-3">
               {sendError ? <p className="mb-2 text-xs text-rose-700">{sendError}</p> : null}
               <div className="flex items-end gap-2 rounded-[20px] border border-[color:var(--color-border)] bg-white/70 px-3 py-2">
                 <FiMessageCircle className="text-[var(--color-gold)]" />
@@ -423,6 +433,7 @@ export default function FloatingDibrah() {
                   rows={1}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
+                  onInput={(event) => resizeComposer(event.currentTarget)}
                   onKeyDown={(event) => {
                     // Ignore Enter while an IME composition is active so Arabic/CJK input is not sent early.
                     if (event.nativeEvent.isComposing || event.keyCode === 229) {
@@ -442,7 +453,8 @@ export default function FloatingDibrah() {
                   aria-pressed={speech.status === 'listening'}
                   onClick={() => (speech.status === 'listening' ? speech.stopListening() : speech.startListening())}
                   disabled={speech.status === 'unsupported'}
-                  className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--color-gold)]/40 transition disabled:cursor-not-allowed disabled:opacity-40 ${speech.status === 'listening' ? 'bg-[var(--color-gold)] text-[var(--color-navy)]' : 'text-[var(--color-gold)] hover:bg-[var(--color-gold)]/12'}`}
+                  title={speech.status === 'listening' ? 'إيقاف الاستماع' : 'اضغط للتحدث'}
+                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--color-gold)]/55 transition disabled:cursor-not-allowed disabled:opacity-40 ${speech.status === 'listening' ? 'dabra-mic--listening bg-[var(--color-gold)] text-[var(--color-navy)]' : 'bg-white text-[var(--color-gold)] hover:bg-[var(--color-gold)]/12'}`}
                 >
                   {speech.status === 'listening' ? <FiMicOff size={14} /> : <FiMic size={14} />}
                 </button>
@@ -456,11 +468,14 @@ export default function FloatingDibrah() {
                   <FiSend size={14} />
                 </button>
               </div>
+              <p className={`mt-2 text-xs ${speech.status === 'listening' ? 'font-semibold text-[var(--color-gold)]' : 'text-[var(--color-muted)]'}`} aria-live="polite">
+                {speech.status === 'listening' ? 'جاري الاستماع...' : speech.status === 'idle' ? 'اضغط للتحدث' : null}
+              </p>
               {speech.status === 'denied' ? (
-                <p role="alert" className="mt-2 text-xs text-[#b91c1c]">تم رفض إذن الميكروفون. فعّل الإذن من إعدادات المتصفح ثم أعد المحاولة.</p>
+                <p role="alert" className="mt-2 text-xs text-[#b91c1c]">تعذر الوصول إلى الميكروفون. اسمح للمتصفح باستخدام الميكروفون ثم حاول مرة أخرى.</p>
               ) : null}
               {speech.status === 'unsupported' ? (
-                <p className="mt-2 text-xs text-[var(--color-muted)]">الإدخال الصوتي غير مدعوم في هذا المتصفح. يمكنك الكتابة مباشرة.</p>
+                <p className="mt-2 text-xs text-[var(--color-muted)]">الإدخال الصوتي غير مدعوم في هذا المتصفح. استخدم الكتابة أو متصفحًا يدعم Web Speech.</p>
               ) : null}
             </div>
           </div>
