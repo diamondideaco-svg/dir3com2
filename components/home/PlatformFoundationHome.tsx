@@ -117,6 +117,8 @@ export default function PlatformFoundationHome({
 
       <ServiceSearchTable />
 
+      <HomeUtilities />
+
       <section className="px-4 pb-12 pt-12 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-[1240px] px-0 sm:px-2 lg:px-10">
           <h2 className="text-xs font-semibold tracking-[0.22em] text-[var(--home-gold)]">{t.servicesTitle}</h2>
@@ -157,9 +159,8 @@ export default function PlatformFoundationHome({
         </div>
       </section>
 
-      <PartnersTicker partners={partners} />
       <StoriesCarousel stories={stories} />
-      <HomeUtilities />
+      <PartnersTicker partners={partners} />
 
       <div className="h-14" aria-hidden />
     </div>
