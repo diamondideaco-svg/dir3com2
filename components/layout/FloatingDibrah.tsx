@@ -49,6 +49,22 @@ function buildSeedMessages(context: DibrahAssistantContext | null): DibrahMessag
   ];
 }
 
+function presentAssistantAnswer(answer: string | undefined) {
+  const trimmed = answer?.trim();
+  if (!trimmed) return 'لا تتوفر إجابة موثوقة حاليًا. جرّب إضافة الوجهة أو نوع الخدمة المطلوبة.';
+
+  const exposesInternalFallback = [
+    'قاعدة المعرفة الداخلية',
+    'ضمن نطاق DIR3COM المعتمد',
+    "I don't have a sufficiently authoritative source",
+    'internal knowledge base',
+  ].some((marker) => trimmed.includes(marker));
+
+  return exposesInternalFallback
+    ? 'لا تتوفر لدي معلومات موثوقة كافية لهذا الطلب حاليًا. جرّب تحديد الوجهة ونوع الخدمة، أو تواصل مع فريق الدعم للمساعدة.'
+    : trimmed;
+}
+
 export default function FloatingDibrah() {
   const controlRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef({ active: false, moved: false, pointerId: -1, startX: 0, startY: 0, originX: 0, originY: 0 });
@@ -301,7 +317,7 @@ export default function FloatingDibrah() {
         }
         return;
       }
-      setMessages((previous) => [...previous, { id: `assistant-${timestamp}`, role: 'assistant', content: payload.answer || 'لا تتوفر إجابة آمنة حاليًا.' }]);
+      setMessages((previous) => [...previous, { id: `assistant-${timestamp}`, role: 'assistant', content: presentAssistantAnswer(payload.answer) }]);
     } catch {
       setSendError('تعذر الاتصال بالدبرة حاليًا. تحقّق من الاتصال بالإنترنت وحاول مرة أخرى.');
     } finally {
@@ -323,7 +339,7 @@ export default function FloatingDibrah() {
       </span>
 
       {panelOpen ? (
-        <div className="dabra-panel-shell fixed inset-0 z-50 sm:inset-auto sm:bottom-4 sm:right-4 sm:w-[min(88vw,380px)]">
+        <div className="dabra-panel-shell fixed inset-0 z-50 sm:inset-auto sm:bottom-4 sm:right-4 sm:h-[min(78dvh,760px)] sm:w-[min(92vw,560px)]">
           <div className="dabra-panel flex flex-col overflow-hidden rounded-none border border-[var(--color-gold)]/25 bg-[var(--color-shell)]/95 shadow-[0_30px_70px_rgba(13,27,42,0.26)] backdrop-blur-xl sm:rounded-[24px]">
             <div className="flex items-center justify-between border-b border-[color:var(--color-border)] px-4 py-3">
               <div>
@@ -352,9 +368,6 @@ export default function FloatingDibrah() {
                     : assistantContext?.dataQuality === 'pilot-test'
                       ? 'بيانات تجريبية للاختبار'
                       : 'بيانات غير متاحة'}
-                </span>
-                <span className="rounded-full border border-[color:var(--color-border)] bg-white/70 px-3 py-1.5 text-[var(--color-muted)]">
-                  {assistantContext?.totalServices ?? 0} خدمة
                 </span>
               </div>
 

@@ -1,490 +1,141 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { FiBell, FiGlobe, FiHeart, FiLogOut, FiMenu, FiSearch, FiShield, FiUser, FiX } from 'react-icons/fi';
-import { HiSparkles } from 'react-icons/hi2';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { FiCloud, FiDollarSign, FiGlobe, FiMenu, FiMoon, FiSearch, FiSun, FiType, FiX } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
-import { buttonVariants } from '@/components/ui/button';
-import { useSessionIdentity } from '@/hooks/useSessionIdentity';
-import { getRoleLabel } from '@/lib/auth/identity-contract';
-import { supabase } from '@/lib/supabase/client';
-import { cn } from '@/lib/utils';
-
-type AccountSection = 'account' | 'profile' | 'bookings' | 'wallet' | 'documents';
-
-type HeaderActionLink = {
-  label: string;
-  href: string;
-  icon: React.ComponentType<{ size?: number }>;
-  requiresAuth?: boolean;
-  accountSection?: AccountSection;
-};
 
 const copy = {
   ar: {
-    navItems: [
-      { label: 'الرئيسية', href: '/#home' },
-      { label: 'خدماتنا', href: '/services' },
-      { label: 'dir3 Drive', href: '/services/drive' },
-      { label: 'dir3 Stay', href: '/services/stay' },
-      { label: 'dir3 Fly', href: '/services/fly' },
-      { label: 'dir3 Concierge', href: '/services/concierge' },
-      { label: 'dir3 VIP', href: '/services/vip' },
+    nav: [
+      { label: 'الخدمات', href: '/services' },
+      { label: 'السيارات', href: '/services/drive' },
+      { label: 'الفنادق', href: '/services/stay' },
+      { label: 'التجارب', href: '/services/concierge' },
       { label: 'العروض', href: '/offers' },
-      { label: 'من نحن', href: '/about' },
       { label: 'تواصل', href: '/contact' },
     ],
-    actionLinks: [
-      { label: 'البحث', href: '/services', icon: FiSearch },
-      { label: 'الدبرة', href: '/#dibrah-section', icon: HiSparkles },
-      { label: 'المفضلة', href: '/my-bookings', icon: FiHeart, requiresAuth: true, accountSection: 'bookings' as const },
-      { label: 'التنبيهات', href: '/my-account', icon: FiBell, requiresAuth: true, accountSection: 'account' as const },
-    ],
-    guest: 'ضيف',
-    tagline: 'درعك الحامي للسياحة.',    openMenu: 'فتح القائمة',
-    mainNav: 'التنقل الرئيسي',
-    login: 'تسجيل الدخول',
-    accountPrefix: 'الحساب',
-    profile: 'الملف الشخصي',    mobileNav: 'قائمة الجوال',
-    myAccount: 'حسابي',
-    actionsLabel: 'اختصارات الخدمة',
-    checking: 'جاري التحقق...',
-    dashboard: 'لوحة التحكم',
-    logout: 'تسجيل الخروج',
-    signingOut: 'جاري تسجيل الخروج...',
-    languageButton: 'AR / EN',
-    languageLabel: 'تبديل اللغة إلى الإنجليزية',
+    signIn: 'تسجيل الدخول',
+    menu: 'القائمة الرئيسية',
+    search: 'البحث',
+    weather: 'الطقس',
+    currency: 'العملات',
+    theme: 'تبديل المظهر',
+    accessibility: 'تكبير النص',
   },
   en: {
-    navItems: [
-      { label: 'Home', href: '/#home' },
+    nav: [
       { label: 'Services', href: '/services' },
-      { label: 'dir3 Drive', href: '/services/drive' },
-      { label: 'dir3 Stay', href: '/services/stay' },
-      { label: 'dir3 Fly', href: '/services/fly' },
-      { label: 'dir3 Concierge', href: '/services/concierge' },
-      { label: 'dir3 VIP', href: '/services/vip' },
+      { label: 'Cars', href: '/services/drive' },
+      { label: 'Hotels', href: '/services/stay' },
+      { label: 'Experiences', href: '/services/concierge' },
       { label: 'Offers', href: '/offers' },
-      { label: 'About', href: '/about' },
       { label: 'Contact', href: '/contact' },
     ],
-    actionLinks: [
-      { label: 'Search', href: '/services', icon: FiSearch },
-      { label: 'DABRA', href: '/#dibrah-section', icon: HiSparkles },
-      { label: 'Favorites', href: '/my-bookings', icon: FiHeart, requiresAuth: true, accountSection: 'bookings' as const },
-      { label: 'Alerts', href: '/my-account', icon: FiBell, requiresAuth: true, accountSection: 'account' as const },
-    ],
-    guest: 'Guest',
-    tagline: 'Your protective shield for tourism.',    openMenu: 'Open menu',
-    mainNav: 'Main navigation',
-    login: 'Sign in',
-    accountPrefix: 'Account',
-    profile: 'Profile',    mobileNav: 'Mobile navigation',
-    myAccount: 'My account',
-    actionsLabel: 'Service shortcuts',
-    checking: 'Checking...',
-    dashboard: 'Dashboard',
-    logout: 'Sign out',
-    signingOut: 'Signing out...',
-    languageButton: 'EN / AR',
-    languageLabel: 'Switch language to Arabic',
+    signIn: 'Sign in',
+    menu: 'Main navigation',
+    search: 'Search',
+    weather: 'Weather',
+    currency: 'Currency',
+    theme: 'Toggle theme',
+    accessibility: 'Increase text size',
   },
 } as const;
 
-function buildLoginTarget(destination: string) {
-  const encoded = encodeURIComponent(destination);
-  return `/login?redirect=${encoded}&next=${encoded}`;
-}
-
-function normalizePathname(pathname: string) {
-  if (pathname.length > 1 && pathname.endsWith('/')) {
-    return pathname.slice(0, -1);
-  }
-
-  return pathname;
-}
-
-function getAccountSection(pathname: string): AccountSection | null {
-  const normalizedPath = normalizePathname(pathname);
-
-  if (normalizedPath === '/my-account') return 'account';
-  if (normalizedPath === '/my-profile' || normalizedPath === '/profile') return 'profile';
-  if (normalizedPath.startsWith('/my-bookings')) return 'bookings';
-  if (normalizedPath === '/my-wallet') return 'wallet';
-  if (normalizedPath === '/my-documents') return 'documents';
-
-  return null;
-}
-
-function isActiveAccountLink(target: AccountSection | null, current: AccountSection | null) {
-  return Boolean(target && current && target === current);
-}
-
-function pickUserDisplayName(displayName: string | null, email: string | null) {
-  if (displayName?.trim()) {
-    return displayName.trim();
-  }
-
-  if (!email?.trim()) {
-    return null;
-  }
-
-  return email.split('@')[0] || null;
-}
-
-function isActiveNavItem(pathname: string, href: string) {
-  const normalizedPath = normalizePathname(pathname);
-
-  if (href.startsWith('/#')) {
-    return normalizedPath === '/';
-  }
-
-  return normalizedPath === href || normalizedPath.startsWith(`${href}/`);
-}
-
-function Logo({ tagline, direction }: { tagline: string; direction: 'rtl' | 'ltr' }) {
-  return (
-    <Link href="/#home" className="flex items-center gap-3" aria-label="dir3com">
-      <span className="flex h-12 w-12 items-center justify-center rounded-[1.35rem] bg-[var(--brand-gradient)] text-[var(--color-light)] shadow-[0_18px_36px_rgba(15,23,42,0.22)]">
-        <FiShield size={22} />
-      </span>
-      <span className={`flex flex-col ${direction === 'rtl' ? 'text-right' : 'text-left'}`}>
-        <span className="font-[var(--font-display)] text-2xl font-semibold leading-none text-[var(--color-navy)]">dir3com</span>
-        <span className="mt-1 text-[11px] font-semibold tracking-[0.14em] text-[var(--color-muted)]">{tagline}</span>
-      </span>
-    </Link>
-  );
+function loginTarget() {
+  const destination = encodeURIComponent('/my-account');
+  return `/login?redirect=${destination}&next=${destination}`;
 }
 
 export default function Header() {
+  const pathname = usePathname();
   const { language, direction, toggleLanguage } = useLanguage();
   const t = copy[language];
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [isSigningOut, setIsSigningOut] = useState(false);
-  const pathname = usePathname();
-  const router = useRouter();
-  const { identity, isLoading, refresh } = useSessionIdentity();
+  const [dark, setDark] = useState(false);
+  const [largeText, setLargeText] = useState(false);
 
-  const isAuthenticated = identity.authenticated;
-  const isAdmin = identity.isAdmin;
-  const navItems = t.navItems;
-  const publicActionLinks = t.actionLinks.slice(0, 2) as readonly HeaderActionLink[];
-  const privateActionLinks = t.actionLinks.slice(2) as readonly HeaderActionLink[];
-  const userDisplayName = pickUserDisplayName(identity.displayName, identity.email);
+  useEffect(() => {
+    queueMicrotask(() => {
+      setDark(window.localStorage.getItem('dir3com-theme') === 'dark');
+      setLargeText(window.localStorage.getItem('dir3com-accessibility') === 'enhanced');
+    });
+  }, []);
 
-  const accountHref = isAuthenticated ? '/my-account' : buildLoginTarget('/my-account');
-  const profileHref = isAuthenticated ? '/my-profile' : buildLoginTarget('/my-profile');
-  const currentAccountSection = isAuthenticated ? getAccountSection(pathname) : null;
-  const accountAreaActive = Boolean(currentAccountSection);
-  const roleLabel = getRoleLabel(identity.role, identity.roleRaw);
-
-  async function handleSignOut() {
-    if (isSigningOut) {
-      return;
-    }
-
-    try {
-      setIsSigningOut(true);
-      await supabase.auth.signOut();
-      await refresh();
-      setMobileOpen(false);
-      router.push('/login?redirect=%2Fmy-account&next=%2Fmy-account');
-      router.refresh();
-    } finally {
-      setIsSigningOut(false);
-    }
+  function toggleTheme() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.dataset.theme = next ? 'dark' : 'light';
+    window.localStorage.setItem('dir3com-theme', next ? 'dark' : 'light');
   }
 
+  function toggleTextSize() {
+    const next = !largeText;
+    setLargeText(next);
+    document.documentElement.style.fontSize = next ? '106%' : '';
+    window.localStorage.setItem('dir3com-accessibility', next ? 'enhanced' : 'standard');
+  }
+
+  function scrollToTool(id: string) {
+    document.getElementById(id)?.scrollIntoView({ block: 'center' });
+  }
+
+  const utilityClass = 'inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-[#d4af37]/25 bg-white px-2 text-sm font-semibold text-[#2a2118] transition hover:border-[#d4af37] hover:text-[#a66d10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/40';
+
   return (
-    <header className="sticky top-0 z-40 border-b border-[color:var(--color-border)] bg-[color:var(--color-shell)]/86 backdrop-blur-2xl" dir={direction}>
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3 lg:hidden">
-          <button
-            type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/85 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
-            onClick={() => setMobileOpen((prev) => !prev)}
-            aria-label={t.openMenu}
-            aria-expanded={mobileOpen}
-            aria-controls="mobile-nav-panel"
-          >
-            {mobileOpen ? <FiX size={18} /> : <FiMenu size={18} />}
-          </button>
-          <div className="hidden sm:block">
-            <Logo tagline={t.tagline} direction={direction} />
-          </div>
-        </div>
+    <header dir={direction} className="sticky top-0 z-40 border-b border-[#d4af37]/20 bg-[#fffdf9]/95 shadow-[0_8px_28px_rgba(76,53,18,0.07)] backdrop-blur-xl">
+      <div className="mx-auto flex min-h-[92px] max-w-[1440px] items-center gap-5 px-4 sm:px-6 lg:px-8">
+        <Link href="/" className="relative block h-[72px] w-[190px] shrink-0" aria-label="dir3com">
+          <Image src="/brand/runtime/dir3com-logo-approved-cropped.png" alt="dir3com — Your shield for tourism" fill priority unoptimized sizes="190px" className="object-contain" />
+        </Link>
 
-        <div className="hidden lg:block">
-          <Logo tagline={t.tagline} direction={direction} />
-        </div>
-
-        <nav aria-label={t.mainNav} className="hidden items-center gap-1 rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 p-1.5 shadow-[0_14px_34px_rgba(15,23,42,0.07)] lg:flex">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
-                isActiveNavItem(pathname, item.href)
-                  ? 'bg-[var(--brand-gradient)] text-[var(--color-light)] shadow-[0_12px_26px_rgba(15,23,42,0.18)]'
-                  : 'text-[var(--color-navy)] hover:bg-[var(--color-surface)] hover:text-[var(--color-gold)]'
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-2">
-          <div className="sm:hidden">
-            <Logo tagline={t.tagline} direction={direction} />
-          </div>
-
-          <div className="hidden items-center gap-2 md:flex" aria-label={t.actionsLabel}>
-            <button
-              type="button"
-              onClick={toggleLanguage}
-              aria-label={t.languageLabel}
-              className="inline-flex h-11 items-center gap-1.5 rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 px-3 text-xs font-semibold text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
-            >
-              <FiGlobe size={16} />
-              {t.languageButton}
-            </button>
-
-            {publicActionLinks.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={label}
-                href={href}
-                aria-label={label}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
-              >
-                <Icon size={18} />
-              </Link>
-            ))}
-
-            {!isLoading && isAuthenticated &&
-              privateActionLinks.map(({ href, label, icon: Icon, accountSection }) => (
-                <Link
-                  key={label}
-                  href={href}
-                  aria-label={label}
-                  className={cn(
-                    'inline-flex h-11 w-11 items-center justify-center rounded-full border bg-[var(--color-card-strong)]/84 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
-                    isActiveAccountLink(accountSection ?? null, currentAccountSection)
-                      ? 'border-[var(--color-gold)] text-[var(--color-gold)]'
-                      : 'border-[color:var(--color-border)]'
-                  )}
-                >
-                  <Icon size={18} />
-                </Link>
-              ))}
-
-            {!isLoading && isAuthenticated && (
-              <Link
-                href={profileHref}
-                aria-label={t.profile}
-                className={cn(
-                  'inline-flex h-11 w-11 items-center justify-center rounded-full border bg-[var(--color-card-strong)]/84 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
-                  isActiveAccountLink('profile', currentAccountSection)
-                    ? 'border-[var(--color-gold)] text-[var(--color-gold)]'
-                    : 'border-[color:var(--color-border)]'
-                )}
-              >
-                <FiUser size={18} />
-              </Link>
-            )}
-
-            {!isLoading && isAuthenticated && isAdmin && (
-              <Link
-                href="/dashboard"
-                className="rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-gold)]"
-              >
-                {t.dashboard}
-              </Link>
-            )}
-          </div>
-
-          <div className="hidden md:flex">
-            {isLoading ? (
-              <span className="inline-flex h-11 items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 px-3 text-sm font-medium text-[var(--color-muted)] shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
-                {t.checking}
-              </span>
-            ) : isAuthenticated ? (
-              <div className="flex items-center gap-2">
-                <Link
-                  href={accountHref}
-                  className={cn(
-                    'inline-flex h-11 items-center gap-2 rounded-full border bg-[var(--color-card-strong)]/84 px-3 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
-                    accountAreaActive ? 'border-[var(--color-gold)] text-[var(--color-gold)]' : 'border-[color:var(--color-border)]'
-                  )}
-                  aria-label={`${t.accountPrefix}: ${userDisplayName ?? identity.email ?? t.myAccount}`}
-                >
-                  <FiUser size={16} />
-                  <span className="max-w-28 truncate text-sm font-medium">{userDisplayName ?? identity.email ?? t.myAccount}</span>
-                  <span className="rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-gold)]">
-                    {roleLabel}
-                  </span>
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleSignOut();
-                  }}
-                  disabled={isSigningOut}
-                  className="inline-flex h-11 items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 px-3 text-sm font-medium text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-rose-300 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  <FiLogOut size={16} />
-                  <span>{isSigningOut ? t.signingOut : t.logout}</span>
-                </button>
-              </div>
-            ) : (
-              <Link href={buildLoginTarget('/my-account')} className={buttonVariants({ variant: 'gold', size: 'default' })}>
-                {t.login}
-              </Link>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {mobileOpen && (
-        <div id="mobile-nav-panel" className="border-t border-[color:var(--color-border)] bg-[color:var(--color-shell)]/95 px-4 py-4 shadow-[0_22px_50px_rgba(15,23,42,0.15)] lg:hidden">
-          <div className="mx-auto flex max-w-7xl flex-col gap-3">
-            <div className="rounded-[28px] border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 p-4 shadow-[0_16px_34px_rgba(15,23,42,0.08)]">
-              <p className="font-[var(--font-display)] text-2xl font-semibold text-[var(--color-navy)]">dir3com</p>
-              <p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">{t.tagline}</p>
-            </div>
-
-            <nav aria-label={t.mobileNav} className="grid gap-2">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={cn(
-                    'rounded-2xl border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 px-4 py-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
-                    isActiveNavItem(pathname, item.href)
-                      ? 'border-[var(--color-gold)] bg-[var(--color-surface)] text-[var(--color-gold)]'
-                      : 'text-[var(--color-navy)] hover:border-[var(--color-gold)] hover:text-[var(--color-gold)]'
-                  )}
-                >
+        <nav aria-label={t.menu} className="hidden min-w-0 flex-1 items-center justify-center gap-1 xl:flex">
+          <div className="flex items-center gap-1 rounded-full border border-[#d4af37]/20 bg-white p-1.5 shadow-[0_6px_20px_rgba(76,53,18,0.05)]">
+            {t.nav.map((item) => {
+              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return (
+                <Link key={item.href} href={item.href} className={`rounded-full px-4 py-2 text-sm font-semibold transition ${active ? 'bg-[#d4af37] text-white' : 'text-[#2a2118] hover:bg-[#d4af37]/10 hover:text-[#a66d10]'}`}>
                   {item.label}
                 </Link>
-              ))}
-            </nav>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={toggleLanguage}
-                aria-label={t.languageLabel}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 text-sm font-semibold text-[var(--color-navy)] transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
-              >
-                <FiGlobe size={18} />
-                {t.languageButton}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {publicActionLinks.map(({ href, label, icon: Icon }) => (
-                <Link
-                  key={label}
-                  href={href}
-                  aria-label={label}
-                  onClick={() => setMobileOpen(false)}
-                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 text-[var(--color-navy)] transition-all duration-200 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
-                >
-                  <Icon size={18} />
-                </Link>
-              ))}
-
-              {!isLoading && isAuthenticated &&
-                privateActionLinks.map(({ href, label, icon: Icon, accountSection }) => (
-                  <Link
-                    key={label}
-                    href={href}
-                    aria-label={label}
-                    onClick={() => setMobileOpen(false)}
-                    className={cn(
-                      'inline-flex h-12 items-center justify-center rounded-2xl border bg-[var(--color-card-strong)]/84 text-[var(--color-navy)] transition-all duration-200 active:scale-[0.97] hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
-                      isActiveAccountLink(accountSection ?? null, currentAccountSection)
-                        ? 'border-[var(--color-gold)] text-[var(--color-gold)]'
-                        : 'border-[color:var(--color-border)]'
-                    )}
-                  >
-                    <Icon size={18} />
-                  </Link>
-                ))}
-
-              {!isLoading && isAuthenticated && (
-                <Link
-                  href={profileHref}
-                  aria-label={t.profile}
-                  onClick={() => setMobileOpen(false)}
-                  className={cn(
-                    'inline-flex h-12 items-center justify-center rounded-2xl border bg-[var(--color-card-strong)]/84 text-[var(--color-navy)] transition-all duration-200 active:scale-[0.97] hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
-                    isActiveAccountLink('profile', currentAccountSection)
-                      ? 'border-[var(--color-gold)] text-[var(--color-gold)]'
-                      : 'border-[color:var(--color-border)]'
-                  )}
-                >
-                  <FiUser size={18} />
-                </Link>
-              )}
-            </div>
-
-            {!isLoading && isAuthenticated && isAdmin && (
-              <Link
-                href="/dashboard"
-                onClick={() => setMobileOpen(false)}
-                className="rounded-2xl border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-4 py-3 text-center text-sm font-semibold text-[var(--color-gold)]"
-              >
-                {t.dashboard}
-              </Link>
-            )}
-
-            {isLoading ? (
-              <span className="rounded-2xl border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 px-4 py-3 text-sm font-medium text-[var(--color-muted)]">
-                {t.checking}
-              </span>
-            ) : isAuthenticated ? (
-              <div className="grid gap-2">
-                <Link
-                  href={accountHref}
-                  onClick={() => setMobileOpen(false)}
-                  className={cn(
-                    'rounded-2xl border bg-[var(--color-card-strong)]/84 px-4 py-3 text-sm font-medium text-[var(--color-navy)] transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
-                    accountAreaActive ? 'border-[var(--color-gold)] text-[var(--color-gold)]' : 'border-[color:var(--color-border)]'
-                  )}
-                >
-                  {`${t.myAccount}: ${userDisplayName ?? identity.email ?? t.guest}`}
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleSignOut();
-                  }}
-                  disabled={isSigningOut}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 px-4 py-3 text-sm font-medium text-[var(--color-navy)] transition hover:border-rose-300 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  <FiLogOut size={16} />
-                  <span>{isSigningOut ? t.signingOut : t.logout}</span>
-                </button>
-              </div>
-            ) : (
-              <Link
-                href={buildLoginTarget('/my-account')}
-                onClick={() => setMobileOpen(false)}
-                className={buttonVariants({ variant: 'gold', size: 'default' })}
-              >
-                {t.login}
-              </Link>
-            )}
+              );
+            })}
           </div>
+        </nav>
+
+        <div className="ms-auto hidden shrink-0 items-center gap-1.5 md:flex" role="group" aria-label={language === 'ar' ? 'أدوات العرض' : 'Display controls'}>
+          <Link href="/services#service-search" className={utilityClass} aria-label={t.search}><FiSearch /></Link>
+          <button type="button" onClick={() => scrollToTool('home-weather')} className={utilityClass} aria-label={t.weather}><FiCloud /></button>
+          <button type="button" onClick={() => scrollToTool('home-currency')} className={utilityClass} aria-label={t.currency}><FiDollarSign /></button>
+          <button type="button" onClick={toggleLanguage} className={utilityClass} aria-label={language === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}><FiGlobe /><span className="ms-1">{language === 'ar' ? 'EN' : 'AR'}</span></button>
+          <button type="button" onClick={toggleTheme} className={utilityClass} aria-label={t.theme} aria-pressed={dark}>{dark ? <FiSun /> : <FiMoon />}</button>
+          <button type="button" onClick={toggleTextSize} className={utilityClass} aria-label={t.accessibility} aria-pressed={largeText}><FiType /></button>
         </div>
-      )}
+
+        <Link href={loginTarget()} className="hidden min-h-11 shrink-0 items-center rounded-full bg-[#c89536] px-5 text-sm font-bold text-white shadow-[0_8px_20px_rgba(200,149,54,0.24)] transition hover:bg-[#b78320] sm:inline-flex">
+          {t.signIn}
+        </Link>
+
+        <button type="button" onClick={() => setMobileOpen((open) => !open)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#d4af37]/30 bg-white text-[#2a2118] xl:hidden" aria-label={t.menu} aria-expanded={mobileOpen}>
+          {mobileOpen ? <FiX /> : <FiMenu />}
+        </button>
+      </div>
+
+      {mobileOpen ? (
+        <div className="border-t border-[#d4af37]/20 bg-[#fffdf9] px-4 py-4 xl:hidden">
+          <nav className="mx-auto grid max-w-7xl gap-2" aria-label={t.menu}>
+            {t.nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className="rounded-xl border border-[#d4af37]/15 bg-white px-4 py-3 text-sm font-semibold text-[#2a2118]">{item.label}</Link>)}
+            <div className="mt-2 flex flex-wrap gap-2 md:hidden">
+              <Link href="/services#service-search" className={utilityClass} aria-label={t.search}><FiSearch /></Link>
+              <button type="button" onClick={toggleLanguage} className={utilityClass}><FiGlobe /> {language === 'ar' ? 'EN' : 'AR'}</button>
+              <button type="button" onClick={toggleTheme} className={utilityClass}>{dark ? <FiSun /> : <FiMoon />}</button>
+              <button type="button" onClick={toggleTextSize} className={utilityClass}><FiType /></button>
+            </div>
+            <Link href={loginTarget()} className="mt-2 inline-flex min-h-11 items-center justify-center rounded-full bg-[#c89536] px-5 text-sm font-bold text-white sm:hidden">{t.signIn}</Link>
+          </nav>
+        </div>
+      ) : null}
     </header>
   );
 }
