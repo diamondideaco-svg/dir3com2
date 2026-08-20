@@ -35,7 +35,7 @@ export default function CustomerTable({ customers }: CustomerTableProps) {
                     <form action={updateShieldLevelAction}>
                       <input type="hidden" name="id" value={customer.id} />
                       <input type="hidden" name="shieldLevel" value="DIR3 Elite Shield" />
-                      <button type="submit" className="rounded-full bg-[#D4AF37] px-3 py-2 text-xs font-semibold text-[#0D1B2A]">رفع الدرجة</button>
+                      <button type="submit" className="rounded-full bg-[#D4AF37] px-3 py-2 text-xs font-semibold text-[#334155]">رفع الدرجة</button>
                     </form>
                     <form action={deactivateCustomerAction}>
                       <input type="hidden" name="id" value={customer.id} />

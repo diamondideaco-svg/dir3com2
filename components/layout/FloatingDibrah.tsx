@@ -288,7 +288,7 @@ export default function FloatingDibrah() {
       className={`group fixed z-50 select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
       style={{ left: position.x, top: position.y }}
     >
-      <span className="pointer-events-none absolute -top-12 right-0 hidden whitespace-nowrap rounded-full border border-[var(--color-gold)]/25 bg-[var(--color-navy)] px-3 py-2 text-xs font-medium text-[var(--color-light)] shadow-[0_10px_30px_rgba(13,27,42,0.3)] group-hover:block group-focus-within:block">
+      <span className="pointer-events-none absolute -top-12 right-0 hidden whitespace-nowrap rounded-full border border-[var(--color-gold)]/25 bg-[var(--color-surface-strong)] px-3 py-2 text-xs font-medium text-[var(--color-light)] shadow-[0_10px_30px_rgba(13,27,42,0.3)] group-hover:block group-focus-within:block">
         اسحب للتحريك - اسأل الدبرة
       </span>
 
@@ -335,7 +335,7 @@ export default function FloatingDibrah() {
                     className={`rounded-[16px] px-3 py-2 text-sm leading-7 ${
                       message.role === 'assistant'
                         ? 'border border-[color:var(--color-border)] bg-white/75 text-[var(--color-navy)]'
-                        : 'bg-[var(--color-navy)] text-[var(--color-light)]'
+                        : 'bg-[var(--color-surface-strong)] text-[var(--color-light)]'
                     }`}
                   >
                     {message.content}
@@ -380,6 +380,10 @@ export default function FloatingDibrah() {
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {
+                    // Ignore Enter while an IME composition is active so Arabic/CJK input is not sent early.
+                    if (event.nativeEvent.isComposing || event.keyCode === 229) {
+                      return;
+                    }
                     if (event.key === 'Enter' && !event.shiftKey) {
                       event.preventDefault();
                       void sendDraft();
@@ -393,7 +397,7 @@ export default function FloatingDibrah() {
                   aria-label="إرسال"
                   onClick={() => void sendDraft()}
                   disabled={sending || !draft.trim()}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-navy)] text-[var(--color-light)] transition hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-surface-strong)] text-[var(--color-light)] transition hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FiSend size={14} />
                 </button>
@@ -401,7 +405,7 @@ export default function FloatingDibrah() {
             </div>
           </div>
           {policyOpen ? (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] bg-[var(--color-navy)]/35 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="dabra-policy-title">
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] bg-[var(--color-surface-strong)]/35 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="dabra-policy-title">
               <div className="max-h-full w-full overflow-hidden rounded-[20px] border border-[var(--color-gold)]/30 bg-[var(--color-shell)] shadow-[0_24px_60px_rgba(13,27,42,0.3)]" dir="rtl">
                 <div className="border-b border-[color:var(--color-border)] px-4 py-3"><h2 id="dabra-policy-title" className="text-lg font-semibold text-[var(--color-navy)]">إخلاء مسؤولية</h2></div>
                 <div className="max-h-[min(48vh,360px)] overflow-y-auto px-4 py-3 text-sm leading-7 text-[var(--color-muted)]">
@@ -436,7 +440,7 @@ export default function FloatingDibrah() {
           }
           if (panelOpen) setPanelOpen(false); else openAssistant();
         }}
-        className="group relative flex min-h-14 items-center gap-3 overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-[linear-gradient(150deg,#0d1b2a_0%,#163149_100%)] px-3 py-3 text-right text-[var(--color-light)] shadow-[0_26px_56px_rgba(13,27,42,0.3)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45"
+        className="group relative flex min-h-14 items-center gap-3 overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-[linear-gradient(150deg,#334155_0%,#163149_100%)] px-3 py-3 text-right text-[var(--color-light)] shadow-[0_26px_56px_rgba(13,27,42,0.3)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45"
       >
         <span className="pointer-events-none absolute -right-4 top-1/2 h-12 w-12 -translate-y-1/2 rounded-full bg-[var(--color-gold)]/20 blur-2xl" />
         <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-white/60">

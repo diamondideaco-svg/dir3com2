@@ -449,24 +449,24 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
 
   return (
     <div className="min-h-screen w-full px-3 py-6 text-white sm:px-4 sm:py-8" dir={direction}>
-      <div className="portal-shell-center w-full max-w-7xl rounded-[2rem] border border-[#D4AF37]/25 bg-[#0D1B2A] p-4 shadow-[0_24px_60px_rgba(13,27,42,0.35)] sm:p-6 lg:p-8">
+      <div className="portal-shell-center w-full max-w-7xl rounded-[2rem] border border-[#D4AF37]/25 bg-[#FAF8F4] p-4 shadow-[0_24px_60px_rgba(13,27,42,0.35)] sm:p-6 lg:p-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4 sm:gap-5">
           <div>
-            <h1 className="text-3xl font-semibold text-[#F4F1E8]">{pageTitle}</h1>
+            <h1 className="text-3xl font-semibold text-[#334155]">{pageTitle}</h1>
             <p className="mt-2 text-sm text-[#C9D3DF]">{pageSubtitle}</p>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             <button
               type="button"
               onClick={toggleLanguage}
-              className="min-h-11 rounded-xl border border-white/20 px-4 py-2 text-sm text-[#F4F1E8]"
+              className="min-h-11 rounded-xl border border-white/20 px-4 py-2 text-sm text-[#334155]"
             >
               {language === 'ar' ? 'EN' : 'AR'}
             </button>
             <button
               type="button"
               onClick={() => void loadAll()}
-              className="min-h-11 rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B2A]"
+              className="min-h-11 rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155]"
             >
               {t.reload}
             </button>
@@ -487,7 +487,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
               type="button"
               onClick={() => setTab(id as typeof tab)}
               className={`min-h-11 rounded-xl border px-3 py-2 text-sm ${
-                tab === id ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-[#F4F1E8]' : 'border-white/10 bg-white/5 text-[#C9D3DF]'
+                tab === id ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-[#334155]' : 'border-white/10 bg-white/5 text-[#C9D3DF]'
               }`}
             >
               {label}
@@ -496,7 +496,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         </div>
 
         {message ? (
-          <div className="mb-4 rounded-xl border border-[#D4AF37]/25 bg-[#D4AF37]/10 px-4 py-3 text-sm text-[#F4F1E8]">{message}</div>
+          <div className="mb-4 rounded-xl border border-[#D4AF37]/25 bg-[#D4AF37]/10 px-4 py-3 text-sm text-[#334155]">{message}</div>
         ) : null}
 
         {tab === 'profile' ? (
@@ -516,7 +516,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
               ))}
             </select>
             <div className="sm:col-span-2">
-              <button type="button" disabled={busy} onClick={() => void saveProfile()} className="rounded-xl bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#0D1B2A] disabled:opacity-60">
+              <button type="button" disabled={busy} onClick={() => void saveProfile()} className="rounded-xl bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#334155] disabled:opacity-60">
                 {t.save}
               </button>
             </div>
@@ -537,14 +537,14 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                 <option value="vehicle_registration">vehicle_registration</option>
               </select>
               <input type="file" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="min-h-11 w-full rounded-xl bg-[#07111D] px-4 py-3 text-sm sm:w-auto sm:max-w-xs" />
-              <button type="button" disabled={busy || !selectedFile} onClick={() => void uploadDocument()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B2A] disabled:opacity-60 sm:w-auto">
+              <button type="button" disabled={busy || !selectedFile} onClick={() => void uploadDocument()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60 sm:w-auto">
                 {t.upload}
               </button>
             </div>
             <div className="space-y-2">
               {documents.map((doc) => (
                 <div key={doc.id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm [overflow-wrap:anywhere]">
-                  <span className="font-semibold text-[#F4F1E8]">{doc.document_type}</span>
+                  <span className="font-semibold text-[#334155]">{doc.document_type}</span>
                   <span className="mx-2 text-[#9EB0C3]">|</span>
                   <span>{doc.status || 'pending'}</span>
                   <span className="mx-2 text-[#9EB0C3]">|</span>
@@ -567,7 +567,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
               <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.currency} value={newProduct.currency} onChange={(e) => setNewProduct((prev) => ({ ...prev, currency: e.target.value }))} />
               <input className="rounded-xl bg-[#07111D] px-4 py-3" placeholder={t.status} value={newProduct.status} onChange={(e) => setNewProduct((prev) => ({ ...prev, status: e.target.value }))} />
               <div className="sm:col-span-2">
-                <button type="button" disabled={busy} onClick={() => void createProduct()} className="rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B2A] disabled:opacity-60">{t.addService}</button>
+                <button type="button" disabled={busy} onClick={() => void createProduct()} className="rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60">{t.addService}</button>
               </div>
             </div>
 
@@ -579,7 +579,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                 ))}
               </select>
               <input type="file" onChange={(e) => setProductImage((prev) => ({ ...prev, file: e.target.files?.[0] || null }))} className="min-h-11 w-full rounded-xl bg-[#07111D] px-4 py-2 text-sm sm:w-auto sm:max-w-xs" />
-              <button type="button" disabled={busy || !productImage.productId || !productImage.file} onClick={() => void uploadProductImage()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B2A] disabled:opacity-60 sm:w-auto">{t.uploadImage}</button>
+              <button type="button" disabled={busy || !productImage.productId || !productImage.file} onClick={() => void uploadProductImage()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60 sm:w-auto">{t.uploadImage}</button>
             </div>
 
             <div className="space-y-2">
@@ -629,7 +629,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                           type="button"
                           disabled={busy}
                           onClick={() => void saveExistingProduct(row.products!.id)}
-                          className="rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B2A] disabled:opacity-60"
+                          className="rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60"
                         >
                           {t.save}
                         </button>
@@ -652,7 +652,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
           <section className="space-y-2">
             {bookings.map((booking) => (
               <div key={booking.id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm [overflow-wrap:anywhere]">
-                <span className="font-semibold text-[#F4F1E8]">{booking.booking_reference || booking.id}</span>
+                <span className="font-semibold text-[#334155]">{booking.booking_reference || booking.id}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
                 <span>{booking.status || 'pending'}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
@@ -668,7 +668,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
           <section className="space-y-2">
             {settlements.map((settlement) => (
               <div key={settlement.id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm [overflow-wrap:anywhere]">
-                <span className="font-semibold text-[#F4F1E8]">{settlement.amount} {settlement.currency || 'SAR'}</span>
+                <span className="font-semibold text-[#334155]">{settlement.amount} {settlement.currency || 'SAR'}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
                 <span>{settlement.settlement_status || 'pending'}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
@@ -682,17 +682,17 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
           <section className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-xl border border-white/10 bg-white/5 p-4">
               <p className="text-xs text-[#9EB0C3]">{t.missing}</p>
-              <p className="mt-2 text-sm text-[#F4F1E8]">{(compliance?.missingDocuments || []).join(', ') || '—'}</p>
+              <p className="mt-2 text-sm text-[#334155]">{(compliance?.missingDocuments || []).join(', ') || '—'}</p>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/5 p-4">
               <p className="text-xs text-[#9EB0C3]">{t.expired}</p>
-              <p className="mt-2 text-sm text-[#F4F1E8]">
+              <p className="mt-2 text-sm text-[#334155]">
                 {(compliance?.expiredDocuments || []).map((doc) => `${doc.documentType} (${formatDate(doc.expiryDate, language as Lang)})`).join(', ') || '—'}
               </p>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/5 p-4">
               <p className="text-xs text-[#9EB0C3]">{t.pending}</p>
-              <p className="mt-2 text-lg font-semibold text-[#F4F1E8]">{compliance?.pendingReviews ?? 0}</p>
+              <p className="mt-2 text-lg font-semibold text-[#334155]">{compliance?.pendingReviews ?? 0}</p>
             </div>
           </section>
         ) : null}

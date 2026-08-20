@@ -7,10 +7,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-[var(--brand-gradient)] text-[var(--color-light)] shadow-[0_16px_36px_rgba(16,32,51,0.2)] hover:-translate-y-0.5 hover:shadow-[0_22px_42px_rgba(16,32,51,0.24)]',
-        gold: 'bg-[linear-gradient(135deg,#e2c790_0%,#c8a86b_100%)] text-[var(--color-navy)] shadow-[0_16px_35px_rgba(200,168,107,0.24)] hover:-translate-y-0.5 hover:shadow-[0_20px_38px_rgba(200,168,107,0.3)]',
+        default: 'bg-[var(--brand-gradient)] text-[var(--color-light)] shadow-[0_16px_36px_rgba(15,23,42,0.2)] hover:-translate-y-0.5 hover:shadow-[0_22px_42px_rgba(15,23,42,0.24)]',
+        gold: 'bg-[linear-gradient(135deg,#E3C97A_0%,#D4AF37_100%)] text-[var(--color-navy)] shadow-[0_16px_35px_rgba(212,175,55,0.24)] hover:-translate-y-0.5 hover:shadow-[0_20px_38px_rgba(212,175,55,0.3)]',
         outline:
-          'border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/80 text-[var(--color-navy)] shadow-[0_10px_28px_rgba(16,32,51,0.08)] hover:border-[var(--color-gold)] hover:bg-[var(--color-surface-strong)]',
+          'border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/80 text-[var(--color-navy)] shadow-[0_10px_28px_rgba(15,23,42,0.08)] hover:border-[var(--color-gold)] hover:bg-[var(--color-surface-strong)]',
         ghost: 'bg-transparent text-[var(--color-navy)] hover:bg-[var(--color-surface)]',
       },
       size: {

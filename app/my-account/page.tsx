@@ -37,7 +37,7 @@ export default async function MyAccountPage() {
   const joinedAt = profile?.created_at ? new Date(profile.created_at).toLocaleDateString('ar-SA') : '—';
 
   return (
-    <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white" dir="rtl">
+    <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]" dir="rtl">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>

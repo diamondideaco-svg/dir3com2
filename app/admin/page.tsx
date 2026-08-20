@@ -33,10 +33,10 @@ export default async function AdminPage() {
 
     return (
         <div style={{
-            backgroundColor: '#0D1B2A',
+            backgroundColor: '#FAF8F4',
             minHeight: '100vh',
-            color: '#F4F1E8',
-            fontFamily: 'Tajawal, sans-serif',
+            color: '#334155',
+            fontFamily: 'var(--font-arabic)',
             direction: 'rtl',
             padding: '40px 20px'
         }}>
@@ -51,7 +51,7 @@ export default async function AdminPage() {
                 }}>
                     <div>
                         <h1 style={{
-                            fontFamily: 'Playfair Display, serif',
+                            fontFamily: 'var(--font-display)',
                             fontSize: '2.5rem',
                             color: '#D4AF37',
                             marginBottom: '5px'
@@ -63,8 +63,8 @@ export default async function AdminPage() {
                         </p>
                     </div>
                     <Link href="/" style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        color: '#F4F1E8',
+                        background: '#FFFFFF',
+                        color: '#334155',
                         padding: '8px 20px',
                         borderRadius: '30px',
                         textDecoration: 'none',
@@ -85,7 +85,7 @@ export default async function AdminPage() {
                 }}>
                     <Link href="/admin/dashboard" style={{
                         background: 'linear-gradient(135deg, #D4AF37, #8B5E3C)',
-                        color: '#0D1B2A',
+                        color: '#334155',
                         padding: '10px 18px',
                         borderRadius: '999px',
                         textDecoration: 'none',
@@ -94,8 +94,8 @@ export default async function AdminPage() {
                         📊 لوحة القيادة التنفيذية
                     </Link>
                     <Link href="/admin/finance" style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        color: '#F4F1E8',
+                        background: '#FFFFFF',
+                        color: '#334155',
                         padding: '10px 18px',
                         borderRadius: '999px',
                         textDecoration: 'none',
@@ -104,8 +104,8 @@ export default async function AdminPage() {
                         💼 إدارة التمويل والثقة
                     </Link>
                     <Link href="/admin/operations" style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        color: '#F4F1E8',
+                        background: '#FFFFFF',
+                        color: '#334155',
                         padding: '10px 18px',
                         borderRadius: '999px',
                         textDecoration: 'none',
@@ -114,8 +114,8 @@ export default async function AdminPage() {
                         🔧 العمليات
                     </Link>
                     <Link href="/admin/verification" style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        color: '#F4F1E8',
+                        background: '#FFFFFF',
+                        color: '#334155',
                         padding: '10px 18px',
                         borderRadius: '999px',
                         textDecoration: 'none',
@@ -126,7 +126,7 @@ export default async function AdminPage() {
                 </div>
 
                 <div style={{
-                    background: 'rgba(255,255,255,0.03)',
+                    background: '#FFFFFF',
                     border: '1px solid rgba(212, 175, 55, 0.1)',
                     borderRadius: '20px',
                     padding: '24px',
@@ -141,7 +141,7 @@ export default async function AdminPage() {
                         gap: '10px'
                     }}>
                         <h2 style={{
-                            fontFamily: 'Playfair Display, serif',
+                            fontFamily: 'var(--font-display)',
                             fontSize: '1.5rem',
                             color: '#FFFFFF'
                         }}>

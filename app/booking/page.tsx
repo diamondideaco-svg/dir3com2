@@ -64,7 +64,7 @@ interface AuthoritativeQuote {
 
 export default function BookingPage() {
   return (
-    <Suspense fallback={<div style={{ backgroundColor: '#0D1B2A', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37' }}>جاري التحميل...</div>}>
+    <Suspense fallback={<div style={{ backgroundColor: '#FAF8F4', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37' }}>جاري التحميل...</div>}>
       <BookingContent />
     </Suspense>
   );
@@ -381,7 +381,7 @@ function BookingContent() {
   if (authLoading) {
     return (
       <div style={{
-        backgroundColor: '#0D1B2A',
+        backgroundColor: '#FAF8F4',
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
@@ -413,14 +413,14 @@ function BookingContent() {
   if (loading) {
     return (
       <div style={{
-        backgroundColor: '#0D1B2A',
+        backgroundColor: '#FAF8F4',
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         color: '#D4AF37',
-        fontFamily: 'Tajawal, sans-serif',
+        fontFamily: 'var(--font-arabic)',
         fontSize: '1.5rem'
       }}>
         <div style={{
@@ -446,14 +446,14 @@ function BookingContent() {
   if (!product) {
     return (
       <div style={{
-        backgroundColor: '#0D1B2A',
+        backgroundColor: '#FAF8F4',
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#F4F1E8',
-        fontFamily: 'Tajawal, sans-serif',
+        color: '#334155',
+        fontFamily: 'var(--font-arabic)',
         padding: '40px',
         textAlign: 'center'
       }}>
@@ -476,7 +476,7 @@ function BookingContent() {
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = '#D4AF37';
-            e.currentTarget.style.color = '#0D1B2A';
+            e.currentTarget.style.color = '#334155';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'transparent';
@@ -492,13 +492,13 @@ function BookingContent() {
   if (success) {
     return (
       <div style={{
-        backgroundColor: '#0D1B2A',
+        backgroundColor: '#FAF8F4',
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#F4F1E8',
-        fontFamily: 'Tajawal, sans-serif',
+        color: '#334155',
+        fontFamily: 'var(--font-arabic)',
         padding: '40px',
         textAlign: 'center'
       }}>
@@ -525,7 +525,7 @@ function BookingContent() {
               padding: '12px',
               marginTop: '15px'
             }}>
-              <p style={{ color: '#F4F1E8', fontSize: '0.95rem', marginBottom: '6px' }}>
+              <p style={{ color: '#334155', fontSize: '0.95rem', marginBottom: '6px' }}>
                 السعر المعتمد: {confirmedQuote.unitPrice} {confirmedQuote.currency} / ليلة
               </p>
               <p style={{ color: '#D4AF37', fontWeight: 'bold' }}>
@@ -540,7 +540,7 @@ function BookingContent() {
             margin: '20px 0',
             textAlign: 'right'
           }}>
-            <p style={{ color: '#F4F1E8', fontSize: '0.9rem' }}>
+            <p style={{ color: '#334155', fontSize: '0.9rem' }}>
               📧 تم إرسال تأكيد الحجز إلى بريدك الإلكتروني
             </p>
             <p style={{ color: '#8A9BB0', fontSize: '0.85rem' }}>
@@ -553,7 +553,7 @@ function BookingContent() {
               style={{
                 padding: '12px 30px',
                 background: '#D4AF37',
-                color: '#0D1B2A',
+                color: '#334155',
                 borderRadius: '30px',
                 textDecoration: 'none',
                 fontWeight: 'bold',
@@ -603,17 +603,17 @@ function BookingContent() {
 
   return (
     <div style={{
-      backgroundColor: '#0D1B2A',
+      backgroundColor: '#FAF8F4',
       minHeight: '100vh',
-      color: '#F4F1E8',
-      fontFamily: 'Tajawal, sans-serif',
+      color: '#334155',
+      fontFamily: 'var(--font-arabic)',
       direction: 'rtl',
       padding: '40px 20px'
     }}>
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <h1 style={{
-            fontFamily: 'Playfair Display, serif',
+            fontFamily: 'var(--font-display)',
             fontSize: '2.8rem',
             color: '#D4AF37',
             marginBottom: '5px'
@@ -673,7 +673,7 @@ function BookingContent() {
                 height: '40px',
                 borderRadius: '50%',
                 backgroundColor: index <= currentStep ? '#D4AF37' : '#2A2A3E',
-                color: index <= currentStep ? '#0D1B2A' : '#8A9BB0',
+                color: index <= currentStep ? '#334155' : '#8A9BB0',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -697,7 +697,7 @@ function BookingContent() {
         </div>
 
         <div style={{
-          background: 'rgba(255,255,255,0.03)',
+          background: '#FFFFFF',
           border: '1px solid rgba(212, 175, 55, 0.15)',
           borderRadius: '20px',
           padding: '20px',
@@ -750,7 +750,7 @@ function BookingContent() {
         <form onSubmit={handleSubmit}>
           {currentStep === 0 && (
             <div style={{
-              background: 'rgba(255,255,255,0.03)',
+              background: '#FFFFFF',
               border: '1px solid rgba(212, 175, 55, 0.15)',
               borderRadius: '20px',
               padding: '30px',
@@ -776,8 +776,8 @@ function BookingContent() {
                       padding: '12px 16px',
                       borderRadius: '12px',
                       border: '1px solid rgba(255,255,255,0.1)',
-                      background: 'rgba(255,255,255,0.05)',
-                      color: '#F4F1E8',
+                      background: '#FFFFFF',
+                      color: '#334155',
                       fontSize: '1rem',
                       outline: 'none',
                       transition: 'border-color 0.3s ease'
@@ -822,8 +822,8 @@ function BookingContent() {
                       padding: '12px 16px',
                       borderRadius: '12px',
                       border: '1px solid rgba(255,255,255,0.1)',
-                      background: 'rgba(255,255,255,0.05)',
-                      color: '#F4F1E8',
+                      background: '#FFFFFF',
+                      color: '#334155',
                       fontSize: '1rem',
                       outline: 'none',
                       transition: 'border-color 0.3s ease'
@@ -862,8 +862,8 @@ function BookingContent() {
                       padding: '12px 16px',
                       borderRadius: '12px',
                       border: '1px solid rgba(255,255,255,0.1)',
-                      background: 'rgba(255,255,255,0.05)',
-                      color: '#F4F1E8',
+                      background: '#FFFFFF',
+                      color: '#334155',
                       fontSize: '1rem',
                       outline: 'none',
                       transition: 'border-color 0.3s ease'
@@ -894,8 +894,8 @@ function BookingContent() {
                       padding: '12px 16px',
                       borderRadius: '12px',
                       border: '1px solid rgba(255,255,255,0.1)',
-                      background: 'rgba(255,255,255,0.05)',
-                      color: '#F4F1E8',
+                      background: '#FFFFFF',
+                      color: '#334155',
                       fontSize: '1rem',
                       outline: 'none',
                       transition: 'border-color 0.3s ease'
@@ -927,13 +927,13 @@ function BookingContent() {
                     padding: '12px 16px',
                     borderRadius: '12px',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    background: 'rgba(255,255,255,0.05)',
-                    color: '#F4F1E8',
+                    background: '#FFFFFF',
+                    color: '#334155',
                     fontSize: '1rem',
                     resize: 'vertical',
                     outline: 'none',
                     transition: 'border-color 0.3s ease',
-                    fontFamily: 'Tajawal, sans-serif'
+                    fontFamily: 'var(--font-arabic)'
                   }}
                   onFocus={(e) => e.target.style.borderColor = '#D4AF37'}
                   onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
@@ -947,7 +947,7 @@ function BookingContent() {
                   width: '100%',
                   padding: '16px',
                   background: '#D4AF37',
-                  color: '#0D1B2A',
+                  color: '#334155',
                   fontWeight: 'bold',
                   fontSize: '1.1rem',
                   border: 'none',
@@ -972,7 +972,7 @@ function BookingContent() {
 
           {currentStep === 1 && (
             <div style={{
-              background: 'rgba(255,255,255,0.03)',
+              background: '#FFFFFF',
               border: '1px solid rgba(212, 175, 55, 0.15)',
               borderRadius: '20px',
               padding: '30px',
@@ -1000,8 +1000,8 @@ function BookingContent() {
                     padding: '12px 16px',
                     borderRadius: '12px',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    background: 'rgba(255,255,255,0.05)',
-                    color: '#F4F1E8',
+                    background: '#FFFFFF',
+                    color: '#334155',
                     fontSize: '1rem',
                     outline: 'none',
                     transition: 'border-color 0.3s ease'
@@ -1026,7 +1026,7 @@ function BookingContent() {
                     padding: '12px 16px',
                     borderRadius: '12px',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    background: 'rgba(255,255,255,0.05)',
+                    background: '#FFFFFF',
                     color: '#D4AF37',
                     fontWeight: 'bold',
                     minWidth: '45px',
@@ -1046,8 +1046,8 @@ function BookingContent() {
                       padding: '12px 16px',
                       borderRadius: '12px',
                       border: '1px solid rgba(255,255,255,0.1)',
-                      background: 'rgba(255,255,255,0.05)',
-                      color: '#F4F1E8',
+                      background: '#FFFFFF',
+                      color: '#334155',
                       fontSize: '1rem',
                       outline: 'none',
                       transition: 'border-color 0.3s ease'
@@ -1080,8 +1080,8 @@ function BookingContent() {
                       padding: '12px 16px',
                       borderRadius: '12px',
                       border: '1px solid rgba(255,255,255,0.1)',
-                      background: 'rgba(255,255,255,0.05)',
-                      color: '#F4F1E8',
+                      background: '#FFFFFF',
+                      color: '#334155',
                       fontSize: '1rem',
                       outline: 'none',
                       transition: 'border-color 0.3s ease'
@@ -1109,8 +1109,8 @@ function BookingContent() {
                       padding: '12px 16px',
                       borderRadius: '12px',
                       border: '1px solid rgba(255,255,255,0.1)',
-                      background: 'rgba(255,255,255,0.05)',
-                      color: '#F4F1E8',
+                      background: '#FFFFFF',
+                      color: '#334155',
                       fontSize: '1rem',
                       outline: 'none',
                       transition: 'border-color 0.3s ease'
@@ -1153,8 +1153,8 @@ function BookingContent() {
                     padding: '12px 16px',
                     borderRadius: '12px',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    background: 'rgba(255,255,255,0.05)',
-                    color: '#F4F1E8',
+                    background: '#FFFFFF',
+                    color: '#334155',
                     fontSize: '1rem',
                     outline: 'none',
                     transition: 'border-color 0.3s ease'
@@ -1185,13 +1185,13 @@ function BookingContent() {
                     padding: '12px 16px',
                     borderRadius: '12px',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    background: 'rgba(255,255,255,0.05)',
-                    color: '#F4F1E8',
+                    background: '#FFFFFF',
+                    color: '#334155',
                     fontSize: '1rem',
                     resize: 'vertical',
                     outline: 'none',
                     transition: 'border-color 0.3s ease',
-                    fontFamily: 'Tajawal, sans-serif'
+                    fontFamily: 'var(--font-arabic)'
                   }}
                   onFocus={(e) => e.target.style.borderColor = '#D4AF37'}
                   onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
@@ -1228,7 +1228,7 @@ function BookingContent() {
                     flex: 1,
                     padding: '14px',
                     background: '#D4AF37',
-                    color: '#0D1B2A',
+                    color: '#334155',
                     fontWeight: 'bold',
                     fontSize: '1rem',
                     border: 'none',
@@ -1253,7 +1253,7 @@ function BookingContent() {
 
           {currentStep === 2 && (
             <div style={{
-              background: 'rgba(255,255,255,0.03)',
+              background: '#FFFFFF',
               border: '1px solid rgba(212, 175, 55, 0.15)',
               borderRadius: '20px',
               padding: '30px',
@@ -1344,12 +1344,12 @@ function BookingContent() {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        background: 'rgba(255,255,255,0.05)',
+                        background: '#FFFFFF',
                         padding: '10px 15px',
                         borderRadius: '10px',
                         marginBottom: '8px'
                       }}>
-                        <span style={{ color: '#F4F1E8', fontSize: '0.9rem' }}>
+                        <span style={{ color: '#334155', fontSize: '0.9rem' }}>
                           📄 {doc.name}
                         </span>
                         <button
@@ -1388,37 +1388,37 @@ function BookingContent() {
                 )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.9rem' }}>
                   <span style={{ color: '#8A9BB0' }}>المنتج:</span>
-                  <span style={{ color: '#F4F1E8' }}>{product.name_ar}</span>
+                  <span style={{ color: '#334155' }}>{product.name_ar}</span>
                   
                   <span style={{ color: '#8A9BB0' }}>المدينة:</span>
-                  <span style={{ color: '#F4F1E8' }}>{bookingForm.city}</span>
+                  <span style={{ color: '#334155' }}>{bookingForm.city}</span>
                   
                   <span style={{ color: '#8A9BB0' }}>تاريخ الوصول:</span>
-                  <span style={{ color: '#F4F1E8' }}>
+                  <span style={{ color: '#334155' }}>
                     {bookingForm.arrivalDate && format(new Date(bookingForm.arrivalDate), 'dd MMMM yyyy', { locale: arSA })}
                   </span>
                   
                   <span style={{ color: '#8A9BB0' }}>تاريخ المغادرة:</span>
-                  <span style={{ color: '#F4F1E8' }}>
+                  <span style={{ color: '#334155' }}>
                     {bookingForm.departureDate && format(new Date(bookingForm.departureDate), 'dd MMMM yyyy', { locale: arSA })}
                   </span>
                   
                   <span style={{ color: '#8A9BB0' }}>عدد الضيوف:</span>
-                  <span style={{ color: '#F4F1E8' }}>{bookingForm.guests}</span>
+                  <span style={{ color: '#334155' }}>{bookingForm.guests}</span>
 
                   <span style={{ color: '#8A9BB0' }}>عدد الليالي:</span>
-                  <span style={{ color: '#F4F1E8' }}>{authoritativeQuote?.bookingDays ?? '-'}</span>
+                  <span style={{ color: '#334155' }}>{authoritativeQuote?.bookingDays ?? '-'}</span>
 
                   <span style={{ color: '#8A9BB0' }}>السعر/ليلة (خادم):</span>
-                  <span style={{ color: '#F4F1E8' }}>
+                  <span style={{ color: '#334155' }}>
                     {authoritativeQuote ? `${authoritativeQuote.unitPrice} ${authoritativeQuote.currency}` : '—'}
                   </span>
                   
                   <span style={{ color: '#8A9BB0' }}>اسم العميل:</span>
-                  <span style={{ color: '#F4F1E8' }}>{clientForm.fullName}</span>
+                  <span style={{ color: '#334155' }}>{clientForm.fullName}</span>
                   
                   <span style={{ color: '#8A9BB0' }}>رقم الجوال:</span>
-                  <span style={{ color: '#F4F1E8' }}>{clientForm.phone}</span>
+                  <span style={{ color: '#334155' }}>{clientForm.phone}</span>
                   
                   <span style={{ color: '#8A9BB0', fontWeight: 'bold' }}>الإجمالي:</span>
                   <span style={{ color: '#D4AF37', fontWeight: 'bold', fontSize: '1.1rem' }}>
@@ -1457,7 +1457,7 @@ function BookingContent() {
                     flex: 1,
                     padding: '14px',
                     background: '#D4AF37',
-                    color: '#0D1B2A',
+                    color: '#334155',
                     fontWeight: 'bold',
                     fontSize: '1rem',
                     border: 'none',
@@ -1489,7 +1489,7 @@ function BookingContent() {
                         display: 'inline-block',
                         width: '20px',
                         height: '20px',
-                        border: '2px solid #0D1B2A',
+                        border: '2px solid #D4AF37',
                         borderTop: '2px solid transparent',
                         borderRadius: '50%',
                         animation: 'spin 0.8s linear infinite'
@@ -1561,7 +1561,7 @@ function BookingContent() {
             width: 8px;
           }
           ::-webkit-scrollbar-track {
-            background: #0D1B2A;
+            background: #334155;
           }
           ::-webkit-scrollbar-thumb {
             background: #D4AF37;

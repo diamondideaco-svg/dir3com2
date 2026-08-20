@@ -1,5 +1,9 @@
-import PublicServicesClient from '@/components/public/PublicServicesClient';
+import PlatformFoundationHome from '@/components/home/PlatformFoundationHome';
+import { getTravelStoriesFeed } from '@/lib/content/travel-stories-feed';
 
-export default function ServicesPage() {
-  return <PublicServicesClient />;
+export const revalidate = 86400;
+
+export default async function ServicesPage() {
+  const feed = await getTravelStoriesFeed();
+  return <PlatformFoundationHome stories={feed.items} useStandardServiceImages />;
 }

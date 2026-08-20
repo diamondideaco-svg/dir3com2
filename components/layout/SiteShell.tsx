@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import UtilityBar from '@/components/layout/UtilityBar';
 
 const FloatingDibrah = dynamic(() => import('@/components/layout/FloatingDibrah'), { ssr: false });
 
@@ -22,7 +21,6 @@ export default function SiteShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="relative min-h-screen overflow-x-clip">
-      <UtilityBar />
       <Header />
       <main>{children}</main>
       <Footer />

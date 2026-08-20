@@ -63,7 +63,7 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
   apartments: {
     slug: 'apartments',
     title: 'الشقق',
-    eyebrow: 'DIR3 APARTMENTS',
+    eyebrow: 'DIR3 STAY · APARTMENTS',
     description: 'إقامات طويلة وقصيرة بخصوصية أعلى ومساحات مناسبة للعائلات والوفود.',
     highlight: 'صفحة مرنة لعرض الشقق المخدومة ومزايا الإقامة المطولة ضمن نفس هوية dir3com.',
     chips: ['شقق مخدومة', 'إقامة مطولة', 'خصوصية أعلى'],
@@ -79,7 +79,7 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
   'airport-transfers': {
     slug: 'airport-transfers',
     title: 'النقل من وإلى المطار',
-    eyebrow: 'DIR3 AIRPORT',
+    eyebrow: 'DIR3 FLY',
     description: 'استقبال ومغادرة بانسيابية عالية، مع جاهزية لتتبع التفاصيل والتنبيهات مستقبلاً.',
     highlight: 'هذه الصفحة تبني تجربة المطار كخدمة قائمة بذاتها داخل dir3com مع الحفاظ على الدرع كرسالة ثقة.',
     chips: ['استقبال', 'مسار سريع', 'تنسيق وصول'],
@@ -89,7 +89,7 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
       { label: 'تغطية الخدمة', value: '24/7' },
     ],
     trustMessage: 'الوصول والمغادرة يحتاجان وضوحاً كاملاً، وهذا ما تعكسه الواجهة أولاً.',
-    marketplaceFamily: 'dir3-airport',
+    marketplaceFamily: 'dir3-fly',
     marketplaceCategory: 'airport-transfers',
   },
   concierge: {
@@ -111,7 +111,7 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
   experiences: {
     slug: 'experiences',
     title: 'التجارب',
-    eyebrow: 'DIR3 EXPERIENCES',
+    eyebrow: 'CATALOG · EXPERIENCES',
     description: 'تجارب ثقافية وترفيهية مختارة تعكس روح السعودية مع تفاصيل عرض نظيفة وفاخرة.',
     highlight: 'المحتوى هنا مهيأ للتوسع إلى تجارب موسمية وفعاليات متغيرة من دون تغيير النظام البصري.',
     chips: ['ثقافة', 'فعاليات', 'رحلات خاصة'],
@@ -121,13 +121,13 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
       { label: 'عرض مرن', value: 'Dynamic' },
     ],
     trustMessage: 'التجربة المميزة لا تحتاج صخباً؛ تحتاج عرضاً مقنعاً ومحترماً للوقت.',
-    marketplaceFamily: 'dir3-experiences',
+    marketplaceFamily: 'dir3-concierge',
     marketplaceCategory: 'experiences',
   },
   offers: {
     slug: 'offers',
     title: 'العروض',
-    eyebrow: 'DIR3 OFFERS',
+    eyebrow: 'CATALOG · OFFERS',
     description: 'عروض موسمية وتنفيذية تعرض القيمة بوضوح وتحافظ على لغة الثقة التي اعتمدتها dir3com.',
     highlight: 'تمهيد بصري لعروض قابلة للربط بالكتالوج أو الحملات لاحقاً من دون ازدواجية في المكونات.',
     chips: ['موسمي', 'تنفيذي', 'عائلي'],
@@ -143,11 +143,12 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
 
 export const publicQuickLinks = [
   { label: 'الخدمات', href: '/services' },
-  { label: 'السيارات', href: '/cars' },
-  { label: 'الفنادق', href: '/hotels' },
+  { label: 'dir3 Drive', href: '/services/drive' },
+  { label: 'dir3 Stay', href: '/services/stay' },
+  { label: 'dir3 Fly', href: '/services/fly' },
+  { label: 'dir3 Concierge', href: '/services/concierge' },
+  { label: 'dir3 VIP', href: '/services/vip' },
   { label: 'الشقق', href: '/apartments' },
-  { label: 'المطار', href: '/airport-transfers' },
-  { label: 'الكونسيرج', href: '/concierge' },
   { label: 'التجارب', href: '/experiences' },
   { label: 'العروض', href: '/offers' },
   { label: 'من نحن', href: '/about' },

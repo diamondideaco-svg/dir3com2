@@ -9,7 +9,7 @@ import { getPostLoginDestination } from '@/lib/auth/redirect';
 
 export default function LoginPage() {
     return (
-        <Suspense fallback={<div style={{ backgroundColor: '#0D1B2A', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37' }}>جاري التحميل...</div>}>
+        <Suspense fallback={<div style={{ backgroundColor: '#FAF8F4', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37' }}>جاري التحميل...</div>}>
             <LoginContent />
         </Suspense>
     );
@@ -85,25 +85,31 @@ function LoginContent() {
 
     return (
         <div style={{
-            backgroundColor: '#0D1B2A',
+            // Approved background asset used as a layer only; all content below is real HTML.
+            backgroundColor: '#FAF8F4',
+            backgroundImage: 'linear-gradient(rgba(255,255,255,0.12), rgba(255,255,255,0.18)), url("/brand/runtime/dir3com-login-background-approved.png")',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
             minHeight: '100vh',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             padding: '40px 20px',
-            fontFamily: 'Tajawal, sans-serif',
+            fontFamily: 'var(--font-arabic)',
             direction: 'rtl'
         }}>
             <div style={{
                 maxWidth: '420px',
                 width: '100%',
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(212, 175, 55, 0.15)',
+                background: 'rgba(255,255,255,0.96)',
+                border: '1px solid rgba(212, 175, 55, 0.25)',
                 borderRadius: '24px',
+                boxShadow: '0 26px 70px rgba(15, 23, 42, 0.10)',
                 padding: '40px 30px'
             }}>
                 <h1 style={{
-                    fontFamily: 'Playfair Display, serif',
+                    fontFamily: 'var(--font-display)',
                     fontSize: '2rem',
                     color: '#D4AF37',
                     textAlign: 'center',
@@ -117,12 +123,12 @@ function LoginContent() {
 
                 {error && (
                     <div style={{
-                        background: 'rgba(255,0,0,0.1)',
-                        border: '1px solid #ff4444',
+                        background: 'rgba(220,38,38,0.08)',
+                        border: '1px solid rgba(220,38,38,0.35)',
                         borderRadius: '12px',
                         padding: '10px',
                         marginBottom: '20px',
-                        color: '#ff6666',
+                        color: '#b91c1c',
                         textAlign: 'center'
                     }}>
                         {error}
@@ -135,9 +141,9 @@ function LoginContent() {
                     style={{
                         width: '100%',
                         padding: '12px',
-                        background: '#1A1A2E',
-                        color: '#FFFFFF',
-                        border: '1px solid #2A2A3E',
+                        background: '#FFFFFF',
+                        color: '#334155',
+                        border: '1px solid rgba(212,175,55,0.22)',
                         borderRadius: '12px',
                         fontSize: '1rem',
                         fontWeight: 'bold',
@@ -159,9 +165,9 @@ function LoginContent() {
                 </button>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', margin: '20px 0' }}>
-                    <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #2A2A3E' }} />
-                    <span style={{ color: '#4A5A6E', fontSize: '0.85rem' }}>أو</span>
-                    <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #2A2A3E' }} />
+                    <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(212,175,55,0.22)' }} />
+                    <span style={{ color: '#64748B', fontSize: '0.85rem' }}>أو</span>
+                    <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(212,175,55,0.22)' }} />
                 </div>
 
                 <form onSubmit={handleEmailLogin}>
@@ -177,9 +183,9 @@ function LoginContent() {
                                 width: '100%',
                                 padding: '12px',
                                 borderRadius: '12px',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: '#F4F1E8',
+                                border: '1px solid rgba(15,23,42,0.12)',
+                                background: '#FFFFFF',
+                                color: '#334155',
                                 fontSize: '1rem',
                                 outline: 'none'
                             }}
@@ -198,9 +204,9 @@ function LoginContent() {
                                 width: '100%',
                                 padding: '12px',
                                 borderRadius: '12px',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(255,255,255,0.05)',
-                                color: '#F4F1E8',
+                                border: '1px solid rgba(15,23,42,0.12)',
+                                background: '#FFFFFF',
+                                color: '#334155',
                                 fontSize: '1rem',
                                 outline: 'none'
                             }}
@@ -214,7 +220,7 @@ function LoginContent() {
                             width: '100%',
                             padding: '14px',
                             background: '#D4AF37',
-                            color: '#0D1B2A',
+                            color: '#334155',
                             border: 'none',
                             borderRadius: '30px',
                             fontWeight: 'bold',

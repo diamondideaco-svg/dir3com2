@@ -44,7 +44,7 @@ export default function AssignmentCard({ assignment }: AssignmentCardProps) {
       <div className="mt-5 flex flex-wrap gap-3">
         <form action={approveAssignmentAction}>
           <input type="hidden" name="bookingId" value={assignment.booking_id} />
-          <button type="submit" className="rounded-full bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B2A]">الموافقة</button>
+          <button type="submit" className="rounded-full bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155]">الموافقة</button>
         </form>
         <form action={rejectAssignmentAction}>
           <input type="hidden" name="bookingId" value={assignment.booking_id} />

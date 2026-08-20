@@ -1,9 +1,9 @@
 export type MarketplaceFamilyKey =
   | 'dir3-drive'
   | 'dir3-stay'
-  | 'dir3-airport'
+  | 'dir3-fly'
   | 'dir3-concierge'
-  | 'dir3-experiences';
+  | 'dir3-vip';
 
 export type MarketplacePageCategory =
   | 'cars'
@@ -117,86 +117,62 @@ export const marketplaceCatalogEntries: MarketplaceCatalogEntry[] = [
   {
     id: 'dir3-drive',
     family: 'dir3-drive',
-    title: 'السيارات',
+    title: 'dir3 Drive',
     description: 'تنقلات مختارة، سائقون محترفون، ومسارات واضحة مصممة للضيف المحلي والدولي.',
     icon: '/icons/drive.svg',
-    href: '/cars',
+    href: '/services/drive',
     metric: '24/7',
     category: 'cars',
-    familyLabel: 'dir3 drive',
+    familyLabel: 'dir3 Drive',
     tags: ['سائق خاص', 'تنقلات مطار', 'سيارات تنفيذية'],
   },
   {
-    id: 'dir3-stay-hotels',
+    id: 'dir3-stay',
     family: 'dir3-stay',
-    title: 'الفنادق',
-    description: 'إقامات فاخرة مع عرض ذكي للمزايا وسياسات واضحة قبل الحجز.',
+    title: 'dir3 Stay',
+    description: 'إقامات فاخرة وشقق مخدومة مع عرض ذكي للمزايا وسياسات واضحة قبل الحجز.',
     icon: '/icons/stay.svg',
-    href: '/hotels',
+    href: '/services/stay',
     metric: '120+',
     category: 'hotels',
-    familyLabel: 'dir3 stay',
-    tags: ['إقامة راقية', 'إفطار فاخر', 'خيارات مرنة'],
+    familyLabel: 'dir3 Stay',
+    tags: ['إقامة راقية', 'شقق مخدومة', 'خيارات مرنة'],
   },
   {
-    id: 'dir3-stay-apartments',
-    family: 'dir3-stay',
-    title: 'الشقق',
-    description: 'خيارات إقامة مرنة للعائلات والإقامات المطولة ضمن نفس تجربة dir3com الراقية.',
-    icon: '/icons/stay.svg',
-    href: '/apartments',
-    metric: 'Long Stay',
-    category: 'apartments',
-    familyLabel: 'dir3 stay',
-    tags: ['شقق مخدومة', 'عائلات', 'إقامة مطولة'],
-  },
-  {
-    id: 'dir3-airport',
-    family: 'dir3-airport',
-    title: 'المطار والاستقبال',
+    id: 'dir3-fly',
+    family: 'dir3-fly',
+    title: 'dir3 Fly',
     description: 'خدمة استقبال وانطلاق ناعمة مع جاهزية مستقبلية للربط مع الحالات الحية والتنبيهات.',
     icon: '/icons/airport.svg',
-    href: '/airport-transfers',
+    href: '/services/fly',
     metric: 'Fast Lane',
     category: 'airport-transfers',
-    familyLabel: 'dir3 airport',
+    familyLabel: 'dir3 Fly',
     tags: ['استقبال', 'مسار سريع', 'مرافقة'],
   },
   {
     id: 'dir3-concierge',
     family: 'dir3-concierge',
-    title: 'الكونسيرج',
+    title: 'dir3 Concierge',
     description: 'تنسيق متكامل للطلبات الخاصة، من الطيران الأرضي حتى تفاصيل الضيافة اليومية.',
     icon: '/icons/concierge.svg',
-    href: '/concierge',
-    metric: 'VIP',
+    href: '/services/concierge',
+    metric: 'Concierge',
     category: 'concierge',
-    familyLabel: 'dir3 concierge',
+    familyLabel: 'dir3 Concierge',
     tags: ['مساعدة شخصية', 'متابعة يومية', 'دعم فوري'],
   },
   {
-    id: 'dir3-experiences',
-    family: 'dir3-experiences',
-    title: 'التجارب',
-    description: 'أنشطة مختارة تنقل روح السعودية بلمسة ثقافية قريبة من الذائقة المصرية.',
-    icon: '/icons/experiences.svg',
-    href: '/experiences',
-    metric: '48',
-    category: 'experiences',
-    familyLabel: 'dir3 experiences',
-    tags: ['فعاليات', 'ثقافة', 'رحلات خاصة'],
-  },
-  {
-    id: 'dir3-offers',
-    family: 'dir3-experiences',
-    title: 'العروض',
-    description: 'عروض موسمية وتنفيذية بقيمة واضحة وتجربة متسقة مع درع dir3com.',
-    icon: '/icons/experiences.svg',
-    href: '/offers',
-    metric: 'New',
-    category: 'offers',
-    familyLabel: 'dir3 offers',
-    tags: ['عروض حصرية', 'موسمي', 'قيمة عالية'],
+    id: 'dir3-vip',
+    family: 'dir3-vip',
+    title: 'dir3 VIP',
+    description: 'مستوى خدمة مخصص للضيوف والوفود مع أولوية في التنسيق والمتابعة.',
+    icon: '/icons/concierge.svg',
+    href: '/services/vip',
+    metric: 'VIP',
+    category: 'concierge',
+    familyLabel: 'dir3 VIP',
+    tags: ['أولوية تنسيق', 'وفود', 'خدمة مخصصة'],
   },
 ];
 
@@ -345,9 +321,10 @@ function inferAvailability(item: RawServiceApiItem, productCount: number): Marke
 function categoryToFamily(category: MarketplacePageCategory): MarketplaceFamilyKey {
   if (category === 'cars') return 'dir3-drive';
   if (category === 'hotels' || category === 'apartments') return 'dir3-stay';
-  if (category === 'airport-transfers') return 'dir3-airport';
+  if (category === 'airport-transfers') return 'dir3-fly';
   if (category === 'concierge') return 'dir3-concierge';
-  return 'dir3-experiences';
+  // experiences and offers are catalog collections, surfaced under dir3 Concierge.
+  return 'dir3-concierge';
 }
 
 function findCatalogEntry(category: MarketplacePageCategory) {

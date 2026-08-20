@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { FiBell, FiHeart, FiLogOut, FiMenu, FiSearch, FiShield, FiUser, FiX } from 'react-icons/fi';
+import { FiBell, FiGlobe, FiHeart, FiLogOut, FiMenu, FiSearch, FiShield, FiUser, FiX } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { buttonVariants } from '@/components/ui/button';
@@ -27,10 +27,11 @@ const copy = {
     navItems: [
       { label: 'الرئيسية', href: '/#home' },
       { label: 'خدماتنا', href: '/services' },
-      { label: 'السيارات', href: '/cars' },
-      { label: 'الفنادق', href: '/hotels' },
-      { label: 'التجارب', href: '/experiences' },
-      { label: 'الكونسيرج', href: '/concierge' },
+      { label: 'dir3 Drive', href: '/services/drive' },
+      { label: 'dir3 Stay', href: '/services/stay' },
+      { label: 'dir3 Fly', href: '/services/fly' },
+      { label: 'dir3 Concierge', href: '/services/concierge' },
+      { label: 'dir3 VIP', href: '/services/vip' },
       { label: 'العروض', href: '/offers' },
       { label: 'من نحن', href: '/about' },
       { label: 'تواصل', href: '/contact' },
@@ -42,30 +43,29 @@ const copy = {
       { label: 'التنبيهات', href: '/my-account', icon: FiBell, requiresAuth: true, accountSection: 'account' as const },
     ],
     guest: 'ضيف',
-    tagline: 'درعك الحامي للسياحة.',
-    badge: 'الهوية التنفيذية الجديدة',
-    openMenu: 'فتح القائمة',
+    tagline: 'درعك الحامي للسياحة.',    openMenu: 'فتح القائمة',
     mainNav: 'التنقل الرئيسي',
     login: 'تسجيل الدخول',
     accountPrefix: 'الحساب',
-    profile: 'الملف الشخصي',
-    startJourney: 'ابدأ رحلتك',
-    mobileNav: 'قائمة الجوال',
+    profile: 'الملف الشخصي',    mobileNav: 'قائمة الجوال',
     myAccount: 'حسابي',
     actionsLabel: 'اختصارات الخدمة',
     checking: 'جاري التحقق...',
     dashboard: 'لوحة التحكم',
     logout: 'تسجيل الخروج',
     signingOut: 'جاري تسجيل الخروج...',
+    languageButton: 'AR / EN',
+    languageLabel: 'تبديل اللغة إلى الإنجليزية',
   },
   en: {
     navItems: [
       { label: 'Home', href: '/#home' },
       { label: 'Services', href: '/services' },
-      { label: 'Cars', href: '/cars' },
-      { label: 'Hotels', href: '/hotels' },
-      { label: 'Experiences', href: '/experiences' },
-      { label: 'Concierge', href: '/concierge' },
+      { label: 'dir3 Drive', href: '/services/drive' },
+      { label: 'dir3 Stay', href: '/services/stay' },
+      { label: 'dir3 Fly', href: '/services/fly' },
+      { label: 'dir3 Concierge', href: '/services/concierge' },
+      { label: 'dir3 VIP', href: '/services/vip' },
       { label: 'Offers', href: '/offers' },
       { label: 'About', href: '/about' },
       { label: 'Contact', href: '/contact' },
@@ -77,21 +77,19 @@ const copy = {
       { label: 'Alerts', href: '/my-account', icon: FiBell, requiresAuth: true, accountSection: 'account' as const },
     ],
     guest: 'Guest',
-    tagline: 'Your protective shield for tourism.',
-    badge: 'New executive identity',
-    openMenu: 'Open menu',
+    tagline: 'Your protective shield for tourism.',    openMenu: 'Open menu',
     mainNav: 'Main navigation',
     login: 'Sign in',
     accountPrefix: 'Account',
-    profile: 'Profile',
-    startJourney: 'Start your journey',
-    mobileNav: 'Mobile navigation',
+    profile: 'Profile',    mobileNav: 'Mobile navigation',
     myAccount: 'My account',
     actionsLabel: 'Service shortcuts',
     checking: 'Checking...',
     dashboard: 'Dashboard',
     logout: 'Sign out',
     signingOut: 'Signing out...',
+    languageButton: 'EN / AR',
+    languageLabel: 'Switch language to Arabic',
   },
 } as const;
 
@@ -149,7 +147,7 @@ function isActiveNavItem(pathname: string, href: string) {
 function Logo({ tagline, direction }: { tagline: string; direction: 'rtl' | 'ltr' }) {
   return (
     <Link href="/#home" className="flex items-center gap-3" aria-label="dir3com">
-      <span className="flex h-12 w-12 items-center justify-center rounded-[1.35rem] bg-[var(--brand-gradient)] text-[var(--color-light)] shadow-[0_18px_36px_rgba(16,32,51,0.22)]">
+      <span className="flex h-12 w-12 items-center justify-center rounded-[1.35rem] bg-[var(--brand-gradient)] text-[var(--color-light)] shadow-[0_18px_36px_rgba(15,23,42,0.22)]">
         <FiShield size={22} />
       </span>
       <span className={`flex flex-col ${direction === 'rtl' ? 'text-right' : 'text-left'}`}>
@@ -161,7 +159,7 @@ function Logo({ tagline, direction }: { tagline: string; direction: 'rtl' | 'ltr
 }
 
 export default function Header() {
-  const { language, direction } = useLanguage();
+  const { language, direction, toggleLanguage } = useLanguage();
   const t = copy[language];
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -205,7 +203,7 @@ export default function Header() {
         <div className="flex items-center gap-3 lg:hidden">
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/85 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(16,32,51,0.08)] transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/85 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
             onClick={() => setMobileOpen((prev) => !prev)}
             aria-label={t.openMenu}
             aria-expanded={mobileOpen}
@@ -222,7 +220,7 @@ export default function Header() {
           <Logo tagline={t.tagline} direction={direction} />
         </div>
 
-        <nav aria-label={t.mainNav} className="hidden items-center gap-1 rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 p-1.5 shadow-[0_14px_34px_rgba(16,32,51,0.07)] lg:flex">
+        <nav aria-label={t.mainNav} className="hidden items-center gap-1 rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 p-1.5 shadow-[0_14px_34px_rgba(15,23,42,0.07)] lg:flex">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -230,7 +228,7 @@ export default function Header() {
               className={cn(
                 'rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
                 isActiveNavItem(pathname, item.href)
-                  ? 'bg-[var(--brand-gradient)] text-[var(--color-light)] shadow-[0_12px_26px_rgba(16,32,51,0.18)]'
+                  ? 'bg-[var(--brand-gradient)] text-[var(--color-light)] shadow-[0_12px_26px_rgba(15,23,42,0.18)]'
                   : 'text-[var(--color-navy)] hover:bg-[var(--color-surface)] hover:text-[var(--color-gold)]'
               )}
             >
@@ -245,12 +243,22 @@ export default function Header() {
           </div>
 
           <div className="hidden items-center gap-2 md:flex" aria-label={t.actionsLabel}>
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              aria-label={t.languageLabel}
+              className="inline-flex h-11 items-center gap-1.5 rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 px-3 text-xs font-semibold text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
+            >
+              <FiGlobe size={16} />
+              {t.languageButton}
+            </button>
+
             {publicActionLinks.map(({ href, label, icon: Icon }) => (
               <Link
                 key={label}
                 href={href}
                 aria-label={label}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(16,32,51,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
               >
                 <Icon size={18} />
               </Link>
@@ -263,7 +271,7 @@ export default function Header() {
                   href={href}
                   aria-label={label}
                   className={cn(
-                    'inline-flex h-11 w-11 items-center justify-center rounded-full border bg-[var(--color-card-strong)]/84 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(16,32,51,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
+                    'inline-flex h-11 w-11 items-center justify-center rounded-full border bg-[var(--color-card-strong)]/84 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
                     isActiveAccountLink(accountSection ?? null, currentAccountSection)
                       ? 'border-[var(--color-gold)] text-[var(--color-gold)]'
                       : 'border-[color:var(--color-border)]'
@@ -278,7 +286,7 @@ export default function Header() {
                 href={profileHref}
                 aria-label={t.profile}
                 className={cn(
-                  'inline-flex h-11 w-11 items-center justify-center rounded-full border bg-[var(--color-card-strong)]/84 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(16,32,51,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
+                  'inline-flex h-11 w-11 items-center justify-center rounded-full border bg-[var(--color-card-strong)]/84 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
                   isActiveAccountLink('profile', currentAccountSection)
                     ? 'border-[var(--color-gold)] text-[var(--color-gold)]'
                     : 'border-[color:var(--color-border)]'
@@ -298,16 +306,9 @@ export default function Header() {
             )}
           </div>
 
-          <div className="hidden xl:flex xl:flex-col xl:items-end xl:gap-1 xl:pe-2">
-            <span className="rounded-full border border-[var(--color-gold)]/18 bg-[var(--color-gold)]/10 px-3 py-1 text-[10px] font-semibold tracking-[0.18em] text-[var(--color-gold)]">
-              {t.badge}
-            </span>
-            <span className="text-[11px] font-medium text-[var(--color-muted)]">dir3com</span>
-          </div>
-
           <div className="hidden md:flex">
             {isLoading ? (
-              <span className="inline-flex h-11 items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 px-3 text-sm font-medium text-[var(--color-muted)] shadow-[0_10px_24px_rgba(16,32,51,0.08)]">
+              <span className="inline-flex h-11 items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 px-3 text-sm font-medium text-[var(--color-muted)] shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
                 {t.checking}
               </span>
             ) : isAuthenticated ? (
@@ -315,7 +316,7 @@ export default function Header() {
                 <Link
                   href={accountHref}
                   className={cn(
-                    'inline-flex h-11 items-center gap-2 rounded-full border bg-[var(--color-card-strong)]/84 px-3 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(16,32,51,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
+                    'inline-flex h-11 items-center gap-2 rounded-full border bg-[var(--color-card-strong)]/84 px-3 text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40',
                     accountAreaActive ? 'border-[var(--color-gold)] text-[var(--color-gold)]' : 'border-[color:var(--color-border)]'
                   )}
                   aria-label={`${t.accountPrefix}: ${userDisplayName ?? identity.email ?? t.myAccount}`}
@@ -333,33 +334,26 @@ export default function Header() {
                     void handleSignOut();
                   }}
                   disabled={isSigningOut}
-                  className="inline-flex h-11 items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 px-3 text-sm font-medium text-[var(--color-navy)] shadow-[0_10px_24px_rgba(16,32,51,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-rose-300 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex h-11 items-center gap-2 rounded-full border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 px-3 text-sm font-medium text-[var(--color-navy)] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:border-rose-300 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   <FiLogOut size={16} />
                   <span>{isSigningOut ? t.signingOut : t.logout}</span>
                 </button>
               </div>
             ) : (
-              <Link href={buildLoginTarget('/my-account')} className={buttonVariants({ variant: 'outline', size: 'default' })}>
+              <Link href={buildLoginTarget('/my-account')} className={buttonVariants({ variant: 'gold', size: 'default' })}>
                 {t.login}
               </Link>
             )}
-          </div>
-
-          <div className="hidden sm:block">
-            <Link href="/booking" className={buttonVariants({ variant: 'gold', size: 'default' })}>
-              {t.startJourney}
-            </Link>
           </div>
         </div>
       </div>
 
       {mobileOpen && (
-        <div id="mobile-nav-panel" className="border-t border-[color:var(--color-border)] bg-[color:var(--color-shell)]/95 px-4 py-4 shadow-[0_22px_50px_rgba(16,32,51,0.15)] lg:hidden">
+        <div id="mobile-nav-panel" className="border-t border-[color:var(--color-border)] bg-[color:var(--color-shell)]/95 px-4 py-4 shadow-[0_22px_50px_rgba(15,23,42,0.15)] lg:hidden">
           <div className="mx-auto flex max-w-7xl flex-col gap-3">
-            <div className="rounded-[28px] border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 p-4 shadow-[0_16px_34px_rgba(16,32,51,0.08)]">
-              <p className="text-[11px] font-semibold tracking-[0.18em] text-[var(--color-gold)]">{t.badge}</p>
-              <p className="mt-2 font-[var(--font-display)] text-2xl font-semibold text-[var(--color-navy)]">dir3com</p>
+            <div className="rounded-[28px] border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 p-4 shadow-[0_16px_34px_rgba(15,23,42,0.08)]">
+              <p className="font-[var(--font-display)] text-2xl font-semibold text-[var(--color-navy)]">dir3com</p>
               <p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">{t.tagline}</p>
             </div>
 
@@ -380,6 +374,18 @@ export default function Header() {
                 </Link>
               ))}
             </nav>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={toggleLanguage}
+                aria-label={t.languageLabel}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-[color:var(--color-border)] bg-[var(--color-card-strong)]/84 text-sm font-semibold text-[var(--color-navy)] transition hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
+              >
+                <FiGlobe size={18} />
+                {t.languageButton}
+              </button>
+            </div>
 
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               {publicActionLinks.map(({ href, label, icon: Icon }) => (
@@ -471,15 +477,11 @@ export default function Header() {
               <Link
                 href={buildLoginTarget('/my-account')}
                 onClick={() => setMobileOpen(false)}
-                className={buttonVariants({ variant: 'outline', size: 'default' })}
+                className={buttonVariants({ variant: 'gold', size: 'default' })}
               >
                 {t.login}
               </Link>
             )}
-
-            <Link href="/booking" onClick={() => setMobileOpen(false)} className={buttonVariants({ variant: 'gold', size: 'default' })}>
-              {t.startJourney}
-            </Link>
           </div>
         </div>
       )}

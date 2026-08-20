@@ -1,19 +1,22 @@
 @import 'tailwindcss';
 
 :root {
-  --color-navy: #102033;
-  --color-gold: #c8a86b;
-  --color-sand: #efe4d2;
-  --color-clay: #9d5c4d;
-  --color-light: #fffaf2;
-  --color-gray: #8c9ab0;
-  --color-shell: rgba(255, 250, 242, 0.88);
-  --color-surface: rgba(200, 168, 107, 0.1);
-  --color-surface-strong: rgba(200, 168, 107, 0.18);
-  --color-card: rgba(255, 250, 242, 0.76);
-  --color-card-strong: rgba(255, 248, 237, 0.92);
-  --color-muted: #5b6677;
-  --color-border: rgba(16, 32, 51, 0.1);
+  /* Approved identity: white / off-white + gold only. --color-navy is kept as the
+     ink token name used across the app, but now resolves to the approved body ink. */
+  --color-navy: #334155;
+  --color-ink-strong: #1f2937;
+  --color-gold: #d4af37;
+  --color-sand: #f2ece0;
+  --color-clay: #d4af37;
+  --color-light: #ffffff;
+  --color-gray: #94a3b8;
+  --color-shell: rgba(255, 255, 255, 0.92);
+  --color-surface: rgba(212, 175, 55, 0.08);
+  --color-surface-strong: rgba(212, 175, 55, 0.16);
+  --color-card: rgba(255, 255, 255, 0.86);
+  --color-card-strong: #ffffff;
+  --color-muted: #64748b;
+  --color-border: rgba(15, 23, 42, 0.08);
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
@@ -26,26 +29,25 @@
   --text-title: clamp(1.65rem, 2.5vw, 2.7rem);
   --text-body: clamp(0.95rem, 1.2vw, 1.08rem);
   --radius-luxury: 2rem;
-  --shadow-luxury: 0 26px 70px rgba(16, 32, 51, 0.14);
-  --shadow-soft: 0 18px 45px rgba(16, 32, 51, 0.08);
-  --brand-gradient: linear-gradient(135deg, #102033 0%, #1f3954 52%, #c8a86b 100%);
-  --brand-gradient-soft: linear-gradient(135deg, rgba(16, 32, 51, 0.95) 0%, rgba(31, 57, 84, 0.88) 56%, rgba(200, 168, 107, 0.54) 100%);
-  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-  --font-arabic: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  --shadow-luxury: 0 26px 70px rgba(15, 23, 42, 0.08);
+  --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.05);
+  --brand-gradient: linear-gradient(135deg, rgba(212, 175, 55, 0.92) 0%, #d4af37 52%, rgba(212, 175, 55, 0.88) 100%);
+  --brand-gradient-soft: linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(250, 248, 244, 0.94) 56%, rgba(212, 175, 55, 0.16) 100%);
+  --font-display: var(--font-playfair), "Playfair Display", Georgia, serif;
+  --font-arabic: var(--font-tajawal), Tajawal, "Segoe UI", Tahoma, sans-serif;
+  --font-latin: var(--font-montserrat), Montserrat, "Segoe UI", Helvetica, sans-serif;
+  /* Typography scale tokens: one hierarchy for the whole platform. */
+  --text-h1: clamp(2rem, 3.4vw, 3rem);
+  --text-h2: clamp(1.6rem, 2.4vw, 2.25rem);
+  --text-h3: clamp(1.2rem, 1.6vw, 1.5rem);
+  --text-label: 0.8125rem;
+  --text-button: 0.9375rem;
+  --leading-heading: 1.25;
+  --leading-body: 1.8;
+  --weight-heading: 600;
+  --weight-button: 600;
+  --weight-label: 600;
   color-scheme: light;
-}
-
-html[data-theme='dark'] {
-  --color-shell: rgba(9, 19, 31, 0.9);
-  --color-surface: rgba(200, 168, 107, 0.12);
-  --color-surface-strong: rgba(200, 168, 107, 0.2);
-  --color-card: rgba(17, 30, 44, 0.82);
-  --color-card-strong: rgba(20, 36, 52, 0.92);
-  --color-muted: #afbdcf;
-  --color-border: rgba(255, 250, 242, 0.12);
-  --shadow-luxury: 0 30px 75px rgba(2, 10, 20, 0.36);
-  --shadow-soft: 0 18px 48px rgba(2, 10, 20, 0.22);
-  color-scheme: dark;
 }
 
 * {
@@ -59,11 +61,8 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(circle at top right, rgba(200, 168, 107, 0.26), transparent 30%),
-    radial-gradient(circle at 14% 12%, rgba(157, 92, 77, 0.12), transparent 26%),
-    radial-gradient(circle at 50% 120%, rgba(16, 32, 51, 0.1), transparent 42%),
-    linear-gradient(145deg, #fffaf2 0%, #f6efe3 44%, #efe4d2 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #faf8f4 100%);
+  background-attachment: fixed;
   color: var(--color-navy);
   direction: rtl;
   font-family: var(--font-arabic), sans-serif;
@@ -71,14 +70,6 @@ body {
   overflow-x: hidden;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-}
-
-html[data-theme='dark'] body {
-  background:
-    radial-gradient(circle at top right, rgba(200, 168, 107, 0.2), transparent 22%),
-    radial-gradient(circle at 12% 20%, rgba(157, 92, 77, 0.16), transparent 20%),
-    linear-gradient(145deg, #08111c 0%, #102033 62%, #172b40 100%);
-  color: var(--color-light);
 }
 
 section {
@@ -120,12 +111,8 @@ section {
   width: min(1120px, calc(100% - 2rem));
   height: 1px;
   transform: translateX(-50%);
-  background: linear-gradient(90deg, transparent 0%, rgba(16, 32, 51, 0.14) 18%, rgba(200, 168, 107, 0.34) 50%, rgba(157, 92, 77, 0.18) 82%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(212, 175, 55, 0.18) 18%, rgba(212, 175, 55, 0.42) 50%, rgba(212, 175, 55, 0.18) 82%, transparent 100%);
   opacity: 0.52;
-}
-
-html[data-theme='dark'] .luxury-section-shell::before {
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 250, 242, 0.12) 20%, rgba(200, 168, 107, 0.4) 50%, rgba(255, 250, 242, 0.12) 80%, transparent 100%);
 }
 
 .ds-container {
@@ -197,12 +184,13 @@ a {
 }
 
 ::selection {
-  background: rgba(200, 168, 107, 0.35);
-  color: white;
+  background: rgba(212, 175, 55, 0.28);
+  color: var(--color-ink-strong);
 }
 
 .brand-panel {
   background: var(--brand-gradient-soft);
+  border: 1px solid var(--color-border);
   box-shadow: var(--shadow-luxury);
 }
 
@@ -216,11 +204,34 @@ h2,
 h3,
 .font-display {
   font-family: var(--font-display), var(--font-arabic), serif;
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-heading);
+}
+
+html[lang='en'] body {
+  font-family: var(--font-latin), sans-serif;
+}
+
+h1 { font-size: var(--text-h1); }
+h2 { font-size: var(--text-h2); }
+h3 { font-size: var(--text-h3); }
+
+button,
+.btn,
+[type='button'],
+[type='submit'] {
+  font-family: inherit;
+  font-weight: var(--weight-button);
+}
+
+label,
+.form-label {
+  font-weight: var(--weight-label);
 }
 
 /* Approved Home (ApprovedVisualPage page="home" + ServiceSearchTable) — CEO-approved visual, ported verbatim. */
 :root {
-  --home-gold: #c8922e;
+  --home-gold: #d4af37;
 }
 
 .service-search-table {
@@ -229,7 +240,7 @@ h3,
 
 .service-search-table__shell {
   overflow: hidden;
-  border: 1px solid rgba(200, 146, 46, 0.22);
+  border: 1px solid rgba(212, 175, 55, 0.22);
   border-radius: 1.25rem;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 18px 42px rgba(88, 65, 31, 0.07);
@@ -279,7 +290,7 @@ h3,
 .service-search-table__tab:hover,
 .service-search-table__tab:focus-visible,
 .service-search-table__tab--active {
-  background: rgba(200, 146, 46, 0.1);
+  background: rgba(212, 175, 55, 0.1);
   color: var(--home-gold);
   outline: none;
 }
@@ -309,7 +320,8 @@ h3,
   color: var(--home-gold);
 }
 
-.service-search-table__field input {
+.service-search-table__field input,
+.service-search-table__field select {
   min-width: 0;
   min-height: 2.8rem;
   border: 1px solid rgba(13, 27, 42, 0.13);
@@ -320,9 +332,10 @@ h3,
   outline: none;
 }
 
-.service-search-table__field input:focus {
+.service-search-table__field input:focus,
+.service-search-table__field select:focus {
   border-color: var(--home-gold);
-  box-shadow: 0 0 0 3px rgba(200, 146, 46, 0.13);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.13);
 }
 
 .service-search-table__submit {

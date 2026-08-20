@@ -36,7 +36,7 @@ export default function PartnersShowcase() {
 
         <motion.div variants={softScaleItem} initial="hidden" whileInView="visible" viewport={revealViewport} className="mt-8 overflow-hidden rounded-[36px] border border-[color:var(--color-border)] bg-[linear-gradient(160deg,rgba(255,255,255,0.86)_0%,rgba(248,244,236,0.76)_100%)] p-4 shadow-[0_24px_54px_rgba(13,27,42,0.1)] sm:p-6">
           <div
-            className="group relative overflow-hidden rounded-[28px] border border-[var(--color-gold)]/18 bg-[var(--color-navy)]/2 py-4"
+            className="group relative overflow-hidden rounded-[28px] border border-[var(--color-gold)]/18 bg-[var(--color-surface-strong)]/2 py-4"
             onMouseEnter={() => controls.stop()}
             onMouseLeave={startMarquee}
           >
@@ -61,7 +61,7 @@ export default function PartnersShowcase() {
                       {partner.score}
                     </span>
                   </div>
-                  <div className="mt-5 rounded-[18px] bg-[var(--color-navy)] px-3 py-3 text-sm text-[var(--color-light)]">{partner.specialty}</div>
+                  <div className="mt-5 rounded-[18px] bg-[var(--color-surface)] px-3 py-3 text-sm text-[var(--color-navy)]">{partner.specialty}</div>
                 </motion.article>
               ))}
             </motion.div>

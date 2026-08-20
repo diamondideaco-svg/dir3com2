@@ -12,7 +12,7 @@ export default async function AdminCategoriesPage() {
   const categories = await getCategories();
 
   return (
-    <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white" dir="rtl">
+    <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]" dir="rtl">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>

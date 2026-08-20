@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import CanonicalServicesGrid from '@/components/public/CanonicalServicesGrid';
 import MarketplaceExplorer from '@/components/public/MarketplaceExplorer';
 import PublicCtaBanner from '@/components/public/PublicCtaBanner';
 import PublicFeatureStrip from '@/components/public/PublicFeatureStrip';
@@ -21,12 +22,15 @@ export default function PublicServicesClient() {
         title="خدمات dir3com"
         description="واجهة موحدة تعرض كامل الخدمات العامة بنفس الهوية المعتمدة، مع قابلية ربط مباشرة بالكتالوج والمحتوى مستقبلاً."
         highlight="استكشف كل المسارات العامة من صفحة واحدة: بحث، عروض، فئات خدمة، وتفاصيل مصممة بوضوح عربي فاخر."
-        chips={['سيارات', 'فنادق', 'شقق', 'مطار', 'كونسيرج', 'تجارب', 'عروض']}
+        chips={['dir3 Drive', 'dir3 Stay', 'dir3 Fly', 'dir3 Concierge', 'dir3 VIP']}
       />
+      <div className="luxury-section-shell">
+        <CanonicalServicesGrid />
+      </div>
       <div className="luxury-section-shell">
         <PublicStats
           stats={[
-            { label: 'الفئات العامة', value: '7' },
+            { label: 'الخدمات الأساسية', value: '5' },
             { label: 'مسار موحد', value: 'System' },
             { label: 'جاهزية التوسع', value: 'Production' },
           ]}
