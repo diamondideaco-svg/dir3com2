@@ -25,16 +25,16 @@ export default async function AdminBookingsPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">لوحة الإدارة</p>
             <h1 className="mt-2 text-3xl font-semibold text-white">Shield Booking Engine</h1>
           </div>
-          <Link href="/admin" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة إلى لوحة التحكم</Link>
+          <Link href="/admin" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة إلى لوحة التحكم</Link>
         </div>
 
-        <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/5">
-          <div className="border-b border-white/10 px-5 py-4">
+        <div className="overflow-hidden rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)]">
+          <div className="border-b border-[color:var(--color-border)] px-5 py-4">
             <h2 className="text-lg font-semibold text-white">إدارة الحجوزات</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-right">
-              <thead className="bg-[#07111D] text-sm text-slate-400">
+              <thead className="bg-white text-sm text-[var(--color-muted)]">
                 <tr>
                   <th className="px-5 py-3">المرجع</th>
                   <th className="px-5 py-3">العميل</th>
@@ -45,7 +45,7 @@ export default async function AdminBookingsPage() {
               </thead>
               <tbody>
                 {bookings.map((booking) => (
-                  <tr key={booking.id} className="border-t border-white/10 text-sm text-slate-300">
+                  <tr key={booking.id} className="border-t border-[color:var(--color-border)] text-sm text-[var(--color-muted)]">
                     <td className="px-5 py-4">{booking.booking_reference}</td>
                     <td className="px-5 py-4">{booking.customer_name || '—'}</td>
                     <td className="px-5 py-4">{booking.service_name || '—'}</td>

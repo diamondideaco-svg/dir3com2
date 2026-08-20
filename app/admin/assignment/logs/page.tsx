@@ -35,7 +35,7 @@ export default async function AssignmentLogsPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">السجلات</p>
             <h1 className="mt-2 text-3xl font-semibold text-white">سجل التعيينات</h1>
           </div>
-          <Link href="/admin/assignment" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة</Link>
+          <Link href="/admin/assignment" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
         </div>
 
         {error ? (

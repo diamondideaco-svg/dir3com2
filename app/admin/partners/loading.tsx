@@ -6,7 +6,7 @@ export default function AdminPartnersLoading() {
           <div className="h-4 w-28 rounded bg-white/10" />
           <div className="mt-3 h-8 w-60 rounded bg-white/10" />
         </div>
-        <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6 animate-pulse">
+        <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6 animate-pulse">
           <div className="h-6 w-44 rounded bg-white/10" />
           <div className="mt-6 space-y-3">
             <div className="h-10 rounded bg-white/10" />

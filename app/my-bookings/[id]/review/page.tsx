@@ -41,28 +41,28 @@ export default async function BookingReviewPage({ params }: { params: Promise<{ 
 
   return (
     <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white" dir="rtl">
-      <div className="mx-auto max-w-3xl rounded-[1.5rem] border border-white/10 bg-white/5 p-8">
+      <div className="mx-auto max-w-3xl rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-8">
         <div className="mb-6">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">تقييم الحجز</p>
           <h1 className="mt-2 text-3xl font-semibold text-white">{booking.booking_reference}</h1>
         </div>
         <form action={submitReviewAction} className="space-y-4">
           <input type="hidden" name="bookingId" value={booking.id} />
-          <label className="block text-sm text-slate-300">
+          <label className="block text-sm text-[var(--color-muted)]">
             <span className="mb-2 block">العنوان</span>
-            <input name="title" className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none" />
+            <input name="title" className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none" />
           </label>
-          <label className="block text-sm text-slate-300">
+          <label className="block text-sm text-[var(--color-muted)]">
             <span className="mb-2 block">التقييم (١-٥)</span>
-            <input type="number" min="1" max="5" name="rating" className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none" />
+            <input type="number" min="1" max="5" name="rating" className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none" />
           </label>
-          <label className="block text-sm text-slate-300">
+          <label className="block text-sm text-[var(--color-muted)]">
             <span className="mb-2 block">التعليق</span>
-            <textarea name="comment" rows={5} className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none" />
+            <textarea name="comment" rows={5} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none" />
           </label>
           <div className="flex flex-wrap gap-3">
             <button type="submit" className="rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-semibold text-[#0D1B2A]">حفظ التقييم</button>
-            <Link href="/my-bookings" className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200">إلغاء</Link>
+            <Link href="/my-bookings" className="rounded-full border border-[color:var(--color-border)] px-5 py-3 text-sm text-[var(--color-navy)]">إلغاء</Link>
           </div>
         </form>
       </div>

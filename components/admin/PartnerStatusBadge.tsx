@@ -10,7 +10,7 @@ const toneMap: Record<string, string> = {
 
 export default function PartnerStatusBadge({ status }: PartnerStatusBadgeProps) {
   return (
-    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneMap[status] || 'bg-slate-500/15 text-slate-300'}`}>
+    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneMap[status] || 'bg-slate-500/15 text-[var(--color-muted)]'}`}>
       {status}
     </span>
   );

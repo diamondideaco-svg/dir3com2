@@ -6,10 +6,10 @@ export const metadata = {
 
 export default function ShieldDashboardPage() {
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
+    <main className="min-h-screen bg-slate-950 px-4 py-8 text-[var(--color-navy)]">
       <div className="mx-auto max-w-6xl">
         <h1 className="text-3xl font-semibold">Shield dashboard</h1>
-        <p className="mt-2 text-slate-400">Inspect shield distribution across customers, partners, and products.</p>
+        <p className="mt-2 text-[var(--color-muted)]">Inspect shield distribution across customers, partners, and products.</p>
         <div className="mt-6">
           <ShieldAnalytics />
         </div>

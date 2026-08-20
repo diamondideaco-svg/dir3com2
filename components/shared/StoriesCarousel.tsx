@@ -17,6 +17,9 @@ export default function StoriesCarousel({ stories, service }: StoriesCarouselPro
 
   return (
     <section aria-label="Travel stories" className="home-stories-section px-4 py-10 sm:px-6 lg:px-10">
+      <div className="mx-auto mb-4 max-w-7xl">
+        <p className="text-xs font-semibold tracking-[0.2em] text-[var(--home-gold)]">تجارب المسافرين</p>
+      </div>
       <div className="home-stories-track mx-auto max-w-7xl flex gap-4 overflow-x-auto pb-2">
         {tickerStories.map((story, index) => (
           <article key={`${story.id}-${index}`} className="overflow-hidden rounded-2xl border border-[var(--home-gold)]/20 bg-white shadow-[0_16px_34px_rgba(88,65,31,0.06)]">

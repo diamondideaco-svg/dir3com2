@@ -7,8 +7,8 @@ export default function AdminAssignmentLoading() {
           <div className="mt-3 h-8 w-64 rounded bg-white/10" />
         </div>
         <div className="space-y-4">
-          <div className="h-32 rounded-[1.5rem] border border-white/10 bg-white/5" />
-          <div className="h-32 rounded-[1.5rem] border border-white/10 bg-white/5" />
+          <div className="h-32 rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)]" />
+          <div className="h-32 rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)]" />
         </div>
       </div>
     </div>

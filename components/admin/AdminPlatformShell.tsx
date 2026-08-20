@@ -20,7 +20,7 @@ type AdminPlatformShellProps = {
 export default function AdminPlatformShell({ children, adminRole }: AdminPlatformShellProps) {
   return (
     <div className="min-h-screen bg-[#0A1726] text-white" dir="rtl">
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#FAF8F4]/95 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-[color:var(--color-border)] bg-[#FAF8F4]/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -37,7 +37,7 @@ export default function AdminPlatformShell({ children, adminRole }: AdminPlatfor
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-200 transition hover:border-[#D4AF37]/45 hover:text-[#D4AF37]"
+                className="rounded-full border border-[color:var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-navy)] transition hover:border-[#D4AF37]/45 hover:text-[#D4AF37]"
               >
                 {item.label}
               </Link>

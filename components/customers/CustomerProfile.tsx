@@ -6,9 +6,9 @@ type CustomerProfileProps = {
 
 export default function CustomerProfile({ customer }: CustomerProfileProps) {
   return (
-    <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6 text-right">
+    <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6 text-right">
       <h3 className="text-lg font-semibold text-white">الملف الشخصي</h3>
-      <div className="mt-4 space-y-2 text-sm text-slate-300">
+      <div className="mt-4 space-y-2 text-sm text-[var(--color-muted)]">
         <p>الاسم: {customer.full_name}</p>
         <p>البريد: {customer.email}</p>
         <p>الهاتف: {customer.phone || '—'}</p>

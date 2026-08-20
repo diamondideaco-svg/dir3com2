@@ -3,8 +3,9 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { FiExternalLink, FiMessageCircle, FiSend, FiX } from 'react-icons/fi';
+import { FiExternalLink, FiMessageCircle, FiMic, FiMicOff, FiSend, FiX } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
+import { useDibrahSpeech } from '@/components/layout/useDibrahSpeech';
 
 type DibrahAssistantContext = {
   source: 'supabase' | 'api' | 'fallback';
@@ -89,6 +90,9 @@ export default function FloatingDibrah() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const stickToBottomRef = useRef(true);
 
   const clampPosition = useCallback((x: number, y: number) => {
     const width = controlRef.current?.offsetWidth ?? 220;
@@ -118,6 +122,25 @@ export default function FloatingDibrah() {
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [panelOpen]);
+
+  // Track whether the reader is parked near the bottom so we never yank them away mid-read.
+  useEffect(() => {
+    const node = messagesRef.current;
+    if (!panelOpen || !node) return;
+    const onScroll = () => {
+      stickToBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
+    };
+    node.addEventListener('scroll', onScroll, { passive: true });
+    return () => node.removeEventListener('scroll', onScroll);
+  }, [panelOpen]);
+
+  useEffect(() => {
+    if (!panelOpen || !stickToBottomRef.current) return;
+    const id = window.requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [messages, sending, panelOpen]);
 
   useEffect(() => {
     async function loadAssistantContext() {
@@ -223,6 +246,11 @@ export default function FloatingDibrah() {
 
   const quickLinks = useMemo(() => assistantContext?.topServices.slice(0, 3) ?? [], [assistantContext]);
 
+  const speech = useDibrahSpeech('ar', (transcript) => {
+    setDraft((previous) => (previous ? `${previous} ${transcript}` : transcript));
+    draftRef.current?.focus();
+  });
+
   const openAssistant = () => {
     setPanelOpen(true);
     if (window.localStorage.getItem(DIBRAH_POLICY_ACCEPTED_KEY) !== 'true') {
@@ -254,6 +282,8 @@ export default function FloatingDibrah() {
     setSendError(null);
     setMessages((previous) => [...previous, { id: `user-${timestamp}`, role: 'user', content: trimmed }]);
     setDraft('');
+    // Sending is an explicit action, so always return the viewport to the newest message.
+    stickToBottomRef.current = true;
     try {
       const response = await fetch('/api/ai2/chat', {
         method: 'POST',
@@ -293,8 +323,8 @@ export default function FloatingDibrah() {
       </span>
 
       {panelOpen ? (
-        <div className="fixed inset-x-3 bottom-3 top-auto w-auto sm:inset-x-auto sm:bottom-4 sm:right-4 sm:top-auto sm:w-[min(88vw,380px)]">
-          <div className="overflow-hidden rounded-[24px] border border-[var(--color-gold)]/25 bg-[var(--color-shell)]/95 shadow-[0_30px_70px_rgba(13,27,42,0.26)] backdrop-blur-xl">
+        <div className="dabra-panel-shell fixed inset-0 z-50 sm:inset-auto sm:bottom-4 sm:right-4 sm:w-[min(88vw,380px)]">
+          <div className="dabra-panel flex flex-col overflow-hidden rounded-none border border-[var(--color-gold)]/25 bg-[var(--color-shell)]/95 shadow-[0_30px_70px_rgba(13,27,42,0.26)] backdrop-blur-xl sm:rounded-[24px]">
             <div className="flex items-center justify-between border-b border-[color:var(--color-border)] px-4 py-3">
               <div>
                 <p className="text-xs font-semibold tracking-[0.2em] text-[var(--color-gold)]">DIBRAH ASSISTANT</p>
@@ -314,7 +344,7 @@ export default function FloatingDibrah() {
               </button>
             </div>
 
-            <div className="max-h-[62vh] overflow-y-auto px-4 py-3">
+            <div ref={messagesRef} className="dabra-messages max-h-[62vh] flex-1 overflow-y-auto px-4 py-3">
               <div className="mb-3 flex flex-wrap gap-2 text-xs">
                 <span className="rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-3 py-1.5 text-[var(--color-navy)]">
                   {assistantContext?.dataQuality === 'live-verified'
@@ -368,6 +398,7 @@ export default function FloatingDibrah() {
                   ))}
                 </div>
               ) : null}
+              <div ref={messagesEndRef} aria-hidden="true" />
             </div>
 
             <div className="border-t border-[color:var(--color-border)] px-4 py-3">
@@ -390,32 +421,48 @@ export default function FloatingDibrah() {
                     }
                   }}
                   placeholder="ابدأ الكتابة"
-                  className="max-h-24 min-h-6 w-full resize-none overflow-y-auto bg-transparent text-sm leading-6 text-[var(--color-navy)] outline-none"
+                  className="dabra-composer w-full resize-none overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-sm leading-6 text-[var(--color-navy)] outline-none"
                 />
+                <button
+                  type="button"
+                  aria-label={speech.status === 'listening' ? 'إيقاف الإدخال الصوتي' : 'الإدخال الصوتي'}
+                  aria-pressed={speech.status === 'listening'}
+                  onClick={() => (speech.status === 'listening' ? speech.stopListening() : speech.startListening())}
+                  disabled={speech.status === 'unsupported'}
+                  className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--color-gold)]/40 transition disabled:cursor-not-allowed disabled:opacity-40 ${speech.status === 'listening' ? 'bg-[var(--color-gold)] text-[var(--color-navy)]' : 'text-[var(--color-gold)] hover:bg-[var(--color-gold)]/12'}`}
+                >
+                  {speech.status === 'listening' ? <FiMicOff size={14} /> : <FiMic size={14} />}
+                </button>
                 <button
                   type="button"
                   aria-label="إرسال"
                   onClick={() => void sendDraft()}
                   disabled={sending || !draft.trim()}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-surface-strong)] text-[var(--color-light)] transition hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-strong)] text-[var(--color-light)] transition hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FiSend size={14} />
                 </button>
               </div>
+              {speech.status === 'denied' ? (
+                <p role="alert" className="mt-2 text-xs text-[#b91c1c]">تم رفض إذن الميكروفون. فعّل الإذن من إعدادات المتصفح ثم أعد المحاولة.</p>
+              ) : null}
+              {speech.status === 'unsupported' ? (
+                <p className="mt-2 text-xs text-[var(--color-muted)]">الإدخال الصوتي غير مدعوم في هذا المتصفح. يمكنك الكتابة مباشرة.</p>
+              ) : null}
             </div>
           </div>
           {policyOpen ? (
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] bg-[var(--color-surface-strong)]/35 p-3 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="dabra-policy-title">
-              <div className="max-h-full w-full overflow-hidden rounded-[20px] border border-[var(--color-gold)]/30 bg-[var(--color-shell)] shadow-[0_24px_60px_rgba(13,27,42,0.3)]" dir="rtl">
-                <div className="border-b border-[color:var(--color-border)] px-4 py-3"><h2 id="dabra-policy-title" className="text-lg font-semibold text-[var(--color-navy)]">إخلاء مسؤولية</h2></div>
-                <div className="max-h-[min(48vh,360px)] overflow-y-auto px-4 py-3 text-sm leading-7 text-[var(--color-muted)]">
+              <div className="flex max-h-full w-full flex-col overflow-hidden rounded-[20px] border border-[var(--color-gold)]/30 bg-[var(--color-shell)] shadow-[0_24px_60px_rgba(13,27,42,0.3)]" dir="rtl">
+                <div className="shrink-0 border-b border-[color:var(--color-border)] px-4 py-3"><h2 id="dabra-policy-title" className="text-lg font-semibold text-[var(--color-navy)]">إخلاء مسؤولية</h2></div>
+                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-sm leading-7 text-[var(--color-muted)]">
                   <p>إن تطبيق الدَّبْرَة هو نموذج لغوي للذكاء الاصطناعي، يستخدم البيانات الخاصة بمواقع dir3com لتسهيل الوصول إلى المعلومات المتعلقة بالبحث والحجز للسيارات والفنادق والشقق والتأشيرات والتجارب والفعاليات وخطط الرحلات السياحية. وعليه، لا يجب اعتبار الردود الصادرة عنه استشارة مهنية أو بديلًا عن استشارة خبير متخصص ومؤهل.</p>
                   <p className="mt-3">لا تتحمل dir3com ولا الدَّبْرَة، مساعد الذكاء الاصطناعي، المسؤولية عن أي إجراء أو إجراءات يتم اتخاذها أو التخلي عنها بناءً على المعلومات التي يقدمها. كما قد لا يوفر مساعد الذكاء الاصطناعي دائمًا إجابات دقيقة أو كاملة، وقد يُنشئ أحيانًا إجابات غير مناسبة أو غير صحيحة نظرًا لطبيعة بيانات التدريب الخاصة به.</p>
                   <p className="mt-3">يتحمل المستخدم بالكامل مسؤولية استخدامه لتطبيق مساعد الذكاء الاصطناعي الدَّبْرَة.</p>
                   <p className="mt-3 font-semibold text-[var(--color-navy)]">تحت الاختبار.</p>
                   <label className="mt-4 flex items-start gap-3 text-[var(--color-navy)]"><input type="checkbox" checked={policyChecked} onChange={(event) => setPolicyChecked(event.target.checked)} className="mt-1 h-4 w-4" /><span>أوافق على أنني قد قرأت <Link href="/terms" className="font-semibold text-[var(--color-gold)] underline">الشروط والأحكام</Link> و<Link href="/privacy" className="font-semibold text-[var(--color-gold)] underline">سياسة الخصوصية</Link>، وأوافق أيضًا على معالجة اسمي وعنوان بريدي الإلكتروني عند تسجيل الدخول. أفهم أن الاسم الكامل وعنوان البريد الإلكتروني يُستخدمان لتتبع المحادثات وتوفير تجربة مخصصة.</span></label>
                 </div>
-                <div className="border-t border-[color:var(--color-border)] px-4 py-3"><button type="button" onClick={acceptPolicy} disabled={!policyChecked} className="w-full rounded-xl bg-[var(--color-gold)] px-4 py-3 text-sm font-semibold text-[var(--color-navy)] disabled:cursor-not-allowed disabled:opacity-40">متابعة</button></div>
+                <div className="shrink-0 border-t border-[color:var(--color-border)] px-4 py-3"><button type="button" onClick={acceptPolicy} disabled={!policyChecked} className="w-full rounded-xl bg-[var(--color-gold)] px-4 py-3 text-sm font-semibold text-[var(--color-navy)] disabled:cursor-not-allowed disabled:opacity-40">متابعة</button></div>
               </div>
             </div>
           ) : null}

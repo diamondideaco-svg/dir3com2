@@ -5,7 +5,7 @@ type BookingStatusBadgeProps = {
 };
 
 const toneMap: Record<string, string> = {
-  Draft: 'bg-slate-500/15 text-slate-300',
+  Draft: 'bg-slate-500/15 text-[var(--color-muted)]',
   Pending: 'bg-amber-500/15 text-amber-300',
   Confirmed: 'bg-sky-500/15 text-sky-300',
   Assigned: 'bg-indigo-500/15 text-indigo-300',
@@ -20,7 +20,7 @@ export default function BookingStatusBadge({ status }: BookingStatusBadgeProps) 
   const { customerVisibleStatus } = getLifecycleStatusContract(status);
 
   return (
-    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneMap[customerVisibleStatus] || 'bg-slate-500/15 text-slate-300'}`}>
+    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneMap[customerVisibleStatus] || 'bg-slate-500/15 text-[var(--color-muted)]'}`}>
       {customerVisibleStatus}
     </span>
   );

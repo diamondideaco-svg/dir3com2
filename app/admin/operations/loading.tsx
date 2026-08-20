@@ -1,6 +1,6 @@
 export default function AdminOperationsLoading() {
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
+    <main className="min-h-screen bg-slate-950 px-4 py-8 text-[var(--color-navy)]">
       <div className="mx-auto max-w-7xl animate-pulse">
         <div className="mb-8">
           <div className="h-4 w-48 rounded bg-slate-800" />

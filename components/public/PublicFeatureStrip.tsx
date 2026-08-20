@@ -32,7 +32,7 @@ export default function PublicFeatureStrip({ trustMessage }: PublicFeatureStripP
           <p className="text-center text-lg font-semibold text-[var(--color-gold)]">{trustMessage}</p>
           <ResponsiveGrid className="mt-6 gap-4 xl:grid-cols-3">
             {features.map(({ title, description, icon: Icon }) => (
-              <Card key={title} className="border-white/10 bg-white/7 text-[var(--color-light)] shadow-none backdrop-blur-sm">
+              <Card key={title} className="border-[color:var(--color-border)] bg-white/7 text-[var(--color-light)] shadow-none backdrop-blur-sm">
                 <CardContent className="p-5">
                   <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#E3C97A_0%,#D4AF37_100%)] text-[var(--color-navy)]">
                     <Icon size={18} />

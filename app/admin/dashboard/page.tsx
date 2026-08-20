@@ -21,13 +21,13 @@ export default async function ExecutiveDashboardPage() {
   const data = await getExecutiveDashboardData();
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
+    <main className="min-h-screen bg-slate-950 px-4 py-8 text-[var(--color-navy)]">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-gold-400">Executive Dashboard</p>
             <h1 className="mt-2 text-3xl font-semibold">One operating view across the entire platform</h1>
-            <p className="mt-3 max-w-3xl text-slate-400">Monitor bookings, revenue, trust, settlements, operations, and platform health from a single command center.</p>
+            <p className="mt-3 max-w-3xl text-[var(--color-muted)]">Monitor bookings, revenue, trust, settlements, operations, and platform health from a single command center.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {[
@@ -75,7 +75,7 @@ export default async function ExecutiveDashboardPage() {
               <h2 className="text-lg font-semibold text-white">Recent Activity</h2>
               <div className="mt-4 space-y-2">
                 {data.recentActivity.slice(0, 8).map((item: RecentActivityItem, index: number) => (
-                  <div key={`${item.id ?? index}`} className="rounded-xl border border-slate-800 px-3 py-2 text-sm text-slate-400">
+                  <div key={`${item.id ?? index}`} className="rounded-xl border border-slate-800 px-3 py-2 text-sm text-[var(--color-muted)]">
                     {item.event_name ?? item.action ?? item.event_type ?? item.summary ?? 'Activity'}
                   </div>
                 ))}
@@ -85,9 +85,9 @@ export default async function ExecutiveDashboardPage() {
             <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
               <h2 className="text-lg font-semibold text-white">Quick Links</h2>
               <div className="mt-4 space-y-2">
-                <Link href="/admin/bookings" className="block text-sm text-slate-300">Bookings → Payments → Verification → Invoices</Link>
-                <Link href="/admin/partners" className="block text-sm text-slate-300">Partners → Products → Assignments → Finance</Link>
-                <Link href="/admin/customers" className="block text-sm text-slate-300">Customers → Bookings → Wallet → Timeline</Link>
+                <Link href="/admin/bookings" className="block text-sm text-[var(--color-muted)]">Bookings → Payments → Verification → Invoices</Link>
+                <Link href="/admin/partners" className="block text-sm text-[var(--color-muted)]">Partners → Products → Assignments → Finance</Link>
+                <Link href="/admin/customers" className="block text-sm text-[var(--color-muted)]">Customers → Bookings → Wallet → Timeline</Link>
               </div>
             </div>
           </div>

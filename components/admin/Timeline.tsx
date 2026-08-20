@@ -16,14 +16,14 @@ export async function Timeline() {
     <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
       <h3 className="text-lg font-semibold text-white">Activity timeline</h3>
       {summary.timeline.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-400">لا توجد أحداث في الخط الزمني حالياً.</p>
+        <p className="mt-4 text-sm text-[var(--color-muted)]">لا توجد أحداث في الخط الزمني حالياً.</p>
       ) : (
         <div className="mt-4 space-y-2">
           {summary.timeline.map((item: { id: string; event_type: string; entity_type: string; summary?: string | null }) => (
-            <div key={item.id} className="rounded-xl border border-slate-800 px-3 py-2 text-sm text-slate-300">
+            <div key={item.id} className="rounded-xl border border-slate-800 px-3 py-2 text-sm text-[var(--color-muted)]">
               <div className="flex items-center justify-between">
                 <span>{item.event_type}</span>
-                <span className="text-slate-400">{item.entity_type}</span>
+                <span className="text-[var(--color-muted)]">{item.entity_type}</span>
               </div>
               <p className="mt-1 text-xs text-slate-500">{item.summary ?? 'No summary provided'}</p>
             </div>

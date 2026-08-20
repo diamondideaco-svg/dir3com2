@@ -27,7 +27,7 @@ export default async function AdminPartnersPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">لوحة الإدارة</p>
             <h1 className="mt-2 text-3xl font-semibold text-white">إدارة الشركاء</h1>
           </div>
-          <Link href="/admin" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">العودة إلى لوحة التحكم</Link>
+          <Link href="/admin" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة إلى لوحة التحكم</Link>
         </div>
 
         {error ? (

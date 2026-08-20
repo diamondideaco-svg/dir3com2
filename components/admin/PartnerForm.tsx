@@ -38,55 +38,55 @@ export default function PartnerForm({ initialData }: PartnerFormProps) {
   };
 
   return (
-    <form className="rounded-[1.5rem] border border-white/10 bg-white/5 p-6 text-right" dir="rtl">
+    <form className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6 text-right" dir="rtl">
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="text-sm text-slate-300">
+        <label className="text-sm text-[var(--color-muted)]">
           <span className="mb-2 block">اسم الشركة</span>
-          <input value={form.company_name} onChange={(e) => handleChange('company_name', e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none" />
+          <input value={form.company_name} onChange={(e) => handleChange('company_name', e.target.value)} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none" />
         </label>
-        <label className="text-sm text-slate-300">
+        <label className="text-sm text-[var(--color-muted)]">
           <span className="mb-2 block">الشخص المسؤول</span>
-          <input value={form.contact_person} onChange={(e) => handleChange('contact_person', e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none" />
+          <input value={form.contact_person} onChange={(e) => handleChange('contact_person', e.target.value)} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none" />
         </label>
-        <label className="text-sm text-slate-300">
+        <label className="text-sm text-[var(--color-muted)]">
           <span className="mb-2 block">البريد الإلكتروني</span>
-          <input value={form.email} onChange={(e) => handleChange('email', e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none" />
+          <input value={form.email} onChange={(e) => handleChange('email', e.target.value)} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none" />
         </label>
-        <label className="text-sm text-slate-300">
+        <label className="text-sm text-[var(--color-muted)]">
           <span className="mb-2 block">رقم الهاتف</span>
-          <input value={form.phone} onChange={(e) => handleChange('phone', e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none" />
+          <input value={form.phone} onChange={(e) => handleChange('phone', e.target.value)} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none" />
         </label>
-        <label className="text-sm text-slate-300">
+        <label className="text-sm text-[var(--color-muted)]">
           <span className="mb-2 block">الدولة</span>
-          <input value={form.country} onChange={(e) => handleChange('country', e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none" />
+          <input value={form.country} onChange={(e) => handleChange('country', e.target.value)} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none" />
         </label>
-        <label className="text-sm text-slate-300">
+        <label className="text-sm text-[var(--color-muted)]">
           <span className="mb-2 block">المدينة</span>
-          <input value={form.city} onChange={(e) => handleChange('city', e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none" />
+          <input value={form.city} onChange={(e) => handleChange('city', e.target.value)} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none" />
         </label>
-        <label className="text-sm text-slate-300">
+        <label className="text-sm text-[var(--color-muted)]">
           <span className="mb-2 block">السجل التجاري</span>
-          <input value={form.commercial_registration} onChange={(e) => handleChange('commercial_registration', e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none" />
+          <input value={form.commercial_registration} onChange={(e) => handleChange('commercial_registration', e.target.value)} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none" />
         </label>
-        <label className="text-sm text-slate-300">
+        <label className="text-sm text-[var(--color-muted)]">
           <span className="mb-2 block">الرقم الضريبي</span>
-          <input value={form.tax_number} onChange={(e) => handleChange('tax_number', e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none" />
+          <input value={form.tax_number} onChange={(e) => handleChange('tax_number', e.target.value)} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none" />
         </label>
-        <label className="text-sm text-slate-300">
+        <label className="text-sm text-[var(--color-muted)]">
           <span className="mb-2 block">IBAN</span>
-          <input value={form.iban} onChange={(e) => handleChange('iban', e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none" />
+          <input value={form.iban} onChange={(e) => handleChange('iban', e.target.value)} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none" />
         </label>
-        <label className="text-sm text-slate-300">
+        <label className="text-sm text-[var(--color-muted)]">
           <span className="mb-2 block">الحالة</span>
-          <select value={form.status} onChange={(e) => handleChange('status', e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none">
+          <select value={form.status} onChange={(e) => handleChange('status', e.target.value)} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none">
             <option value="active">نشط</option>
             <option value="pending">قيد المراجعة</option>
             <option value="inactive">غير نشط</option>
           </select>
         </label>
-        <label className="text-sm text-slate-300">
+        <label className="text-sm text-[var(--color-muted)]">
           <span className="mb-2 block">مستوى الحماية</span>
-          <select value={form.shield_level} onChange={(e) => handleChange('shield_level', e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#07111D] px-4 py-3 text-white outline-none">
+          <select value={form.shield_level} onChange={(e) => handleChange('shield_level', e.target.value)} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none">
             <option value="basic">أساسي</option>
             <option value="silver">فضي</option>
             <option value="gold">ذهبي</option>

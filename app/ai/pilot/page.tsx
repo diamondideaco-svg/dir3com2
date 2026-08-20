@@ -6,13 +6,13 @@ export default async function AiPilotPage() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
-      <section className="overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(160deg,rgba(13,27,42,0.96)_0%,rgba(22,44,65,0.95)_100%)] px-6 py-8 text-[var(--color-light)] shadow-[0_28px_70px_rgba(13,27,42,0.28)] sm:px-8 lg:px-10">
+      <section className="overflow-hidden rounded-[32px] border border-[color:var(--color-border)] bg-[linear-gradient(160deg,rgba(13,27,42,0.96)_0%,rgba(22,44,65,0.95)_100%)] px-6 py-8 text-[var(--color-light)] shadow-[0_28px_70px_rgba(13,27,42,0.28)] sm:px-8 lg:px-10">
         <div className="flex flex-wrap items-center gap-3 text-sm text-white/72">
           <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-gold)]/25 bg-[var(--color-gold)]/12 px-4 py-2 text-[var(--color-gold)]">
             <FiShield /> Safe pilot
           </span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Read-only assistant surface</span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Arabic-first, English-ready</span>
+          <span className="rounded-full border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-2">Read-only assistant surface</span>
+          <span className="rounded-full border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-2">Arabic-first, English-ready</span>
         </div>
 
         <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

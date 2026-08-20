@@ -14,7 +14,7 @@ export async function GlobalSearch({ query }: { query: string }) {
         <div className="mt-4 space-y-3">
           {results.groups.map((group) => (
             <div key={group.key}>
-              <p className="text-sm font-medium text-slate-300">{group.title}</p>
+              <p className="text-sm font-medium text-[var(--color-muted)]">{group.title}</p>
               <div className="mt-2 space-y-2">
                 {group.items.map((item: Record<string, unknown>, index: number) => {
                   const label = [
@@ -26,7 +26,7 @@ export async function GlobalSearch({ query }: { query: string }) {
                   ].filter((value): value is string => typeof value === 'string' && value.length > 0);
 
                   return (
-                    <div key={`${group.key}-${index}`} className="rounded-xl border border-slate-800 px-3 py-2 text-sm text-slate-400">
+                    <div key={`${group.key}-${index}`} className="rounded-xl border border-slate-800 px-3 py-2 text-sm text-[var(--color-muted)]">
                       {label[0] ?? JSON.stringify(item)}
                     </div>
                   );
