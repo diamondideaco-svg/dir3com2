@@ -1,5 +1,5 @@
-import PlatformFoundationHome from '@/components/home/PlatformFoundationHome';
+import ApprovedVisualPage from '@/components/approved/ApprovedVisualPage';
 
 export default function HomePage() {
-  return <PlatformFoundationHome />;
+  return <ApprovedVisualPage page="home" />;
 }
