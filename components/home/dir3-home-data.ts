@@ -42,7 +42,7 @@ export const homeCopy = {
       { title: 'الدبرة: كيف سيظهر المساعد داخل الواجهة؟', category: 'منتج', readTime: '3 دقائق', description: 'تمهيد بصري للمساعد الودي دون أي منطق فعلي، مع مساحات واضحة للتكامل المستقبلي.' },
     ],
     travelTips: [
-      { title: 'رتب الوصول قبل الإقامة', description: 'ابدأ بخدمة dir3 airport أو dir3 drive حتى تكون بداية الرحلة هادئة ومحمية من أول خطوة.', label: 'نصيحة الوصول' },
+      { title: 'رتب الوصول قبل الإقامة', description: 'ابدأ بخدمة dir3 Fly أو dir3 Drive حتى تكون بداية الرحلة هادئة ومحمية من أول خطوة.', label: 'نصيحة الوصول' },
       { title: 'اختر الإقامة حسب نمط الرحلة', description: 'dir3 stay مناسب للإقامات الفاخرة، بينما الشقق تخدم الإقامات الأطول والعائلات بمرونة أعلى.', label: 'نصيحة الإقامة' },
       { title: 'أضف الكونسيرج عند الحاجة', description: 'إذا كانت الرحلة تتضمن طلبات خاصة أو تنقلات متعددة، فإضافة dir3 concierge ترفع الانسيابية.', label: 'نصيحة الخدمة' },
     ],
@@ -93,7 +93,7 @@ export const homeCopy = {
       { title: 'DABRA: how will the assistant appear inside the interface?', category: 'Product', readTime: '3 min', description: 'A visual prelude for the friendly assistant without any active logic, with clear room for future integration.' },
     ],
     travelTips: [
-      { title: 'Plan arrival before stay', description: 'Start with dir3 airport or dir3 drive so the journey begins smoothly and protected from the first step.', label: 'Arrival tip' },
+      { title: 'Plan arrival before stay', description: 'Start with dir3 Fly or dir3 Drive so the journey begins smoothly and protected from the first step.', label: 'Arrival tip' },
       { title: 'Choose stay by trip style', description: 'dir3 stay fits luxury stays, while apartments support longer trips and families with more flexibility.', label: 'Stay tip' },
       { title: 'Add concierge when needed', description: 'If the trip includes special requests or multiple transfers, adding dir3 concierge improves the flow.', label: 'Service tip' },
     ],

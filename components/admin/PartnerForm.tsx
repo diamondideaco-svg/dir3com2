@@ -95,7 +95,7 @@ export default function PartnerForm({ initialData }: PartnerFormProps) {
         </label>
       </div>
       <div className="mt-6 flex justify-end">
-        <button type="button" className="rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-semibold text-[#0D1B2A]">حفظ الشريك</button>
+        <button type="button" className="rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-semibold text-[#334155]">حفظ الشريك</button>
       </div>
     </form>
   );

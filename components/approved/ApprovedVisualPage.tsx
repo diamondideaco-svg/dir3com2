@@ -51,29 +51,13 @@ const approvedVisuals: Record<ApprovedVisualKey, {
   },
 };
 
-const navItems = [
-  { href: '/', ar: 'الرئيسية', en: 'Home' },
-  { href: '/services', ar: 'خدماتنا', en: 'Services' },
-  { href: '/services/drive', ar: 'درع Drive', en: 'Dir3 Drive' },
-  { href: '/services/fly', ar: 'درع Fly', en: 'Dir3 Fly' },
-  { href: '/services/stay', ar: 'درع Stay', en: 'Dir3 Stay' },
-  { href: '/services/concierge', ar: 'درع Concierge', en: 'Dir3 Concierge' },
-  { href: '/services/vip', ar: 'درع VIP', en: 'Dir3 VIP' },
-] as const;
-
 export default function ApprovedVisualPage({ page }: { page: ApprovedVisualKey }) {
-  const { language, direction, toggleLanguage } = useLanguage();
+  const { language, direction } = useLanguage();
   const visual = approvedVisuals[page];
 
   return (
     <main className="approved-visual-page" dir={direction} data-approved-page={page}>
       <h1 className="sr-only">{visual.alt[language]}</h1>
-      <nav className="sr-only" aria-label={language === 'ar' ? 'التنقل الرئيسي' : 'Primary navigation'}>
-        {navItems.map((item) => (
-          <Link key={item.href} href={item.href}>{item[language]}</Link>
-        ))}
-        <button type="button" onClick={toggleLanguage}>{language === 'ar' ? 'English' : 'العربية'}</button>
-      </nav>
 
       {page === 'home' ? <ServiceSearchTable /> : null}
 

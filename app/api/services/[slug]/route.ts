@@ -5,6 +5,7 @@ import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPubli
 import {
     sanitizeServiceProductsForCompatibility,
 } from '@/lib/marketplace/synthetic-compat';
+import { getCanonicalService, resolveCanonicalServiceSlug } from '@/lib/services/canonical';
 
 type ServiceApiErrorCode = 'invalid_slug' | 'not_found' | 'internal_error';
 
@@ -32,19 +33,51 @@ function normalizeServiceSlug(rawSlug: string | null | undefined) {
     return normalized;
 }
 
+/** A canonical service page must render even with zero inventory rows. */
+function buildCanonicalShellResponse(slug: string) {
+    const canonical = getCanonicalService(slug);
+
+    if (!canonical) {
+        return null;
+    }
+
+    return NextResponse.json({
+        id: `canonical-${canonical.slug}`,
+        slug: canonical.slug,
+        name_ar: canonical.name,
+        name_en: canonical.name,
+        description_ar: canonical.descriptionAr,
+        description_en: canonical.descriptionEn,
+        badge: canonical.eyebrow,
+        base_price: null,
+        currency: 'SAR',
+        featured: false,
+        status: 'available',
+        created_at: null,
+        canonical: true,
+        products: [],
+    });
+}
+
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ slug: string }> }
 ) {
     void request;
 
+    let requestedSlug = '';
+
     try {
         const { slug } = await params;
         const normalizedSlug = normalizeServiceSlug(slug);
+        requestedSlug = normalizedSlug ?? '';
 
         if (!normalizedSlug) {
             return buildErrorResponse('invalid_slug', 'Invalid service slug.', 400);
         }
+
+        const canonicalSlug = resolveCanonicalServiceSlug(normalizedSlug);
+        const lookupSlug = canonicalSlug ?? normalizedSlug;
 
         if (supabaseAdmin) {
             const client = supabaseAdmin;
@@ -61,7 +94,7 @@ export async function GET(
                             region:regions(*)
                         )
                     `)
-                    .eq('slug', normalizedSlug)
+                    .eq('slug', lookupSlug)
             )
                 .eq('products.synthetic', false)
                 .in('products.status', ['published', 'active', 'featured'])
@@ -69,6 +102,12 @@ export async function GET(
                 .maybeSingle();
 
             if (error) {
+                const shell = buildCanonicalShellResponse(lookupSlug);
+
+                if (shell) {
+                    return shell;
+                }
+
                 return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
             }
 
@@ -89,6 +128,12 @@ export async function GET(
             ).maybeSingle();
 
             if (productError) {
+                const shell = buildCanonicalShellResponse(lookupSlug);
+
+                if (shell) {
+                    return shell;
+                }
+
                 return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
             }
 
@@ -156,6 +201,12 @@ export async function GET(
         const fallback = snapshot.services.find((service) => service.slug === normalizedSlug || service.href.endsWith(`/${normalizedSlug}`));
 
         if (!fallback) {
+            const shell = buildCanonicalShellResponse(lookupSlug);
+
+            if (shell) {
+                return shell;
+            }
+
             return buildErrorResponse('not_found', 'Service not found.', 404);
         }
 
@@ -175,6 +226,12 @@ export async function GET(
             products: [],
         });
     } catch {
+        const shell = buildCanonicalShellResponse(requestedSlug);
+
+        if (shell) {
+            return shell;
+        }
+
         return buildErrorResponse('internal_error', 'Internal Server Error', 500);
     }
 }

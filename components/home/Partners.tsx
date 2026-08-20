@@ -15,7 +15,7 @@ export default function Partners() {
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {partners.map((partner) => (
-            <div key={partner} className="rounded-2xl border border-[#D4AF37]/20 bg-[#0D1B2A]/70 px-4 py-6 text-center text-lg font-semibold tracking-[0.25em] text-slate-200 transition-all duration-300 hover:-translate-y-1 hover:border-[#D4AF37] hover:text-[#D4AF37]">
+            <div key={partner} className="rounded-2xl border border-[#D4AF37]/20 bg-[#FAF8F4]/70 px-4 py-6 text-center text-lg font-semibold tracking-[0.25em] text-slate-200 transition-all duration-300 hover:-translate-y-1 hover:border-[#D4AF37] hover:text-[#D4AF37]">
               {partner}
             </div>
           ))}

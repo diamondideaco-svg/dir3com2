@@ -27,7 +27,7 @@ export default function ProductForm() {
         <input type="checkbox" name="shieldCertified" />
         Shield Certified
       </label>
-      <button type="submit" className="rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-semibold text-[#0D1B2A]">إنشاء المنتج</button>
+      <button type="submit" className="rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-semibold text-[#334155]">إنشاء المنتج</button>
     </form>
   );
 }

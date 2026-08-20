@@ -32,7 +32,7 @@ export default function ProductTable({ products }: ProductTableProps) {
                   <div className="flex flex-wrap gap-2">
                     <form action={publishProductAction}>
                       <input type="hidden" name="id" value={product.id} />
-                      <button type="submit" className="rounded-full bg-[#D4AF37] px-3 py-2 text-xs font-semibold text-[#0D1B2A]">نشر</button>
+                      <button type="submit" className="rounded-full bg-[#D4AF37] px-3 py-2 text-xs font-semibold text-[#334155]">نشر</button>
                     </form>
                     <form action={deleteProductAction}>
                       <input type="hidden" name="id" value={product.id} />

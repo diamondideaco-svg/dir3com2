@@ -17,7 +17,7 @@ export default function CustomerForm() {
         <option value="DIR3 Elite Shield">DIR3 Elite Shield</option>
         <option value="DIR3 VIP Shield">DIR3 VIP Shield</option>
       </select>
-      <button type="submit" className="rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-semibold text-[#0D1B2A]">إنشاء عميل</button>
+      <button type="submit" className="rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-semibold text-[#334155]">إنشاء عميل</button>
     </form>
   );
 }

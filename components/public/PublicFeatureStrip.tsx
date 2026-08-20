@@ -34,7 +34,7 @@ export default function PublicFeatureStrip({ trustMessage }: PublicFeatureStripP
             {features.map(({ title, description, icon: Icon }) => (
               <Card key={title} className="border-white/10 bg-white/7 text-[var(--color-light)] shadow-none backdrop-blur-sm">
                 <CardContent className="p-5">
-                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#e2c790_0%,#c8a86b_100%)] text-[var(--color-navy)]">
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#E3C97A_0%,#D4AF37_100%)] text-[var(--color-navy)]">
                     <Icon size={18} />
                   </span>
                   <p className="mt-4 text-lg font-semibold">{title}</p>

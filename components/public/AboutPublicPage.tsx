@@ -46,7 +46,7 @@ export default function AboutPublicPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-[var(--color-navy)] text-[var(--color-light)]">
+          <Card className="bg-[var(--color-surface-strong)] text-[var(--color-light)]">
             <CardHeader>
               <p className="text-sm font-medium tracking-[0.18em] text-[var(--color-gold)]">OUR VISION</p>
               <CardTitle className="mt-3 text-3xl text-[var(--color-light)]">رؤيتنا</CardTitle>

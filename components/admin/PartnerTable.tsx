@@ -12,7 +12,7 @@ export default function PartnerTable({ partners }: PartnerTableProps) {
     <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/5">
       <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
         <h2 className="text-lg font-semibold text-white">قائمة الشركاء</h2>
-        <Link href="/admin/partners/new" className="rounded-full bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#0D1B2A]">إضافة شريك</Link>
+        <Link href="/admin/partners/new" className="rounded-full bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155]">إضافة شريك</Link>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-right">

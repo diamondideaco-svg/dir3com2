@@ -265,7 +265,7 @@ export default function MarketplaceExplorer({
                     aria-pressed={collection === option.value}
                     className={`min-h-10 rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 ${
                       collection === option.value
-                        ? 'bg-[var(--color-navy)] text-[var(--color-light)]'
+                        ? 'bg-[var(--color-surface-strong)] text-[var(--color-light)]'
                         : isUnavailable
                           ? 'cursor-not-allowed border border-dashed border-[color:var(--color-border)] bg-white/60 text-[var(--color-muted)]'
                           : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
@@ -391,7 +391,7 @@ export default function MarketplaceExplorer({
                 onClick={() => setPage(pageNumber)}
                 className={`min-h-10 min-w-10 rounded-full px-3 py-2 text-sm font-medium transition ${
                   meta.page === pageNumber
-                    ? 'bg-[var(--color-navy)] text-[var(--color-light)]'
+                    ? 'bg-[var(--color-surface-strong)] text-[var(--color-light)]'
                     : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
                 }`}
               >

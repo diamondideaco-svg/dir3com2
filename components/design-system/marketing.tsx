@@ -9,15 +9,15 @@ type BlockProps = {
 };
 
 export function HeroBlock({ children, className }: BlockProps) {
-  return <div className={cn('rounded-[36px] border border-[color:var(--color-border)] bg-[var(--brand-gradient-soft)] p-6 text-[var(--color-light)] shadow-[0_26px_58px_rgba(16,32,51,0.18)]', className)}>{children}</div>;
+  return <div className={cn('rounded-[36px] border border-[color:var(--color-border)] bg-[var(--brand-gradient-soft)] p-6 text-[var(--color-light)] shadow-[0_26px_58px_rgba(15,23,42,0.18)]', className)}>{children}</div>;
 }
 
 export function SectionSurface({ children, className }: BlockProps) {
-  return <div className={cn('rounded-[30px] border border-[color:var(--color-border)] bg-[var(--color-card-strong)] p-5 shadow-[0_20px_45px_rgba(16,32,51,0.08)] sm:p-6', className)}>{children}</div>;
+  return <div className={cn('rounded-[30px] border border-[color:var(--color-border)] bg-[var(--color-card-strong)] p-5 shadow-[0_20px_45px_rgba(15,23,42,0.08)] sm:p-6', className)}>{children}</div>;
 }
 
 export function CtaBlock({ children, className }: BlockProps) {
-  return <div className={cn('overflow-hidden rounded-[40px] border border-[var(--color-gold)]/18 bg-[linear-gradient(140deg,#102033_0%,#1c3550_54%,#9d5c4d_120%,#c8a86b_180%)] p-6 text-[var(--color-light)] shadow-[0_30px_70px_rgba(16,32,51,0.22)] sm:p-8', className)}>{children}</div>;
+  return <div className={cn('overflow-hidden rounded-[40px] border border-[var(--color-gold)]/18 bg-[linear-gradient(140deg,#334155_0%,#1c3550_54%,#d4af37_120%,#D4AF37_180%)] p-6 text-[var(--color-light)] shadow-[0_30px_70px_rgba(15,23,42,0.22)] sm:p-8', className)}>{children}</div>;
 }
 
 export function TrustComponent({ title, note }: { title: string; note: string }) {
@@ -97,7 +97,7 @@ export function ServiceComponent({ title, description }: { title: string; descri
 
 export function AppDownloadComponent({ title, note }: { title: string; note: string }) {
   return (
-    <Card className="bg-[var(--color-navy)] text-[var(--color-light)]">
+    <Card className="bg-[var(--color-surface-strong)] text-[var(--color-light)]">
       <CardHeader>
         <CardTitle className="text-[var(--color-light)]">{title}</CardTitle>
       </CardHeader>

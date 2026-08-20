@@ -39,7 +39,7 @@ export default function ShieldOffers() {
                     <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-gold)]/20 bg-[var(--color-gold)]/10 px-3 py-2 text-xs font-medium text-[var(--color-gold)]">
                       <FiShield /> {offer.badge}
                     </span>
-                    {index === 0 ? <span className="rounded-full bg-[var(--color-navy)] px-3 py-1 text-xs font-semibold text-white">Featured</span> : null}
+                    {index === 0 ? <span className="rounded-full bg-[var(--color-surface-strong)] px-3 py-1 text-xs font-semibold text-white">Featured</span> : null}
                   </div>
                   <CardTitle className="mt-4 text-[1.35rem]">{offer.title}</CardTitle>
                   <div className="mt-3 flex items-end gap-2 text-[var(--color-navy)]">

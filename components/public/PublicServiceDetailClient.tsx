@@ -28,6 +28,7 @@ import {
 } from '@/components/design-system';
 import { buttonVariants } from '@/components/ui/button';
 import { marketplaceCatalogEntries, normalizeMarketplaceServices } from '@/lib/marketplace/data';
+import { getCanonicalService } from '@/lib/services/canonical';
 import PublicCtaBanner from '@/components/public/PublicCtaBanner';
 import PublicRouteIndex from '@/components/public/PublicRouteIndex';
 
@@ -89,6 +90,7 @@ const staticFaq = [
 ];
 
 export default function PublicServiceDetailClient({ slug }: { slug: string }) {
+  const canonical = getCanonicalService(slug);
   const [service, setService] = useState<ServiceDetail | null>(null);
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,8 +122,25 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
     loadService();
   }, [slug]);
 
+  const canonicalShell: ServiceDetail | null = canonical
+    ? {
+        id: `canonical-${canonical.slug}`,
+        slug: canonical.slug,
+        name_ar: canonical.name,
+        name_en: canonical.name,
+        description_ar: canonical.descriptionAr,
+        description_en: canonical.descriptionEn,
+        badge: canonical.eyebrow,
+        currency: 'SAR',
+        status: 'available',
+        products: [],
+      }
+    : null;
+
+  // A canonical service page must still render when inventory or the API is unavailable.
+  const resolvedService = service ?? canonicalShell;
   const marketplaceService = service ? normalizeMarketplaceServices([service], false)[0] : null;
-  const products = service?.products ?? [];
+  const products = resolvedService?.products ?? [];
   const galleryImages = products
     .flatMap((product) => product.images?.map((image) => image.image_url).filter(Boolean) ?? [])
     .filter((value): value is string => Boolean(value));
@@ -146,7 +165,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
     );
   }
 
-  if (error || !service) {
+  if (!resolvedService) {
     return (
       <SectionContainer className="py-16">
         <ContentContainer>
@@ -159,6 +178,8 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
     );
   }
 
+  const service_ = resolvedService;
+
   return (
     <div className="page-stack-shell">
       <SectionContainer className="pb-10 pt-8 lg:pt-12">
@@ -166,14 +187,27 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
           <Link href="/services" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-gold)] transition hover:gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35">
             <FiArrowLeft /> العودة إلى الخدمات
           </Link>
+          {canonical ? (
+            <div className="mt-5 overflow-hidden rounded-[28px] border border-[color:var(--color-border)] shadow-[var(--shadow-soft)]">
+              <Image
+                src={canonical.hero}
+                alt={canonical.name}
+                width={1600}
+                height={900}
+                priority
+                unoptimized
+                className="h-auto w-full object-cover"
+              />
+            </div>
+          ) : null}
           <div className="mt-5 grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-start">
             <div>
               <p className="text-sm font-medium tracking-[0.18em] text-[var(--color-gold)]">
-                {marketplaceService?.familyLabel ?? service.badge ?? 'SERVICE DETAIL'}
+                {marketplaceService?.familyLabel ?? service_.badge ?? 'SERVICE DETAIL'}
               </p>
-              <h1 className="mt-3 text-4xl font-semibold text-[var(--color-navy)] sm:text-5xl">{service.name_ar ?? 'خدمة dir3com'}</h1>
+              <h1 className="mt-3 text-4xl font-semibold text-[var(--color-navy)] sm:text-5xl">{service_.name_ar ?? 'خدمة dir3com'}</h1>
               <p className="mt-5 max-w-2xl text-lg leading-9 text-[var(--color-muted)]">
-                {service.description_ar ?? 'تفاصيل الخدمة ستظهر هنا مع نفس اللغة البصرية المعتمدة في المنصة العامة.'}
+                {service_.description_ar ?? 'تفاصيل الخدمة ستظهر هنا مع نفس اللغة البصرية المعتمدة في المنصة العامة.'}
               </p>
               {marketplaceService ? (
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -223,7 +257,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
               <SectionSurface className="overflow-hidden p-0">
                 {mainImage ? (
                   <div className="relative h-[320px] w-full sm:h-[420px]">
-                    <Image src={mainImage} alt={service.name_ar ?? 'خدمة dir3com'} fill className="object-cover" unoptimized />
+                    <Image src={mainImage} alt={service_.name_ar ?? 'خدمة dir3com'} fill className="object-cover" unoptimized />
                   </div>
                 ) : (
                   <div className="flex h-[320px] items-center justify-center bg-[var(--color-surface)] text-sm text-[var(--color-muted)] sm:h-[420px]">
@@ -263,7 +297,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
             <ResponsiveGrid>
               <ServiceComponent
                 title="نظرة عامة على الخدمة"
-                description={service.description_ar ?? 'تفاصيل الخدمة ستظهر هنا مع نفس اللغة البصرية المعتمدة في المنصة العامة.'}
+                description={service_.description_ar ?? 'تفاصيل الخدمة ستظهر هنا مع نفس اللغة البصرية المعتمدة في المنصة العامة.'}
               />
               <ServiceComponent
                 title="المزايا والتضمينات"

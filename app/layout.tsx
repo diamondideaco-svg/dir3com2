@@ -1,9 +1,14 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { Montserrat, Playfair_Display, Tajawal } from 'next/font/google';
 import { cookies } from 'next/headers';
 import { LanguageProvider } from '@/components/i18n/LanguageProvider';
 import SiteShell from '@/components/layout/SiteShell';
 import { DEFAULT_LANGUAGE, LANGUAGE_COOKIE_NAME, languageDirection, normalizeLanguage } from '@/lib/i18n/config';
+
+const tajawal = Tajawal({ subsets: ['arabic', 'latin'], weight: ['400', '500', '700'], variable: '--font-tajawal', display: 'swap' });
+const montserrat = Montserrat({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-montserrat', display: 'swap' });
+const playfair = Playfair_Display({ subsets: ['latin'], weight: ['500', '600', '700'], variable: '--font-playfair', display: 'swap' });
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://dir3com.com'),
@@ -40,7 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const initialLanguage = normalizeLanguage(cookieStore.get(LANGUAGE_COOKIE_NAME)?.value ?? DEFAULT_LANGUAGE);
 
   return (
-    <html lang={initialLanguage} dir={languageDirection(initialLanguage)} suppressHydrationWarning>
+    <html lang={initialLanguage} dir={languageDirection(initialLanguage)} className={`${tajawal.variable} ${montserrat.variable} ${playfair.variable}`} suppressHydrationWarning>
       <body className="antialiased">
         <LanguageProvider initialLanguage={initialLanguage}>
           <SiteShell>{children}</SiteShell>

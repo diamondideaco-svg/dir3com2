@@ -374,17 +374,17 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
 
   return (
     <section className="rounded-2xl border border-white/10 bg-[#07111D] p-4" dir={direction}>
-      <h3 className="text-lg font-semibold text-[#F4F1E8]">{t.heading}</h3>
+      <h3 className="text-lg font-semibold text-[#334155]">{t.heading}</h3>
       <p className="mt-1 text-xs text-[#9EB0C3]">{t.subheading}</p>
 
-      {message ? <div className="mt-3 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-xs text-[#F4F1E8]">{message}</div> : null}
+      {message ? <div className="mt-3 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-xs text-[#334155]">{message}</div> : null}
 
       <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
         <p className="text-xs font-semibold text-[#C9D3DF]">{t.contracts}</p>
         <div className="mt-2 space-y-2 text-xs">
           {contracts.map((contract) => (
-            <div key={contract.id} className="rounded-lg border border-white/10 bg-[#0D1B2A] px-3 py-2">
-              <p className="font-semibold text-[#F4F1E8]">{contract.ownerLabel}</p>
+            <div key={contract.id} className="rounded-lg border border-white/10 bg-[#FAF8F4] px-3 py-2">
+              <p className="font-semibold text-[#334155]">{contract.ownerLabel}</p>
               <p className="text-[#9EB0C3]">{contract.contractRef}</p>
               <p className="text-[#D4AF37]">{contract.contractStatus}</p>
             </div>
@@ -402,37 +402,37 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
           return (
             <article key={asset.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
               <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-                <span className="rounded-full bg-[#D4AF37]/20 px-2 py-1 text-[#F4F1E8]">{asset.assetType}</span>
+                <span className="rounded-full bg-[#D4AF37]/20 px-2 py-1 text-[#334155]">{asset.assetType}</span>
                 <span className="rounded-full bg-[#243447] px-2 py-1 text-[#DCE6F2]">{asset.dataStatus}</span>
                 <span className="rounded-full bg-[#243447] px-2 py-1 text-[#DCE6F2]">{asset.verificationStatus}</span>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2">
-                <input className="rounded-lg bg-[#0D1B2A] px-3 py-2 text-sm" value={asset.title} onChange={(e) => patchAsset(asset.id, { title: e.target.value })} placeholder={t.title} />
-                <input className="rounded-lg bg-[#0D1B2A] px-3 py-2 text-sm" value={asset.location} onChange={(e) => patchAsset(asset.id, { location: e.target.value })} placeholder={t.location} />
+                <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.title} onChange={(e) => patchAsset(asset.id, { title: e.target.value })} placeholder={t.title} />
+                <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.location} onChange={(e) => patchAsset(asset.id, { location: e.target.value })} placeholder={t.location} />
                 {asset.assetType === 'vehicle' ? (
                   <>
-                    <input className="rounded-lg bg-[#0D1B2A] px-3 py-2 text-sm" value={asset.make} onChange={(e) => patchAsset(asset.id, { make: e.target.value })} placeholder={t.make} />
-                    <input className="rounded-lg bg-[#0D1B2A] px-3 py-2 text-sm" value={asset.model} onChange={(e) => patchAsset(asset.id, { model: e.target.value })} placeholder={t.model} />
-                    <input className="rounded-lg bg-[#0D1B2A] px-3 py-2 text-sm" value={asset.plateNumber} onChange={(e) => patchAsset(asset.id, { plateNumber: e.target.value })} placeholder={t.plate} />
+                    <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.make} onChange={(e) => patchAsset(asset.id, { make: e.target.value })} placeholder={t.make} />
+                    <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.model} onChange={(e) => patchAsset(asset.id, { model: e.target.value })} placeholder={t.model} />
+                    <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.plateNumber} onChange={(e) => patchAsset(asset.id, { plateNumber: e.target.value })} placeholder={t.plate} />
                   </>
                 ) : null}
-                <input className="rounded-lg bg-[#0D1B2A] px-3 py-2 text-sm" value={asset.pricing} onChange={(e) => patchAsset(asset.id, { pricing: e.target.value })} placeholder={t.pricing} />
-                <input className="rounded-lg bg-[#0D1B2A] px-3 py-2 text-sm" value={asset.availability} onChange={(e) => patchAsset(asset.id, { availability: e.target.value })} placeholder={t.availability} />
-                <input className="rounded-lg bg-[#0D1B2A] px-3 py-2 text-sm sm:col-span-2" value={asset.amenities.join(', ')} onChange={(e) => patchAsset(asset.id, { amenities: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })} placeholder={t.amenities} />
-                <input className="rounded-lg bg-[#0D1B2A] px-3 py-2 text-sm sm:col-span-2" value={asset.optionalVideoUrl} onChange={(e) => patchAsset(asset.id, { optionalVideoUrl: e.target.value })} placeholder={t.videoUrl} />
+                <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.pricing} onChange={(e) => patchAsset(asset.id, { pricing: e.target.value })} placeholder={t.pricing} />
+                <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.availability} onChange={(e) => patchAsset(asset.id, { availability: e.target.value })} placeholder={t.availability} />
+                <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm sm:col-span-2" value={asset.amenities.join(', ')} onChange={(e) => patchAsset(asset.id, { amenities: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })} placeholder={t.amenities} />
+                <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm sm:col-span-2" value={asset.optionalVideoUrl} onChange={(e) => patchAsset(asset.id, { optionalVideoUrl: e.target.value })} placeholder={t.videoUrl} />
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" disabled={loading} onClick={() => void saveAsset(asset, false)} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-[#F4F1E8] disabled:opacity-60">{t.save}</button>
-                <button type="button" disabled={loading} onClick={() => void saveAsset(asset, true)} className="rounded-lg bg-[#D4AF37] px-3 py-1.5 text-xs font-semibold text-[#0D1B2A] disabled:opacity-60">{t.submit}</button>
+                <button type="button" disabled={loading} onClick={() => void saveAsset(asset, false)} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-[#334155] disabled:opacity-60">{t.save}</button>
+                <button type="button" disabled={loading} onClick={() => void saveAsset(asset, true)} className="rounded-lg bg-[#D4AF37] px-3 py-1.5 text-xs font-semibold text-[#334155] disabled:opacity-60">{t.submit}</button>
               </div>
 
               <div className="mt-4">
                 <p className="text-xs font-semibold text-[#C9D3DF]">{t.media}</p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {assetMedia.map((item, index) => (
-                    <div key={item.id} className="rounded-lg border border-white/10 bg-[#0D1B2A] p-2">
+                    <div key={item.id} className="rounded-lg border border-white/10 bg-[#FAF8F4] p-2">
                       <div className="aspect-[4/3] overflow-hidden rounded bg-black/20">
                         {publicImageUrl(item.url) ? (
                           <img src={publicImageUrl(item.url)} alt={item.label} className="h-full w-full object-cover" />
@@ -440,7 +440,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
                           <div className="flex h-full items-center justify-center text-[10px] text-[#9EB0C3]">No preview</div>
                         )}
                       </div>
-                      <p className="mt-2 text-[11px] text-[#F4F1E8]">{item.label}</p>
+                      <p className="mt-2 text-[11px] text-[#334155]">{item.label}</p>
                       <p className="text-[10px] text-[#9EB0C3]">{item.status}</p>
                       <div className="mt-2 flex gap-1">
                         <button type="button" disabled={loading || index === 0} onClick={() => void reorderMedia(asset.id, item.id, -1)} className="rounded border border-white/20 px-2 py-1 text-[10px] disabled:opacity-40">{t.reorderUp}</button>
@@ -451,7 +451,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
                 </div>
               </div>
 
-              <div className="mt-4 rounded-lg border border-white/10 bg-[#0D1B2A] p-3">
+              <div className="mt-4 rounded-lg border border-white/10 bg-[#FAF8F4] p-3">
                 <p className="mb-2 text-xs font-semibold text-[#C9D3DF]">{t.upload}</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <input
@@ -480,7 +480,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
                     type="button"
                     disabled={loading || !localUpload.file}
                     onClick={() => void uploadMedia(asset.id)}
-                    className="rounded-lg bg-[#D4AF37] px-3 py-2 text-xs font-semibold text-[#0D1B2A] disabled:opacity-60"
+                    className="rounded-lg bg-[#D4AF37] px-3 py-2 text-xs font-semibold text-[#334155] disabled:opacity-60"
                   >
                     {t.upload}
                   </button>
@@ -492,11 +492,11 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
       </div>
 
       <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
-        <p className="text-sm font-semibold text-[#F4F1E8]">{t.reviewQueue}</p>
+        <p className="text-sm font-semibold text-[#334155]">{t.reviewQueue}</p>
         <div className="mt-3 space-y-2">
           {queue.map((item) => (
-            <div key={item.id} className="rounded-lg border border-white/10 bg-[#0D1B2A] p-3 text-xs">
-              <p className="font-semibold text-[#F4F1E8]">{item.partnerOrSupplier}</p>
+            <div key={item.id} className="rounded-lg border border-white/10 bg-[#FAF8F4] p-3 text-xs">
+              <p className="font-semibold text-[#334155]">{item.partnerOrSupplier}</p>
               <p className="text-[#9EB0C3]">{item.status}</p>
               <p className="text-[#9EB0C3]">{item.technicalSummary.join(' | ')}</p>
               <p className="text-[#9EB0C3]">Changed: {(item.changedFields || []).join(', ') || '—'}</p>
