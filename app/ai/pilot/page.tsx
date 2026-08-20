@@ -1,7 +1,5 @@
-import DabraJourneyPanel from '@/components/ai2/DabraJourneyPanel';
-import { PilotChatPanel } from '@/components/ai2/PilotChatPanel';
 import { requirePilotPageAccess } from '@/lib/auth/pilot';
-import { FiMessageSquare, FiShield } from 'react-icons/fi';
+import { FiShield } from 'react-icons/fi';
 
 export default async function AiPilotPage() {
   await requirePilotPageAccess('/ai/pilot');
@@ -28,21 +26,9 @@ export default async function AiPilotPage() {
             </p>
           </div>
 
-          <a
-            href="#pilot-chat"
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/14 px-5 text-sm font-semibold text-[var(--color-light)] transition hover:-translate-y-0.5 hover:border-[var(--color-gold)] hover:bg-[var(--color-gold)]/20"
-          >
-            <FiMessageSquare />
-            افتح الدبرة
-          </a>
         </div>
       </section>
 
-      <DabraJourneyPanel />
-
-      <section id="pilot-chat">
-        <PilotChatPanel />
-      </section>
     </div>
   );
 }
