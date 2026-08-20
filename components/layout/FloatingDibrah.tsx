@@ -299,6 +299,7 @@ export default function FloatingDibrah() {
               <div>
                 <p className="text-xs font-semibold tracking-[0.2em] text-[var(--color-gold)]">DIBRAH ASSISTANT</p>
                 <p className="mt-1 text-sm font-semibold text-[var(--color-navy)]">الدبرة</p>
+                <p className="mt-0.5 text-[10px] text-[var(--color-muted)]">تحت الاختبار</p>
               </div>
               <button
                 type="button"
