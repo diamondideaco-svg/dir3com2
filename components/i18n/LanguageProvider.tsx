@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   DEFAULT_LANGUAGE,
   LANGUAGE_COOKIE_NAME,
@@ -39,15 +39,20 @@ function persistLanguage(language: AppLanguage) {
 }
 
 export function LanguageProvider({ children, initialLanguage = DEFAULT_LANGUAGE }: { children: ReactNode; initialLanguage?: AppLanguage }) {
-  const [language, setLanguageState] = useState<AppLanguage>(() => {
-    if (typeof window === 'undefined') {
-      return initialLanguage;
-    }
-
-    return normalizeLanguage(window.localStorage.getItem(LANGUAGE_STORAGE_KEY) ?? initialLanguage);
-  });
+  const [language, setLanguageState] = useState<AppLanguage>(initialLanguage);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
+    queueMicrotask(() => {
+      const storedLanguage = normalizeLanguage(window.localStorage.getItem(LANGUAGE_STORAGE_KEY) ?? initialLanguage);
+      initializedRef.current = true;
+      persistLanguage(storedLanguage);
+      setLanguageState(storedLanguage);
+    });
+  }, [initialLanguage]);
+
+  useEffect(() => {
+    if (!initializedRef.current) return;
     persistLanguage(language);
   }, [language]);
 
