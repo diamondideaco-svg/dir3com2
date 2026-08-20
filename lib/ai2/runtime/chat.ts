@@ -12,8 +12,13 @@ import { callMistralWebSearch, type MistralWebErrorCategory } from '@/lib/ai2/ru
 import { callOpenAIResponsesWebSearch, type OpenAIWebErrorCategory } from '@/lib/ai2/runtime/openai-web';
 import { callQwenWebSearch, type QwenWebErrorCategory } from '@/lib/ai2/runtime/qwen-web';
 import { callXAIWebSearch, type XAIWebErrorCategory } from '@/lib/ai2/runtime/xai-web';
+import { getMarketplaceSnapshot } from '@/lib/marketplace/server';
 
 export type AI2ChatLanguage = 'ar' | 'en';
+
+export type AI2ChatTurn = { role: 'user' | 'assistant'; content: string };
+
+export type AI2ChatAccountContext = { displayName: string | null };
 
 export type AI2ChatGroundingStatus =
   | 'grounded'
@@ -234,6 +239,105 @@ const CONCISE_ANSWER_HINT: Record<AI2ChatLanguage, string> = {
   en: 'Floating-chat formatting instruction only: answer concisely (3-6 short lines/points) in plain text with no markdown symbols like ** or ###, and avoid long essay-style output unless explicit detail is requested. Introduce yourself as DABRA, the dir3com travel guardian and smart travel assistant, never as a generic web researcher. Do not mention lacking memory or account access unless the user specifically asks about that. Ask at most one useful follow-up question if needed.',
 };
 
+// V3: short session-only conversational context (never a persistent/long-term memory claim).
+const MAX_HISTORY_TURNS_FOR_CONTEXT = 6;
+const MAX_HISTORY_TURN_CHARS = 300;
+
+function buildConversationContextSnippet(history: AI2ChatTurn[], language: AI2ChatLanguage): string {
+  if (!history.length) return '';
+  const recent = history.slice(-MAX_HISTORY_TURNS_FOR_CONTEXT);
+  const label = language === 'ar'
+    ? 'سياق هذه الجلسة فقط (وليس ذاكرة دائمة عبر الزيارات)'
+    : 'This-session-only context (not persistent memory across visits)';
+  const lines = recent.map((turn) => {
+    const speaker = turn.role === 'user' ? (language === 'ar' ? 'المستخدم' : 'User') : (language === 'ar' ? 'الدَّبْرَة' : 'DABRA');
+    return `${speaker}: ${turn.content.slice(0, MAX_HISTORY_TURN_CHARS)}`;
+  });
+  return `${label}:\n${lines.join('\n')}`;
+}
+
+// V4: canonical dir3com service family classification, so DABRA routes correctly and never invents a service.
+export type DabraCanonicalService = 'drive' | 'stay' | 'fly' | 'concierge' | 'vip';
+
+const SERVICE_KEYWORD_PATTERNS: Record<DabraCanonicalService, readonly RegExp[]> = {
+  drive: [/\b(?:car|cars|rental car|drive|airport transfer|driver|chauffeur)\b/i, /(?:سيارة|سيارات|سائق|نقل من والى المطار|توصيل|تأجير سيارات)/],
+  stay: [/\b(?:hotel|hotels|stay|apartment|apartments|room)\b/i, /(?:فندق|فنادق|إقامة|شقة|شقق)/],
+  fly: [/\b(?:flight|flights|fly|airline|plane ticket)\b/i, /(?:طيران|رحلة جوية|تذكرة طيران|حجز طيران)/],
+  concierge: [/\b(?:concierge|restaurant|dinner reservation|event planning)\b/i, /(?:كونسيرج|مطعم|حجز مطعم|تنظيم فعالية|تجربة)/],
+  vip: [/\b(?:vip|luxury arrival|meet\s*&?\s*greet)\b/i, /(?:كبار الشخصيات|في اي بي|استقبال فاخر)/],
+};
+
+function classifyCanonicalServices(message: string): DabraCanonicalService[] {
+  const matches: DabraCanonicalService[] = [];
+  for (const service of Object.keys(SERVICE_KEYWORD_PATTERNS) as DabraCanonicalService[]) {
+    if (SERVICE_KEYWORD_PATTERNS[service].some((pattern) => pattern.test(message))) {
+      matches.push(service);
+    }
+  }
+  return matches;
+}
+
+const CANONICAL_SERVICES_NOTE: Record<AI2ChatLanguage, string> = {
+  ar: 'خدمات dir3com المعتمدة فقط هي: Drive (سيارات ونقل)، Stay (إقامة)، Fly (طيران)، Concierge (كونسيرج وتجارب)، VIP (خدمات كبار الشخصيات). وضّح أي خدمة تناسب طلب المستخدم ولا تذكر أو تخترع أي خدمة أخرى.',
+  en: 'The only canonical dir3com services are: Drive (cars/transfers), Stay (accommodation), Fly (flights), Concierge (experiences/reservations), VIP (VIP arrival/services). Clarify which service fits the request; never invent or mention any other service family.',
+};
+
+// V5: verified marketplace grounding — only mention real, non-synthetic inventory state; never fabricate price/availability.
+async function buildMarketplaceGroundingNote(language: AI2ChatLanguage): Promise<string> {
+  try {
+    const snapshot = await getMarketplaceSnapshot();
+    const verifiedCount = snapshot.services.filter((service) => service.source !== 'fallback').length;
+    if (verifiedCount > 0) {
+      return language === 'ar'
+        ? `بيانات السوق الموثقة: يوجد حاليًا ${verifiedCount} خدمة/منتج حقيقي منشور على المنصة. اذكر فقط ما هو موثق فعليًا، ولا تختلق أسعارًا أو إتاحة أو شركاء.`
+        : `Verified marketplace data: ${verifiedCount} real, published listing(s) currently exist. State only actually verified data; never invent prices, availability, or partners.`;
+    }
+    return language === 'ar'
+      ? 'بيانات السوق الموثقة: لا يوجد حاليًا مخزون حقيقي منشور موثق لهذه الخدمة على المنصة. أخبر المستخدم أن الإتاحة الفعلية غير مؤكدة حاليًا بدلاً من اختلاق سعر أو تفاصيل حجز.'
+      : 'Verified marketplace data: no verified real inventory is currently published for this service. Tell the user real availability is unconfirmed right now instead of inventing a price or booking detail.';
+  } catch {
+    return '';
+  }
+}
+
+// V6: trip-planning structure hint.
+const TRIP_PLANNING_PATTERNS = [
+  /\b(?:trip|itinerary|travel plan|plan a trip|vacation plan)\b/i,
+  /(?:رحلة|رحلتي|برنامج سياحي|خطة سفر|برنامج رحلة|جدول رحلة)/,
+] as const;
+
+function isTripPlanningIntent(message: string): boolean {
+  return TRIP_PLANNING_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+const TRIP_PLANNER_NOTE: Record<AI2ChatLanguage, string> = {
+  ar: 'عند تخطيط رحلة: استنتج أو اسأل بإيجاز عن الوجهة والتواريخ وعدد المسافرين والاهتمامات ومستوى الميزانية والتنقل والإقامة والأنشطة واحتياجات VIP/كونسيرج إن وُجدت، ثم قدّم ملخص برنامج موجز مناسب للوحة صغيرة. لا تنفذ أي حجز.',
+  en: 'For trip-planning requests: infer or briefly ask about destination, dates, traveler count, interests, budget level, transport, stay, and activities/VIP-concierge needs, then give a concise itinerary summary suitable for a small panel. Do not execute any booking.',
+};
+
+// V7: minimal, safe, verified account context — only a display name, never claimed unless a real session was found server-side.
+function buildAccountContextNote(account: AI2ChatAccountContext | undefined, language: AI2ChatLanguage): string {
+  if (!account?.displayName) return '';
+  return language === 'ar'
+    ? `المستخدم مسجّل الدخول باسم "${account.displayName}". لا تتوفر حاليًا بيانات حجوزات أو مفضلات أو محفظة سفر مرتبطة بهذا المساعد؛ لا تدّعِ الوصول إليها.`
+    : `The user is signed in as "${account.displayName}". No bookings, favorites, or travel-wallet data are wired into this assistant yet; do not claim access to them.`;
+}
+
+// V8: Travel Wallet is not integrated yet — state that clearly instead of inventing document status (contract only).
+const TRAVEL_WALLET_NOTE: Record<AI2ChatLanguage, string> = {
+  ar: 'ميزة "محفظة السفر" (تواريخ انتهاء الجواز/التأشيرة، قائمة المستندات، تذكيرات التأمين) غير متصلة بهذا المساعد بعد. إذا سُئلت عنها، وضّح ذلك بصراحة ولا تخترع حالة أي مستند.',
+  en: 'The Travel Wallet feature (passport/visa expiry, document checklist, insurance reminders) is not yet integrated with this assistant. If asked, state that clearly and never invent any document status.',
+};
+
+const WALLET_QUESTION_PATTERNS = [
+  /\b(?:passport|visa) expir|travel wallet|insurance document\b/i,
+  /(?:محفظة السفر|انتهاء الجواز|انتهاء التأشيرة|وثائق السفر|تأمين السفر)/,
+] as const;
+
+function asksAboutTravelWallet(message: string): boolean {
+  return WALLET_QUESTION_PATTERNS.some((pattern) => pattern.test(message));
+}
+
 function logDabraLatency(input: {
   totalMs: number;
   route: DabraLatencyRoute;
@@ -253,7 +357,11 @@ function logDabraLatency(input: {
   }));
 }
 
-export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResponse> {
+export async function buildAI2ChatResponse(
+  message: string,
+  history: AI2ChatTurn[] = [],
+  account?: AI2ChatAccountContext,
+): Promise<AI2ChatResponse> {
   const requestStartedAt = Date.now();
   const language = detectLanguage(message);
   const intent = classifyDabraIntent(message);
@@ -313,7 +421,18 @@ export async function buildAI2ChatResponse(message: string): Promise<AI2ChatResp
     }
     const configuredProviders = providerPlan.providers;
     // Conversational asks skip forced citation grounding; the model still answers with the same canonical persona/prompt.
-    const outgoingMessage = `${CONCISE_ANSWER_HINT[language]}\n\n${message}`;
+    const detectedServices = classifyCanonicalServices(message);
+    const marketplaceNote = detectedServices.length > 0 ? await buildMarketplaceGroundingNote(language) : '';
+    const contextSections = [
+      CONCISE_ANSWER_HINT[language],
+      CANONICAL_SERVICES_NOTE[language],
+      marketplaceNote,
+      isTripPlanningIntent(message) ? TRIP_PLANNER_NOTE[language] : '',
+      asksAboutTravelWallet(message) ? TRAVEL_WALLET_NOTE[language] : '',
+      buildAccountContextNote(account, language),
+      buildConversationContextSnippet(history, language),
+    ].filter(Boolean);
+    const outgoingMessage = `${contextSections.join('\n\n')}\n\n${message}`;
     if (globalWebEnabled && configuredProviders.length > 0) {
       const globalDeadlineMs = normalizeBoundedInteger(process.env.DABRA_AI_GLOBAL_DEADLINE_MS, DEFAULT_GLOBAL_DEADLINE_MS, MIN_GLOBAL_DEADLINE_MS, MAX_GLOBAL_DEADLINE_MS);
       const attemptedProviders: RemoteProvider[] = [];

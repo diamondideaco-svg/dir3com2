@@ -245,6 +245,11 @@ export default function FloatingDibrah() {
     const trimmed = draft.trim();
     if (!trimmed || sending) return;
     const timestamp = Date.now();
+    // Short session-only context so DABRA can resolve follow-ups ("خليها 3 أيام") without a persistent memory claim.
+    const historyForRequest = messages
+      .filter((entry) => entry.role === 'user' || entry.role === 'assistant')
+      .slice(-8)
+      .map((entry) => ({ role: entry.role, content: entry.content }));
     setSending(true);
     setSendError(null);
     setMessages((previous) => [...previous, { id: `user-${timestamp}`, role: 'user', content: trimmed }]);
@@ -253,7 +258,7 @@ export default function FloatingDibrah() {
       const response = await fetch('/api/ai2/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: trimmed }),
+        body: JSON.stringify({ message: trimmed, history: historyForRequest }),
       });
       const payload = (await response.json().catch(() => ({}))) as { answer?: string; error?: string };
       if (!response.ok) {
@@ -273,7 +278,7 @@ export default function FloatingDibrah() {
       setSending(false);
       window.requestAnimationFrame(() => draftRef.current?.focus());
     }
-  }, [draft, sending]);
+  }, [draft, sending, messages]);
 
   return (
     <div
