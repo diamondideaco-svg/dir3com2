@@ -141,8 +141,10 @@ const PROVIDER_UNAVAILABLE_FALLBACK: Record<AI2ChatLanguage, string> = {
 const AI2_CHUNKS = buildAI2RagChunks(AI2_KNOWLEDGE_REGISTRY);
 const REMOTE_PROVIDERS = ['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'] as const;
 const AUTO_PROVIDER_ORDER: RemoteProvider[] = ['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'];
-// Public floating DABRA must feel immediate: short deadline, at most one fallback hop (env-overridable for pilot/backend testing).
-const DEFAULT_GLOBAL_DEADLINE_MS = 10_000;
+// Reserve enough time for both the preferred provider and one genuine fallback.
+// The previous 10s deadline was split into ~5s per provider, which sat directly on
+// top of normal OpenAI latency and caused healthy remote requests to fall local.
+const DEFAULT_GLOBAL_DEADLINE_MS = 24_000;
 const DEFAULT_MAX_FALLBACK_HOPS = 1;
 const MIN_GLOBAL_DEADLINE_MS = 5_000;
 const MAX_GLOBAL_DEADLINE_MS = 120_000;
