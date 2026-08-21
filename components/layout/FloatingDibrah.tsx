@@ -109,6 +109,8 @@ export default function FloatingDibrah() {
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
+  const sendInFlightRef = useRef(false);
+  const activeRequestIdRef = useRef<string | null>(null);
 
   const clampPosition = useCallback((x: number, y: number) => {
     const width = controlRef.current?.offsetWidth ?? 220;
@@ -168,7 +170,11 @@ export default function FloatingDibrah() {
 
         const payload = (await response.json()) as DibrahAssistantContext;
         setAssistantContext(payload);
-        setMessages(buildSeedMessages(payload));
+        setMessages((previous) => (
+          previous.length === 1 && previous[0]?.id === 'assistant-welcome'
+            ? buildSeedMessages(payload)
+            : previous
+        ));
       } catch {
         setAssistantContext(null);
       }
@@ -297,8 +303,14 @@ export default function FloatingDibrah() {
 
   const sendDraft = useCallback(async () => {
     const trimmed = draft.trim();
-    if (!trimmed || sending) return;
-    const timestamp = Date.now();
+    if (!trimmed || sending || sendInFlightRef.current) return;
+    const requestId = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const userMessageId = `user-${requestId}`;
+    const assistantMessageId = `assistant-${requestId}`;
+    sendInFlightRef.current = true;
+    activeRequestIdRef.current = requestId;
     // Short session-only context so DABRA can resolve follow-ups ("خليها 3 أيام") without a persistent memory claim.
     const historyForRequest = messages
       .filter((entry) => entry.role === 'user' || entry.role === 'assistant')
@@ -306,7 +318,11 @@ export default function FloatingDibrah() {
       .map((entry) => ({ role: entry.role, content: entry.content }));
     setSending(true);
     setSendError(null);
-    setMessages((previous) => [...previous, { id: `user-${timestamp}`, role: 'user', content: trimmed }]);
+    setMessages((previous) => (
+      previous.some((entry) => entry.id === userMessageId)
+        ? previous
+        : [...previous, { id: userMessageId, role: 'user', content: trimmed }]
+    ));
     setDraft('');
     // Sending is an explicit action, so always return the viewport to the newest message.
     stickToBottomRef.current = true;
@@ -327,12 +343,21 @@ export default function FloatingDibrah() {
         }
         return;
       }
-      setMessages((previous) => [...previous, { id: `assistant-${timestamp}`, role: 'assistant', content: presentAssistantAnswer(payload.answer) }]);
+      if (activeRequestIdRef.current !== requestId) return;
+      setMessages((previous) => (
+        previous.some((entry) => entry.id === assistantMessageId)
+          ? previous
+          : [...previous, { id: assistantMessageId, role: 'assistant', content: presentAssistantAnswer(payload.answer) }]
+      ));
     } catch {
       setSendError('تعذر الاتصال بالدبرة حاليًا. تحقّق من الاتصال بالإنترنت وحاول مرة أخرى.');
     } finally {
-      setSending(false);
-      window.requestAnimationFrame(() => draftRef.current?.focus());
+      if (activeRequestIdRef.current === requestId) {
+        activeRequestIdRef.current = null;
+        sendInFlightRef.current = false;
+        setSending(false);
+        window.requestAnimationFrame(() => draftRef.current?.focus());
+      }
     }
   }, [draft, sending, messages]);
 
