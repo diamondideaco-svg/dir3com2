@@ -1,5 +1,30 @@
 const DEFAULT_POST_LOGIN_PATH = '/';
 
+export type TrustedSessionIdentity = {
+  authenticated?: boolean;
+  role?: string | null;
+  roleRaw?: string | null;
+};
+
+export function getRolePostLoginDestination(identity: TrustedSessionIdentity) {
+  const rawRole = identity.roleRaw?.trim().toLowerCase();
+  const canonicalRole = identity.role?.trim().toLowerCase();
+
+  if (canonicalRole === 'admin' || rawRole === 'admin' || rawRole === 'super_admin') {
+    return '/admin';
+  }
+
+  if (rawRole === 'provider' || rawRole === 'service_provider' || rawRole === 'supplier') {
+    return '/provider-portal';
+  }
+
+  if (canonicalRole === 'partner' || rawRole === 'partner') {
+    return '/partner-portal';
+  }
+
+  return '/my-account';
+}
+
 /**
  * Keeps post-login navigation within this application and prevents the booking
  * form from being opened without the product it requires.
