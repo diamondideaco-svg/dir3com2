@@ -48,13 +48,13 @@ export default async function MyDocumentsPage() {
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">مستنداتي</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">المستندات</h1>
+            <h1 className="mt-2 text-3xl font-semibold text-[var(--color-navy)]">المستندات</h1>
           </div>
           <Link href="/my-account" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
         </div>
         <div className="space-y-4">
           {documents.length === 0 ? (
-            <div className="rounded-[1.5rem] border border-dashed border-white/20 bg-[var(--color-surface)] p-6 text-sm text-[var(--color-muted)]">
+            <div className="rounded-[1.5rem] border border-dashed border-[color:var(--color-border)] bg-[var(--color-surface)] p-6 text-sm text-[var(--color-muted)]">
               لا توجد مستندات مرتبطة بحسابك حالياً.
             </div>
           ) : (
@@ -64,7 +64,7 @@ export default async function MyDocumentsPage() {
               return (
                 <div key={document.id} className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-lg font-semibold text-white">{document.document_type}</p>
+                    <p className="text-lg font-semibold text-[var(--color-navy)]">{document.document_type}</p>
                     <span className="rounded-full border border-[#D4AF37]/25 bg-[#D4AF37]/10 px-3 py-1 text-xs text-[#D4AF37]">{resolvedStatus}</span>
                   </div>
                   <p className="mt-2 text-sm text-[var(--color-muted)] break-all">{document.file_url || '—'}</p>

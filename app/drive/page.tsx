@@ -34,6 +34,7 @@ export async function DrivePageContent() {
       </section>
 
       <ServiceSearchTable />
+      <HomeUtilities />
 
       <section className="drive-master-products px-4 py-10 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-7xl">
@@ -58,7 +59,6 @@ export async function DrivePageContent() {
 
       <StoriesCarousel stories={feed.items} service="drive" />
       <PartnersTicker partners={partners} scope="drive" />
-      <HomeUtilities />
     </div>
   );
 }

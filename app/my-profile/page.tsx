@@ -37,7 +37,7 @@ export default async function MyProfilePage() {
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">ملفي</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">الملف الشخصي</h1>
+            <h1 className="mt-2 text-3xl font-semibold text-[var(--color-navy)]">الملف الشخصي</h1>
           </div>
           <Link href="/my-account" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
         </div>
@@ -47,27 +47,27 @@ export default async function MyProfilePage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <p className="text-xs text-[var(--color-muted)]">الاسم</p>
-                <p className="mt-2 text-sm font-semibold text-white">{customer.full_name || '—'}</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--color-navy)]">{customer.full_name || '—'}</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--color-muted)]">البريد الإلكتروني</p>
-                <p className="mt-2 text-sm font-semibold text-white">{customer.email || '—'}</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--color-navy)]">{customer.email || '—'}</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--color-muted)]">الهاتف</p>
-                <p className="mt-2 text-sm font-semibold text-white">{customer.phone || '—'}</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--color-navy)]">{customer.phone || '—'}</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--color-muted)]">الدور</p>
-                <p className="mt-2 text-sm font-semibold text-white">{getRoleLabel(normalizeRole(customer.role))}</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--color-navy)]">{getRoleLabel(normalizeRole(customer.role))}</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--color-muted)]">الحالة</p>
-                <p className="mt-2 text-sm font-semibold text-white">{customer.status || 'active'}</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--color-navy)]">{customer.status || 'active'}</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--color-muted)]">آخر تحديث</p>
-                <p className="mt-2 text-sm font-semibold text-white">{customer.updated_at ? new Date(customer.updated_at).toLocaleDateString('ar-SA') : '—'}</p>
+                <p className="mt-2 text-sm font-semibold text-[var(--color-navy)]">{customer.updated_at ? new Date(customer.updated_at).toLocaleDateString('ar-SA') : '—'}</p>
               </div>
             </div>
           </div>

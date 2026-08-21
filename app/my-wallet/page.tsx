@@ -52,14 +52,14 @@ export default async function MyWalletPage() {
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">محفظتي</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">الرصيد</h1>
+            <h1 className="mt-2 text-3xl font-semibold text-[var(--color-navy)]">الرصيد</h1>
           </div>
           <Link href="/my-account" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
         </div>
         <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
           {wallet ? (
             <div className="space-y-3">
-              <p className="text-lg font-semibold text-white">الرصيد الحالي: {Number(reconciliation?.ledger.balance ?? wallet.balance ?? 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
+              <p className="text-lg font-semibold text-[var(--color-navy)]">الرصيد الحالي: {Number(reconciliation?.ledger.balance ?? wallet.balance ?? 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
               <p className="text-sm text-[var(--color-muted)]">الرصيد المتاح: {Number(reconciliation?.ledger.availableBalance ?? wallet.available_balance ?? 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
               <p className="text-sm text-[var(--color-muted)]">الرصيد المعلق: {Number(reconciliation?.ledger.heldBalance ?? wallet.held_balance ?? 0).toFixed(2)} {wallet.currency || 'SAR'}</p>
               {reconciliation && !reconciliation.isConsistent ? (

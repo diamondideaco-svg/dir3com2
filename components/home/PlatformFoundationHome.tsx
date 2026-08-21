@@ -108,6 +108,7 @@ export default function PlatformFoundationHome({
       </section>
 
       <ServiceSearchTable />
+      <HomeUtilities />
 
       <section id="core-services" className="drive-master-products px-4 py-10 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-7xl">
@@ -134,7 +135,6 @@ export default function PlatformFoundationHome({
 
       <StoriesCarousel stories={stories} />
       <PartnersTicker partners={partners} />
-      <HomeUtilities />
 
       <div className="h-14" aria-hidden />
     </div>

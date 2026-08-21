@@ -33,9 +33,9 @@ export default async function AdminPage() {
 
     return (
         <div style={{
-            backgroundColor: '#FAF8F4',
+            backgroundColor: 'transparent',
             minHeight: '100vh',
-            color: '#334155',
+            color: 'var(--color-navy)',
             fontFamily: 'var(--font-arabic)',
             direction: 'rtl',
             padding: '40px 20px'
@@ -58,13 +58,13 @@ export default async function AdminPage() {
                         }}>
                             🛡️ لوحة التحكم
                         </h1>
-                        <p style={{ color: '#8A9BB0', fontSize: '0.95rem' }}>
+                        <p style={{ color: 'var(--color-muted)', fontSize: '1rem' }}>
                             إدارة الحجوزات والخدمات
                         </p>
                     </div>
                     <Link href="/" style={{
-                        background: '#FFFFFF',
-                        color: '#334155',
+                        background: 'var(--color-card-strong)',
+                        color: 'var(--color-navy)',
                         padding: '8px 20px',
                         borderRadius: '30px',
                         textDecoration: 'none',
@@ -94,8 +94,8 @@ export default async function AdminPage() {
                         📊 لوحة القيادة التنفيذية
                     </Link>
                     <Link href="/admin/finance" style={{
-                        background: '#FFFFFF',
-                        color: '#334155',
+                        background: 'var(--color-card-strong)',
+                        color: 'var(--color-navy)',
                         padding: '10px 18px',
                         borderRadius: '999px',
                         textDecoration: 'none',
@@ -104,8 +104,8 @@ export default async function AdminPage() {
                         💼 إدارة التمويل والثقة
                     </Link>
                     <Link href="/admin/operations" style={{
-                        background: '#FFFFFF',
-                        color: '#334155',
+                        background: 'var(--color-card-strong)',
+                        color: 'var(--color-navy)',
                         padding: '10px 18px',
                         borderRadius: '999px',
                         textDecoration: 'none',
@@ -114,8 +114,8 @@ export default async function AdminPage() {
                         🔧 العمليات
                     </Link>
                     <Link href="/admin/verification" style={{
-                        background: '#FFFFFF',
-                        color: '#334155',
+                        background: 'var(--color-card-strong)',
+                        color: 'var(--color-navy)',
                         padding: '10px 18px',
                         borderRadius: '999px',
                         textDecoration: 'none',
@@ -126,7 +126,7 @@ export default async function AdminPage() {
                 </div>
 
                 <div style={{
-                    background: '#FFFFFF',
+                    background: 'var(--color-card-strong)',
                     border: '1px solid rgba(212, 175, 55, 0.1)',
                     borderRadius: '20px',
                     padding: '24px',
@@ -143,12 +143,12 @@ export default async function AdminPage() {
                         <h2 style={{
                             fontFamily: 'var(--font-display)',
                             fontSize: '1.5rem',
-                            color: '#FFFFFF'
+                            color: 'var(--color-navy)'
                         }}>
                             📋 الحجوزات
                         </h2>
                         <span style={{
-                            color: '#8A9BB0',
+                            color: 'var(--color-muted)',
                             fontSize: '0.85rem'
                         }}>
                             إجمالي: {stats.total} حجز

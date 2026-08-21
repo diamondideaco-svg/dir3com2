@@ -873,7 +873,7 @@ button {
 .home-stories-marquee {
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
+  touch-action: pan-y;
 }
 
 .home-partners-marquee::-webkit-scrollbar,
@@ -1085,12 +1085,137 @@ button {
 
 /* Mobile keeps the seamless loop while preserving native horizontal touch panning. */
 @media (max-width: 900px) {
+  .service-search-table__mobile-toggle {
+    display: flex;
+    width: 100%;
+    min-height: 3rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+    color: var(--color-navy);
+    font-weight: 700;
+  }
+
+  .service-search-table__content--collapsed { display: none; }
+
   .home-stories-track > article {
     flex: 0 0 86vw;
   }
 
   .home-partner-mark {
     min-width: 44vw;
+  }
+}
+
+@media (min-width: 901px) {
+  .service-search-table__mobile-toggle { display: none; }
+}
+
+html[data-theme='dark'] .drive-master-page,
+html[data-theme='dark'] .drive-master-hero,
+html[data-theme='dark'] .page-stack-shell,
+html[data-theme='dark'] [class*='bg-[#FAF8F4]'] {
+  background: #1c1f26 !important;
+  color: var(--color-navy) !important;
+}
+
+html[data-theme='dark'] .service-search-table__field input,
+html[data-theme='dark'] .service-search-table__field select,
+html[data-theme='dark'] .home-utility-field input,
+html[data-theme='dark'] .home-utility-field select {
+  background: #20242b;
+  color: #fffaf0;
+}
+
+/* Dashboard-focused theme coverage: preserve layout and business behavior. */
+.admin-platform-shell {
+  min-width: 0;
+  background: #f8f6f1;
+}
+
+.admin-platform-shell main,
+.admin-platform-shell main [class*='bg-slate-950'],
+.admin-platform-shell main [class*='bg-[#0D1B2A]'],
+.admin-platform-shell main [class*='bg-[#FAF8F4]'] {
+  background: transparent !important;
+  color: var(--color-navy) !important;
+}
+
+.admin-platform-shell [class*='bg-slate-900'],
+.admin-platform-shell [class*='bg-white'] {
+  background: var(--color-card-strong) !important;
+}
+
+.admin-platform-shell [class*='border-slate-800'],
+.admin-platform-shell [class*='border-white'] {
+  border-color: var(--color-border) !important;
+}
+
+.admin-platform-shell .text-white,
+.admin-platform-shell input,
+.admin-platform-shell select,
+.admin-platform-shell textarea {
+  color: var(--color-navy) !important;
+}
+
+.admin-platform-shell input,
+.admin-platform-shell select,
+.admin-platform-shell textarea,
+.portal-dashboard-shell input,
+.portal-dashboard-shell select,
+.portal-dashboard-shell textarea {
+  border: 1px solid var(--color-border);
+  background: var(--color-card-strong);
+}
+
+.admin-platform-shell main a,
+.admin-platform-shell main button,
+.portal-dashboard-shell button,
+.portal-dashboard-shell a {
+  font-size: max(0.875rem, var(--text-button));
+}
+
+html[data-theme='dark'] .admin-platform-shell,
+html[data-theme='dark'] .portal-dashboard-shell {
+  background: #16181d !important;
+  color: var(--color-navy) !important;
+}
+
+html[data-theme='dark'] .admin-platform-header,
+html[data-theme='dark'] .portal-dashboard-shell .portal-shell-center,
+html[data-theme='dark'] .admin-platform-shell [class*='bg-slate-900'],
+html[data-theme='dark'] .admin-platform-shell [class*='bg-white'] {
+  background: #22262e !important;
+  border-color: rgba(226, 185, 95, 0.24) !important;
+}
+
+html[data-theme='dark'] .admin-platform-shell input,
+html[data-theme='dark'] .admin-platform-shell select,
+html[data-theme='dark'] .admin-platform-shell textarea,
+html[data-theme='dark'] .portal-dashboard-shell input,
+html[data-theme='dark'] .portal-dashboard-shell select,
+html[data-theme='dark'] .portal-dashboard-shell textarea {
+  background: #1c1f26 !important;
+  color: #fffaf0 !important;
+  border-color: rgba(226, 185, 95, 0.28) !important;
+}
+
+html[data-theme='dark'] .portal-dashboard-shell [class*='text-[#334155]'],
+html[data-theme='dark'] .portal-dashboard-shell [class*='text-[#64748b]'],
+html[data-theme='dark'] .portal-dashboard-shell [class*='text-[#9EB0C3]'] {
+  color: var(--color-navy) !important;
+}
+
+@media (max-width: 640px) {
+  .admin-platform-shell nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-platform-shell nav a {
+    justify-content: flex-start;
+    border-radius: 0.875rem;
   }
 }
 

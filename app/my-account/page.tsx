@@ -42,7 +42,7 @@ export default async function MyAccountPage() {
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">حسابي</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">لوحة العميل</h1>
+            <h1 className="mt-2 text-3xl font-semibold text-[var(--color-navy)]">لوحة العميل</h1>
           </div>
           <div className="flex gap-2">
             <Link href="/my-bookings" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">حجوزاتي</Link>
@@ -55,7 +55,7 @@ export default async function MyAccountPage() {
         <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-lg font-semibold text-white">{displayName}</p>
+              <p className="text-lg font-semibold text-[var(--color-navy)]">{displayName}</p>
               <p className="mt-2 text-sm text-[var(--color-muted)]">{displayEmail}</p>
             </div>
             <span className="rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-xs font-semibold text-[#D4AF37]">
@@ -66,11 +66,11 @@ export default async function MyAccountPage() {
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-[color:var(--color-border)] bg-white p-4">
               <p className="text-xs text-[var(--color-muted)]">حالة الحساب</p>
-              <p className="mt-2 text-sm font-semibold text-white">{accountStatus}</p>
+              <p className="mt-2 text-sm font-semibold text-[var(--color-navy)]">{accountStatus}</p>
             </div>
             <div className="rounded-2xl border border-[color:var(--color-border)] bg-white p-4">
               <p className="text-xs text-[var(--color-muted)]">تاريخ الانضمام</p>
-              <p className="mt-2 text-sm font-semibold text-white">{joinedAt}</p>
+              <p className="mt-2 text-sm font-semibold text-[var(--color-navy)]">{joinedAt}</p>
             </div>
             <div className="rounded-2xl border border-[color:var(--color-border)] bg-white p-4">
               <p className="text-xs text-[var(--color-muted)]">إدارة الحجوزات</p>

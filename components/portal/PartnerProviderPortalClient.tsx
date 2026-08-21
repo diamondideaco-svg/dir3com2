@@ -448,12 +448,12 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
   }
 
   return (
-    <div className="min-h-screen w-full px-3 py-6 text-white sm:px-4 sm:py-8" dir={direction}>
-      <div className="portal-shell-center w-full max-w-7xl rounded-[2rem] border border-[#D4AF37]/25 bg-[#FAF8F4] p-4 shadow-[0_24px_60px_rgba(13,27,42,0.35)] sm:p-6 lg:p-8">
+    <div className="portal-dashboard-shell min-h-screen w-full px-3 py-6 text-[var(--color-navy)] sm:px-4 sm:py-8" dir={direction}>
+      <div className="portal-shell-center w-full max-w-7xl rounded-[2rem] border border-[#D4AF37]/25 bg-[var(--color-card-strong)] p-4 shadow-[0_24px_60px_rgba(13,27,42,0.16)] sm:p-6 lg:p-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4 sm:gap-5">
           <div>
             <h1 className="text-3xl font-semibold text-[#334155]">{pageTitle}</h1>
-            <p className="mt-2 text-sm text-[#C9D3DF]">{pageSubtitle}</p>
+            <p className="mt-2 text-sm text-[#64748b]">{pageSubtitle}</p>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             <button
@@ -487,7 +487,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
               type="button"
               onClick={() => setTab(id as typeof tab)}
               className={`min-h-11 rounded-xl border px-3 py-2 text-sm ${
-                tab === id ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-[#334155]' : 'border-[color:var(--color-border)] bg-[var(--color-surface)] text-[#C9D3DF]'
+                tab === id ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-[#334155]' : 'border-[color:var(--color-border)] bg-[var(--color-surface)] text-[#475569]'
               }`}
             >
               {label}

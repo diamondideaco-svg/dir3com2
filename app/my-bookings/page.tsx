@@ -46,24 +46,25 @@ export default async function MyBookingsPage() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">حجوزاتي</p>
-          <h1 className="mt-2 text-3xl font-semibold text-white">Shield Booking Engine</h1>
+          <h1 className="mt-2 text-3xl font-semibold text-[var(--color-navy)]">Shield Booking Engine</h1>
         </div>
 
         <div className="space-y-4">
+          {bookings.length === 0 ? <div className="rounded-[1.5rem] border border-dashed border-[color:var(--color-border)] bg-[var(--color-surface)] p-6 text-sm text-[var(--color-muted)]">لا توجد حجوزات مرتبطة بحسابك حالياً.</div> : null}
           {bookings.map((booking) => (
             <div key={booking.id} className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="text-sm text-[var(--color-muted)]">المرجع</p>
-                  <p className="text-lg font-semibold text-white">{booking.booking_reference}</p>
+                  <p className="text-lg font-semibold text-[var(--color-navy)]">{booking.booking_reference}</p>
                 </div>
                 <div>
                   <p className="text-sm text-[var(--color-muted)]">الخدمة</p>
-                  <p className="text-lg font-semibold text-white">{getBookingServiceName(booking)}</p>
+                  <p className="text-lg font-semibold text-[var(--color-navy)]">{getBookingServiceName(booking)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-[var(--color-muted)]">المبلغ</p>
-                  <p className="text-lg font-semibold text-white">{getBookingAmount(booking)} {booking.currency || 'SAR'}</p>
+                  <p className="text-lg font-semibold text-[var(--color-navy)]">{getBookingAmount(booking)} {booking.currency || 'SAR'}</p>
                 </div>
                 <BookingStatusBadge status={booking.status} />
               </div>

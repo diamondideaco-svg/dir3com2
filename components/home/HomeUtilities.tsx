@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { FiArrowUpLeft, FiCloud, FiCompass, FiDollarSign, FiMapPin, FiMessageCircle } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
@@ -44,9 +43,9 @@ const copy = {
     map: 'موقع الوجهة',
     mapDescription: 'افتح خريطة الرياض واستكشف نقطة البداية لرحلتك.',
     openMap: 'افتح الخريطة',
-    support: 'مساعدة السفر',
-    supportDescription: 'تواصل مع مركز المساعدة عند الحاجة إلى متابعة أو توضيح.',
-    openSupport: 'مركز المساعدة',
+    support: 'الدبرة',
+    supportDescription: 'مساعد السفر الذكي من dir3com.',
+    openSupport: 'اسأل الدبرة',
   },
   en: {
     eyebrow: 'TRAVEL TOOLS',
@@ -66,9 +65,9 @@ const copy = {
     map: 'Destination map',
     mapDescription: 'Open Riyadh in Maps and explore a starting point for your trip.',
     openMap: 'Open map',
-    support: 'Travel support',
-    supportDescription: 'Open the help center when you need follow-up or guidance.',
-    openSupport: 'Help center',
+    support: 'DABRA Travel Assistant',
+    supportDescription: 'dir3com smart travel assistant.',
+    openSupport: 'Ask DABRA',
   },
 } as const;
 
@@ -132,6 +131,10 @@ export default function HomeUtilities() {
     }
   }
 
+  function openDabra() {
+    document.querySelector<HTMLButtonElement>('#dibrah > button:last-of-type')?.click();
+  }
+
   return (
     <section className="home-utilities px-4 py-10 sm:px-6 lg:px-10" dir={direction}>
       <div className="mx-auto max-w-[1240px]">
@@ -168,7 +171,7 @@ export default function HomeUtilities() {
             </p>
           </article>
 
-          <article id="home-maps" className="home-utility-card home-utility-card--maps">
+          <article id="home-map" className="home-utility-card home-utility-card--maps">
             <div className="home-utility-card__icon"><FiMapPin /></div>
             <h3>{t.map}</h3>
             <p className="home-utility-card__description">{t.mapDescription}</p>
@@ -178,7 +181,7 @@ export default function HomeUtilities() {
 
         <div className="home-support-card mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--home-gold)]/20 bg-white/75 px-5 py-4 shadow-[0_12px_28px_rgba(88,65,31,0.05)]">
           <div className="flex items-center gap-3"><span className="home-utility-card__icon home-utility-card__icon--small"><FiMessageCircle /></span><div><h3 className="text-sm font-semibold text-[var(--color-navy)]">{t.support}</h3><p className="text-sm text-[#5d6672]">{t.supportDescription}</p></div></div>
-          <Link className="home-utility-link" href="/support">{t.openSupport}<FiArrowUpLeft /></Link>
+          <button type="button" className="home-utility-link" onClick={openDabra}>{t.openSupport}<FiArrowUpLeft /></button>
         </div>
       </div>
     </section>

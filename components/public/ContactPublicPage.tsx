@@ -6,7 +6,6 @@ import { ContentContainer, SectionContainer, SelectField, TextAreaField, TextFie
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PublicHero from '@/components/public/PublicHero';
-import PublicRouteIndex from '@/components/public/PublicRouteIndex';
 import PublicStats from '@/components/public/PublicStats';
 
 type ContactStatus = {
@@ -74,8 +73,8 @@ export default function ContactPublicPage() {
       <PublicHero
         eyebrow="CONTACT DIR3COM"
         title="تواصل معنا"
-        description="قنوات التواصل مصممة ضمن نفس الهوية الراقية، مع نموذج واضح ومسارات جاهزة للتكامل المستقبلي دون تغيير في الواجهة العامة."
-        highlight="الفريق حاضر، والواجهة واضحة، والدبرة يبقى عنصراً بصرياً فقط في هذه المرحلة."
+        description=""
+        highlight=""
         chips={['0532867009', 'dir3com.com', 'Response Ready']}
       />
       <PublicStats stats={contactStats} />
@@ -165,7 +164,6 @@ export default function ContactPublicPage() {
         </ContentContainer>
       </SectionContainer>
 
-      <PublicRouteIndex />
     </div>
   );
 }
