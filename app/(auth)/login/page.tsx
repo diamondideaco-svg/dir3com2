@@ -2,10 +2,17 @@
 'use client';
 
 import { Suspense, useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
-import { getPostLoginDestination } from '@/lib/auth/redirect';
+import { getPostLoginDestination, getRolePostLoginDestination, type TrustedSessionIdentity } from '@/lib/auth/redirect';
+
+async function resolveTrustedRoleDestination() {
+    const response = await fetch('/api/auth/session-identity', { cache: 'no-store' });
+    if (!response.ok) return '/my-account';
+    const identity = await response.json() as TrustedSessionIdentity;
+    return identity.authenticated ? getRolePostLoginDestination(identity) : '/my-account';
+}
 
 export default function LoginPage() {
     return (
@@ -16,7 +23,6 @@ export default function LoginPage() {
 }
 
 function LoginContent() {
-    const router = useRouter();
     const searchParams = useSearchParams();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -29,10 +35,10 @@ function LoginContent() {
     );
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data }: { data: { session: unknown } }) => {
-            if (data.session) router.push(redirectTo);
+        supabase.auth.getSession().then(async ({ data }: { data: { session: unknown } }) => {
+            if (data.session) window.location.replace(await resolveTrustedRoleDestination());
         });
-    }, [redirectTo, router]);
+    }, []);
 
     const handleEmailLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -50,7 +56,7 @@ function LoginContent() {
             return;
         }
 
-        router.push(redirectTo);
+        window.location.assign(await resolveTrustedRoleDestination());
     };
 
     const handleGoogleLogin = async () => {

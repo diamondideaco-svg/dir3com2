@@ -1,7 +1,7 @@
 // src/app/auth/callback/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
-import { getPostLoginDestination } from '@/lib/auth/redirect';
+import { getRolePostLoginDestination } from '@/lib/auth/redirect';
 import { ensureCanonicalProfileFromAuthUser } from '@/lib/auth/identity';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 
@@ -26,8 +26,6 @@ function getSafeCallbackErrorCode(message: string | undefined) {
 export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
-    const requestedDestination = searchParams.get('redirect') ?? searchParams.get('next');
-    const next = getPostLoginDestination(requestedDestination, origin);
     const flowId = searchParams.get('sb_flow_id');
 
     if (!code) {
@@ -58,6 +56,12 @@ export async function GET(request: Request) {
                 });
             }
         }
+
+        const { data: profile } = data?.user
+            ? await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
+            : { data: null };
+        const roleRaw = typeof profile?.role === 'string' ? profile.role : null;
+        const next = getRolePostLoginDestination({ role: roleRaw, roleRaw });
 
         return NextResponse.redirect(`${origin}${next}`);
     } catch (err) {
