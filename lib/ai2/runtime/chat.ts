@@ -141,8 +141,10 @@ const PROVIDER_UNAVAILABLE_FALLBACK: Record<AI2ChatLanguage, string> = {
 const AI2_CHUNKS = buildAI2RagChunks(AI2_KNOWLEDGE_REGISTRY);
 const REMOTE_PROVIDERS = ['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'] as const;
 const AUTO_PROVIDER_ORDER: RemoteProvider[] = ['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'];
-// Public floating DABRA must feel immediate: short deadline, at most one fallback hop (env-overridable for pilot/backend testing).
-const DEFAULT_GLOBAL_DEADLINE_MS = 10_000;
+// Reserve enough time for both the preferred provider and one genuine fallback.
+// The previous 10s deadline was split into ~5s per provider, which sat directly on
+// top of normal OpenAI latency and caused healthy remote requests to fall local.
+const DEFAULT_GLOBAL_DEADLINE_MS = 24_000;
 const DEFAULT_MAX_FALLBACK_HOPS = 1;
 const MIN_GLOBAL_DEADLINE_MS = 5_000;
 const MAX_GLOBAL_DEADLINE_MS = 120_000;
@@ -201,6 +203,24 @@ function stripMarkdownFormatting(text: string): string {
   return out.trim();
 }
 
+const LINK_REQUEST_PATTERNS = [
+  /\b(?:link|url|website|source address|web address)\b/i,
+  /(?:الرابط|رابط|عنوان الموقع|المصدر)/,
+] as const;
+
+function stripRawUrlLeakage(text: string, message: string): string {
+  if (LINK_REQUEST_PATTERNS.some((pattern) => pattern.test(message))) return text;
+  return text
+    .replace(/https?:\/\/[^\s)\]}]+/gi, '')
+    .replace(/\b(?:www\.)?[a-z0-9-]+(?:\.[a-z]{2,})+(?:\/[^\s)\]}]*)?/gi, '')
+    .replace(/\S*%(?:[0-9a-f]{2})\S*/gi, '')
+    .replace(/\butm_(?:source|medium|campaign|term|content)=[^\s&]+/gi, '')
+    .replace(/\(\s*\)/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 const UNSOLICITED_MEMORY_DISCLAIMER_PATTERNS = [
   /[^.!؟\n]*\bi (?:have|don't have|do not have) (?:no |any )?memory\b[^.!؟\n]*[.!؟]?/gi,
   /[^.!؟\n]*\bi cannot access your account\b[^.!؟\n]*[.!؟]?/gi,
@@ -231,8 +251,24 @@ function enforceConciseDefault(text: string, message: string): string {
 function finalizeDabraAnswer(rawAnswer: string, message: string): string {
   const plain = stripMarkdownFormatting(rawAnswer);
   const withoutUnsolicitedDisclaimer = stripUnsolicitedMemoryDisclaimer(plain, message);
-  return enforceConciseDefault(withoutUnsolicitedDisclaimer, message);
+  const withoutRawUrls = stripRawUrlLeakage(withoutUnsolicitedDisclaimer, message);
+  return enforceConciseDefault(withoutRawUrls, message);
 }
+
+const TECHNICAL_OUT_OF_SCOPE_PATTERNS = [
+  /\b(?:mui(?: x)?|chatbox|chat ui kit|tawk\.to|javascript api|react component|typescript|npm package|software development|write code|build (?:a )?(?:chat|widget|api))\b/i,
+  /(?:كيف (?:ابني|أبني|اصمم|أصمم|ابرمج|أبرمج).{0,30}(?:شات|واجهه|واجهة|تطبيق|كود|برمج)|جافاسكربت|برمجه|برمجة)/,
+] as const;
+
+function isTechnicalOutOfScopeIntent(message: string): boolean {
+  const normalized = normalizeIntentText(message);
+  return TECHNICAL_OUT_OF_SCOPE_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+const TECHNICAL_SCOPE_REPLY: Record<AI2ChatLanguage, string> = {
+  ar: 'هذا الطلب التقني خارج نطاق الدَّبْرَة. أنا مساعد السفر الذكي والحارس السياحي في dir3com، ويسعدني مساعدتك في التخطيط للرحلات والخدمات السياحية.',
+  en: 'That technical request is outside DABRA’s scope. I am dir3com’s travel guardian and smart travel assistant, and I can help with trips and travel services.',
+};
 
 const CONCISE_ANSWER_HINT: Record<AI2ChatLanguage, string> = {
   ar: 'تعليمة تنسيق لواجهة الدردشة العائمة فقط: أجب بإيجاز شديد (من ٣ إلى ٦ أسطر أو نقاط قصيرة) بنص عادي بدون رموز تنسيق مثل ** أو ###، ولا تكتب مقالاً طويلاً إلا إذا طلب المستخدم تفصيلاً صريحاً. عرّف عن نفسك كالدَّبْرَة، مساعد السفر الذكي والحارس السياحي في dir3com، لا كباحث ويب عام. لا تذكر عدم امتلاك ذاكرة أو عدم الوصول للحساب إلا إذا سأل المستخدم عن ذلك تحديدًا. وإذا احتجت لمزيد من المعلومات فاطرح سؤالاً واحداً مفيداً.',
@@ -254,6 +290,32 @@ function buildConversationContextSnippet(history: AI2ChatTurn[], language: AI2Ch
     return `${speaker}: ${turn.content.slice(0, MAX_HISTORY_TURN_CHARS)}`;
   });
   return `${label}:\n${lines.join('\n')}`;
+}
+
+function buildTurnContinuityNote(history: AI2ChatTurn[], language: AI2ChatLanguage): string {
+  const languageInstruction = language === 'ar'
+    ? 'أجب بالعربية الطبيعية فقط لأن أحدث رسالة ذات معنى من المستخدم عربية. لا تخلط الإنجليزية إلا في أسماء المنتجات الرسمية.'
+    : 'Answer in natural English only because the latest meaningful user message is English. Do not mix Arabic unless an official product name requires it.';
+  if (!history.length) return languageInstruction;
+  const continuityInstruction = language === 'ar'
+    ? 'هذه محادثة مستمرة وقد تم تقديم الدَّبْرَة بالفعل. لا تبدأ بتحية أو تعريف بالنفس أو وصف عام للخدمات؛ أجب مباشرة على أحدث طلب مع الحفاظ على سياق الجلسة.'
+    : 'This is a continuing conversation and DABRA has already been introduced. Do not greet, reintroduce yourself, or restate a generic service catalogue; answer the latest request directly while preserving session context.';
+  return `${languageInstruction} ${continuityInstruction}`;
+}
+
+function removeRepeatedDabraIntroduction(answer: string, history: AI2ChatTurn[]): string {
+  if (!history.length) return answer;
+  const sentenceEnd = answer.search(/[.!؟](?:\s|$)/);
+  if (sentenceEnd < 0) return answer;
+  const firstSentence = answer.slice(0, sentenceEnd + 1);
+  const normalized = firstSentence
+    .normalize('NFKD')
+    .replace(/[\u064b-\u065f\u0670]/g, '')
+    .toLowerCase();
+  const isIntroduction = /\b(?:as dabra|i(?:'m| am) dabra)\b/i.test(normalized)
+    || /(?:انا|بصفتي)\s+(?:الدبرة|دابرا)/.test(normalized);
+  if (!isIntroduction) return answer;
+  return answer.slice(sentenceEnd + 1).trim() || answer;
 }
 
 // V4: canonical dir3com service family classification, so DABRA routes correctly and never invents a service.
@@ -365,6 +427,7 @@ export async function buildAI2ChatResponse(
   const requestStartedAt = Date.now();
   const language = detectLanguage(message);
   const intent = classifyDabraIntent(message);
+  const technicalOutOfScope = isTechnicalOutOfScopeIntent(message);
 
   if (isOutOfScopeIntent(message)) {
     logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'out-of-scope', grounded: false });
@@ -385,7 +448,7 @@ export async function buildAI2ChatResponse(
   const internalMatchGate = evaluateAI2InternalMatchGate(message, matches);
   const globalWebEnabled = String(process.env.DABRA_GLOBAL_WEB_ENABLED ?? '').toLowerCase() === 'true';
 
-  if (internalMatchGate.hasStrongMatch && internalSources.length > 0) {
+  if (!technicalOutOfScope && internalMatchGate.hasStrongMatch && internalSources.length > 0) {
     logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'internal', provider: 'local', grounded: true });
     return {
       answer: finalizeDabraAnswer(composeGroundedAnswer(matches, language), message),
@@ -431,6 +494,7 @@ export async function buildAI2ChatResponse(
       asksAboutTravelWallet(message) ? TRAVEL_WALLET_NOTE[language] : '',
       buildAccountContextNote(account, language),
       buildConversationContextSnippet(history, language),
+      buildTurnContinuityNote(history, language),
     ].filter(Boolean);
     const outgoingMessage = `${contextSections.join('\n\n')}\n\n${message}`;
     if (globalWebEnabled && configuredProviders.length > 0) {
@@ -465,7 +529,9 @@ export async function buildAI2ChatResponse(
             grounded: isGroundedResult,
           });
           return {
-            answer: finalizeDabraAnswer(result.answer, message),
+            answer: technicalOutOfScope
+              ? TECHNICAL_SCOPE_REPLY[language]
+              : removeRepeatedDabraIntroduction(finalizeDabraAnswer(result.answer, message), history),
             sources: result.citations.map((url, index) => ({
               sourceId: `web-${index + 1}`,
               sourceName: url,

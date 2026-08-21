@@ -72,6 +72,55 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --color-navy: #f2eadb;
+  --color-ink-strong: #fffaf0;
+  --color-shell: rgba(28, 31, 38, 0.96);
+  --color-card: rgba(34, 38, 46, 0.92);
+  --color-card-strong: #22262e;
+  --color-muted: #b7c0cc;
+  --color-border: rgba(226, 185, 95, 0.24);
+  --color-light: #fffaf0;
+}
+
+html[data-theme='dark'] body {
+  background: linear-gradient(180deg, #16181d 0%, #20242b 100%);
+  color: var(--color-navy);
+}
+
+html[data-theme='dark'] .site-header,
+html[data-theme='dark'] .home-identity,
+html[data-theme='dark'] .home-identity > section,
+html[data-theme='dark'] .service-search-table,
+html[data-theme='dark'] .drive-master-products,
+html[data-theme='dark'] .home-stories-section,
+html[data-theme='dark'] .home-partners-section,
+html[data-theme='dark'] .home-utilities {
+  background-color: #1c1f26 !important;
+  background-image: none !important;
+}
+
+html[data-theme='dark'] .site-header a:not([class*='bg-[#c89536]']),
+html[data-theme='dark'] .site-header button,
+html[data-theme='dark'] .home-identity p,
+html[data-theme='dark'] .home-identity h1,
+html[data-theme='dark'] .home-identity h2,
+html[data-theme='dark'] .home-identity h3 {
+  color: var(--color-navy);
+}
+
+html[data-theme='dark'] .site-header [class*='bg-white'],
+html[data-theme='dark'] .service-search-table__shell,
+html[data-theme='dark'] .drive-core-service-card,
+html[data-theme='dark'] .home-stories-track article,
+html[data-theme='dark'] .home-partner-mark,
+html[data-theme='dark'] .home-utility-card,
+html[data-theme='dark'] .home-support-card {
+  background: #262a33 !important;
+  border-color: rgba(226, 185, 95, 0.28) !important;
+}
+
 section {
   scroll-margin-top: 6rem;
 }
@@ -810,9 +859,26 @@ button {
   will-change: transform;
 }
 
-.home-partners-section:hover .home-partners-track,
-.home-partners-section:focus-within .home-partners-track {
-  animation-play-state: paused;
+.home-partners-track,
+.home-stories-track {
+  gap: 0;
+}
+
+.home-partners-track > *,
+.home-stories-track > * {
+  margin-inline-end: 1rem;
+}
+
+.home-partners-marquee,
+.home-stories-marquee {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+
+.home-partners-marquee::-webkit-scrollbar,
+.home-stories-marquee::-webkit-scrollbar {
+  display: none;
 }
 
 .home-partner-mark {
@@ -841,15 +907,8 @@ button {
 }
 
 .home-stories-track {
-  width: max-content;
-  scrollbar-width: thin;
-  scrollbar-color: var(--home-gold) transparent;
   animation: homeStoriesTicker 42s linear infinite;
-}
-
-.home-stories-track:hover,
-.home-stories-track:focus-within {
-  animation-play-state: paused;
+  will-change: transform;
 }
 
 .home-stories-track > article {
@@ -1024,25 +1083,13 @@ button {
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
 }
 
-/* Mobile: stop the auto-ticker and let the user swipe readable cards. */
+/* Mobile keeps the seamless loop while preserving native horizontal touch panning. */
 @media (max-width: 900px) {
-  .home-partners-track,
-  .home-stories-track {
-    animation: none;
-    width: auto;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.5rem;
-  }
-
   .home-stories-track > article {
     flex: 0 0 86vw;
-    scroll-snap-align: center;
   }
 
   .home-partner-mark {
-    scroll-snap-align: center;
     min-width: 44vw;
   }
 }
@@ -1053,8 +1100,21 @@ button {
 
 /* Travel tools stack cleanly on small screens. */
 @media (max-width: 640px) {
+  .home-utilities { padding-block: 1.5rem; }
+  .home-utilities .mt-7 { margin-top: 1.25rem; }
   .home-utility-card,
-  .home-support-card { width: 100%; }
+  .home-support-card {
+    width: 100%;
+    background-image: none;
+    padding: 1rem;
+  }
+  .home-utility-card::before,
+  .home-support-card::before { display: none; }
+  .home-utility-card__description,
+  .home-utility-card__meta { line-height: 1.5; }
+  .home-utility-card--currency { grid-column: auto; }
+  .home-utility-field input,
+  .home-utility-field select { min-width: 0; width: 100%; }
 }
 
 /* ---- Beta usability: search table stacks fully on mobile ---- */
@@ -1095,6 +1155,15 @@ button {
   max-height: 100%;
 }
 
+.dabra-mic--listening {
+  animation: dabraMicPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes dabraMicPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 149, 54, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(200, 149, 54, 0); }
+}
+
 .dabra-composer {
   min-height: 1.5rem;
   max-height: 7.5rem; /* ~5 lines then internal scroll */
@@ -1107,16 +1176,17 @@ button {
 
 @media (max-width: 639px) {
   .dabra-panel-shell {
+    top: max(0.5rem, env(safe-area-inset-top));
+    right: 0.5rem;
+    bottom: max(0.5rem, env(safe-area-inset-bottom));
+    left: 0.5rem;
     padding: 0;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .dabra-panel {
-    height: 100dvh;
-    max-height: 100dvh;
-    border-radius: 0;
-    border-inline: none;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 1.25rem;
   }
 
   /* Messages own the free space; header and composer stay pinned. */
@@ -1126,7 +1196,7 @@ button {
     min-height: 0;
   }
 
-  .dabra-composer { max-height: 9rem; }
+  .dabra-composer { max-height: 7.5rem; }
 }
 
 /* Floating launcher must never sit on top of CTAs, inputs or consent actions. */
