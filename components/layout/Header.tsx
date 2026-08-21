@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FiCloud, FiDollarSign, FiGlobe, FiGrid, FiLogOut, FiMapPin, FiMenu, FiMoon, FiSearch, FiSun, FiType, FiX } from 'react-icons/fi';
+import { FiCloud, FiDollarSign, FiGlobe, FiGrid, FiLogOut, FiMenu, FiMoon, FiSearch, FiSun, FiType, FiX } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { supabase } from '@/lib/supabase/client';
 
@@ -25,7 +25,6 @@ const copy = {
     currency: 'العملات',
     theme: 'تبديل المظهر',
     accessibility: 'تكبير النص',
-    map: 'الخريطة',
     adminDashboard: 'لوحة التحكم',
     partnerDashboard: 'لوحة الشريك',
     providerDashboard: 'لوحة مقدم الخدمة',
@@ -47,7 +46,6 @@ const copy = {
     currency: 'Currency',
     theme: 'Toggle theme',
     accessibility: 'Increase text size',
-    map: 'Map',
     adminDashboard: 'Dashboard',
     partnerDashboard: 'Partner Dashboard',
     providerDashboard: 'Provider Dashboard',
@@ -145,7 +143,7 @@ export default function Header() {
     window.localStorage.setItem('dir3com-accessibility', next ? 'enhanced' : 'standard');
   }
 
-  const utilityClass = 'inline-flex h-10 min-w-10 items-center justify-center rounded-full border border-[#d4af37]/25 bg-white px-2 text-sm font-semibold text-[#2a2118] transition hover:border-[#d4af37] hover:text-[#a66d10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/40';
+  const utilityClass = 'inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-[#d4af37]/25 bg-white px-2 text-sm font-semibold text-[#2a2118] transition hover:border-[#d4af37] hover:text-[#a66d10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/40';
   const dashboardLabel = dashboard?.kind === 'admin' ? t.adminDashboard : dashboard?.kind === 'partner' ? t.partnerDashboard : t.providerDashboard;
 
   return (
@@ -171,7 +169,6 @@ export default function Header() {
         <div className="ms-auto hidden shrink-0 items-center gap-1.5 md:flex" role="group" aria-label={language === 'ar' ? 'أدوات العرض' : 'Display controls'}>
           <Link href="/services#service-search" className={utilityClass} aria-label={t.search}><FiSearch /></Link>
           <Link href="/services#home-weather" className={utilityClass} aria-label={t.weather}><FiCloud /></Link>
-          <Link href="/services#home-map" className={utilityClass} aria-label={t.map}><FiMapPin /></Link>
           <Link href="/services#home-currency" className={utilityClass} aria-label={t.currency}><FiDollarSign /></Link>
           <button type="button" onClick={toggleLanguage} className={utilityClass} aria-label={language === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}><FiGlobe /><span className="ms-1">{language === 'ar' ? 'EN' : 'AR'}</span></button>
           <button type="button" onClick={toggleTheme} className={utilityClass} aria-label={t.theme} aria-pressed={dark}>{dark ? <FiSun /> : <FiMoon />}</button>
@@ -198,7 +195,6 @@ export default function Header() {
             <div className="mt-2 flex flex-wrap gap-2 md:hidden">
               <Link href="/services#service-search" className={utilityClass} aria-label={t.search}><FiSearch /></Link>
               <Link href="/services#home-weather" className={utilityClass} aria-label={t.weather}><FiCloud /></Link>
-              <Link href="/services#home-map" className={utilityClass} aria-label={t.map}><FiMapPin /></Link>
               <Link href="/services#home-currency" className={utilityClass} aria-label={t.currency}><FiDollarSign /></Link>
               <button type="button" onClick={toggleLanguage} className={utilityClass}><FiGlobe /> {language === 'ar' ? 'EN' : 'AR'}</button>
               <button type="button" onClick={toggleTheme} className={utilityClass}>{dark ? <FiSun /> : <FiMoon />}</button>
