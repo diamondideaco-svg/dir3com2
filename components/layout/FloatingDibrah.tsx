@@ -2,8 +2,8 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { FiExternalLink, FiMessageCircle, FiMic, FiMicOff, FiSend, FiX } from 'react-icons/fi';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { FiMessageCircle, FiMic, FiMicOff, FiSend, FiX } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
 import { useDibrahSpeech } from '@/components/layout/useDibrahSpeech';
 
@@ -65,6 +65,12 @@ function presentAssistantAnswer(answer: string | undefined) {
     : trimmed;
 }
 
+function detectConversationLanguage(text: string, fallback: 'ar' | 'en' = 'ar'): 'ar' | 'en' {
+  if (/[\u0600-\u06ff]/.test(text)) return 'ar';
+  if (/[a-z]/i.test(text)) return 'en';
+  return fallback;
+}
+
 export default function FloatingDibrah() {
   const controlRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef({ active: false, moved: false, pointerId: -1, startX: 0, startY: 0, originX: 0, originY: 0 });
@@ -100,11 +106,12 @@ export default function FloatingDibrah() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [policyOpen, setPolicyOpen] = useState(false);
   const [policyChecked, setPolicyChecked] = useState(false);
-  const [assistantContext, setAssistantContext] = useState<DibrahAssistantContext | null>(null);
+  const [, setAssistantContext] = useState<DibrahAssistantContext | null>(null);
   const [messages, setMessages] = useState<DibrahMessage[]>(() => buildSeedMessages(null));
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [micLanguage, setMicLanguage] = useState<'ar' | 'en'>('ar');
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -266,10 +273,8 @@ export default function FloatingDibrah() {
     };
   };
 
-  const quickLinks = useMemo(() => assistantContext?.topServices.slice(0, 3) ?? [], [assistantContext]);
-
-  const speech = useDibrahSpeech('ar', (transcript) => {
-    setDraft((previous) => (previous ? `${previous} ${transcript}` : transcript));
+  const speech = useDibrahSpeech(micLanguage, (transcript) => {
+    setDraft((previous) => (previous ? `${previous.trimEnd()} ${transcript}` : transcript));
     draftRef.current?.focus();
   });
 
@@ -304,6 +309,7 @@ export default function FloatingDibrah() {
   const sendDraft = useCallback(async () => {
     const trimmed = draft.trim();
     if (!trimmed || sending || sendInFlightRef.current) return;
+    setMicLanguage(detectConversationLanguage(trimmed, micLanguage));
     const requestId = typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -359,7 +365,7 @@ export default function FloatingDibrah() {
         window.requestAnimationFrame(() => draftRef.current?.focus());
       }
     }
-  }, [draft, sending, messages]);
+  }, [draft, sending, messages, micLanguage]);
 
   return (
     <div
@@ -374,13 +380,13 @@ export default function FloatingDibrah() {
       </span>
 
       {panelOpen ? (
-        <div className="dabra-panel-shell fixed inset-0 z-50 sm:inset-auto sm:bottom-4 sm:right-4 sm:h-[min(78dvh,760px)] sm:w-[min(92vw,560px)]">
-          <div className="dabra-panel flex flex-col overflow-hidden rounded-none border border-[var(--color-gold)]/25 bg-[var(--color-shell)]/95 shadow-[0_30px_70px_rgba(13,27,42,0.26)] backdrop-blur-xl sm:rounded-[24px]">
-            <div className="flex items-center justify-between border-b border-[color:var(--color-border)] px-4 py-3">
+        <div className="dabra-panel-shell fixed inset-0 z-50 sm:inset-auto sm:bottom-5 sm:right-5 sm:h-[min(82dvh,780px)] sm:w-[min(94vw,600px)]">
+          <div className="dabra-panel flex h-full flex-col overflow-hidden border border-[#d7bd82] bg-[#fffdf8] shadow-[0_30px_80px_rgba(13,27,42,0.34)] sm:rounded-[24px]">
+            <div className="flex items-center justify-between border-b border-[#dfd4bd] bg-[#fffaf0] px-4 py-3.5 sm:px-5">
               <div>
-                <p className="text-xs font-semibold tracking-[0.2em] text-[var(--color-gold)]">DIBRAH ASSISTANT</p>
-                <p className="mt-1 text-sm font-semibold text-[var(--color-navy)]">الدبرة</p>
-                <p className="mt-0.5 text-[10px] text-[var(--color-muted)]">تحت الاختبار</p>
+                <p className="text-xs font-bold tracking-[0.2em] text-[#946b1f]">DIBRAH ASSISTANT</p>
+                <p className="mt-1 text-base font-bold text-[#13243a]">الدبرة</p>
+                <p className="mt-0.5 text-[11px] font-medium text-[#64748b]">تحت الاختبار</p>
               </div>
               <button
                 type="button"
@@ -395,25 +401,16 @@ export default function FloatingDibrah() {
               </button>
             </div>
 
-            <div ref={messagesRef} className="dabra-messages min-h-0 flex-1 overflow-y-auto px-4 py-3">
-              <div className="mb-3 flex flex-wrap gap-2 text-xs">
-                <span className="rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-3 py-1.5 text-[var(--color-navy)]">
-                  {assistantContext?.dataQuality === 'live-verified'
-                    ? 'بيانات سوق موثقة'
-                    : assistantContext?.dataQuality === 'pilot-test'
-                      ? 'بيانات تجريبية للاختبار'
-                      : 'بيانات غير متاحة'}
-                </span>
-              </div>
-
-              <div className="space-y-3">
+            <div ref={messagesRef} className="dabra-messages min-h-0 flex-1 overflow-y-auto bg-[#f8f5ee] px-3 py-4 sm:px-5">
+              <div className="space-y-4">
                 {messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`min-w-0 max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] rounded-[16px] px-3 py-2 text-sm leading-7 ${
+                    dir={detectConversationLanguage(message.content) === 'ar' ? 'rtl' : 'ltr'}
+                    className={`min-w-0 max-w-[92%] whitespace-pre-wrap [overflow-wrap:anywhere] rounded-[18px] px-4 py-3 text-[15px] leading-7 sm:text-base ${
                       message.role === 'assistant'
-                        ? 'border border-[color:var(--color-border)] bg-white text-[#172033]'
-                        : 'bg-[var(--color-surface-strong)] text-[var(--color-light)]'
+                        ? 'mr-auto border border-[#ded7ca] bg-[#fffefb] text-[#172033] shadow-sm'
+                        : 'ml-auto border border-[#dcc58e] bg-[#f4e6bd] text-[#14243a]'
                     }`}
                   >
                     {message.content}
@@ -421,38 +418,13 @@ export default function FloatingDibrah() {
                 ))}
               </div>
 
-              {quickLinks.length ? (
-                <div className="mt-4 space-y-2">
-                  <p className="text-xs font-semibold tracking-[0.16em] text-[var(--color-gold)]">خدمات مقترحة</p>
-                  {quickLinks.map((service) => (
-                    <Link
-                      key={service.id}
-                      href={service.href}
-                      className="flex items-center justify-between rounded-[14px] border border-[color:var(--color-border)] bg-white/80 px-3 py-2 text-sm text-[var(--color-navy)] transition hover:border-[var(--color-gold)]"
-                    >
-                      <span>{service.title}</span>
-                      <FiExternalLink />
-                    </Link>
-                  ))}
-                </div>
-              ) : null}
-
-              {assistantContext?.categories.length ? (
-                <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                  {assistantContext.categories.slice(0, 5).map((item) => (
-                    <span key={item.category} className="rounded-full border border-[color:var(--color-border)] bg-white/75 px-3 py-1.5 text-[var(--color-muted)]">
-                      {item.label} ({item.count})
-                    </span>
-                  ))}
-                </div>
-              ) : null}
               <div ref={messagesEndRef} aria-hidden="true" />
             </div>
 
-            <div className="shrink-0 border-t border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-3">
+            <div className="shrink-0 border-t border-[#dfd4bd] bg-[#fffaf0] px-3 py-3 sm:px-5">
               {sendError ? <p className="mb-2 text-xs text-rose-700">{sendError}</p> : null}
-              <div className="flex items-end gap-2 rounded-[20px] border border-[color:var(--color-border)] bg-white/70 px-3 py-2">
-                <FiMessageCircle className="text-[var(--color-gold)]" />
+              <div className="flex items-end gap-2 rounded-[20px] border border-[#c9b476] bg-white px-3 py-2 shadow-[0_6px_18px_rgba(13,27,42,0.08)] focus-within:border-[#a97922] focus-within:ring-2 focus-within:ring-[#c89536]/25">
+                <FiMessageCircle className="mb-2 text-[#a97922]" />
                 <textarea
                   ref={draftRef}
                   rows={1}
@@ -469,9 +441,23 @@ export default function FloatingDibrah() {
                       void sendDraft();
                     }
                   }}
-                  placeholder="ابدأ الكتابة"
-                  className="dabra-composer w-full resize-none overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-sm leading-6 text-[var(--color-navy)] outline-none"
+                  dir={detectConversationLanguage(draft, micLanguage) === 'ar' ? 'rtl' : 'ltr'}
+                  placeholder={micLanguage === 'ar' ? 'ابدأ الكتابة' : 'Start typing'}
+                  className="dabra-composer w-full resize-none overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-[15px] leading-6 text-[#14243a] placeholder:text-[#718096] outline-none"
                 />
+                <div className="mb-1 flex shrink-0 overflow-hidden rounded-full border border-[#d7bd82] bg-[#fffaf0] text-[10px] font-bold" aria-label="لغة الميكروفون">
+                  {(['ar', 'en'] as const).map((language) => (
+                    <button
+                      key={language}
+                      type="button"
+                      aria-pressed={micLanguage === language}
+                      onClick={() => setMicLanguage(language)}
+                      className={`px-2 py-1 ${micLanguage === language ? 'bg-[#c89536] text-[#13243a]' : 'text-[#5b6574]'}`}
+                    >
+                      {language.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
                 <button
                   type="button"
                   aria-label={speech.status === 'listening' ? 'إيقاف الإدخال الصوتي' : 'الإدخال الصوتي'}
@@ -493,8 +479,13 @@ export default function FloatingDibrah() {
                   <FiSend size={14} />
                 </button>
               </div>
-              <p className={`mt-2 text-xs ${speech.status === 'listening' ? 'font-semibold text-[var(--color-gold)]' : 'text-[var(--color-muted)]'}`} aria-live="polite">
-                {speech.status === 'listening' ? 'جاري الاستماع...' : speech.status === 'idle' ? 'اضغط للتحدث' : null}
+              <p className={`mt-2 text-xs ${speech.status === 'listening' ? 'font-semibold text-[#946b1f]' : 'text-[#64748b]'}`} aria-live="polite">
+                {speech.status === 'listening'
+                  ? (micLanguage === 'ar' ? 'جاري الاستماع...' : 'Listening...')
+                  : speech.status === 'idle'
+                    ? (micLanguage === 'ar' ? 'اضغط للتحدث' : 'Tap to speak')
+                    : null}
+                {speech.interimTranscript ? ` ${speech.interimTranscript}` : ''}
               </p>
               {speech.status === 'denied' ? (
                 <p role="alert" className="mt-2 text-xs text-[#b91c1c]">تعذر الوصول إلى الميكروفون. اسمح للمتصفح باستخدام الميكروفون ثم حاول مرة أخرى.</p>

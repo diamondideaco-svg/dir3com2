@@ -212,6 +212,7 @@ function stripRawUrlLeakage(text: string, message: string): string {
   if (LINK_REQUEST_PATTERNS.some((pattern) => pattern.test(message))) return text;
   return text
     .replace(/https?:\/\/[^\s)\]}]+/gi, '')
+    .replace(/\b(?:www\.)?[a-z0-9-]+(?:\.[a-z]{2,})+(?:\/[^\s)\]}]*)?/gi, '')
     .replace(/\S*%(?:[0-9a-f]{2})\S*/gi, '')
     .replace(/\butm_(?:source|medium|campaign|term|content)=[^\s&]+/gi, '')
     .replace(/\(\s*\)/g, '')
@@ -289,6 +290,32 @@ function buildConversationContextSnippet(history: AI2ChatTurn[], language: AI2Ch
     return `${speaker}: ${turn.content.slice(0, MAX_HISTORY_TURN_CHARS)}`;
   });
   return `${label}:\n${lines.join('\n')}`;
+}
+
+function buildTurnContinuityNote(history: AI2ChatTurn[], language: AI2ChatLanguage): string {
+  const languageInstruction = language === 'ar'
+    ? 'أجب بالعربية الطبيعية فقط لأن أحدث رسالة ذات معنى من المستخدم عربية. لا تخلط الإنجليزية إلا في أسماء المنتجات الرسمية.'
+    : 'Answer in natural English only because the latest meaningful user message is English. Do not mix Arabic unless an official product name requires it.';
+  if (!history.length) return languageInstruction;
+  const continuityInstruction = language === 'ar'
+    ? 'هذه محادثة مستمرة وقد تم تقديم الدَّبْرَة بالفعل. لا تبدأ بتحية أو تعريف بالنفس أو وصف عام للخدمات؛ أجب مباشرة على أحدث طلب مع الحفاظ على سياق الجلسة.'
+    : 'This is a continuing conversation and DABRA has already been introduced. Do not greet, reintroduce yourself, or restate a generic service catalogue; answer the latest request directly while preserving session context.';
+  return `${languageInstruction} ${continuityInstruction}`;
+}
+
+function removeRepeatedDabraIntroduction(answer: string, history: AI2ChatTurn[]): string {
+  if (!history.length) return answer;
+  const sentenceEnd = answer.search(/[.!؟](?:\s|$)/);
+  if (sentenceEnd < 0) return answer;
+  const firstSentence = answer.slice(0, sentenceEnd + 1);
+  const normalized = firstSentence
+    .normalize('NFKD')
+    .replace(/[\u064b-\u065f\u0670]/g, '')
+    .toLowerCase();
+  const isIntroduction = /\b(?:as dabra|i(?:'m| am) dabra)\b/i.test(normalized)
+    || /(?:انا|بصفتي)\s+(?:الدبرة|دابرا)/.test(normalized);
+  if (!isIntroduction) return answer;
+  return answer.slice(sentenceEnd + 1).trim() || answer;
 }
 
 // V4: canonical dir3com service family classification, so DABRA routes correctly and never invents a service.
@@ -467,6 +494,7 @@ export async function buildAI2ChatResponse(
       asksAboutTravelWallet(message) ? TRAVEL_WALLET_NOTE[language] : '',
       buildAccountContextNote(account, language),
       buildConversationContextSnippet(history, language),
+      buildTurnContinuityNote(history, language),
     ].filter(Boolean);
     const outgoingMessage = `${contextSections.join('\n\n')}\n\n${message}`;
     if (globalWebEnabled && configuredProviders.length > 0) {
@@ -501,7 +529,9 @@ export async function buildAI2ChatResponse(
             grounded: isGroundedResult,
           });
           return {
-            answer: technicalOutOfScope ? TECHNICAL_SCOPE_REPLY[language] : finalizeDabraAnswer(result.answer, message),
+            answer: technicalOutOfScope
+              ? TECHNICAL_SCOPE_REPLY[language]
+              : removeRepeatedDabraIntroduction(finalizeDabraAnswer(result.answer, message), history),
             sources: result.citations.map((url, index) => ({
               sourceId: `web-${index + 1}`,
               sourceName: url,

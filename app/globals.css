@@ -1176,16 +1176,17 @@ button {
 
 @media (max-width: 639px) {
   .dabra-panel-shell {
+    top: max(0.5rem, env(safe-area-inset-top));
+    right: 0.5rem;
+    bottom: max(0.5rem, env(safe-area-inset-bottom));
+    left: 0.5rem;
     padding: 0;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .dabra-panel {
-    height: 100dvh;
-    max-height: 100dvh;
-    border-radius: 0;
-    border-inline: none;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 1.25rem;
   }
 
   /* Messages own the free space; header and composer stay pinned. */
