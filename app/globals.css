@@ -270,6 +270,23 @@ label,
   box-shadow: 0 10px 30px rgba(88, 65, 31, 0.1);
 }
 
+.service-search-table__toggle {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.9rem;
+  color: var(--home-gold);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.service-search-table__toggle:hover,
+.service-search-table__toggle:focus-visible {
+  color: var(--color-navy);
+  outline: none;
+}
+
 .service-search-table__tabs {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

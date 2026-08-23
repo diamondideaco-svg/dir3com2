@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FiCalendar, FiFlag, FiMapPin, FiSearch, FiUsers } from 'react-icons/fi';
+import { FiCalendar, FiChevronDown, FiChevronUp, FiFlag, FiMapPin, FiSearch, FiUsers } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { canonicalCountries, citiesForCountry, todayIsoDate } from '@/lib/services/coverage';
 
@@ -97,6 +97,8 @@ const copy = {
     selectCity: 'اختر المدينة',
     pickCountryFirst: 'اختر الدولة أولاً',
     search: 'ابحث الآن',
+    hideSearch: 'إخفاء البحث',
+    showSearch: 'إظهار البحث',
     required: 'أكمل الحقول المطلوبة قبل البحث.',
     dateOrder: 'تاريخ العودة يجب أن يكون بعد تاريخ الذهاب.',
     pastDate: 'لا يمكن اختيار تاريخ في الماضي.',
@@ -108,6 +110,8 @@ const copy = {
     selectCity: 'Select city',
     pickCountryFirst: 'Select a country first',
     search: 'Search now',
+    hideSearch: 'Hide search',
+    showSearch: 'Show search',
     required: 'Complete the required fields before searching.',
     dateOrder: 'The return date must be after the departure date.',
     pastDate: 'A past date cannot be selected.',
@@ -130,6 +134,7 @@ export default function ServiceSearchTable() {
   const [selectedKey, setSelectedKey] = useState<ServiceDef['key']>('drive');
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(true);
 
   const selected = services.find((service) => service.key === selectedKey) ?? services[0];
 
@@ -182,6 +187,12 @@ export default function ServiceSearchTable() {
     <section id="service-search" className="service-search-table px-4 py-10 sm:px-6 lg:px-10" dir={direction}>
       <div className="mx-auto max-w-[1240px]">
         <div className="service-search-table__shell">
+          <button type="button" className="service-search-table__toggle" onClick={() => setSearchOpen((open) => !open)} aria-expanded={searchOpen}>
+            {searchOpen ? <FiChevronUp aria-hidden="true" /> : <FiChevronDown aria-hidden="true" />}
+            {searchOpen ? t.hideSearch : t.showSearch}
+          </button>
+          {searchOpen ? (
+            <>
           <div className="service-search-table__tabs" role="tablist" aria-label={t.choose}>
             {services.map((service) => (
               <button
@@ -252,6 +263,8 @@ export default function ServiceSearchTable() {
             </button>
           </div>
           {error ? <p role="alert" className="px-4 pb-3 text-xs font-semibold text-[#b91c1c]">{error}</p> : null}
+            </>
+          ) : null}
         </div>
       </div>
     </section>

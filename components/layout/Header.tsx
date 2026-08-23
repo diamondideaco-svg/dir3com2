@@ -53,6 +53,7 @@ export default function Header() {
   const pathname = usePathname();
   const { language, direction, toggleLanguage } = useLanguage();
   const t = copy[language];
+  const isHome = pathname === '/';
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dark, setDark] = useState(false);
   const [largeText, setLargeText] = useState(false);
@@ -85,7 +86,7 @@ export default function Header() {
   const utilityClass = 'inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-[#d4af37]/25 bg-white px-2 text-sm font-semibold text-[#2a2118] transition hover:border-[#d4af37] hover:text-[#a66d10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/40';
 
   return (
-    <header dir={direction} className="sticky top-0 z-40 border-b border-[#d4af37]/20 bg-[#fffdf9]/95 shadow-[0_8px_28px_rgba(76,53,18,0.07)] backdrop-blur-xl">
+    <header dir={direction} className={`sticky top-0 z-40 border-b border-[#d4af37]/20 ${isHome ? 'border-transparent bg-transparent shadow-none backdrop-blur-none' : 'bg-[#fffdf9]/95 shadow-[0_8px_28px_rgba(76,53,18,0.07)] backdrop-blur-xl'}`}>
       <div className="mx-auto flex min-h-[92px] max-w-[1440px] items-center gap-5 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="relative block h-[72px] w-[190px] shrink-0" aria-label="dir3com">
           <Image src="/brand/runtime/dir3com-logo-approved-cropped.png" alt="dir3com — Your shield for tourism" fill priority unoptimized sizes="190px" className="object-contain" />
