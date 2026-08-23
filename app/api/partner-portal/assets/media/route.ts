@@ -34,6 +34,10 @@ function buildStoragePath(actorId: string, assetId: string, extension: string) {
   return `${safeActor}/${safeAsset}/${crypto.randomUUID()}.${extension}`;
 }
 
+function actorStoragePrefix(actorId: string) {
+  return `${actorId.toLowerCase().replace(/[^a-z0-9-]/g, '')}/`;
+}
+
 function buildQueueItem(input: {
   ownerKind: PortalOwnerKind;
   assetId: string;
@@ -109,6 +113,54 @@ async function uploadWithBucketRecovery(input: { path: string; bytes: Uint8Array
   }
 
   return { ok: true as const };
+}
+
+export async function GET(request: Request) {
+  const actor = await requirePortalActor();
+  if (!actor) {
+    return NextResponse.json({ error: { code: 'PORTAL_ACCESS_DENIED' } }, { status: 403, headers: privateHeaders() });
+  }
+
+  if (!supabaseAdmin) {
+    return NextResponse.json({ error: { code: 'PORTAL_UNAVAILABLE' } }, { status: 503, headers: privateHeaders() });
+  }
+
+  const mediaId = asText(new URL(request.url).searchParams.get('mediaId'), 80);
+  if (!mediaId) {
+    return NextResponse.json({ error: { code: 'MEDIA_ID_REQUIRED' } }, { status: 400, headers: privateHeaders() });
+  }
+
+  const store = await readOnboardingStore();
+  const media = store.media.find((item) => item.id === mediaId);
+  const asset = media ? store.assets.find((item) => item.id === media.assetId) : null;
+  if (!media || !asset || media.url.startsWith('/') || /^https?:\/\//i.test(media.url)) {
+    return NextResponse.json({ error: { code: 'MEDIA_NOT_FOUND' } }, { status: 404, headers: privateHeaders() });
+  }
+
+  const defaultOwner = ownerFromDomain(actor.partnerDomainType);
+  const privileged = ['admin', 'staff'].includes(actor.authRole);
+  const ownedStoragePath = media.url.startsWith(actorStoragePrefix(actor.userId));
+  if (media.ownerKind !== defaultOwner || asset.ownerKind !== defaultOwner || (!privileged && !ownedStoragePath)) {
+    return NextResponse.json({ error: { code: 'MEDIA_ACCESS_DENIED' } }, { status: 403, headers: privateHeaders() });
+  }
+
+  const { data, error } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(media.url, 300);
+  if (error || !data?.signedUrl) {
+    logServerError('api.partner_portal.assets.media_preview_failed', error, {
+      route: '/api/partner-portal/assets/media',
+      actorId: actor.userId,
+      mediaId,
+    });
+    return NextResponse.json({ error: { code: 'MEDIA_PREVIEW_FAILED' } }, { status: 500, headers: privateHeaders() });
+  }
+
+  return new NextResponse(null, {
+    status: 307,
+    headers: {
+      ...privateHeaders(),
+      Location: data.signedUrl,
+    },
+  });
 }
 
 export async function PATCH(request: Request) {
