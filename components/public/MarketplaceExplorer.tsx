@@ -9,6 +9,7 @@ import { Badge, Chip, ContentContainer, SearchField, SectionContainer, SectionSu
 import ServicesGrid from '@/components/home/ServicesGrid';
 import MarketplaceFilters from '@/components/public/MarketplaceFilters';
 import { useMarketplaceServices } from '@/components/public/useMarketplaceServices';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { fadeUpItem, revealViewport, sectionStagger, subtleEasing } from '@/components/shared/motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
@@ -68,6 +69,23 @@ const sortOptions: Array<{ value: MarketplaceSortKey; label: string }> = [
   { value: 'name', label: 'الاسم' },
 ];
 
+const englishCollectionLabels: Record<MarketplaceCollectionKey, string> = {
+  all: 'All',
+  featured: 'Featured',
+  popular: 'Popular',
+  recommended: 'Recommended',
+};
+
+const englishCategoryLabels: Record<string, string> = {
+  cars: 'Cars',
+  hotels: 'Hotels',
+  apartments: 'Apartments',
+  'airport-transfers': 'Airport transfers',
+  concierge: 'Concierge',
+  experiences: 'Experiences',
+  offers: 'Offers',
+};
+
 export default function MarketplaceExplorer({
   title,
   description,
@@ -75,6 +93,10 @@ export default function MarketplaceExplorer({
   defaultCategory,
   defaultCollection = 'all',
 }: MarketplaceExplorerProps) {
+  const { language } = useLanguage();
+  const isArabic = language === 'ar';
+  const displayedCollectionLabels = isArabic ? collectionLabels : collectionLabels.map((option) => ({ ...option, label: englishCollectionLabels[option.value] }));
+  const displayedDestinationOptions = destinationOptions.map((option) => ({ ...option, label: isArabic ? option.label.split(' | ').reverse().join(' | ') : option.label }));
   const initialUrlParams =
     typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
   const initialQuery = initialUrlParams.get('query') ?? '';
@@ -128,18 +150,18 @@ export default function MarketplaceExplorer({
         .filter((item) => item.count > 0)
         .map((item) => ({
           category: item.category as MarketplacePageCategory,
-          categoryLabel: item.label,
+          categoryLabel: isArabic ? item.label : englishCategoryLabels[item.category] || item.label,
           count: item.count,
         })),
-    [meta.facets.categories]
+    [isArabic, meta.facets.categories]
   );
 
   const serviceTypeOptions = useMemo(
     () => [
-      { value: 'all', label: 'كل الخدمات' },
+      { value: 'all', label: isArabic ? 'كل الخدمات' : 'All services' },
       ...categoryBrowseItems.map((option) => ({ value: option.category, label: option.categoryLabel })),
     ],
-    [categoryBrowseItems]
+    [categoryBrowseItems, isArabic]
   );
 
   const paginationPages = useMemo(() => {
@@ -158,7 +180,7 @@ export default function MarketplaceExplorer({
   return (
     <SectionContainer>
       <ContentContainer>
-        <SectionHeading eyebrow="MARKETPLACE" title={title} description={description} />
+        <SectionHeading eyebrow={isArabic ? 'سوق الخدمات' : 'Service marketplace'} title={title} description={description} />
 
         <motion.div variants={sectionStagger} initial="hidden" whileInView="visible" viewport={revealViewport} className="mt-8 space-y-5">
           <motion.div variants={fadeUpItem}>
@@ -166,18 +188,18 @@ export default function MarketplaceExplorer({
               <CardContent className="p-5 sm:p-6 lg:p-7">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <p className="text-xs font-semibold tracking-[0.24em] text-[var(--color-gold)]">SMART SEARCH</p>
-                    <h3 className="mt-2 text-2xl font-semibold text-[var(--color-navy)] sm:text-3xl">ابحث في سوق dir3com بذكاء وبساطة.</h3>
-                    <p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">واجهة اكتشاف راقية مهيأة للمستخدم الخليجي، مع مرشحات مرنة وتجربة قراءة سريعة.</p>
+                    <p className="text-xs font-semibold tracking-[0.24em] text-[var(--color-gold)]">{isArabic ? 'بحث ذكي' : 'Smart search'}</p>
+                    <h3 className="mt-2 text-2xl font-semibold text-[var(--color-navy)] sm:text-3xl">{isArabic ? 'ابحث في سوق dir3com بذكاء وبساطة.' : 'Find your next dir3com service with ease.'}</h3>
+                    <p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">{isArabic ? 'واجهة اكتشاف راقية مع مرشحات مرنة وتجربة قراءة سريعة.' : 'A refined discovery experience with flexible filters and fast scanning.'}</p>
                   </div>
                   <Badge className="self-start">
-                    <FiCompass /> اكتشاف فاخر
+                    <FiCompass /> {isArabic ? 'اكتشاف فاخر' : 'Curated discovery'}
                   </Badge>
                 </div>
 
                 <div className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
-                  <SearchField value={searchInput} onChange={setSearchInput} placeholder="ابحث عن خدمة، فئة، أو تجربة" />
-                  <SelectField label="الترتيب" value={sort} onChange={(next) => setSort(next as MarketplaceSortKey)} options={sortOptions} />
+                  <SearchField value={searchInput} onChange={setSearchInput} placeholder={isArabic ? 'ابحث عن خدمة، فئة، أو تجربة' : 'Search for a service, category, or experience'} />
+                  <SelectField label={isArabic ? 'الترتيب' : 'Sort by'} value={sort} onChange={(next) => setSort(next as MarketplaceSortKey)} options={isArabic ? sortOptions : sortOptions.map((option) => ({ ...option, label: option.value === 'recommended' ? 'Recommended' : option.value === 'featured' ? 'Featured first' : option.value === 'popular' ? 'Most popular' : option.value === 'price-low' ? 'Price: low to high' : option.value === 'price-high' ? 'Price: high to low' : 'Name' }))} />
                 </div>
 
                 <div className="mt-4 flex justify-end">
@@ -191,17 +213,17 @@ export default function MarketplaceExplorer({
                     }}
                     className={buttonVariants({ variant: 'gold', size: 'default' })}
                   >
-                    ابحث الآن
+                    {isArabic ? 'ابحث الآن' : 'Search'}
                   </button>
                 </div>
 
                 <div className="mt-6 rounded-[24px] border border-[var(--color-gold)]/14 bg-white/72 p-4 sm:p-5">
                   <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold tracking-[0.2em] text-[var(--color-gold)] sm:text-sm">
-                    <FiFilter /> FILTERS
+                    <FiFilter /> {isArabic ? 'المرشحات' : 'Filters'}
                   </div>
                   <MarketplaceFilters
                     value={advancedFilters}
-                    destinationOptions={destinationOptions}
+                    destinationOptions={displayedDestinationOptions}
                     serviceTypeOptions={serviceTypeOptions}
                     onChange={(next) => {
                       setAdvancedFilters(next);
@@ -209,7 +231,7 @@ export default function MarketplaceExplorer({
                     }}
                   />
                   <p className="mt-3 text-xs leading-6 text-[var(--color-muted)]">
-                    التواريخ وعدد المسافرين واجهة جاهزة للربط المباشر في مراحل التكامل القادمة.
+                    {isArabic ? 'التواريخ وعدد المسافرين متاحان لتخصيص نتائجك.' : 'Use dates and traveller count to refine your results.'}
                   </p>
                 </div>
               </CardContent>
@@ -235,13 +257,13 @@ export default function MarketplaceExplorer({
                 }`}
               >
                 <p className="text-sm font-semibold text-[var(--color-navy)]">{option.categoryLabel}</p>
-                <p className="mt-1 text-xs text-[var(--color-muted)]">{option.count} نتيجة</p>
+                <p className="mt-1 text-xs text-[var(--color-muted)]">{option.count} {isArabic ? 'نتيجة' : option.count === 1 ? 'result' : 'results'}</p>
               </motion.button>
             ))}
             {categoryBrowseItems.length === 0
               ? Array.from({ length: 2 }).map((_, index) => (
                   <div key={index} className="rounded-[22px] border border-dashed border-[var(--color-border)] bg-white/60 px-4 py-4 text-sm text-[var(--color-muted)]">
-                    فئات السوق تظهر تلقائيا عند توفر البيانات.
+                    {isArabic ? 'ستظهر الفئات عند توفر الخيارات.' : 'Categories will appear when options are available.'}
                   </div>
                 ))
               : null}
@@ -249,7 +271,7 @@ export default function MarketplaceExplorer({
 
           <motion.div variants={fadeUpItem} className="rounded-[26px] border border-[color:var(--color-border)] bg-white/72 p-4 sm:p-5">
             <div className="flex flex-wrap gap-2">
-              {collectionLabels.map((option) => {
+              {displayedCollectionLabels.map((option) => {
                 const collectionCount = meta.facets.collections[option.value] ?? 0;
                 const isUnavailable = option.value !== 'all' && collectionCount === 0;
 
@@ -292,7 +314,7 @@ export default function MarketplaceExplorer({
                     : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
                 }`}
               >
-                تصفح الفئات: الكل
+                {isArabic ? 'تصفح الفئات: الكل' : 'Browse categories: All'}
               </button>
               {categoryBrowseItems.map((option) => (
                 <button
@@ -320,22 +342,22 @@ export default function MarketplaceExplorer({
         {error && (
           <Card className="mt-6 border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 shadow-none">
             <CardContent className="p-4 text-sm text-[var(--color-navy)]">
-              {error} تم عرض طبقة البيانات الاحتياطية تلقائيا للحفاظ على استمرارية التجربة.
+              {error} {isArabic ? 'نعرض خيارات بديلة مؤقتاً لمواصلة التصفح.' : 'Showing alternative options temporarily so you can keep browsing.'}
             </CardContent>
           </Card>
         )}
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--color-muted)]">
-          <Chip className="text-sm">النتائج الظاهرة: {services.length}</Chip>
-          <Chip className="text-sm">إجمالي النتائج: {meta.total}</Chip>
-          <Chip className="text-sm">المصدر: {meta.hasRealData ? 'Live Inventory' : 'Fallback Catalog'}</Chip>
+          <Chip className="text-sm">{isArabic ? 'النتائج الظاهرة' : 'Showing'}: {services.length}</Chip>
+          <Chip className="text-sm">{isArabic ? 'إجمالي النتائج' : 'Total results'}: {meta.total}</Chip>
+          <Chip className="text-sm">{meta.hasRealData ? (isArabic ? 'خيارات متاحة' : 'Available options') : (isArabic ? 'خيارات مقترحة' : 'Suggested options')}</Chip>
         </div>
 
         <div id="marketplace-results" className="mt-6">
           {!loading && services.length === 0 ? (
             <SectionSurface>
-              <p className="text-xl font-semibold text-[var(--color-navy)]">لا توجد خدمات مطابقة للمرشحات الحالية.</p>
-              <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">جرّب إعادة ضبط المرشحات أو تصفح جميع الخدمات لاكتشاف خيارات أخرى.</p>
+              <p className="text-xl font-semibold text-[var(--color-navy)]">{isArabic ? 'لا توجد خدمات مطابقة للمرشحات الحالية.' : 'No services match your current filters.'}</p>
+              <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">{isArabic ? 'جرّب إعادة ضبط المرشحات أو تصفح جميع الخدمات.' : 'Try resetting the filters or browse all services.'}</p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <button
                   type="button"
@@ -357,15 +379,15 @@ export default function MarketplaceExplorer({
                   }}
                   className={buttonVariants({ variant: 'gold', size: 'default' })}
                 >
-                  إعادة ضبط المرشحات
+                  {isArabic ? 'إعادة ضبط المرشحات' : 'Reset filters'}
                 </button>
                 <Link href="/services" className={buttonVariants({ variant: 'outline', size: 'default' })}>
-                  تصفح كل الخدمات
+                  {isArabic ? 'تصفح كل الخدمات' : 'Browse all services'}
                 </Link>
               </div>
             </SectionSurface>
           ) : (
-            <ServicesGrid services={services} loading={loading} emptyMessage="لا توجد نتائج مطابقة للمرشحات الحالية." skeletonCount={6} />
+            <ServicesGrid services={services} loading={loading} emptyMessage={isArabic ? 'لا توجد نتائج مطابقة للمرشحات الحالية.' : 'No results match the current filters.'} skeletonCount={6} />
           )}
         </div>
 
@@ -381,7 +403,7 @@ export default function MarketplaceExplorer({
                   : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
               }`}
             >
-              السابق
+              {isArabic ? 'السابق' : 'Previous'}
             </button>
 
             {paginationPages.map((pageNumber) => (
@@ -409,7 +431,7 @@ export default function MarketplaceExplorer({
                   : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
               }`}
             >
-              التالي
+              {isArabic ? 'التالي' : 'Next'}
             </button>
           </div>
         ) : null}

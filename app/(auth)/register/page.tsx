@@ -5,8 +5,16 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
+
+const registerCopy = {
+    ar: { loading: 'جاري التحميل...', title: 'إنشاء حساب', welcome: 'انضم إلى dir3com واستمتع بتجربة سفر مخصصة', fullName: 'الاسم الكامل', fullNamePlaceholder: 'أدخل اسمك الكامل', email: 'البريد الإلكتروني', password: 'كلمة المرور', passwordPlaceholder: '•••••••• (6 أحرف على الأقل)', minimum: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل', submit: 'إنشاء حساب', submitting: 'جاري إنشاء الحساب...', existing: 'لديك حساب بالفعل؟', signIn: 'تسجيل الدخول', success: 'تم إنشاء الحساب! رجاء تأكيد بريدك الإلكتروني.' },
+    en: { loading: 'Loading...', title: 'Create an account', welcome: 'Join dir3com for a tailored travel experience', fullName: 'Full name', fullNamePlaceholder: 'Enter your full name', email: 'Email', password: 'Password', passwordPlaceholder: '•••••••• (at least 6 characters)', minimum: 'Password must be at least 6 characters', submit: 'Create account', submitting: 'Creating account...', existing: 'Already have an account?', signIn: 'Sign in', success: 'Your account was created. Please confirm your email.' },
+} as const;
 
 export default function RegisterPage() {
+    const { language, direction } = useLanguage();
+    const t = registerCopy[language];
     const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -26,7 +34,7 @@ export default function RegisterPage() {
         setError(null);
 
         if (password.length < 6) {
-            setError('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+            setError(t.minimum);
             setLoading(false);
             return;
         }
@@ -45,7 +53,7 @@ export default function RegisterPage() {
             return;
         }
 
-        alert('✅ تم إنشاء الحساب! رجاء تأكيد بريدك الإلكتروني.');
+        alert(t.success);
         router.push('/login');
     };
 
@@ -63,7 +71,7 @@ export default function RegisterPage() {
             justifyContent: 'center',
             padding: '40px 20px',
             fontFamily: 'var(--font-arabic)',
-            direction: 'rtl'
+            direction
         }}>
             <div style={{
                 maxWidth: '420px',
@@ -81,10 +89,10 @@ export default function RegisterPage() {
                     textAlign: 'center',
                     marginBottom: '5px'
                 }}>
-                    إنشاء حساب
+                    {t.title}
                 </h1>
                 <p style={{ color: '#6B7280', textAlign: 'center', marginBottom: '30px' }}>
-                    انضم إلى DIR3COM واستمتع بتجربة سفر مخصصة
+                    {t.welcome}
                 </p>
 
                 {error && (
@@ -103,12 +111,12 @@ export default function RegisterPage() {
 
                 <form onSubmit={handleRegister}>
                     <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>الاسم الكامل</label>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>{t.fullName}</label>
                         <input
                             type="text"
                             value={fullName}
                             onChange={(e) => setFullName(e.target.value)}
-                            placeholder="أدخل اسمك الكامل"
+                            placeholder={t.fullNamePlaceholder}
                             required
                             style={{
                                 width: '100%',
@@ -124,7 +132,7 @@ export default function RegisterPage() {
                     </div>
 
                     <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>البريد الإلكتروني</label>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>{t.email}</label>
                         <input
                             type="email"
                             value={email}
@@ -145,12 +153,12 @@ export default function RegisterPage() {
                     </div>
 
                     <div style={{ marginBottom: '20px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>كلمة المرور</label>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>{t.password}</label>
                         <input
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            placeholder="•••••••• (6 أحرف على الأقل)"
+                            placeholder={t.passwordPlaceholder}
                             required
                             style={{
                                 width: '100%',
@@ -180,14 +188,14 @@ export default function RegisterPage() {
                             cursor: 'pointer'
                         }}
                     >
-                        {loading ? 'جاري إنشاء الحساب...' : 'إنشاء حساب'}
+                        {loading ? t.submitting : t.submit}
                     </button>
                 </form>
 
                 <p style={{ textAlign: 'center', color: '#6B7280', marginTop: '20px' }}>
-                    لديك حساب بالفعل؟{' '}
+                    {t.existing}{' '}
                     <Link href="/login" style={{ color: '#D4AF37', textDecoration: 'none' }}>
-                        تسجيل الدخول
+                        {t.signIn}
                     </Link>
                 </p>
             </div>

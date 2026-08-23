@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/', '/about', '/contact', '/services', '/services/', '/login', '/register', '/auth/signin', '/auth/callback'];
+const PUBLIC_PATHS = ['/', '/about', '/contact', '/terms', '/privacy', '/support', '/services', '/services/', '/login', '/register', '/auth/signin', '/auth/callback'];
 const PUBLIC_CATEGORY_PATHS = ['/cars', '/hotels', '/experiences', '/concierge', '/offers', '/apartments', '/airport-transfers'];
 const PROTECTED_PREFIXES = ['/profile', '/my-account', '/my-bookings', '/my-documents', '/my-profile', '/my-wallet', '/dashboard'];
 
@@ -36,16 +36,12 @@ export function proxy(request: NextRequest) {
 
   const hasSession = hasSupabaseSessionCookie(request);
 
-  if (!hasSession) {
+  if (isProtected && !hasSession) {
     const destination = getDestinationPath(request);
     const redirectUrl = new URL('/login', request.url);
     redirectUrl.searchParams.set('redirect', destination);
     redirectUrl.searchParams.set('next', destination);
     return NextResponse.redirect(redirectUrl);
-  }
-
-  if (isProtected) {
-    return NextResponse.next();
   }
 
   return NextResponse.next();

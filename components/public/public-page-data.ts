@@ -3,6 +3,7 @@ import type {
   MarketplaceFamilyKey,
   MarketplacePageCategory,
 } from '@/lib/marketplace/data';
+import type { LocalizedText } from '@/components/public/PublicHero';
 
 export type PublicCategorySlug =
   | 'cars'
@@ -15,13 +16,13 @@ export type PublicCategorySlug =
 
 export type PublicCategoryConfig = {
   slug: PublicCategorySlug;
-  title: string;
-  eyebrow: string;
-  description: string;
-  highlight: string;
-  chips: string[];
-  stats: Array<{ label: string; value: string }>;
-  trustMessage: string;
+  title: string | LocalizedText;
+  eyebrow: string | LocalizedText;
+  description: string | LocalizedText;
+  highlight: string | LocalizedText;
+  chips: Array<string | LocalizedText>;
+  stats: Array<{ label: string | LocalizedText; value: string }>;
+  trustMessage: string | LocalizedText;
   marketplaceFamily?: MarketplaceFamilyKey;
   marketplaceCategory?: MarketplacePageCategory;
   defaultCollection?: MarketplaceCollectionKey;

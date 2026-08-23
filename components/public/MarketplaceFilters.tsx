@@ -1,4 +1,5 @@
 import { SelectField } from '@/components/design-system';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
 
 type MarketplaceOption = {
   value: string;
@@ -21,46 +22,39 @@ type MarketplaceFiltersProps = {
   onChange: (next: MarketplaceFiltersValue) => void;
 };
 
-const budgetOptions: MarketplaceOption[] = [
-  { value: 'all', label: 'كل الميزانيات' },
-  { value: '0-2000', label: 'حتى 2,000 ر.س' },
-  { value: '2000-5000', label: '2,000 - 5,000 ر.س' },
-  { value: '5000+', label: '5,000+ ر.س' },
-];
-
-const travelersOptions: MarketplaceOption[] = [
-  { value: 'all', label: 'أي عدد' },
-  { value: '1', label: 'مسافر 1' },
-  { value: '2', label: 'مسافران' },
-  { value: '3+', label: '3+ مسافرين' },
-];
-
 export default function MarketplaceFilters({ value, destinationOptions, serviceTypeOptions, onChange }: MarketplaceFiltersProps) {
+  const { language } = useLanguage();
+  const budgetOptions: MarketplaceOption[] = language === 'ar'
+    ? [{ value: 'all', label: 'كل الميزانيات' }, { value: '0-2000', label: 'حتى 2,000 ر.س' }, { value: '2000-5000', label: '2,000 - 5,000 ر.س' }, { value: '5000+', label: '5,000+ ر.س' }]
+    : [{ value: 'all', label: 'All budgets' }, { value: '0-2000', label: 'Up to SAR 2,000' }, { value: '2000-5000', label: 'SAR 2,000 - 5,000' }, { value: '5000+', label: 'SAR 5,000+' }];
+  const travelersOptions: MarketplaceOption[] = language === 'ar'
+    ? [{ value: 'all', label: 'أي عدد' }, { value: '1', label: 'مسافر 1' }, { value: '2', label: 'مسافران' }, { value: '3+', label: '3+ مسافرين' }]
+    : [{ value: 'all', label: 'Any number' }, { value: '1', label: '1 traveller' }, { value: '2', label: '2 travellers' }, { value: '3+', label: '3+ travellers' }];
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <SelectField
-        label="الوجهة"
+        label={language === 'ar' ? 'الوجهة' : 'Destination'}
         value={value.destination}
         options={destinationOptions}
         onChange={(destination) => onChange({ ...value, destination })}
       />
 
       <SelectField
-        label="نوع الخدمة"
+        label={language === 'ar' ? 'نوع الخدمة' : 'Service type'}
         value={value.serviceType}
         options={serviceTypeOptions}
         onChange={(serviceType) => onChange({ ...value, serviceType })}
       />
 
       <SelectField
-        label="الميزانية"
+        label={language === 'ar' ? 'الميزانية' : 'Budget'}
         value={value.budget}
         options={budgetOptions}
         onChange={(budget) => onChange({ ...value, budget })}
       />
 
       <label className="block">
-        <span className="mb-2 block text-xs font-semibold tracking-[0.12em] text-[var(--color-muted)] sm:text-sm">التواريخ</span>
+        <span className="mb-2 block text-xs font-semibold tracking-[0.12em] text-[var(--color-muted)] sm:text-sm">{language === 'ar' ? 'التواريخ' : 'Dates'}</span>
         <div className="grid grid-cols-2 gap-2">
           <input
             type="date"
@@ -78,7 +72,7 @@ export default function MarketplaceFilters({ value, destinationOptions, serviceT
       </label>
 
       <SelectField
-        label="المسافرون"
+        label={language === 'ar' ? 'المسافرون' : 'Travellers'}
         value={value.travelers}
         options={travelersOptions}
         onChange={(travelers) => onChange({ ...value, travelers })}

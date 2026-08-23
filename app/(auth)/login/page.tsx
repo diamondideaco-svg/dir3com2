@@ -6,6 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { getPostLoginDestination } from '@/lib/auth/redirect';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
+
+const loginCopy = {
+    ar: { loading: 'جاري التحميل...', title: 'تسجيل الدخول', welcome: 'مرحباً بعودتك إلى dir3com', google: 'تسجيل الدخول بـ Google', or: 'أو', email: 'البريد الإلكتروني', password: 'كلمة المرور', submit: 'تسجيل الدخول', submitting: 'جاري تسجيل الدخول...', noAccount: 'ليس لديك حساب؟', create: 'إنشاء حساب جديد', googleError: 'تعذر تسجيل الدخول عبر Google', googleUrlError: 'لم يتم إنشاء رابط التوجيه' },
+    en: { loading: 'Loading...', title: 'Sign in', welcome: 'Welcome back to dir3com', google: 'Continue with Google', or: 'or', email: 'Email', password: 'Password', submit: 'Sign in', submitting: 'Signing in...', noAccount: "Don't have an account?", create: 'Create an account', googleError: 'Google sign-in failed', googleUrlError: 'A redirect link was not created' },
+} as const;
 
 export default function LoginPage() {
     return (
@@ -17,6 +23,8 @@ export default function LoginPage() {
 
 function LoginContent() {
     const router = useRouter();
+    const { language, direction } = useLanguage();
+    const t = loginCopy[language];
     const searchParams = useSearchParams();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -70,7 +78,7 @@ function LoginContent() {
         });
 
         if (error) {
-            setError(`❌ Google: ${error.message}`);
+            setError(`${t.googleError}: ${error.message}`);
             setLoading(false);
             return;
         }
@@ -78,7 +86,7 @@ function LoginContent() {
         if (data?.url) {
             window.location.assign(data.url);
         } else {
-            setError('❌ Google: لم يتم إنشاء رابط التوجيه');
+            setError(`${t.googleError}: ${t.googleUrlError}`);
             setLoading(false);
         }
     };
@@ -97,7 +105,7 @@ function LoginContent() {
             justifyContent: 'center',
             padding: '40px 20px',
             fontFamily: 'var(--font-arabic)',
-            direction: 'rtl'
+            direction
         }}>
             <div style={{
                 maxWidth: '420px',
@@ -115,10 +123,10 @@ function LoginContent() {
                     textAlign: 'center',
                     marginBottom: '5px'
                 }}>
-                    تسجيل الدخول
+                    {t.title}
                 </h1>
                 <p style={{ color: '#6B7280', textAlign: 'center', marginBottom: '30px' }}>
-                    مرحباً بعودتك إلى DIR3COM
+                    {t.welcome}
                 </p>
 
                 {error && (
@@ -161,18 +169,18 @@ function LoginContent() {
                         <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
                         <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
                     </svg>
-                    {loading ? 'جاري التحميل...' : 'تسجيل الدخول بـ Google'}
+                    {loading ? t.loading : t.google}
                 </button>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', margin: '20px 0' }}>
                     <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(212,175,55,0.22)' }} />
-                    <span style={{ color: '#64748B', fontSize: '0.85rem' }}>أو</span>
+                    <span style={{ color: '#64748B', fontSize: '0.85rem' }}>{t.or}</span>
                     <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(212,175,55,0.22)' }} />
                 </div>
 
                 <form onSubmit={handleEmailLogin}>
                     <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>البريد الإلكتروني</label>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>{t.email}</label>
                         <input
                             type="email"
                             value={email}
@@ -193,7 +201,7 @@ function LoginContent() {
                     </div>
 
                     <div style={{ marginBottom: '20px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>كلمة المرور</label>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>{t.password}</label>
                         <input
                             type="password"
                             value={password}
@@ -228,14 +236,14 @@ function LoginContent() {
                             cursor: 'pointer'
                         }}
                     >
-                        {loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
+                        {loading ? t.submitting : t.submit}
                     </button>
                 </form>
 
                 <p style={{ textAlign: 'center', color: '#6B7280', marginTop: '20px' }}>
-                    ليس لديك حساب؟{' '}
+                    {t.noAccount}{' '}
                     <Link href="/register" style={{ color: '#D4AF37', textDecoration: 'none' }}>
-                        إنشاء حساب جديد
+                        {t.create}
                     </Link>
                 </p>
             </div>
