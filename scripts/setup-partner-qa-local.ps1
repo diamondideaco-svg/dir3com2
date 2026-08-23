@@ -219,6 +219,7 @@ Write-Output 'SYNTHETIC QA EMAIL = partner.qa.local@example.invalid'
 Write-Output 'LOCAL QA PASSWORD = stored in script for local-only QA; do not use outside local stack'
 
 if ($StartApp) {
+  $serviceToken = New-LocalServiceToken (Get-LocalJwtSecret)
   $env:NEXT_PUBLIC_SUPABASE_URL = $ApiUrl
   $env:NEXT_PUBLIC_SUPABASE_ANON_KEY = $serviceToken
   $env:SUPABASE_URL = $ApiUrl
