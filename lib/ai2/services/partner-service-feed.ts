@@ -155,8 +155,18 @@ export async function getDabraServiceFeed(snapshot?: MarketplaceSnapshot): Promi
   const marketplace = snapshot ?? await getMarketplaceSnapshot();
   const platform = marketplace.services.map(normalizePlatformService).filter((service): service is DabraNormalizedService => service !== null);
   const partner = await getPartnerServices();
-  const seen = new Set(platform.map((service) => `${service.sourceType}:${service.serviceId}`));
-  return [...platform, ...partner.filter((service) => !seen.has(`${service.sourceType}:${service.serviceId}`))];
+  return mergeDabraServices(platform, partner);
+}
+
+export function mergeDabraServices(...groups: DabraNormalizedService[][]): DabraNormalizedService[] {
+  const merged = new Map<string, DabraNormalizedService>();
+  for (const group of groups) {
+    for (const service of group) {
+      const key = `${service.sourceType}:${service.serviceId}`;
+      if (!merged.has(key)) merged.set(key, service);
+    }
+  }
+  return [...merged.values()];
 }
 
 export function buildDabraServiceContext(services: DabraNormalizedService[], language: 'ar' | 'en') {

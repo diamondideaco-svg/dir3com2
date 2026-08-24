@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildDabraServiceContext,
   isEligiblePartnerService,
+  mergeDabraServices,
   normalizePartnerService,
 } from '@/lib/ai2/services/partner-service-feed';
 
@@ -73,4 +74,46 @@ test('service context uses stored language and honest fallback for missing trans
   assert.match(englishContext, /location=Riyadh/);
   assert.match(englishContext, /provider=Approved Mobility Co/);
   assert.doesNotMatch(englishContext, /email|phone|admin|review|partner-1/i);
+});
+
+test('service context preserves exact and near-matchable discovery facts', () => {
+  const normalized = normalizePartnerService(product, availability, partner, 'airport-transfers');
+  assert.ok(normalized);
+  const context = buildDabraServiceContext([normalized], 'en');
+
+  assert.match(context, /Private transfer/);
+  assert.match(context, /Private airport transfer/);
+  assert.match(context, /category=airport-transfers/);
+  assert.match(context, /location=Riyadh/);
+  assert.match(context, /price=250 SAR/);
+  assert.match(context, /provider=Approved Mobility Co/);
+});
+
+test('duplicate stable identities are emitted once while platform and partner namespaces remain distinct', () => {
+  const normalized = normalizePartnerService(product, availability, partner, 'cars');
+  assert.ok(normalized);
+  const platform = { ...normalized, sourceType: 'platform' as const };
+  const merged = mergeDabraServices([normalized, normalized], [platform, platform]);
+
+  assert.equal(merged.length, 2);
+  assert.deepEqual(merged.map((service) => `${service.sourceType}:${service.serviceId}`), [
+    'partner:partner-product-1',
+    'platform:partner-product-1',
+  ]);
+});
+
+test('missing description, location, provider, and price remain honest', () => {
+  const normalized = normalizePartnerService(
+    { ...product, description_ar: null, description_en: null, city: null, base_price: null },
+    { ...availability, city: null },
+    { ...partner, company_name: null },
+    'cars',
+  );
+  assert.ok(normalized);
+  const context = buildDabraServiceContext([normalized], 'en');
+
+  assert.match(context, /\| Unavailable \| category=cars/);
+  assert.match(context, /location=unknown/);
+  assert.match(context, /price=unavailable/);
+  assert.match(context, /provider=unavailable/);
 });
