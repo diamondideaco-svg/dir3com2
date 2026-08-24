@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FiCloud, FiDollarSign, FiGlobe, FiMenu, FiMoon, FiSearch, FiSun, FiType, FiX } from 'react-icons/fi';
+import { FiCloud, FiCompass, FiDollarSign, FiGlobe, FiMenu, FiMoon, FiSearch, FiSun, FiType, FiX } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
 const copy = {
@@ -22,6 +22,7 @@ const copy = {
     search: 'البحث',
     weather: 'الطقس',
     currency: 'العملات',
+    maps: 'الخريطة',
     theme: 'تبديل المظهر',
     accessibility: 'تكبير النص',
   },
@@ -39,6 +40,7 @@ const copy = {
     search: 'Search',
     weather: 'Weather',
     currency: 'Currency',
+    maps: 'Maps',
     theme: 'Toggle theme',
     accessibility: 'Increase text size',
   },
@@ -114,6 +116,7 @@ export default function Header() {
           <Link href="/services#service-search" className={utilityClass} aria-label={t.search}><FiSearch /></Link>
           <button type="button" onClick={() => scrollToTool('home-weather')} className={utilityClass} aria-label={t.weather}><FiCloud /></button>
           <button type="button" onClick={() => scrollToTool('home-currency')} className={utilityClass} aria-label={t.currency}><FiDollarSign /></button>
+          <a href="https://www.google.com/maps/search/?api=1&query=Riyadh%2C%20Saudi%20Arabia" target="_blank" rel="noreferrer noopener" className={utilityClass} aria-label={t.maps}><FiCompass /></a>
           <button type="button" onClick={toggleLanguage} className={utilityClass} aria-label={language === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}><FiGlobe /><span className="ms-1">{language === 'ar' ? 'EN' : 'AR'}</span></button>
           <button type="button" onClick={toggleTheme} className={utilityClass} aria-label={t.theme} aria-pressed={dark}>{dark ? <FiSun /> : <FiMoon />}</button>
           <button type="button" onClick={toggleTextSize} className={utilityClass} aria-label={t.accessibility} aria-pressed={largeText}><FiType /></button>
@@ -136,6 +139,7 @@ export default function Header() {
               <Link href="/services#service-search" className={utilityClass} aria-label={t.search}><FiSearch /></Link>
               <button type="button" onClick={() => scrollToTool('home-weather')} className={utilityClass} aria-label={t.weather}><FiCloud /></button>
               <button type="button" onClick={() => scrollToTool('home-currency')} className={utilityClass} aria-label={t.currency}><FiDollarSign /></button>
+              <a href="https://www.google.com/maps/search/?api=1&query=Riyadh%2C%20Saudi%20Arabia" target="_blank" rel="noreferrer noopener" className={utilityClass} aria-label={t.maps}><FiCompass /></a>
               <button type="button" onClick={toggleLanguage} className={utilityClass} aria-label={language === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}><FiGlobe /> {language === 'ar' ? 'EN' : 'AR'}</button>
               <button type="button" onClick={toggleTheme} className={utilityClass} aria-label={t.theme}>{dark ? <FiSun /> : <FiMoon />}</button>
               <button type="button" onClick={toggleTextSize} className={utilityClass} aria-label={t.accessibility}><FiType /></button>
