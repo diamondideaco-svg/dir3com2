@@ -918,6 +918,25 @@ button {
   background: #fcfaf6;
 }
 
+.home-service-image {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+  border-radius: 0.875rem;
+  background: #f5eee3;
+}
+
+.home-service-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
 .drive-core-services {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

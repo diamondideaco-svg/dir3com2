@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   DEFAULT_LANGUAGE,
   LANGUAGE_COOKIE_NAME,
@@ -39,6 +40,7 @@ function persistLanguage(language: AppLanguage) {
 }
 
 export function LanguageProvider({ children, initialLanguage = DEFAULT_LANGUAGE }: { children: ReactNode; initialLanguage?: AppLanguage }) {
+  const router = useRouter();
   const [language, setLanguageState] = useState<AppLanguage>(initialLanguage);
   const initializedRef = useRef(false);
 
@@ -60,10 +62,21 @@ export function LanguageProvider({ children, initialLanguage = DEFAULT_LANGUAGE 
     () => ({
       language,
       direction: languageDirection(language),
-      setLanguage: (nextLanguage) => setLanguageState(nextLanguage),
-      toggleLanguage: () => setLanguageState((current) => (current === 'ar' ? 'en' : 'ar')),
+      setLanguage: (nextLanguage) => {
+        initializedRef.current = true;
+        persistLanguage(nextLanguage);
+        setLanguageState(nextLanguage);
+        router.refresh();
+      },
+      toggleLanguage: () => {
+        const nextLanguage = language === 'ar' ? 'en' : 'ar';
+        initializedRef.current = true;
+        persistLanguage(nextLanguage);
+        setLanguageState(nextLanguage);
+        router.refresh();
+      },
     }),
-    [language],
+    [language, router],
   );
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;

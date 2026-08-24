@@ -81,13 +81,13 @@ export default function PlatformFoundationHome({
 
   return (
     <div id="home" className={`home-identity overflow-x-hidden bg-[#fcfaf6] text-[var(--color-navy)]${useStandardServiceImages ? ' home-identity--standard-services' : ''}`} dir={direction}>
-      <section className="bg-[linear-gradient(180deg,#fffdf9_0%,#fcfaf6_76%,#f8f1e6_100%)] px-4 py-8 sm:px-6 lg:px-10">
+      <section className="bg-[linear-gradient(180deg,#fffdf9_0%,#fcfaf6_76%,#f8f1e6_100%)] px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
         <div className="mx-auto w-full max-w-[1240px] overflow-hidden px-0 sm:px-2 lg:px-10">
-          <div className="grid min-h-[560px] grid-cols-1 items-stretch gap-6 overflow-hidden lg:min-h-[600px] lg:grid-cols-[minmax(0,55fr)_minmax(420px,45fr)] lg:gap-8" dir="ltr">
+          <div className="grid grid-cols-1 items-center gap-8 overflow-hidden lg:grid-cols-[minmax(0,1.05fr)_minmax(380px,0.95fr)] lg:gap-10" dir="ltr">
             <div className="flex min-w-0 items-center justify-center" dir={direction}>
-              <div className="w-full max-w-[72%] min-w-0">
-                <h1 className="text-[clamp(2.875rem,3.4vw,3.375rem)] font-semibold leading-[1.12] text-[var(--color-navy)]">{t.heroTitle}</h1>
-                <p className="mt-4 max-w-[60ch] text-[clamp(1.125rem,1.35vw,1.25rem)] leading-[1.7] text-[#4d5663]">{t.heroBody}</p>
+              <div className="w-full min-w-0 max-w-[36rem]">
+                <h1 className="text-[clamp(2.5rem,3.4vw,3.375rem)] font-semibold leading-[1.12] text-[var(--color-navy)]">{useStandardServiceImages ? (language === 'ar' ? 'خدمات dir3com' : 'dir3com services') : t.heroTitle}</h1>
+                <p className="mt-4 max-w-[60ch] text-[clamp(1.0625rem,1.3vw,1.2rem)] leading-[1.7] text-[#4d5663]">{useStandardServiceImages ? (language === 'ar' ? 'ابحث أولاً، ثم استخدم معلومات الطقس والعملات والخريطة قبل استكشاف فئات الخدمة.' : 'Search first, then use weather, currency, and maps before exploring service categories.') : t.heroBody}</p>
 
                 <p className="mt-4 max-w-[60ch] text-sm leading-7 text-[var(--home-gold)]">{t.dabraTitle} - {t.dabraBody}</p>
 
@@ -99,15 +99,16 @@ export default function PlatformFoundationHome({
               </div>
             </div>
 
-            <div className="relative min-h-[540px] overflow-hidden rounded-3xl lg:min-h-[600px]">
+            <div className="relative aspect-[4/3] max-h-[480px] min-h-[320px] overflow-hidden rounded-3xl border border-[var(--home-gold)]/20 bg-[#f5eee3] sm:aspect-[16/10] lg:aspect-[4/3]">
               <Image
                 src="/brand/runtime/DABRA emoji.png"
                 alt="الدبرة"
-                fill
+                width={1024}
+                height={1024}
                 priority
                 sizes="(min-width: 1024px) 45vw, 100vw"
                 unoptimized
-                className="object-cover object-[56%_center]"
+                className="h-full w-full object-cover object-[56%_center]"
               />
             </div>
           </div>

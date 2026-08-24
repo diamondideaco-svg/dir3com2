@@ -257,7 +257,7 @@ export default function MarketplaceExplorer({
                   setPage(1);
                 }}
                 aria-pressed={activeCategory === option.category}
-                className={`rounded-[22px] border px-4 py-4 text-right transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 ${
+                className={`rounded-[22px] border px-4 py-4 text-start transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 ${
                   activeCategory === option.category
                     ? 'border-[var(--color-gold)]/45 bg-[var(--color-gold)]/14'
                     : 'border-[color:var(--color-border)] bg-white/74 hover:border-[var(--color-gold)]/35'
