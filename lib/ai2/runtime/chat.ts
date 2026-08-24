@@ -13,6 +13,7 @@ import { callOpenAIResponsesWebSearch, type OpenAIWebErrorCategory } from '@/lib
 import { callQwenWebSearch, type QwenWebErrorCategory } from '@/lib/ai2/runtime/qwen-web';
 import { callXAIWebSearch, type XAIWebErrorCategory } from '@/lib/ai2/runtime/xai-web';
 import { getMarketplaceSnapshot } from '@/lib/marketplace/server';
+import { buildDabraServiceContext, getDabraServiceFeed } from '@/lib/ai2/services/partner-service-feed';
 
 export type AI2ChatLanguage = 'ar' | 'en';
 
@@ -300,6 +301,14 @@ async function buildMarketplaceGroundingNote(language: AI2ChatLanguage): Promise
   }
 }
 
+async function buildDabraServiceFeedNote(language: AI2ChatLanguage): Promise<string> {
+  try {
+    return buildDabraServiceContext(await getDabraServiceFeed(), language);
+  } catch {
+    return '';
+  }
+}
+
 // V6: trip-planning structure hint.
 const TRIP_PLANNING_PATTERNS = [
   /\b(?:trip|itinerary|travel plan|plan a trip|vacation plan)\b/i,
@@ -423,10 +432,12 @@ export async function buildAI2ChatResponse(
     // Conversational asks skip forced citation grounding; the model still answers with the same canonical persona/prompt.
     const detectedServices = classifyCanonicalServices(message);
     const marketplaceNote = detectedServices.length > 0 ? await buildMarketplaceGroundingNote(language) : '';
+    const serviceFeedNote = detectedServices.length > 0 ? await buildDabraServiceFeedNote(language) : '';
     const contextSections = [
       CONCISE_ANSWER_HINT[language],
       CANONICAL_SERVICES_NOTE[language],
       marketplaceNote,
+      serviceFeedNote,
       isTripPlanningIntent(message) ? TRIP_PLANNER_NOTE[language] : '',
       asksAboutTravelWallet(message) ? TRAVEL_WALLET_NOTE[language] : '',
       buildAccountContextNote(account, language),
