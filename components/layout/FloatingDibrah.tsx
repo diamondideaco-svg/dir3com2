@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { FiExternalLink, FiMessageCircle, FiMic, FiMicOff, FiSend, FiX } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { useDibrahSpeech } from '@/components/layout/useDibrahSpeech';
 
 type DibrahAssistantContext = {
@@ -66,6 +67,7 @@ function presentAssistantAnswer(answer: string | undefined) {
 }
 
 export default function FloatingDibrah() {
+  const { language } = useLanguage();
   const controlRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef({ active: false, moved: false, pointerId: -1, startX: 0, startY: 0, originX: 0, originY: 0 });
   const pointerTargetRef = useRef<HTMLButtonElement | null>(null);
@@ -360,7 +362,7 @@ export default function FloatingDibrah() {
               </button>
             </div>
 
-            <div ref={messagesRef} className="dabra-messages max-h-[62vh] flex-1 overflow-y-auto px-4 py-3">
+            <div ref={messagesRef} className="dabra-messages max-h-[62vh] flex-1 overflow-y-auto px-4 py-3" role="log" aria-live="polite" aria-label={language === 'ar' ? 'محادثة الدبرة' : 'DABRA conversation'}>
               <div className="mb-3 flex flex-wrap gap-2 text-xs">
                 <span className="rounded-full border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/10 px-3 py-1.5 text-[var(--color-navy)]">
                   {assistantContext?.dataQuality === 'live-verified'
@@ -415,7 +417,8 @@ export default function FloatingDibrah() {
             </div>
 
             <div className="border-t border-[color:var(--color-border)] px-4 py-3">
-              {sendError ? <p className="mb-2 text-xs text-rose-700">{sendError}</p> : null}
+              {sendError ? <p role="alert" className="mb-2 text-xs text-rose-700">{sendError}</p> : null}
+              <p className="sr-only" role="status" aria-live="polite">{sending ? (language === 'ar' ? 'جارٍ إعداد الرد' : 'Preparing a response') : ''}</p>
               <div className="flex items-end gap-2 rounded-[20px] border border-[color:var(--color-border)] bg-white/70 px-3 py-2">
                 <FiMessageCircle className="text-[var(--color-gold)]" />
                 <textarea
@@ -438,7 +441,9 @@ export default function FloatingDibrah() {
                 />
                 <button
                   type="button"
-                  aria-label={speech.status === 'listening' ? 'إيقاف الإدخال الصوتي' : 'الإدخال الصوتي'}
+                  aria-label={speech.status === 'listening'
+                    ? (language === 'ar' ? 'إيقاف الإدخال الصوتي' : 'Stop voice input')
+                    : (language === 'ar' ? 'الإدخال الصوتي' : 'Voice input')}
                   aria-pressed={speech.status === 'listening'}
                   onClick={() => (speech.status === 'listening' ? speech.stopListening() : speech.startListening())}
                   disabled={speech.status === 'unsupported'}
@@ -448,7 +453,7 @@ export default function FloatingDibrah() {
                 </button>
                 <button
                   type="button"
-                  aria-label="إرسال"
+                  aria-label={language === 'ar' ? 'إرسال' : 'Send'}
                   onClick={() => void sendDraft()}
                   disabled={sending || !draft.trim()}
                   className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-strong)] text-[var(--color-light)] transition hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)] disabled:cursor-not-allowed disabled:opacity-50"

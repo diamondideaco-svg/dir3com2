@@ -80,7 +80,12 @@ export default function Header() {
   }
 
   function scrollToTool(id: string) {
-    document.getElementById(id)?.scrollIntoView({ block: 'center' });
+    const target = document.getElementById(id);
+    if (target) {
+      target.scrollIntoView({ block: 'center' });
+      return;
+    }
+    window.location.assign(`/#${id}`);
   }
 
   const utilityClass = 'inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-[#d4af37]/25 bg-white px-2 text-sm font-semibold text-[#2a2118] transition hover:border-[#d4af37] hover:text-[#a66d10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/40';
@@ -129,9 +134,11 @@ export default function Header() {
             {t.nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className="rounded-xl border border-[#d4af37]/15 bg-white px-4 py-3 text-sm font-semibold text-[#2a2118]">{item.label}</Link>)}
             <div className="mt-2 flex flex-wrap gap-2 md:hidden">
               <Link href="/services#service-search" className={utilityClass} aria-label={t.search}><FiSearch /></Link>
-              <button type="button" onClick={toggleLanguage} className={utilityClass}><FiGlobe /> {language === 'ar' ? 'EN' : 'AR'}</button>
-              <button type="button" onClick={toggleTheme} className={utilityClass}>{dark ? <FiSun /> : <FiMoon />}</button>
-              <button type="button" onClick={toggleTextSize} className={utilityClass}><FiType /></button>
+              <button type="button" onClick={() => scrollToTool('home-weather')} className={utilityClass} aria-label={t.weather}><FiCloud /></button>
+              <button type="button" onClick={() => scrollToTool('home-currency')} className={utilityClass} aria-label={t.currency}><FiDollarSign /></button>
+              <button type="button" onClick={toggleLanguage} className={utilityClass} aria-label={language === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}><FiGlobe /> {language === 'ar' ? 'EN' : 'AR'}</button>
+              <button type="button" onClick={toggleTheme} className={utilityClass} aria-label={t.theme}>{dark ? <FiSun /> : <FiMoon />}</button>
+              <button type="button" onClick={toggleTextSize} className={utilityClass} aria-label={t.accessibility}><FiType /></button>
             </div>
             <Link href={loginTarget()} className="mt-2 inline-flex min-h-11 items-center justify-center rounded-full bg-[#c89536] px-5 text-sm font-bold text-white sm:hidden">{t.signIn}</Link>
           </nav>
