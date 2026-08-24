@@ -53,6 +53,10 @@ function clean(value: unknown, max: number) {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 }
 
+function tokens(value: string) {
+  return value.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((token) => token.length > 1);
+}
+
 export function isEligiblePartnerService(input: {
   productStatus?: unknown;
   partnerStatus?: unknown;
@@ -70,7 +74,8 @@ export function isEligiblePartnerService(input: {
 }
 
 function normalizeCategory(category: string) {
-  return category.trim().toLowerCase().replace(/[_ ]/g, '-').slice(0, 80) || 'unknown';
+  const trimmed = category.trim().slice(0, 80);
+  return /^[a-z0-9_-]+$/i.test(trimmed) ? trimmed.toLowerCase().replace(/_/g, '-') : trimmed || 'unknown';
 }
 
 export function normalizePartnerService(product: PartnerProduct, availability: AvailabilityRow, partner: PartnerRow, category: string, media: string[] = []): DabraNormalizedService | null {
@@ -120,8 +125,13 @@ function normalizePlatformService(service: MarketplaceService): DabraNormalizedS
   };
 }
 
-async function getPartnerServices(): Promise<DabraNormalizedService[]> {
-  if (!supabaseAdmin) return [];
+type PartnerServicesResult = {
+  services: DabraNormalizedService[];
+  productIds: Set<string>;
+};
+
+async function getPartnerServices(): Promise<PartnerServicesResult> {
+  if (!supabaseAdmin) return { services: [], productIds: new Set() };
 
   const [{ data: products }, { data: availability }, { data: partners }, { data: categories }] = await Promise.all([
     supabaseAdmin.from('products').select('id,slug,name_ar,name_en,description_ar,description_en,city,base_price,currency,status,synthetic,category_id'),
@@ -130,17 +140,22 @@ async function getPartnerServices(): Promise<DabraNormalizedService[]> {
     supabaseAdmin.from('product_categories').select('id,slug,name_en,name_ar'),
   ]);
 
-  const partnerById = new Map((partners as PartnerRow[] ?? []).map((partner) => [String(partner.id), partner]));
-  const categoryById = new Map((categories as Array<{ id?: string; slug?: string; name_en?: string; name_ar?: string }> ?? []).map((category) => [String(category.id), category.slug || category.name_en || category.name_ar || 'unknown']));
+  const productRows = Array.isArray(products) ? products as PartnerProduct[] : [];
+  const availabilityRows = Array.isArray(availability) ? availability as AvailabilityRow[] : [];
+  const partnerRows = Array.isArray(partners) ? partners as PartnerRow[] : [];
+  const categoryRows = Array.isArray(categories) ? categories as Array<{ id?: string; slug?: string; name_en?: string; name_ar?: string }> : [];
+  const partnerById = new Map(partnerRows.map((partner) => [String(partner.id), partner]));
+  const categoryById = new Map(categoryRows.map((category) => [String(category.id), category.name_en || category.name_ar || category.slug || 'unknown']));
   const rowsByProduct = new Map<string, AvailabilityRow[]>();
-  for (const row of (availability as AvailabilityRow[] ?? [])) {
+  for (const row of availabilityRows) {
     const key = String(row.product_id ?? '');
     if (!key) continue;
     rowsByProduct.set(key, [...(rowsByProduct.get(key) ?? []), row]);
   }
 
   const result: DabraNormalizedService[] = [];
-  for (const product of (products as PartnerProduct[] ?? [])) {
+  const productIds = new Set(productRows.map((product) => String(product.id)).filter(Boolean));
+  for (const product of productRows) {
     for (const row of rowsByProduct.get(String(product.id)) ?? []) {
       const partner = partnerById.get(String(row.partner_id));
       if (!partner) continue;
@@ -148,14 +163,17 @@ async function getPartnerServices(): Promise<DabraNormalizedService[]> {
       if (normalized) result.push(normalized);
     }
   }
-  return result;
+  return { services: result, productIds };
 }
 
 export async function getDabraServiceFeed(snapshot?: MarketplaceSnapshot): Promise<DabraNormalizedService[]> {
   const marketplace = snapshot ?? await getMarketplaceSnapshot();
-  const platform = marketplace.services.map(normalizePlatformService).filter((service): service is DabraNormalizedService => service !== null);
   const partner = await getPartnerServices();
-  return mergeDabraServices(platform, partner);
+  const platform = marketplace.services
+    .filter((service) => !partner.productIds.has(String(service.id)))
+    .map(normalizePlatformService)
+    .filter((service): service is DabraNormalizedService => service !== null);
+  return mergeDabraServices(platform, partner.services);
 }
 
 export function mergeDabraServices(...groups: DabraNormalizedService[][]): DabraNormalizedService[] {
@@ -179,4 +197,24 @@ export function buildDabraServiceContext(services: DabraNormalizedService[], lan
     return `${service.serviceId} | ${title} | ${description} | category=${service.category} | location=${service.location} | price=${price} | availability=${service.availability} | provider=${provider} | source=${service.sourceType}`;
   });
   return lines.length ? `${label}:\n${lines.join('\n')}` : '';
+}
+
+export function findDabraServiceMatches(services: DabraNormalizedService[], query: string) {
+  const queryTokens = new Set(tokens(query));
+  const scored = services
+    .map((service) => {
+      const searchable = [
+        ...Object.values(service.title),
+        ...Object.values(service.description),
+        service.category,
+        service.location,
+        service.providerName ?? '',
+      ].join(' ');
+      const matchedTokens = tokens(searchable).filter((token) => queryTokens.has(token));
+      return { service, score: new Set(matchedTokens).size };
+    })
+    .filter((match) => match.score > 0)
+    .sort((left, right) => right.score - left.score);
+  const bestScore = scored[0]?.score ?? 0;
+  return scored.filter((match) => match.score === bestScore).slice(0, 3).map((match) => match.service);
 }

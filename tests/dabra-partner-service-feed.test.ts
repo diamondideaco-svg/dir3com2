@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { buildAI2ChatResponse } from '@/lib/ai2/runtime/chat';
 import {
   buildDabraServiceContext,
+  findDabraServiceMatches,
   isEligiblePartnerService,
   mergeDabraServices,
   normalizePartnerService,
 } from '@/lib/ai2/services/partner-service-feed';
+import { isServiceDiscoveryIntent } from '@/lib/ai2/runtime/chat';
 
 const product = {
   id: 'partner-product-1',
@@ -89,6 +92,24 @@ test('service context preserves exact and near-matchable discovery facts', () =>
   assert.match(context, /provider=Approved Mobility Co/);
 });
 
+test('service context preserves human-readable stored category labels', () => {
+  const normalized = normalizePartnerService(product, availability, partner, 'Hotel & Stay');
+  assert.ok(normalized);
+
+  assert.equal(normalized.category, 'Hotel & Stay');
+  assert.match(buildDabraServiceContext([normalized], 'en'), /category=Hotel & Stay/);
+});
+
+test('service matching prefers the best exact or near title instead of a shared QA marker', () => {
+  const first = normalizePartnerService({ ...product, name_en: 'QA Nile Dinner', name_ar: 'عشاء النيل' }, availability, partner, 'cars');
+  const second = normalizePartnerService({ ...product, id: 'partner-product-2', name_en: 'Boutique stay', name_ar: 'إقامة فندقية' }, { ...availability, product_id: 'partner-product-2' }, partner, 'hotels');
+  assert.ok(first);
+  assert.ok(second);
+
+  assert.deepEqual(findDabraServiceMatches([first, second], 'Find QA Nile Dinner').map((service) => service.serviceId), ['partner-product-1']);
+  assert.deepEqual(findDabraServiceMatches([first, second], 'boutique stay').map((service) => service.serviceId), ['partner-product-2']);
+});
+
 test('duplicate stable identities are emitted once while platform and partner namespaces remain distinct', () => {
   const normalized = normalizePartnerService(product, availability, partner, 'cars');
   assert.ok(normalized);
@@ -116,4 +137,48 @@ test('missing description, location, provider, and price remain honest', () => {
   assert.match(context, /location=unknown/);
   assert.match(context, /price=unavailable/);
   assert.match(context, /provider=unavailable/);
+});
+
+test('service-discovery queries return a local grounded partner answer before provider fallback', async () => {
+  const response = await buildAI2ChatResponse('Find QA Nile Dinner');
+
+  assert.equal(response.provider, 'local');
+  assert.notEqual(response.groundingStatus, 'fallback-no-source');
+  assert.ok(response.sources.length > 0, 'service-discovery should yield at least one local source');
+  assert.match(response.answer, /QA Nile Dinner|Nile Dinner/i);
+});
+
+test('Arabic service-discovery requests are classified and grounded locally', async () => {
+  const categoryQuery = 'ما هي فئة إقامة فندقية تجريبية؟';
+  const locationQuery = 'ما الخدمات المتاحة في القاهرة؟';
+  const priceQuery = 'كم سعر QA Nile Dinner؟';
+  const providerQuery = 'ما الخدمات التي يقدمها DIR3COM DABRA QA Partner؟';
+  const findQuery = 'ابحث عن QA Nile Dinner';
+  const nonServiceQuery = 'كيف حالك اليوم؟';
+
+  assert.equal(isServiceDiscoveryIntent(categoryQuery), true);
+  assert.equal(isServiceDiscoveryIntent(locationQuery), true);
+  assert.equal(isServiceDiscoveryIntent(priceQuery), true);
+  assert.equal(isServiceDiscoveryIntent(providerQuery), true);
+  assert.equal(isServiceDiscoveryIntent(findQuery), true);
+  assert.equal(isServiceDiscoveryIntent(nonServiceQuery), false);
+
+  const categoryResponse = await buildAI2ChatResponse(categoryQuery);
+  assert.equal(categoryResponse.provider, 'local');
+  assert.notEqual(categoryResponse.groundingStatus, 'fallback-no-source');
+  assert.ok(categoryResponse.sources.length > 0);
+  assert.match(categoryResponse.answer, /Hotel & Stay|فئة|إقامة|Boutique Stay|فندقي/i);
+
+  const findResponse = await buildAI2ChatResponse(findQuery);
+  assert.equal(findResponse.provider, 'local');
+  assert.notEqual(findResponse.groundingStatus, 'fallback-no-source');
+  assert.match(findResponse.answer, /عشاء النيل التجريبي|QA Nile Dinner|Nile Dinner|DIR3COM DABRA QA Partner/i);
+});
+
+test('no service match still stays on the no-source fallback path', async () => {
+  const response = await buildAI2ChatResponse('qzvxx blorf nyrt ulm qxw 98431');
+
+  assert.equal(response.provider, 'local');
+  assert.equal(response.groundingStatus, 'fallback-no-source');
+  assert.deepEqual(response.sources, []);
 });

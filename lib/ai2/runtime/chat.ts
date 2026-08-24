@@ -13,7 +13,7 @@ import { callOpenAIResponsesWebSearch, type OpenAIWebErrorCategory } from '@/lib
 import { callQwenWebSearch, type QwenWebErrorCategory } from '@/lib/ai2/runtime/qwen-web';
 import { callXAIWebSearch, type XAIWebErrorCategory } from '@/lib/ai2/runtime/xai-web';
 import { getMarketplaceSnapshot } from '@/lib/marketplace/server';
-import { buildDabraServiceContext, getDabraServiceFeed } from '@/lib/ai2/services/partner-service-feed';
+import { buildDabraServiceContext, findDabraServiceMatches, getDabraServiceFeed, type DabraNormalizedService } from '@/lib/ai2/services/partner-service-feed';
 
 export type AI2ChatLanguage = 'ar' | 'en';
 
@@ -163,6 +163,18 @@ function classifyDabraIntent(message: string): DabraChatIntent {
   return FRESHNESS_INTENT_PATTERNS.some((pattern) => pattern.test(normalized)) ? 'fresh-web' : 'general';
 }
 
+const SERVICE_DISCOVERY_INTENT_PATTERNS = [
+  /\b(?:find|search|show|list|offer|offers|category|categories|where|available|cost|price|pricing|provider|provides|service|services|location|city)\b/i,
+  /(?:ابحث|اعثر|أوجد|اعرض|عرض|خدمات|خدمه|خدمة|فئه|فئات|فئ|تصنيف|تصنيفات|متاح|المتاح|السعر|كم سعر|ما سعر|التكلفة|المزود|مقدم الخدمة|مقدم الخدمه|من يقدم|من يوفر|اين|وين|خدمات في|خدمة في|ما هي خدمة|ما خدمة|ما هي الخدمات|ما الخدمات|في القاهرة|في الرياض|في دبي|في جدة|اقامه|إقامة|فندقي|فندقية)/,
+] as const;
+
+export function isServiceDiscoveryIntent(message: string): boolean {
+  const normalized = normalizeIntentText(message);
+  const rawText = message.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized && !rawText) return false;
+  return SERVICE_DISCOVERY_INTENT_PATTERNS.some((pattern) => pattern.test(normalized) || pattern.test(rawText));
+}
+
 const DETAIL_REQUEST_PATTERNS = [
   /\b(?:detail|detailed|elaborate|elaborated|in depth|comprehensive|full plan|long answer|explain in detail)\b/,
   /(?:بالتفصيل|تفصيلي|فصّل|فصل لي|بالتفاصيل|موسع|شرح مطول|شرح مفصل|خطة كاملة|اشرح.{0,15}بالتفصيل)/,
@@ -301,12 +313,31 @@ async function buildMarketplaceGroundingNote(language: AI2ChatLanguage): Promise
   }
 }
 
-async function buildDabraServiceFeedNote(language: AI2ChatLanguage): Promise<string> {
-  try {
-    return buildDabraServiceContext(await getDabraServiceFeed(), language);
-  } catch {
-    return '';
-  }
+function buildDabraServiceFeedNote(services: DabraNormalizedService[], language: AI2ChatLanguage): string {
+  return buildDabraServiceContext(services, language);
+}
+
+function composePartnerServiceAnswer(services: DabraNormalizedService[], language: AI2ChatLanguage, message: string): AI2ChatResponse {
+  const answers = services.map((service) => {
+    const title = service.title[language] || service.title.en || service.title.ar || (language === 'ar' ? 'خدمة غير معروفة' : 'Unknown service');
+    const description = service.description[language] || service.description.en || service.description.ar || (language === 'ar' ? 'الوصف غير متاح' : 'Description unavailable');
+    const price = service.pricing.amount === null ? (language === 'ar' ? 'السعر غير متاح' : 'Price unavailable') : `${service.pricing.amount} ${service.pricing.currency}`;
+    const provider = service.providerName || (language === 'ar' ? 'مقدم الخدمة غير متاح' : 'Provider unavailable');
+    const location = service.location === 'unknown' ? (language === 'ar' ? 'الموقع غير متاح' : 'Location unavailable') : service.location;
+    return language === 'ar'
+      ? `${title}: ${description} الفئة: ${service.category}. الموقع: ${location}. السعر: ${price}. مقدم الخدمة: ${provider}.`
+      : `${title}: ${description} Category: ${service.category}. Location: ${location}. Price: ${price}. Provider: ${provider}.`;
+  });
+  return {
+    answer: finalizeDabraAnswer(answers.join('\n'), message),
+    sources: services.map((service) => ({ sourceId: service.serviceId, sourceName: service.title[language] || service.title.en || service.title.ar, sourceType: 'internal' as const })),
+    language,
+    groundingStatus: 'grounded',
+    promptBound: true,
+    promptVersion: AI2_DABRA_PROMPT_VERSION,
+    retrievalMode: 'internal-rag',
+    provider: 'local',
+  };
 }
 
 // V6: trip-planning structure hint.
@@ -409,8 +440,18 @@ export async function buildAI2ChatResponse(
   }
 
   const latencyRoute: DabraLatencyRoute = intent === 'fresh-web' ? 'web' : 'fast-chat';
+  const serviceIntent = isServiceDiscoveryIntent(message);
+  const serviceFeed = serviceIntent ? await getDabraServiceFeed() : [];
+  const serviceMatches = serviceIntent ? findDabraServiceMatches(serviceFeed, message) : [];
+
+  if (serviceMatches.length > 0) {
+    logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'internal', provider: 'local', grounded: true });
+    return composePartnerServiceAnswer(serviceMatches, language, message);
+  }
 
   if (internalSources.length === 0 || !internalMatchGate.hasStrongMatch) {
+    const serviceFeedNote = buildDabraServiceFeedNote(serviceFeed, language);
+
     const providerPlan = buildProviderOrder();
     if (!providerPlan.ok) {
       logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'unavailable', grounded: false });
@@ -432,7 +473,6 @@ export async function buildAI2ChatResponse(
     // Conversational asks skip forced citation grounding; the model still answers with the same canonical persona/prompt.
     const detectedServices = classifyCanonicalServices(message);
     const marketplaceNote = detectedServices.length > 0 ? await buildMarketplaceGroundingNote(language) : '';
-    const serviceFeedNote = detectedServices.length > 0 ? await buildDabraServiceFeedNote(language) : '';
     const contextSections = [
       CONCISE_ANSWER_HINT[language],
       CANONICAL_SERVICES_NOTE[language],
