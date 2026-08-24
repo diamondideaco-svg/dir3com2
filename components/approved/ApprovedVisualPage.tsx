@@ -54,6 +54,9 @@ const approvedVisuals: Record<ApprovedVisualKey, {
 export default function ApprovedVisualPage({ page }: { page: ApprovedVisualKey }) {
   const { language, direction } = useLanguage();
   const visual = approvedVisuals[page];
+  const homeCopy = language === 'ar'
+    ? { message: <>من فكرة السفرة ....<br />إلى سلامة الرجعة .</>, booking: 'احجز الآن', dabra: 'اسأل الدبرة' }
+    : { message: <>From the first idea...<br />to a safe return.</>, booking: 'Book now', dabra: 'Ask DABRA' };
 
   return (
     <main className="approved-visual-page" dir={direction} data-approved-page={page}>
@@ -79,10 +82,10 @@ export default function ApprovedVisualPage({ page }: { page: ApprovedVisualKey }
             </video>
             <div className="approved-home-hero-copy" dir={direction}>
               <h1><span>dir3com</span></h1>
-              <p>من فكرة السفرة ....<br />إلى سلامة الرجعة .</p>
+              <p>{homeCopy.message}</p>
               <div className="approved-home-hero-actions">
-                <Link href="/login?redirect=%2Fbooking&next=%2Fbooking">احجز الآن</Link>
-                <Link href="#dibrah">اسأل الدبرة</Link>
+                <Link href="/login?redirect=%2Fbooking&next=%2Fbooking">{homeCopy.booking}</Link>
+                <Link href="#dibrah">{homeCopy.dabra}</Link>
               </div>
             </div>
           </>

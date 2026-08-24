@@ -86,12 +86,12 @@ const relatedServices = [
 ] as const;
 
 export function ServicePageContent({ service, stories }: { service: TravelStoryService; stories: readonly TravelStory[] }) {
-  const { language } = useLanguage();
+  const { language, direction } = useLanguage();
   const page = servicePages[service];
   const related = relatedServices.filter((item) => item.key !== service);
 
   return (
-    <div className="drive-master-page bg-[#fcfaf6] text-[var(--color-navy)]">
+    <div dir={direction} className="drive-master-page bg-[#fcfaf6] text-[var(--color-navy)]">
       <section className="drive-master-hero px-4 py-10 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl items-center gap-8 lg:grid-cols-[1fr_0.9fr]">
           <div>

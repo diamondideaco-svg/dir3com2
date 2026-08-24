@@ -67,13 +67,14 @@ type SearchFieldProps = {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  label?: string;
   className?: string;
 };
 
-export function SearchField({ value, onChange, placeholder, className }: SearchFieldProps) {
+export function SearchField({ value, onChange, placeholder, label = 'البحث', className }: SearchFieldProps) {
   return (
     <label className={cn('block', className)}>
-      <span className="mb-2 block text-sm font-medium text-[var(--color-muted)]">البحث</span>
+      <span className="mb-2 block text-sm font-medium text-[var(--color-muted)]">{label}</span>
       <span className="flex min-h-11 items-center gap-3 rounded-[22px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-4 py-3">
         <FiSearch className="text-[var(--color-gold)]" />
         <input

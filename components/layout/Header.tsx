@@ -127,12 +127,12 @@ export default function Header() {
 
   return (
     <header dir={direction} className={`sticky top-0 z-40 border-b border-[#d4af37]/20 ${isHome ? 'border-transparent bg-transparent shadow-none backdrop-blur-none' : 'bg-[#fffdf9]/95 shadow-[0_8px_28px_rgba(76,53,18,0.07)] backdrop-blur-xl'}`}>
-      <div className="mx-auto flex min-h-[92px] max-w-[1440px] items-center gap-5 px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="relative block h-[72px] w-[190px] shrink-0" aria-label="dir3com">
+      <div className="mx-auto flex min-h-[88px] max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-8">
+        <Link href="/" className="relative block h-[68px] w-[176px] shrink-0" aria-label="dir3com">
           <Image src="/brand/runtime/dir3com-logo-approved-cropped.png" alt="dir3com — Your shield for tourism" fill priority unoptimized sizes="190px" className="object-contain" />
         </Link>
 
-        <nav aria-label={t.menu} className="hidden min-w-0 flex-1 items-center justify-center gap-1 xl:flex">
+        <nav aria-label={t.menu} className="hidden min-w-0 flex-1 items-center justify-center xl:flex">
           <div className="flex items-center gap-1 rounded-full border border-[#d4af37]/20 bg-white p-1.5 shadow-[0_6px_20px_rgba(76,53,18,0.05)]">
             {t.nav.map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -145,20 +145,20 @@ export default function Header() {
           </div>
         </nav>
 
-        <div className="ms-auto hidden shrink-0 items-center gap-1.5 md:flex" role="group" aria-label={language === 'ar' ? 'أدوات العرض' : 'Display controls'}>
+        <div className="ms-auto hidden shrink-0 items-center gap-2 rounded-2xl border border-[#d4af37]/20 bg-white/80 p-1.5 md:flex" role="group" aria-label={language === 'ar' ? 'أدوات العرض' : 'Display controls'}>
           <Link href="/services#service-search" className={utilityClass} aria-label={t.search}><FiSearch /></Link>
           <button type="button" onClick={() => scrollToTool('home-weather')} className={utilityClass} aria-label={t.weather}><FiCloud /></button>
           <button type="button" onClick={() => scrollToTool('home-currency')} className={utilityClass} aria-label={t.currency}><FiDollarSign /></button>
           <a href="https://www.google.com/maps/search/?api=1&query=Riyadh%2C%20Saudi%20Arabia" target="_blank" rel="noreferrer noopener" className={utilityClass} aria-label={t.maps}><FiCompass /></a>
           <button type="button" onClick={toggleLanguage} className={utilityClass} aria-label={language === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}><FiGlobe /><span className="ms-1">{language === 'ar' ? 'EN' : 'AR'}</span></button>
-          <button type="button" onClick={(event) => toggleAccessibility(event.currentTarget)} className={`${utilityClass} gap-2 px-3`} aria-label={t.accessibility} aria-expanded={accessibilityOpen} aria-controls="header-accessibility-panel"><FiEye /><span>{t.accessibility}</span></button>
+          <button type="button" onClick={(event) => toggleAccessibility(event.currentTarget)} className={utilityClass} aria-label={t.accessibility} aria-expanded={accessibilityOpen} aria-controls="header-accessibility-panel"><FiEye /></button>
         </div>
 
         <Link href={loginTarget()} className="hidden min-h-11 shrink-0 items-center rounded-full bg-[#c89536] px-5 text-sm font-bold text-white shadow-[0_8px_20px_rgba(200,149,54,0.24)] transition hover:bg-[#b78320] sm:inline-flex">
           {t.signIn}
         </Link>
 
-        <button type="button" onClick={() => setMobileOpen((open) => !open)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#d4af37]/30 bg-white text-[#2a2118] xl:hidden" aria-label={t.menu} aria-expanded={mobileOpen}>
+        <button type="button" onClick={() => setMobileOpen((open) => !open)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#d4af37]/30 bg-white text-[#2a2118] xl:hidden" aria-label={t.menu} aria-expanded={mobileOpen}>
           {mobileOpen ? <FiX /> : <FiMenu />}
         </button>
       </div>

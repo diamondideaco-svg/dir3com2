@@ -96,7 +96,11 @@ export default function MarketplaceExplorer({
   const { language } = useLanguage();
   const isArabic = language === 'ar';
   const displayedCollectionLabels = isArabic ? collectionLabels : collectionLabels.map((option) => ({ ...option, label: englishCollectionLabels[option.value] }));
-  const displayedDestinationOptions = destinationOptions.map((option) => ({ ...option, label: isArabic ? option.label.split(' | ').reverse().join(' | ') : option.label }));
+  const displayedDestinationOptions = destinationOptions.map((option) => {
+    if (option.value === 'all') return { ...option, label: isArabic ? 'كل الوجهات' : 'All destinations' };
+    const [english, arabic = english] = option.label.split(' | ');
+    return { ...option, label: isArabic ? arabic : english };
+  });
   const initialUrlParams =
     typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
   const initialQuery = initialUrlParams.get('query') ?? '';
@@ -205,7 +209,7 @@ export default function MarketplaceExplorer({
                 </div>
 
                 <div className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
-                  <SearchField value={searchInput} onChange={setSearchInput} placeholder={isArabic ? 'ابحث عن خدمة، فئة، أو تجربة' : 'Search for a service, category, or experience'} />
+                  <SearchField label={isArabic ? 'البحث' : 'Search'} value={searchInput} onChange={setSearchInput} placeholder={isArabic ? 'ابحث عن خدمة، فئة، أو تجربة' : 'Search for a service, category, or experience'} />
                   <SelectField label={isArabic ? 'الترتيب' : 'Sort by'} value={sort} onChange={(next) => setSort(next as MarketplaceSortKey)} options={isArabic ? sortOptions : sortOptions.map((option) => ({ ...option, label: option.value === 'recommended' ? 'Recommended' : option.value === 'featured' ? 'Featured first' : option.value === 'popular' ? 'Most popular' : option.value === 'price-low' ? 'Price: low to high' : option.value === 'price-high' ? 'Price: high to low' : 'Name' }))} />
                 </div>
 
@@ -218,7 +222,7 @@ export default function MarketplaceExplorer({
                       setPage(1);
                       document.getElementById('marketplace-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }}
-                    className={buttonVariants({ variant: 'gold', size: 'default' })}
+                    className={`${buttonVariants({ variant: 'gold', size: 'default' })} w-full sm:w-auto`}
                   >
                     {isArabic ? 'ابحث الآن' : 'Search'}
                   </button>

@@ -1,4 +1,5 @@
 'use client';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
 import type { TravelStory, TravelStoryService } from '@/lib/content/travel-stories';
 
 type StoriesCarouselProps = {
@@ -7,8 +8,12 @@ type StoriesCarouselProps = {
 };
 
 export default function StoriesCarousel({ stories, service }: StoriesCarouselProps) {
+  const { language, direction } = useLanguage();
   const visibleStories = stories
-    .filter((story) => story.published && (!service || story.service === service))
+    .filter((story) => {
+      const arabicTitle = /[\u0600-\u06FF]/.test(story.title);
+      return story.published && (!service || story.service === service) && (language === 'ar' ? arabicTitle : !arabicTitle);
+    })
     .sort((left, right) => left.sortOrder - right.sortOrder);
 
   if (!visibleStories.length) return null;
@@ -16,9 +21,9 @@ export default function StoriesCarousel({ stories, service }: StoriesCarouselPro
   const tickerStories = [...visibleStories, ...visibleStories];
 
   return (
-    <section aria-label="Travel stories" className="home-stories-section px-4 py-10 sm:px-6 lg:px-10">
+    <section dir={direction} aria-label={language === 'ar' ? 'تجارب المسافرين' : 'Travel stories'} className="home-stories-section px-4 py-10 sm:px-6 lg:px-10">
       <div className="mx-auto mb-4 max-w-7xl">
-        <p className="text-xs font-semibold tracking-[0.2em] text-[var(--home-gold)]">تجارب المسافرين</p>
+        <p className="text-xs font-semibold tracking-[0.2em] text-[var(--home-gold)]">{language === 'ar' ? 'تجارب المسافرين' : 'Travel stories'}</p>
       </div>
       <div className="home-stories-track mx-auto max-w-7xl flex gap-4 overflow-x-auto pb-2">
         {tickerStories.map((story, index) => (

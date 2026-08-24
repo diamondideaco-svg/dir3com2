@@ -1,12 +1,14 @@
 import { FiCheckCircle, FiShield, FiStar } from 'react-icons/fi';
 import { ContentContainer, CtaBlock, ResponsiveGrid, SectionContainer } from '@/components/design-system';
 import { Card, CardContent } from '@/components/ui/card';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
 
 type PublicFeatureStripProps = {
   trustMessage: string;
 };
 
-const features = [
+const features = {
+  ar: [
   {
     title: 'الخدمة أولاً',
     description: 'كل صفحة تحافظ على نفس رسالة الثقة والوضوح والنبرة الجديدة للعلامة.',
@@ -22,16 +24,23 @@ const features = [
     description: 'هوية dir3com تبقى ثابتة عبر كل الصفحات العامة بنفس المسافات والخطوط والألوان.',
     icon: FiStar,
   },
-];
+  ],
+  en: [
+    { title: 'Service first', description: 'Every page carries the same clear, trusted voice for the brand.', icon: FiShield },
+    { title: 'Built to scale', description: 'The shared visual system extends across public pages without breaking rhythm.', icon: FiCheckCircle },
+    { title: 'Refined experience', description: 'dir3com keeps consistent spacing, typography, and color across public pages.', icon: FiStar },
+  ],
+} as const;
 
 export default function PublicFeatureStrip({ trustMessage }: PublicFeatureStripProps) {
+  const { language } = useLanguage();
   return (
     <SectionContainer className="py-8 lg:py-10">
       <ContentContainer>
         <CtaBlock className="rounded-[32px] border-0 px-6 py-7 shadow-[0_24px_60px_rgba(13,27,42,0.16)]">
           <p className="text-center text-lg font-semibold text-[var(--color-gold)]">{trustMessage}</p>
           <ResponsiveGrid className="mt-6 gap-4 xl:grid-cols-3">
-            {features.map(({ title, description, icon: Icon }) => (
+            {features[language].map(({ title, description, icon: Icon }) => (
               <Card key={title} className="border-[color:var(--color-border)] bg-white/7 text-[var(--color-light)] shadow-none backdrop-blur-sm">
                 <CardContent className="p-5">
                   <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#E3C97A_0%,#D4AF37_100%)] text-[var(--color-navy)]">

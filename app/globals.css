@@ -64,7 +64,7 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, #faf8f4 100%);
   background-attachment: fixed;
   color: var(--color-navy);
-  direction: rtl;
+  direction: inherit;
   font-family: var(--font-arabic), sans-serif;
   line-height: 1.7;
   overflow-x: hidden;
@@ -84,6 +84,9 @@ section {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
   padding-bottom: 6rem;
 }
 
@@ -432,7 +435,7 @@ label,
 
 .approved-visual-page[data-approved-page='home'] .approved-visual-frame {
   max-width: 1672px;
-  min-height: 150vh;
+  min-height: 0;
   margin-top: 0;
 }
 
@@ -441,11 +444,15 @@ label,
 }
 
 .approved-visual-page[data-approved-page='home'] .approved-visual-viewport {
-  min-height: calc(100vh - 85px);
+  position: relative;
+  top: auto;
+  height: clamp(520px, 72vh, 760px);
+  min-height: 0;
 }
 
 .approved-visual-page[data-approved-page='home'] .approved-visual-canvas {
-  min-height: 150vh;
+  height: 100%;
+  min-height: 0;
 }
 
 .approved-visual-image {
@@ -892,6 +899,12 @@ button {
   background: linear-gradient(180deg, #fffdf9 0%, #fcfaf6 100%);
 }
 
+.drive-master-page {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 .drive-master-hero__image {
   position: relative;
   min-height: 420px;
@@ -1091,6 +1104,11 @@ button {
 @media (max-width: 640px) {
   .home-utility-card,
   .home-support-card { width: 100%; }
+
+  input[type='date'] {
+    min-width: 0;
+    width: 100%;
+  }
 }
 
 /* ---- Beta usability: search table stacks fully on mobile ---- */

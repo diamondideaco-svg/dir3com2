@@ -53,20 +53,20 @@ export default function MarketplaceFilters({ value, destinationOptions, serviceT
         onChange={(budget) => onChange({ ...value, budget })}
       />
 
-      <label className="block">
+      <label className="block min-w-0">
         <span className="mb-2 block text-xs font-semibold tracking-[0.12em] text-[var(--color-muted)] sm:text-sm">{language === 'ar' ? 'التواريخ' : 'Dates'}</span>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
           <input
             type="date"
             value={value.checkIn}
             onChange={(event) => onChange({ ...value, checkIn: event.target.value })}
-            className="min-h-11 rounded-[18px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-3 py-2 text-sm text-[var(--color-navy)] outline-none transition focus:border-[var(--color-gold)] focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35"
+            className="min-h-11 min-w-0 w-full rounded-[18px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-3 py-2 text-sm text-[var(--color-navy)] outline-none transition focus:border-[var(--color-gold)] focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35"
           />
           <input
             type="date"
             value={value.checkOut}
             onChange={(event) => onChange({ ...value, checkOut: event.target.value })}
-            className="min-h-11 rounded-[18px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-3 py-2 text-sm text-[var(--color-navy)] outline-none transition focus:border-[var(--color-gold)] focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35"
+            className="min-h-11 min-w-0 w-full rounded-[18px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-3 py-2 text-sm text-[var(--color-navy)] outline-none transition focus:border-[var(--color-gold)] focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35"
           />
         </div>
       </label>
