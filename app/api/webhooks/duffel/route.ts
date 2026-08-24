@@ -5,10 +5,17 @@ const seenEvents = new Set<string>();
 
 function verifySignature(body: string, signature: string | null, secret: string | undefined): boolean {
   if (!secret || !signature) return false;
-  const supplied = signature.includes("=") ? signature.split("=").pop() || "" : signature;
-  const expected = createHmac("sha256", secret).update(body).digest("hex");
+  const parts = new Map(signature.split(",").map((part) => {
+    const normalized = part.trim();
+    const separator = normalized.indexOf("=");
+    return separator === -1 ? [normalized, ""] : [normalized.slice(0, separator).trim(), normalized.slice(separator + 1).trim()];
+  }));
+  const timestamp = parts.get("t") || "";
+  const supplied = parts.get("v2") || parts.get("v1") || "";
+  if (!timestamp || !supplied) return false;
   const left = Buffer.from(supplied, "utf8");
-  const right = Buffer.from(expected, "utf8");
+  const signedPayload = `${timestamp}.${body}`;
+  const right = Buffer.from(createHmac("sha256", secret).update(signedPayload).digest("hex"), "utf8");
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
