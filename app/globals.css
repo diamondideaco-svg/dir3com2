@@ -60,6 +60,19 @@ html {
   scroll-behavior: smooth;
 }
 
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+html[data-theme='dark'] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  background: rgba(9, 18, 28, 0.28);
+  pointer-events: none;
+}
+
 body {
   background: linear-gradient(180deg, #ffffff 0%, #faf8f4 100%);
   background-attachment: fixed;
@@ -74,6 +87,10 @@ body {
 
 section {
   scroll-margin-top: 6rem;
+}
+
+.home-utility-card {
+  scroll-margin-top: 7rem;
 }
 
 .luxury-section-shell {

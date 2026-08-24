@@ -14,6 +14,7 @@ const drivePage = read('app/services/drive/page.tsx');
 const approvedHome = read('components/approved/ApprovedVisualPage.tsx');
 const publicHero = read('components/public/PublicHero.tsx');
 const floatingDibrah = read('components/layout/FloatingDibrah.tsx');
+const header = read('components/layout/Header.tsx');
 
 test('service page media is bounded by a positioned aspect-ratio container', () => {
   assert.match(css, /\.home-service-image\s*\{[\s\S]*position:\s*relative/);
@@ -56,4 +57,19 @@ test('public DABRA CTAs open the canonical floating assistant', () => {
   assert.match(publicHero, /dispatchEvent\(new Event\('dir3com:open-dibrah'\)\)/);
   assert.match(floatingDibrah, /addEventListener\('dir3com:open-dibrah', handleOpenRequest\)/);
   assert.match(css, /@media \(max-width: 639px\)[\s\S]*\.approved-visual-page\[data-approved-page='home'\] \.service-search-table\s*\{[\s\S]*position:\s*relative;[\s\S]*top:\s*auto;/);
+});
+
+test('header utilities target real sections and expose live weather', () => {
+  assert.match(header, /navigateToSection\(isHome \? '\/' : '\/services', 'service-search'\)/);
+  assert.match(header, /navigateToSection\('\/services', 'home-weather'\)/);
+  assert.match(header, /navigateToSection\('\/services', 'home-currency'\)/);
+  assert.match(header, /api\/public\/runtime\?lang=/);
+  assert.match(header, /Math\.round\(temperature\).*°C/);
+});
+
+test('theme and accessibility panel have visible and dismissible behavior', () => {
+  assert.match(css, /html\[data-theme='dark'\] body::after/);
+  assert.match(header, /addEventListener\('pointerdown', closeOnOutsidePointer\)/);
+  assert.match(header, /addEventListener\('keydown', closeOnEscape\)/);
+  assert.match(header, /positionAccessibilityPanel\(trigger\)/);
 });
