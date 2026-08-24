@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import OnboardingAssetsPanel from '@/components/portal/OnboardingAssetsPanel';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
+import { supabase } from '@/lib/supabase/client';
 
 type PortalMode = 'partner' | 'provider';
 type Lang = 'ar' | 'en';
@@ -85,7 +86,6 @@ type ComplianceData = {
   pendingReviews: number;
 };
 
-const reviewStatusOptions = ['Draft', 'Submitted', 'Needs Changes', 'Approved', 'Suspended'];
 const uploadAccept = '.pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp';
 
 const arabicPresentationValues: Record<string, string> = {
@@ -133,10 +133,13 @@ const labels = {
     tabSettlements: 'المستحقات',
     tabCompliance: 'الامتثال',
     save: 'حفظ الملف',
+    submitProfile: 'إرسال الملف للمراجعة',
+    submitService: 'إرسال الخدمة للمراجعة',
     upload: 'رفع',
     addService: 'إضافة خدمة',
     uploadImage: 'رفع صورة',
     reload: 'تحديث',
+    logout: 'تسجيل الخروج',
     legalName: 'الاسم القانوني',
     contactPerson: 'اسم المسؤول',
     email: 'البريد الإلكتروني',
@@ -171,10 +174,13 @@ const labels = {
     tabSettlements: 'Settlements',
     tabCompliance: 'Compliance',
     save: 'Save Profile',
+    submitProfile: 'Submit Profile for Review',
+    submitService: 'Submit Service for Review',
     upload: 'Upload',
     addService: 'Add Service',
     uploadImage: 'Upload Image',
     reload: 'Refresh',
+    logout: 'Log out',
     legalName: 'Legal Name',
     contactPerson: 'Contact Person',
     email: 'Email',
@@ -298,7 +304,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
     return () => clearTimeout(handle);
   }, [loadAll]);
 
-  async function saveProfile() {
+  async function saveProfile(reviewStatusOverride?: string) {
     setBusy(true);
     setMessage('');
     try {
@@ -315,7 +321,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
           commercialRegistration: profile.commercial_registration,
           taxNumber: profile.tax_number,
           iban: profile.iban,
-          reviewStatus: profile.reviewStatus,
+          reviewStatus: reviewStatusOverride || profile.reviewStatus,
         }),
       });
 
@@ -442,7 +448,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
     });
   }
 
-  async function saveExistingProduct(productId: string) {
+  async function saveExistingProduct(productId: string, statusOverride?: 'pending_review') {
     const draft = productDrafts[productId];
     if (!draft) return;
 
@@ -459,7 +465,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
           city: draft.city,
           basePrice: draft.basePrice,
           currency: draft.currency,
-          status: draft.status,
+          status: statusOverride || draft.status,
         }),
       });
 
@@ -476,8 +482,23 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
     }
   }
 
+  async function logoutPartner() {
+    setBusy(true);
+    setMessage('');
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      setMessage(t.failed);
+      setBusy(false);
+      return;
+    }
+    window.location.assign('/login?redirect=%2Fpartner-portal&next=%2Fpartner-portal');
+  }
+
   return (
-    <div className="min-h-screen w-full px-3 py-6 text-white sm:px-4 sm:py-8" dir={direction}>
+    <div
+      className={`min-h-screen w-full px-3 py-6 text-white sm:px-4 sm:py-8 ${mode === 'partner' ? '[&_input]:text-[#334155] [&_input]:placeholder:text-[#64748B] [&_select]:text-[#334155]' : ''}`}
+      dir={direction}
+    >
       <div className="portal-shell-center w-full max-w-7xl rounded-[2rem] border border-[#D4AF37]/25 bg-[#FAF8F4] p-4 shadow-[0_24px_60px_rgba(13,27,42,0.35)] sm:p-6 lg:p-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4 sm:gap-5">
           <div>
@@ -499,6 +520,16 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
             >
               {t.reload}
             </button>
+            {mode === 'partner' ? (
+              <button
+                type="button"
+                onClick={() => void logoutPartner()}
+                disabled={busy}
+                className="min-h-11 rounded-xl border border-[#D4AF37] bg-white px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60"
+              >
+                {t.logout}
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -539,14 +570,15 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
             <input className="rounded-xl bg-white px-4 py-3" placeholder={t.commercialReg} value={profile.commercial_registration || ''} onChange={(e) => setProfile((prev) => ({ ...prev, commercial_registration: e.target.value }))} />
             <input className="rounded-xl bg-white px-4 py-3" placeholder={t.taxNumber} value={profile.tax_number || ''} onChange={(e) => setProfile((prev) => ({ ...prev, tax_number: e.target.value }))} />
             <input className="rounded-xl bg-white px-4 py-3" placeholder={t.iban} value={profile.iban || ''} onChange={(e) => setProfile((prev) => ({ ...prev, iban: e.target.value }))} />
-            <select className="rounded-xl bg-white px-4 py-3" value={profile.reviewStatus || 'Draft'} onChange={(e) => setProfile((prev) => ({ ...prev, reviewStatus: e.target.value }))}>
-              {reviewStatusOptions.map((value) => (
-                <option key={value} value={value}>{reviewStatusDisplay[language as Lang][value as keyof (typeof reviewStatusDisplay)['en']]}</option>
-              ))}
-            </select>
+            <div className="rounded-xl bg-white px-4 py-3 text-sm text-[#334155]">
+              {reviewStatusDisplay[language as Lang][(profile.reviewStatus || 'Draft') as keyof (typeof reviewStatusDisplay)['en']] || profile.reviewStatus || 'Draft'}
+            </div>
             <div className="sm:col-span-2">
               <button type="button" disabled={busy} onClick={() => void saveProfile()} className="rounded-xl bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#334155] disabled:opacity-60">
                 {t.save}
+              </button>
+              <button type="button" disabled={busy} onClick={() => void saveProfile('Submitted')} className="mx-2 rounded-xl border border-[#D4AF37] bg-white px-5 py-2.5 text-sm font-semibold text-[#334155] disabled:opacity-60">
+                {t.submitProfile}
               </button>
             </div>
           </section>
@@ -594,7 +626,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
               <input className="rounded-xl bg-white px-4 py-3" placeholder={t.city} value={newProduct.city} onChange={(e) => setNewProduct((prev) => ({ ...prev, city: e.target.value }))} />
               <input className="rounded-xl bg-white px-4 py-3" placeholder={t.price} value={newProduct.basePrice} onChange={(e) => setNewProduct((prev) => ({ ...prev, basePrice: e.target.value }))} />
               <input className="rounded-xl bg-white px-4 py-3" placeholder={t.currency} value={newProduct.currency} onChange={(e) => setNewProduct((prev) => ({ ...prev, currency: e.target.value }))} />
-              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.status} value={newProduct.status} onChange={(e) => setNewProduct((prev) => ({ ...prev, status: e.target.value }))} />
+              <div className="rounded-xl bg-white px-4 py-3 text-sm text-[#334155]">{presentPortalValue('draft', language as Lang)}</div>
               <div className="sm:col-span-2">
                 <button type="button" disabled={busy} onClick={() => void createProduct()} className="rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60">{t.addService}</button>
               </div>
@@ -646,12 +678,9 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                         value={productDrafts[row.products.id]?.currency || 'SAR'}
                         onChange={(e) => updateProductDraft(row.products!.id, 'currency', e.target.value)}
                       />
-                      <input
-                        className="rounded-xl bg-white px-4 py-2"
-                        placeholder={t.status}
-                        value={productDrafts[row.products.id]?.status || 'draft'}
-                        onChange={(e) => updateProductDraft(row.products!.id, 'status', e.target.value)}
-                      />
+                      <div className="rounded-xl bg-white px-4 py-2 text-[#334155]">
+                        {presentPortalValue(productDrafts[row.products.id]?.status || 'draft', language as Lang)}
+                      </div>
                       <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
                         <span className="text-xs text-[#9EB0C3]">ID: {row.products.id}</span>
                         <button
@@ -661,6 +690,14 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                           className="rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60"
                         >
                           {t.save}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void saveExistingProduct(row.products!.id, 'pending_review')}
+                          className="rounded-xl border border-[#D4AF37] bg-white px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60"
+                        >
+                          {t.submitService}
                         </button>
                       </div>
                     </div>

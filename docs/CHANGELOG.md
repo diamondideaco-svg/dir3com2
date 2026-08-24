@@ -1,5 +1,11 @@
 # Changelog
 
+## Partner portal real-trial readiness
+
+- Prevented partners from self-selecting profile approval states or publishing product states while preserving explicit review submission.
+- Added partner logout and restored readable mobile form text without changing provider or public branding surfaces.
+- Added the local product review status migration required for draft-to-review service submission.
+
 ## Partner portal upload QA closure
 
 - Reused the existing upload validator in partner-portal clients to reject unsupported, empty, and oversized files before an upload request.
