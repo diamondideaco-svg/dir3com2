@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 
 type Mode = 'partner' | 'provider';
 type Lang = 'ar' | 'en';

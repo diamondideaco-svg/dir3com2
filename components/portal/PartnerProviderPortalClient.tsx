@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import OnboardingAssetsPanel from '@/components/portal/OnboardingAssetsPanel';
+import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 
 type PortalMode = 'partner' | 'provider';
 type Lang = 'ar' | 'en';
@@ -85,6 +86,22 @@ type ComplianceData = {
 };
 
 const reviewStatusOptions = ['Draft', 'Submitted', 'Needs Changes', 'Approved', 'Suspended'];
+const uploadAccept = '.pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp';
+
+const arabicPresentationValues: Record<string, string> = {
+  commercial_registration: '?????????? ??????????????',
+  registration_commercial: '?????????? ??????????????',
+  pending: '?????????????? ????????????????',
+  unverified: '?????? ????????',
+  pending_review: '?????? ????????????????',
+  review_pending: '?????? ????????????????',
+};
+
+function presentPortalValue(value: string | null | undefined, language: Lang, fallback = '???') {
+  const normalized = String(value || '').trim();
+  if (!normalized) return fallback;
+  return language === 'ar' ? (arabicPresentationValues[normalized.toLowerCase()] || normalized) : normalized;
+}
 
 const reviewStatusDisplay = {
   ar: {
@@ -319,6 +336,12 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
   async function uploadDocument() {
     if (!selectedFile) return;
 
+    const validation = await validateAndNormalizeDocumentFile(selectedFile);
+    if (!validation.ok) {
+      setMessage(validation.message);
+      return;
+    }
+
     setBusy(true);
     setMessage('');
     try {
@@ -373,6 +396,12 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
 
   async function uploadProductImage() {
     if (!productImage.file || !productImage.productId) return;
+
+    const validation = await validateAndNormalizeDocumentFile(productImage.file);
+    if (!validation.ok) {
+      setMessage(validation.message);
+      return;
+    }
 
     setBusy(true);
     setMessage('');
@@ -527,7 +556,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
           <section>
             <div className="mb-4 flex flex-wrap items-stretch gap-2 sm:items-center">
               <select className="min-h-11 w-full rounded-xl bg-white px-4 py-3 text-sm sm:w-auto" value={docType} onChange={(e) => setDocType(e.target.value)}>
-                <option value="commercial_registration">commercial_registration</option>
+                <option value="commercial_registration">{presentPortalValue('commercial_registration', language as Lang)}</option>
                 <option value="tax_card">tax_card</option>
                 <option value="manager_id">manager_id</option>
                 <option value="authorization_letter">authorization_letter</option>
@@ -536,7 +565,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                 <option value="insurance">insurance</option>
                 <option value="vehicle_registration">vehicle_registration</option>
               </select>
-              <input type="file" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="min-h-11 w-full rounded-xl bg-white px-4 py-3 text-sm sm:w-auto sm:max-w-xs" />
+              <input type="file" accept={uploadAccept} onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="min-h-11 w-full rounded-xl bg-white px-4 py-3 text-sm sm:w-auto sm:max-w-xs" />
               <button type="button" disabled={busy || !selectedFile} onClick={() => void uploadDocument()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60 sm:w-auto">
                 {t.upload}
               </button>
@@ -544,11 +573,11 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
             <div className="space-y-2">
               {documents.map((doc) => (
                 <div key={doc.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm [overflow-wrap:anywhere]">
-                  <span className="font-semibold text-[#334155]">{doc.document_type}</span>
+                  <span className="font-semibold text-[#334155]">{presentPortalValue(doc.document_type, language as Lang)}</span>
                   <span className="mx-2 text-[#9EB0C3]">|</span>
-                  <span>{doc.status || 'pending'}</span>
+                  <span>{presentPortalValue(doc.status, language as Lang, presentPortalValue('pending', language as Lang))}</span>
                   <span className="mx-2 text-[#9EB0C3]">|</span>
-                  <span>{doc.verified ? 'verified' : 'unverified'}</span>
+                  <span>{doc.verified ? (language === 'ar' ? '????????' : 'verified') : presentPortalValue('unverified', language as Lang)}</span>
                   <span className="mx-2 text-[#9EB0C3]">|</span>
                   <span>{formatDate(doc.created_at || undefined, language as Lang)}</span>
                 </div>
@@ -578,7 +607,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                   <option key={row.id} value={row.products?.id || ''}>{row.products?.name_ar || row.products?.name_en || row.products?.id}</option>
                 ))}
               </select>
-              <input type="file" onChange={(e) => setProductImage((prev) => ({ ...prev, file: e.target.files?.[0] || null }))} className="min-h-11 w-full rounded-xl bg-white px-4 py-2 text-sm sm:w-auto sm:max-w-xs" />
+              <input type="file" accept={uploadAccept} onChange={(e) => setProductImage((prev) => ({ ...prev, file: e.target.files?.[0] || null }))} className="min-h-11 w-full rounded-xl bg-white px-4 py-2 text-sm sm:w-auto sm:max-w-xs" />
               <button type="button" disabled={busy || !productImage.productId || !productImage.file} onClick={() => void uploadProductImage()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60 sm:w-auto">{t.uploadImage}</button>
             </div>
 
@@ -654,7 +683,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
               <div key={booking.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm [overflow-wrap:anywhere]">
                 <span className="font-semibold text-[#334155]">{booking.booking_reference || booking.id}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
-                <span>{booking.status || 'pending'}</span>
+                <span>{presentPortalValue(booking.status, language as Lang, presentPortalValue('pending', language as Lang))}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
                 <span>{booking.total_amount ?? booking.total_price ?? 0} {booking.currency || 'SAR'}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
@@ -670,7 +699,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
               <div key={settlement.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm [overflow-wrap:anywhere]">
                 <span className="font-semibold text-[#334155]">{settlement.amount} {settlement.currency || 'SAR'}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
-                <span>{settlement.settlement_status || 'pending'}</span>
+                <span>{presentPortalValue(settlement.settlement_status, language as Lang, presentPortalValue('pending', language as Lang))}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
                   <span>{formatDate(settlement.release_date || settlement.created_at || undefined, language as Lang)}</span>
               </div>
