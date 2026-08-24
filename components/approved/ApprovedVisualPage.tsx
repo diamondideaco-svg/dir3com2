@@ -85,7 +85,7 @@ export default function ApprovedVisualPage({ page }: { page: ApprovedVisualKey }
               <p>{homeCopy.message}</p>
               <div className="approved-home-hero-actions">
                 <Link href="/login?redirect=%2Fbooking&next=%2Fbooking">{homeCopy.booking}</Link>
-                <Link href="#dibrah">{homeCopy.dabra}</Link>
+                <Link href="#dibrah" onClick={() => window.dispatchEvent(new Event('dir3com:open-dibrah'))}>{homeCopy.dabra}</Link>
               </div>
             </div>
           </>

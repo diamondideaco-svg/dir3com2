@@ -899,6 +899,13 @@ button {
   background: linear-gradient(180deg, #fffdf9 0%, #fcfaf6 100%);
 }
 
+@media (max-width: 639px) {
+  .approved-visual-page[data-approved-page='home'] .service-search-table {
+    position: relative;
+    top: auto;
+  }
+}
+
 .drive-master-page {
   min-width: 0;
   max-width: 100%;

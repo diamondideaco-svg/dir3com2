@@ -269,13 +269,19 @@ export default function FloatingDibrah() {
     draftRef.current?.focus();
   });
 
-  const openAssistant = () => {
+  const openAssistant = useCallback(() => {
     setPanelOpen(true);
     if (window.localStorage.getItem(DIBRAH_POLICY_ACCEPTED_KEY) !== 'true') {
       setPolicyChecked(false);
       setPolicyOpen(true);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const handleOpenRequest = () => openAssistant();
+    window.addEventListener('dir3com:open-dibrah', handleOpenRequest);
+    return () => window.removeEventListener('dir3com:open-dibrah', handleOpenRequest);
+  }, [openAssistant]);
 
   useEffect(() => {
     if (panelOpen && !policyOpen) window.requestAnimationFrame(() => draftRef.current?.focus());

@@ -11,6 +11,9 @@ const languageProvider = read('components/i18n/LanguageProvider.tsx');
 const marketplace = read('components/public/MarketplaceExplorer.tsx');
 const serviceCard = read('components/shared/ServiceCard.tsx');
 const drivePage = read('app/services/drive/page.tsx');
+const approvedHome = read('components/approved/ApprovedVisualPage.tsx');
+const publicHero = read('components/public/PublicHero.tsx');
+const floatingDibrah = read('components/layout/FloatingDibrah.tsx');
 
 test('service page media is bounded by a positioned aspect-ratio container', () => {
   assert.match(css, /\.home-service-image\s*\{[\s\S]*position:\s*relative/);
@@ -46,4 +49,11 @@ test('shared service detail and marketplace cards bind copy to the active langua
   assert.match(serviceCard, /service\.description_en/);
   assert.match(serviceCard, /language === 'ar' \? 'مميز' : 'Featured'/);
   assert.match(serviceCard, /language === 'ar' \? 'عرض الخدمة' : 'View service'/);
+});
+
+test('public DABRA CTAs open the canonical floating assistant', () => {
+  assert.match(approvedHome, /dispatchEvent\(new Event\('dir3com:open-dibrah'\)\)/);
+  assert.match(publicHero, /dispatchEvent\(new Event\('dir3com:open-dibrah'\)\)/);
+  assert.match(floatingDibrah, /addEventListener\('dir3com:open-dibrah', handleOpenRequest\)/);
+  assert.match(css, /@media \(max-width: 639px\)[\s\S]*\.approved-visual-page\[data-approved-page='home'\] \.service-search-table\s*\{[\s\S]*position:\s*relative;[\s\S]*top:\s*auto;/);
 });

@@ -44,7 +44,7 @@ export default function PublicHero({ eyebrow, title, description, highlight, chi
               {language === 'ar' ? 'ابدأ رحلتك' : 'Start your journey'}
               <FiArrowLeft />
             </Link>
-            <a href="#dibrah" className={`${buttonVariants({ variant: 'outline', size: 'lg' })} focus-visible:ring-[var(--color-gold)]/50`}>
+            <a href="#dibrah" onClick={() => window.dispatchEvent(new Event('dir3com:open-dibrah'))} className={`${buttonVariants({ variant: 'outline', size: 'lg' })} focus-visible:ring-[var(--color-gold)]/50`}>
               {language === 'ar' ? 'اسأل الدبرة' : 'Ask DABRA'}
               <HiSparkles />
             </a>
