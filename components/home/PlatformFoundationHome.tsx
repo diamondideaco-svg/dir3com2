@@ -41,7 +41,7 @@ const copy = {
     heroBody:
       'dir3com delivers a premium travel journey with clear flows, trusted services, and a smart concierge from discovery to booking.',
     primaryCta: 'Start your journey',
-    secondaryCta: 'Explore services',
+    secondaryCta: 'View services',
     dabraTitle: 'DABRA',
     dabraBody: 'Your smart assistant for confident travel planning.',
     features: ['Trust and safety', 'Premium services', 'Personal concierge', 'Exceptional experiences'],

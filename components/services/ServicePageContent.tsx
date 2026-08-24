@@ -123,7 +123,7 @@ export function ServicePageContent({ service, stories }: { service: TravelStoryS
                 <div className="drive-core-service-card__body">
                   <h3>{item.title}</h3>
                   <p>{item.body[language]}</p>
-                  <a href={item.href} className="drive-core-service-card__cta">{language === 'ar' ? 'عرض الخدمات' : 'Explore services'} <FiArrowUpLeft /></a>
+                  <a href={item.href} className="drive-core-service-card__cta">{language === 'ar' ? 'عرض الخدمات' : 'View services'} <FiArrowUpLeft /></a>
                 </div>
               </article>
             ))}
