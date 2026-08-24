@@ -1,3 +1,7 @@
+## 2026-08-24
+
+- Added the isolated Duffel travel-provider POC with normalized flight contracts, test-mode booking guards, vendor-access-gated stays/cars interfaces, and signed idempotent webhook handling.
+
 # Changelog
 
 ## DIR-80 Public Visual Consolidation

@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { logServerError } from "@/lib/security/safe-logger";
 import { getTravelportHealthStatus } from "@/lib/travelport/health";
+import { getDuffelHealthStatus } from "@/lib/travel/duffel/health";
 
 export async function GET() {
   try {
     const travelport = await getTravelportHealthStatus();
+    const duffel = await getDuffelHealthStatus();
 
     return NextResponse.json(
       {
         travelport,
+        duffel,
       },
       {
         status: 200,
@@ -26,6 +29,12 @@ export async function GET() {
           authReachable: false,
           flights: { status: "unavailable" },
           stays: { status: "unavailable" },
+        },
+        duffel: {
+          provider: "duffel",
+          auth: { status: "unavailable" },
+          flights: { status: "unavailable" },
+          stays: { status: "access_blocked", detail: "Stays are not enabled without vendor access." },
         },
       },
       { status: 200 }

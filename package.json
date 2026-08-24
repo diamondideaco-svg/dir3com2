@@ -44,6 +44,7 @@
     "smoke:providers-matrix": "node --import tsx scripts/provider-matrix-live.ts",
     "test:schema-compat": "node --import tsx --test tests/schema-compatibility.integration.test.ts",
     "test:all": "node --import tsx --test tests/*.test.ts",
+    "test:duffel-sandbox": "node --import tsx scripts/duffel-sandbox-scenarios.ts",
     "mobile:dev": "npm --workspace @dir3com/mobile run start",
     "mobile:typecheck": "npm --workspace @dir3com/mobile run typecheck"
   },
