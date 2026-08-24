@@ -16,7 +16,7 @@ function safeText(value: unknown, max = 160) {
 
 function normalizeProductStatus(value: unknown) {
   const normalized = safeText(value, 30).toLowerCase();
-  const supported = new Set(['draft', 'active', 'inactive', 'featured']);
+  const supported = new Set(['draft', 'pending_review']);
   return supported.has(normalized) ? normalized : 'draft';
 }
 
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     const currency = normalizeCurrency(payload.currency);
     const descriptionAr = safeText(payload.descriptionAr || payload.description, 1000);
     const descriptionEn = safeText(payload.descriptionEn || payload.description, 1000);
-    const status = normalizeProductStatus(payload.status);
+    const status = 'draft';
 
     if (!nameAr) {
       return NextResponse.json({ error: { code: 'PRODUCT_NAME_REQUIRED' } }, { status: 400, headers: privateHeaders() });

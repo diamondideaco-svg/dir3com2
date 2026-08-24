@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 
 type Mode = 'partner' | 'provider';
 type Lang = 'ar' | 'en';
@@ -162,19 +163,30 @@ const labels = {
   },
 } as const;
 
+const uploadAccept = '.pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp';
+
+const arabicPresentationValues: Record<string, string> = {
+  pending: 'بانتظار المراجعة',
+  unverified: 'غير موثق',
+  pending_review: 'قيد المراجعة',
+  review_pending: 'قيد المراجعة',
+};
+
+function presentWorkflowValue(value: string, language: Lang) {
+  return language === 'ar' ? (arabicPresentationValues[value.toLowerCase()] || value) : value;
+}
+
 function ownerFromMode(mode: Mode): OwnerKind {
   return mode === 'provider' ? 'stay_supplier' : 'drive_partner';
 }
 
-function publicImageUrl(path: string) {
+function privateImageUrl(item: Media) {
+  const path = item.url;
   if (!path) return '';
   if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) {
     return path;
   }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  if (!supabaseUrl) return '';
-  return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/partner-media/${path}`;
+  return `/api/partner-portal/assets/media?mediaId=${encodeURIComponent(item.id)}`;
 }
 
 export default function OnboardingAssetsPanel({ mode, language, direction }: { mode: Mode; language: Lang; direction: 'rtl' | 'ltr' }) {
@@ -277,6 +289,12 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
   async function uploadMedia(assetId: string) {
     const local = uploadByAsset[assetId];
     if (!local?.file) return;
+
+    const validation = await validateAndNormalizeDocumentFile(local.file);
+    if (!validation.ok) {
+      setMessage(validation.message);
+      return;
+    }
 
     setLoading(true);
     setMessage('');
@@ -403,8 +421,8 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
             <article key={asset.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4">
               <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
                 <span className="rounded-full bg-[#D4AF37]/20 px-2 py-1 text-[#334155]">{asset.assetType}</span>
-                <span className="rounded-full bg-[#243447] px-2 py-1 text-[#DCE6F2]">{asset.dataStatus}</span>
-                <span className="rounded-full bg-[#243447] px-2 py-1 text-[#DCE6F2]">{asset.verificationStatus}</span>
+                <span className="rounded-full bg-[#243447] px-2 py-1 text-[#DCE6F2]">{presentWorkflowValue(asset.dataStatus, language)}</span>
+                <span className="rounded-full bg-[#243447] px-2 py-1 text-[#DCE6F2]">{presentWorkflowValue(asset.verificationStatus, language)}</span>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2">
@@ -434,14 +452,14 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
                   {assetMedia.map((item, index) => (
                     <div key={item.id} className="rounded-lg border border-[color:var(--color-border)] bg-[#FAF8F4] p-2">
                       <div className="aspect-[4/3] overflow-hidden rounded bg-black/20">
-                        {publicImageUrl(item.url) ? (
-                          <img src={publicImageUrl(item.url)} alt={item.label} className="h-full w-full object-cover" />
+                        {privateImageUrl(item) ? (
+                          <img src={privateImageUrl(item)} alt={item.label} className="h-full w-full object-cover" />
                         ) : (
                           <div className="flex h-full items-center justify-center text-[10px] text-[#9EB0C3]">No preview</div>
                         )}
                       </div>
                       <p className="mt-2 text-[11px] text-[#334155]">{item.label}</p>
-                      <p className="text-[10px] text-[#9EB0C3]">{item.status}</p>
+                      <p className="text-[10px] text-[#9EB0C3]">{presentWorkflowValue(item.status, language)}</p>
                       <div className="mt-2 flex gap-1">
                         <button type="button" disabled={loading || index === 0} onClick={() => void reorderMedia(asset.id, item.id, -1)} className="rounded border border-white/20 px-2 py-1 text-[10px] disabled:opacity-40">{t.reorderUp}</button>
                         <button type="button" disabled={loading || index === assetMedia.length - 1} onClick={() => void reorderMedia(asset.id, item.id, 1)} className="rounded border border-white/20 px-2 py-1 text-[10px] disabled:opacity-40">{t.reorderDown}</button>
@@ -473,6 +491,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
                   </select>
                   <input
                     type="file"
+                    accept={uploadAccept}
                     onChange={(e) => setUploadByAsset((prev) => ({ ...prev, [asset.id]: { ...localUpload, file: e.target.files?.[0] || null } }))}
                     className="rounded-lg bg-white px-3 py-2 text-sm sm:col-span-2"
                   />
@@ -497,7 +516,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
           {queue.map((item) => (
             <div key={item.id} className="rounded-lg border border-[color:var(--color-border)] bg-[#FAF8F4] p-3 text-xs">
               <p className="font-semibold text-[#334155]">{item.partnerOrSupplier}</p>
-              <p className="text-[#9EB0C3]">{item.status}</p>
+              <p className="text-[#9EB0C3]">{presentWorkflowValue(item.status, language)}</p>
               <p className="text-[#9EB0C3]">{item.technicalSummary.join(' | ')}</p>
               <p className="text-[#9EB0C3]">Changed: {(item.changedFields || []).join(', ') || '—'}</p>
               <div className="mt-2 flex flex-wrap gap-2">

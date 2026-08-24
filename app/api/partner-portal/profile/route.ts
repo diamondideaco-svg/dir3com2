@@ -16,18 +16,23 @@ function safeText(value: unknown, max = 180) {
 
 function mapReviewStatusToPartnerStatus(reviewStatus: string) {
   const normalized = reviewStatus.trim().toLowerCase();
-  if (normalized === 'submitted') return 'under_review';
-  if (normalized === 'needs_changes') return 'rejected';
-  if (normalized === 'approved') return 'approved';
+  if (normalized === 'submitted') return 'pending';
+  if (normalized === 'needs changes') return 'inactive';
+  if (normalized === 'approved') return 'active';
   if (normalized === 'suspended') return 'suspended';
   return 'pending';
 }
 
+function resolvePartnerManagedStatus(reviewStatus: string, currentStatus: string | null | undefined) {
+  if (reviewStatus.trim().toLowerCase() === 'submitted') return 'pending';
+  return safeText(currentStatus, 40).toLowerCase() || 'pending';
+}
+
 function mapPartnerStatusToReviewStatus(partnerStatus: string | null | undefined) {
   const normalized = String(partnerStatus || '').trim().toLowerCase();
-  if (normalized === 'under_review') return 'Submitted';
+  if (normalized === 'pending' || normalized === 'under_review') return 'Submitted';
   if (normalized === 'approved' || normalized === 'active') return 'Approved';
-  if (normalized === 'rejected') return 'Needs Changes';
+  if (normalized === 'rejected' || normalized === 'inactive') return 'Needs Changes';
   if (normalized === 'suspended' || normalized === 'archived') return 'Suspended';
   return 'Draft';
 }
@@ -90,7 +95,7 @@ export async function PUT(request: Request) {
   }
 
   try {
-    await ensurePartnerRecord(actor);
+    const currentPartner = await ensurePartnerRecord(actor);
 
     const reviewStatus = safeText(payload.reviewStatus, 40);
     const updatePayload = {
@@ -103,7 +108,9 @@ export async function PUT(request: Request) {
       commercial_registration: safeText(payload.commercialRegistration, 120),
       tax_number: safeText(payload.taxNumber, 120),
       iban: safeText(payload.iban, 100),
-      status: mapReviewStatusToPartnerStatus(reviewStatus),
+      status: actor.authRole === 'partner'
+        ? resolvePartnerManagedStatus(reviewStatus, currentPartner.status)
+        : mapReviewStatusToPartnerStatus(reviewStatus),
     };
 
     const { data, error } = await supabaseAdmin
