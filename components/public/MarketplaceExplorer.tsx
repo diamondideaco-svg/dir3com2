@@ -146,13 +146,20 @@ export default function MarketplaceExplorer({
 
   const categoryBrowseItems = useMemo(
     () =>
-      meta.facets.categories
-        .filter((item) => item.count > 0)
-        .map((item) => ({
-          category: item.category as MarketplacePageCategory,
-          categoryLabel: isArabic ? item.label : englishCategoryLabels[item.category] || item.label,
-          count: item.count,
-        })),
+      Array.from(
+        meta.facets.categories
+          .filter((item) => item.count > 0)
+          .reduce((categories, item) => {
+            const category = item.category as MarketplacePageCategory;
+            const existing = categories.get(category);
+            categories.set(category, {
+              category,
+              categoryLabel: isArabic ? item.label : englishCategoryLabels[item.category] || item.label,
+              count: (existing?.count ?? 0) + item.count,
+            });
+            return categories;
+          }, new Map<MarketplacePageCategory, { category: MarketplacePageCategory; categoryLabel: string; count: number }>()).values(),
+      ),
     [isArabic, meta.facets.categories]
   );
 

@@ -101,7 +101,7 @@ async function fetchWeather(city: SupportedCity, unit: SupportedUnit, language: 
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${cityInfo.latitude}&longitude=${cityInfo.longitude}&current=temperature_2m,weather_code,time&temperature_unit=${temperatureUnit}`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${cityInfo.latitude}&longitude=${cityInfo.longitude}&current=temperature_2m,weather_code&temperature_unit=${temperatureUnit}`;
     const response = await fetch(url, {
       method: "GET",
       headers: { Accept: "application/json" },

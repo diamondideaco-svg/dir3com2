@@ -18,8 +18,7 @@ function parseAmount(value: string | null): number | null {
 
 function errorStatus(code: string) {
   if (code === 'invalid_amount' || code === 'unsupported_currency') return 400;
-  if (code === 'upstream_timeout') return 504;
-  return 503;
+  return 200;
 }
 
 export async function GET(request: NextRequest) {
