@@ -20,7 +20,7 @@ export default function PublicHero({ eyebrow, title, description, highlight, chi
         <div>
           <p className="text-sm font-medium tracking-[0.18em] text-[var(--color-gold)]">{eyebrow}</p>
           <h1 className="mt-3 max-w-3xl text-4xl font-semibold leading-[1.2] text-[var(--color-navy)] sm:text-5xl lg:text-6xl">{title}</h1>
-          <p className="mt-5 max-w-2xl text-lg leading-9 text-[var(--color-muted)]">{description}</p>
+          {description ? <p className="mt-5 max-w-2xl text-lg leading-9 text-[var(--color-muted)]">{description}</p> : null}
 
           <div className="mt-5 inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-card-strong)] px-4 py-2 text-sm font-medium text-[var(--color-navy)] shadow-[0_12px_28px_rgba(15,23,42,0.07)]">
             dir3com | درعك الحامي للسياحة.
@@ -46,22 +46,12 @@ export default function PublicHero({ eyebrow, title, description, highlight, chi
           </div>
         </div>
 
-        <HeroBlock>
+        {highlight ? <HeroBlock>
           <Badge className="border-[color:var(--color-border)] bg-[var(--color-surface)] text-sm text-[var(--color-gold)]">
             <FiShield /> dir3com Shield
           </Badge>
           <p className="mt-6 text-3xl font-semibold leading-[1.4]">{highlight}</p>
-          <div className="mt-8 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-[24px] border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-4">
-              <p className="text-sm text-white/65">لغة التصميم</p>
-              <p className="mt-2 text-lg font-semibold">RTL / LTR بثبات موحد</p>
-            </div>
-            <div id="dibrah" className="rounded-[24px] border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-4">
-              <p className="text-sm text-white/65">الهوية العامة</p>
-              <p className="mt-2 text-lg font-semibold">Buttons, Cards, Footer, Navigation</p>
-            </div>
-          </div>
-        </HeroBlock>
+        </HeroBlock> : null}
       </ContentContainer>
     </SectionContainer>
   );
