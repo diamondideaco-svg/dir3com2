@@ -46,7 +46,7 @@ export default function Footer() {
   const socials = getOfficialSocialLinks(language);
 
   return (
-    <footer dir={direction} className="border-t border-[#c89536]/35 bg-[#050505] text-white">
+    <footer dir={direction} className="border-t border-[#c89536]/35 bg-[#fffdf9] text-[#0d1b2a]">
       <div className="mx-auto grid max-w-[1440px] gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[1.1fr_0.8fr_0.8fr_1.25fr] lg:px-10">
         <section>
           <div className="relative h-24 w-60 overflow-hidden rounded-2xl bg-white/95">
@@ -62,32 +62,32 @@ export default function Footer() {
 
         <section>
           <h2 className="text-lg font-bold text-[#e2b95f]">{t.aboutTitle}</h2>
-          <div className="mt-4 grid gap-3 text-sm text-white/80">{t.about.map((item) => <Link key={item.href} href={item.href} className="hover:text-[#e2b95f]">{item.label}</Link>)}</div>
+          <div className="mt-4 grid gap-3 text-sm text-[#334155]">{t.about.map((item) => <Link key={item.href} href={item.href} className="hover:text-[#a66d10]">{item.label}</Link>)}</div>
         </section>
 
         <section>
           <h2 className="text-lg font-bold text-[#e2b95f]">{t.servicesTitle}</h2>
-          <div className="mt-4 grid gap-3 text-sm text-white/80">{t.services.map((item) => <Link key={item.href} href={item.href} className="hover:text-[#e2b95f]">{item.label}</Link>)}</div>
+          <div className="mt-4 grid gap-3 text-sm text-[#334155]">{t.services.map((item) => <Link key={item.href} href={item.href} className="hover:text-[#a66d10]">{item.label}</Link>)}</div>
         </section>
 
         <section>
           <h2 className="text-lg font-bold text-[#e2b95f]">{t.appTitle}</h2>
-          <p className="mt-3 text-sm leading-7 text-white/75">{t.appBody}</p>
+          <p className="mt-3 text-sm leading-7 text-[#64748b]">{t.appBody}</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <span className="inline-flex min-h-12 items-center gap-3 rounded-lg border border-white/30 px-4 py-2"><FaGooglePlay size={23} /><span className="text-sm font-semibold">Google Play</span></span>
-            <span className="inline-flex min-h-12 items-center gap-3 rounded-lg border border-white/30 px-4 py-2"><FaApple size={26} /><span className="text-sm font-semibold">App Store</span></span>
+            <span className="inline-flex min-h-12 items-center gap-3 rounded-lg border border-[#d4af37]/40 px-4 py-2"><FaGooglePlay size={23} /><span className="text-sm font-semibold">Google Play</span></span>
+            <span className="inline-flex min-h-12 items-center gap-3 rounded-lg border border-[#d4af37]/40 px-4 py-2"><FaApple size={26} /><span className="text-sm font-semibold">App Store</span></span>
           </div>
           <h2 className="mt-7 text-lg font-bold text-[#e2b95f]">{t.contactTitle}</h2>
-          <div className="mt-3 grid gap-2 text-sm text-white/80">
-            <a href="tel:+966532867009" className="inline-flex items-center gap-2 hover:text-[#e2b95f]"><FiPhoneCall className="text-[#e2b95f]" />{t.sa}: +966 53 286 7009</a>
-            <a href="tel:+201011676418" className="inline-flex items-center gap-2 hover:text-[#e2b95f]"><FiPhoneCall className="text-[#e2b95f]" />{t.eg}: +20 101 167 6418</a>
-            <a href="mailto:info@dir3com.com" className="inline-flex items-center gap-2 hover:text-[#e2b95f]"><FiMail className="text-[#e2b95f]" />info@dir3com.com</a>
-            <a href="https://dir3com.com" target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-2 hover:text-[#e2b95f]"><FiGlobe className="text-[#e2b95f]" />www.dir3com.com</a>
-            <a href="https://dir3com.net" target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-2 hover:text-[#e2b95f]"><FiGlobe className="text-[#e2b95f]" />www.dir3com.net</a>
+          <div className="mt-3 grid gap-2 text-sm text-[#334155]">
+            <a href="tel:+966532867009" className="inline-flex items-center gap-2 hover:text-[#a66d10]"><FiPhoneCall className="text-[#a66d10]" />{t.sa}: +966 53 286 7009</a>
+            <a href="tel:+201011676418" className="inline-flex items-center gap-2 hover:text-[#a66d10]"><FiPhoneCall className="text-[#a66d10]" />{t.eg}: +20 101 167 6418</a>
+            <a href="mailto:info@dir3com.com" className="inline-flex items-center gap-2 hover:text-[#a66d10]"><FiMail className="text-[#a66d10]" />info@dir3com.com</a>
+            <a href="https://dir3com.com" target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-2 hover:text-[#a66d10]"><FiGlobe className="text-[#a66d10]" />www.dir3com.com</a>
+            <a href="https://dir3com.net" target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-2 hover:text-[#a66d10]"><FiGlobe className="text-[#a66d10]" />www.dir3com.net</a>
           </div>
         </section>
       </div>
-      <div className="border-t border-[#c89536]/35 px-5 py-5 text-center text-sm text-white/70">{t.rights}</div>
+      <div className="border-t border-[#c89536]/35 px-5 py-5 text-center text-sm text-[#64748b]">{t.rights}</div>
     </footer>
   );
 }
