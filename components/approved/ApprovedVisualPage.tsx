@@ -82,7 +82,7 @@ export default function ApprovedVisualPage({ page }: { page: ApprovedVisualKey }
               <p>من فكرة السفرة ....<br />إلى سلامة الرجعة .</p>
               <div className="approved-home-hero-actions">
                 <Link href="/login?redirect=%2Fbooking&next=%2Fbooking">احجز الآن</Link>
-                <Link href="/services">استكشف</Link>
+                <Link href="#dibrah">اسأل الدبرة</Link>
               </div>
             </div>
           </>

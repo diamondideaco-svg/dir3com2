@@ -6,7 +6,6 @@ import { ContentContainer, ResponsiveGrid, SectionContainer } from '@/components
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PublicCtaBanner from '@/components/public/PublicCtaBanner';
 import PublicHero from '@/components/public/PublicHero';
-import PublicRouteIndex from '@/components/public/PublicRouteIndex';
 import PublicStats from '@/components/public/PublicStats';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
@@ -29,12 +28,12 @@ const copy = {
   ar: {
     heroEyebrow: 'عن dir3com', heroTitle: 'من نحن', heroDescription: 'dir3com منصة ضيافة وسفر عربية فاخرة تبني الثقة كجزء من واجهة الاستخدام، لا كرسالة جانبية.', heroHighlight: 'هوية واحدة، تجربة نظيفة، وصفحات عامة متماسكة تضع العميل في مركز القرار.', heroChips: ['dir3com', 'ضمان الدرع', 'أولوية عربية'],
     stats: [{ label: 'هوية العلامة', value: 'dir3com' }, { label: 'أساس التجربة', value: 'الثقة' }, { label: 'النمط', value: 'فخامة' }],
-    storyLabel: 'قصتنا', story: 'dir3com صُممت لتجمع بين الفخامة العربية والوضوح التشغيلي، بحيث يمكن للزائر أن يفهم الخدمة، يثق بالعرض، ويتحرك داخل المنصة من دون تعقيد أو تشتيت.', visionLabel: 'رؤيتنا', vision: 'بناء منصة عامة متكاملة ومهيأة للنمو، تقدم السفر والخدمات بصياغة عربية حديثة وتحافظ على قابلية التوسع من دون المساس بالبساطة أو الثقة.', ctaTitle: 'تعرف على dir3com ثم انتقل إلى الصفحة التي تناسب رحلتك.', ctaDescription: 'باقي الصفحات العامة تستخدم النظام نفسه، ما يجعل الانتقال بينها متماسكاً وقابلاً للتوسع.',
+    storyLabel: 'قصتنا', story: 'dir3com صُممت لتجمع بين الفخامة العربية والوضوح التشغيلي، بحيث يمكن للزائر أن يفهم الخدمة، يثق بالعرض، ويتحرك داخل المنصة من دون تعقيد أو تشتيت.', visionLabel: 'رؤيتنا', vision: 'بناء منصة عامة متكاملة ومهيأة للنمو، تقدم السفر والخدمات بصياغة عربية حديثة وتحافظ على قابلية التوسع من دون المساس بالبساطة أو الثقة.', ctaTitle: 'تعرف على dir3com ثم اختر ما يناسب رحلتك.', ctaDescription: 'اكتشف الخدمات المتاحة وتواصل معنا عند الحاجة إلى مساعدة أو توضيح.',
   },
   en: {
     heroEyebrow: 'About dir3com', heroTitle: 'About us', heroDescription: 'dir3com is a refined Arabic hospitality and travel platform that makes trust part of the experience.', heroHighlight: 'One identity, a clear experience, and public pages that keep the customer at the centre of every decision.', heroChips: ['dir3com', 'Shield assurance', 'Arabic-first care'],
     stats: [{ label: 'Brand identity', value: 'dir3com' }, { label: 'Experience foundation', value: 'Trust' }, { label: 'Style', value: 'Luxury' }],
-    storyLabel: 'Our story', story: 'dir3com brings Arabic luxury together with operational clarity, so visitors can understand the service, trust the offer, and move through the platform without friction.', visionLabel: 'Our vision', vision: 'To build a complete, growth-ready public platform for travel and services with modern Arabic expression, simplicity, and trust.', ctaTitle: 'Get to know dir3com, then choose the page that fits your journey.', ctaDescription: 'The public pages share one system, making every transition coherent and ready to grow.',
+    storyLabel: 'Our story', story: 'dir3com brings Arabic luxury together with operational clarity, so visitors can understand the service, trust the offer, and move through the platform without friction.', visionLabel: 'Our vision', vision: 'To build a complete, growth-ready public platform for travel and services with modern Arabic expression, simplicity, and trust.', ctaTitle: 'Get to know dir3com, then choose what fits your journey.', ctaDescription: 'Explore the available services and contact us when you need help or clarification.',
   },
 } as const;
 
@@ -100,7 +99,6 @@ export default function AboutPublicPage() {
         </ContentContainer>
       </SectionContainer>
 
-      <PublicRouteIndex />
       <PublicCtaBanner
         title={t.ctaTitle}
         description={t.ctaDescription}
