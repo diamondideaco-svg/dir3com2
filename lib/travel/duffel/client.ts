@@ -41,6 +41,7 @@ export async function duffelRequest<T>(path: string, init: RequestInit = {}): Pr
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
+        "Duffel-Version": "v2",
         Authorization: `Bearer ${token}`,
         ...(init.headers || {}),
       },

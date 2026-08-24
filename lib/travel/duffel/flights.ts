@@ -41,8 +41,8 @@ export async function getDuffelFlightOffer(id: string): Promise<FlightOfferDetai
 }
 
 export async function refreshDuffelFlightOffer(id: string): Promise<FlightOfferDetails> {
-  const response = await duffelRequest<{ data: unknown }>(`/air/offers/${encodeURIComponent(id)}/available`);
-  return mapOffer(response.data, id);
+  // Duffel exposes latest-offer retrieval rather than a separate reprice endpoint.
+  return getDuffelFlightOffer(id);
 }
 
 export async function createDuffelFlightBooking(input: { offerId: string; passengers: unknown[]; idempotencyKey?: string }): Promise<FlightOrder> {
@@ -50,10 +50,11 @@ export async function createDuffelFlightBooking(input: { offerId: string; passen
   if (!input.offerId || !Array.isArray(input.passengers) || input.passengers.length === 0) {
     throw new TravelProviderError("INVALID_PROVIDER_RESPONSE", "A flight offer and passenger list are required.");
   }
+  const latestOffer = await getDuffelFlightOffer(input.offerId);
   const response = await duffelRequest<{ data: unknown }>("/air/orders", {
     method: "POST",
     headers: input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : undefined,
-    body: JSON.stringify({ data: { selected_offers: [input.offerId], passengers: input.passengers } }),
+    body: JSON.stringify({ data: { selected_offers: [input.offerId], passengers: input.passengers, payments: [{ type: "balance", amount: latestOffer.totalAmount, currency: latestOffer.currency }] } }),
   });
   return mapOrder(response.data);
 }

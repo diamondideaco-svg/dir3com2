@@ -50,12 +50,12 @@ export async function searchDuffelFlights(input: SearchDuffelFlightsInput): Prom
   };
 
   try {
-    const response = await duffelRequest<{ data?: any[] }>("/air/offer_requests", {
+    const response = await duffelRequest<{ data?: { offers?: any[] } }>("/air/offer_requests", {
       method: "POST",
       body: JSON.stringify(payload),
     });
 
-    const items = Array.isArray(response.data) ? response.data : [];
+    const items = Array.isArray(response.data?.offers) ? response.data.offers : [];
     const offers = items.map((item) => normalizeOffer(item));
 
     return {

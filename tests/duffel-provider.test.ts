@@ -18,6 +18,12 @@ test.afterEach(() => {
   global.fetch = originalFetch;
   delete process.env.DUFFEL_API_BASE_URL;
   delete process.env.DUFFEL_TEST_TOKEN;
+  delete process.env.DUFFEL_API_KEY;
+});
+
+test.beforeEach(() => {
+  delete process.env.DUFFEL_API_KEY;
+  delete process.env.DUFFEL_TEST_TOKEN;
 });
 
 test("duffel health reports access blocked when no test token is configured", async () => {
@@ -37,7 +43,7 @@ test("duffel flight search normalizes a successful provider response", async () 
 
     if (url.includes("/air/offer_requests")) {
       return json({
-        data: [
+        data: { offers: [
           {
             id: "offer_1",
             offer_id: "offer_1",
@@ -51,7 +57,7 @@ test("duffel flight search normalizes a successful provider response", async () 
               },
             ],
           },
-        ],
+        ] },
       });
     }
 
