@@ -146,3 +146,22 @@ export type VipProvider = {
   cancelVipBooking(bookingReference: string, reason: string): Promise<VipBooking>;
   getVipProviderStatus(): Promise<VipProviderStatus>;
 };
+
+export type CarSearchInput = { pickup: string; dropoff: string; pickupDateTime: string; dropoffDateTime: string; driverAge?: number };
+export type VehicleSummary = { vehicleId: string; vehicleName: string; vehicleClass?: string; transmission?: string; fuelType?: string; seats?: number; bags?: number; doors?: number; airConditioning?: boolean; supplier?: string };
+export type VehicleDetails = VehicleSummary & { terms?: string; mileagePolicy?: string; fuelPolicy?: string; cancellationPolicy?: string };
+export type CarQuoteRequest = { vehicleId: string; rateId?: string; pickup: string; dropoff: string; pickupDateTime: string; dropoffDateTime: string };
+export type CarQuote = { provider: string; offerId: string; rateId?: string; vehicle: VehicleDetails; currency: string; totalAmount: string; deposit?: string; expiresAt?: string; terms?: string };
+export type CarSearchResult = { provider: string; status: "ok" | "no_results" | "blocked" | "unavailable"; vehicles: VehicleSummary[]; error?: NormalizedError };
+export type CarBookingRequest = { quoteId: string; customer: unknown; idempotencyKey: string };
+export type CarBooking = { id: string; provider: string; status: "confirmed" | "pending" | "failed" | "cancelled"; bookingReference?: string; currency?: string; totalAmount?: string; error?: NormalizedError };
+export type CarCancellationRequest = { bookingId: string; idempotencyKey: string };
+export type CarCancellationResult = { id: string; provider: string; status: "cancelled" | "failed"; error?: NormalizedError };
+export type CarProvider = {
+  searchCars(input: CarSearchInput): Promise<CarSearchResult>;
+  getVehicleDetails(vehicleId: string): Promise<VehicleDetails>;
+  getQuote(input: CarQuoteRequest): Promise<CarQuote>;
+  createCarBooking(input: CarBookingRequest): Promise<CarBooking>;
+  getCarBooking(bookingId: string): Promise<CarBooking>;
+  cancelCarBooking(input: CarCancellationRequest): Promise<CarCancellationResult>;
+};

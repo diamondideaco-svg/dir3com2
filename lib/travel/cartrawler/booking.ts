@@ -1,0 +1,5 @@
+import { cartrawlerRequest } from "./client"; import { assertCarTrawlerTestMutation } from "./guard"; import { mapBooking } from "./mapper"; import type { CarBooking, CarBookingRequest } from "../contracts";
+const bookings = new Map<string, CarBooking>();
+export async function createCarBooking(input: CarBookingRequest): Promise<CarBooking> { assertCarTrawlerTestMutation(); const prior = bookings.get(input.idempotencyKey); if (prior) return prior; const result = mapBooking(await cartrawlerRequest("/cars/bookings", { method: "POST", headers: { "Idempotency-Key": input.idempotencyKey }, body: JSON.stringify({ quote_id: input.quoteId, customer: input.customer }) })); bookings.set(input.idempotencyKey, result); return result; }
+export async function getCarBooking(bookingId: string): Promise<CarBooking> { return mapBooking(await cartrawlerRequest(`/cars/bookings/${encodeURIComponent(bookingId)}`)); }
+export function clearCarBookingIdempotency() { bookings.clear(); }

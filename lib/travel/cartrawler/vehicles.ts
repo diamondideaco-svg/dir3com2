@@ -1,0 +1,2 @@
+import { cartrawlerRequest } from "./client"; import { mapDetails } from "./mapper"; import type { VehicleDetails } from "../contracts";
+export async function getVehicleDetails(vehicleId: string): Promise<VehicleDetails> { if (!vehicleId) throw new Error("vehicleId is required"); return mapDetails(await cartrawlerRequest(`/cars/vehicles/${encodeURIComponent(vehicleId)}`)); }
