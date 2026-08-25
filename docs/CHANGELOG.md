@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-25 — Final canonical UI legacy purge
+
+- Recorded the frozen pre-DABRA canonical UI baseline for public, account, partner, and administration surfaces.
+- Removed unreferenced legacy service-page component chains and an abandoned admin layout text copy while preserving Git history.
+- Consolidated Drive presentation onto the shared canonical service-page component and removed the superseded `/drive` design-specific route.
+- No provider contract, booking behavior, production data, or DABRA orchestration was changed.
+
 ## LiteAPI optional HMAC authentication
 
 - Preserved the verified sandbox `X-API-Key` flow and added an explicit server-only HMAC SHA-512 mode for non-sandbox reads.
