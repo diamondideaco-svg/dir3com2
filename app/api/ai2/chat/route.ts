@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buildAI2ChatResponse, type AI2ChatAccountContext, type AI2ChatTurn } from '@/lib/ai2/runtime/chat';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { DabraTravelOrchestrator } from '@/lib/ai2/orchestration';
 
 export const dynamic = 'force-dynamic';
 
 type AI2ChatRequest = {
   message?: string;
   history?: Array<{ role?: string; content?: string }>;
+  mode?: 'chat' | 'travel-plan';
+};
+
+type AI2RequestIdentity = {
+  account?: AI2ChatAccountContext;
+  scope?: { ownerId: string; tenantId: string };
 };
 
 const MAX_HISTORY_TURNS = 8;
@@ -28,23 +35,27 @@ function hasSupabaseSessionCookie(request: NextRequest) {
 }
 
 // V7: zero added latency for the anonymous path; only resolves a session (and only a safe display name) when a plausible auth cookie is present.
-async function resolveSafeAccountContext(request: NextRequest): Promise<AI2ChatAccountContext | undefined> {
-  if (!hasSupabaseSessionCookie(request)) return undefined;
+async function resolveSafeRequestIdentity(request: NextRequest): Promise<AI2RequestIdentity> {
+  if (!hasSupabaseSessionCookie(request)) return {};
 
   try {
     const supabase = await createSupabaseServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return undefined;
+    if (!user) return {};
 
     const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
     const name = [metadata.full_name_ar, metadata.full_name, metadata.name].find(
       (value): value is string => typeof value === 'string' && value.trim().length > 0,
     );
-    return { displayName: name ? name.trim().slice(0, 60) : null };
+    const tenantId = [metadata.tenant_id, metadata.organization_id].find((value): value is string => typeof value === 'string' && value.trim().length > 0) ?? user.id;
+    return {
+      account: { displayName: name ? name.trim().slice(0, 60) : null },
+      scope: { ownerId: user.id, tenantId: tenantId.slice(0, 128) },
+    };
   } catch {
-    return undefined;
+    return {};
   }
 }
 
@@ -76,8 +87,18 @@ export async function POST(request: NextRequest) {
   }
 
   const history = sanitizeHistory(body?.history);
-  const account = await resolveSafeAccountContext(request);
-  const response = await buildAI2ChatResponse(message, history, account);
+  const identity = await resolveSafeRequestIdentity(request);
+  if (body?.mode === 'travel-plan' && !identity.scope) {
+    return NextResponse.json(
+      { error: 'Authentication is required for user-scoped travel planning.' },
+      { status: 401, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+  const response = await buildAI2ChatResponse(message, history, identity.account);
+  if (body?.mode === 'travel-plan' && identity.scope) {
+    const travel = await new DabraTravelOrchestrator().orchestrate(message, identity.scope);
+    return NextResponse.json({ ...response, travel }, { headers: { 'Cache-Control': 'no-store' } });
+  }
 
   return NextResponse.json(response, {
     headers: {

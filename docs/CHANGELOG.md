@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-25 - DABRA Agentic Travel Orchestration V1
+
+- Extended the existing AI2/DABRA foundation with normalized bilingual travel intent, scoped Travel Memory, Trip Plans, capability orchestration, comparison/replanning, confirmation-gated sandbox actions, a payment boundary, Trip Guardian event guidance, and context-preserving human handoff.
+- Reused shared Duffel/LiteAPI Travel contracts, failed closed for blocked CarTrawler/Viator access, and isolated synthetic VIP data from public inventory.
+- Added an authenticated `travel-plan` mode to the existing `/api/ai2/chat` route without changing the canonical UI or ordinary chat behavior.
+- Added focused orchestration, security, ownership, provider-blocking, idempotency, Arabic, and English tests.
+
 ## 2026-08-25 — Final canonical UI legacy purge
 
 - Recorded the frozen pre-DABRA canonical UI baseline for public, account, partner, and administration surfaces.
