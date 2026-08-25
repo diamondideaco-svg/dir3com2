@@ -18,6 +18,11 @@
 - Replaced header-presence authentication inference with validated Supabase user resolution and retained provider resource caps for authenticated searches.
 - Derived Marketplace provenance metadata from the final returned page so off-page inventory cannot affect response truth signals.
 
+## 2026-08-25 - DABRA Character & Conversation V1
+
+- Advanced the centralized DABRA prompt contract to `dabra-character-conversation-v1` with a natural Saudi-light Arabic voice, selective approved phrase family, anti-overuse guardrails, and a canonical behavioral acceptance matrix shared by all seven AI providers.
+- Preserved truthfulness, safety, execution refusal, internal/global mission separation, provider fallback, deadline, and sanitization boundaries.
+
 ## 2026-08-25 - DABRA traveler-count security boundary
 
 - Added shared finite, safe-integer, and conservative party-size validation at intent and provider boundaries to prevent attacker-sized allocations before travel-provider requests.

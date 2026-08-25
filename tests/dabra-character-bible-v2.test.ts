@@ -117,8 +117,8 @@ test.afterEach(() => {
   resetEnv();
 });
 
-test('character bible v2 contract contains required identity, voice, truthfulness, and prompts', () => {
-  assert.equal(AI2_DABRA_PROMPT_VERSION, 'dabra-character-bible-v2');
+test('central character contract contains required identity, voice, truthfulness, and prompts', () => {
+  assert.equal(AI2_DABRA_PROMPT_VERSION, 'dabra-character-conversation-v1');
 
   assert.equal(AI2_DABRA_CHARACTER_BIBLE.identity.name, 'الدَّبْرَة');
   assert.equal(AI2_DABRA_CHARACTER_BIBLE.identity.brandName, 'dir3com');
@@ -140,9 +140,9 @@ test('character bible v2 contract contains required identity, voice, truthfulnes
   assert.match(AI2_DABRA_INTERNAL_SYSTEM_PROMPT, /الدَّبْرَة/);
 });
 
-test('runtime returns v2 promptVersion', async () => {
+test('runtime returns Character & Conversation V1 promptVersion', async () => {
   const response = await buildAI2ChatResponse('ما هي سياسة dir3com الداخلية الخاصة بالدبرة؟');
-  assert.equal(response.promptVersion, 'dabra-character-bible-v2');
+  assert.equal(response.promptVersion, 'dabra-character-conversation-v1');
 });
 
 test('all seven providers use the same central global prompt with zero persona drift', async () => {
@@ -164,7 +164,7 @@ test('all seven providers use the same central global prompt with zero persona d
 
     const response = await buildAI2ChatResponse(`qzvxx external topic for ${provider} 91837`);
     assert.equal(response.provider, provider);
-    assert.equal(response.promptVersion, 'dabra-character-bible-v2');
+    assert.equal(response.promptVersion, 'dabra-character-conversation-v1');
     assert.equal(prompts.some((entry) => entry === AI2_DABRA_GLOBAL_WEB_PROMPT), true);
   }
 });
