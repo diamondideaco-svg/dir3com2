@@ -79,7 +79,7 @@ export default async function AdminBookingDetailsPage({
           </div>
 
           {resultMessage ? (
-            <div className="mt-4 rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{resultMessage}</div>
+            <div className="mt-4 rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{resultMessage}</div>
           ) : null}
 
           <div className="mt-5 flex flex-wrap gap-3">

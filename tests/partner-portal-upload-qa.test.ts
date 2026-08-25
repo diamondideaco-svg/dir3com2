@@ -29,7 +29,7 @@ test('all partner upload callers validate before issuing their POST request', ()
   assert.match(portal, /async function uploadDocument[\s\S]*validateAndNormalizeDocumentFile\(selectedFile\)[\s\S]*fetch\('\/api\/partner-portal\/documents'/);
   assert.match(portal, /async function uploadProductImage[\s\S]*validateAndNormalizeDocumentFile\(productImage\.file\)[\s\S]*fetch\('\/api\/partner-portal\/products\/images'/);
   assert.match(assets, /async function uploadMedia[\s\S]*validateAndNormalizeDocumentFile\(local\.file\)[\s\S]*fetch\('\/api\/partner-portal\/assets\/media'/);
-  assert.equal((portal.match(/accept=\{uploadAccept\}/g) || []).length, 2);
+  assert.equal((portal.match(/accept=\{uploadAccept\}/g) || []).length, 3);
   assert.equal((assets.match(/accept=\{uploadAccept\}/g) || []).length, 1);
 });
 

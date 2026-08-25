@@ -12,7 +12,7 @@ const resultMessages: Record<string, string> = {
 
 async function getProducts() {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+  const { data, error } = await supabase.from('products').select('*, product_images(id, product_id, image_url, caption, sort_order, created_at)').order('created_at', { ascending: false });
 
   if (error) {
     console.error(error);
@@ -33,7 +33,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">لوحة الإدارة</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">إدارة المنتجات</h1>
+            <h1 className="mt-2 text-3xl font-semibold text-[#334155]">إدارة المنتجات</h1>
           </div>
           <div className="flex gap-2">
             <Link href="/admin/categories" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">التصنيفات</Link>
@@ -42,11 +42,11 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
         </div>
 
         {resultMessage ? (
-          <div className="mb-5 rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{resultMessage}</div>
+          <div className="mb-5 rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700">{resultMessage}</div>
         ) : null}
 
         {error ? (
-          <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div>
+          <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-700">{error}</div>
         ) : null}
 
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
