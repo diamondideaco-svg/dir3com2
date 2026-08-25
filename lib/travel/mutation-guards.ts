@@ -1,10 +1,12 @@
 import { TravelProviderError } from "./errors";
 
 export function assertTestModeMutation(): void {
-  if (process.env.DUFFEL_LIVE_TOKEN || process.env.DUFFEL_ENV === "live") {
+  const environment = process.env.DUFFEL_ENV?.trim().toLowerCase();
+  const explicitlyTest = environment === "test" || environment === "sandbox";
+  if (!explicitlyTest || process.env.DUFFEL_LIVE_TOKEN) {
     throw new TravelProviderError("LIVE_MUTATION_FORBIDDEN", "Live booking and payment are forbidden in this POC.");
   }
-  if (!process.env.DUFFEL_TEST_TOKEN) {
+  if (!process.env.DUFFEL_TEST_TOKEN?.trim() && !process.env.DUFFEL_API_KEY?.trim()) {
     throw new TravelProviderError("UNAUTHORIZED_VENDOR_ACCESS", "DUFFEL_TEST_TOKEN is required for test booking.");
   }
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## Travel provider final hardening
+
+- Made Duffel booking mutations fail closed outside explicitly normalized test or sandbox modes and required validated idempotency keys.
+- Hardened Duffel offer, price, currency, slice, timeout, health, and provider-error normalization behavior.
+- Replaced process-local Duffel webhook replay authority with signed-timestamp validation and atomic durable Supabase event claims.
+
 ## Partner portal tenant isolation
 
 - Bound onboarding assets, media, and contracts to the authenticated partner identity instead of the shared portal category.

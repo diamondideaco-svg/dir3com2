@@ -15,13 +15,13 @@ export type FlightOffer = {
   slices: Array<{ origin: string; destination: string; departureAt?: string; arrivalAt?: string; segments: number }>;
 };
 export type FlightSearchResult = { provider: string; status: "ok" | "no_results" | "blocked" | "unavailable"; offers: FlightOffer[]; error?: NormalizedError };
-export type FlightOfferDetails = FlightOffer & { conditions?: { changeable: boolean; refundable: boolean } };
+export type FlightOfferDetails = FlightOffer & { conditions?: { changeable?: boolean; refundable?: boolean } };
 export type FlightOrder = { id: string; provider: string; status: "confirmed" | "pending" | "failed"; bookingReference?: string; totalAmount?: string; currency?: string; error?: NormalizedError };
 export type FlightProvider = {
   searchFlights(input: FlightSearchInput): Promise<FlightSearchResult>;
   getFlightOffer(id: string): Promise<FlightOfferDetails>;
   refreshFlightOffer(id: string): Promise<FlightOfferDetails>;
-  createFlightBooking(input: { offerId: string; passengers: unknown[]; idempotencyKey?: string }): Promise<FlightOrder>;
+  createFlightBooking(input: { offerId: string; passengers: unknown[]; idempotencyKey: string }): Promise<FlightOrder>;
   getFlightOrder(id: string): Promise<FlightOrder>;
 };
 

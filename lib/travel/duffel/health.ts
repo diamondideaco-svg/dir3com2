@@ -11,7 +11,8 @@ export type DuffelHealthStatus = {
 };
 
 export async function getDuffelHealthStatus(): Promise<DuffelHealthStatus> {
-  const token = process.env.DUFFEL_TEST_TOKEN || process.env.DUFFEL_API_KEY;
+  const environment = process.env.DUFFEL_ENV?.trim().toLowerCase();
+  const token = process.env.DUFFEL_TEST_TOKEN?.trim() || ((environment === "test" || environment === "sandbox") ? process.env.DUFFEL_API_KEY?.trim() : undefined);
 
   if (!token) {
     return {
@@ -26,7 +27,7 @@ export async function getDuffelHealthStatus(): Promise<DuffelHealthStatus> {
     const result = await searchDuffelFlights({
       from: "CAI",
       to: "RUH",
-      departureDate: "2026-08-20",
+      departureDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     });
 
     if (result.status === "blocked") {
