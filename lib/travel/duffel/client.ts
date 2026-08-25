@@ -22,7 +22,9 @@ export function normalizeDuffelError(error: DuffelApiError): TravelProviderError
   if (error.status === 429) return new TravelProviderError("PROVIDER_UNAVAILABLE", message, true, error.status);
   if (providerCode.includes("expired")) return new TravelProviderError("OFFER_EXPIRED", message, false, error.status);
   if (providerCode.includes("price") || providerCode.includes("amount")) return new TravelProviderError("PRICE_CHANGED", message, false, error.status);
+  if (providerCode.includes("insufficient") || providerCode.includes("balance")) return new TravelProviderError("INSUFFICIENT_BALANCE", message, false, error.status);
   if (providerCode.includes("payment")) return new TravelProviderError("PAYMENT_DECLINED", message, false, error.status);
+  if (providerCode.includes("booking") || providerCode.includes("order")) return new TravelProviderError("BOOKING_FAILED", message, false, error.status);
   return new TravelProviderError("PROVIDER_UNAVAILABLE", message, error.status >= 500, error.status);
 }
 

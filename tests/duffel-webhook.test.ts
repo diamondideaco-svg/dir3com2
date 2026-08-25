@@ -39,6 +39,13 @@ test("rejects stale signed payloads", async () => {
   assert.equal((await POST(request(body, `t=${timestamp},v1=${signature}`))).status, 401);
 });
 
+test("rejects missing, malformed, and future timestamps", async () => {
+  const body = JSON.stringify({ id: "evt_time", type: "ping.triggered", data: {} });
+  for (const signature of ["v1=" + "a".repeat(64), "t=nope,v1=" + "a".repeat(64), `t=${Math.floor(Date.now() / 1000) + 301},v1=${"a".repeat(64)}`]) {
+    assert.equal((await POST(request(body, signature))).status, 401);
+  }
+});
+
 test("rejects malformed and null events as INVALID_EVENT", async () => {
   for (const body of ["{", "null", "[]", "{}", JSON.stringify({ id: "evt" })]) {
     const response = await POST(request(body));
@@ -51,4 +58,14 @@ test("fails closed when durable dedup storage is unavailable", async () => {
   setDuffelWebhookEventStoreForTests({ async claim() { throw new Error("offline"); } });
   const body = JSON.stringify({ id: "evt_store", type: "ping.triggered", data: {} });
   assert.equal((await POST(request(body))).status, 500);
+});
+
+test("concurrent duplicate claims process only one event", async () => {
+  let claimed = false;
+  setDuffelWebhookEventStoreForTests({ async claim() { if (claimed) return "duplicate"; claimed = true; return "claimed"; } });
+  const body = JSON.stringify({ id: "evt_concurrent", type: "ping.triggered", data: {} });
+  const payloads = await Promise.all([POST(request(body)), POST(request(body))]);
+  const results = await Promise.all(payloads.map((response) => response.json()));
+  assert.equal(results.filter((result) => result.duplicate === false).length, 1);
+  assert.equal(results.filter((result) => result.duplicate === true).length, 1);
 });

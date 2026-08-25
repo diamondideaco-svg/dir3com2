@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { getDuffelHealthStatus } from "@/lib/travel/duffel/health";
 import { searchDuffelFlights } from "@/lib/travel/duffel/search";
-import { createDuffelFlightBooking } from "@/lib/travel/duffel/flights";
+import { createDuffelFlightBooking, getDuffelFlightOffer, getDuffelFlightOrder, refreshDuffelFlightOffer } from "@/lib/travel/duffel/flights";
 
 const originalFetch = global.fetch;
 
@@ -209,4 +209,50 @@ test("booking maps expired-offer provider errors", async () => {
     ? json({ data: { id: "off_1", total_amount: "99", total_currency: "USD", slices: [{ origin: { iata_code: "CAI" }, destination: { iata_code: "RUH" }, segments: [] }] } })
     : json({ errors: [{ code: "offer_expired", message: "expired" }] }, 422)) as typeof fetch;
   await assert.rejects(createDuffelFlightBooking({ offerId: "off_1", passengers: [{}], idempotencyKey: "stable-key-123" }), (error: unknown) => (error as { code?: string }).code === "OFFER_EXPIRED");
+});
+
+test("network abort is normalized as PROVIDER_TIMEOUT", async () => {
+  process.env.DUFFEL_TEST_TOKEN = "token";
+  process.env.DUFFEL_ENV = "test";
+  global.fetch = (async () => { throw new DOMException("aborted", "AbortError"); }) as typeof fetch;
+  await assert.rejects(getDuffelFlightOffer("off_1"), (error: unknown) => (error as { code?: string }).code === "PROVIDER_TIMEOUT");
+});
+
+test("offer refresh retrieves and validates the latest offer", async () => {
+  process.env.DUFFEL_TEST_TOKEN = "token";
+  process.env.DUFFEL_ENV = "test";
+  global.fetch = (async () => json({ data: { id: "off_1", total_amount: "11", total_currency: "EUR", conditions: { changeable: false, refundable: true }, slices: [{ origin: { iata_code: "CAI" }, destination: { iata_code: "FCO" }, segments: [] }] } })) as typeof fetch;
+  const offer = await refreshDuffelFlightOffer("off_1");
+  assert.equal(offer.totalAmount, "11");
+  assert.deepEqual(offer.conditions, { changeable: false, refundable: true });
+});
+
+for (const [providerCode, sharedCode] of [["price_changed", "PRICE_CHANGED"], ["insufficient_balance", "INSUFFICIENT_BALANCE"], ["payment_failed", "PAYMENT_DECLINED"], ["order_failed", "BOOKING_FAILED"]] as const) {
+  test(`booking maps ${providerCode} to ${sharedCode}`, async () => {
+    process.env.DUFFEL_TEST_TOKEN = "token";
+    process.env.DUFFEL_ENV = "test";
+    global.fetch = (async (input: RequestInfo | URL) => String(input).includes("/air/offers/")
+      ? json({ data: { id: "off_1", total_amount: "99", total_currency: "USD", slices: [{ origin: { iata_code: "CAI" }, destination: { iata_code: "RUH" }, segments: [] }] } })
+      : json({ errors: [{ code: providerCode, message: "safe failure" }] }, 422)) as typeof fetch;
+    await assert.rejects(createDuffelFlightBooking({ offerId: "off_1", passengers: [{}], idempotencyKey: "stable-key-123" }), (error: unknown) => (error as { code?: string }).code === sharedCode);
+  });
+}
+
+test("terminal failed orders are not mapped to pending", async () => {
+  process.env.DUFFEL_TEST_TOKEN = "token";
+  process.env.DUFFEL_ENV = "test";
+  global.fetch = (async () => json({ data: { id: "ord_1", failed_at: "2026-08-25T00:00:00Z" } })) as typeof fetch;
+  assert.equal((await getDuffelFlightOrder("ord_1")).status, "failed");
+});
+
+test("health probe always sends a future departure date", async () => {
+  process.env.DUFFEL_TEST_TOKEN = "token";
+  process.env.DUFFEL_ENV = "test";
+  let departureDate = "";
+  global.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    departureDate = JSON.parse(String(init?.body)).data.slices[0].departure_date;
+    return json({ data: { offers: [] } });
+  }) as typeof fetch;
+  await getDuffelHealthStatus();
+  assert.ok(departureDate > new Date().toISOString().slice(0, 10));
 });
