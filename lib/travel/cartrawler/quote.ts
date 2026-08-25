@@ -1,0 +1,2 @@
+import { cartrawlerRequest } from "./client"; import { mapQuote } from "./mapper"; import type { CarQuote, CarQuoteRequest } from "../contracts";
+export async function getQuote(input: CarQuoteRequest): Promise<CarQuote> { return mapQuote(await cartrawlerRequest("/cars/quotes", { method: "POST", body: JSON.stringify({ vehicle_id: input.vehicleId, rate_id: input.rateId, pickup: input.pickup, dropoff: input.dropoff, pickup_datetime: input.pickupDateTime, dropoff_datetime: input.dropoffDateTime }) })); }

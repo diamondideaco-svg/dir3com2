@@ -1,0 +1,5 @@
+import type { NormalizedError } from "../contracts";
+export type DriveEvent = { id: string; type: string; bookingId?: string; payload: unknown };
+const seen = new Set<string>();
+export function receiveCarTrawlerEvent(raw: unknown): { accepted: boolean; duplicate: boolean; event?: DriveEvent; error?: NormalizedError } { const item = raw as { id?: unknown; type?: unknown; data?: unknown }; if (typeof item.id !== "string" || typeof item.type !== "string") return { accepted: false, duplicate: false, error: { code: "INVALID_PROVIDER_RESPONSE", message: "Invalid CarTrawler event.", retryable: false } }; if (seen.has(item.id)) return { accepted: true, duplicate: true }; seen.add(item.id); return { accepted: true, duplicate: false, event: { id: item.id, type: item.type, payload: item.data } }; }
+export function clearCarTrawlerEvents() { seen.clear(); }

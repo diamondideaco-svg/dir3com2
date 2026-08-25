@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
-import { POST, clearDuffelWebhookEvents } from "@/app/api/webhooks/duffel/route";
+import { POST } from "@/app/api/webhooks/duffel/route";
+import { setDuffelWebhookEventStoreForTests } from "@/lib/travel/duffel/webhook-store";
 
-test.beforeEach(() => { process.env.DUFFEL_WEBHOOK_SIGNING_SECRET = "webhook-secret"; clearDuffelWebhookEvents(); });
-test.afterEach(() => { delete process.env.DUFFEL_WEBHOOK_SIGNING_SECRET; });
+test.beforeEach(() => {
+  process.env.DUFFEL_WEBHOOK_SIGNING_SECRET = "webhook-secret";
+  const seen = new Set<string>();
+  setDuffelWebhookEventStoreForTests({ async claim(id) { if (seen.has(id)) return "duplicate"; seen.add(id); return "claimed"; } });
+});
+test.afterEach(() => { delete process.env.DUFFEL_WEBHOOK_SIGNING_SECRET; setDuffelWebhookEventStoreForTests(); });
 
 function signed(body: string) {
-  const timestamp = "1616202842";
+  const timestamp = String(Math.floor(Date.now() / 1000));
   const signature = createHmac("sha256", "webhook-secret").update(`${timestamp}.${body}`).digest("hex");
-  return `t=${timestamp},v2=${signature}`;
+  return `t=${timestamp},v1=${signature}`;
 }
 function request(body: string, signature = signed(body)) { return new Request("http://localhost/api/webhooks/duffel", { method: "POST", headers: { "x-duffel-signature": signature }, body }); }
 
@@ -25,4 +30,42 @@ test("rejects invalid signatures and tolerates unknown events", async () => {
   assert.equal((await POST(request("{}", "bad"))).status, 401);
   const body = JSON.stringify({ id: "evt_2", type: "future.event", data: {} });
   assert.equal((await POST(request(body))).status, 200);
+});
+
+test("rejects stale signed payloads", async () => {
+  const body = JSON.stringify({ id: "evt_stale", type: "ping.triggered", data: {} });
+  const timestamp = String(Math.floor(Date.now() / 1000) - 301);
+  const signature = createHmac("sha256", "webhook-secret").update(`${timestamp}.${body}`).digest("hex");
+  assert.equal((await POST(request(body, `t=${timestamp},v1=${signature}`))).status, 401);
+});
+
+test("rejects missing, malformed, and future timestamps", async () => {
+  const body = JSON.stringify({ id: "evt_time", type: "ping.triggered", data: {} });
+  for (const signature of ["v1=" + "a".repeat(64), "t=nope,v1=" + "a".repeat(64), `t=${Math.floor(Date.now() / 1000) + 301},v1=${"a".repeat(64)}`]) {
+    assert.equal((await POST(request(body, signature))).status, 401);
+  }
+});
+
+test("rejects malformed and null events as INVALID_EVENT", async () => {
+  for (const body of ["{", "null", "[]", "{}", JSON.stringify({ id: "evt" })]) {
+    const response = await POST(request(body));
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, "INVALID_EVENT");
+  }
+});
+
+test("fails closed when durable dedup storage is unavailable", async () => {
+  setDuffelWebhookEventStoreForTests({ async claim() { throw new Error("offline"); } });
+  const body = JSON.stringify({ id: "evt_store", type: "ping.triggered", data: {} });
+  assert.equal((await POST(request(body))).status, 500);
+});
+
+test("concurrent duplicate claims process only one event", async () => {
+  let claimed = false;
+  setDuffelWebhookEventStoreForTests({ async claim() { if (claimed) return "duplicate"; claimed = true; return "claimed"; } });
+  const body = JSON.stringify({ id: "evt_concurrent", type: "ping.triggered", data: {} });
+  const payloads = await Promise.all([POST(request(body)), POST(request(body))]);
+  const results = await Promise.all(payloads.map((response) => response.json()));
+  assert.equal(results.filter((result) => result.duplicate === false).length, 1);
+  assert.equal(results.filter((result) => result.duplicate === true).length, 1);
 });

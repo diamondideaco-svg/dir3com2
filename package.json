@@ -43,6 +43,9 @@
     "smoke:mistral": "node --import tsx scripts/mistral-live-smoke.ts",
     "smoke:providers-matrix": "node --import tsx scripts/provider-matrix-live.ts",
     "test:schema-compat": "node --import tsx --test tests/schema-compatibility.integration.test.ts",
+    "test:liteapi": "node --import tsx --test tests/liteapi-provider.test.ts",
+    "test:liteapi-hmac": "node --import tsx --test tests/liteapi-hmac-auth.test.ts",
+    "smoke:liteapi": "node --import tsx scripts/liteapi-sandbox-smoke.ts",
     "test:all": "node --import tsx --test tests/*.test.ts",
     "mobile:dev": "npm --workspace @dir3com/mobile run start",
     "mobile:typecheck": "npm --workspace @dir3com/mobile run typecheck"

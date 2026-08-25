@@ -1,0 +1,2 @@
+import { getCarTrawlerConfig } from "./client";
+export function getCarTrawlerHealth() { const config = getCarTrawlerConfig(); return config.token && config.partnerId && config.baseUrl ? { provider: "cartrawler", status: "configured" as const, environment: config.environment } : { provider: "cartrawler", status: "blocked" as const, code: "UNAUTHORIZED_VENDOR_ACCESS" as const }; }

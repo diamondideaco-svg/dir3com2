@@ -1,0 +1,2 @@
+import { getViatorConfig } from "./client"; import type { ProviderProbe } from "../provider-types";
+export function getViatorHealth(): ProviderProbe { return getViatorConfig().apiKey ? {status:"ok"} : {status:"access_blocked",code:"UNAUTHORIZED_VENDOR_ACCESS",detail:"VIATOR_API_KEY is required."}; }

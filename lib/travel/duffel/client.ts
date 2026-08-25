@@ -13,19 +13,40 @@ export class DuffelApiError extends Error {
   }
 }
 
-async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number) {
+export function normalizeDuffelError(error: DuffelApiError): TravelProviderError {
+  const evidence = error.evidence as { errors?: Array<{ code?: string; message?: string }>; error?: { code?: string; message?: string } } | null;
+  const providerError = evidence?.errors?.[0] || evidence?.error;
+  const providerCode = providerError?.code?.toLowerCase() || "";
+  const message = providerError?.message || "Duffel request failed.";
+  if (error.status === 401 || error.status === 403) return new TravelProviderError("UNAUTHORIZED_VENDOR_ACCESS", message, false, error.status);
+  if (error.status === 429) return new TravelProviderError("PROVIDER_UNAVAILABLE", message, true, error.status);
+  if (providerCode.includes("expired")) return new TravelProviderError("OFFER_EXPIRED", message, false, error.status);
+  if (providerCode.includes("price") || providerCode.includes("amount")) return new TravelProviderError("PRICE_CHANGED", message, false, error.status);
+  if (providerCode.includes("insufficient") || providerCode.includes("balance")) return new TravelProviderError("INSUFFICIENT_BALANCE", message, false, error.status);
+  if (providerCode.includes("payment")) return new TravelProviderError("PAYMENT_DECLINED", message, false, error.status);
+  if (providerCode.includes("booking") || providerCode.includes("order")) return new TravelProviderError("BOOKING_FAILED", message, false, error.status);
+  return new TravelProviderError("PROVIDER_UNAVAILABLE", message, error.status >= 500, error.status);
+}
+
+async function fetchBodyWithTimeout(input: string, init: RequestInit, timeoutMs: number) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    const text = await response.text();
+    return { response, text };
   } finally {
     clearTimeout(timeout);
   }
 }
 
 export async function duffelRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = process.env.DUFFEL_TEST_TOKEN || process.env.DUFFEL_API_KEY;
+  const environment = process.env.DUFFEL_ENV?.trim().toLowerCase();
+  const explicitTestMode = environment === "test" || environment === "sandbox";
+  const testToken = process.env.DUFFEL_TEST_TOKEN?.trim();
+  const genericTestToken = explicitTestMode ? process.env.DUFFEL_API_KEY?.trim() : undefined;
+  const token = testToken || genericTestToken;
 
   if (!token) {
     throw new DuffelAccessBlockedError();
@@ -34,9 +55,9 @@ export async function duffelRequest<T>(path: string, init: RequestInit = {}): Pr
   const baseUrl = process.env.DUFFEL_API_BASE_URL || "https://api.duffel.com";
   const url = new URL(path, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`).toString();
 
-  let response: Response;
+  let result: { response: Response; text: string };
   try {
-    response = await fetchWithTimeout(url, {
+    result = await fetchBodyWithTimeout(url, {
       ...init,
       headers: {
         Accept: "application/json",
@@ -54,7 +75,7 @@ export async function duffelRequest<T>(path: string, init: RequestInit = {}): Pr
     throw new TravelProviderError("PROVIDER_UNAVAILABLE", "Duffel is unavailable.", true);
   }
 
-  const text = await response.text();
+  const { response, text } = result;
 
   let data: unknown;
   try {

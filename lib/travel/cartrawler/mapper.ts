@@ -1,0 +1,15 @@
+import { TravelProviderError } from "../errors";
+import type { CarBooking, CarQuote, CarSearchResult, VehicleDetails, VehicleSummary } from "../contracts";
+
+const text = (value: unknown) => typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+export function mapVehicle(raw: unknown): VehicleSummary {
+  const item = raw as Record<string, unknown> | null;
+  const vehicleId = text(item?.vehicle_id) || text(item?.id);
+  const vehicleName = text(item?.vehicle_name) || text(item?.name);
+  if (!vehicleId || !vehicleName) throw new TravelProviderError("INVALID_PROVIDER_RESPONSE", "CarTrawler returned an invalid vehicle.");
+  return { vehicleId, vehicleName, vehicleClass: text(item?.vehicle_class), transmission: text(item?.transmission), fuelType: text(item?.fuel_type), seats: typeof item?.seats === "number" ? item.seats : undefined, bags: typeof item?.bags === "number" ? item.bags : undefined, doors: typeof item?.doors === "number" ? item.doors : undefined, airConditioning: typeof item?.air_conditioning === "boolean" ? item.air_conditioning : undefined, supplier: text(item?.supplier) };
+}
+export function mapDetails(raw: unknown): VehicleDetails { const item = raw as Record<string, unknown>; return { ...mapVehicle(raw), terms: text(item.terms), mileagePolicy: text(item.mileage_policy), fuelPolicy: text(item.fuel_policy), cancellationPolicy: text(item.cancellation_policy) }; }
+export function mapSearch(raw: unknown): CarSearchResult { const items = (raw as { vehicles?: unknown[]; data?: { vehicles?: unknown[] } })?.vehicles || (raw as { data?: { vehicles?: unknown[] } })?.data?.vehicles || []; const vehicles = Array.isArray(items) ? items.map(mapVehicle) : []; return { provider: "cartrawler", status: vehicles.length ? "ok" : "no_results", vehicles, ...(vehicles.length ? {} : { error: { code: "NO_RESULTS", message: "No vehicles matched the request.", retryable: false } }) }; }
+export function mapQuote(raw: unknown): CarQuote { const item = raw as Record<string, unknown>; const vehicle = mapDetails(item.vehicle || item); const offerId = text(item.offer_id) || text(item.id); if (!offerId) throw new TravelProviderError("INVALID_PROVIDER_RESPONSE", "CarTrawler returned an invalid quote."); return { provider: "cartrawler", offerId, rateId: text(item.rate_id), vehicle, currency: text(item.currency) || "USD", totalAmount: text(item.total_amount) || "0", deposit: text(item.deposit), expiresAt: text(item.expires_at), terms: text(item.terms) }; }
+export function mapBooking(raw: unknown): CarBooking { const item = raw as Record<string, unknown>; const id = text(item.id) || text(item.booking_id); if (!id) throw new TravelProviderError("INVALID_PROVIDER_RESPONSE", "CarTrawler returned an invalid booking."); return { id, provider: "cartrawler", status: item.cancelled ? "cancelled" : item.confirmed ? "confirmed" : "pending", bookingReference: text(item.booking_reference), currency: text(item.currency), totalAmount: text(item.total_amount) }; }

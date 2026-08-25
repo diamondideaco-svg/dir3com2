@@ -1,18 +1,23 @@
-import { duffelRequest, DuffelAccessBlockedError, DuffelApiError } from "./client";
+import { duffelRequest, DuffelAccessBlockedError, DuffelApiError, normalizeDuffelError } from "./client";
 import { TravelProviderError } from "../errors";
 import type { FlightOffer, FlightSearchInput, FlightSearchResult } from "../contracts";
 
 export type SearchDuffelFlightsInput = FlightSearchInput;
 
 function normalizeOffer(raw: any): FlightOffer {
-  const amount = typeof raw?.total_amount === "string" ? raw.total_amount : "0";
-  const currency = typeof raw?.total_currency === "string" ? raw.total_currency : "USD";
+  const amount = typeof raw?.total_amount === "string" ? raw.total_amount.trim() : "";
+  const currency = typeof raw?.total_currency === "string" ? raw.total_currency.trim().toUpperCase() : "";
   const slices = Array.isArray(raw?.slices) ? raw.slices : [];
   const firstSlice = slices[0] ?? {};
   const origin = typeof firstSlice?.origin?.iata_code === "string" ? firstSlice.origin.iata_code : "";
   const destination = typeof firstSlice?.destination?.iata_code === "string" ? firstSlice.destination.iata_code : "";
 
-  if (typeof raw?.id !== "string" || !origin || !destination) throw new TravelProviderError("INVALID_PROVIDER_RESPONSE", "Duffel returned an invalid flight offer.");
+  if (typeof raw?.id !== "string" || !origin || !destination || !/^\d+(?:\.\d+)?$/.test(amount) || Number(amount) <= 0 || !/^[A-Z]{3}$/.test(currency)) {
+    throw new TravelProviderError("INVALID_PROVIDER_RESPONSE", "Duffel returned an invalid flight offer.");
+  }
+  if (slices.some((slice: any) => !slice?.origin?.iata_code || !slice?.destination?.iata_code || !Array.isArray(slice?.segments))) {
+    throw new TravelProviderError("INVALID_PROVIDER_RESPONSE", "Duffel returned malformed flight slices.");
+  }
   return {
     id: raw.id,
     provider: "duffel",
@@ -50,12 +55,16 @@ export async function searchDuffelFlights(input: SearchDuffelFlightsInput): Prom
   };
 
   try {
-    const response = await duffelRequest<{ data?: { offers?: any[] } }>("/air/offer_requests", {
+    const response = await duffelRequest<{ data?: { id?: string; offers?: any[] } }>("/air/offer_requests?return_offers=true", {
       method: "POST",
       body: JSON.stringify(payload),
     });
 
-    const items = Array.isArray(response.data?.offers) ? response.data.offers : [];
+    let items = Array.isArray(response.data?.offers) ? response.data.offers : [];
+    if (!Array.isArray(response.data?.offers) && typeof response.data?.id === "string") {
+      const listed = await duffelRequest<{ data?: any[] }>(`/air/offers?offer_request_id=${encodeURIComponent(response.data.id)}&limit=10`);
+      items = Array.isArray(listed.data) ? listed.data : [];
+    }
     const offers = items.map((item) => normalizeOffer(item));
 
     return {
@@ -74,18 +83,16 @@ export async function searchDuffelFlights(input: SearchDuffelFlightsInput): Prom
     }
 
     if (error instanceof DuffelApiError) {
-      const evidence = error.evidence as { error?: { code?: string; message?: string } } | null;
-      const code = typeof evidence?.error?.code === "string" ? evidence.error.code : undefined;
-      const detail = typeof evidence?.error?.message === "string" ? evidence.error.message : undefined;
+      const mapped = normalizeDuffelError(error);
 
       return {
         provider: "duffel",
         status: error.status === 401 || error.status === 403 ? "blocked" : "unavailable",
         offers: [],
         error: {
-          code: error.status === 401 || error.status === 403 ? "UNAUTHORIZED_VENDOR_ACCESS" : "PROVIDER_UNAVAILABLE",
-          message: detail || "Duffel flight search failed.",
-          retryable: error.status >= 500,
+          code: mapped.code,
+          message: mapped.message,
+          retryable: mapped.retryable,
         },
       };
     }
