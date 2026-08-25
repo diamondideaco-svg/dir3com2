@@ -165,3 +165,12 @@ export type CarProvider = {
   getCarBooking(bookingId: string): Promise<CarBooking>;
   cancelCarBooking(input: CarCancellationRequest): Promise<CarCancellationResult>;
 };
+export type ActivityDestination = { id: string; name: string; country?: string; aliases: string[] };
+export type ActivityTaxonomy = { id: string; name: string; parentId?: string };
+export type ActivitySearchInput = { destination: string; query?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number; tags?: string[]; sort?: string };
+export type ActivitySummary = { productCode: string; title: string; shortDescription?: string; destination: ActivityDestination; images: string[]; rating?: number; reviewCount?: number; currency?: string; fromPrice?: string; duration?: string; tags: string[]; cancellationSummary?: string; affiliateUrl?: string };
+export type ActivityDetails = ActivitySummary & { description?: string; itinerary: string[]; inclusions: string[]; exclusions: string[]; additionalInfo: string[]; meetingPoint?: string; pickupDetails?: string; language?: string; cancellationPolicy?: string; options: string[] };
+export type ActivityAvailabilitySchedule = { productCode: string; seasons: string[]; daysOfWeek: string[]; unavailableDates: string[]; productOptionCode?: string; startTimes: string[]; pricingRecords: ActivityPricing[] };
+export type ActivityPricing = { pricingPackageType?: string; unitType?: string; minTravelers?: number; maxTravelers?: number; ageBand?: string; currency: string; amount: string };
+export type ActivitySearchResult = { provider: string; status: "ok" | "no_results" | "blocked" | "unavailable"; activities: ActivitySummary[]; error?: NormalizedError };
+export type ActivityProvider = { getDestinations(): Promise<ActivityDestination[]>; getTaxonomy(): Promise<ActivityTaxonomy[]>; searchActivities(input: ActivitySearchInput): Promise<ActivitySearchResult>; getActivityDetails(productCode: string): Promise<ActivityDetails>; getAvailabilitySchedule(productCode: string): Promise<ActivityAvailabilitySchedule>; getPricing(productCode: string): Promise<ActivityPricing[]>; createBooking(input: unknown): Promise<never>; cancelBooking(input: unknown): Promise<never> };

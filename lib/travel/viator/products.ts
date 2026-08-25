@@ -1,0 +1,2 @@
+import { viatorRequest } from "./client"; import { mapDetails } from "./mapper"; import type { ActivityDetails } from "../contracts";
+export async function getActivityDetails(productCode: string): Promise<ActivityDetails> { if(!productCode) throw new Error("productCode is required"); return mapDetails(await viatorRequest(`/products/${encodeURIComponent(productCode)}`)); }

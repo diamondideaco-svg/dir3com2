@@ -1,0 +1,2 @@
+import { viatorRequest } from "./client"; import { mapDestination } from "./mapper"; import type { ActivityDestination } from "../contracts";
+export async function getDestinations(): Promise<ActivityDestination[]> { const raw=await viatorRequest<{destinations?:unknown[];data?:{destinations?:unknown[]}}>("/destinations"); const items=raw.destinations||raw.data?.destinations||[]; return Array.isArray(items)?items.map(mapDestination):[]; }

@@ -1,0 +1,2 @@
+import { getAvailabilitySchedule } from "./availability"; import type { ActivityPricing } from "../contracts";
+export async function getPricing(productCode: string): Promise<ActivityPricing[]> { return (await getAvailabilitySchedule(productCode)).pricingRecords; }

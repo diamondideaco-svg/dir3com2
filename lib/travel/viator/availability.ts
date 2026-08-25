@@ -1,0 +1,2 @@
+import { viatorRequest } from "./client"; import { mapSchedule } from "./mapper"; import type { ActivityAvailabilitySchedule } from "../contracts";
+export async function getAvailabilitySchedule(productCode: string): Promise<ActivityAvailabilitySchedule> { return mapSchedule(await viatorRequest(`/products/${encodeURIComponent(productCode)}/schedules`)); }

@@ -1,0 +1,3 @@
+import { TravelProviderError } from "../errors";
+export function createBooking(_input: unknown): never { throw new TravelProviderError("PROVIDER_CAPABILITY_NOT_AUTHORIZED", "Viator Basic access does not authorize booking."); }
+export function cancelBooking(_input: unknown): never { throw new TravelProviderError("PROVIDER_CAPABILITY_NOT_AUTHORIZED", "Viator Basic access does not authorize cancellation."); }

@@ -1,0 +1,2 @@
+import { viatorRequest } from "./client"; import { mapTaxonomy } from "./mapper"; import type { ActivityTaxonomy } from "../contracts";
+export async function getTaxonomy(): Promise<ActivityTaxonomy[]> { const raw=await viatorRequest<{taxonomy?:unknown[];data?:{taxonomy?:unknown[]}}>("/taxonomy"); const items=raw.taxonomy||raw.data?.taxonomy||[]; return Array.isArray(items)?items.map(mapTaxonomy):[]; }
