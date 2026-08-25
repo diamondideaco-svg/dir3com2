@@ -1,5 +1,6 @@
 import type { HotelResult, PrebookInput, PrebookResult, StayBooking, StayBookingInput, StayCancellationResult, StayProvider, StayRate, StaySearchInput, StaySearchResult } from "../contracts";
 import { TravelProviderError } from "../errors";
+import { validateTravelerCounts } from "../traveler-counts";
 import { assertLiteApiSandboxMutation } from "../mutation-guards";
 import { liteApiRequest } from "./client";
 import type { LiteApiHotel, LiteApiRatesResponse } from "./types";
@@ -42,6 +43,14 @@ function normalizeSearch(response: LiteApiRatesResponse): StaySearchResult {
 function searchBody(input: StaySearchInput): Record<string, unknown> {
   if (!input.checkIn || !input.checkOut || !input.currency || !input.guestNationality || !input.occupancies.length) throw new TravelProviderError("INVALID_PROVIDER_RESPONSE", "Complete stay search criteria are required.");
   if (!input.hotelIds?.length && !(input.cityName && input.countryCode) && !input.iataCode) throw new TravelProviderError("INVALID_PROVIDER_RESPONSE", "A hotel or destination selector is required.");
+  let totalAdults = 0;
+  let totalChildren = 0;
+  for (const occupancy of input.occupancies) {
+    const travelers = validateTravelerCounts(occupancy.adults, occupancy.childAges?.length ?? 0);
+    totalAdults += travelers.adults;
+    totalChildren += travelers.children;
+  }
+  validateTravelerCounts(totalAdults, totalChildren);
   return { hotelIds: input.hotelIds, cityName: input.cityName, countryCode: input.countryCode, iataCode: input.iataCode, occupancies: input.occupancies.map((entry) => ({ adults: entry.adults, children: entry.childAges })), currency: input.currency, guestNationality: input.guestNationality, checkin: input.checkIn, checkout: input.checkOut, maxRatesPerHotel: input.maxRatesPerHotel ?? 5, refundableRatesOnly: input.refundableOnly, roomMapping: true, includeHotelData: true, sessionId: input.sessionId, timeout: 10 };
 }
 

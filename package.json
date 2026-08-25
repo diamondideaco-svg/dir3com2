@@ -27,6 +27,7 @@
     "eval:sandbox": "node scripts/sandbox/run-eval-suite.mjs",
     "test:sandbox": "node --import tsx --test tests/dabra-sandbox.test.ts",
     "test:ai-global": "node --import tsx --test tests/ai-global.test.ts",
+    "test:dabra-orchestration": "node --import tsx --test tests/dabra-agentic-orchestration.test.ts",
     "test:openai": "node --import tsx --test tests/openai-web.test.ts",
     "test:gemini": "node --import tsx --test tests/gemini-web.test.ts",
     "test:anthropic": "node --import tsx --test tests/ai-anthropic.test.ts",
