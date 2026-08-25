@@ -104,3 +104,45 @@ export type StayProvider = {
   getBooking(id: string): Promise<StayBooking>;
   cancelBooking(id: string): Promise<StayCancellationResult>;
 };
+
+export type VipDataSource = "synthetic_test_placeholder" | "partner_verified";
+export type VipVerificationStatus = "UNVERIFIED" | "VERIFIED";
+export type VipServiceType = "DIR3 VIP";
+export type VipAvailabilityStatus = "available" | "unavailable" | "pending_partner_response";
+export type VipPartnerConfig = {
+  partnerId: string; legalName: string; displayName: string; country: "EG"; coverage: string[];
+  serviceCategories: VipServiceType[]; operatingHours: string; responseSlaMinutes: number;
+  bookingMethod: "partner_portal_confirmation" | "admin_confirmed_request";
+  cancellationPolicy: string; amendmentPolicy: string; pricingModel: "fixed_test_fixture" | "request_quote"; basePrice: number; perPassengerPrice: number;
+  settlementModel: string; currency: "EGP"; taxAndFees: string; minimumLeadTimeHours: number;
+  quoteValidityMinutes: number; operationalContact: string; escalationContact: string;
+  status: "ACTIVE_TEST_ONLY" | "INACTIVE"; source: VipDataSource; verificationStatus: VipVerificationStatus;
+};
+export type VipSearchInput = { cityOrLocation: string; dateTime: string; passengerCount: number; serviceType?: VipServiceType };
+export type VipOffer = {
+  id: string; partnerId: string; serviceType: VipServiceType; cityOrLocation: string; airport?: string;
+  dateTime: string; passengerCount: number; inclusions: string[]; exclusions: string[]; currency: "EGP";
+  price: string; taxAndFees: string; cancellationTerms: string; minimumLeadTimeHours: number;
+  providerReference: string; availabilityStatus: VipAvailabilityStatus; source: VipDataSource;
+  verificationStatus: VipVerificationStatus;
+};
+export type VipSearchResult = { provider: string; status: "ok" | "no_results" | "blocked"; offers: VipOffer[]; error?: NormalizedError };
+export type VipQuote = VipOffer & { quoteId: string; version: number; expiresAt: string; changed: boolean };
+export type VipBooking = {
+  quoteId: string; bookingReference: string; customerMetadata: Record<string, string>;
+  serviceMetadata: Record<string, string>; partnerReference: string;
+  status: "pending_partner_review" | "confirmed" | "cancellation_pending" | "cancelled" | "failed" | "no_response";
+  confirmation?: string; cancellation?: string; createdAt: string; updatedAt: string; idempotencyKey: string;
+  source: VipDataSource; verificationStatus: VipVerificationStatus;
+};
+export type VipProviderStatus = { provider: string; status: "ok" | "inactive" | "blocked"; mode: "local_test"; synthetic: boolean };
+export type VipProvider = {
+  searchVipServices(input: VipSearchInput): Promise<VipSearchResult>;
+  getVipQuote(offerId: string): Promise<VipQuote>;
+  revalidateVipQuote(quoteId: string): Promise<VipQuote>;
+  createVipBooking(input: { quoteId: string; customerMetadata: Record<string, string>; serviceMetadata?: Record<string, string>; idempotencyKey: string }): Promise<VipBooking>;
+  getVipBooking(bookingReference: string): Promise<VipBooking>;
+  confirmVipBooking(bookingReference: string, confirmation: string): Promise<VipBooking>;
+  cancelVipBooking(bookingReference: string, reason: string): Promise<VipBooking>;
+  getVipProviderStatus(): Promise<VipProviderStatus>;
+};

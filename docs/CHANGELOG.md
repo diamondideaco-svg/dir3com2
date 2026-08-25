@@ -38,3 +38,9 @@
 - Added production-oriented documentation set
 - Aligned lint configuration with current Next.js stack
 - Added structured notes for architecture, database, security, performance, and business rules
+# 2026-08-25 — VIP local Egypt partner test-ready engineering
+
+- Added a server-side local `DIR3 VIP` provider adapter with synthetic, explicitly unverified Egypt fixtures.
+- Added search, quote, revalidation, request, confirmation, cancellation, idempotency, retry safety, audit, and provider status.
+- Added an admin-only editable configuration form and isolated local-test persistence schema; production signals fail closed.
+- No credential, live booking, payment, production write, merge, or deployment was performed.
