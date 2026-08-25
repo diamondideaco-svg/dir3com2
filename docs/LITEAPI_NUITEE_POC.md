@@ -6,6 +6,13 @@ Date: 2026-08-25
 
 LiteAPI is implemented only as a Stay adapter behind the shared DIR3COM Travel Provider layer. No browser route, DABRA component, or customer UI receives provider credentials or provider-specific response objects. Flights remain on the existing Duffel adapter.
 
+### Authentication modes
+
+- Sandbox remains unchanged: `LITEAPI_ENV=sandbox` and `LITEAPI_TEST_API_KEY` send `X-API-Key`.
+- Optional HMAC reads require explicit `LITEAPI_AUTH_MODE=hmac` plus server-only `LITEAPI_PUBLIC_API_KEY`, `LITEAPI_PRIVATE_API_KEY`, and `LITEAPI_SHARED_SECRET`.
+- HMAC authorization uses a UNIX-seconds timestamp, HMAC SHA-512, the canonical `PublicKey=...,Signature=...,Timestamp=...` header, and a five-minute verification window.
+- Booking and cancellation continue to fail closed outside the verified sandbox mutation configuration; enabling HMAC does not enable production writes.
+
 ## Official API verification
 
 - Authentication: `X-API-Key` using a server-side sandbox key. Source: https://docs.liteapi.travel/reference/authentication

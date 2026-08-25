@@ -1,5 +1,10 @@
 # Changelog
 
+## LiteAPI optional HMAC authentication
+
+- Preserved the verified sandbox `X-API-Key` flow and added an explicit server-only HMAC SHA-512 mode for non-sandbox reads.
+- Added strict credential checks, canonical authorization parsing, constant-time signature verification, and five-minute timestamp replay protection.
+
 ## Travel provider final hardening
 
 - Made Duffel booking mutations fail closed outside explicitly normalized test or sandbox modes and required validated idempotency keys.

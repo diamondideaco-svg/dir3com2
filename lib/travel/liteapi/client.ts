@@ -1,6 +1,7 @@
 import { TravelProviderError } from "../errors";
 import { mapLiteApiError } from "./errors";
 import type { LiteApiErrorBody } from "./types";
+import { getLiteApiAuthHeaders } from "./auth";
 
 type LiteApiSurface = "search" | "booking";
 type LiteApiOperation = "search" | "prebook" | "book" | "booking";
@@ -17,12 +18,6 @@ function configuredSearchOrigin(): string {
     throw new TravelProviderError("LIVE_MUTATION_FORBIDDEN", "Only the official LiteAPI sandbox-capable API origin is allowed.");
   }
   return url.origin;
-}
-
-function getApiKey(): string {
-  const key = process.env.LITEAPI_TEST_API_KEY?.trim();
-  if (!key || !key.startsWith("sand_")) throw new TravelProviderError("UNAUTHORIZED_VENDOR_ACCESS", "LiteAPI sandbox credentials are not configured.");
-  return key;
 }
 
 async function fetchOnce(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
@@ -46,7 +41,7 @@ export async function liteApiRequest<T>(path: string, options: LiteApiRequestOpt
     try {
       const response = await fetchOnce(url, {
         ...init,
-        headers: { Accept: "application/json", "Content-Type": "application/json", "X-API-Key": getApiKey(), ...(init.headers || {}) },
+        headers: { Accept: "application/json", "Content-Type": "application/json", ...getLiteApiAuthHeaders(), ...(init.headers || {}) },
       }, timeoutMs);
       const text = await response.text();
       let body: unknown = undefined;
