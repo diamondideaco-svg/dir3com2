@@ -1,5 +1,11 @@
 # Changelog
 
+## Partner portal tenant isolation
+
+- Bound onboarding assets, media, and contracts to the authenticated partner identity instead of the shared portal category.
+- Denied partner access to the internal review queue and rejected missing, forged, or inconsistent tenant associations.
+- Preserved explicit admin/staff review access and localhost-only password authentication for isolated QA.
+
 ## Partner portal upload QA closure
 
 - Reused the existing upload validator in partner-portal clients to reject unsupported, empty, and oversized files before an upload request.

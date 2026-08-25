@@ -7,6 +7,7 @@ import {
   writeOnboardingStore,
 } from '@/lib/partner-portal/onboarding-store';
 import type { PortalAssetRecord, PortalOwnerKind } from '@/lib/partner-portal/onboarding-types';
+import { canReadTenantAssociation, canReadTenantRecord, isPrivilegedPortalActor } from '@/lib/partner-portal/tenant-access';
 
 function privateHeaders() {
   return {
@@ -44,16 +45,23 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const requestedOwner = resolveOwnerKind(searchParams.get('ownerKind'), defaultOwner);
 
-  if (requestedOwner !== defaultOwner && !['admin', 'staff'].includes(actor.authRole)) {
+  if (requestedOwner !== defaultOwner && !isPrivilegedPortalActor(actor)) {
     return NextResponse.json({ error: { code: 'ASSET_SCOPE_DENIED' } }, { status: 403, headers: privateHeaders() });
   }
 
   const store = await readOnboardingStore();
-  const assets = store.assets.filter((asset) => asset.ownerKind === requestedOwner);
+  const assets = store.assets.filter(
+    (asset) => asset.ownerKind === requestedOwner && canReadTenantRecord(actor, asset),
+  );
   const media = store.media
-    .filter((item) => item.ownerKind === requestedOwner)
+    .filter((item) => {
+      const asset = assets.find((candidate) => candidate.id === item.assetId);
+      return item.ownerKind === requestedOwner && Boolean(asset) && canReadTenantAssociation(actor, asset!, item);
+    })
     .sort((left, right) => left.sortOrder - right.sortOrder);
-  const contracts = store.contracts.filter((contract) => contract.ownerKind === requestedOwner);
+  const contracts = store.contracts.filter(
+    (contract) => contract.ownerKind === requestedOwner && canReadTenantRecord(actor, contract),
+  );
 
   return NextResponse.json(
     {
@@ -97,7 +105,7 @@ export async function PUT(request: Request) {
   }
 
   const asset = store.assets[assetIndex];
-  if (asset.ownerKind !== defaultOwner && !['admin', 'staff'].includes(actor.authRole)) {
+  if (!isPrivilegedPortalActor(actor) && (asset.ownerKind !== defaultOwner || !canReadTenantRecord(actor, asset))) {
     return NextResponse.json({ error: { code: 'ASSET_SCOPE_DENIED' } }, { status: 403, headers: privateHeaders() });
   }
 
@@ -157,6 +165,7 @@ export async function PUT(request: Request) {
   if (submit) {
     store.reviewQueue.unshift({
       id: crypto.randomUUID(),
+      ownerId: updated.ownerId,
       ownerKind: updated.ownerKind,
       assetId: updated.id,
       mediaId: 'catalog-update',

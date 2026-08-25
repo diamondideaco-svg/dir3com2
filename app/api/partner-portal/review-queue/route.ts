@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requirePortalActor } from '@/lib/partner-portal/server';
-import { ownerFromDomain, readOnboardingStore, writeOnboardingStore } from '@/lib/partner-portal/onboarding-store';
+import { readOnboardingStore, writeOnboardingStore } from '@/lib/partner-portal/onboarding-store';
 import type { ReviewAction } from '@/lib/partner-portal/onboarding-types';
+import { hasValidTenantAssociation, isPrivilegedPortalActor } from '@/lib/partner-portal/tenant-access';
 
 function privateHeaders() {
   return {
@@ -23,14 +24,7 @@ function normalizeAction(value: unknown): ReviewAction | null {
   return null;
 }
 
-function resolveOwnerKind(input: string | null, fallback: 'drive_partner' | 'stay_supplier') {
-  if (input === 'drive_partner' || input === 'stay_supplier') {
-    return input;
-  }
-  return fallback;
-}
-
-export async function GET(request: Request) {
+export async function GET() {
   const actor = await requirePortalActor();
   if (!actor) {
     return NextResponse.json({ error: { code: 'PORTAL_ACCESS_DENIED' } }, { status: 403, headers: privateHeaders() });
@@ -38,25 +32,16 @@ export async function GET(request: Request) {
 
   const store = await readOnboardingStore();
 
-  if (['admin', 'staff'].includes(actor.authRole)) {
+  if (isPrivilegedPortalActor(actor)) {
     return NextResponse.json({ data: store.reviewQueue }, { headers: privateHeaders() });
   }
 
-  const defaultOwner = ownerFromDomain(actor.partnerDomainType);
-  const { searchParams } = new URL(request.url);
-  const owner = resolveOwnerKind(searchParams.get('ownerKind'), defaultOwner);
-
-  if (owner !== defaultOwner) {
-    return NextResponse.json({ error: { code: 'REVIEW_SCOPE_DENIED' } }, { status: 403, headers: privateHeaders() });
-  }
-
-  const scoped = store.reviewQueue.filter((item) => item.ownerKind === owner);
-  return NextResponse.json({ data: scoped }, { headers: privateHeaders() });
+  return NextResponse.json({ error: { code: 'PORTAL_REVIEW_ACCESS_DENIED' } }, { status: 403, headers: privateHeaders() });
 }
 
 export async function POST(request: Request) {
   const actor = await requirePortalActor();
-  if (!actor || !['admin', 'staff'].includes(actor.authRole)) {
+  if (!actor || !isPrivilegedPortalActor(actor)) {
     return NextResponse.json({ error: { code: 'PORTAL_REVIEW_ACCESS_DENIED' } }, { status: 403, headers: privateHeaders() });
   }
 
@@ -84,6 +69,15 @@ export async function POST(request: Request) {
   const media = queueItem.mediaId === 'catalog-update' ? null : store.media.find((item) => item.id === queueItem.mediaId);
   if (queueItem.mediaId !== 'catalog-update' && !media) {
     return NextResponse.json({ error: { code: 'REVIEW_MEDIA_NOT_FOUND' } }, { status: 404, headers: privateHeaders() });
+  }
+
+  const associatedAsset = store.assets.find((entry) => entry.id === queueItem.assetId);
+  if (
+    !associatedAsset
+    || !hasValidTenantAssociation(queueItem, associatedAsset)
+    || (media && (media.assetId !== associatedAsset.id || !hasValidTenantAssociation(queueItem, associatedAsset, media)))
+  ) {
+    return NextResponse.json({ error: { code: 'REVIEW_ASSOCIATION_INVALID' } }, { status: 409, headers: privateHeaders() });
   }
 
   const now = new Date().toISOString();
@@ -116,7 +110,7 @@ export async function POST(request: Request) {
     media.updatedAt = now;
   }
 
-  const asset = store.assets.find((entry) => entry.id === queueItem.assetId);
+  const asset = associatedAsset;
   if (asset && action === 'APPROVE') {
     asset.verificationStatus = 'Approved';
     asset.dataStatus = 'published';
