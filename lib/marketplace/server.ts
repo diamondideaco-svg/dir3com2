@@ -1,4 +1,6 @@
 import { getMarketplaceAdapters } from '@/lib/marketplace/adapters';
+import { fetchAllTravelProviderCards } from '@/lib/marketplace/travel-provider-integration';
+import type { MarketplaceCard } from '@/lib/marketplace/cards';
 import {
   createMarketplaceFallbackServices,
   filterMarketplaceServices,
@@ -17,6 +19,13 @@ import {
 export type MarketplaceApiQuery = MarketplaceQueryOptions & {
   page?: number;
   pageSize?: number;
+  checkIn?: string;
+  checkOut?: string;
+  departureFrom?: string;
+  departureDate?: string;
+  returnDate?: string;
+  adults?: number;
+  children?: number;
 };
 
 export type MarketplaceSnapshot = {
@@ -118,6 +127,8 @@ export function sanitizeMarketplaceQuery(input: URLSearchParams): MarketplaceApi
   const availability = (input.get('availability') ?? 'all') as MarketplaceApiQuery['availability'];
   const page = Number(input.get('page') ?? 1);
   const pageSize = Number(input.get('pageSize') ?? 9);
+  const adults = Number(input.get('adults') ?? 1);
+  const children = Number(input.get('children') ?? 0);
 
   return {
     family,
@@ -131,24 +142,90 @@ export function sanitizeMarketplaceQuery(input: URLSearchParams): MarketplaceApi
     availability,
     page: Number.isFinite(page) && page > 0 ? page : 1,
     pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.min(pageSize, 30) : 9,
+    checkIn: input.get('checkIn') ?? undefined,
+    checkOut: input.get('checkOut') ?? undefined,
+    departureFrom: input.get('departureFrom') ?? undefined,
+    departureDate: input.get('departureDate') ?? undefined,
+    returnDate: input.get('returnDate') ?? undefined,
+    adults: Number.isFinite(adults) && adults > 0 ? Math.min(adults, 20) : 1,
+    children: Number.isFinite(children) && children >= 0 ? Math.min(children, 20) : 0,
   };
+}
+
+function providerCardsToServices(cards: MarketplaceCard[]): MarketplaceService[] {
+  return cards.map((card, index) => {
+    const isStay = card.serviceType === 'stay';
+    const category: MarketplacePageCategory = isStay ? 'hotels' : 'airport-transfers';
+    const family: MarketplaceFamilyKey = isStay ? 'dir3-stay' : 'dir3-fly';
+    const name = card.title || 'Travel service';
+    const description = card.subtitle || card.location;
+
+    return {
+      id: `provider-${card.serviceType}-${index}-${card.provider}`,
+      slug: `provider-${card.serviceType}-${index}`,
+      name_ar: name,
+      name_en: name,
+      description_ar: description,
+      description_en: description,
+      badge: card.provider,
+      family,
+      familyLabel: isStay ? 'dir3 Stay' : 'dir3 Fly',
+      category,
+      categoryLabel: isStay ? 'Hotels' : 'Flights',
+      icon: isStay ? 'hotel' : 'plane',
+      href: card.deepLink ?? (isStay ? '/hotels' : '/fly'),
+      metric: card.rating ? `${card.rating}/5` : card.location,
+      tags: [card.provider, card.location],
+      basePrice: card.priceFrom ?? 0,
+      currency: card.currency,
+      productCount: 1,
+      inventoryCount: 1,
+      availability: card.availabilityStatus === 'sold-out' ? 'sold-out' : 'available',
+      destination: card.location.toLowerCase(),
+      featured: false,
+      popular: false,
+      recommended: true,
+      source: 'api',
+      createdAt: null,
+      updatedAt: null,
+    } satisfies MarketplaceService;
+  });
 }
 
 export async function queryMarketplace(apiQuery: MarketplaceApiQuery) {
   const snapshot = await getMarketplaceSnapshot();
+  const hasTravelSearch = Boolean(
+    apiQuery.destination && (apiQuery.checkIn || apiQuery.departureDate),
+  );
+  const providerServices = hasTravelSearch
+    ? providerCardsToServices(await fetchAllTravelProviderCards({
+        mode: 'PROVIDER_LIVE',
+        destination: apiQuery.destination,
+        checkIn: apiQuery.checkIn,
+        checkOut: apiQuery.checkOut,
+        departureFrom: apiQuery.departureFrom,
+        departureDate: apiQuery.departureDate,
+        returnDate: apiQuery.returnDate,
+        adults: apiQuery.adults,
+        children: apiQuery.children,
+      }))
+    : [];
+  const services = providerServices.length > 0
+    ? [...providerServices, ...snapshot.services]
+    : snapshot.services;
 
-  const scoped = filterMarketplaceServices(snapshot.services, {
+  const scoped = filterMarketplaceServices(services, {
     family: apiQuery.family,
   });
 
   const facets = summarizeMarketplace(scoped);
-  const result = queryMarketplaceServices(snapshot.services, apiQuery);
+  const result = queryMarketplaceServices(services, apiQuery);
 
   return {
     services: result.items,
     meta: {
       source: snapshot.source,
-      hasRealData: snapshot.hasRealData,
+      hasRealData: snapshot.hasRealData || providerServices.length > 0,
       total: result.total,
       page: result.page,
       pageSize: result.pageSize,

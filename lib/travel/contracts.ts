@@ -58,7 +58,7 @@ export type HotelResult = {
   name?: string;
   address?: string;
   rating?: number;
-  imageUrl?: string;
+  imageUrl?: string | null;
   rooms: StayRoom[];
 };
 export type StaySearchResult = {
