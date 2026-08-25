@@ -1,6 +1,7 @@
 import { duffelRequest, DuffelAccessBlockedError, DuffelApiError, normalizeDuffelError } from "./client";
 import { TravelProviderError } from "../errors";
 import type { FlightOffer, FlightSearchInput, FlightSearchResult } from "../contracts";
+import { validateTravelerCounts } from "../traveler-counts";
 
 export type SearchDuffelFlightsInput = FlightSearchInput;
 
@@ -38,6 +39,7 @@ function normalizeOffer(raw: any): FlightOffer {
 }
 
 export async function searchDuffelFlights(input: SearchDuffelFlightsInput): Promise<FlightSearchResult> {
+  const travelers = validateTravelerCounts(input.adults ?? 1);
   const payload = {
     data: {
       slices: [
@@ -48,7 +50,7 @@ export async function searchDuffelFlights(input: SearchDuffelFlightsInput): Prom
         },
         ...(input.returnDate ? [{ origin: input.to, destination: input.from, departure_date: input.returnDate }] : []),
       ],
-      passengers: Array.from({ length: Math.max(1, input.adults ?? 1) }, () => ({ type: "adult" })),
+      passengers: Array.from({ length: travelers.adults }, () => ({ type: "adult" })),
       cabin_class: input.cabin ?? "economy",
       max_offers: 10,
     },

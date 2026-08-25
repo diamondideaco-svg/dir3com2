@@ -1,5 +1,6 @@
 import { searchDuffelFlights } from '@/lib/travel/duffel/search';
 import { searchLiteApiHotels } from '@/lib/travel/liteapi/stays';
+import { validateTravelerCounts } from '@/lib/travel/traveler-counts';
 import { sanitizeProviderError, sanitizeUntrustedText } from './security';
 import type { CapabilitySearchResult, NormalizedTravelOption, TravelCapability, TravelCapabilityAdapter } from './types';
 
@@ -40,7 +41,8 @@ export function createDuffelCapabilityAdapter(): TravelCapabilityAdapter {
       const to = segment?.destination ? IATA[segment.destination] ?? segment.destination : undefined;
       if (!process.env.DUFFEL_TEST_TOKEN || !from || !to || !segment?.startDate) return blocked('fly', process.env.DUFFEL_TEST_TOKEN ? 'provider_unavailable' : 'vendor_access', context.intent.language);
       try {
-        const result = await searchDuffelFlights({ from, to, departureDate: segment.startDate, returnDate: segment.endDate, adults: context.plan.travelers.adults, cabin: context.intent.preferences.cabin });
+        const travelers = validateTravelerCounts(context.plan.travelers.adults, context.plan.travelers.children);
+        const result = await searchDuffelFlights({ from, to, departureDate: segment.startDate, returnDate: segment.endDate, adults: travelers.adults, cabin: context.intent.preferences.cabin });
         return { capability: 'fly', status: result.status === 'ok' ? 'available' : result.status, options: result.offers.map(flightOption), blockedReason: result.status === 'blocked' ? 'vendor_access' : undefined, userMessage: result.error ? sanitizeProviderError(result.error, context.intent.language) : undefined };
       } catch (error) {
         return { capability: 'fly', status: 'unavailable', options: [], blockedReason: 'provider_unavailable', userMessage: sanitizeProviderError(error, context.intent.language) };
@@ -57,7 +59,9 @@ export function createLiteApiCapabilityAdapter(): TravelCapabilityAdapter {
       const segment = context.plan.segments[0];
       if (!process.env.LITEAPI_TEST_API_KEY || !destination || !segment?.startDate || !segment.endDate) return blocked('stay', process.env.LITEAPI_TEST_API_KEY ? 'provider_unavailable' : 'vendor_access', context.intent.language);
       try {
-        const result = await searchLiteApiHotels({ cityName: destination, countryCode: COUNTRY[destination], checkIn: segment.startDate, checkOut: segment.endDate, occupancies: [{ adults: context.plan.travelers.adults, childAges: context.plan.travelers.children ? Array(context.plan.travelers.children).fill(8) : undefined }], currency: context.plan.budget?.currency ?? 'USD', guestNationality: COUNTRY[destination] ?? 'SA', maxRatesPerHotel: 5 });
+        const travelers = validateTravelerCounts(context.plan.travelers.adults, context.plan.travelers.children);
+        const childAges = travelers.children > 0 ? Array(travelers.children).fill(8) : undefined;
+        const result = await searchLiteApiHotels({ cityName: destination, countryCode: COUNTRY[destination], checkIn: segment.startDate, checkOut: segment.endDate, occupancies: [{ adults: travelers.adults, childAges }], currency: context.plan.budget?.currency ?? 'USD', guestNationality: COUNTRY[destination] ?? 'SA', maxRatesPerHotel: 5 });
         const options: NormalizedTravelOption[] = result.hotels.flatMap((hotel) => hotel.rooms.flatMap((room) => room.rates.slice(0, 1).map((rate) => ({ id: `stay:${rate.id}:${room.id}`, capability: 'stay' as const, title: sanitizeUntrustedText(`${hotel.name ?? 'Hotel'} — ${room.name}`), currency: rate.currency, amount: rate.totalAmount, refundable: rate.refundable, evidence: [rate.boardName, rate.refundable ? 'Refundable' : 'Non-refundable'].filter(Boolean) as string[], providerReference: rate.id, metadata: { hotelId: hotel.id, rating: hotel.rating } }))));
         return { capability: 'stay', status: options.length ? 'available' : 'no_results', options };
       } catch (error) {

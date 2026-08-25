@@ -1,4 +1,5 @@
 import { assertSafeUserInput, sanitizeUntrustedText } from './security';
+import { validateTravelerCounts } from '@/lib/travel/traveler-counts';
 import type { TravelCapability, TravelIntent, TravelLanguage } from './types';
 
 const CITY_ALIASES: Record<string, string> = {
@@ -44,10 +45,15 @@ function detectCapabilities(message: string): TravelCapability[] {
 }
 
 function detectTravelers(message: string) {
-  const adults = message.match(/(\d+)\s*(?:adults?|بالغ|بالغين)/i);
-  const children = message.match(/(\d+)\s*(?:children|kids|أطفال|طفل)/i);
+  const count = '([+-]?(?:\\d+(?:\\.\\d+)?(?:e[+-]?\\d+)?|Infinity|NaN))';
+  const tokenStart = '(?<![\\p{L}\\p{N}.+-])';
+  const adults = message.match(new RegExp(`${tokenStart}${count}\\s*(?:adults?|بالغ|بالغين)`, 'iu'));
+  const children = message.match(new RegExp(`${tokenStart}${count}\\s*(?:children|kids|أطفال|طفل)`, 'iu'));
   if (!adults && !children && !/(?:عائلة|family)/i.test(message)) return undefined;
-  return { adults: Number(adults?.[1] ?? (/family|عائلة/i.test(message) ? 2 : 1)), children: Number(children?.[1] ?? (/family|عائلة/i.test(message) ? 2 : 0)) };
+  return validateTravelerCounts(
+    Number(adults?.[1] ?? (/family|عائلة/i.test(message) ? 2 : 1)),
+    Number(children?.[1] ?? (/family|عائلة/i.test(message) ? 2 : 0)),
+  );
 }
 
 function detectBudget(message: string): { amount?: number; currency?: string } {

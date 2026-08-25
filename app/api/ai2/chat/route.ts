@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { buildAI2ChatResponse, type AI2ChatAccountContext, type AI2ChatTurn } from '@/lib/ai2/runtime/chat';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DabraTravelOrchestrator } from '@/lib/ai2/orchestration';
+import { TravelProviderError } from '@/lib/travel/errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,12 +95,24 @@ export async function POST(request: NextRequest) {
       { status: 401, headers: { 'Cache-Control': 'no-store' } },
     );
   }
-  const response = await buildAI2ChatResponse(message, history, identity.account);
   if (body?.mode === 'travel-plan' && identity.scope) {
-    const travel = await new DabraTravelOrchestrator().orchestrate(message, identity.scope);
+    let travel;
+    try {
+      travel = await new DabraTravelOrchestrator().orchestrate(message, identity.scope);
+    } catch (error) {
+      if (error instanceof TravelProviderError && error.code === 'INVALID_TRAVELER_COUNT') {
+        return NextResponse.json(
+          { error: 'Traveler counts are invalid.' },
+          { status: 400, headers: { 'Cache-Control': 'no-store' } },
+        );
+      }
+      throw error;
+    }
+    const response = await buildAI2ChatResponse(message, history, identity.account);
     return NextResponse.json({ ...response, travel }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
+  const response = await buildAI2ChatResponse(message, history, identity.account);
   return NextResponse.json(response, {
     headers: {
       'Cache-Control': 'no-store',

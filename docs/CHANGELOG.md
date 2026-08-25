@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-25 - DABRA traveler-count security boundary
+
+- Added shared finite, safe-integer, and conservative party-size validation at intent and provider boundaries to prevent attacker-sized allocations before travel-provider requests.
+
 ## 2026-08-25 - DABRA Agentic Travel Orchestration V1
 
 - Extended the existing AI2/DABRA foundation with normalized bilingual travel intent, scoped Travel Memory, Trip Plans, capability orchestration, comparison/replanning, confirmation-gated sandbox actions, a payment boundary, Trip Guardian event guidance, and context-preserving human handoff.
