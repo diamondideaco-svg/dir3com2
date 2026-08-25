@@ -23,6 +23,7 @@ export type ReviewAction = 'APPROVE' | 'REJECT' | 'REQUEST_REPLACEMENT';
 
 export type PortalAssetRecord = {
   id: string;
+  ownerId?: string;
   ownerKind: PortalOwnerKind;
   ownerLabel: string;
   assetType: 'vehicle' | 'apartment_unit';
@@ -50,6 +51,7 @@ export type PortalAssetRecord = {
 
 export type PortalAssetMedia = {
   id: string;
+  ownerId?: string;
   assetId: string;
   ownerKind: PortalOwnerKind;
   label: string;
@@ -78,6 +80,7 @@ export type PortalAssetMedia = {
 
 export type ReviewQueueItem = {
   id: string;
+  ownerId?: string;
   ownerKind: PortalOwnerKind;
   assetId: string;
   mediaId: string;
@@ -96,6 +99,7 @@ export type ReviewQueueItem = {
 
 export type ContractAssociation = {
   id: string;
+  ownerId?: string;
   ownerKind: PortalOwnerKind;
   ownerLabel: string;
   contractRef: string;

@@ -17,7 +17,7 @@ export default async function AdminCategoriesPage() {
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">التصنيفات</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">إدارة الفئات</h1>
+            <h1 className="mt-2 text-3xl font-semibold text-[#334155]">إدارة الفئات</h1>
           </div>
           <Link href="/admin/products" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
         </div>
@@ -25,7 +25,7 @@ export default async function AdminCategoriesPage() {
         <div className="space-y-4">
           {categories.map((category) => (
             <div key={category.id} className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
-              <p className="text-lg font-semibold text-white">{category.name_en}</p>
+              <p className="text-lg font-semibold text-[#334155]">{category.name_en}</p>
               <p className="mt-2 text-sm text-[var(--color-muted)]">{category.slug}</p>
             </div>
           ))}

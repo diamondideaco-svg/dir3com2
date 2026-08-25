@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FiCalendar, FiFlag, FiMapPin, FiSearch, FiUsers } from 'react-icons/fi';
+import { FiCalendar, FiChevronDown, FiChevronUp, FiFlag, FiMapPin, FiSearch, FiUsers } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { canonicalCountries, citiesForCountry, todayIsoDate } from '@/lib/services/coverage';
 
@@ -101,6 +101,8 @@ const copy = {
     dateOrder: 'تاريخ العودة يجب أن يكون بعد تاريخ الذهاب.',
     pastDate: 'لا يمكن اختيار تاريخ في الماضي.',
     sameCity: 'اختر مدينتين مختلفتين.',
+    hideSearch: 'إخفاء البحث',
+    showSearch: 'ابحث عن رحلة أو خدمة',
   },
   en: {
     choose: 'Choose a service',
@@ -112,6 +114,8 @@ const copy = {
     dateOrder: 'The return date must be after the departure date.',
     pastDate: 'A past date cannot be selected.',
     sameCity: 'Choose two different cities.',
+    hideSearch: 'Hide search',
+    showSearch: 'Search travel & services',
   },
 } as const;
 
@@ -130,6 +134,21 @@ export default function ServiceSearchTable() {
   const [selectedKey, setSelectedKey] = useState<ServiceDef['key']>('drive');
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [mobileExpanded, setMobileExpanded] = useState(true);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setMobileExpanded(window.sessionStorage.getItem('dir3com-search-collapsed') !== 'true');
+    });
+  }, []);
+
+  function toggleMobileSearch() {
+    setMobileExpanded((expanded) => {
+      const next = !expanded;
+      window.sessionStorage.setItem('dir3com-search-collapsed', next ? 'false' : 'true');
+      return next;
+    });
+  }
 
   const selected = services.find((service) => service.key === selectedKey) ?? services[0];
 
@@ -182,6 +201,18 @@ export default function ServiceSearchTable() {
     <section id="service-search" className="service-search-table px-4 py-10 sm:px-6 lg:px-10" dir={direction}>
       <div className="mx-auto max-w-[1240px]">
         <div className="service-search-table__shell">
+          <button
+            type="button"
+            className="service-search-table__mobile-toggle"
+            onClick={toggleMobileSearch}
+            aria-expanded={mobileExpanded}
+            aria-controls="service-search-content"
+          >
+            {mobileExpanded ? <FiChevronUp aria-hidden="true" /> : <FiSearch aria-hidden="true" />}
+            <span>{mobileExpanded ? t.hideSearch : t.showSearch}</span>
+            {!mobileExpanded ? <FiChevronDown aria-hidden="true" /> : null}
+          </button>
+          <div id="service-search-content" className={mobileExpanded ? 'service-search-table__content' : 'service-search-table__content service-search-table__content--collapsed'}>
           <div className="service-search-table__tabs" role="tablist" aria-label={t.choose}>
             {services.map((service) => (
               <button
@@ -252,6 +283,7 @@ export default function ServiceSearchTable() {
             </button>
           </div>
           {error ? <p role="alert" className="px-4 pb-3 text-xs font-semibold text-[#b91c1c]">{error}</p> : null}
+          </div>
         </div>
       </div>
     </section>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import OnboardingAssetsPanel from '@/components/portal/OnboardingAssetsPanel';
+import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 
 type PortalMode = 'partner' | 'provider';
 type Lang = 'ar' | 'en';
@@ -43,7 +44,17 @@ type ProductAvailabilityRow = {
     base_price?: number;
     currency?: string;
     status?: string;
+    product_images?: ProductImage[];
   } | null;
+};
+
+type ProductImage = {
+  id: string;
+  product_id: string;
+  image_url: string;
+  caption?: string | null;
+  sort_order?: number | null;
+  created_at?: string | null;
 };
 
 type EditableProduct = {
@@ -85,6 +96,22 @@ type ComplianceData = {
 };
 
 const reviewStatusOptions = ['Draft', 'Submitted', 'Needs Changes', 'Approved', 'Suspended'];
+const uploadAccept = '.pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp';
+
+const arabicPresentationValues: Record<string, string> = {
+  commercial_registration: '?????????? ??????????????',
+  registration_commercial: '?????????? ??????????????',
+  pending: '?????????????? ????????????????',
+  unverified: '?????? ????????',
+  pending_review: '?????? ????????????????',
+  review_pending: '?????? ????????????????',
+};
+
+function presentPortalValue(value: string | null | undefined, language: Lang, fallback = '???') {
+  const normalized = String(value || '').trim();
+  if (!normalized) return fallback;
+  return language === 'ar' ? (arabicPresentationValues[normalized.toLowerCase()] || normalized) : normalized;
+}
 
 const reviewStatusDisplay = {
   ar: {
@@ -141,6 +168,15 @@ const labels = {
     missing: 'مستندات ناقصة',
     expired: 'مستندات منتهية',
     pending: 'طلبات قيد المراجعة',
+    imageReady: 'الصورة جاهزة للرفع',
+    uploading: 'جارٍ رفع الصورة...',
+    savedImage: 'تم حفظ الصورة',
+    deletedImage: 'تم حذف الصورة',
+    currentImages: 'صور المنتج الحالية',
+    openImage: 'فتح الصورة',
+    replaceImage: 'استبدال الصورة',
+    deleteImage: 'حذف الصورة',
+    confirmDelete: 'هل تريد حذف هذه الصورة؟',
   },
   en: {
     titlePartner: 'Partner Portal',
@@ -179,6 +215,15 @@ const labels = {
     missing: 'Missing Documents',
     expired: 'Expired Documents',
     pending: 'Pending Reviews',
+    imageReady: 'Image ready to upload',
+    uploading: 'Uploading image...',
+    savedImage: 'Image saved',
+    deletedImage: 'Image deleted',
+    currentImages: 'Current product images',
+    openImage: 'Open image',
+    replaceImage: 'Replace image',
+    deleteImage: 'Delete image',
+    confirmDelete: 'Delete this image?',
   },
 } as const;
 
@@ -231,9 +276,14 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
     currency: 'SAR',
     status: 'draft',
   });
-  const [productImage, setProductImage] = useState<{ productId: string; file: File | null }>({ productId: '', file: null });
+  const [productImage, setProductImage] = useState<{ productId: string; file: File | null; previewUrl: string }>({ productId: '', file: null, previewUrl: '' });
+  const [replacementImages, setReplacementImages] = useState<Record<string, { file: File; previewUrl: string }>>({});
 
   const t = labels[language as Lang];
+
+  useEffect(() => () => {
+    if (productImage.previewUrl) URL.revokeObjectURL(productImage.previewUrl);
+  }, [productImage.previewUrl]);
 
   const pageTitle = useMemo(() => (mode === 'partner' ? t.titlePartner : t.titleProvider), [mode, t]);
   const pageSubtitle = useMemo(() => (mode === 'partner' ? t.subtitlePartner : t.subtitleProvider), [mode, t]);
@@ -319,6 +369,12 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
   async function uploadDocument() {
     if (!selectedFile) return;
 
+    const validation = await validateAndNormalizeDocumentFile(selectedFile);
+    if (!validation.ok) {
+      setMessage(validation.message);
+      return;
+    }
+
     setBusy(true);
     setMessage('');
     try {
@@ -374,6 +430,12 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
   async function uploadProductImage() {
     if (!productImage.file || !productImage.productId) return;
 
+    const validation = await validateAndNormalizeDocumentFile(productImage.file);
+    if (!validation.ok) {
+      setMessage(validation.message);
+      return;
+    }
+
     setBusy(true);
     setMessage('');
     try {
@@ -390,8 +452,59 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         throw new Error('UPLOAD_IMAGE_FAILED');
       }
 
-      setProductImage({ productId: '', file: null });
-      setMessage(t.done);
+      await loadAll();
+      setProductImage({ productId: '', file: null, previewUrl: '' });
+      setMessage(t.savedImage);
+    } catch {
+      setMessage(t.failed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function replaceProductImage(productId: string, imageId: string) {
+    const replacement = replacementImages[imageId];
+    if (!replacement) return;
+
+    const validation = await validateAndNormalizeDocumentFile(replacement.file);
+    if (!validation.ok) {
+      setMessage(validation.message);
+      return;
+    }
+
+    setBusy(true);
+    setMessage('');
+    try {
+      const formData = new FormData();
+      formData.append('productId', productId);
+      formData.append('replaceImageId', imageId);
+      formData.append('file', replacement.file);
+      const response = await fetch('/api/partner-portal/products/images', { method: 'POST', body: formData });
+      if (!response.ok) throw new Error('REPLACE_IMAGE_FAILED');
+      await loadAll();
+      URL.revokeObjectURL(replacement.previewUrl);
+      setReplacementImages((current) => {
+        const next = { ...current };
+        delete next[imageId];
+        return next;
+      });
+      setMessage(t.savedImage);
+    } catch {
+      setMessage(t.failed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteProductImage(imageId: string) {
+    if (!window.confirm(t.confirmDelete)) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`/api/partner-portal/products/images?imageId=${encodeURIComponent(imageId)}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('DELETE_IMAGE_FAILED');
+      await loadAll();
+      setMessage(t.deletedImage);
     } catch {
       setMessage(t.failed);
     } finally {
@@ -448,18 +561,18 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
   }
 
   return (
-    <div className="min-h-screen w-full px-3 py-6 text-white sm:px-4 sm:py-8" dir={direction}>
+    <div className="min-h-screen w-full px-3 py-6 text-[#334155] sm:px-4 sm:py-8" dir={direction}>
       <div className="portal-shell-center w-full max-w-7xl rounded-[2rem] border border-[#D4AF37]/25 bg-[#FAF8F4] p-4 shadow-[0_24px_60px_rgba(13,27,42,0.35)] sm:p-6 lg:p-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4 sm:gap-5">
           <div>
             <h1 className="text-3xl font-semibold text-[#334155]">{pageTitle}</h1>
-            <p className="mt-2 text-sm text-[#C9D3DF]">{pageSubtitle}</p>
+            <p className="mt-2 text-sm text-[#64748B]">{pageSubtitle}</p>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             <button
               type="button"
               onClick={toggleLanguage}
-              className="min-h-11 rounded-xl border border-white/20 px-4 py-2 text-sm text-[#334155]"
+              className="min-h-11 rounded-xl border border-[#334155]/20 px-4 py-2 text-sm text-[#334155]"
             >
               {language === 'ar' ? 'EN' : 'AR'}
             </button>
@@ -487,7 +600,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
               type="button"
               onClick={() => setTab(id as typeof tab)}
               className={`min-h-11 rounded-xl border px-3 py-2 text-sm ${
-                tab === id ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-[#334155]' : 'border-[color:var(--color-border)] bg-[var(--color-surface)] text-[#C9D3DF]'
+                tab === id ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-[#334155]' : 'border-[color:var(--color-border)] bg-[var(--color-surface)] text-[#334155]'
               }`}
             >
               {label}
@@ -527,7 +640,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
           <section>
             <div className="mb-4 flex flex-wrap items-stretch gap-2 sm:items-center">
               <select className="min-h-11 w-full rounded-xl bg-white px-4 py-3 text-sm sm:w-auto" value={docType} onChange={(e) => setDocType(e.target.value)}>
-                <option value="commercial_registration">commercial_registration</option>
+                <option value="commercial_registration">{presentPortalValue('commercial_registration', language as Lang)}</option>
                 <option value="tax_card">tax_card</option>
                 <option value="manager_id">manager_id</option>
                 <option value="authorization_letter">authorization_letter</option>
@@ -536,7 +649,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                 <option value="insurance">insurance</option>
                 <option value="vehicle_registration">vehicle_registration</option>
               </select>
-              <input type="file" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="min-h-11 w-full rounded-xl bg-white px-4 py-3 text-sm sm:w-auto sm:max-w-xs" />
+              <input type="file" accept={uploadAccept} onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="min-h-11 w-full rounded-xl bg-white px-4 py-3 text-sm sm:w-auto sm:max-w-xs" />
               <button type="button" disabled={busy || !selectedFile} onClick={() => void uploadDocument()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60 sm:w-auto">
                 {t.upload}
               </button>
@@ -544,12 +657,12 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
             <div className="space-y-2">
               {documents.map((doc) => (
                 <div key={doc.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm [overflow-wrap:anywhere]">
-                  <span className="font-semibold text-[#334155]">{doc.document_type}</span>
-                  <span className="mx-2 text-[#9EB0C3]">|</span>
-                  <span>{doc.status || 'pending'}</span>
-                  <span className="mx-2 text-[#9EB0C3]">|</span>
-                  <span>{doc.verified ? 'verified' : 'unverified'}</span>
-                  <span className="mx-2 text-[#9EB0C3]">|</span>
+                  <span className="font-semibold text-[#334155]">{presentPortalValue(doc.document_type, language as Lang)}</span>
+                  <span className="mx-2 text-[#64748B]">|</span>
+                  <span>{presentPortalValue(doc.status, language as Lang, presentPortalValue('pending', language as Lang))}</span>
+                  <span className="mx-2 text-[#64748B]">|</span>
+                  <span>{doc.verified ? (language === 'ar' ? '????????' : 'verified') : presentPortalValue('unverified', language as Lang)}</span>
+                  <span className="mx-2 text-[#64748B]">|</span>
                   <span>{formatDate(doc.created_at || undefined, language as Lang)}</span>
                 </div>
               ))}
@@ -578,8 +691,12 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                   <option key={row.id} value={row.products?.id || ''}>{row.products?.name_ar || row.products?.name_en || row.products?.id}</option>
                 ))}
               </select>
-              <input type="file" onChange={(e) => setProductImage((prev) => ({ ...prev, file: e.target.files?.[0] || null }))} className="min-h-11 w-full rounded-xl bg-white px-4 py-2 text-sm sm:w-auto sm:max-w-xs" />
-              <button type="button" disabled={busy || !productImage.productId || !productImage.file} onClick={() => void uploadProductImage()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60 sm:w-auto">{t.uploadImage}</button>
+              <input type="file" accept={uploadAccept} aria-label={t.uploadImage} onChange={(e) => { const file = e.target.files?.[0] || null; setProductImage((prev) => ({ ...prev, file, previewUrl: file ? URL.createObjectURL(file) : '' })); }} className="min-h-11 w-full rounded-xl bg-white px-4 py-2 text-sm sm:w-auto sm:max-w-xs" />
+              {productImage.file ? <div className="flex items-center gap-3 rounded-xl border border-[#334155]/15 bg-white px-3 py-2 text-xs text-[#334155]">
+                {productImage.previewUrl ? <img src={productImage.previewUrl} alt={productImage.file.name} className="h-12 w-12 rounded-lg object-cover" /> : null}
+                <span>{productImage.file.name}<br /><span className="text-[#64748B]">{busy ? t.uploading : t.imageReady}</span></span>
+              </div> : null}
+              <button type="button" disabled={busy || !productImage.productId || !productImage.file} onClick={() => void uploadProductImage()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60 sm:w-auto">{busy ? t.uploading : t.uploadImage}</button>
             </div>
 
             <div className="space-y-2">
@@ -624,7 +741,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                         onChange={(e) => updateProductDraft(row.products!.id, 'status', e.target.value)}
                       />
                       <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
-                        <span className="text-xs text-[#9EB0C3]">ID: {row.products.id}</span>
+                        <span className="text-xs text-[#64748B]">ID: {row.products.id}</span>
                         <button
                           type="button"
                           disabled={busy}
@@ -634,9 +751,29 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                           {t.save}
                         </button>
                       </div>
+                      {Array.isArray(row.products.product_images) && row.products.product_images.length > 0 ? <div className="sm:col-span-2 rounded-xl border border-[#334155]/15 bg-white p-3">
+                        <p className="mb-2 text-sm font-semibold text-[#334155]">{t.currentImages}</p>
+                        <div className="flex flex-wrap gap-3">
+                          {row.products.product_images.map((image) => <div key={image.id} className="flex flex-wrap items-end gap-2 rounded-lg border border-[#334155]/10 p-2 text-xs text-[#334155]">
+                            <a href={`/api/partner-portal/products/images?imageId=${encodeURIComponent(image.id)}`} target="_blank" rel="noreferrer" className="group inline-flex flex-col gap-1" aria-label={`${t.openImage}: ${row.products?.name_en || row.products?.name_ar || ''}`}>
+                              <img src={`/api/partner-portal/products/images?imageId=${encodeURIComponent(image.id)}`} alt={image.caption || t.currentImages} className="h-20 w-20 rounded-lg border border-[#334155]/15 object-cover transition group-hover:border-[#D4AF37]" />
+                              <span>{t.openImage}</span>
+                            </a>
+                            <label className="inline-flex cursor-pointer flex-col gap-1">
+                              <span>{t.replaceImage}</span>
+                              <input type="file" accept={uploadAccept} className="max-w-32 text-[10px]" onChange={(event) => { const file = event.target.files?.[0]; if (file) setReplacementImages((current) => ({ ...current, [image.id]: { file, previewUrl: URL.createObjectURL(file) } })); }} />
+                            </label>
+                            {replacementImages[image.id] ? <>
+                              <img src={replacementImages[image.id].previewUrl} alt={replacementImages[image.id].file.name} className="h-12 w-12 rounded object-cover" />
+                              <button type="button" disabled={busy} onClick={() => void replaceProductImage(row.products!.id, image.id)} className="rounded-lg bg-[#D4AF37] px-2 py-1 text-[10px] font-semibold text-[#334155] disabled:opacity-60">{busy ? t.uploading : t.replaceImage}</button>
+                            </> : null}
+                            <button type="button" disabled={busy} onClick={() => void deleteProductImage(image.id)} className="rounded-lg border border-red-700/30 px-2 py-1 text-[10px] text-red-700 disabled:opacity-60">{t.deleteImage}</button>
+                          </div>)}
+                        </div>
+                      </div> : null}
                     </div>
                   ) : (
-                    <span className="text-[#9EB0C3]">Unknown product</span>
+                    <span className="text-[#64748B]">Unknown product</span>
                   )}
                 </div>
               ))}
@@ -653,11 +790,11 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
             {bookings.map((booking) => (
               <div key={booking.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm [overflow-wrap:anywhere]">
                 <span className="font-semibold text-[#334155]">{booking.booking_reference || booking.id}</span>
-                <span className="mx-2 text-[#9EB0C3]">|</span>
-                <span>{booking.status || 'pending'}</span>
-                <span className="mx-2 text-[#9EB0C3]">|</span>
+                <span className="mx-2 text-[#64748B]">|</span>
+                <span>{presentPortalValue(booking.status, language as Lang, presentPortalValue('pending', language as Lang))}</span>
+                <span className="mx-2 text-[#64748B]">|</span>
                 <span>{booking.total_amount ?? booking.total_price ?? 0} {booking.currency || 'SAR'}</span>
-                <span className="mx-2 text-[#9EB0C3]">|</span>
+                <span className="mx-2 text-[#64748B]">|</span>
                 <span>{booking.product_name || '—'}</span>
               </div>
             ))}
@@ -669,8 +806,8 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
             {settlements.map((settlement) => (
               <div key={settlement.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm [overflow-wrap:anywhere]">
                 <span className="font-semibold text-[#334155]">{settlement.amount} {settlement.currency || 'SAR'}</span>
-                <span className="mx-2 text-[#9EB0C3]">|</span>
-                <span>{settlement.settlement_status || 'pending'}</span>
+                  <span className="mx-2 text-[#64748B]">|</span>
+                <span>{presentPortalValue(settlement.settlement_status, language as Lang, presentPortalValue('pending', language as Lang))}</span>
                 <span className="mx-2 text-[#9EB0C3]">|</span>
                   <span>{formatDate(settlement.release_date || settlement.created_at || undefined, language as Lang)}</span>
               </div>
@@ -681,17 +818,17 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         {tab === 'compliance' ? (
           <section className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4">
-              <p className="text-xs text-[#9EB0C3]">{t.missing}</p>
+                <p className="text-xs text-[#64748B]">{t.missing}</p>
               <p className="mt-2 text-sm text-[#334155]">{(compliance?.missingDocuments || []).join(', ') || '—'}</p>
             </div>
             <div className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4">
-              <p className="text-xs text-[#9EB0C3]">{t.expired}</p>
+                <p className="text-xs text-[#64748B]">{t.expired}</p>
               <p className="mt-2 text-sm text-[#334155]">
                 {(compliance?.expiredDocuments || []).map((doc) => `${doc.documentType} (${formatDate(doc.expiryDate, language as Lang)})`).join(', ') || '—'}
               </p>
             </div>
             <div className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4">
-              <p className="text-xs text-[#9EB0C3]">{t.pending}</p>
+                <p className="text-xs text-[#64748B]">{t.pending}</p>
               <p className="mt-2 text-lg font-semibold text-[#334155]">{compliance?.pendingReviews ?? 0}</p>
             </div>
           </section>

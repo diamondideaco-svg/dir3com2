@@ -6,6 +6,11 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 import type { PortalAssetMedia, PortalOwnerKind, ReviewQueueItem } from '@/lib/partner-portal/onboarding-types';
+import {
+  canReadTenantAssociation,
+  canReadTenantRecord,
+  isPrivilegedPortalActor,
+} from '@/lib/partner-portal/tenant-access';
 
 const BUCKET = 'partner-media';
 
@@ -34,7 +39,12 @@ function buildStoragePath(actorId: string, assetId: string, extension: string) {
   return `${safeActor}/${safeAsset}/${crypto.randomUUID()}.${extension}`;
 }
 
+function actorStoragePrefix(actorId: string) {
+  return `${actorId.toLowerCase().replace(/[^a-z0-9-]/g, '')}/`;
+}
+
 function buildQueueItem(input: {
+  ownerId?: string;
   ownerKind: PortalOwnerKind;
   assetId: string;
   mediaId: string;
@@ -48,6 +58,7 @@ function buildQueueItem(input: {
 }): ReviewQueueItem {
   return {
     id: crypto.randomUUID(),
+    ownerId: input.ownerId,
     ownerKind: input.ownerKind,
     assetId: input.assetId,
     mediaId: input.mediaId,
@@ -111,6 +122,54 @@ async function uploadWithBucketRecovery(input: { path: string; bytes: Uint8Array
   return { ok: true as const };
 }
 
+export async function GET(request: Request) {
+  const actor = await requirePortalActor();
+  if (!actor) {
+    return NextResponse.json({ error: { code: 'PORTAL_ACCESS_DENIED' } }, { status: 403, headers: privateHeaders() });
+  }
+
+  if (!supabaseAdmin) {
+    return NextResponse.json({ error: { code: 'PORTAL_UNAVAILABLE' } }, { status: 503, headers: privateHeaders() });
+  }
+
+  const mediaId = asText(new URL(request.url).searchParams.get('mediaId'), 80);
+  if (!mediaId) {
+    return NextResponse.json({ error: { code: 'MEDIA_ID_REQUIRED' } }, { status: 400, headers: privateHeaders() });
+  }
+
+  const store = await readOnboardingStore();
+  const media = store.media.find((item) => item.id === mediaId);
+  const asset = media ? store.assets.find((item) => item.id === media.assetId) : null;
+  if (!media || !asset || media.url.startsWith('/') || /^https?:\/\//i.test(media.url)) {
+    return NextResponse.json({ error: { code: 'MEDIA_NOT_FOUND' } }, { status: 404, headers: privateHeaders() });
+  }
+
+  const defaultOwner = ownerFromDomain(actor.partnerDomainType);
+  const privileged = isPrivilegedPortalActor(actor);
+  const ownedStoragePath = media.url.startsWith(actorStoragePrefix(actor.userId));
+  if (!privileged && (media.ownerKind !== defaultOwner || asset.ownerKind !== defaultOwner || !canReadTenantAssociation(actor, asset, media) || !ownedStoragePath)) {
+    return NextResponse.json({ error: { code: 'MEDIA_ACCESS_DENIED' } }, { status: 403, headers: privateHeaders() });
+  }
+
+  const { data, error } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(media.url, 300);
+  if (error || !data?.signedUrl) {
+    logServerError('api.partner_portal.assets.media_preview_failed', error, {
+      route: '/api/partner-portal/assets/media',
+      actorId: actor.userId,
+      mediaId,
+    });
+    return NextResponse.json({ error: { code: 'MEDIA_PREVIEW_FAILED' } }, { status: 500, headers: privateHeaders() });
+  }
+
+  return new NextResponse(null, {
+    status: 307,
+    headers: {
+      ...privateHeaders(),
+      Location: data.signedUrl,
+    },
+  });
+}
+
 export async function PATCH(request: Request) {
   const actor = await requirePortalActor();
   if (!actor) {
@@ -141,11 +200,13 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: { code: 'ASSET_NOT_FOUND' } }, { status: 404, headers: privateHeaders() });
   }
 
-  if (targetAsset.ownerKind !== defaultOwner && !['admin', 'staff'].includes(actor.authRole)) {
+  if (!isPrivilegedPortalActor(actor) && (targetAsset.ownerKind !== defaultOwner || !canReadTenantRecord(actor, targetAsset))) {
     return NextResponse.json({ error: { code: 'ASSET_SCOPE_DENIED' } }, { status: 403, headers: privateHeaders() });
   }
 
-  const scoped = store.media.filter((item) => item.assetId === assetId);
+  const scoped = store.media.filter(
+    (item) => item.assetId === assetId && canReadTenantAssociation(actor, targetAsset, item),
+  );
   const idSet = new Set(scoped.map((item) => item.id));
 
   if (orderedMediaIds.some((id) => !idSet.has(id))) {
@@ -164,7 +225,9 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json(
     {
-      data: store.media.filter((item) => item.assetId === assetId).sort((a, b) => a.sortOrder - b.sortOrder),
+      data: store.media
+        .filter((item) => item.assetId === assetId && canReadTenantAssociation(actor, targetAsset, item))
+        .sort((a, b) => a.sortOrder - b.sortOrder),
     },
     { headers: privateHeaders() },
   );
@@ -195,7 +258,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: { code: 'ASSET_ID_REQUIRED' } }, { status: 400, headers: privateHeaders() });
   }
 
-  if (requestedOwner !== defaultOwner && !['admin', 'staff'].includes(actor.authRole)) {
+  if (requestedOwner !== defaultOwner && !isPrivilegedPortalActor(actor)) {
     return NextResponse.json({ error: { code: 'PORTAL_OWNER_SCOPE_DENIED' } }, { status: 403, headers: privateHeaders() });
   }
 
@@ -209,12 +272,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: { code: 'ASSET_ASSOCIATION_INVALID' } }, { status: 400, headers: privateHeaders() });
   }
 
+  if (!canReadTenantRecord(actor, asset)) {
+    return NextResponse.json({ error: { code: 'ASSET_SCOPE_DENIED' } }, { status: 403, headers: privateHeaders() });
+  }
+
+  if (replaceMediaId) {
+    const replacement = store.media.find((item) => item.id === replaceMediaId);
+    if (!replacement || replacement.assetId !== asset.id || !canReadTenantAssociation(actor, asset, replacement)) {
+      return NextResponse.json({ error: { code: 'MEDIA_REPLACEMENT_SCOPE_DENIED' } }, { status: 403, headers: privateHeaders() });
+    }
+  }
+
   const file = formData.get('file');
   const validation = await validateAndNormalizeDocumentFile(file);
 
   if (!validation.ok) {
     const failedMediaId = crypto.randomUUID();
     const queueItem = buildQueueItem({
+      ownerId: asset.ownerId,
       ownerKind: requestedOwner,
       assetId,
       mediaId: failedMediaId,
@@ -258,6 +333,7 @@ export async function POST(request: Request) {
   if (duplicateImage) {
     const failedMediaId = crypto.randomUUID();
     const queueItem = buildQueueItem({
+      ownerId: asset.ownerId,
       ownerKind: requestedOwner,
       assetId,
       mediaId: failedMediaId,
@@ -331,6 +407,7 @@ export async function POST(request: Request) {
 
   const newMedia: PortalAssetMedia = {
     id: crypto.randomUUID(),
+    ownerId: asset.ownerId,
     assetId,
     ownerKind: requestedOwner,
     label,
@@ -357,6 +434,7 @@ export async function POST(request: Request) {
   }
 
   const queueItem = buildQueueItem({
+    ownerId: asset.ownerId,
     ownerKind: requestedOwner,
     assetId,
     mediaId: newMedia.id,

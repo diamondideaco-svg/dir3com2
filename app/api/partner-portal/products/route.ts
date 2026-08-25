@@ -16,8 +16,8 @@ function safeText(value: unknown, max = 160) {
 
 function normalizeProductStatus(value: unknown) {
   const normalized = safeText(value, 30).toLowerCase();
-  const supported = new Set(['draft', 'active', 'inactive', 'featured']);
-  return supported.has(normalized) ? normalized : 'draft';
+  const partnerEditableStatuses = new Set(['draft', 'inactive']);
+  return partnerEditableStatuses.has(normalized) ? normalized : 'draft';
 }
 
 function normalizeCurrency(value: unknown) {
@@ -55,7 +55,7 @@ export async function GET() {
 
     const { data, error } = await supabaseAdmin
       .from('product_availability')
-      .select('id, city, available, product_id, products(id, name_ar, name_en, slug, city, base_price, currency, status, featured, verified, shield_certified, updated_at)')
+      .select('id, city, available, product_id, products(id, name_ar, name_en, slug, city, base_price, currency, status, featured, verified, shield_certified, updated_at, product_images(id, product_id, image_url, caption, sort_order, created_at))')
       .eq('partner_id', actor.userId)
       .order('created_at', { ascending: false });
 

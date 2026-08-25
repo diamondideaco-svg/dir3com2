@@ -109,6 +109,7 @@ export function ServicePageContent({ service, stories }: { service: TravelStoryS
       </section>
 
       <ServiceSearchTable />
+      <HomeUtilities />
 
       <section className="drive-master-products px-4 py-10 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-7xl">
@@ -133,7 +134,6 @@ export function ServicePageContent({ service, stories }: { service: TravelStoryS
 
       <StoriesCarousel stories={stories} />
       <PartnersTicker partners={partners} scope={page.scope} />
-      <HomeUtilities />
     </div>
   );
 }

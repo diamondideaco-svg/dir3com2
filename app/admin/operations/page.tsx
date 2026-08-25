@@ -27,7 +27,7 @@ export default async function OperationsPage({ searchParams }: { searchParams: P
         </div>
 
         {resultMessage ? (
-          <div className="rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">{resultMessage}</div>
+          <div className="rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700">{resultMessage}</div>
         ) : null}
 
         <OperationSummaryCards />

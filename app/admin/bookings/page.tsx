@@ -23,14 +23,14 @@ export default async function AdminBookingsPage() {
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">لوحة الإدارة</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">Shield Booking Engine</h1>
+            <h1 className="mt-2 text-3xl font-semibold text-[#334155]">Shield Booking Engine</h1>
           </div>
           <Link href="/admin" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة إلى لوحة التحكم</Link>
         </div>
 
         <div className="overflow-hidden rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)]">
           <div className="border-b border-[color:var(--color-border)] px-5 py-4">
-            <h2 className="text-lg font-semibold text-white">إدارة الحجوزات</h2>
+            <h2 className="text-lg font-semibold text-[#334155]">إدارة الحجوزات</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-right">

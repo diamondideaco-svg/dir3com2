@@ -1,8 +1,12 @@
 import { deleteProductAction, publishProductAction } from '@/lib/actions/product-actions';
 import type { ProductRecord } from '@/lib/supabase/types';
 
+type ProductWithImages = ProductRecord & {
+  product_images?: Array<{ id: string; product_id: string; image_url: string; caption?: string | null }>;
+};
+
 type ProductTableProps = {
-  products: ProductRecord[];
+  products: ProductWithImages[];
 };
 
 export default function ProductTable({ products }: ProductTableProps) {
@@ -14,13 +18,14 @@ export default function ProductTable({ products }: ProductTableProps) {
             <th className="px-5 py-3">الاسم</th>
             <th className="px-5 py-3">المدينة</th>
             <th className="px-5 py-3">الحالة</th>
+            <th className="px-5 py-3">الصور</th>
             <th className="px-5 py-3">الإجراءات</th>
           </tr>
         </thead>
         <tbody>
           {products.length === 0 ? (
             <tr className="border-t border-[color:var(--color-border)] text-sm text-[var(--color-muted)]">
-              <td colSpan={4} className="px-5 py-8 text-center text-[var(--color-muted)]">لا توجد سجلات منتجات حالياً.</td>
+              <td colSpan={5} className="px-5 py-8 text-center text-[var(--color-muted)]">لا توجد سجلات منتجات حالياً.</td>
             </tr>
           ) : (
             products.map((product) => (
@@ -28,6 +33,18 @@ export default function ProductTable({ products }: ProductTableProps) {
                 <td className="px-5 py-4">{product.name_en}</td>
                 <td className="px-5 py-4">{product.city || '—'}</td>
                 <td className="px-5 py-4">{product.status}</td>
+                <td className="px-5 py-4">
+                  {product.product_images?.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {product.product_images.map((image) => (
+                        <a key={image.id} href={`/api/admin/products/images/${encodeURIComponent(image.id)}`} target="_blank" rel="noreferrer" className="group inline-flex flex-col gap-1 text-xs text-[#334155]" aria-label={`فتح صورة ${product.name_en}`}>
+                          <img src={`/api/admin/products/images/${encodeURIComponent(image.id)}`} alt={image.caption || product.name_en} className="h-16 w-16 rounded-lg border border-[#334155]/15 object-cover transition group-hover:border-[#D4AF37]" />
+                          <span className="group-hover:text-[#8B6516]">فتح الصورة</span>
+                        </a>
+                      ))}
+                    </div>
+                  ) : <span className="text-xs text-[#64748B]">لا توجد صورة</span>}
+                </td>
                 <td className="px-5 py-4">
                   <div className="flex flex-wrap gap-2">
                     <form action={publishProductAction}>

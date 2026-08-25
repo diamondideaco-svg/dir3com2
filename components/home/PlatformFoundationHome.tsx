@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { FiArrowUpLeft, FiShield } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -12,6 +11,7 @@ import PartnersTicker from '@/components/shared/PartnersTicker';
 import StoriesCarousel from '@/components/shared/StoriesCarousel';
 import { partners } from '@/lib/content/partners';
 import { travelStories } from '@/lib/content/travel-stories';
+import { canonicalServices } from '@/lib/services/canonical';
 
 const copy = {
   ar: {
@@ -61,14 +61,6 @@ const copy = {
   },
 } as const;
 
-const standardizedServiceImages: Record<string, string> = {
-  '/services/drive': '/brand/runtime/services-generated/dir3com-drive-1600x900.png',
-  '/services/stay': '/brand/runtime/services-generated/dir3com-stay-1600x900.png',
-  '/services/fly': '/brand/runtime/services-generated/dir3com-fly-1600x900.png',
-  '/services/concierge': '/brand/runtime/services-generated/dir3com-concierge-1600x900.png',
-  '/services/vip': '/brand/runtime/services-generated/dir3com-vip-1600x900.png',
-};
-
 export default function PlatformFoundationHome({
   stories = travelStories,
   useStandardServiceImages = false,
@@ -81,12 +73,12 @@ export default function PlatformFoundationHome({
 
   return (
     <div id="home" className={`home-identity overflow-x-hidden bg-[#fcfaf6] text-[var(--color-navy)]${useStandardServiceImages ? ' home-identity--standard-services' : ''}`} dir={direction}>
-      <section className="bg-[linear-gradient(180deg,#fffdf9_0%,#fcfaf6_76%,#f8f1e6_100%)] px-4 py-8 sm:px-6 lg:px-10">
+      <section className="bg-[linear-gradient(180deg,#fffdf9_0%,#fcfaf6_76%,#f8f1e6_100%)] px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
         <div className="mx-auto w-full max-w-[1240px] overflow-hidden px-0 sm:px-2 lg:px-10">
-          <div className="grid min-h-[560px] grid-cols-1 items-stretch gap-6 overflow-hidden lg:min-h-[600px] lg:grid-cols-[minmax(0,55fr)_minmax(420px,45fr)] lg:gap-8" dir="ltr">
+          <div className="grid grid-cols-1 items-center gap-6 overflow-hidden lg:grid-cols-[minmax(0,55fr)_minmax(380px,45fr)] lg:gap-8" dir="ltr">
             <div className="flex min-w-0 items-center justify-center" dir={direction}>
-              <div className="w-full max-w-[72%] min-w-0">
-                <h1 className="text-[clamp(2.875rem,3.4vw,3.375rem)] font-semibold leading-[1.12] text-[var(--color-navy)]">{t.heroTitle}</h1>
+              <div className="w-full min-w-0 lg:max-w-[78%]">
+                <h1 className="text-[clamp(2.25rem,3.4vw,3.375rem)] font-semibold leading-[1.12] text-[var(--color-navy)]">{t.heroTitle}</h1>
                 <p className="mt-4 max-w-[60ch] text-[clamp(1.125rem,1.35vw,1.25rem)] leading-[1.7] text-[#4d5663]">{t.heroBody}</p>
 
                 <p className="mt-4 max-w-[60ch] text-sm leading-7 text-[var(--home-gold)]">{t.dabraTitle} - {t.dabraBody}</p>
@@ -99,12 +91,12 @@ export default function PlatformFoundationHome({
               </div>
             </div>
 
-            <div className="relative min-h-[540px] overflow-hidden rounded-3xl lg:min-h-[600px]">
+            <div className="relative aspect-[4/3] max-h-[360px] overflow-hidden rounded-3xl sm:aspect-[16/10] lg:max-h-[480px]">
               <Image
                 src="/brand/runtime/DABRA emoji.png"
                 alt="الدبرة"
                 fill
-                priority
+                preload
                 sizes="(min-width: 1024px) 45vw, 100vw"
                 unoptimized
                 className="object-cover object-[56%_center]"
@@ -116,42 +108,24 @@ export default function PlatformFoundationHome({
       </section>
 
       <ServiceSearchTable />
-
       <HomeUtilities />
 
-      <section className="px-4 pb-12 pt-12 sm:px-6 lg:px-10">
-        <div className="mx-auto max-w-[1240px] px-0 sm:px-2 lg:px-10">
-          <h2 className="text-xs font-semibold tracking-[0.22em] text-[var(--home-gold)]">{t.servicesTitle}</h2>
-          <div className="mt-5 grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-4">
-            {t.services.map((service) => (
-              <article key={service.title} className="flex h-full flex-col justify-between rounded-2xl border border-[var(--home-gold)]/20 bg-white p-6 text-[var(--color-navy)] shadow-[0_18px_40px_rgba(88,65,31,0.08)]">
-                <Link href={service.href} className="home-service-image" aria-label={service.title}>
-                  <Image src={useStandardServiceImages ? standardizedServiceImages[service.href] ?? service.image : service.image} alt={service.title} fill sizes="(max-width: 767px) 100vw, (max-width: 1279px) 50vw, 25vw" loading="eager" unoptimized />
+      <section id="core-services" className="drive-master-products px-4 py-10 sm:px-6 lg:px-10">
+        <div className="mx-auto max-w-7xl">
+          <p className="text-xs font-semibold tracking-[0.22em] text-[var(--home-gold)]">DIR3COM SERVICES</p>
+          <h2 className="mt-3 text-3xl font-semibold text-[var(--color-navy)] sm:text-4xl">{t.servicesTitle}</h2>
+          <div className="drive-core-services mt-7">
+            {canonicalServices.map((service) => (
+              <article key={service.slug} className="drive-core-service-card">
+                <Link href={`/services/${service.slug}`} className="drive-core-service-card__media" aria-label={service.name}>
+                  <Image src={service.hero} alt={service.name} width={800} height={450} sizes="(min-width: 1100px) 25vw, (min-width: 640px) 50vw, 100vw" className="h-full w-full object-cover" />
                 </Link>
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-lg font-semibold text-[var(--color-navy)]">{service.title}</h3>
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--home-gold)]/32 bg-[var(--home-gold)]/08 text-[var(--home-gold)]">
-                    <FiShield size={16} />
-                  </span>
-                </div>
-                <p className="mt-3 text-sm leading-7 text-[#5d6672]">{service.subtitle}</p>
-                <div className="mt-5 inline-flex items-center gap-2 self-start rounded-full border border-[var(--home-gold)]/28 bg-[var(--home-gold)]/08 px-3 py-1.5 text-xs font-medium text-[var(--home-gold)]">
-                  <Link href={service.href}>
-                    {service.title}
-                    <FiArrowUpLeft size={12} />
+                <div className="drive-core-service-card__body">
+                  <h3>{service.name}</h3>
+                  <p>{language === 'ar' ? service.descriptionAr : service.descriptionEn}</p>
+                  <Link href={`/services/${service.slug}`} className="drive-core-service-card__cta">
+                    {language === 'ar' ? 'اكتشف الخدمة' : 'Explore service'}
                   </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <div className="mt-5 grid gap-5 sm:grid-cols-3">
-            {t.products.map((product, index) => (
-              <article key={product.title} className="flex items-start gap-3 rounded-2xl border border-[var(--home-gold)]/20 bg-white/85 p-6 shadow-[0_14px_32px_rgba(88,65,31,0.06)]">
-                <span className={`home-premium-icon home-premium-icon--${index + 4}`} aria-hidden="true" />
-                <div>
-                  <h3 className="text-sm font-semibold tracking-[0.08em] text-[var(--home-gold)]">{product.title}</h3>
-                  <p className="mt-2 text-sm leading-7 text-[#5d6672]">{product.body}</p>
                 </div>
               </article>
             ))}

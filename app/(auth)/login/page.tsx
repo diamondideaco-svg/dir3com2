@@ -1,11 +1,18 @@
 // src/app/(auth)/login/page.tsx
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState, useEffect, useSyncExternalStore } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
-import { getPostLoginDestination } from '@/lib/auth/redirect';
+import { getPostLoginDestination, getRolePostLoginDestination, type TrustedSessionIdentity } from '@/lib/auth/redirect';
+
+async function resolveTrustedRoleDestination() {
+    const response = await fetch('/api/auth/session-identity', { cache: 'no-store' });
+    if (!response.ok) return '/my-account';
+    const identity = await response.json() as TrustedSessionIdentity;
+    return identity.authenticated ? getRolePostLoginDestination(identity) : '/my-account';
+}
 
 export default function LoginPage() {
     return (
@@ -16,12 +23,16 @@ export default function LoginPage() {
 }
 
 function LoginContent() {
-    const router = useRouter();
     const searchParams = useSearchParams();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const isLocalAuth = useSyncExternalStore(
+        () => () => undefined,
+        () => ['localhost', '127.0.0.1'].includes(window.location.hostname),
+        () => false,
+    );
     const requestedDestination = searchParams.get('redirect') ?? searchParams.get('next');
     const redirectTo = getPostLoginDestination(
         requestedDestination,
@@ -29,10 +40,10 @@ function LoginContent() {
     );
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data }: { data: { session: unknown } }) => {
-            if (data.session) router.push(redirectTo);
+        supabase.auth.getSession().then(async ({ data }: { data: { session: unknown } }) => {
+            if (data.session) window.location.replace(await resolveTrustedRoleDestination());
         });
-    }, [redirectTo, router]);
+    }, []);
 
     const handleEmailLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -50,7 +61,7 @@ function LoginContent() {
             return;
         }
 
-        router.push(redirectTo);
+        window.location.assign(await resolveTrustedRoleDestination());
     };
 
     const handleGoogleLogin = async () => {
@@ -135,7 +146,7 @@ function LoginContent() {
                     </div>
                 )}
 
-                <button
+                {!isLocalAuth && <button
                     onClick={handleGoogleLogin}
                     disabled={loading}
                     style={{
@@ -162,13 +173,13 @@ function LoginContent() {
                         <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
                     </svg>
                     {loading ? 'جاري التحميل...' : 'تسجيل الدخول بـ Google'}
-                </button>
+                </button>}
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', margin: '20px 0' }}>
+                {!isLocalAuth && <div style={{ display: 'flex', alignItems: 'center', gap: '15px', margin: '20px 0' }}>
                     <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(212,175,55,0.22)' }} />
                     <span style={{ color: '#64748B', fontSize: '0.85rem' }}>أو</span>
                     <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(212,175,55,0.22)' }} />
-                </div>
+                </div>}
 
                 <form onSubmit={handleEmailLogin}>
                     <div style={{ marginBottom: '16px' }}>
