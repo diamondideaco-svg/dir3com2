@@ -51,4 +51,8 @@ test("provider health route surfaces travelport readiness", async () => {
   assert.equal(payload.travelport.authReachable, true);
   assert.equal(payload.travelport.flights.status, "entitlement_blocked");
   assert.equal(payload.travelport.stays.status, "entitlement_blocked");
+  assert.equal(payload.drive.provider, "cartrawler");
+  assert.equal(payload.concierge.status, "access_blocked");
+  assert.equal(payload.vip.mode, "local_test");
+  assert.equal(payload.vip.verificationStatus, "UNVERIFIED");
 });

@@ -44,3 +44,8 @@
 - Added search, quote, revalidation, request, confirmation, cancellation, idempotency, retry safety, audit, and provider status.
 - Added an admin-only editable configuration form and isolated local-test persistence schema; production signals fail closed.
 - No credential, live booking, payment, production write, merge, or deployment was performed.
+# 2026-08-25 — Canonical Travel provider consolidation
+
+- Consolidated approved Fly (Duffel), Stay (LiteAPI), Drive (CarTrawler), Concierge (Viator Basic), and local Egypt VIP adapters behind the shared Travel contracts.
+- Extended provider health output with Drive, Concierge, and explicitly unverified local-test VIP capability states.
+- Preserved fail-closed live mutation controls; no live booking, payment, production write, UI redesign, merge, or deployment was performed.
