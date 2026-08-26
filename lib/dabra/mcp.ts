@@ -10,6 +10,33 @@ const annotations = {
   destructiveHint: false,
 } as const;
 
+const justifications = {
+  read_only_justification: 'This tool only reads public or verified dir3com travel data and does not create, update, delete, book, pay, cancel, refund, or modify user/account data.',
+  open_world_justification: 'This tool may retrieve current external travel or marketplace information whose contents can change independently of ChatGPT.',
+  destructive_justification: 'This tool performs no destructive operation and cannot delete, cancel, refund, overwrite, or mutate external resources.',
+} as const;
+
+const publicMarketplaceServiceOutputSchema = {
+  type: 'object',
+  required: ['id', 'slug', 'name', 'description', 'family', 'destination', 'availability', 'startingPrice', 'currency', 'source', 'sourceSystem', 'verifiedAvailability', 'url'],
+  properties: {
+    id: { type: 'string' },
+    slug: { type: 'string' },
+    name: { type: 'string' },
+    description: { type: 'string' },
+    family: { type: 'string', enum: ['dir3-drive', 'dir3-stay', 'dir3-fly', 'dir3-concierge', 'dir3-vip'] },
+    destination: { type: 'string' },
+    availability: { type: 'string', enum: ['available', 'limited', 'sold-out'] },
+    startingPrice: { type: ['number', 'null'] },
+    currency: { type: ['string', 'null'] },
+    source: { type: 'string', enum: ['PROVIDER_LIVE', 'PARTNER_VERIFIED'] },
+    sourceSystem: { type: 'string', enum: ['supabase', 'api'] },
+    verifiedAvailability: { const: true },
+    url: { type: 'string' },
+  },
+  additionalProperties: false,
+} as const;
+
 const familyBySlug: Record<string, MarketplaceFamilyKey> = {
   drive: 'dir3-drive',
   stay: 'dir3-stay',
@@ -30,7 +57,37 @@ export const dabraToolDefinitions = [
       },
       additionalProperties: false,
     },
+    outputSchema: {
+      type: 'object',
+      required: ['services', 'generatedAt', 'policy'],
+      properties: {
+        services: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['slug', 'name', 'description', 'url', 'dataStatus', 'verifiedRecordCount', 'dataSource'],
+            properties: {
+              slug: { type: 'string', enum: ['drive', 'stay', 'fly', 'concierge', 'vip'] },
+              name: { type: 'string' },
+              description: { type: 'string' },
+              url: { type: 'string' },
+              dataStatus: { type: 'string', enum: ['verified_records_available', 'catalog_only_no_verified_availability'] },
+              verifiedRecordCount: { type: 'integer', minimum: 0 },
+              dataSource: {
+                type: 'array',
+                items: { type: 'string', enum: ['PROVIDER_LIVE', 'PARTNER_VERIFIED', 'DIR3COM_CANONICAL_CATALOG'] },
+              },
+            },
+            additionalProperties: false,
+          },
+        },
+        generatedAt: { type: 'string' },
+        policy: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
     annotations,
+    justifications,
   },
   {
     name: 'search_dir3com_marketplace',
@@ -48,7 +105,23 @@ export const dabraToolDefinitions = [
       },
       additionalProperties: false,
     },
+    outputSchema: {
+      type: 'object',
+      required: ['items', 'totalReturned', 'dataStatus', 'excludedData', 'generatedAt'],
+      properties: {
+        items: { type: 'array', items: publicMarketplaceServiceOutputSchema },
+        totalReturned: { type: 'integer', minimum: 0 },
+        dataStatus: { type: 'string', enum: ['verified_results', 'no_verified_results'] },
+        excludedData: {
+          type: 'array',
+          items: { type: 'string', enum: ['FALLBACK', 'SYNTHETIC_TEST', 'PROVIDER_SANDBOX', 'pilot/test records'] },
+        },
+        generatedAt: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
     annotations,
+    justifications,
   },
   {
     name: 'get_dir3com_service',
@@ -63,7 +136,54 @@ export const dabraToolDefinitions = [
       },
       additionalProperties: false,
     },
+    outputSchema: {
+      type: 'object',
+      oneOf: [
+        {
+          type: 'object',
+          required: ['item', 'generatedAt'],
+          properties: {
+            item: publicMarketplaceServiceOutputSchema,
+            generatedAt: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        {
+          type: 'object',
+          required: ['item', 'generatedAt'],
+          properties: {
+            item: {
+              type: 'object',
+              required: ['slug', 'name', 'description', 'url', 'dataStatus', 'verifiedRecordCount', 'source'],
+              properties: {
+                slug: { type: 'string', enum: ['drive', 'stay', 'fly', 'concierge', 'vip'] },
+                name: { type: 'string' },
+                description: { type: 'string' },
+                url: { type: 'string' },
+                dataStatus: { type: 'string', enum: ['verified_records_available', 'catalog_only_no_verified_availability'] },
+                verifiedRecordCount: { type: 'integer', minimum: 0 },
+                source: { const: 'DIR3COM_CANONICAL_CATALOG' },
+              },
+              additionalProperties: false,
+            },
+            generatedAt: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        {
+          type: 'object',
+          required: ['item', 'dataStatus', 'generatedAt'],
+          properties: {
+            item: { type: 'null' },
+            dataStatus: { const: 'not_found_or_not_verified' },
+            generatedAt: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+      ],
+    },
     annotations,
+    justifications,
   },
   {
     name: 'create_dabra_trip_brief',
@@ -85,7 +205,53 @@ export const dabraToolDefinitions = [
       },
       additionalProperties: false,
     },
+    outputSchema: {
+      type: 'object',
+      oneOf: [
+        {
+          type: 'object',
+          required: ['status', 'message'],
+          properties: {
+            status: { const: 'refused_write_action' },
+            message: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        {
+          type: 'object',
+          required: ['status', 'title', 'requested', 'verifiedOptions', 'dataStatus', 'nextStep', 'prohibitedActions', 'generatedAt'],
+          properties: {
+            status: { const: 'planning_brief_only' },
+            title: { type: 'string' },
+            requested: {
+              type: 'object',
+              required: ['destination', 'origin', 'startDate', 'endDate', 'travelers', 'interests', 'budget'],
+              properties: {
+                destination: { type: 'string' },
+                origin: { type: ['string', 'null'] },
+                startDate: { type: ['string', 'null'] },
+                endDate: { type: ['string', 'null'] },
+                travelers: { type: 'integer', minimum: 1, maximum: 20 },
+                interests: { type: 'array', items: { type: 'string' } },
+                budget: { type: ['string', 'null'] },
+              },
+              additionalProperties: false,
+            },
+            verifiedOptions: { type: 'array', items: publicMarketplaceServiceOutputSchema },
+            dataStatus: { type: 'string', enum: ['verified_results_included', 'no_verified_marketplace_results'] },
+            nextStep: { type: 'string' },
+            prohibitedActions: {
+              type: 'array',
+              items: { type: 'string', enum: ['booking', 'payment', 'cancellation', 'refund', 'account_changes', 'database_writes'] },
+            },
+            generatedAt: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+      ],
+    },
     annotations,
+    justifications,
   },
 ] as const;
 

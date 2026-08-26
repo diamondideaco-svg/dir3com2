@@ -12,6 +12,12 @@ test('DABRA exposes exactly four read-only tools with required annotations', () 
   ]);
   for (const tool of dabraToolDefinitions) {
     assert.deepEqual(tool.annotations, { readOnlyHint: true, openWorldHint: true, destructiveHint: false });
+    assert.equal(tool.outputSchema.type, 'object');
+    assert.deepEqual(tool.justifications, {
+      read_only_justification: 'This tool only reads public or verified dir3com travel data and does not create, update, delete, book, pay, cancel, refund, or modify user/account data.',
+      open_world_justification: 'This tool may retrieve current external travel or marketplace information whose contents can change independently of ChatGPT.',
+      destructive_justification: 'This tool performs no destructive operation and cannot delete, cancel, refund, overwrite, or mutate external resources.',
+    });
   }
 });
 
