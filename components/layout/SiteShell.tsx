@@ -9,7 +9,7 @@ import Footer from '@/components/layout/Footer';
 const FloatingDibrah = dynamic(() => import('@/components/layout/FloatingDibrah'), { ssr: false });
 
 const hiddenPathPrefixes = ['/admin'];
-const hiddenExactPaths = ['/auth/callback'];
+const hiddenExactPaths = ['/auth/callback', '/privacy', '/terms'];
 
 export default function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
