@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/', '/about', '/contact', '/privacy', '/terms', '/services', '/services/', '/review/dabra-plugin-openai-review-demo.mp4', '/login', '/register', '/auth/signin', '/auth/callback'];
+const PUBLIC_PATHS = ['/', '/about', '/contact', '/privacy', '/terms', '/services', '/services/', '/review/dabra-plugin-openai-review-demo.mp4', '/.well-known/openai-apps-challenge', '/login', '/register', '/auth/signin', '/auth/callback'];
 const PUBLIC_CATEGORY_PATHS = ['/cars', '/hotels', '/experiences', '/concierge', '/offers', '/apartments', '/airport-transfers'];
 const PROTECTED_PREFIXES = ['/profile', '/my-account', '/my-bookings', '/my-documents', '/my-profile', '/my-wallet', '/dashboard'];
 
