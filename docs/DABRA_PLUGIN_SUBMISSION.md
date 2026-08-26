@@ -8,9 +8,10 @@ Status: draft-ready. Final submission requires a verified DIR3COM publisher iden
 - Developer: DIR3COM
 - Website: https://www.dir3com.com
 - Support: https://www.dir3com.com/contact
-- Privacy: https://www.dir3com.com/privacy
-- Terms: https://www.dir3com.com/terms
-- MCP: `/api/dabra/mcp` on the public deployment
+- Privacy: https://dabra-dir3com-public.vercel.app/privacy (public review URL; canonical DIR3COM path is `/privacy`)
+- Terms: https://dabra-dir3com-public.vercel.app/terms (public review URL; canonical DIR3COM path is `/terms`)
+- MCP: https://dabra-dir3com-public.vercel.app/api/dabra/mcp
+- ChatGPT technical connection ID: `plugin_asdk_app_6a8efb101a348191a6e1b126ef1ca1dc`
 
 English description: DABRA is DIR3COM's bilingual, read-only travel planner for exploring verified marketplace services across Fly, Stay, Drive, Concierge, and VIP and preparing practical trip briefs. Transactions require explicit human approval and completion through DIR3COM.
 

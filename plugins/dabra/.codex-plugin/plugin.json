@@ -17,8 +17,8 @@
     "category": "Travel",
     "capabilities": ["Read-only", "Bilingual", "Travel planning"],
     "websiteURL": "https://www.dir3com.com",
-    "privacyPolicyURL": "https://www.dir3com.com/privacy",
-    "termsOfServiceURL": "https://www.dir3com.com/terms",
+    "privacyPolicyURL": "https://dabra-dir3com-public.vercel.app/privacy",
+    "termsOfServiceURL": "https://dabra-dir3com-public.vercel.app/terms",
     "defaultPrompt": [
       "Plan a three-day Riyadh trip for two travelers.",
       "خطط لي رحلة إلى جدة مع إقامة وتنقلات.",
