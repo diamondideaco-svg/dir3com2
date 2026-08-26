@@ -10,7 +10,6 @@ type AI2ChatRequest = {
   message?: string;
   history?: Array<{ role?: string; content?: string }>;
   mode?: 'chat' | 'travel-plan';
-  stream?: boolean;
 };
 
 type AI2RequestIdentity = {
@@ -72,7 +71,7 @@ export async function POST(request: NextRequest) {
     body = null;
   }
 
-  const message = body?.message?.trim().slice(0, MAX_TURN_LENGTH);
+  const message = body?.message?.trim();
 
   if (!message) {
     return NextResponse.json(
@@ -114,27 +113,6 @@ export async function POST(request: NextRequest) {
   }
 
   const response = await buildAI2ChatResponse(message, history, identity.account);
-  if (body?.stream) {
-    const encoder = new TextEncoder();
-    const answer = response.answer ?? '';
-    const stream = new ReadableStream({
-      async start(controller) {
-        for (const chunk of answer.match(/.{1,24}(?:\s|$)|.{1,24}/gu) ?? []) {
-          controller.enqueue(encoder.encode(chunk));
-          await new Promise((resolve) => setTimeout(resolve, 12));
-        }
-        controller.close();
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        'Cache-Control': 'no-store',
-        'Content-Type': 'text/plain; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-      },
-    });
-  }
   return NextResponse.json(response, {
     headers: {
       'Cache-Control': 'no-store',

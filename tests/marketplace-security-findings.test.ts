@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
 import { isLocalPreviewExecutionEnabled, isLocalPreviewRequest } from '@/lib/marketplace/local-preview-mode';
-import { resolveMarketplaceRequestContext } from '@/lib/marketplace/request-context';
+import { resolveMarketplaceRequestContext } from '@/app/api/services/route';
 import { summarizeMarketplacePageProvenance } from '@/lib/marketplace/server';
 import {
   fetchProtectedProviderCards,

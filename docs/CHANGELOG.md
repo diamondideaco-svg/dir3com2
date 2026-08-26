@@ -1,12 +1,5 @@
 # Changelog
 
-## 2026-08-26 - DABRA Chat & Commerce Experience V1
-
-- Added the Arabic-first `/dabra` experience with shared text/voice conversation, progressive chat responses, explicit voice states, and bounded local context persistence.
-- Integrated Marketplace tabs, recommendations, transparent product cards, quick actions, decision comparison, favorites, and a persistent Trip Cart using the shared DIR3COM APIs.
-- Added responsive RTL and accessibility states for loading, empty, error, listening, processing, speaking, and muted behavior.
-- Pinned compatible motion and Supabase SSR package releases and moved testable Route Handler helpers into shared modules so Next.js production route validation remains clean.
-
 ## 2026-08-26 - Marketplace provider security remediation
 
 - Disabled the HTTP local-preview route because the Route Handler runtime does not expose a trusted peer address, while preserving explicitly enabled non-public preview execution.
