@@ -87,7 +87,7 @@ export default function DabraChatCommerce() {
       const requestId = ++identityRequestRef.current;
       detachSensitiveState();
       try {
-        const response = await fetch('/api/auth/session-identity', { cache: 'no-store', credentials: 'same-origin' });
+        const response = await fetch('/api/dabra/session-identity', { cache: 'no-store', credentials: 'same-origin' });
         if (!response.ok) throw new Error('identity');
         const identity = await response.json() as { identityState?: string; authenticated?: boolean; userId?: string };
         let sessionId = '';

@@ -1,10 +1,5 @@
 # Changelog
 
-## 2026-08-26 - DABRA commerce identity isolation
-
-- Distinguished authenticated, confirmed-anonymous, and unresolved session identity outcomes so validation failures cannot hydrate anonymous or user-scoped DABRA state.
-- Detached transcript, trip-cart, and favorites state synchronously on identity transitions and rejected stale identity responses while preserving scoped restore, TTL, and versioning.
-
 ## 2026-08-26 - Marketplace provider security remediation
 
 - Disabled the HTTP local-preview route because the Route Handler runtime does not expose a trusted peer address, while preserving explicitly enabled non-public preview execution.

@@ -1,10 +1,8 @@
 export const CANONICAL_ROLES = ['customer', 'admin', 'partner', 'staff'] as const;
 
 export type SessionRole = (typeof CANONICAL_ROLES)[number];
-export type SessionIdentityState = 'authenticated' | 'anonymous_confirmed' | 'unresolved_or_error';
 
 export interface SessionIdentity {
-  identityState: SessionIdentityState;
   authenticated: boolean;
   userId: string | null;
   email: string | null;
@@ -44,7 +42,6 @@ export function getRoleLabel(role: SessionRole | null, roleRaw?: string | null):
 
 export function createAnonymousSessionIdentity(): SessionIdentity {
   return {
-    identityState: 'anonymous_confirmed',
     authenticated: false,
     userId: null,
     email: null,
@@ -54,12 +51,5 @@ export function createAnonymousSessionIdentity(): SessionIdentity {
     roleRaw: null,
     status: null,
     isAdmin: false,
-  };
-}
-
-export function createUnresolvedSessionIdentity(): SessionIdentity {
-  return {
-    ...createAnonymousSessionIdentity(),
-    identityState: 'unresolved_or_error',
   };
 }

@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { normalizeRole } from '@/lib/auth/identity';
-import { createAnonymousSessionIdentity, createUnresolvedSessionIdentity, type SessionIdentity } from '@/lib/auth/identity-contract';
-import { resolveSessionUser } from '@/lib/auth/session-user-resolution';
+import { createAnonymousSessionIdentity, type SessionIdentity } from '@/lib/auth/identity-contract';
 import { logServerError } from '@/lib/security/safe-logger';
 
 function pickString(value: unknown): string | null {
@@ -53,7 +52,6 @@ function buildAuthenticatedIdentity(args: {
   const role = normalizeRole(args.profile?.role);
 
   return {
-    identityState: 'authenticated',
     authenticated: true,
     userId: args.userId,
     email,
@@ -69,15 +67,14 @@ function buildAuthenticatedIdentity(args: {
 export async function GET() {
   try {
     const supabase = await createSupabaseServerClient();
-    const resolution = await resolveSessionUser(() => supabase.auth.getUser());
-    if (resolution.identityState === 'unresolved_or_error') {
-      logServerError('api.auth.session_identity.user_validation_failed', resolution.error);
-      return NextResponse.json(createUnresolvedSessionIdentity(), { status: 503 });
-    }
-    if (resolution.identityState === 'anonymous_confirmed') {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
       return NextResponse.json(createAnonymousSessionIdentity(), { status: 200 });
     }
-    const { user } = resolution;
 
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
@@ -102,6 +99,6 @@ export async function GET() {
     );
   } catch (error) {
     logServerError('api.auth.session_identity.unexpected_error', error);
-    return NextResponse.json(createUnresolvedSessionIdentity(), { status: 503 });
+    return NextResponse.json(createAnonymousSessionIdentity(), { status: 200 });
   }
 }

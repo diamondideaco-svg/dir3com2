@@ -8,6 +8,7 @@ const page = fs.readFileSync(path.join(root, 'app', 'dabra', 'page.tsx'), 'utf8'
 const component = fs.readFileSync(path.join(root, 'components', 'dabra', 'DabraChatCommerce.tsx'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'app', 'globals.css'), 'utf8');
 const proxy = fs.readFileSync(path.join(root, 'proxy.ts'), 'utf8');
+const chatRoute = fs.readFileSync(path.join(root, 'app', 'api', 'ai2', 'chat', 'route.ts'), 'utf8');
 
 test('DABRA page exposes the Arabic-first chat commerce surface', () => {
   assert.match(page, /DabraChatCommerce/);
@@ -39,7 +40,9 @@ test('chat commerce surface includes tabs, quick actions, recommendation set, co
   assert.match(component, /fetch\('\/api\/ai2\/chat'/);
   assert.match(component, /stream: true/);
   assert.match(component, /response\.body\.getReader/);
-    assert.match(component, /storageKey\(ownerId, 'context'\)/);
+  assert.match(chatRoute, /body\?\.stream/);
+  assert.match(chatRoute, /new ReadableStream/);
+  assert.match(component, /storageKey\(ownerId, 'context'\)/);
   assert.match(component, /ComparisonTable/);
 });
 

@@ -2,9 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createUnresolvedSessionIdentity } from '@/lib/auth/identity-contract';
-import { normalizeSessionIdentityPayload } from '@/lib/auth/session-identity';
-import { resolveSessionUser } from '@/lib/auth/session-user-resolution';
+import { resolveDabraSessionUser, unresolvedDabraIdentity } from '@/lib/dabra/session-user-resolution';
 import {
   createPersisted,
   persistenceContextForIdentity,
@@ -15,44 +13,39 @@ import {
 
 const root = process.cwd();
 const component = fs.readFileSync(path.join(root, 'components', 'dabra', 'DabraChatCommerce.tsx'), 'utf8');
-const route = fs.readFileSync(path.join(root, 'app', 'api', 'auth', 'session-identity', 'route.ts'), 'utf8');
-const identityHook = fs.readFileSync(path.join(root, 'hooks', 'useSessionIdentity.ts'), 'utf8');
+const route = fs.readFileSync(path.join(root, 'app', 'api', 'dabra', 'session-identity', 'route.ts'), 'utf8');
 const anonymousSessionId = '12345678-1234-1234-1234-123456789abc';
 
 test('getUser validation error is unresolved rather than anonymous', async () => {
   const error = new Error('validation failed');
-  const result = await resolveSessionUser(async () => ({ data: { user: null }, error }));
+  const result = await resolveDabraSessionUser(async () => ({ data: { user: null }, error }));
   assert.deepEqual(result, { identityState: 'unresolved_or_error', user: null, error });
 });
 
 test('confirmed missing session remains a legitimate anonymous identity', async () => {
   const error = Object.assign(new Error('Auth session missing!'), { name: 'AuthSessionMissingError' });
-  const result = await resolveSessionUser(async () => ({ data: { user: null }, error }));
+  const result = await resolveDabraSessionUser(async () => ({ data: { user: null }, error }));
   assert.deepEqual(result, { identityState: 'anonymous_confirmed', user: null });
 });
 
 test('unexpected identity resolver failure is unresolved rather than anonymous', async () => {
-  const result = await resolveSessionUser(async () => { throw new Error('offline'); });
+  const result = await resolveDabraSessionUser(async () => { throw new Error('offline'); });
   assert.equal(result.identityState, 'unresolved_or_error');
-  assert.match(route, /createUnresolvedSessionIdentity\(\), \{ status: 503 \}/);
-  assert.doesNotMatch(identityHook, /createAnonymousSessionIdentity/);
-  assert.match(identityHook, /setIdentity\(createUnresolvedSessionIdentity\(\)\)/);
+  assert.match(route, /unresolvedDabraIdentity\(\), \{ status: 503 \}/);
 });
 
 test('unresolved identity cannot select anonymous persistence', () => {
-  assert.equal(persistenceContextForIdentity(createUnresolvedSessionIdentity(), anonymousSessionId), null);
+  assert.equal(persistenceContextForIdentity(unresolvedDabraIdentity(), anonymousSessionId), null);
 });
 
 test('unresolved or malformed identity cannot select user persistence', () => {
   assert.equal(persistenceContextForIdentity({ identityState: 'unresolved_or_error', authenticated: true, userId: 'user-a' }, ''), null);
   assert.equal(persistenceContextForIdentity({ authenticated: true, userId: 'user-a' }, ''), null);
-  assert.equal(normalizeSessionIdentityPayload({ identityState: 'authenticated', authenticated: true }).identityState, 'unresolved_or_error');
-  assert.equal(normalizeSessionIdentityPayload({ identityState: 'anonymous_confirmed', authenticated: true, userId: 'user-a' }).identityState, 'unresolved_or_error');
 });
 
 test('user transition detaches transcript cart and favorites before identity fetch', () => {
   const start = component.indexOf('async function resolveValidatedIdentity()');
-  const fetchIndex = component.indexOf("fetch('/api/auth/session-identity'", start);
+  const fetchIndex = component.indexOf("fetch('/api/dabra/session-identity'", start);
   const detachCall = component.indexOf('detachSensitiveState()', start);
   assert(detachCall > start && detachCall < fetchIndex);
   for (const clear of ['setMessages([welcomeMessage])', 'setCart([])', 'setFavorites([])', 'setPersistenceContext(null)']) {
