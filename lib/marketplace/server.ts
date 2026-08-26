@@ -1,4 +1,7 @@
 import { getMarketplaceAdapters } from '@/lib/marketplace/adapters';
+import { fetchAllTravelProviderCards } from '@/lib/marketplace/travel-provider-integration';
+import type { MarketplaceCard } from '@/lib/marketplace/cards';
+import { fetchProtectedProviderCards } from '@/lib/marketplace/provider-search-protection';
 import {
   createMarketplaceFallbackServices,
   filterMarketplaceServices,
@@ -17,6 +20,18 @@ import {
 export type MarketplaceApiQuery = MarketplaceQueryOptions & {
   page?: number;
   pageSize?: number;
+  checkIn?: string;
+  checkOut?: string;
+  departureFrom?: string;
+  departureDate?: string;
+  returnDate?: string;
+  adults?: number;
+  children?: number;
+};
+
+export type MarketplaceRequestContext = {
+  anonymous?: boolean;
+  clientKey?: string;
 };
 
 export type MarketplaceSnapshot = {
@@ -25,6 +40,14 @@ export type MarketplaceSnapshot = {
   hasRealData: boolean;
   generatedAt: string;
 };
+
+export function summarizeMarketplacePageProvenance(items: MarketplaceService[]) {
+  const hasRealData = items.some((service) =>
+    service.provenance === 'PROVIDER_LIVE' || service.provenance === 'PARTNER_VERIFIED'
+  );
+  const hasFallbackData = items.some((service) => service.provenance === 'FALLBACK');
+  return { hasRealData, hasFallbackData, mixedSources: hasRealData && hasFallbackData };
+}
 
 export type MarketplaceAssistantDataQuality = 'live-verified' | 'pilot-test' | 'unavailable';
 
@@ -118,6 +141,8 @@ export function sanitizeMarketplaceQuery(input: URLSearchParams): MarketplaceApi
   const availability = (input.get('availability') ?? 'all') as MarketplaceApiQuery['availability'];
   const page = Number(input.get('page') ?? 1);
   const pageSize = Number(input.get('pageSize') ?? 9);
+  const adults = Number(input.get('adults') ?? 1);
+  const children = Number(input.get('children') ?? 0);
 
   return {
     family,
@@ -131,24 +156,100 @@ export function sanitizeMarketplaceQuery(input: URLSearchParams): MarketplaceApi
     availability,
     page: Number.isFinite(page) && page > 0 ? page : 1,
     pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.min(pageSize, 30) : 9,
+    checkIn: input.get('checkIn') ?? undefined,
+    checkOut: input.get('checkOut') ?? undefined,
+    departureFrom: input.get('departureFrom') ?? undefined,
+    departureDate: input.get('departureDate') ?? undefined,
+    returnDate: input.get('returnDate') ?? undefined,
+    adults: Number.isFinite(adults) && adults > 0 ? Math.min(adults, 20) : 1,
+    children: Number.isFinite(children) && children >= 0 ? Math.min(children, 20) : 0,
   };
 }
 
-export async function queryMarketplace(apiQuery: MarketplaceApiQuery) {
-  const snapshot = await getMarketplaceSnapshot();
+function providerCardsToServices(cards: MarketplaceCard[]): MarketplaceService[] {
+  return cards.map((card, index) => {
+    const isStay = card.serviceType === 'stay';
+    const category: MarketplacePageCategory = isStay ? 'hotels' : 'airport-transfers';
+    const family: MarketplaceFamilyKey = isStay ? 'dir3-stay' : 'dir3-fly';
+    const name = card.title || 'Travel service';
+    const description = card.subtitle || card.location;
 
-  const scoped = filterMarketplaceServices(snapshot.services, {
+    return {
+      id: `provider-${card.serviceType}-${index}-${card.provider}`,
+      slug: `provider-${card.serviceType}-${index}`,
+      name_ar: name,
+      name_en: name,
+      description_ar: description,
+      description_en: description,
+      badge: card.provider,
+      family,
+      familyLabel: isStay ? 'dir3 Stay' : 'dir3 Fly',
+      category,
+      categoryLabel: isStay ? 'Hotels' : 'Flights',
+      icon: isStay ? 'hotel' : 'plane',
+      href: card.deepLink ?? (isStay ? '/hotels' : '/fly'),
+      metric: card.rating ? `${card.rating}/5` : card.location,
+      tags: [card.provider, card.location],
+      basePrice: card.priceFrom ?? 0,
+      currency: card.currency,
+      productCount: 1,
+      inventoryCount: 1,
+      availability: card.availabilityStatus === 'sold-out' ? 'sold-out' : 'available',
+      destination: card.location.toLowerCase(),
+      featured: false,
+      popular: false,
+      recommended: true,
+      source: 'api',
+      provenance: card.verified ? 'PARTNER_VERIFIED' : 'PROVIDER_LIVE',
+      createdAt: null,
+      updatedAt: null,
+    } satisfies MarketplaceService;
+  });
+}
+
+export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: MarketplaceRequestContext = {}) {
+  const snapshot = await getMarketplaceSnapshot();
+  const hasTravelSearch = Boolean(
+    apiQuery.destination && (apiQuery.checkIn || apiQuery.departureDate),
+  );
+  const providerOptions = {
+        mode: 'PROVIDER_LIVE',
+        destination: apiQuery.destination,
+        checkIn: apiQuery.checkIn,
+        checkOut: apiQuery.checkOut,
+        departureFrom: apiQuery.departureFrom,
+        departureDate: apiQuery.departureDate,
+        returnDate: apiQuery.returnDate,
+        adults: apiQuery.adults,
+        children: apiQuery.children,
+      } as const;
+  const providerResult = hasTravelSearch
+    ? await fetchProtectedProviderCards(
+        providerOptions,
+        context.clientKey ?? 'anonymous',
+        fetchAllTravelProviderCards,
+        { rateLimit: context.anonymous !== false },
+      )
+    : { cards: [], limited: false };
+  const providerServices = providerCardsToServices(providerResult.cards);
+  const services = providerServices.length > 0
+    ? [...providerServices, ...snapshot.services]
+    : snapshot.services;
+
+  const scoped = filterMarketplaceServices(services, {
     family: apiQuery.family,
   });
 
   const facets = summarizeMarketplace(scoped);
-  const result = queryMarketplaceServices(snapshot.services, apiQuery);
+  const result = queryMarketplaceServices(services, apiQuery);
+  const provenance = summarizeMarketplacePageProvenance(result.items);
 
   return {
     services: result.items,
     meta: {
       source: snapshot.source,
-      hasRealData: snapshot.hasRealData,
+      ...provenance,
+      providerSearchLimited: providerResult.limited,
       total: result.total,
       page: result.page,
       pageSize: result.pageSize,
