@@ -128,7 +128,7 @@ export async function fetchTravelProviderFlights(
       cabin: undefined,
     });
 
-    return mapFlightOffers(result, {
+    return mapFlightOffers({ ...result, offers: result.offers.slice(0, 20) }, {
       mode: options.mode,
       language: options.language,
     });
@@ -192,7 +192,7 @@ export async function fetchTravelProviderHotels(
       maxRatesPerHotel: 5,
     });
 
-    return mapHotelOffers(result, {
+    return mapHotelOffers({ ...result, hotels: result.hotels.slice(0, 20) }, {
       mode: options.mode,
       language: options.language,
     });

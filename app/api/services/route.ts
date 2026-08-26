@@ -12,7 +12,13 @@ export async function GET(request: Request) {
         }
 
         const query = sanitizeMarketplaceQuery(url.searchParams);
-        const payload = await queryMarketplace(query);
+        const hasBearer = Boolean(request.headers.get('authorization')?.trim());
+        const hasSessionCookie = request.headers.get('cookie')?.includes('sb-') ?? false;
+        const clientKey = request.headers.get('x-real-ip') ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'anonymous';
+        const payload = await queryMarketplace(query, {
+            anonymous: !hasBearer && !hasSessionCookie,
+            clientKey,
+        });
 
         return NextResponse.json(payload);
     } catch {

@@ -19,13 +19,19 @@ import type { TravelProviderMarketplaceOptions } from '@/lib/marketplace/travel-
 export function isLocalPreviewRequest(request: Request): boolean {
   const url = new URL(request.url);
 
-  // Only allow from localhost/127.0.0.1
+  if (process.env.NODE_ENV === 'production' || process.env.DIR3COM_LOCAL_PREVIEW_ENABLED !== 'true') {
+    return false;
+  }
+
+  if (request.headers.has('x-forwarded-host') || request.headers.has('forwarded')) {
+    return false;
+  }
+
   const hostname = url.hostname;
   if (
     hostname !== 'localhost' &&
     hostname !== '127.0.0.1' &&
-    !hostname.endsWith('.local') &&
-    process.env.NODE_ENV !== 'development'
+    hostname !== '[::1]'
   ) {
     return false;
   }

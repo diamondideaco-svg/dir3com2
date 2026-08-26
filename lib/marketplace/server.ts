@@ -1,6 +1,7 @@
 import { getMarketplaceAdapters } from '@/lib/marketplace/adapters';
 import { fetchAllTravelProviderCards } from '@/lib/marketplace/travel-provider-integration';
 import type { MarketplaceCard } from '@/lib/marketplace/cards';
+import { fetchProtectedProviderCards } from '@/lib/marketplace/provider-search-protection';
 import {
   createMarketplaceFallbackServices,
   filterMarketplaceServices,
@@ -26,6 +27,11 @@ export type MarketplaceApiQuery = MarketplaceQueryOptions & {
   returnDate?: string;
   adults?: number;
   children?: number;
+};
+
+export type MarketplaceRequestContext = {
+  anonymous?: boolean;
+  clientKey?: string;
 };
 
 export type MarketplaceSnapshot = {
@@ -186,19 +192,19 @@ function providerCardsToServices(cards: MarketplaceCard[]): MarketplaceService[]
       popular: false,
       recommended: true,
       source: 'api',
+      provenance: card.verified ? 'PARTNER_VERIFIED' : 'PROVIDER_LIVE',
       createdAt: null,
       updatedAt: null,
     } satisfies MarketplaceService;
   });
 }
 
-export async function queryMarketplace(apiQuery: MarketplaceApiQuery) {
+export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: MarketplaceRequestContext = {}) {
   const snapshot = await getMarketplaceSnapshot();
   const hasTravelSearch = Boolean(
     apiQuery.destination && (apiQuery.checkIn || apiQuery.departureDate),
   );
-  const providerServices = hasTravelSearch
-    ? providerCardsToServices(await fetchAllTravelProviderCards({
+  const providerOptions = {
         mode: 'PROVIDER_LIVE',
         destination: apiQuery.destination,
         checkIn: apiQuery.checkIn,
@@ -208,8 +214,15 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery) {
         returnDate: apiQuery.returnDate,
         adults: apiQuery.adults,
         children: apiQuery.children,
-      }))
-    : [];
+      } as const;
+  const providerResult = hasTravelSearch
+    ? context.anonymous
+      ? await fetchProtectedProviderCards(providerOptions, context.clientKey ?? 'anonymous', fetchAllTravelProviderCards)
+      : { cards: await fetchAllTravelProviderCards(providerOptions), limited: false }
+    : { cards: [], limited: false };
+  const providerServices = providerCardsToServices(providerResult.cards);
+  const hasFallbackData = snapshot.services.some((service) => service.provenance === 'FALLBACK');
+  const hasRealProviderData = providerServices.length > 0;
   const services = providerServices.length > 0
     ? [...providerServices, ...snapshot.services]
     : snapshot.services;
@@ -225,7 +238,10 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery) {
     services: result.items,
     meta: {
       source: snapshot.source,
-      hasRealData: snapshot.hasRealData || providerServices.length > 0,
+      hasRealData: snapshot.hasRealData || hasRealProviderData,
+      hasFallbackData,
+      mixedSources: hasRealProviderData && hasFallbackData,
+      providerSearchLimited: providerResult.limited,
       total: result.total,
       page: result.page,
       pageSize: result.pageSize,

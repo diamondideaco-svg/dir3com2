@@ -19,6 +19,7 @@ export type MarketplaceCollectionKey = 'all' | 'featured' | 'popular' | 'recomme
 export type MarketplaceSortKey = 'recommended' | 'featured' | 'popular' | 'price-low' | 'price-high' | 'name';
 
 export type MarketplaceDataSource = 'supabase' | 'api' | 'fallback';
+export type MarketplaceProvenance = 'PROVIDER_LIVE' | 'PARTNER_VERIFIED' | 'FALLBACK' | 'SYNTHETIC_TEST' | 'PROVIDER_SANDBOX';
 
 export type MarketplaceAvailability = 'available' | 'limited' | 'sold-out';
 
@@ -89,6 +90,7 @@ export type MarketplaceService = {
   popular: boolean;
   recommended: boolean;
   source: MarketplaceDataSource;
+  provenance: MarketplaceProvenance;
   createdAt?: string | null;
   updatedAt?: string | null;
 };
@@ -372,6 +374,7 @@ function buildFallbackService(entry: MarketplaceCatalogEntry, index: number): Ma
     popular: entry.category === 'cars' || entry.category === 'hotels',
     recommended: true,
     source: 'fallback',
+    provenance: 'FALLBACK',
     createdAt: null,
     updatedAt: null,
   };
@@ -435,6 +438,7 @@ export function normalizeMarketplaceServices(
       popular,
       recommended,
       source: sourceLabel,
+      provenance: sourceLabel === 'fallback' ? 'FALLBACK' : 'PARTNER_VERIFIED',
       createdAt: item.created_at,
       updatedAt: item.updated_at,
     } satisfies MarketplaceService;
