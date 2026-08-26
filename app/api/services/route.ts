@@ -1,7 +1,27 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getMarketplaceAssistantContext, queryMarketplace, sanitizeMarketplaceQuery } from '@/lib/marketplace/server';
+import { createSupabaseRequestClient } from '@/lib/supabase/server';
 
-export async function GET(request: Request) {
+type AuthenticationResolver = typeof createSupabaseRequestClient;
+
+export async function resolveMarketplaceRequestContext(
+    request: NextRequest,
+    resolveAuthentication: AuthenticationResolver = createSupabaseRequestClient,
+) {
+    let userId: string | null = null;
+    try {
+        userId = (await resolveAuthentication(request))?.user.id ?? null;
+    } catch {
+        userId = null;
+    }
+
+    return {
+        anonymous: !userId,
+        clientKey: userId ? `authenticated:${userId}` : 'anonymous',
+    };
+}
+
+export async function GET(request: NextRequest) {
     try {
         const url = new URL(request.url);
         const view = url.searchParams.get('view');
@@ -12,13 +32,7 @@ export async function GET(request: Request) {
         }
 
         const query = sanitizeMarketplaceQuery(url.searchParams);
-        const hasBearer = Boolean(request.headers.get('authorization')?.trim());
-        const hasSessionCookie = request.headers.get('cookie')?.includes('sb-') ?? false;
-        const clientKey = request.headers.get('x-real-ip') ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'anonymous';
-        const payload = await queryMarketplace(query, {
-            anonymous: !hasBearer && !hasSessionCookie,
-            clientKey,
-        });
+        const payload = await queryMarketplace(query, await resolveMarketplaceRequestContext(request));
 
         return NextResponse.json(payload);
     } catch {

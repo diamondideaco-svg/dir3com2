@@ -41,6 +41,14 @@ export type MarketplaceSnapshot = {
   generatedAt: string;
 };
 
+export function summarizeMarketplacePageProvenance(items: MarketplaceService[]) {
+  const hasRealData = items.some((service) =>
+    service.provenance === 'PROVIDER_LIVE' || service.provenance === 'PARTNER_VERIFIED'
+  );
+  const hasFallbackData = items.some((service) => service.provenance === 'FALLBACK');
+  return { hasRealData, hasFallbackData, mixedSources: hasRealData && hasFallbackData };
+}
+
 export type MarketplaceAssistantDataQuality = 'live-verified' | 'pilot-test' | 'unavailable';
 
 function containsPilotMarker(value: unknown) {
@@ -216,13 +224,14 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: M
         children: apiQuery.children,
       } as const;
   const providerResult = hasTravelSearch
-    ? context.anonymous
-      ? await fetchProtectedProviderCards(providerOptions, context.clientKey ?? 'anonymous', fetchAllTravelProviderCards)
-      : { cards: await fetchAllTravelProviderCards(providerOptions), limited: false }
+    ? await fetchProtectedProviderCards(
+        providerOptions,
+        context.clientKey ?? 'anonymous',
+        fetchAllTravelProviderCards,
+        { rateLimit: context.anonymous !== false },
+      )
     : { cards: [], limited: false };
   const providerServices = providerCardsToServices(providerResult.cards);
-  const hasFallbackData = snapshot.services.some((service) => service.provenance === 'FALLBACK');
-  const hasRealProviderData = providerServices.length > 0;
   const services = providerServices.length > 0
     ? [...providerServices, ...snapshot.services]
     : snapshot.services;
@@ -233,14 +242,13 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: M
 
   const facets = summarizeMarketplace(scoped);
   const result = queryMarketplaceServices(services, apiQuery);
+  const provenance = summarizeMarketplacePageProvenance(result.items);
 
   return {
     services: result.items,
     meta: {
       source: snapshot.source,
-      hasRealData: snapshot.hasRealData || hasRealProviderData,
-      hasFallbackData,
-      mixedSources: hasRealProviderData && hasFallbackData,
+      ...provenance,
       providerSearchLimited: providerResult.limited,
       total: result.total,
       page: result.page,

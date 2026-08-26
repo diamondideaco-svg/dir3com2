@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-26 - Marketplace provider security remediation
+
+- Disabled the HTTP local-preview route because the Route Handler runtime does not expose a trusted peer address, while preserving explicitly enabled non-public preview execution.
+- Replaced header-presence authentication inference with validated Supabase user resolution and retained provider resource caps for authenticated searches.
+- Derived Marketplace provenance metadata from the final returned page so off-page inventory cannot affect response truth signals.
+
 ## 2026-08-25 - DABRA traveler-count security boundary
 
 - Added shared finite, safe-integer, and conservative party-size validation at intent and provider boundaries to prevent attacker-sized allocations before travel-provider requests.

@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isLocalPreviewRequest } from '@/lib/marketplace/local-preview-mode';
+import { NextRequest } from 'next/server';
+import { isLocalPreviewExecutionEnabled, isLocalPreviewRequest } from '@/lib/marketplace/local-preview-mode';
+import { resolveMarketplaceRequestContext } from '@/app/api/services/route';
+import { summarizeMarketplacePageProvenance } from '@/lib/marketplace/server';
 import {
   fetchProtectedProviderCards,
   resetProviderSearchProtection,
@@ -38,18 +41,45 @@ test('security: production local preview is denied even on localhost', () => {
   }
 });
 
-test('security: local preview requires explicit server flag and rejects forwarded host', () => {
+test('security: HTTP local preview fails closed without a trusted peer address', () => {
   const previous = process.env.NODE_ENV;
   const flag = process.env.DIR3COM_LOCAL_PREVIEW_ENABLED;
   environment.NODE_ENV = 'development';
   delete environment.DIR3COM_LOCAL_PREVIEW_ENABLED;
-  assert.equal(isLocalPreviewRequest(request('http://localhost/api/local-preview/marketplace?preview=sandbox')), false);
+  assert.equal(isLocalPreviewExecutionEnabled(), false);
   environment.DIR3COM_LOCAL_PREVIEW_ENABLED = 'true';
-  assert.equal(isLocalPreviewRequest(request('http://localhost/api/local-preview/marketplace?preview=sandbox')), true);
+  assert.equal(isLocalPreviewExecutionEnabled(), true);
+  assert.equal(isLocalPreviewRequest(request('http://localhost/api/local-preview/marketplace?preview=sandbox')), false);
+  assert.equal(isLocalPreviewRequest(request('http://127.0.0.1/api/local-preview/marketplace?preview=sandbox')), false);
   assert.equal(isLocalPreviewRequest(request('http://localhost/api/local-preview/marketplace?preview=sandbox', { forwarded: 'host=attacker.example' })), false);
   if (previous === undefined) delete environment.NODE_ENV; else environment.NODE_ENV = previous;
   if (flag === undefined) delete environment.DIR3COM_LOCAL_PREVIEW_ENABLED; else environment.DIR3COM_LOCAL_PREVIEW_ENABLED = flag;
 });
+
+test('security: authentication requires validated server-side user resolution', async () => {
+  const invalidInputs = [
+    new NextRequest('http://localhost/api/services', { headers: { authorization: 'invalid' } }),
+    new NextRequest('http://localhost/api/services', { headers: { authorization: 'Bearer garbage' } }),
+    new NextRequest('http://localhost/api/services', { headers: { cookie: 'sb-fake=1' } }),
+  ];
+  for (const input of invalidInputs) {
+    const context = await resolveMarketplaceRequestContext(input, async () => null);
+    assert.equal(context.anonymous, true);
+  }
+  const failed = await resolveMarketplaceRequestContext(
+    new NextRequest('http://localhost/api/services'),
+    async () => { throw new Error('expired session'); },
+  );
+  assert.equal(failed.anonymous, true);
+  const authenticated = await resolveMarketplaceRequestContext(
+    new NextRequest('http://localhost/api/services'),
+    async () => ({ user: { id: 'user-1' } } as Awaited<ReturnType<AuthenticationResolverForTest>>),
+  );
+  assert.equal(authenticated.anonymous, false);
+  assert.equal(authenticated.clientKey, 'authenticated:user-1');
+});
+
+type AuthenticationResolverForTest = typeof import('@/lib/supabase/server').createSupabaseRequestClient;
 
 test('security: anonymous repeated provider searches are rate limited', async () => {
   resetProviderSearchProtection();
@@ -58,6 +88,23 @@ test('security: anonymous repeated provider searches are rate limited', async ()
   const fetcher = async () => { calls += 1; return [card]; };
   for (let index = 0; index < 20; index += 1) await fetchProtectedProviderCards(options, 'client-a', fetcher);
   const limited = await fetchProtectedProviderCards(options, 'client-a', fetcher);
+  assert.equal(limited.limited, true);
+  assert.equal(calls, 1);
+});
+
+test('security: fake authentication cannot invoke providers after the anonymous limit', async () => {
+  resetProviderSearchProtection();
+  const context = await resolveMarketplaceRequestContext(
+    new NextRequest('http://localhost/api/services', { headers: { authorization: 'Bearer garbage', cookie: 'sb-fake=1' } }),
+    async () => null,
+  );
+  let calls = 0;
+  const options = { mode: 'PROVIDER_LIVE' as const, destination: 'Cairo', departureDate: '2026-09-10' };
+  const fetcher = async () => { calls += 1; return [card]; };
+  for (let index = 0; index < 20; index += 1) {
+    await fetchProtectedProviderCards(options, context.clientKey, fetcher, { rateLimit: context.anonymous });
+  }
+  const limited = await fetchProtectedProviderCards(options, context.clientKey, fetcher, { rateLimit: context.anonymous });
   assert.equal(limited.limited, true);
   assert.equal(calls, 1);
 });
@@ -87,4 +134,42 @@ test('security: provider result collection is capped and fallback provenance sta
   const fallback = createMarketplaceFallbackServices()[0];
   assert.equal(fallback.provenance, 'FALLBACK');
   assert.equal(result.cards[0]?.provider, 'LiteAPI');
+});
+
+test('security: authenticated searches retain provider caps without anonymous rate counting', async () => {
+  resetProviderSearchProtection();
+  const options = { mode: 'PROVIDER_LIVE' as const, destination: 'Cairo', departureDate: '2026-09-10' };
+  const result = await fetchProtectedProviderCards(
+    options,
+    'authenticated:user-1',
+    async () => Array.from({ length: 30 }, () => card),
+    { rateLimit: false },
+  );
+  assert.equal(result.cards.length, 20);
+  assert.equal(result.limited, false);
+});
+
+test('security: response provenance describes only final returned items', () => {
+  const fallback = createMarketplaceFallbackServices()[0];
+  const live = { ...fallback, id: 'live-1', source: 'api' as const, provenance: 'PROVIDER_LIVE' as const };
+
+  assert.deepEqual(summarizeMarketplacePageProvenance([live]), {
+    hasRealData: true,
+    hasFallbackData: false,
+    mixedSources: false,
+  });
+  assert.deepEqual(summarizeMarketplacePageProvenance([fallback]), {
+    hasRealData: false,
+    hasFallbackData: true,
+    mixedSources: false,
+  });
+  assert.deepEqual(summarizeMarketplacePageProvenance([live, fallback]), {
+    hasRealData: true,
+    hasFallbackData: true,
+    mixedSources: true,
+  });
+
+  const fullCollection = [live, fallback];
+  assert.equal(summarizeMarketplacePageProvenance(fullCollection.slice(0, 1)).mixedSources, false);
+  assert.equal(summarizeMarketplacePageProvenance(fullCollection.slice(1, 2)).mixedSources, false);
 });

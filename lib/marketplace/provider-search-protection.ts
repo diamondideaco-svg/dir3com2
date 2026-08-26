@@ -50,9 +50,10 @@ export async function fetchProtectedProviderCards(
   options: TravelProviderMarketplaceOptions,
   clientKey: string,
   fetcher: (options: TravelProviderMarketplaceOptions) => Promise<MarketplaceCard[]>,
+  protection: { rateLimit?: boolean } = {},
 ): Promise<ProviderSearchProtectionResult> {
   const now = Date.now();
-  if (!isAllowed(clientKey, now)) return { cards: [], limited: true };
+  if (protection.rateLimit !== false && !isAllowed(clientKey, now)) return { cards: [], limited: true };
 
   const key = keyFor(options);
   const cached = cache.get(key);

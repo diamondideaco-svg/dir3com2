@@ -17,32 +17,14 @@ import type { TravelProviderMarketplaceOptions } from '@/lib/marketplace/travel-
  * Check if this request is from a legitimate local/preview environment
  */
 export function isLocalPreviewRequest(request: Request): boolean {
-  const url = new URL(request.url);
+  void request;
+  // Next.js Route Handlers do not expose a trusted socket peer address.
+  // Host and forwarded headers are caller influenced, so HTTP preview fails closed.
+  return false;
+}
 
-  if (process.env.NODE_ENV === 'production' || process.env.DIR3COM_LOCAL_PREVIEW_ENABLED !== 'true') {
-    return false;
-  }
-
-  if (request.headers.has('x-forwarded-host') || request.headers.has('forwarded')) {
-    return false;
-  }
-
-  const hostname = url.hostname;
-  if (
-    hostname !== 'localhost' &&
-    hostname !== '127.0.0.1' &&
-    hostname !== '[::1]'
-  ) {
-    return false;
-  }
-
-  // Require explicit preview flag
-  const preview = url.searchParams.get('preview');
-  if (preview !== 'sandbox' && preview !== 'local') {
-    return false;
-  }
-
-  return true;
+export function isLocalPreviewExecutionEnabled(): boolean {
+  return process.env.NODE_ENV !== 'production' && process.env.DIR3COM_LOCAL_PREVIEW_ENABLED === 'true';
 }
 
 /**
@@ -54,6 +36,10 @@ export function isLocalPreviewRequest(request: Request): boolean {
 export async function fetchLocalPreviewProviderCards(
   options: TravelProviderMarketplaceOptions,
 ): Promise<MarketplaceCard[]> {
+  if (!isLocalPreviewExecutionEnabled()) {
+    return [];
+  }
+
   // Only allow sandbox or live modes in preview
   if (
     options.mode !== 'PROVIDER_SANDBOX' &&
