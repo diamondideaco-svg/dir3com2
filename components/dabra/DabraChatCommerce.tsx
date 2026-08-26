@@ -4,10 +4,26 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FiArrowLeft, FiCheck, FiChevronDown, FiClock, FiHeart, FiMapPin, FiMic, FiMicOff, FiMoreHorizontal, FiSend, FiShoppingBag, FiSliders, FiVolume2, FiVolumeX, FiX } from 'react-icons/fi';
 import { cn } from '@/lib/utils';
 import type { MarketplaceService } from '@/lib/marketplace/data';
+import { supabase } from '@/lib/supabase/client';
+import {
+  DABRA_ANONYMOUS_SESSION_KEY,
+  anonymousOwnerId,
+  calculateCartTotals,
+  createPersisted,
+  readPersisted,
+  recommendationEligible,
+  selectDabraRecommendations,
+  storageKey,
+  validatePersistedCart,
+  validatePersistedFavorites,
+  validatePersistedMessages,
+  type DabraCartItem,
+} from '@/lib/dabra/travel-commerce-state';
 
 type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking' | 'muted' | 'error';
 type Message = { id: string; role: 'user' | 'assistant'; text: string };
-type CartItem = Pick<MarketplaceService, 'id' | 'name_ar' | 'basePrice' | 'currency' | 'categoryLabel' | 'href'>;
+type CartItem = DabraCartItem;
+type PersistenceContext = { ownerId: string; storage: 'local' | 'session' };
 
 const quickActions = ['قارن', 'أرخص', 'أريح', 'بدون توقف', 'أقرب', 'أفخم', 'غير التاريخ', 'شوف بدائل', 'اختصرها لي', 'اختاره لي'];
 const tabs = [
@@ -42,64 +58,100 @@ export default function DabraChatCommerce() {
   const [services, setServices] = useState<MarketplaceService[]>([]);
   const [loading, setLoading] = useState(false);
   const [resultState, setResultState] = useState<'idle' | 'empty' | 'error'>('idle');
-  const [favorites, setFavorites] = useState<Array<string | number>>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      return JSON.parse(window.localStorage.getItem('dir3com-dabra-favorites') ?? '[]') as Array<string | number>;
-    } catch {
-      return [];
-    }
-  });
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      return JSON.parse(window.localStorage.getItem('dir3com-dabra-cart') ?? '[]') as CartItem[];
-    } catch {
-      return [];
-    }
-  });
+  const [favorites, setFavorites] = useState<Array<string | number>>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [voiceMuted, setVoiceMuted] = useState(false);
-  const [contextHydrated, setContextHydrated] = useState(false);
+  const [persistenceContext, setPersistenceContext] = useState<PersistenceContext | null>(null);
+  const [identityResolved, setIdentityResolved] = useState(false);
+  const [storageHydrated, setStorageHydrated] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
+    let active = true;
+    async function resolveValidatedIdentity() {
+      setStorageHydrated(false);
       try {
-        const saved = JSON.parse(window.localStorage.getItem('dir3com-dabra-context') ?? '[]') as Message[];
-        if (Array.isArray(saved) && saved.length) setMessages(saved.slice(-20));
+        const response = await fetch('/api/auth/session-identity', { cache: 'no-store', credentials: 'same-origin' });
+        if (!response.ok) throw new Error('identity');
+        const identity = await response.json() as { authenticated?: boolean; userId?: string };
+        let next: PersistenceContext | null = null;
+        if (identity.authenticated && typeof identity.userId === 'string' && identity.userId) {
+          next = { ownerId: `user:${identity.userId}`, storage: 'local' };
+        } else if (identity.authenticated === false) {
+          let sessionId = window.sessionStorage.getItem(DABRA_ANONYMOUS_SESSION_KEY) ?? '';
+          if (!anonymousOwnerId(sessionId)) {
+            sessionId = window.crypto.randomUUID();
+            window.sessionStorage.setItem(DABRA_ANONYMOUS_SESSION_KEY, sessionId);
+          }
+          next = { ownerId: anonymousOwnerId(sessionId)!, storage: 'session' };
+        }
+        if (!active) return;
+        setPersistenceContext((current) => current?.ownerId === next?.ownerId && current?.storage === next?.storage ? current : next);
+        setIdentityResolved(true);
       } catch {
-        // Invalid local state is ignored so a damaged browser value cannot block DABRA.
-      } finally {
-        setContextHydrated(true);
+        if (!active) return;
+        setPersistenceContext(null);
+        setIdentityResolved(true);
       }
-    }, 0);
-    return () => window.clearTimeout(timeout);
+    }
+    void resolveValidatedIdentity();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      window.setTimeout(() => { if (active) void resolveValidatedIdentity(); }, 0);
+    });
+    return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
   useEffect(() => {
-    if (!contextHydrated) return;
-    window.localStorage.setItem('dir3com-dabra-context', JSON.stringify(messages.slice(-20)));
+    if (!identityResolved) return;
+    if (!persistenceContext) {
+      const reset = window.setTimeout(() => {
+        setMessages([welcomeMessage]);
+        setCart([]);
+        setFavorites([]);
+        setStorageHydrated(false);
+      }, 0);
+      return () => window.clearTimeout(reset);
+    }
+    const hydrate = window.setTimeout(() => {
+      const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
+      const { ownerId } = persistenceContext;
+      setMessages(readPersisted(storage.getItem(storageKey(ownerId, 'context')), ownerId, validatePersistedMessages) ?? [welcomeMessage]);
+      setCart(readPersisted(storage.getItem(storageKey(ownerId, 'cart')), ownerId, validatePersistedCart) ?? []);
+      setFavorites(readPersisted(storage.getItem(storageKey(ownerId, 'favorites')), ownerId, validatePersistedFavorites) ?? []);
+      setStorageHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(hydrate);
+  }, [identityResolved, persistenceContext]);
+
+  useEffect(() => {
+    if (!persistenceContext || !storageHydrated) return;
+    const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
+    storage.setItem(storageKey(persistenceContext.ownerId, 'context'), JSON.stringify(createPersisted(messages.slice(-20), persistenceContext.ownerId)));
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: 'smooth' });
-  }, [contextHydrated, messages]);
+  }, [persistenceContext, storageHydrated, messages]);
 
   useEffect(() => {
-    window.localStorage.setItem('dir3com-dabra-cart', JSON.stringify(cart));
-  }, [cart]);
+    if (!persistenceContext || !storageHydrated) return;
+    const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
+    storage.setItem(storageKey(persistenceContext.ownerId, 'cart'), JSON.stringify(createPersisted(cart, persistenceContext.ownerId)));
+  }, [persistenceContext, storageHydrated, cart]);
 
   useEffect(() => {
-    window.localStorage.setItem('dir3com-dabra-favorites', JSON.stringify(favorites));
-  }, [favorites]);
+    if (!persistenceContext || !storageHydrated) return;
+    const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
+    storage.setItem(storageKey(persistenceContext.ownerId, 'favorites'), JSON.stringify(createPersisted(favorites, persistenceContext.ownerId)));
+  }, [persistenceContext, storageHydrated, favorites]);
 
-  const recommendations = useMemo(() => {
-    const ranked = [...services].sort((left, right) => left.basePrice - right.basePrice);
-    return [ranked[0], ranked[1], ranked.find((item) => item.basePrice > (ranked[1]?.basePrice ?? 0))].filter(Boolean) as MarketplaceService[];
-  }, [services]);
-
-  const subtotal = cart.reduce((sum, item) => sum + (item.basePrice || 0), 0);
+  const recommendations = useMemo(() => selectDabraRecommendations(services), [services]);
+  const alternatives = useMemo(() => {
+    const recommendedIds = new Set(recommendations.map((service) => service.id));
+    return services.filter((service) => !recommendedIds.has(service.id));
+  }, [recommendations, services]);
+  const cartTotals = useMemo(() => calculateCartTotals(cart), [cart]);
 
   async function searchMarketplace(message: string) {
     setLoading(true);
@@ -264,12 +316,12 @@ export default function DabraChatCommerce() {
 
           {!loading && recommendations.length > 0 && <div className="dabra-recommendations"><div className="dabra-section-label">ترشيح الدبرة</div>{recommendations.map((service, index) => <ProductCard key={service.id} service={service} badge={index === 0 ? 'BEST MATCH' : index === 1 ? 'BEST VALUE' : 'PREMIUM'} why={index === 0 ? 'الأقرب لطلبك' : index === 1 ? 'أفضل توازن بين السعر والراحة' : 'لمن يفضّل تجربة أهدأ'} inCart={cart.some((item) => item.id === service.id)} favorite={favorites.includes(service.id)} onCart={() => toggleCart(service)} onFavorite={() => toggleFavorite(service.id)} compare={compareMode} />)}</div>}
           {compareMode && recommendations.length > 1 && <ComparisonTable services={recommendations} />}
-          {services.length > recommendations.length && <div className="dabra-other-results"><div className="dabra-section-label">بدائل متاحة</div>{services.slice(recommendations.length).map((service) => <ProductCard key={service.id} service={service} inCart={cart.some((item) => item.id === service.id)} favorite={favorites.includes(service.id)} onCart={() => toggleCart(service)} onFavorite={() => toggleFavorite(service.id)} compare={compareMode} />)}</div>}
+          {alternatives.length > 0 && <div className="dabra-other-results"><div className="dabra-section-label">بدائل ومحتوى استكشافي</div>{alternatives.map((service) => <ProductCard key={service.id} service={service} catalogOnly={!recommendationEligible(service)} inCart={cart.some((item) => item.id === service.id)} favorite={favorites.includes(service.id)} onCart={() => toggleCart(service)} onFavorite={() => toggleFavorite(service.id)} compare={compareMode} />)}</div>}
         </section>
       </div>
 
       {showSettings && <div className="dabra-settings" role="dialog" aria-label="إعدادات الدبرة"><button type="button" onClick={() => setShowSettings(false)} aria-label="إغلاق"><FiX /></button><strong>إعدادات المحادثة</strong><label><input type="checkbox" defaultChecked /> اقتراحات مختصرة</label><label><input type="checkbox" defaultChecked /> تنبيه عند تغيّر الحالة</label></div>}
-      {showCart && <div className="dabra-cart-drawer" role="dialog" aria-label="حقيبة الرحلة"><button type="button" className="dabra-drawer-close" onClick={() => setShowCart(false)} aria-label="إغلاق الحقيبة"><FiX /></button><span className="dabra-kicker">بناء الرحلة</span><h2>حقيبتك</h2>{cart.length === 0 ? <p className="dabra-muted">ما اخترت شيئًا بعد. نضيف الخيارات اللي تعجبك هنا.</p> : <>{cart.map((item) => <div className="dabra-cart-item" key={item.id}><div><strong>{item.name_ar}</strong><span>{item.categoryLabel}</span></div><b>{item.basePrice || 'حسب الطلب'} {item.currency}</b></div>)}<div className="dabra-cart-total"><span>المجموع المعروف</span><strong>{subtotal} SAR</strong></div><p className="dabra-muted">الضرائب والرسوم تظهر عند توفرها. ما راح نخفي أي تكلفة.</p></>}</div>}
+      {showCart && <div className="dabra-cart-drawer" role="dialog" aria-label="حقيبة الرحلة"><button type="button" className="dabra-drawer-close" onClick={() => setShowCart(false)} aria-label="إغلاق الحقيبة"><FiX /></button><span className="dabra-kicker">بناء الرحلة</span><h2>حقيبتك</h2>{cart.length === 0 ? <p className="dabra-muted">ما اخترت شيئًا بعد. نضيف الخيارات اللي تعجبك هنا.</p> : <>{cart.map((item) => <div className="dabra-cart-item" key={item.id}><div><strong>{item.name_ar}</strong><span>{item.categoryLabel}</span></div><b>{item.basePrice || 'حسب الطلب'} {item.currency}</b></div>)}<div className="dabra-cart-total"><span>{cartTotals.message}</span><strong>{cartTotals.unified ? `${cartTotals.amount} ${cartTotals.currency}` : 'غير موحّد'}</strong></div>{!cartTotals.unified && <div className="dabra-cart-groups">{cartTotals.groups.map((group) => <span key={group.currency}>{group.amount} {group.currency}</span>)}</div>}<p className="dabra-muted">الضرائب والرسوم تظهر عند توفرها. ما راح نخفي أي تكلفة.</p></>}</div>}
     </main>
   );
 }
@@ -278,14 +330,15 @@ function ComparisonTable({ services }: { services: MarketplaceService[] }) {
   return <div className="dabra-comparison" role="region" aria-label="مقارنة الخيارات"><div className="dabra-section-label">مقارنة القرار</div><div className="dabra-comparison-scroll"><table><thead><tr><th scope="col">المعيار</th>{services.map((service) => <th scope="col" key={service.id}>{service.name_ar}</th>)}</tr></thead><tbody><tr><th scope="row">السعر</th>{services.map((service) => <td key={service.id}>{service.basePrice || 'حسب الطلب'} {service.currency}</td>)}</tr><tr><th scope="row">التوفر</th>{services.map((service) => <td key={service.id}>{service.availability === 'available' ? 'متاح' : service.availability === 'limited' ? 'محدود' : 'غير متاح'}</td>)}</tr><tr><th scope="row">سبب الترشيح</th>{services.map((service, index) => <td key={service.id}>{index === 0 ? 'الأقرب لطلبك' : index === 1 ? 'أفضل قيمة' : 'تجربة أرقى'}</td>)}</tr></tbody></table></div></div>;
 }
 
-function ProductCard({ service, badge, why, inCart, favorite, onCart, onFavorite, compare }: { service: MarketplaceService; badge?: string; why?: string; inCart: boolean; favorite: boolean; onCart: () => void; onFavorite: () => void; compare: boolean }) {
-  return <article className={cn('dabra-product-card', compare && 'dabra-product-card-compare')}>
+function ProductCard({ service, badge, why, catalogOnly = false, inCart, favorite, onCart, onFavorite, compare }: { service: MarketplaceService; badge?: string; why?: string; catalogOnly?: boolean; inCart: boolean; favorite: boolean; onCart: () => void; onFavorite: () => void; compare: boolean }) {
+  return <article className={cn('dabra-product-card', compare && 'dabra-product-card-compare', catalogOnly && 'dabra-product-card-catalog')}>
     <div className="dabra-product-top"><span className="dabra-product-family">{service.categoryLabel}</span><button type="button" className={cn('dabra-favorite', favorite && 'selected')} onClick={onFavorite} aria-label={favorite ? 'إزالة من المحفوظات' : 'حفظ الخيار'}><FiHeart /></button></div>
+    {catalogOnly && <span className="dabra-catalog-notice">محتوى استكشافي — التوفر غير موثّق</span>}
     {badge && <span className="dabra-recommendation-badge"><FiCheck /> {badge}</span>}
     <h3>{service.name_ar}</h3><p className="dabra-product-description">{service.description_ar}</p>
     {why && <p className="dabra-why"><span>رأي الدبرة</span>{why}</p>}
-    <div className="dabra-product-facts"><span><FiMapPin /> {service.destination}</span><span><FiClock /> {service.productCount || 1} خيار</span></div>
-    <div className="dabra-product-bottom"><div><small>الإجمالي المعروف من</small><strong>{service.basePrice || 'حسب الطلب'} {service.currency}</strong></div><div className="dabra-product-actions"><button type="button" onClick={onCart} className={cn('dabra-add-button', inCart && 'added')} aria-label={inCart ? 'إزالة من حقيبة الرحلة' : 'إضافة إلى حقيبة الرحلة'}>{inCart ? <FiCheck /> : <FiShoppingBag />}</button><a href={service.href}>التفاصيل <FiArrowLeft /></a></div></div>
+    <div className="dabra-product-facts"><span><FiMapPin /> {service.destination}</span><span><FiClock /> {service.productCount === 0 ? '0 خيار — التوفر غير مؤكد' : `${service.productCount} خيار`}</span></div>
+    <div className="dabra-product-bottom"><div><small>الإجمالي المعروف من</small><strong>{service.basePrice || 'حسب الطلب'} {service.currency}</strong></div><div className="dabra-product-actions">{!catalogOnly && <button type="button" onClick={onCart} className={cn('dabra-add-button', inCart && 'added')} aria-label={inCart ? 'إزالة من حقيبة الرحلة' : 'إضافة إلى حقيبة الرحلة'}>{inCart ? <FiCheck /> : <FiShoppingBag />}</button>}<a href={service.href}>التفاصيل <FiArrowLeft /></a></div></div>
   </article>;
 }
 

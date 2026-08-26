@@ -39,7 +39,7 @@ test('chat commerce surface includes tabs, quick actions, recommendation set, co
   assert.match(component, /fetch\('\/api\/ai2\/chat'/);
   assert.match(component, /stream: true/);
   assert.match(component, /response\.body\.getReader/);
-  assert.match(component, /dir3com-dabra-context/);
+    assert.match(component, /storageKey\(ownerId, 'context'\)/);
   assert.match(component, /ComparisonTable/);
 });
 
