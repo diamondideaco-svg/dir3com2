@@ -3,6 +3,7 @@ import { buildAI2ChatResponse, type AI2ChatAccountContext, type AI2ChatTurn } fr
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DabraTravelOrchestrator } from '@/lib/ai2/orchestration';
 import { TravelProviderError } from '@/lib/travel/errors';
+import { createDabraAssistantTextResponse, DABRA_SAFE_CHAT_ERROR } from '@/lib/dabra/chat-response-contract';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,9 +73,19 @@ export async function POST(request: NextRequest) {
     body = null;
   }
 
+  if (body?.stream !== undefined && typeof body.stream !== 'boolean') {
+    return NextResponse.json(
+      { error: 'Invalid stream mode.' },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
   const message = body?.message?.trim().slice(0, MAX_TURN_LENGTH);
 
   if (!message) {
+    if (body?.stream === true) {
+      return createDabraAssistantTextResponse(null, { status: 400, fallback: DABRA_SAFE_CHAT_ERROR });
+    }
     return NextResponse.json(
       {
         error: 'Message is required.',
@@ -91,6 +102,9 @@ export async function POST(request: NextRequest) {
   const history = sanitizeHistory(body?.history);
   const identity = await resolveSafeRequestIdentity(request);
   if (body?.mode === 'travel-plan' && !identity.scope) {
+    if (body.stream === true) {
+      return createDabraAssistantTextResponse(null, { status: 401, fallback: DABRA_SAFE_CHAT_ERROR });
+    }
     return NextResponse.json(
       { error: 'Authentication is required for user-scoped travel planning.' },
       { status: 401, headers: { 'Cache-Control': 'no-store' } },
@@ -102,6 +116,9 @@ export async function POST(request: NextRequest) {
       travel = await new DabraTravelOrchestrator().orchestrate(message, identity.scope);
     } catch (error) {
       if (error instanceof TravelProviderError && error.code === 'INVALID_TRAVELER_COUNT') {
+        if (body.stream === true) {
+          return createDabraAssistantTextResponse(null, { status: 400, fallback: DABRA_SAFE_CHAT_ERROR });
+        }
         return NextResponse.json(
           { error: 'Traveler counts are invalid.' },
           { status: 400, headers: { 'Cache-Control': 'no-store' } },
@@ -110,29 +127,13 @@ export async function POST(request: NextRequest) {
       throw error;
     }
     const response = await buildAI2ChatResponse(message, history, identity.account);
+    if (body.stream === true) return createDabraAssistantTextResponse(response);
     return NextResponse.json({ ...response, travel }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
   const response = await buildAI2ChatResponse(message, history, identity.account);
-  if (body?.stream) {
-    const encoder = new TextEncoder();
-    const answer = response.answer ?? '';
-    const stream = new ReadableStream({
-      async start(controller) {
-        for (const chunk of answer.match(/.{1,24}(?:\s|$)|.{1,24}/gu) ?? []) {
-          controller.enqueue(encoder.encode(chunk));
-          await new Promise((resolve) => setTimeout(resolve, 12));
-        }
-        controller.close();
-      },
-    });
-    return new Response(stream, {
-      headers: {
-        'Cache-Control': 'no-store',
-        'Content-Type': 'text/plain; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-      },
-    });
+  if (body?.stream === true) {
+    return createDabraAssistantTextResponse(response);
   }
   return NextResponse.json(response, {
     headers: {

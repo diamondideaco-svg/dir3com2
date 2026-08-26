@@ -5,6 +5,7 @@ import { FiArrowLeft, FiCheck, FiChevronDown, FiClock, FiHeart, FiMapPin, FiMic,
 import { cn } from '@/lib/utils';
 import type { MarketplaceService } from '@/lib/marketplace/data';
 import { supabase } from '@/lib/supabase/client';
+import { consumeDabraChatResponse, DABRA_SAFE_CHAT_ERROR } from '@/lib/dabra/chat-response-contract';
 import {
   DABRA_ANONYMOUS_SESSION_KEY,
   anonymousOwnerId,
@@ -195,22 +196,12 @@ export default function DabraChatCommerce() {
     try {
       const response = await fetch('/api/ai2/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { Accept: 'text/plain', 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, history: messages.map(({ role, text: content }) => ({ role, content })), stream: true }),
       });
-      if (!response.ok || !response.body) throw new Error('chat');
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let answer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        answer += decoder.decode(value, { stream: true });
-        setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: answer } : item));
-      }
-      answer += decoder.decode();
-      if (!answer.trim()) answer = 'خلني أرتبها لك بطريقة أوضح. وش تفضّل يكون الأولوية؟';
-      setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: answer } : item));
+      const answer = await consumeDabraChatResponse(response, (visibleAnswer) => {
+        setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));
+      });
       if (!voiceMuted && 'speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(answer);
         utterance.lang = 'ar-SA';
@@ -220,7 +211,7 @@ export default function DabraChatCommerce() {
         window.speechSynthesis.speak(utterance);
       }
     } catch {
-      setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: 'ما قدرت أوصل للمساعد الآن، لكن نقدر نكمل اختياراتك من السوق مباشرة.' } : item));
+      setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: DABRA_SAFE_CHAT_ERROR } : item));
     } finally {
       setVoiceStatus((current) => current === 'speaking' ? current : voiceMuted ? 'muted' : 'idle');
       void searchMarketplace(message);

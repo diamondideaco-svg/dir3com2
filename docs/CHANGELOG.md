@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-26 - DABRA chat stream contract
+
+- Added an explicit text-only stream contract for DABRA Chat & Commerce while preserving the existing JSON response for non-stream callers.
+- Restricted rendered, persisted, announced, and spoken assistant content to the approved customer-facing `answer` field, with safe fallbacks for malformed or failed responses.
+
 ## 2026-08-26 - Marketplace provider security remediation
 
 - Disabled the HTTP local-preview route because the Route Handler runtime does not expose a trusted peer address, while preserving explicitly enabled non-public preview execution.
