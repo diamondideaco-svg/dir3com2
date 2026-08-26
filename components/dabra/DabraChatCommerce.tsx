@@ -10,6 +10,7 @@ import {
   anonymousOwnerId,
   calculateCartTotals,
   createPersisted,
+  persistenceContextForIdentity,
   readPersisted,
   recommendationEligible,
   selectDabraRecommendations,
@@ -18,12 +19,13 @@ import {
   validatePersistedFavorites,
   validatePersistedMessages,
   type DabraCartItem,
+  type DabraPersistenceContext,
 } from '@/lib/dabra/travel-commerce-state';
 
 type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking' | 'muted' | 'error';
 type Message = { id: string; role: 'user' | 'assistant'; text: string };
 type CartItem = DabraCartItem;
-type PersistenceContext = { ownerId: string; storage: 'local' | 'session' };
+type PersistenceContext = DabraPersistenceContext;
 
 const quickActions = ['قارن', 'أرخص', 'أريح', 'بدون توقف', 'أقرب', 'أفخم', 'غير التاريخ', 'شوف بدائل', 'اختصرها لي', 'اختاره لي'];
 const tabs = [
@@ -69,40 +71,50 @@ export default function DabraChatCommerce() {
   const [storageHydrated, setStorageHydrated] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
+  const identityRequestRef = useRef(0);
 
   useEffect(() => {
     let active = true;
-    async function resolveValidatedIdentity() {
+    function detachSensitiveState() {
       setStorageHydrated(false);
+      setPersistenceContext(null);
+      setIdentityResolved(false);
+      setMessages([welcomeMessage]);
+      setCart([]);
+      setFavorites([]);
+    }
+    async function resolveValidatedIdentity() {
+      const requestId = ++identityRequestRef.current;
+      detachSensitiveState();
       try {
         const response = await fetch('/api/auth/session-identity', { cache: 'no-store', credentials: 'same-origin' });
         if (!response.ok) throw new Error('identity');
-        const identity = await response.json() as { authenticated?: boolean; userId?: string };
-        let next: PersistenceContext | null = null;
-        if (identity.authenticated && typeof identity.userId === 'string' && identity.userId) {
-          next = { ownerId: `user:${identity.userId}`, storage: 'local' };
-        } else if (identity.authenticated === false) {
-          let sessionId = window.sessionStorage.getItem(DABRA_ANONYMOUS_SESSION_KEY) ?? '';
+        const identity = await response.json() as { identityState?: string; authenticated?: boolean; userId?: string };
+        let sessionId = '';
+        if (identity.identityState === 'anonymous_confirmed' && identity.authenticated === false) {
+          sessionId = window.sessionStorage.getItem(DABRA_ANONYMOUS_SESSION_KEY) ?? '';
           if (!anonymousOwnerId(sessionId)) {
             sessionId = window.crypto.randomUUID();
             window.sessionStorage.setItem(DABRA_ANONYMOUS_SESSION_KEY, sessionId);
           }
-          next = { ownerId: anonymousOwnerId(sessionId)!, storage: 'session' };
         }
-        if (!active) return;
-        setPersistenceContext((current) => current?.ownerId === next?.ownerId && current?.storage === next?.storage ? current : next);
+        const next = persistenceContextForIdentity(identity, sessionId);
+        if (!active || requestId !== identityRequestRef.current) return;
+        setPersistenceContext(next);
         setIdentityResolved(true);
       } catch {
-        if (!active) return;
+        if (!active || requestId !== identityRequestRef.current) return;
         setPersistenceContext(null);
         setIdentityResolved(true);
       }
     }
     void resolveValidatedIdentity();
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      identityRequestRef.current += 1;
+      detachSensitiveState();
       window.setTimeout(() => { if (active) void resolveValidatedIdentity(); }, 0);
     });
-    return () => { active = false; subscription.unsubscribe(); };
+    return () => { active = false; identityRequestRef.current += 1; subscription.unsubscribe(); };
   }, []);
 
   useEffect(() => {

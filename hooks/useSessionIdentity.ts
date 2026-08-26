@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { createAnonymousSessionIdentity, type SessionIdentity } from '@/lib/auth/identity-contract';
+import { createUnresolvedSessionIdentity, type SessionIdentity } from '@/lib/auth/identity-contract';
 import { normalizeSessionIdentityPayload } from '@/lib/auth/session-identity';
 import { supabase } from '@/lib/supabase/client';
 
@@ -31,19 +31,20 @@ async function requestSessionIdentity(): Promise<SessionIdentity> {
 }
 
 export function useSessionIdentity(): SessionIdentityState {
-  const [identity, setIdentity] = useState<SessionIdentity>(createAnonymousSessionIdentity());
+  const [identity, setIdentity] = useState<SessionIdentity>(createUnresolvedSessionIdentity());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setIdentity(createUnresolvedSessionIdentity());
 
     try {
       const normalizedIdentity = await requestSessionIdentity();
       setIdentity(normalizedIdentity);
     } catch (requestError) {
-      setIdentity(createAnonymousSessionIdentity());
+      setIdentity(createUnresolvedSessionIdentity());
       setError(requestError instanceof Error ? requestError.message : 'Unable to read session identity.');
     } finally {
       setIsLoading(false);
@@ -64,7 +65,7 @@ export function useSessionIdentity(): SessionIdentityState {
         if (cancelled) {
           return;
         }
-        setIdentity(createAnonymousSessionIdentity());
+        setIdentity(createUnresolvedSessionIdentity());
         setError(requestError instanceof Error ? requestError.message : 'Unable to read session identity.');
       } finally {
         if (!cancelled) {

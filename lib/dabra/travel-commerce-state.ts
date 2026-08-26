@@ -9,6 +9,8 @@ export type DabraCartItem = Pick<MarketplaceService, 'id' | 'name_ar' | 'basePri
 export type DabraStorageEnvelope<T> = { version: number; expiresAt: number; ownerId: string; value: T };
 export type DabraCurrencyTotal = { currency: string; amount: number; itemCount: number };
 export type DabraCartTotals = { unified: boolean; currency: string | null; amount: number | null; groups: DabraCurrencyTotal[]; message: string };
+export type DabraPersistenceContext = { ownerId: string; storage: 'local' | 'session' };
+export type DabraIdentityPayload = { identityState?: string; authenticated?: boolean; userId?: string | null };
 
 export function recommendationEligible(service: MarketplaceService): boolean {
   return (service.provenance === 'PROVIDER_LIVE' || service.provenance === 'PARTNER_VERIFIED') && service.productCount > 0;
@@ -41,6 +43,17 @@ export function createPersisted<T>(value: T, ownerId: string, now = Date.now()):
 
 export function anonymousOwnerId(sessionId: string): string | null {
   return /^[a-f0-9-]{16,64}$/i.test(sessionId) ? `anonymous:${sessionId}` : null;
+}
+
+export function persistenceContextForIdentity(identity: DabraIdentityPayload, anonymousSessionId: string): DabraPersistenceContext | null {
+  if (identity.identityState === 'authenticated' && identity.authenticated === true && typeof identity.userId === 'string' && identity.userId) {
+    return { ownerId: `user:${identity.userId}`, storage: 'local' };
+  }
+  const anonymousId = anonymousOwnerId(anonymousSessionId);
+  if (identity.identityState === 'anonymous_confirmed' && identity.authenticated === false && anonymousId) {
+    return { ownerId: anonymousId, storage: 'session' };
+  }
+  return null;
 }
 
 export function validatePersistedMessages(value: unknown): DabraPersistedMessage[] | null {
