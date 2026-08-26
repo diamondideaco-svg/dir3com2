@@ -11,15 +11,62 @@ export type DabraCurrencyTotal = { currency: string; amount: number; itemCount: 
 export type DabraCartTotals = { unified: boolean; currency: string | null; amount: number | null; groups: DabraCurrencyTotal[]; message: string };
 export type DabraPersistenceContext = { ownerId: string; storage: 'local' | 'session' };
 export type DabraIdentityPayload = { identityState?: string; authenticated?: boolean; userId?: string | null };
+export type DabraResultSort = 'recommended' | 'price-low' | 'price-high' | 'comfort' | 'closest';
+export type DabraRecommendation = { service: MarketplaceService; badge: 'BEST MATCH' | 'BEST VALUE' | 'PREMIUM'; why: string };
 
 export function recommendationEligible(service: MarketplaceService): boolean {
-  return (service.provenance === 'PROVIDER_LIVE' || service.provenance === 'PARTNER_VERIFIED') && service.productCount > 0;
+  return (service.provenance === 'PROVIDER_LIVE' || service.provenance === 'PARTNER_VERIFIED') &&
+    service.availability !== 'sold-out' && service.productCount > 0 && service.inventoryCount > 0;
 }
 
 export function selectDabraRecommendations(services: MarketplaceService[]): MarketplaceService[] {
-  const eligible = services.filter(recommendationEligible).sort((left, right) => left.basePrice - right.basePrice);
-  return [eligible[0], eligible[1], eligible.slice(2).find((item) => item.basePrice > (eligible[1]?.basePrice ?? 0))]
-    .filter((service): service is MarketplaceService => Boolean(service));
+  return buildDabraRecommendations(services).map(({ service }) => service);
+}
+
+export function buildDabraRecommendations(services: MarketplaceService[]): DabraRecommendation[] {
+  const eligible = services.filter(recommendationEligible);
+  const selected = new Set<MarketplaceService['id']>();
+  const result: DabraRecommendation[] = [];
+  const bestMatch = eligible.find((service) => service.recommended);
+  if (bestMatch) {
+    selected.add(bestMatch.id);
+    result.push({ service: bestMatch, badge: 'BEST MATCH', why: 'مطابق لإشارات الترشيح الموثقة في السوق' });
+  }
+  const priced = eligible.filter((service) => !selected.has(service.id) && service.basePrice > 0 && /^[A-Z]{3}$/.test(service.currency));
+  const comparableCurrency = priced.length > 1 && new Set(priced.map((service) => service.currency)).size === 1;
+  const bestValue = comparableCurrency ? [...priced].sort((left, right) => left.basePrice - right.basePrice)[0] : undefined;
+  if (bestValue) {
+    selected.add(bestValue.id);
+    result.push({ service: bestValue, badge: 'BEST VALUE', why: 'أقل سعر معروف بين الخيارات المؤهلة المتبقية' });
+  }
+  const premium = eligible.find((service) => !selected.has(service.id) && service.tags.some((tag) => /^(?:premium|luxury|فاخر|فخامة)$/iu.test(tag.trim())));
+  if (premium) result.push({ service: premium, badge: 'PREMIUM', why: 'مصنف كتجربة مميزة أو فاخرة في بيانات السوق' });
+  return result;
+}
+
+export function sortDabraResults(services: MarketplaceService[], sort: DabraResultSort): MarketplaceService[] {
+  const ranked = [...services];
+  if (sort === 'price-low') return ranked.sort((left, right) => left.basePrice - right.basePrice);
+  if (sort === 'price-high') return ranked.sort((left, right) => right.basePrice - left.basePrice);
+  if (sort === 'comfort') return ranked.sort((left, right) => Number(right.popular) - Number(left.popular) || Number(right.featured) - Number(left.featured));
+  if (sort === 'closest') return ranked.sort((left, right) => Number(right.tags.some((tag) => /(?:near|close|قريب|وسط|المطار)/iu.test(tag))) - Number(left.tags.some((tag) => /(?:near|close|قريب|وسط|المطار)/iu.test(tag))));
+  return ranked.sort((left, right) => Number(right.recommended) - Number(left.recommended) || Number(right.featured) - Number(left.featured));
+}
+
+export function applyScopedHotelChange(items: DabraCartItem[], message: string): DabraCartItem[] {
+  if (/(?:لا|ما)\s+(?:تغير|غيّر|غير)\s+(?:الفندق|السكن)\s+بس/u.test(message.trim())) return items;
+  if (!/(?:غير|غيّر)\s+(?:الفندق|السكن)\s+بس/u.test(message.trim())) return items;
+  return items.filter((item) => !/(?:hotel|stay|apartment|فندق|فنادق|شقق|إقامة)/iu.test(`${item.categoryLabel} ${item.href}`));
+}
+
+export function missingTripComponents(items: DabraCartItem[]): string[] {
+  const joined = items.map((item) => `${item.categoryLabel} ${item.href}`).join(' ');
+  const required = [
+    { label: 'الرحلة', pattern: /(?:flight|fly|airport-transfer|طيران|رحلة)/iu },
+    { label: 'السكن', pattern: /(?:hotel|stay|apartment|فندق|فنادق|شقق|إقامة)/iu },
+    { label: 'السيارة', pattern: /(?:car|drive|سيارة|سيارات)/iu },
+  ];
+  return required.filter(({ pattern }) => !pattern.test(joined)).map(({ label }) => label);
 }
 
 export function storageKey(ownerId: string, kind: 'context' | 'cart' | 'favorites'): string {

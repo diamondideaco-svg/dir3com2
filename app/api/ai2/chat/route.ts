@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DabraTravelOrchestrator } from '@/lib/ai2/orchestration';
 import { TravelProviderError } from '@/lib/travel/errors';
 import { createDabraAssistantTextResponse, DABRA_SAFE_CHAT_ERROR } from '@/lib/dabra/chat-response-contract';
+import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,8 @@ type AI2ChatRequest = {
   stream?: boolean;
 };
 
+type ParsedChatRequest = { body: AI2ChatRequest | null; attachmentCount: number; attachmentError: boolean };
+
 type AI2RequestIdentity = {
   account?: AI2ChatAccountContext;
   scope?: { ownerId: string; tenantId: string };
@@ -21,6 +24,41 @@ type AI2RequestIdentity = {
 
 const MAX_HISTORY_TURNS = 8;
 const MAX_TURN_LENGTH = 500;
+const MAX_ATTACHMENTS = 3;
+
+async function parseChatRequest(request: NextRequest): Promise<ParsedChatRequest> {
+  const contentType = request.headers.get('content-type')?.toLowerCase() ?? '';
+  if (!contentType.startsWith('multipart/form-data')) {
+    try { return { body: (await request.json()) as AI2ChatRequest, attachmentCount: 0, attachmentError: false }; }
+    catch { return { body: null, attachmentCount: 0, attachmentError: false }; }
+  }
+  try {
+    const form = await request.formData();
+    const streamValue = form.get('stream');
+    const rawHistory = form.get('history');
+    let history: AI2ChatRequest['history'];
+    if (typeof rawHistory === 'string') {
+      try { history = JSON.parse(rawHistory) as AI2ChatRequest['history']; } catch { history = []; }
+    }
+    const stream = streamValue === 'true' ? true : streamValue === 'false' || streamValue === null ? undefined : streamValue as unknown as boolean;
+    const modeValue = form.get('mode');
+    const mode = modeValue === 'chat' || modeValue === 'travel-plan' ? modeValue : undefined;
+    const body: AI2ChatRequest = { message: String(form.get('message') ?? ''), history, stream, mode };
+    const files = form.getAll('attachment');
+    if (files.length > MAX_ATTACHMENTS || files.some((item) => !(item instanceof File))) return { body, attachmentCount: 0, attachmentError: true };
+    const seen = new Set<string>();
+    for (const item of files) {
+      const validated = await validateAndNormalizeDocumentFile(item);
+      if (!validated.ok) return { body, attachmentCount: 0, attachmentError: true };
+      const digestInput = Uint8Array.from(validated.data.bytes).buffer;
+      const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', digestInput))).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      seen.add(digest);
+    }
+    return { body, attachmentCount: seen.size, attachmentError: false };
+  } catch {
+    return { body: null, attachmentCount: 0, attachmentError: true };
+  }
+}
 
 function sanitizeHistory(raw: AI2ChatRequest['history']): AI2ChatTurn[] {
   if (!Array.isArray(raw)) return [];
@@ -65,13 +103,8 @@ async function resolveSafeRequestIdentity(request: NextRequest): Promise<AI2Requ
 export async function POST(request: NextRequest) {
   // Public floating DABRA chat: no auth/pilot lookup on this hot path, general
   // conversational inference must never require pilot authorization.
-  let body: AI2ChatRequest | null = null;
-
-  try {
-    body = (await request.json()) as AI2ChatRequest;
-  } catch {
-    body = null;
-  }
+  const parsed = await parseChatRequest(request);
+  const { body } = parsed;
 
   if (body?.stream !== undefined && typeof body.stream !== 'boolean') {
     return NextResponse.json(
@@ -80,7 +113,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (parsed.attachmentError) {
+    if (body?.stream === true) return createDabraAssistantTextResponse(null, { status: 400, fallback: DABRA_SAFE_CHAT_ERROR });
+    return NextResponse.json({ error: 'Invalid attachment.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+  }
+
   const message = body?.message?.trim().slice(0, MAX_TURN_LENGTH);
+  const modelMessage = message && parsed.attachmentCount
+    ? `${message}\n\n[أرفق المستخدم ${parsed.attachmentCount} ملفًا تحقق الخادم من سلامة نوعه. محتوى الملفات غير مُرسل إلى مزود الذكاء الاصطناعي، فلا تدّعِ قراءته.]`
+    : message ?? '';
 
   if (!message) {
     if (body?.stream === true) {
@@ -113,7 +154,7 @@ export async function POST(request: NextRequest) {
   if (body?.mode === 'travel-plan' && identity.scope) {
     let travel;
     try {
-      travel = await new DabraTravelOrchestrator().orchestrate(message, identity.scope);
+      travel = await new DabraTravelOrchestrator().orchestrate(modelMessage, identity.scope);
     } catch (error) {
       if (error instanceof TravelProviderError && error.code === 'INVALID_TRAVELER_COUNT') {
         if (body.stream === true) {
@@ -126,12 +167,12 @@ export async function POST(request: NextRequest) {
       }
       throw error;
     }
-    const response = await buildAI2ChatResponse(message, history, identity.account);
+    const response = await buildAI2ChatResponse(modelMessage, history, identity.account);
     if (body.stream === true) return createDabraAssistantTextResponse(response);
     return NextResponse.json({ ...response, travel }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const response = await buildAI2ChatResponse(message, history, identity.account);
+  const response = await buildAI2ChatResponse(modelMessage, history, identity.account);
   if (body?.stream === true) {
     return createDabraAssistantTextResponse(response);
   }

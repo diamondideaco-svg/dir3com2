@@ -24,6 +24,15 @@ function chatRequest(body: Record<string, unknown>) {
   });
 }
 
+function multipartChatRequest(files: File[]) {
+  const form = new FormData();
+  form.set('message', 'راجع المرفق');
+  form.set('history', '[]');
+  form.set('stream', 'true');
+  for (const file of files) form.append('attachment', file, file.name);
+  return new NextRequest('http://localhost/api/ai2/chat', { method: 'POST', body: form });
+}
+
 test('stream=true returns assistant text only with the explicit safe headers', async () => {
   const response = await POST(chatRequest({ message: 'مرحبا', stream: true }));
   const text = await response.text();
@@ -129,4 +138,30 @@ test('only final visible assistant text reaches speech and transcript persistenc
   assert.doesNotMatch(component, /SpeechSynthesisUtterance\([^a]/);
   assert.match(component, /createPersisted\(messages\.slice\(-20\)/);
   assert.doesNotMatch(component, /createPersisted\([^\n]*(response|payload|raw)/);
+});
+
+test('multipart chat validates and deduplicates attachment bytes without storing or forwarding metadata', async () => {
+  const jpeg = new Uint8Array(20);
+  jpeg.set([0xff, 0xd8, 0xff], 0);
+  jpeg.set([0xff, 0xd9], 18);
+  const file = new File([jpeg], 'private-name.jpg', { type: 'image/jpeg' });
+  const response = await POST(multipartChatRequest([file, file]));
+  const answer = await response.text();
+  assert.equal(response.status, 200);
+  assert(answer.length > 0);
+  assert(!answer.includes('private-name'));
+  const route = fs.readFileSync(path.join(root, 'app/api/ai2/chat/route.ts'), 'utf8');
+  assert.match(route, /validateAndNormalizeDocumentFile/);
+  assert.match(route, /Set<string>/);
+  assert.match(route, /modeValue === 'chat' \|\| modeValue === 'travel-plan'/);
+  assert.doesNotMatch(route, /storage\.from|\.upload\(/);
+});
+
+test('malformed, executable, oversized-count and unsupported attachments fail safely', async () => {
+  const executable = new File([new Uint8Array([0x4d, 0x5a, 0, 0])], 'photo.jpg', { type: 'image/jpeg' });
+  const response = await POST(multipartChatRequest([executable]));
+  assert.equal(response.status, 400);
+  assert.equal(await response.text(), DABRA_SAFE_CHAT_ERROR);
+  const tooMany = await POST(multipartChatRequest(Array.from({ length: 4 }, (_, index) => new File([new Uint8Array([1])], `${index}.png`, { type: 'image/png' }))));
+  assert.equal(tooMany.status, 400);
 });

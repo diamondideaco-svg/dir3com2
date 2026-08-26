@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeMarketplaceCard } from '@/lib/marketplace/cards';
-import { calculateCartTotals, createPersisted, readPersisted, recommendationEligible, selectDabraRecommendations, storageKey, validatePersistedMessages, type DabraCartItem } from '@/lib/dabra/travel-commerce-state';
+import { applyScopedHotelChange, buildDabraRecommendations, calculateCartTotals, createPersisted, missingTripComponents, readPersisted, recommendationEligible, selectDabraRecommendations, sortDabraResults, storageKey, validatePersistedMessages, type DabraCartItem } from '@/lib/dabra/travel-commerce-state';
 import type { MarketplaceService } from '@/lib/marketplace/data';
 
 function service(provenance: MarketplaceService['provenance'], productCount: number, basePrice: number, id: string) {
@@ -62,4 +62,42 @@ test('normalized provider cards retain explicit live provenance inputs at the se
   const card = normalizeMarketplaceCard({ serviceType: 'stay', title: 'Live', location: 'Cairo', provider: 'LiteAPI', priceFrom: 100, currency: 'SAR' });
   assert(card);
   assert.equal(recommendationEligible(service('PROVIDER_LIVE', 1, card.priceFrom ?? 0, 'provider')), true);
+});
+
+test('غير الفندق بس removes only stay selections and preserves unrelated trip state', () => {
+  const flight = { ...item('SAR', 800, 'flight'), categoryLabel: 'طيران', href: '/services/fly' };
+  const hotel = { ...item('SAR', 500, 'hotel'), categoryLabel: 'فنادق', href: '/hotels' };
+  const car = { ...item('SAR', 200, 'car'), categoryLabel: 'سيارات', href: '/cars' };
+  assert.deepEqual(applyScopedHotelChange([flight, hotel, car], 'غير الفندق بس').map((entry) => entry.id), ['flight', 'car']);
+  assert.deepEqual(applyScopedHotelChange([flight, hotel, car], 'خل الرحلة مثل ما هي').map((entry) => entry.id), ['flight', 'hotel', 'car']);
+  assert.deepEqual(applyScopedHotelChange([flight, hotel, car], 'لا تغير الفندق بس').map((entry) => entry.id), ['flight', 'hotel', 'car']);
+});
+
+test('result sorting mutates a copy and missing trip components remain explicit', () => {
+  const expensive = service('PROVIDER_LIVE', 1, 900, 'expensive');
+  const cheap = service('PROVIDER_LIVE', 1, 100, 'cheap');
+  const original = [expensive, cheap];
+  assert.deepEqual(sortDabraResults(original, 'price-low').map((entry) => entry.id), ['cheap', 'expensive']);
+  assert.deepEqual(original.map((entry) => entry.id), ['expensive', 'cheap']);
+  assert.deepEqual(missingTripComponents([{ ...item('SAR', 800, 'flight'), categoryLabel: 'طيران', href: '/services/fly' }]), ['السكن', 'السيارة']);
+});
+
+test('recommendation badges are derived from marketplace evidence rather than card position', () => {
+  const match = { ...service('PROVIDER_LIVE', 2, 700, 'match'), recommended: true };
+  const value = { ...service('PROVIDER_LIVE', 2, 200, 'value'), recommended: false };
+  const ordinaryHighPrice = { ...service('PROVIDER_LIVE', 2, 1200, 'ordinary'), recommended: false };
+  const premium = { ...service('PARTNER_VERIFIED', 2, 1000, 'premium'), recommended: false, featured: true, tags: ['luxury'] };
+  const decisions = buildDabraRecommendations([match, value, ordinaryHighPrice, premium]);
+  assert.deepEqual(decisions.map(({ service: entry, badge }) => [entry.id, badge]), [['match', 'BEST MATCH'], ['value', 'BEST VALUE'], ['premium', 'PREMIUM']]);
+  assert.equal(decisions.some(({ service: entry, badge }) => entry.id === 'ordinary' && badge === 'PREMIUM'), false);
+});
+
+test('sold-out, zero-inventory and mixed-currency services cannot receive unsupported claims', () => {
+  const soldOut = { ...service('PROVIDER_LIVE', 2, 100, 'sold'), availability: 'sold-out' as const };
+  const zeroInventory = { ...service('PROVIDER_LIVE', 2, 120, 'zero-inventory'), inventoryCount: 0 };
+  const sar = { ...service('PROVIDER_LIVE', 2, 200, 'sar'), recommended: false, currency: 'SAR' };
+  const usd = { ...service('PROVIDER_LIVE', 2, 10, 'usd'), recommended: false, currency: 'USD' };
+  assert.equal(recommendationEligible(soldOut), false);
+  assert.equal(recommendationEligible(zeroInventory), false);
+  assert.equal(buildDabraRecommendations([soldOut, zeroInventory, sar, usd]).some(({ badge }) => badge === 'BEST VALUE'), false);
 });

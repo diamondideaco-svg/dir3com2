@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-26 — DABRA Chat & Commerce final QA remediation
+
+- Wired attachment validation, marketplace search/filter/sort controls, and result-state quick actions on `/dabra`.
+- Added scoped hotel replacement that preserves unrelated trip-cart selections, transparent missing-component reporting, and verified-savings boundaries.
+- Added bounded identity startup and ignored the Supabase initialization notification so early chat turns cannot disappear while retaining immediate detach on real auth transitions.
+- Expanded focused Chat & Commerce coverage for controls, voice interruption, cart transparency, result sorting, and context preservation.
+
 ## 2026-08-26 - DABRA chat stream contract
 
 - Added an explicit text-only stream contract for DABRA Chat & Commerce while preserving the existing JSON response for non-stream callers.

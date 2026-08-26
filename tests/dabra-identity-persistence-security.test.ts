@@ -54,7 +54,7 @@ test('user transition detaches transcript cart and favorites before identity fet
 });
 
 test('authenticated to anonymous transition uses the same immediate detach boundary', () => {
-  const callback = component.slice(component.indexOf('onAuthStateChange(() => {'));
+  const callback = component.slice(component.indexOf('onAuthStateChange((event) => {'));
   assert(callback.indexOf('detachSensitiveState()') < callback.indexOf('window.setTimeout'));
   assert(callback.indexOf('identityRequestRef.current += 1') < callback.indexOf('window.setTimeout'));
   assert.match(component, /identityState === 'anonymous_confirmed'/);
@@ -79,4 +79,16 @@ test('stale identity responses cannot restore a previous user after a newer tran
   assert.match(component, /const requestId = \+\+identityRequestRef\.current/);
   assert.match(component, /requestId !== identityRequestRef\.current/g);
   assert.match(component, /identityRequestRef\.current \+= 1/);
+});
+
+test('chat controls stay disabled until validated identity resolution completes', () => {
+  assert.match(component, /AbortSignal\.timeout\(8_000\)/);
+  assert.match(component, /if \(!message \|\| chatInFlightRef\.current \|\| !identityResolved\) return/);
+  assert.match(component, /disabled=\{!identityResolved \|\| \(!input\.trim\(\) && !attachments\.length\) \|\| chatInFlight\}/);
+  assert.match(component, /placeholder=\{identityResolved \?[^:]+: 'نجهز جلستك الآمنة\.\.\.'/);
+});
+
+test('initial Supabase session notification cannot detach a newly entered turn', () => {
+  assert.match(component, /onAuthStateChange\(\(event\) =>/);
+  assert.match(component, /if \(event === 'INITIAL_SESSION'\) return/);
 });

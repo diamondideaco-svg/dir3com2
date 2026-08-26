@@ -24,7 +24,7 @@ export default function SiteShell({ children }: { children: ReactNode }) {
       <Header />
       <main>{children}</main>
       <Footer />
-      <FloatingDibrah />
+      {pathname !== '/dabra' && <FloatingDibrah />}
     </div>
   );
 }
