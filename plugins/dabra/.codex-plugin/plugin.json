@@ -1,0 +1,32 @@
+{
+  "name": "dabra",
+  "version": "1.0.0",
+  "description": "Bilingual read-only DIR3COM travel planning for ChatGPT and Codex.",
+  "author": {
+    "name": "DIR3COM",
+    "url": "https://www.dir3com.com"
+  },
+  "homepage": "https://www.dir3com.com",
+  "keywords": ["travel", "trip-planning", "arabic", "marketplace", "dir3com"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "DABRA",
+    "shortDescription": "Bilingual read-only travel planning by DIR3COM.",
+    "longDescription": "DABRA helps travelers explore verified DIR3COM Fly, Stay, Drive, Concierge, and VIP marketplace services and create practical Arabic or English trip briefs. V1 is read-only: bookings, payments, cancellations, refunds, account changes, and database writes require explicit human approval and completion through DIR3COM.",
+    "developerName": "DIR3COM",
+    "category": "Travel",
+    "capabilities": ["Read-only", "Bilingual", "Travel planning"],
+    "websiteURL": "https://www.dir3com.com",
+    "privacyPolicyURL": "https://www.dir3com.com/privacy",
+    "termsOfServiceURL": "https://www.dir3com.com/terms",
+    "defaultPrompt": [
+      "Plan a three-day Riyadh trip for two travelers.",
+      "خطط لي رحلة إلى جدة مع إقامة وتنقلات.",
+      "Compare verified DIR3COM Stay options in Cairo."
+    ],
+    "brandColor": "#07111F",
+    "composerIcon": "./assets/dabra-icon.png",
+    "logo": "./assets/dir3com-logo.png"
+  },
+  "mcpServers": "./.mcp.json"
+}

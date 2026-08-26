@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "dabra": {
+      "type": "http",
+      "url": "https://www.dir3com.com/api/dabra/mcp"
+    }
+  }
+}

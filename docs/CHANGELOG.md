@@ -73,3 +73,9 @@
 - Consolidated approved Fly (Duffel), Stay (LiteAPI), Drive (CarTrawler), Concierge (Viator Basic), and local Egypt VIP adapters behind the shared Travel contracts.
 - Extended provider health output with Drive, Concierge, and explicitly unverified local-test VIP capability states.
 - Preserved fail-closed live mutation controls; no live booking, payment, production write, UI redesign, merge, or deployment was performed.
+# 2026-08-26 — DABRA public ChatGPT plugin V1
+
+- Added a public, sessionless Streamable HTTP MCP endpoint at `/api/dabra/mcp` using DIR3COM Core marketplace and canonical service contracts.
+- Added four read-only DABRA tools with explicit source/provenance reporting and mandatory non-destructive annotations.
+- Added the bilingual DABRA trip-planning skill, repo-local marketplace package, submission dossier, and MCP regression tests.
+- Added bilingual Privacy and Terms pages covering ChatGPT use and the explicit-human-approval boundary for transactions.

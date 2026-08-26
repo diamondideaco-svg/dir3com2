@@ -46,12 +46,15 @@
     "test:schema-compat": "node --import tsx --test tests/schema-compatibility.integration.test.ts",
     "test:liteapi": "node --import tsx --test tests/liteapi-provider.test.ts",
     "test:liteapi-hmac": "node --import tsx --test tests/liteapi-hmac-auth.test.ts",
+    "test:dabra-mcp": "node --import tsx --test tests/dabra-mcp.test.ts",
+    "smoke:dabra-mcp": "node scripts/dabra-mcp-smoke.mjs",
     "smoke:liteapi": "node --import tsx scripts/liteapi-sandbox-smoke.ts",
     "test:all": "node --import tsx --test tests/*.test.ts",
     "mobile:dev": "npm --workspace @dir3com/mobile run start",
     "mobile:typecheck": "npm --workspace @dir3com/mobile run typecheck"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@next/third-parties": "^16.2.12",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.111.0",
@@ -64,7 +67,8 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-icons": "^5.7.0",
-    "tailwind-merge": "^3.3.1"
+    "tailwind-merge": "^3.3.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
