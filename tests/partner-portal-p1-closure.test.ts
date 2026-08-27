@@ -29,7 +29,7 @@ test('production onboarding routes use the authoritative repository without tmpd
 });
 
 test('durable portal migration enforces owner-scoped RLS and client grants', () => {
-  const migration = read('supabase/migrations/20260827140708_partner_portal_durable_state_and_documents.sql');
+  const migration = read('supabase/migrations/20260827152245_partner_portal_durable_state_and_documents.sql');
   for (const table of ['partner_portal_assets', 'partner_portal_asset_media', 'partner_portal_review_queue', 'partner_portal_contracts']) {
     assert.match(migration, new RegExp(`create table if not exists public\\.${table}`));
     assert.match(migration, new RegExp(`alter table public\\.${table} enable row level security`));
