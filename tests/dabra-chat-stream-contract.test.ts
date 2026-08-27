@@ -134,8 +134,9 @@ test('failed API request follows the safe user-facing error path', async () => {
 
 test('only final visible assistant text reaches speech and transcript persistence', () => {
   assert.match(component, /const answer = await consumeDabraChatResponse/);
-  assert.match(component, /new SpeechSynthesisUtterance\(answer\)/);
-  assert.doesNotMatch(component, /SpeechSynthesisUtterance\([^a]/);
+  assert.match(component, /new SpeechSynthesisUtterance\(normalizeDabraSpeechText\(answer, 'ar-SA'\)\)/);
+  assert.match(component, /item\.id === assistantId \? \{ \.\.\.item, text: visibleAnswer \}/);
+  assert.doesNotMatch(component, /text:\s*normalizeDabraSpeechText/);
   assert.match(component, /createPersisted\(messages\.slice\(-20\)/);
   assert.doesNotMatch(component, /createPersisted\([^\n]*(response|payload|raw)/);
 });

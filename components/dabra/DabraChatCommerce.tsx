@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import type { MarketplaceService } from '@/lib/marketplace/data';
 import { supabase } from '@/lib/supabase/client';
 import { consumeDabraChatResponse, DABRA_SAFE_CHAT_ERROR } from '@/lib/dabra/chat-response-contract';
+import { normalizeDabraSpeechText } from '@/lib/dabra/speech-pronunciation';
 import {
   DABRA_ANONYMOUS_SESSION_KEY,
   applyScopedHotelChange,
@@ -312,7 +313,7 @@ export default function DabraChatCommerce() {
       if (attachmentRef.current) attachmentRef.current.value = '';
       if (!voiceMutedRef.current && 'speechSynthesis' in window) {
         const voiceGeneration = ++voiceGenerationRef.current;
-        const utterance = new SpeechSynthesisUtterance(answer);
+        const utterance = new SpeechSynthesisUtterance(normalizeDabraSpeechText(answer, 'ar-SA'));
         utterance.lang = 'ar-SA';
         utterance.onstart = () => { if (voiceGeneration === voiceGenerationRef.current && lifecycle === lifecycleRef.current && !voiceMutedRef.current) setVoiceStatus('speaking'); };
         utterance.onend = () => { if (voiceGeneration === voiceGenerationRef.current && lifecycle === lifecycleRef.current) setVoiceStatus('idle'); };
