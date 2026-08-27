@@ -45,8 +45,8 @@ async function retryPendingCleanup(ownerId: string) {
   if (!supabaseAdmin) return;
   const { data: pending } = await supabaseAdmin.from('partner_storage_cleanup_queue').select('id, document_id, bucket, storage_path, attempts').eq('owner_id', ownerId).limit(10);
   for (const item of pending || []) {
-    const { data: liveDocument } = await supabaseAdmin.from('partner_documents').select('id').eq('id', item.document_id).eq('partner_id', ownerId).maybeSingle();
-    if (liveDocument) continue;
+    const { data: liveDocument } = await supabaseAdmin.from('partner_documents').select('id, file_url').eq('id', item.document_id).eq('partner_id', ownerId).maybeSingle();
+    if (liveDocument?.file_url === item.storage_path) continue;
     const { error } = await supabaseAdmin.storage.from(item.bucket).remove([item.storage_path]);
     if (!error || isMissingStorageObject(error)) {
       await supabaseAdmin.from('partner_storage_cleanup_queue').delete().eq('id', item.id).eq('owner_id', ownerId);
@@ -168,6 +168,14 @@ export async function POST(request: Request) {
       throw uploadError;
     }
 
+    if (replacedDocument) {
+      const { error: queueError } = await supabaseAdmin.from('partner_storage_cleanup_queue').upsert({ document_id: replacedDocument.id, owner_id: actor.userId, bucket: BUCKET, storage_path: replacedDocument.file_url }, { onConflict: 'bucket,storage_path' });
+      if (queueError) {
+        await supabaseAdmin.storage.from(BUCKET).remove([objectPath]);
+        throw queueError;
+      }
+    }
+
     const mutation = replacedDocument
       ? supabaseAdmin.from('partner_documents').update({
           document_type: documentType,
@@ -190,6 +198,7 @@ export async function POST(request: Request) {
 
     if (error) {
       await supabaseAdmin.storage.from(BUCKET).remove([objectPath]);
+      if (replacedDocument) await supabaseAdmin.from('partner_storage_cleanup_queue').delete().eq('document_id', replacedDocument.id).eq('storage_path', replacedDocument.file_url);
       throw error;
     }
 
@@ -197,6 +206,8 @@ export async function POST(request: Request) {
       const { error: cleanupError } = await supabaseAdmin.storage.from(BUCKET).remove([replacedDocument.file_url]);
       if (cleanupError && !isMissingStorageObject(cleanupError)) {
         logServerError('api.partner_portal.documents.replace_cleanup_failed', cleanupError, { actorId: actor.userId, documentId: replacedDocument.id });
+      } else {
+        await supabaseAdmin.from('partner_storage_cleanup_queue').delete().eq('document_id', replacedDocument.id).eq('storage_path', replacedDocument.file_url);
       }
     }
 
