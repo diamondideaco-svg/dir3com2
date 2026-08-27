@@ -3,6 +3,7 @@ import { requirePortalActor } from '@/lib/partner-portal/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
+import { isMissingStorageObject } from '@/lib/storage/errors';
 
 const BUCKET = 'partner-media';
 
@@ -101,8 +102,71 @@ async function getOwnedImage(imageId: string, actorId: string) {
   return { image, error: null };
 }
 
-function isMissingStorageObject(error: unknown) {
-  return error instanceof Error && /not found|object not found/i.test(error.message);
+type OwnedImage = { id: string; product_id: string; image_url: string };
+
+async function retryPendingImageCleanup(ownerId: string) {
+  if (!supabaseAdmin) return;
+  const { data: pending } = await supabaseAdmin
+    .from('partner_image_cleanup_queue')
+    .select('id, bucket, storage_path, attempts')
+    .eq('owner_id', ownerId)
+    .limit(10);
+
+  for (const item of pending || []) {
+    const { error } = await supabaseAdmin.storage.from(item.bucket).remove([item.storage_path]);
+    if (!error || isMissingStorageObject(error)) {
+      await supabaseAdmin.from('partner_image_cleanup_queue').delete().eq('id', item.id).eq('owner_id', ownerId);
+    } else {
+      await supabaseAdmin
+        .from('partner_image_cleanup_queue')
+        .update({ attempts: Number(item.attempts || 0) + 1 })
+        .eq('id', item.id)
+        .eq('owner_id', ownerId);
+    }
+  }
+}
+
+async function deleteImageDurably(ownerId: string, image: OwnedImage) {
+  if (!supabaseAdmin) throw new Error('PORTAL_UNAVAILABLE');
+
+  const { error: queueError } = await supabaseAdmin.from('partner_image_cleanup_queue').upsert({
+    owner_id: ownerId,
+    product_image_id: image.id,
+    bucket: BUCKET,
+    storage_path: image.image_url,
+  }, { onConflict: 'bucket,storage_path' });
+  if (queueError) throw queueError;
+
+  const { error: rowError } = await supabaseAdmin
+    .from('product_images')
+    .delete()
+    .eq('id', image.id)
+    .eq('product_id', image.product_id);
+  if (rowError) {
+    await supabaseAdmin
+      .from('partner_image_cleanup_queue')
+      .delete()
+      .eq('product_image_id', image.id)
+      .eq('owner_id', ownerId);
+    throw rowError;
+  }
+
+  const { error: storageError } = await supabaseAdmin.storage.from(BUCKET).remove([image.image_url]);
+  if (!storageError || isMissingStorageObject(storageError)) {
+    await supabaseAdmin
+      .from('partner_image_cleanup_queue')
+      .delete()
+      .eq('product_image_id', image.id)
+      .eq('owner_id', ownerId);
+    return { cleanupPending: false };
+  }
+
+  logServerError('api.partner_portal.products.image_cleanup_deferred', storageError, {
+    route: '/api/partner-portal/products/images',
+    actorId: ownerId,
+    productId: image.product_id,
+  });
+  return { cleanupPending: true };
 }
 
 export async function GET(request: Request) {
@@ -117,6 +181,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    await retryPendingImageCleanup(actor.userId);
     const { data: image, error: imageError } = await supabaseAdmin
       .from('product_images')
       .select('id, product_id, image_url')
@@ -141,6 +206,9 @@ export async function GET(request: Request) {
 
     return new NextResponse(null, { status: 307, headers: { ...privateHeaders(), Location: signed.signedUrl } });
   } catch (error) {
+    if (isMissingStorageObject(error)) {
+      return NextResponse.json({ error: { code: 'IMAGE_OBJECT_NOT_FOUND' } }, { status: 404, headers: privateHeaders() });
+    }
     logServerError('api.partner_portal.products.image_preview_failed', error, { route: '/api/partner-portal/products/images', actorId: actor.userId });
     return NextResponse.json({ error: { code: 'PRODUCT_IMAGE_PREVIEW_FAILED' } }, { status: 500, headers: privateHeaders() });
   }
@@ -157,6 +225,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    await retryPendingImageCleanup(actor.userId);
     const formData = (await request.formData()) as unknown as { get(name: string): FormDataEntryValue | null };
     const file = formData.get('file');
     const productId = safeProductId(formData.get('productId'));
@@ -233,16 +302,9 @@ export async function POST(request: Request) {
     }
 
     if (oldImage) {
-      const { error: storageDeleteError } = await supabaseAdmin.storage.from(BUCKET).remove([oldImage.image_url]);
-      if (storageDeleteError && !isMissingStorageObject(storageDeleteError)) {
-        logServerError('api.partner_portal.products.image_replace_cleanup_failed', storageDeleteError, { route: '/api/partner-portal/products/images', actorId: actor.userId, productId });
-        return NextResponse.json({ data, warning: { code: 'OLD_IMAGE_CLEANUP_FAILED' } }, { status: 201, headers: privateHeaders() });
-      }
-
-      const { error: oldRowDeleteError } = await supabaseAdmin.from('product_images').delete().eq('id', oldImage.id).eq('product_id', productId);
-      if (oldRowDeleteError) {
-        logServerError('api.partner_portal.products.old_image_row_delete_failed', oldRowDeleteError, { route: '/api/partner-portal/products/images', actorId: actor.userId, productId });
-        return NextResponse.json({ data, warning: { code: 'OLD_IMAGE_ROW_CLEANUP_FAILED' } }, { status: 201, headers: privateHeaders() });
+      const cleanup = await deleteImageDurably(actor.userId, oldImage);
+      if (cleanup.cleanupPending) {
+        return NextResponse.json({ data, warning: { code: 'OLD_IMAGE_CLEANUP_PENDING' } }, { status: 201, headers: privateHeaders() });
       }
     }
 
@@ -271,20 +333,20 @@ export async function DELETE(request: Request) {
   if (!imageId) return NextResponse.json({ error: { code: 'IMAGE_ID_INVALID' } }, { status: 400, headers: privateHeaders() });
 
   try {
+    await retryPendingImageCleanup(actor.userId);
     const owned = await getOwnedImage(imageId, actor.userId);
     if (owned.error || !owned.image) {
       const status = owned.error?.message === 'IMAGE_NOT_FOUND' ? 404 : 403;
       return NextResponse.json({ error: { code: owned.error?.message || 'IMAGE_ACCESS_DENIED' } }, { status, headers: privateHeaders() });
     }
 
-    const { error: storageError } = await supabaseAdmin.storage.from(BUCKET).remove([owned.image.image_url]);
-    if (storageError && !isMissingStorageObject(storageError)) throw storageError;
-
-    const { error: rowError } = await supabaseAdmin.from('product_images').delete().eq('id', owned.image.id).eq('product_id', owned.image.product_id);
-    if (rowError) throw rowError;
+    const cleanup = await deleteImageDurably(actor.userId, owned.image);
 
     logServerEvent('api.partner_portal.products.image_deleted', { route: '/api/partner-portal/products/images', actorId: actor.userId, productId: owned.image.product_id });
-    return NextResponse.json({ data: { id: owned.image.id, deleted: true } }, { headers: privateHeaders() });
+    return NextResponse.json({
+      data: { id: owned.image.id, deleted: true },
+      ...(cleanup.cleanupPending ? { warning: { code: 'IMAGE_CLEANUP_PENDING' } } : {}),
+    }, { headers: privateHeaders() });
   } catch (error) {
     logServerError('api.partner_portal.products.image_delete_failed', error, { route: '/api/partner-portal/products/images', actorId: actor.userId });
     return NextResponse.json({ error: { code: 'PRODUCT_IMAGE_DELETE_FAILED' } }, { status: 500, headers: privateHeaders() });

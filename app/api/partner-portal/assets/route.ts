@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requirePortalActor } from '@/lib/partner-portal/server';
-import {
-  ownerFromDomain,
-  readOnboardingStore,
-  transitionProductStatus,
-  writeOnboardingStore,
-} from '@/lib/partner-portal/onboarding-store';
+import { ownerFromDomain, transitionProductStatus } from '@/lib/partner-portal/onboarding-policy';
+import { readOnboardingStore, writeOnboardingStore } from '@/lib/partner-portal/onboarding-repository';
 import type { PortalAssetRecord, PortalOwnerKind } from '@/lib/partner-portal/onboarding-types';
 import { canReadTenantAssociation, canReadTenantRecord, isPrivilegedPortalActor } from '@/lib/partner-portal/tenant-access';
 
@@ -49,7 +45,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: { code: 'ASSET_SCOPE_DENIED' } }, { status: 403, headers: privateHeaders() });
   }
 
-  const store = await readOnboardingStore();
+  const store = await readOnboardingStore(actor);
   const assets = store.assets.filter(
     (asset) => asset.ownerKind === requestedOwner && canReadTenantRecord(actor, asset),
   );
@@ -76,6 +72,40 @@ export async function GET(request: Request) {
   );
 }
 
+export async function POST(request: Request) {
+  const actor = await requirePortalActor();
+  if (!actor) return NextResponse.json({ error: { code: 'PORTAL_ACCESS_DENIED' } }, { status: 403, headers: privateHeaders() });
+
+  let payload: Record<string, unknown> = {};
+  try { payload = (await request.json()) as Record<string, unknown>; } catch { payload = {}; }
+
+  const ownerKind = ownerFromDomain(actor.partnerDomainType);
+  const now = new Date().toISOString();
+  const asset: PortalAssetRecord = {
+    id: crypto.randomUUID(),
+    ownerId: actor.userId,
+    ownerKind,
+    ownerLabel: actor.fullName,
+    assetType: ownerKind === 'drive_partner' ? 'vehicle' : 'apartment_unit',
+    title: asText(payload.title, 180) || (ownerKind === 'drive_partner' ? 'New vehicle' : 'New property'),
+    location: '', make: '', model: '', vehicleCategory: ownerKind === 'drive_partner' ? 'drive' : 'stay',
+    plateNumber: '', capacity: '', amenities: [], pricing: '', availability: '', cancellationPolicy: '',
+    accessRules: '', optionalVideoUrl: '', futureVideoUploadEnabled: true,
+    verificationStatus: 'Needs your confirmation', dataStatus: 'needs_confirmation',
+    visualConfidence: 'needs_supplier_confirmation', needsConfirmationFields: ['title', 'location', 'pricing', 'availability'],
+    submittedAt: now, updatedAt: now,
+  };
+
+  try {
+    const store = await readOnboardingStore(actor);
+    store.assets.push(asset);
+    await writeOnboardingStore({ assets: [asset] }, actor);
+    return NextResponse.json({ data: asset }, { status: 201, headers: privateHeaders() });
+  } catch {
+    return NextResponse.json({ error: { code: 'PORTAL_ASSET_CREATE_FAILED' } }, { status: 500, headers: privateHeaders() });
+  }
+}
+
 export async function PUT(request: Request) {
   const actor = await requirePortalActor();
   if (!actor) {
@@ -98,7 +128,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: { code: 'ASSET_ID_REQUIRED' } }, { status: 400, headers: privateHeaders() });
   }
 
-  const store = await readOnboardingStore();
+  const store = await readOnboardingStore(actor);
   const assetIndex = store.assets.findIndex((asset) => asset.id === assetId);
   if (assetIndex === -1) {
     return NextResponse.json({ error: { code: 'ASSET_NOT_FOUND' } }, { status: 404, headers: privateHeaders() });
@@ -180,7 +210,7 @@ export async function PUT(request: Request) {
     });
   }
 
-  await writeOnboardingStore(store);
+  await writeOnboardingStore({ assets: [updated], reviewQueue: submit ? [store.reviewQueue[0]] : [] }, actor);
 
   return NextResponse.json({ data: updated }, { headers: privateHeaders() });
 }

@@ -23,3 +23,13 @@ test('admin image preview route rejects missing image ids before storage access'
   assert.match(route, /IMAGE_ID_REQUIRED/);
   assert.match(route, /IMAGE_NOT_FOUND/);
 });
+
+test('admin image preview distinguishes a missing private object from a storage outage', () => {
+  const route = fs.readFileSync(path.join(root, 'app/api/admin/products/images/[id]/route.ts'), 'utf8');
+
+  assert.match(route, /isMissingStorageObject\(signedError\)/);
+  assert.match(route, /IMAGE_OBJECT_NOT_FOUND/);
+  assert.match(route, /status: 404/);
+  assert.match(route, /ADMIN_IMAGE_PREVIEW_FAILED/);
+  assert.match(route, /status: 500/);
+});

@@ -42,8 +42,7 @@ export async function requirePortalActor(): Promise<PortalActor | null> {
     .eq('id', user.id)
     .maybeSingle();
 
-  const metadata = (user.app_metadata as Record<string, unknown> | null) || (user.user_metadata as Record<string, unknown> | null) || {};
-  const authRole = normalizeAuthRole(profile?.role || metadata.role);
+  const authRole = normalizeAuthRole(profile?.role);
   if (!PORTAL_ALLOWED_AUTH_ROLES.has(authRole)) {
     return null;
   }

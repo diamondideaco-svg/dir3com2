@@ -366,7 +366,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
     }
   }
 
-  async function uploadDocument() {
+  async function uploadDocument(replaceDocumentId?: string) {
     if (!selectedFile) return;
 
     const validation = await validateAndNormalizeDocumentFile(selectedFile);
@@ -381,6 +381,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('documentType', docType);
+      if (replaceDocumentId) formData.append('replaceDocumentId', replaceDocumentId);
 
       const response = await fetch('/api/partner-portal/documents', {
         method: 'POST',
@@ -392,10 +393,28 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
       }
 
       const payload = await response.json();
-      setDocuments((prev) => [payload.data as PartnerDocument, ...prev]);
+      setDocuments((prev) => replaceDocumentId
+        ? prev.map((document) => document.id === replaceDocumentId ? payload.data as PartnerDocument : document)
+        : [payload.data as PartnerDocument, ...prev]);
       setSelectedFile(null);
       setMessage(t.done);
       void loadAll();
+    } catch {
+      setMessage(t.failed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteDocument(documentId: string) {
+    if (!window.confirm(language === 'ar' ? 'حذف هذا المستند؟' : 'Delete this document?')) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const response = await fetch(`/api/partner-portal/documents?documentId=${encodeURIComponent(documentId)}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('DELETE_FAILED');
+      setDocuments((prev) => prev.filter((document) => document.id !== documentId));
+      setMessage(t.done);
     } catch {
       setMessage(t.failed);
     } finally {
@@ -664,6 +683,11 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                   <span>{doc.verified ? (language === 'ar' ? '????????' : 'verified') : presentPortalValue('unverified', language as Lang)}</span>
                   <span className="mx-2 text-[#64748B]">|</span>
                   <span>{formatDate(doc.created_at || undefined, language as Lang)}</span>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <a href={`/api/partner-portal/documents?documentId=${encodeURIComponent(doc.id)}`} target="_blank" rel="noreferrer" className="rounded-lg border border-[#334155]/20 px-2 py-1">{language === 'ar' ? 'عرض' : 'Preview'}</a>
+                    <button type="button" disabled={busy || !selectedFile} onClick={() => void uploadDocument(doc.id)} className="rounded-lg border border-[#334155]/20 px-2 py-1 disabled:opacity-50">{language === 'ar' ? 'استبدال' : 'Replace'}</button>
+                    <button type="button" disabled={busy} onClick={() => void deleteDocument(doc.id)} className="rounded-lg border border-red-300 px-2 py-1 text-red-700 disabled:opacity-50">{language === 'ar' ? 'حذف' : 'Delete'}</button>
+                  </div>
                 </div>
               ))}
             </div>
