@@ -47,6 +47,7 @@ test('durable portal migration enforces owner-scoped RLS and client grants', () 
   assert.doesNotMatch(remediation, /grant select on table public\.partners/);
   assert.match(remediation, /grant select on table public\.partner_documents to authenticated/);
   assert.match(remediation, /to_regclass\('public\.partner_users'\)/);
+  assert.doesNotMatch(remediation, /grant select on table public\.partner_users to authenticated/);
   assert.match(remediation, /create table if not exists public\.partner_image_cleanup_queue/);
   assert.match(remediation, /revoke all on table public\.partner_image_cleanup_queue from anon, authenticated/);
 });
