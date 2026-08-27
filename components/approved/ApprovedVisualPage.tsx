@@ -109,7 +109,7 @@ export default function ApprovedVisualPage({ page }: { page: ApprovedVisualKey }
           </div>
         </div>
         {page !== 'home' ? <Link
-          href="/ai/pilot"
+          href="/dabra"
           className="approved-visual-hotspot approved-visual-hotspot--dabra"
           aria-label={language === 'ar' ? 'تحدث مع DABRA PRIME' : 'Talk to DABRA PRIME'}
         /> : null}

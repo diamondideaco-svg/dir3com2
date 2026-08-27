@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import LogoutButton from '@/components/auth/LogoutButton';
 
 const adminNavItems = [
   { href: '/admin', label: 'لوحة التحكم' },
@@ -10,6 +11,11 @@ const adminNavItems = [
   { href: '/admin/finance', label: 'التمويل' },
   { href: '/admin/operations', label: 'العمليات' },
   { href: '/admin/verification', label: 'التحقق' },
+  { href: '/admin/audit', label: 'سجل التدقيق' },
+  { href: '/admin/events', label: 'أحداث النظام' },
+  { href: '/admin/notifications', label: 'الإشعارات' },
+  { href: '/admin/shield', label: 'Shield' },
+  { href: '/admin/partners/vip-local-egypt', label: 'VIP Egypt' },
 ];
 
 type AdminPlatformShellProps = {
@@ -30,6 +36,7 @@ export default function AdminPlatformShell({ children, adminRole }: AdminPlatfor
             <div className="inline-flex items-center rounded-full border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-3 py-1 text-xs font-semibold text-[#D4AF37]">
               الصلاحية: {adminRole}
             </div>
+            <LogoutButton label="تسجيل الخروج" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-4 text-sm font-semibold text-[#D4AF37] transition hover:bg-[#D4AF37]/20 disabled:cursor-wait disabled:opacity-60" />
           </div>
 
           <nav aria-label="تنقل الإدارة" className="flex flex-wrap gap-2">
