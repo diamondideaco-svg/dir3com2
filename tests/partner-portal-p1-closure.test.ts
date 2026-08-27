@@ -37,6 +37,16 @@ test('durable portal migration enforces owner-scoped RLS and client grants', () 
   assert.match(migration, /\(select auth\.uid\(\)\) = owner_id/);
   assert.match(migration, /with check \(\(select auth\.uid\(\)\) = owner_id\)/);
   assert.match(migration, /revoke all[\s\S]*from anon, authenticated/);
+  assert.doesNotMatch(migration, /grant update[\s\S]{0,160}verified/);
+  assert.match(migration, /revoke update, delete on table public\.partner_documents from authenticated/);
+
+  const remediation = read('supabase/migrations/20260827155608_partner_document_review_boundary_and_image_cleanup.sql');
+  assert.match(remediation, /drop policy if exists partner_documents_owner_update/);
+  assert.match(remediation, /revoke update, delete on table public\.partner_documents from authenticated/);
+  assert.match(remediation, /revoke all on table public\.partners, public\.partner_users, public\.partner_documents/);
+  assert.match(remediation, /grant select on table public\.partners, public\.partner_users, public\.partner_documents to authenticated/);
+  assert.match(remediation, /create table if not exists public\.partner_image_cleanup_queue/);
+  assert.match(remediation, /revoke all on table public\.partner_image_cleanup_queue from anon, authenticated/);
 });
 
 test('private document lifecycle is owner-scoped, signed, sanitized, and complete', () => {

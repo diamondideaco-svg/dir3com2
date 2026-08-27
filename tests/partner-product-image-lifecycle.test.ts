@@ -19,27 +19,31 @@ test('partner image mutations prove actor, product, and image ownership', () => 
   assert.match(source, /IMAGE_ACCESS_DENIED/);
 });
 
-test('delete removes private object before its product_images row', () => {
+test('delete persists cleanup intent and removes the row before the private object', () => {
   const source = route();
-  const storageDelete = source.indexOf("storage.from(BUCKET).remove([owned.image.image_url])");
-  const rowDelete = source.indexOf("from('product_images').delete().eq('id', owned.image.id)");
-  assert.notEqual(storageDelete, -1);
-  assert.notEqual(rowDelete, -1);
-  assert.ok(storageDelete < rowDelete);
+  assert.match(source, /from\('partner_image_cleanup_queue'\)\.upsert[\s\S]*from\('product_images'\)[\s\S]*\.delete\(\)[\s\S]*storage\.from\(BUCKET\)\.remove\(\[image\.image_url\]\)/);
+  assert.match(source, /IMAGE_CLEANUP_PENDING/);
   assert.match(source, /export async function DELETE/);
 });
 
 test('replace persists new image before cleaning up old image', () => {
   const source = route();
   const newInsert = source.indexOf('.insert({');
-  const oldStorageDelete = source.indexOf('oldImage.image_url');
-  const oldRowDelete = source.indexOf('oldImage.id');
+  const durableCleanup = source.indexOf('deleteImageDurably(actor.userId, oldImage)');
   assert.notEqual(newInsert, -1);
-  assert.notEqual(oldStorageDelete, -1);
-  assert.notEqual(oldRowDelete, -1);
-  assert.ok(newInsert < oldStorageDelete);
-  assert.ok(oldStorageDelete < oldRowDelete);
+  assert.notEqual(durableCleanup, -1);
+  assert.ok(newInsert < durableCleanup);
+  assert.match(source, /OLD_IMAGE_CLEANUP_PENDING/);
   assert.match(source, /replaceImageId/);
+});
+
+test('partner preview distinguishes a missing object from a storage outage', () => {
+  const source = route();
+  assert.match(source, /isMissingStorageObject\(error\)/);
+  assert.match(source, /IMAGE_OBJECT_NOT_FOUND/);
+  assert.match(source, /status: 404/);
+  assert.match(source, /PRODUCT_IMAGE_PREVIEW_FAILED/);
+  assert.match(source, /status: 500/);
 });
 
 test('partner UI exposes replacement preview and confirmed deletion', () => {

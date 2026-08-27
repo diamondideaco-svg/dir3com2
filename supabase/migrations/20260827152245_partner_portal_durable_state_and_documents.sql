@@ -127,17 +127,9 @@ create policy partner_portal_contracts_owner_update on public.partner_portal_con
 create policy partner_portal_contracts_owner_delete on public.partner_portal_contracts
   for delete to authenticated using ((select auth.uid()) = owner_id);
 
--- Existing partner_documents owner policies remain authoritative. Add the
--- mutation grants/policies needed by the completed private lifecycle.
-grant update (document_type, file_url, status, verified, verified_at, updated_at), delete
-  on table public.partner_documents to authenticated;
-
-create policy partner_documents_owner_update on public.partner_documents
-  for update to authenticated
-  using ((select auth.uid()) = partner_id)
-  with check ((select auth.uid()) = partner_id);
-
-create policy partner_documents_owner_delete on public.partner_documents
-  for delete to authenticated using ((select auth.uid()) = partner_id);
+-- Document mutations remain server-authoritative through the owner-scoped API.
+-- Partners may read their rows through the existing RLS policy, but cannot
+-- self-approve or directly change review state through the Data API.
+revoke update, delete on table public.partner_documents from authenticated;
 
 commit;

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-27 — Partner portal operational security closure
+
+- Removed direct partner document review-state mutations and tightened Partner tables to least-privilege authenticated grants.
+- Made product-image replacement and deletion row-safe with a durable private-storage cleanup queue, preserving deterministic missing-object handling.
+- Aligned committed Partner persistence migrations with the authoritative Supabase migration history.
+
 ## 2026-08-26 — DABRA Chat & Commerce final QA remediation
 
 - Wired attachment validation, marketplace search/filter/sort controls, and result-state quick actions on `/dabra`.
