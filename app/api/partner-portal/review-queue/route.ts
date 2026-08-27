@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requirePortalActor } from '@/lib/partner-portal/server';
-import { readOnboardingStore, writeOnboardingStore } from '@/lib/partner-portal/onboarding-store';
+import { readOnboardingStore, writeOnboardingStore } from '@/lib/partner-portal/onboarding-repository';
 import type { ReviewAction } from '@/lib/partner-portal/onboarding-types';
 import { hasValidTenantAssociation, isPrivilegedPortalActor } from '@/lib/partner-portal/tenant-access';
 
@@ -30,7 +30,7 @@ export async function GET() {
     return NextResponse.json({ error: { code: 'PORTAL_ACCESS_DENIED' } }, { status: 403, headers: privateHeaders() });
   }
 
-  const store = await readOnboardingStore();
+  const store = await readOnboardingStore(actor);
 
   if (isPrivilegedPortalActor(actor)) {
     return NextResponse.json({ data: store.reviewQueue }, { headers: privateHeaders() });
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: { code: 'REVIEW_ACTION_INVALID' } }, { status: 400, headers: privateHeaders() });
   }
 
-  const store = await readOnboardingStore();
+  const store = await readOnboardingStore(actor);
   const queueItem = store.reviewQueue.find((item) => item.id === queueId);
   if (!queueItem) {
     return NextResponse.json({ error: { code: 'REVIEW_ITEM_NOT_FOUND' } }, { status: 404, headers: privateHeaders() });
@@ -123,7 +123,11 @@ export async function POST(request: Request) {
     asset.updatedAt = now;
   }
 
-  await writeOnboardingStore(store);
+  await writeOnboardingStore({
+    assets: asset ? [asset] : [],
+    media: media ? [media] : [],
+    reviewQueue: [queueItem],
+  }, actor);
 
   return NextResponse.json({ data: queueItem }, { headers: privateHeaders() });
 }

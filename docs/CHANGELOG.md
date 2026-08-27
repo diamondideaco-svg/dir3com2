@@ -85,3 +85,7 @@
 - Consolidated approved Fly (Duffel), Stay (LiteAPI), Drive (CarTrawler), Concierge (Viator Basic), and local Egypt VIP adapters behind the shared Travel contracts.
 - Extended provider health output with Drive, Concierge, and explicitly unverified local-test VIP capability states.
 - Preserved fail-closed live mutation controls; no live booking, payment, production write, UI redesign, merge, or deployment was performed.
+# 2026-08-27
+
+- Hardened Partner/Provider portal authorization to trust only the authoritative server profile role, and fixed DIR-93 so missing private product-image objects return a deterministic 404 while real storage outages remain sanitized 500 responses.
+- Replaced ephemeral Partner/Provider onboarding state with owner-scoped PostgreSQL persistence and completed private document preview, replacement, deletion, and reload wiring.

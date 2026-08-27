@@ -249,6 +249,21 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
     setAssets((prev) => prev.map((asset) => (asset.id === assetId ? { ...asset, ...patch } : asset)));
   }
 
+  async function createAsset() {
+    setLoading(true);
+    setMessage('');
+    try {
+      const response = await fetch('/api/partner-portal/assets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (!response.ok) throw new Error('CREATE_FAILED');
+      setMessage(t.done);
+      await load();
+    } catch {
+      setMessage(t.failed);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function saveAsset(asset: Asset, submit: boolean) {
     setLoading(true);
     setMessage('');
@@ -392,6 +407,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
     <section className="rounded-2xl border border-[color:var(--color-border)] bg-white p-4" dir={direction}>
       <h3 className="text-lg font-semibold text-[#334155]">{t.heading}</h3>
       <p className="mt-1 text-xs text-[#64748B]">{t.subheading}</p>
+      <button type="button" disabled={loading} onClick={() => void createAsset()} className="mt-3 rounded-lg bg-[#D4AF37] px-3 py-2 text-xs font-semibold text-[#334155] disabled:opacity-50">{language === 'ar' ? 'إضافة أصل' : 'Add asset'}</button>
 
       {message ? <div className="mt-3 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-xs text-[#334155]">{message}</div> : null}
 

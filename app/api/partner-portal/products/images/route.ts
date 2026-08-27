@@ -3,6 +3,7 @@ import { requirePortalActor } from '@/lib/partner-portal/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
+import { isMissingStorageObject } from '@/lib/storage/errors';
 
 const BUCKET = 'partner-media';
 
@@ -99,10 +100,6 @@ async function getOwnedImage(imageId: string, actorId: string) {
   if (ownershipError || !ownership) return { image: null, error: ownershipError || new Error('PRODUCT_ACCESS_DENIED') };
 
   return { image, error: null };
-}
-
-function isMissingStorageObject(error: unknown) {
-  return error instanceof Error && /not found|object not found/i.test(error.message);
 }
 
 export async function GET(request: Request) {

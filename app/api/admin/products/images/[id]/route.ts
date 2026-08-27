@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminActionAccess } from '@/lib/auth/admin';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError } from '@/lib/security/safe-logger';
+import { isMissingStorageObject } from '@/lib/storage/errors';
 
 const BUCKET = 'partner-media';
 
@@ -23,6 +24,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!image) return NextResponse.json({ error: { code: 'IMAGE_NOT_FOUND' } }, { status: 404 });
 
     const { data: signed, error: signedError } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(image.image_url, 300);
+    if (signedError && isMissingStorageObject(signedError)) {
+      return NextResponse.json({ error: { code: 'IMAGE_OBJECT_NOT_FOUND' } }, { status: 404 });
+    }
     if (signedError || !signed?.signedUrl) throw signedError || new Error('ADMIN_IMAGE_PREVIEW_FAILED');
 
     return new NextResponse(null, {

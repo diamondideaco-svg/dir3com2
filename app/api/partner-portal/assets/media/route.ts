@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { requirePortalActor } from '@/lib/partner-portal/server';
-import { ownerFromDomain, readOnboardingStore, writeOnboardingStore } from '@/lib/partner-portal/onboarding-store';
+import { ownerFromDomain } from '@/lib/partner-portal/onboarding-policy';
+import { readOnboardingStore, writeOnboardingStore } from '@/lib/partner-portal/onboarding-repository';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
@@ -137,7 +138,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: { code: 'MEDIA_ID_REQUIRED' } }, { status: 400, headers: privateHeaders() });
   }
 
-  const store = await readOnboardingStore();
+  const store = await readOnboardingStore(actor);
   const media = store.media.find((item) => item.id === mediaId);
   const asset = media ? store.assets.find((item) => item.id === media.assetId) : null;
   if (!media || !asset || media.url.startsWith('/') || /^https?:\/\//i.test(media.url)) {
@@ -193,7 +194,7 @@ export async function PATCH(request: Request) {
   }
 
   const defaultOwner = ownerFromDomain(actor.partnerDomainType);
-  const store = await readOnboardingStore();
+  const store = await readOnboardingStore(actor);
   const targetAsset = store.assets.find((asset) => asset.id === assetId);
 
   if (!targetAsset) {
@@ -221,7 +222,7 @@ export async function PATCH(request: Request) {
     }
   }
 
-  await writeOnboardingStore(store);
+  await writeOnboardingStore({ media: store.media.filter((item) => orderedMediaIds.includes(item.id)) }, actor);
 
   return NextResponse.json(
     {
@@ -262,7 +263,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: { code: 'PORTAL_OWNER_SCOPE_DENIED' } }, { status: 403, headers: privateHeaders() });
   }
 
-  const store = await readOnboardingStore();
+  const store = await readOnboardingStore(actor);
   const asset = store.assets.find((entry) => entry.id === assetId);
   if (!asset) {
     return NextResponse.json({ error: { code: 'ASSET_NOT_FOUND' } }, { status: 404, headers: privateHeaders() });
@@ -303,7 +304,7 @@ export async function POST(request: Request) {
     });
 
     store.reviewQueue.unshift(queueItem);
-    await writeOnboardingStore(store);
+    await writeOnboardingStore({ reviewQueue: [queueItem] }, actor);
 
     return NextResponse.json(
       {
@@ -347,7 +348,7 @@ export async function POST(request: Request) {
     });
 
     store.reviewQueue.unshift(queueItem);
-    await writeOnboardingStore(store);
+    await writeOnboardingStore({ reviewQueue: [queueItem] }, actor);
 
     return NextResponse.json(
       {
@@ -448,7 +449,10 @@ export async function POST(request: Request) {
   });
 
   store.reviewQueue.unshift(queueItem);
-  await writeOnboardingStore(store);
+  await writeOnboardingStore({
+    media: [newMedia, ...(replaceMediaId ? store.media.filter((item) => item.id === replaceMediaId) : [])],
+    reviewQueue: [queueItem],
+  }, actor);
 
   logServerEvent('api.partner_portal.assets.media_uploaded', {
     route: '/api/partner-portal/assets/media',
