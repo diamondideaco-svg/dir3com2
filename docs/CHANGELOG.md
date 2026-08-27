@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-27 — Platform navigation full-experience closure
+
+- Restored the previously approved Terms, Privacy, and Support routes so global footer and consent links no longer lead to 404 pages.
+- Made `/dabra` the canonical public DABRA navigation destination while retaining the protected `/ai/pilot` route.
+- Wired existing audit, events, notifications, Shield, and VIP partner configuration pages into the admin shell.
+- Reused one shared logout control across the public header and admin shell.
+
 ## 2026-08-27 — Partner portal operational security closure
 
 - Removed direct partner document review-state mutations and tightened Partner tables to least-privilege authenticated grants.

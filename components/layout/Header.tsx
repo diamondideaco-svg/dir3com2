@@ -4,9 +4,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FiCloud, FiDollarSign, FiGlobe, FiGrid, FiLogOut, FiMenu, FiMoon, FiSearch, FiSun, FiType, FiX } from 'react-icons/fi';
+import { FiCloud, FiDollarSign, FiGlobe, FiGrid, FiMenu, FiMoon, FiSearch, FiSun, FiType, FiX } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
-import { supabase } from '@/lib/supabase/client';
+import LogoutButton from '@/components/auth/LogoutButton';
 
 const copy = {
   ar: {
@@ -16,6 +16,7 @@ const copy = {
       { label: 'الفنادق', href: '/services/stay' },
       { label: 'التجارب', href: '/services/concierge' },
       { label: 'العروض', href: '/offers' },
+      { label: 'الدبرة', href: '/dabra' },
       { label: 'تواصل', href: '/contact' },
     ],
     signIn: 'تسجيل الدخول',
@@ -37,6 +38,7 @@ const copy = {
       { label: 'Hotels', href: '/services/stay' },
       { label: 'Experiences', href: '/services/concierge' },
       { label: 'Offers', href: '/offers' },
+      { label: 'DABRA', href: '/dabra' },
       { label: 'Contact', href: '/contact' },
     ],
     signIn: 'Sign in',
@@ -67,7 +69,6 @@ export default function Header() {
   const [largeText, setLargeText] = useState(false);
   const [dashboard, setDashboard] = useState<{ href: string; kind: 'admin' | 'partner' | 'provider' } | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -96,37 +97,6 @@ export default function Header() {
       .catch(() => undefined);
     return () => { active = false; };
   }, []);
-
-  async function handleLogout() {
-    if (loggingOut) return;
-    setLoggingOut(true);
-
-    setAuthenticated(false);
-    setDashboard(null);
-    setMobileOpen(false);
-
-    await fetch('/api/auth/logout', {
-      method: 'POST',
-      cache: 'no-store',
-      credentials: 'same-origin',
-    }).catch(() => null);
-    await supabase.auth.signOut({ scope: 'local' });
-
-    const identityResponse = await fetch('/api/auth/session-identity', {
-      cache: 'no-store',
-      credentials: 'same-origin',
-    }).catch(() => null);
-    const identity = identityResponse?.ok
-      ? await identityResponse.json() as { authenticated?: boolean }
-      : null;
-
-    if (identity?.authenticated) {
-      window.location.reload();
-      return;
-    }
-
-    window.location.replace('/login');
-  }
 
   function toggleTheme() {
     const next = !dark;
@@ -178,7 +148,7 @@ export default function Header() {
         {dashboard ? <Link href={dashboard.href} className="hidden min-h-10 shrink-0 items-center gap-2 rounded-full border border-[#d4af37]/35 px-3 text-sm font-semibold text-[#2a2118] lg:inline-flex"><FiGrid />{dashboardLabel}</Link> : null}
 
         {authenticated ? (
-          <button type="button" onClick={handleLogout} disabled={loggingOut} className="hidden min-h-11 shrink-0 items-center gap-2 rounded-full bg-[#c89536] px-5 text-sm font-bold text-white shadow-[0_8px_20px_rgba(200,149,54,0.24)] transition hover:bg-[#b78320] disabled:cursor-wait disabled:opacity-60 sm:inline-flex"><FiLogOut />{t.logout}</button>
+          <LogoutButton label={t.logout} className="hidden min-h-11 shrink-0 items-center gap-2 rounded-full bg-[#c89536] px-5 text-sm font-bold text-white shadow-[0_8px_20px_rgba(200,149,54,0.24)] transition hover:bg-[#b78320] disabled:cursor-wait disabled:opacity-60 sm:inline-flex" />
         ) : (
           <Link href={loginTarget()} className="hidden min-h-11 shrink-0 items-center rounded-full bg-[#c89536] px-5 text-sm font-bold text-white shadow-[0_8px_20px_rgba(200,149,54,0.24)] transition hover:bg-[#b78320] sm:inline-flex">{t.signIn}</Link>
         )}
@@ -202,7 +172,7 @@ export default function Header() {
             </div>
             {dashboard ? <Link href={dashboard.href} onClick={() => setMobileOpen(false)} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#d4af37]/25 bg-white px-4 text-sm font-semibold text-[#2a2118]"><FiGrid />{dashboardLabel}</Link> : null}
             {authenticated ? (
-              <button type="button" onClick={handleLogout} disabled={loggingOut} className="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#c89536] px-5 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60 sm:hidden"><FiLogOut />{t.logout}</button>
+              <LogoutButton label={t.logout} className="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#c89536] px-5 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60 sm:hidden" />
             ) : (
               <Link href={loginTarget()} className="mt-2 inline-flex min-h-11 items-center justify-center rounded-full bg-[#c89536] px-5 text-sm font-bold text-white sm:hidden">{t.signIn}</Link>
             )}
