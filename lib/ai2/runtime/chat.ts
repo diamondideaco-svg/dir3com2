@@ -2,6 +2,7 @@ import { AI2_KNOWLEDGE_REGISTRY, type AI2KnowledgeRecord } from '@/lib/ai2/knowl
 import {
   AI2_DABRA_GLOBAL_WEB_PROMPT,
   AI2_DABRA_INTERNAL_SYSTEM_PROMPT,
+  AI2_DABRA_LOCAL_RESPONSES,
   AI2_DABRA_PROMPT_VERSION,
 } from '@/lib/ai2/prompt/contract';
 import { buildAI2RagChunks, evaluateAI2InternalMatchGate, rankAI2RagMatches } from '@/lib/ai2/rag/index-design';
@@ -124,18 +125,18 @@ const EXECUTION_INTENT_PATTERNS = [
 ] as const;
 
 const NO_SOURCE_FALLBACK: Record<AI2ChatLanguage, string> = {
-  ar: 'لا أملك مصدرًا معتمدًا كافيًا لهذا الطلب ضمن قاعدة المعرفة الداخلية. أعد الصياغة باستخدام نطاق DIR3COM المعتمد.',
-  en: 'I do not have an approved internal source for that request. Please rephrase within the approved DIR3COM scope.',
+  ar: AI2_DABRA_LOCAL_RESPONSES.noSource.ar,
+  en: AI2_DABRA_LOCAL_RESPONSES.noSource.en,
 };
 
 const OUT_OF_SCOPE_FALLBACK: Record<AI2ChatLanguage, string> = {
-  ar: 'لا أستطيع تنفيذ حجوزات أو مدفوعات أو إجراءات تشغيلية في هذه الشريحة. يمكنني تقديم إرشاد مبني على المصادر الداخلية فقط.',
-  en: 'I cannot execute bookings, payments, or operational actions in this slice. I can provide guidance grounded in internal sources only.',
+  ar: AI2_DABRA_LOCAL_RESPONSES.unsafeExecution.ar,
+  en: AI2_DABRA_LOCAL_RESPONSES.unsafeExecution.en,
 };
 
 const PROVIDER_UNAVAILABLE_FALLBACK: Record<AI2ChatLanguage, string> = {
-  ar: 'المزوّد الخارجي غير متاح حاليًا. يمكنني متابعة الإرشاد عبر مصادر DIR3COM الداخلية المتاحة فقط.',
-  en: 'The external provider is currently unavailable. I can continue with available DIR3COM internal sources only.',
+  ar: AI2_DABRA_LOCAL_RESPONSES.providerUnavailable.ar,
+  en: AI2_DABRA_LOCAL_RESPONSES.providerUnavailable.en,
 };
 
 const AI2_CHUNKS = buildAI2RagChunks(AI2_KNOWLEDGE_REGISTRY);
