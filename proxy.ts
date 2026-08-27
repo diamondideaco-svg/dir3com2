@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/', '/about', '/contact', '/services', '/services/', '/login', '/register', '/auth/signin', '/auth/callback'];
+const PUBLIC_PATHS = ['/', '/about', '/contact', '/services', '/services/', '/dabra', '/login', '/register', '/auth/signin', '/auth/callback'];
 const PUBLIC_CATEGORY_PATHS = ['/cars', '/hotels', '/experiences', '/concierge', '/offers', '/apartments', '/airport-transfers'];
 const PROTECTED_PREFIXES = ['/profile', '/my-account', '/my-bookings', '/my-documents', '/my-profile', '/my-wallet', '/dashboard'];
 
