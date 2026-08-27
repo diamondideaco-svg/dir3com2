@@ -1,0 +1,9045 @@
+{
+  "schemaVersion": "dabra-professionalization-lab-v1",
+  "mode": "deterministic",
+  "seed": 20260826,
+  "startedAt": "2026-08-26T20:05:21.766Z",
+  "completedAt": "2026-08-26T20:05:22.301Z",
+  "totalScenarios": 1000,
+  "passedScenarios": 1000,
+  "passRate": 100,
+  "overallScore": 100,
+  "categoryScores": {
+    "flights": 100,
+    "stays": 100,
+    "cars": 100,
+    "concierge": 100,
+    "comparison": 100,
+    "replanning": 100,
+    "confirmation": 100,
+    "sandbox_booking": 100,
+    "cancellation_change": 100,
+    "payment_boundary": 100,
+    "trip_guardian": 100,
+    "memory_context": 100,
+    "provider_failures": 100,
+    "security": 100,
+    "saudi_light_character": 100,
+    "marketplace_recommendation": 100
+  },
+  "findings": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0
+  },
+  "openP1": 0,
+  "thresholds": {
+    "overall": 90,
+    "category": 85,
+    "p0": 0,
+    "openP1": 0
+  },
+  "passed": true,
+  "results": [
+    {
+      "id": "conversation-000001",
+      "seed": 1380772090,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000002",
+      "seed": 1272501670,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000003",
+      "seed": 818839080,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000004",
+      "seed": 630307651,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000005",
+      "seed": 1304956066,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000006",
+      "seed": 911404381,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000007",
+      "seed": 1943785549,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000008",
+      "seed": 1625143472,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000009",
+      "seed": 170229231,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000010",
+      "seed": 1503819949,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000011",
+      "seed": 631451313,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000012",
+      "seed": 1806731489,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000013",
+      "seed": 749214158,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000014",
+      "seed": 664775476,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000015",
+      "seed": 1930912539,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000016",
+      "seed": 711414975,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000017",
+      "seed": 1682965970,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000018",
+      "seed": 1497510394,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000019",
+      "seed": 745318387,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000020",
+      "seed": 1347900249,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000021",
+      "seed": 453056791,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000022",
+      "seed": 806861480,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000023",
+      "seed": 485308707,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000024",
+      "seed": 189400271,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000025",
+      "seed": 1407916846,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000026",
+      "seed": 2110438716,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000027",
+      "seed": 1097617287,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000028",
+      "seed": 294151182,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000029",
+      "seed": 757151233,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000030",
+      "seed": 1472911484,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000031",
+      "seed": 47904152,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000032",
+      "seed": 1226320222,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000033",
+      "seed": 1684561103,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000034",
+      "seed": 1593111220,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000035",
+      "seed": 1940144599,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000036",
+      "seed": 996467919,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000037",
+      "seed": 1231112961,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000038",
+      "seed": 1135497930,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000039",
+      "seed": 15072202,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000040",
+      "seed": 375172902,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000041",
+      "seed": 164499914,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000042",
+      "seed": 2021112123,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000043",
+      "seed": 770628183,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000044",
+      "seed": 577424216,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000045",
+      "seed": 45047942,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000046",
+      "seed": 1769003170,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000047",
+      "seed": 742068809,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000048",
+      "seed": 1379483952,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000049",
+      "seed": 1844193883,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000050",
+      "seed": 1294488716,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000051",
+      "seed": 1983138906,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000052",
+      "seed": 1511015265,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000053",
+      "seed": 1684843809,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000054",
+      "seed": 78301523,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000055",
+      "seed": 1948505748,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000056",
+      "seed": 1152303553,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000057",
+      "seed": 1091305141,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000058",
+      "seed": 497757838,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000059",
+      "seed": 576286616,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000060",
+      "seed": 735414513,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000061",
+      "seed": 662115781,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000062",
+      "seed": 61800638,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000063",
+      "seed": 1961660212,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000064",
+      "seed": 916071262,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000065",
+      "seed": 82468438,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000066",
+      "seed": 407144841,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000067",
+      "seed": 2147289675,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000068",
+      "seed": 347357058,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000069",
+      "seed": 1661698718,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000070",
+      "seed": 1982650402,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000071",
+      "seed": 4135866,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000072",
+      "seed": 1097313184,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000073",
+      "seed": 363249391,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000074",
+      "seed": 504047069,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000075",
+      "seed": 491853053,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000076",
+      "seed": 162201313,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000077",
+      "seed": 1024716479,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000078",
+      "seed": 1141552278,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000079",
+      "seed": 1839481941,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000080",
+      "seed": 864542317,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000081",
+      "seed": 672089916,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000082",
+      "seed": 158459133,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000083",
+      "seed": 1329075705,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000084",
+      "seed": 94765990,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000085",
+      "seed": 474085608,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000086",
+      "seed": 1959035755,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000087",
+      "seed": 2014265730,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000088",
+      "seed": 2135486690,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000089",
+      "seed": 78930400,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000090",
+      "seed": 1666921215,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000091",
+      "seed": 1602077127,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000092",
+      "seed": 953701384,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000093",
+      "seed": 225938689,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000094",
+      "seed": 1160846654,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000095",
+      "seed": 1691027556,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000096",
+      "seed": 825781349,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000097",
+      "seed": 1754329440,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000098",
+      "seed": 819104665,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000099",
+      "seed": 559854454,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000100",
+      "seed": 1606030193,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000101",
+      "seed": 1569575822,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000102",
+      "seed": 1438409534,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000103",
+      "seed": 228750555,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000104",
+      "seed": 1515720122,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000105",
+      "seed": 629328235,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000106",
+      "seed": 1018662192,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000107",
+      "seed": 1181377502,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000108",
+      "seed": 1385186436,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000109",
+      "seed": 1140151030,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000110",
+      "seed": 1960654760,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000111",
+      "seed": 1038304579,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000112",
+      "seed": 1266621779,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000113",
+      "seed": 429144326,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000114",
+      "seed": 1612020437,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000115",
+      "seed": 1439801919,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000116",
+      "seed": 347920357,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000117",
+      "seed": 1504372779,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000118",
+      "seed": 852948490,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000119",
+      "seed": 204962055,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000120",
+      "seed": 1465411179,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000121",
+      "seed": 501043070,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000122",
+      "seed": 409147458,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000123",
+      "seed": 1277636910,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000124",
+      "seed": 379774603,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000125",
+      "seed": 1496410642,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000126",
+      "seed": 1513865886,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000127",
+      "seed": 991947306,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000128",
+      "seed": 1427473644,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000129",
+      "seed": 1617228765,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000130",
+      "seed": 1712583265,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000131",
+      "seed": 1350258127,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000132",
+      "seed": 960207742,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000133",
+      "seed": 2071818873,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000134",
+      "seed": 1385568252,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000135",
+      "seed": 1168599014,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000136",
+      "seed": 1509713993,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000137",
+      "seed": 422515045,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000138",
+      "seed": 1646705736,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000139",
+      "seed": 63163215,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000140",
+      "seed": 2111571093,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000141",
+      "seed": 1454029507,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000142",
+      "seed": 1499339111,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000143",
+      "seed": 190983265,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000144",
+      "seed": 1918675317,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000145",
+      "seed": 1202948133,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000146",
+      "seed": 359014350,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000147",
+      "seed": 1905189276,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000148",
+      "seed": 1447891903,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000149",
+      "seed": 333117364,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000150",
+      "seed": 681692922,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000151",
+      "seed": 1684172603,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000152",
+      "seed": 680242979,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000153",
+      "seed": 1131292411,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000154",
+      "seed": 1912200039,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000155",
+      "seed": 1431360256,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000156",
+      "seed": 1048119760,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000157",
+      "seed": 16797665,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000158",
+      "seed": 872272568,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000159",
+      "seed": 1901447924,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000160",
+      "seed": 2063433599,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000161",
+      "seed": 455590116,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000162",
+      "seed": 2030224753,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000163",
+      "seed": 105877399,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000164",
+      "seed": 1340168411,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000165",
+      "seed": 555923262,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000166",
+      "seed": 310450772,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000167",
+      "seed": 539977603,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000168",
+      "seed": 249364777,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000169",
+      "seed": 1903288894,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000170",
+      "seed": 1818910185,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000171",
+      "seed": 926708130,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000172",
+      "seed": 678893449,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000173",
+      "seed": 1013449006,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000174",
+      "seed": 563665532,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000175",
+      "seed": 1982705221,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000176",
+      "seed": 441327874,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000177",
+      "seed": 1667924360,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000178",
+      "seed": 91083188,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000179",
+      "seed": 291025218,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000180",
+      "seed": 1545771038,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000181",
+      "seed": 1849004239,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000182",
+      "seed": 1633088826,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000183",
+      "seed": 1213445583,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000184",
+      "seed": 1479605206,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000185",
+      "seed": 1741365138,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000186",
+      "seed": 116434091,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000187",
+      "seed": 582148172,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000188",
+      "seed": 71770506,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000189",
+      "seed": 788934554,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000190",
+      "seed": 2083386312,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000191",
+      "seed": 914892884,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000192",
+      "seed": 1713872327,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000193",
+      "seed": 2121517384,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000194",
+      "seed": 1327303043,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000195",
+      "seed": 1503364320,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000196",
+      "seed": 47140609,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000197",
+      "seed": 623122542,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000198",
+      "seed": 1072378284,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000199",
+      "seed": 384099454,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000200",
+      "seed": 1078275074,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000201",
+      "seed": 394820147,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000202",
+      "seed": 1638749115,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000203",
+      "seed": 433040221,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000204",
+      "seed": 2844562,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000205",
+      "seed": 691807219,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000206",
+      "seed": 821699433,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000207",
+      "seed": 1006417358,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000208",
+      "seed": 1679888761,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000209",
+      "seed": 1149479982,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000210",
+      "seed": 565244170,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000211",
+      "seed": 1615895431,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000212",
+      "seed": 1512910356,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000213",
+      "seed": 1835877918,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000214",
+      "seed": 855091251,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000215",
+      "seed": 1832987498,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000216",
+      "seed": 1667281309,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000217",
+      "seed": 1643670380,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000218",
+      "seed": 1586823939,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000219",
+      "seed": 1502194190,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000220",
+      "seed": 2108280532,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000221",
+      "seed": 1517204073,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000222",
+      "seed": 1303032255,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000223",
+      "seed": 975902827,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000224",
+      "seed": 1583960431,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000225",
+      "seed": 528416792,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000226",
+      "seed": 498906386,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000227",
+      "seed": 1452834849,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000228",
+      "seed": 2023422450,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000229",
+      "seed": 1923002830,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000230",
+      "seed": 1979920958,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000231",
+      "seed": 664113513,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000232",
+      "seed": 1612830700,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000233",
+      "seed": 358619350,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000234",
+      "seed": 1373544188,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000235",
+      "seed": 1009843052,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000236",
+      "seed": 2009737209,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000237",
+      "seed": 497050073,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000238",
+      "seed": 1137132778,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000239",
+      "seed": 187365811,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000240",
+      "seed": 592315053,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000241",
+      "seed": 1786818087,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000242",
+      "seed": 1425165897,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000243",
+      "seed": 315259441,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000244",
+      "seed": 2096132624,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000245",
+      "seed": 87268594,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000246",
+      "seed": 694815038,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000247",
+      "seed": 1274009318,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000248",
+      "seed": 1080495785,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000249",
+      "seed": 741076400,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000250",
+      "seed": 503985836,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000251",
+      "seed": 1589144934,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000252",
+      "seed": 704919299,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000253",
+      "seed": 1266110559,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000254",
+      "seed": 1383045832,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000255",
+      "seed": 1891487822,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000256",
+      "seed": 1656982093,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000257",
+      "seed": 799415384,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000258",
+      "seed": 2015736062,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000259",
+      "seed": 306524479,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000260",
+      "seed": 1738698403,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000261",
+      "seed": 242838063,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000262",
+      "seed": 566983695,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000263",
+      "seed": 103557264,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000264",
+      "seed": 174079868,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000265",
+      "seed": 90628325,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000266",
+      "seed": 121062757,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000267",
+      "seed": 1569340996,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000268",
+      "seed": 892897266,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000269",
+      "seed": 295733640,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000270",
+      "seed": 2104633110,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000271",
+      "seed": 639668682,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000272",
+      "seed": 542125438,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000273",
+      "seed": 1754962254,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000274",
+      "seed": 1040807695,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000275",
+      "seed": 791490481,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000276",
+      "seed": 1670786121,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000277",
+      "seed": 477697145,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000278",
+      "seed": 958343833,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000279",
+      "seed": 948412649,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000280",
+      "seed": 1622582565,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000281",
+      "seed": 1564528048,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000282",
+      "seed": 766094144,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000283",
+      "seed": 1959010331,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000284",
+      "seed": 1994734877,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000285",
+      "seed": 640234196,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000286",
+      "seed": 2141259721,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000287",
+      "seed": 998193856,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000288",
+      "seed": 1363589245,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000289",
+      "seed": 654951504,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000290",
+      "seed": 775169156,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000291",
+      "seed": 1579922944,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000292",
+      "seed": 526767100,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000293",
+      "seed": 769498185,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000294",
+      "seed": 803799702,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000295",
+      "seed": 1735617238,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000296",
+      "seed": 1322991078,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000297",
+      "seed": 1651406729,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000298",
+      "seed": 1777288307,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000299",
+      "seed": 1121962716,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000300",
+      "seed": 1142454622,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000301",
+      "seed": 20159734,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000302",
+      "seed": 602260482,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000303",
+      "seed": 1352822661,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000304",
+      "seed": 1013665312,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000305",
+      "seed": 447581468,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000306",
+      "seed": 606016098,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000307",
+      "seed": 1874455221,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000308",
+      "seed": 1555928872,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000309",
+      "seed": 884504727,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000310",
+      "seed": 1649402000,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000311",
+      "seed": 872996480,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000312",
+      "seed": 1621978534,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000313",
+      "seed": 411200753,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000314",
+      "seed": 1354071683,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000315",
+      "seed": 542741470,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000316",
+      "seed": 1893022494,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000317",
+      "seed": 1090496155,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000318",
+      "seed": 2113357404,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000319",
+      "seed": 33403096,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000320",
+      "seed": 383732564,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000321",
+      "seed": 970411845,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000322",
+      "seed": 1794129166,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000323",
+      "seed": 36549056,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000324",
+      "seed": 186779183,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000325",
+      "seed": 24814283,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000326",
+      "seed": 1095333552,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000327",
+      "seed": 697850298,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000328",
+      "seed": 1741755811,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000329",
+      "seed": 986660017,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000330",
+      "seed": 1329399920,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000331",
+      "seed": 517478936,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000332",
+      "seed": 1074609027,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000333",
+      "seed": 934319401,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000334",
+      "seed": 597285371,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000335",
+      "seed": 596853009,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000336",
+      "seed": 535032078,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000337",
+      "seed": 1320550723,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000338",
+      "seed": 1679695027,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000339",
+      "seed": 203045386,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000340",
+      "seed": 1975500971,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000341",
+      "seed": 167286079,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000342",
+      "seed": 1139305459,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000343",
+      "seed": 790378663,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000344",
+      "seed": 898948842,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000345",
+      "seed": 1627987233,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000346",
+      "seed": 2034061133,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000347",
+      "seed": 1665669364,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000348",
+      "seed": 1596782333,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000349",
+      "seed": 1317131069,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000350",
+      "seed": 1607852680,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000351",
+      "seed": 487691583,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000352",
+      "seed": 1938073073,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000353",
+      "seed": 203487253,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000354",
+      "seed": 47013392,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000355",
+      "seed": 1936696056,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000356",
+      "seed": 609303275,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000357",
+      "seed": 1160972160,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000358",
+      "seed": 477472963,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000359",
+      "seed": 352465184,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000360",
+      "seed": 351500028,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000361",
+      "seed": 1317721556,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000362",
+      "seed": 1108261872,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000363",
+      "seed": 38460649,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000364",
+      "seed": 1072050075,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000365",
+      "seed": 837181864,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000366",
+      "seed": 1982461335,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000367",
+      "seed": 1677311957,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000368",
+      "seed": 479210948,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000369",
+      "seed": 280911838,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000370",
+      "seed": 1198575131,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000371",
+      "seed": 394593304,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000372",
+      "seed": 373351044,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000373",
+      "seed": 521499055,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000374",
+      "seed": 636478387,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000375",
+      "seed": 68382022,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000376",
+      "seed": 1817070769,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000377",
+      "seed": 817179947,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000378",
+      "seed": 1835617297,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000379",
+      "seed": 1477514692,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000380",
+      "seed": 1790882973,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000381",
+      "seed": 73833754,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000382",
+      "seed": 1987011147,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000383",
+      "seed": 1794493239,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000384",
+      "seed": 858914989,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000385",
+      "seed": 909839832,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000386",
+      "seed": 1552947828,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000387",
+      "seed": 1330032524,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000388",
+      "seed": 868965738,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000389",
+      "seed": 62992352,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000390",
+      "seed": 585998519,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000391",
+      "seed": 2068724506,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000392",
+      "seed": 2122472684,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000393",
+      "seed": 243265655,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000394",
+      "seed": 21930181,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000395",
+      "seed": 1927121680,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000396",
+      "seed": 566928515,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000397",
+      "seed": 456845644,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000398",
+      "seed": 1623498734,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000399",
+      "seed": 140472682,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000400",
+      "seed": 1380136351,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000401",
+      "seed": 716591537,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000402",
+      "seed": 1119726075,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000403",
+      "seed": 778215083,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000404",
+      "seed": 329424239,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000405",
+      "seed": 810504042,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000406",
+      "seed": 1607436612,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000407",
+      "seed": 143165461,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000408",
+      "seed": 213891053,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000409",
+      "seed": 801698550,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000410",
+      "seed": 1125794795,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000411",
+      "seed": 32474006,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000412",
+      "seed": 1410546701,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000413",
+      "seed": 2085369936,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000414",
+      "seed": 1525128138,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000415",
+      "seed": 1172402749,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000416",
+      "seed": 933794441,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000417",
+      "seed": 1109354907,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000418",
+      "seed": 723380039,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000419",
+      "seed": 9825135,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000420",
+      "seed": 1007932858,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000421",
+      "seed": 651896126,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000422",
+      "seed": 1571407618,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000423",
+      "seed": 980969040,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000424",
+      "seed": 405904793,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000425",
+      "seed": 1491545086,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000426",
+      "seed": 1989193579,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000427",
+      "seed": 1030363885,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000428",
+      "seed": 356505722,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000429",
+      "seed": 340661820,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000430",
+      "seed": 395314242,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000431",
+      "seed": 1602629981,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000432",
+      "seed": 137052981,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000433",
+      "seed": 1649839719,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000434",
+      "seed": 1313092885,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000435",
+      "seed": 1440661,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000436",
+      "seed": 160158049,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000437",
+      "seed": 1924773988,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000438",
+      "seed": 1867528903,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000439",
+      "seed": 1798133668,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000440",
+      "seed": 1094626924,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000441",
+      "seed": 1115526762,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000442",
+      "seed": 222879966,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000443",
+      "seed": 1511213996,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000444",
+      "seed": 1431538192,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000445",
+      "seed": 786696351,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000446",
+      "seed": 1933654404,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000447",
+      "seed": 1530017680,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000448",
+      "seed": 1717270367,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000449",
+      "seed": 1738387906,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000450",
+      "seed": 1067407667,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000451",
+      "seed": 665027184,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000452",
+      "seed": 1874272081,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000453",
+      "seed": 1643333958,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000454",
+      "seed": 1022184865,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000455",
+      "seed": 745085645,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000456",
+      "seed": 218507913,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000457",
+      "seed": 520245978,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000458",
+      "seed": 1183055533,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000459",
+      "seed": 297664388,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000460",
+      "seed": 794746814,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000461",
+      "seed": 935515014,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000462",
+      "seed": 109181456,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000463",
+      "seed": 2090142419,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000464",
+      "seed": 889719939,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000465",
+      "seed": 1031619001,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000466",
+      "seed": 1051642819,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000467",
+      "seed": 877160856,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000468",
+      "seed": 1291875936,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000469",
+      "seed": 211734449,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000470",
+      "seed": 841444903,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000471",
+      "seed": 1374913788,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000472",
+      "seed": 1260559401,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000473",
+      "seed": 326802853,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000474",
+      "seed": 2125492267,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000475",
+      "seed": 2051070410,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000476",
+      "seed": 571891288,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000477",
+      "seed": 1273811295,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000478",
+      "seed": 964254556,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000479",
+      "seed": 837173246,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000480",
+      "seed": 1374125916,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000481",
+      "seed": 1525148824,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000482",
+      "seed": 223479972,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000483",
+      "seed": 1359525803,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000484",
+      "seed": 1552842819,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000485",
+      "seed": 520765027,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000486",
+      "seed": 1196484773,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000487",
+      "seed": 380329709,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000488",
+      "seed": 1737458388,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000489",
+      "seed": 131979443,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000490",
+      "seed": 1369083026,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000491",
+      "seed": 1870052946,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000492",
+      "seed": 178058202,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000493",
+      "seed": 1946470545,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000494",
+      "seed": 132037456,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000495",
+      "seed": 1503645476,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000496",
+      "seed": 1511261232,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000497",
+      "seed": 356096954,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000498",
+      "seed": 1177045677,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000499",
+      "seed": 2061709090,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000500",
+      "seed": 104078158,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000501",
+      "seed": 1994858067,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000502",
+      "seed": 1917967118,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000503",
+      "seed": 1032246355,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000504",
+      "seed": 926875724,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000505",
+      "seed": 1001724545,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000506",
+      "seed": 1552965025,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000507",
+      "seed": 33422980,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000508",
+      "seed": 365614844,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000509",
+      "seed": 558394135,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000510",
+      "seed": 945083926,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000511",
+      "seed": 1882563543,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000512",
+      "seed": 1946240151,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000513",
+      "seed": 1173870080,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000514",
+      "seed": 1460221505,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000515",
+      "seed": 1894215635,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000516",
+      "seed": 1189110729,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000517",
+      "seed": 56757829,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000518",
+      "seed": 1952213402,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000519",
+      "seed": 2044905480,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000520",
+      "seed": 912254696,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000521",
+      "seed": 934864023,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000522",
+      "seed": 199260504,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000523",
+      "seed": 2125303172,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000524",
+      "seed": 1633445689,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000525",
+      "seed": 118971473,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000526",
+      "seed": 1687080733,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000527",
+      "seed": 324490371,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000528",
+      "seed": 1799951464,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000529",
+      "seed": 1059651476,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000530",
+      "seed": 1328283463,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000531",
+      "seed": 1890510716,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000532",
+      "seed": 2077806402,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000533",
+      "seed": 1403957788,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000534",
+      "seed": 1835407101,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000535",
+      "seed": 1823904109,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000536",
+      "seed": 471369695,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000537",
+      "seed": 1521922223,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000538",
+      "seed": 1889514258,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000539",
+      "seed": 157554909,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000540",
+      "seed": 1902046931,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000541",
+      "seed": 163584960,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000542",
+      "seed": 421393463,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000543",
+      "seed": 1191038015,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000544",
+      "seed": 114029662,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000545",
+      "seed": 2127837090,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000546",
+      "seed": 1524497562,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000547",
+      "seed": 617897175,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000548",
+      "seed": 1937286380,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000549",
+      "seed": 1913941216,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000550",
+      "seed": 1602833150,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000551",
+      "seed": 1559552017,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000552",
+      "seed": 425259748,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000553",
+      "seed": 128037883,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000554",
+      "seed": 224150821,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000555",
+      "seed": 159628344,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000556",
+      "seed": 1206064793,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000557",
+      "seed": 1863649515,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000558",
+      "seed": 374349646,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000559",
+      "seed": 595274814,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000560",
+      "seed": 1639680399,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000561",
+      "seed": 390845223,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000562",
+      "seed": 622860716,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000563",
+      "seed": 1100636887,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000564",
+      "seed": 1617537607,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000565",
+      "seed": 1516868675,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000566",
+      "seed": 1454495352,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000567",
+      "seed": 1346775115,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000568",
+      "seed": 926782496,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000569",
+      "seed": 2044023654,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000570",
+      "seed": 401124396,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000571",
+      "seed": 1830750603,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000572",
+      "seed": 1563403171,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000573",
+      "seed": 998912810,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000574",
+      "seed": 647551148,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000575",
+      "seed": 1509980822,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000576",
+      "seed": 1382387516,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000577",
+      "seed": 1355601409,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000578",
+      "seed": 1336150611,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000579",
+      "seed": 1358212095,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000580",
+      "seed": 1415608887,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000581",
+      "seed": 1069367761,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000582",
+      "seed": 989643448,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000583",
+      "seed": 1796061530,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000584",
+      "seed": 2095125665,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000585",
+      "seed": 1556292890,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000586",
+      "seed": 1452668306,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000587",
+      "seed": 1524784746,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000588",
+      "seed": 1914458407,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000589",
+      "seed": 245477249,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000590",
+      "seed": 1318130173,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000591",
+      "seed": 126800096,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000592",
+      "seed": 1727480207,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000593",
+      "seed": 2031325019,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000594",
+      "seed": 715202781,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000595",
+      "seed": 620983338,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000596",
+      "seed": 1954491151,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000597",
+      "seed": 1816057290,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000598",
+      "seed": 466465786,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000599",
+      "seed": 697243507,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000600",
+      "seed": 1990934751,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000601",
+      "seed": 1584885871,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000602",
+      "seed": 1954675802,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000603",
+      "seed": 1876373865,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000604",
+      "seed": 1773343043,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000605",
+      "seed": 285380007,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000606",
+      "seed": 2054858560,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000607",
+      "seed": 260012409,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000608",
+      "seed": 316137176,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000609",
+      "seed": 510930864,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000610",
+      "seed": 1935328447,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000611",
+      "seed": 1994648759,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000612",
+      "seed": 969290127,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000613",
+      "seed": 393833902,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000614",
+      "seed": 1043216078,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000615",
+      "seed": 103942102,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000616",
+      "seed": 1844026355,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000617",
+      "seed": 2005786534,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000618",
+      "seed": 1764523697,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000619",
+      "seed": 1847306897,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000620",
+      "seed": 732299256,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000621",
+      "seed": 1043808670,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000622",
+      "seed": 67703139,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000623",
+      "seed": 1400931224,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000624",
+      "seed": 279256547,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000625",
+      "seed": 2036570782,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000626",
+      "seed": 2138511980,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000627",
+      "seed": 437575885,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000628",
+      "seed": 2139553136,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000629",
+      "seed": 1584256940,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000630",
+      "seed": 1140450102,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000631",
+      "seed": 381386380,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000632",
+      "seed": 1009688679,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000633",
+      "seed": 681153390,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000634",
+      "seed": 1996119855,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000635",
+      "seed": 712619893,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000636",
+      "seed": 776931738,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000637",
+      "seed": 1267129260,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000638",
+      "seed": 1560429805,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000639",
+      "seed": 324569012,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000640",
+      "seed": 737495699,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000641",
+      "seed": 1740077331,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000642",
+      "seed": 507798481,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000643",
+      "seed": 1095095920,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000644",
+      "seed": 1254064554,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000645",
+      "seed": 379146293,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000646",
+      "seed": 795258798,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000647",
+      "seed": 1950926289,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000648",
+      "seed": 569178449,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000649",
+      "seed": 2107722286,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000650",
+      "seed": 1142378510,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000651",
+      "seed": 1783878867,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000652",
+      "seed": 2129994750,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000653",
+      "seed": 1869750626,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000654",
+      "seed": 388517992,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000655",
+      "seed": 1066111037,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000656",
+      "seed": 1612713447,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000657",
+      "seed": 89591511,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000658",
+      "seed": 1738775330,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000659",
+      "seed": 2019072833,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000660",
+      "seed": 740115619,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000661",
+      "seed": 364178952,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000662",
+      "seed": 1780459400,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000663",
+      "seed": 596483993,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000664",
+      "seed": 602125725,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000665",
+      "seed": 1339252701,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000666",
+      "seed": 203498382,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000667",
+      "seed": 890117366,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000668",
+      "seed": 652255677,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000669",
+      "seed": 639150255,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000670",
+      "seed": 1887825266,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000671",
+      "seed": 1332494456,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000672",
+      "seed": 866234756,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000673",
+      "seed": 1319040027,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000674",
+      "seed": 1485849277,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000675",
+      "seed": 1074936513,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000676",
+      "seed": 1425655047,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000677",
+      "seed": 484391444,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000678",
+      "seed": 1890268186,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000679",
+      "seed": 1241191885,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000680",
+      "seed": 670858682,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000681",
+      "seed": 678881172,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000682",
+      "seed": 1858255643,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000683",
+      "seed": 181039600,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000684",
+      "seed": 560466868,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000685",
+      "seed": 273394681,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000686",
+      "seed": 1908476502,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000687",
+      "seed": 1699178280,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000688",
+      "seed": 1731099868,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000689",
+      "seed": 2051868289,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000690",
+      "seed": 1276965278,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000691",
+      "seed": 929925027,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000692",
+      "seed": 808358540,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000693",
+      "seed": 1343744642,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000694",
+      "seed": 793956174,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000695",
+      "seed": 1450281036,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000696",
+      "seed": 449262232,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000697",
+      "seed": 495510331,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000698",
+      "seed": 105497364,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000699",
+      "seed": 1413728380,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000700",
+      "seed": 796288371,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000701",
+      "seed": 1127982706,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000702",
+      "seed": 198141560,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000703",
+      "seed": 599108659,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000704",
+      "seed": 1984807527,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000705",
+      "seed": 1309835772,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000706",
+      "seed": 1577154584,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000707",
+      "seed": 2109141480,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000708",
+      "seed": 1669505379,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000709",
+      "seed": 627470961,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000710",
+      "seed": 1106025713,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000711",
+      "seed": 1906318830,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000712",
+      "seed": 1471359895,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000713",
+      "seed": 1043736248,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000714",
+      "seed": 1260263649,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000715",
+      "seed": 1309677625,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000716",
+      "seed": 219236841,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000717",
+      "seed": 1962743919,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000718",
+      "seed": 618216513,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000719",
+      "seed": 1278059236,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000720",
+      "seed": 1389416338,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000721",
+      "seed": 1055633463,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000722",
+      "seed": 1133670618,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000723",
+      "seed": 2020094983,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000724",
+      "seed": 1796572947,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000725",
+      "seed": 1137230501,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000726",
+      "seed": 1207499590,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000727",
+      "seed": 543849252,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000728",
+      "seed": 1636818950,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000729",
+      "seed": 56685312,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000730",
+      "seed": 1934722253,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000731",
+      "seed": 2025949573,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000732",
+      "seed": 1632371171,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000733",
+      "seed": 1889361229,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000734",
+      "seed": 967851327,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000735",
+      "seed": 9930539,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000736",
+      "seed": 1434510251,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000737",
+      "seed": 775824026,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000738",
+      "seed": 2071174760,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000739",
+      "seed": 854263151,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000740",
+      "seed": 1165523406,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000741",
+      "seed": 813100484,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000742",
+      "seed": 13012187,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000743",
+      "seed": 1748317021,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000744",
+      "seed": 2102797876,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000745",
+      "seed": 797929286,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000746",
+      "seed": 316320218,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000747",
+      "seed": 252603002,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000748",
+      "seed": 895242472,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000749",
+      "seed": 1898204125,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000750",
+      "seed": 1110323770,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000751",
+      "seed": 287833876,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000752",
+      "seed": 1822734266,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000753",
+      "seed": 175924752,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000754",
+      "seed": 112984600,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000755",
+      "seed": 1115449947,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000756",
+      "seed": 176919300,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000757",
+      "seed": 1284880713,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000758",
+      "seed": 1049517933,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000759",
+      "seed": 899422,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000760",
+      "seed": 1133185564,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000761",
+      "seed": 1055579204,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000762",
+      "seed": 1041077406,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000763",
+      "seed": 358432397,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000764",
+      "seed": 1503132200,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000765",
+      "seed": 76953493,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000766",
+      "seed": 203068873,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000767",
+      "seed": 1027205290,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000768",
+      "seed": 225553682,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000769",
+      "seed": 202353388,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000770",
+      "seed": 1398174415,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000771",
+      "seed": 64838982,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000772",
+      "seed": 1834427562,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000773",
+      "seed": 1442402962,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000774",
+      "seed": 994855053,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000775",
+      "seed": 1279454447,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000776",
+      "seed": 1891849010,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000777",
+      "seed": 1759334036,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000778",
+      "seed": 511916290,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000779",
+      "seed": 1080984629,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000780",
+      "seed": 117789765,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000781",
+      "seed": 1147708213,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000782",
+      "seed": 373269458,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000783",
+      "seed": 986383310,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000784",
+      "seed": 1624407446,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000785",
+      "seed": 276185568,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000786",
+      "seed": 380477172,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000787",
+      "seed": 1267850482,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000788",
+      "seed": 822979385,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000789",
+      "seed": 269769577,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000790",
+      "seed": 802519720,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000791",
+      "seed": 612144426,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000792",
+      "seed": 369250109,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000793",
+      "seed": 224758408,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000794",
+      "seed": 696253034,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000795",
+      "seed": 2120656100,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000796",
+      "seed": 565062806,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000797",
+      "seed": 494329605,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000798",
+      "seed": 65507710,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000799",
+      "seed": 321497463,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000800",
+      "seed": 448681558,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000801",
+      "seed": 1573597413,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000802",
+      "seed": 1820052900,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000803",
+      "seed": 1651137651,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000804",
+      "seed": 42982156,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000805",
+      "seed": 1519300905,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000806",
+      "seed": 1367714252,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000807",
+      "seed": 1744972647,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000808",
+      "seed": 2132073481,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000809",
+      "seed": 1943311415,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000810",
+      "seed": 541241396,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000811",
+      "seed": 993997493,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000812",
+      "seed": 258518142,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000813",
+      "seed": 301717821,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000814",
+      "seed": 1921825458,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000815",
+      "seed": 627139396,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000816",
+      "seed": 1879442018,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000817",
+      "seed": 1705352561,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000818",
+      "seed": 1023875244,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000819",
+      "seed": 1015255683,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000820",
+      "seed": 1057115696,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000821",
+      "seed": 235967251,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000822",
+      "seed": 2045320339,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000823",
+      "seed": 784342662,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000824",
+      "seed": 1130943301,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000825",
+      "seed": 1311100977,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000826",
+      "seed": 1332255470,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000827",
+      "seed": 335278647,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000828",
+      "seed": 1350527346,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000829",
+      "seed": 1255700236,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000830",
+      "seed": 2093081862,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000831",
+      "seed": 819611931,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000832",
+      "seed": 1304138320,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000833",
+      "seed": 1016193820,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000834",
+      "seed": 1811315183,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000835",
+      "seed": 1157035230,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000836",
+      "seed": 1325044257,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000837",
+      "seed": 339630379,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000838",
+      "seed": 1122751839,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000839",
+      "seed": 562292222,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000840",
+      "seed": 1175839484,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000841",
+      "seed": 351753433,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000842",
+      "seed": 387228796,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000843",
+      "seed": 908562580,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000844",
+      "seed": 969648770,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000845",
+      "seed": 2104826574,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000846",
+      "seed": 1711093784,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000847",
+      "seed": 1827312906,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000848",
+      "seed": 206043550,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000849",
+      "seed": 139159584,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000850",
+      "seed": 144668206,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000851",
+      "seed": 99382807,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000852",
+      "seed": 1929032629,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000853",
+      "seed": 290864810,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000854",
+      "seed": 118552415,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000855",
+      "seed": 1591931090,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000856",
+      "seed": 1782215280,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000857",
+      "seed": 1471350352,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000858",
+      "seed": 1203404510,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000859",
+      "seed": 1629571361,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000860",
+      "seed": 888390704,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000861",
+      "seed": 1631951328,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000862",
+      "seed": 109970868,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000863",
+      "seed": 1522996456,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000864",
+      "seed": 1676459924,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000865",
+      "seed": 1419210290,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000866",
+      "seed": 1763086549,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000867",
+      "seed": 1121322777,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000868",
+      "seed": 1505314284,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000869",
+      "seed": 1077416399,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000870",
+      "seed": 286273006,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000871",
+      "seed": 1127086540,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000872",
+      "seed": 1869740430,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000873",
+      "seed": 677809075,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000874",
+      "seed": 1870011523,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000875",
+      "seed": 730770642,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000876",
+      "seed": 1291127636,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000877",
+      "seed": 1585809214,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000878",
+      "seed": 1763758191,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000879",
+      "seed": 1866476942,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000880",
+      "seed": 1811411440,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000881",
+      "seed": 1421007797,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000882",
+      "seed": 1358175880,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000883",
+      "seed": 1919883287,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000884",
+      "seed": 912218637,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000885",
+      "seed": 1420267494,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000886",
+      "seed": 1121571455,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000887",
+      "seed": 562348414,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000888",
+      "seed": 631749615,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000889",
+      "seed": 1496352623,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000890",
+      "seed": 1554936339,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000891",
+      "seed": 1956881134,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000892",
+      "seed": 2008372021,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000893",
+      "seed": 1921748206,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000894",
+      "seed": 709480172,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000895",
+      "seed": 2109734252,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000896",
+      "seed": 1790361157,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000897",
+      "seed": 1545891859,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000898",
+      "seed": 655271758,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000899",
+      "seed": 535597805,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000900",
+      "seed": 452071934,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000901",
+      "seed": 1155594466,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000902",
+      "seed": 1051702798,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000903",
+      "seed": 487021036,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000904",
+      "seed": 1493603678,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000905",
+      "seed": 82777197,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000906",
+      "seed": 1372305733,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000907",
+      "seed": 1238486473,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000908",
+      "seed": 958475195,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000909",
+      "seed": 142265982,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000910",
+      "seed": 1865122391,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000911",
+      "seed": 846586435,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000912",
+      "seed": 2046257853,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000913",
+      "seed": 270093912,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000914",
+      "seed": 758551383,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000915",
+      "seed": 77717648,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000916",
+      "seed": 1381538268,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000917",
+      "seed": 681951740,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000918",
+      "seed": 510136410,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000919",
+      "seed": 1861368046,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000920",
+      "seed": 450876405,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000921",
+      "seed": 712122572,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000922",
+      "seed": 1504297257,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000923",
+      "seed": 510582287,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000924",
+      "seed": 1090758591,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000925",
+      "seed": 1249692429,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000926",
+      "seed": 728484531,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000927",
+      "seed": 864242123,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000928",
+      "seed": 1326736909,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000929",
+      "seed": 1683203111,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000930",
+      "seed": 1986689681,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000931",
+      "seed": 495249367,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000932",
+      "seed": 1943757275,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000933",
+      "seed": 1690775691,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000934",
+      "seed": 935879620,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000935",
+      "seed": 1219164098,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000936",
+      "seed": 273640232,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000937",
+      "seed": 326521902,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000938",
+      "seed": 797210431,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000939",
+      "seed": 808322982,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000940",
+      "seed": 607488205,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000941",
+      "seed": 1701786151,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000942",
+      "seed": 1188858891,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000943",
+      "seed": 1319748195,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000944",
+      "seed": 690358803,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000945",
+      "seed": 707173022,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000946",
+      "seed": 1727370604,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000947",
+      "seed": 472064236,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000948",
+      "seed": 1461892198,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000949",
+      "seed": 2122153449,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000950",
+      "seed": 1352090021,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000951",
+      "seed": 1328051930,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000952",
+      "seed": 1021782848,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000953",
+      "seed": 103698985,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000954",
+      "seed": 1053582374,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000955",
+      "seed": 286262555,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000956",
+      "seed": 1196193192,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000957",
+      "seed": 1135676127,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000958",
+      "seed": 118724030,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000959",
+      "seed": 1330819940,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000960",
+      "seed": 1094757431,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000961",
+      "seed": 1750575414,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000962",
+      "seed": 268701539,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000963",
+      "seed": 1685342392,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000964",
+      "seed": 2055537338,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000965",
+      "seed": 646117767,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000966",
+      "seed": 1212287860,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000967",
+      "seed": 1412482068,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000968",
+      "seed": 253203640,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000969",
+      "seed": 654926197,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000970",
+      "seed": 847148501,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000971",
+      "seed": 1285116155,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000972",
+      "seed": 247021764,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000973",
+      "seed": 1635199120,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000974",
+      "seed": 1336797314,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000975",
+      "seed": 828326808,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000976",
+      "seed": 126955172,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000977",
+      "seed": 1299022785,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000978",
+      "seed": 148664106,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000979",
+      "seed": 1621139614,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000980",
+      "seed": 80531180,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000981",
+      "seed": 1261749982,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000982",
+      "seed": 1665355000,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000983",
+      "seed": 89535451,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000984",
+      "seed": 910668567,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000985",
+      "seed": 49848605,
+      "category": "cancellation_change",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000986",
+      "seed": 2137699526,
+      "category": "payment_boundary",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000987",
+      "seed": 527812979,
+      "category": "trip_guardian",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000988",
+      "seed": 654871967,
+      "category": "memory_context",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000989",
+      "seed": 1023682988,
+      "category": "provider_failures",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000990",
+      "seed": 2106759664,
+      "category": "security",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000991",
+      "seed": 1602158186,
+      "category": "saudi_light_character",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000992",
+      "seed": 2109894847,
+      "category": "marketplace_recommendation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000993",
+      "seed": 703105917,
+      "category": "flights",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000994",
+      "seed": 2047267534,
+      "category": "stays",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000995",
+      "seed": 935802664,
+      "category": "cars",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000996",
+      "seed": 1557545286,
+      "category": "concierge",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000997",
+      "seed": 1742256795,
+      "category": "comparison",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000998",
+      "seed": 1470073095,
+      "category": "replanning",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-000999",
+      "seed": 2132052428,
+      "category": "confirmation",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    },
+    {
+      "id": "conversation-001000",
+      "seed": 1527853793,
+      "category": "sandbox_booking",
+      "turns": 3,
+      "passed": true,
+      "score": 100,
+      "findings": []
+    }
+  ]
+}

@@ -12,6 +12,13 @@
 - Added an explicit text-only stream contract for DABRA Chat & Commerce while preserving the existing JSON response for non-stream callers.
 - Restricted rendered, persisted, announced, and spoken assistant content to the approved customer-facing `answer` field, with safe fallbacks for malformed or failed responses.
 
+## 2026-08-26 - DABRA Professionalization Lab V1
+
+- Added a deterministic, seeded DABRA conversation evaluation harness covering travel orchestration, confirmation-gated sandbox actions, payment and security boundaries, provider failures, Trip Guardian, scoped memory, Saudi-light character, and evidence-based Marketplace recommendations.
+- Added machine-readable JSON results, Markdown scorecards, and checkpointed 6-hour/24-hour endurance runners with controlled provider failures.
+- Recorded the approved current-release endurance closure policy: the completed extended soak is accepted as PASS, while the nominal 24-hour run is explicitly waived/stopped before completion and must not be represented as a 24-hour PASS.
+- Kept all execution local/sandbox-only and preserved the shared DIR3COM Core, existing DABRA Orchestration V1, Marketplace Provider Pipeline V1.1, and production mutation boundaries.
+
 ## 2026-08-26 - Marketplace provider security remediation
 
 - Disabled the HTTP local-preview route because the Route Handler runtime does not expose a trusted peer address, while preserving explicitly enabled non-public preview execution.
