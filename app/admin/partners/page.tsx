@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import PartnerTable from '@/components/admin/PartnerTable';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/server';
 import type { PartnerRecord } from '@/lib/supabase/types';
 
 async function getPartners() {
-  const supabase = await createSupabaseServerClient();
+  if (!supabaseAdmin) {
+    return { partners: [] as PartnerRecord[], error: 'تعذر تحميل قائمة الشركاء حالياً.' };
+  }
 
-  const { data, error } = await supabase.from('partners').select('*').order('created_at', { ascending: false });
+  const { data, error } = await supabaseAdmin.from('partners').select('*').order('created_at', { ascending: false });
 
   if (error) {
     console.error(error);

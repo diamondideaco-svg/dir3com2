@@ -52,6 +52,16 @@ test('durable portal migration enforces owner-scoped RLS and client grants', () 
   assert.match(remediation, /revoke all on table public\.partner_image_cleanup_queue from anon, authenticated/);
 });
 
+test('admin partner reads stay server-authoritative after partner table grants are revoked', () => {
+  const listPage = read('app/admin/partners/page.tsx');
+  const detailPage = read('app/admin/partners/[id]/page.tsx');
+
+  for (const source of [listPage, detailPage]) {
+    assert.match(source, /supabaseAdmin/);
+    assert.doesNotMatch(source, /createSupabaseServerClient/);
+  }
+});
+
 test('private document lifecycle is owner-scoped, signed, sanitized, and complete', () => {
   const route = read('app/api/partner-portal/documents/route.ts');
   const ui = read('components/portal/PartnerProviderPortalClient.tsx');
