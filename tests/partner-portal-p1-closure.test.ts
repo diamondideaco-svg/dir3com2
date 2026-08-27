@@ -58,6 +58,8 @@ test('admin partner reads stay server-authoritative after partner table grants a
 
   for (const source of [listPage, detailPage]) {
     assert.match(source, /supabaseAdmin/);
+    assert.match(source, /requireAdminPageAccess/);
+    assert.ok(source.indexOf('requireAdminPageAccess') < source.indexOf("supabaseAdmin.from('partners')"));
     assert.doesNotMatch(source, /createSupabaseServerClient/);
   }
 });

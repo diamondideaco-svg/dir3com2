@@ -1,9 +1,12 @@
 import Link from 'next/link';
 import PartnerForm from '@/components/admin/PartnerForm';
+import { requireAdminPageAccess } from '@/lib/auth/admin';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import type { PartnerRecord } from '@/lib/supabase/types';
 
 async function getPartner(id: string) {
+  await requireAdminPageAccess(`/admin/partners/${id}`);
+
   if (!supabaseAdmin) return null;
 
   const { data, error } = await supabaseAdmin.from('partners').select('*').eq('id', id).single();

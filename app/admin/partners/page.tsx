@@ -1,9 +1,12 @@
 import Link from 'next/link';
 import PartnerTable from '@/components/admin/PartnerTable';
+import { requireAdminPageAccess } from '@/lib/auth/admin';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import type { PartnerRecord } from '@/lib/supabase/types';
 
 async function getPartners() {
+  await requireAdminPageAccess('/admin/partners');
+
   if (!supabaseAdmin) {
     return { partners: [] as PartnerRecord[], error: 'تعذر تحميل قائمة الشركاء حالياً.' };
   }
