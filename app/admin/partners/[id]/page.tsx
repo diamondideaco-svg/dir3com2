@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import PartnerForm from '@/components/admin/PartnerForm';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { requireAdminPageAccess } from '@/lib/auth/admin';
+import { supabaseAdmin } from '@/lib/supabase/server';
 import type { PartnerRecord } from '@/lib/supabase/types';
 
 async function getPartner(id: string) {
-  const supabase = await createSupabaseServerClient();
+  await requireAdminPageAccess(`/admin/partners/${id}`);
 
-  const { data, error } = await supabase.from('partners').select('*').eq('id', id).single();
+  if (!supabaseAdmin) return null;
+
+  const { data, error } = await supabaseAdmin.from('partners').select('*').eq('id', id).single();
   if (error || !data) return null;
   return data as PartnerRecord;
 }
