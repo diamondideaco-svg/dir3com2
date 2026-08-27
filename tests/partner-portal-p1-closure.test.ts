@@ -43,8 +43,10 @@ test('durable portal migration enforces owner-scoped RLS and client grants', () 
   const remediation = read('supabase/migrations/20260827155608_partner_document_review_boundary_and_image_cleanup.sql');
   assert.match(remediation, /drop policy if exists partner_documents_owner_update/);
   assert.match(remediation, /revoke update, delete on table public\.partner_documents from authenticated/);
-  assert.match(remediation, /revoke all on table public\.partners, public\.partner_users, public\.partner_documents/);
-  assert.match(remediation, /grant select on table public\.partners, public\.partner_users, public\.partner_documents to authenticated/);
+  assert.match(remediation, /revoke all on table public\.partners, public\.partner_documents from anon, authenticated/);
+  assert.doesNotMatch(remediation, /grant select on table public\.partners/);
+  assert.match(remediation, /grant select on table public\.partner_documents to authenticated/);
+  assert.match(remediation, /to_regclass\('public\.partner_users'\)/);
   assert.match(remediation, /create table if not exists public\.partner_image_cleanup_queue/);
   assert.match(remediation, /revoke all on table public\.partner_image_cleanup_queue from anon, authenticated/);
 });
