@@ -155,3 +155,4 @@
 - Bound the approved Home hero and CTA copy to the active Arabic/English locale without changing the approved visual composition.
 - Added a bilingual Rooms input to Stay search with a minimum/default of one and preserved it in the existing search query contract.
 - Replaced unsupported premium discovery and generic premium-service wording on active customer marketplace surfaces with neutral descriptive copy.
+- Enforced Stay Rooms as an integer minimum of one at the submission boundary and removed the remaining unsupported Arabic quality phrase from the rendered offers feature strip.

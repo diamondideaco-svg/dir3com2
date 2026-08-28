@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FiCalendar, FiChevronDown, FiChevronUp, FiFlag, FiMapPin, FiSearch, FiUsers } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { canonicalCountries, citiesForCountry, todayIsoDate } from '@/lib/services/coverage';
+import { normalizeStayRooms } from '@/lib/services/search-state';
 
 type FieldKind = 'country' | 'city' | 'date' | 'count';
 
@@ -174,12 +175,15 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
   };
 
   function submitSearch() {
-    if (selected.fields.some((field) => !values[field.name]?.trim())) {
+    const submissionValues = { ...values };
+    if (selected.key === 'stay') submissionValues.rooms = String(normalizeStayRooms(values.rooms));
+
+    if (selected.fields.some((field) => !submissionValues[field.name]?.trim())) {
       setError(t.required);
       return;
     }
 
-    const cityValues = selected.fields.filter((field) => field.kind === 'city').map((field) => values[field.name]);
+    const cityValues = selected.fields.filter((field) => field.kind === 'city').map((field) => submissionValues[field.name]);
     if (cityValues.length === 2 && cityValues[0] === cityValues[1]) {
       setError(t.sameCity);
       return;
@@ -187,18 +191,18 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
 
     for (const field of selected.fields) {
       if (field.kind !== 'date') continue;
-      if (values[field.name] < today) {
+      if (submissionValues[field.name] < today) {
         setError(t.pastDate);
         return;
       }
-      if (field.notBefore && values[field.name] < values[field.notBefore]) {
+      if (field.notBefore && submissionValues[field.name] < submissionValues[field.notBefore]) {
         setError(t.dateOrder);
         return;
       }
     }
 
     const params = new URLSearchParams({ service: selected.key });
-    for (const field of selected.fields) params.set(field.name, values[field.name]);
+    for (const field of selected.fields) params.set(field.name, submissionValues[field.name]);
     router.push(`/services/${selected.key}?${params.toString()}`);
   }
 

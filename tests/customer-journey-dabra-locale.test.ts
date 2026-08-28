@@ -5,6 +5,7 @@ import test from 'node:test';
 import { buildAI2ChatResponse } from '@/lib/ai2/runtime/chat';
 import { DABRA_LOCALE_FALLBACK, parseDabraLocale } from '@/lib/dabra/locale-contract';
 import { answerMatchesDabraLocale, ensureDabraResponseLocale, identifyDabraResponseLanguage } from '@/lib/dabra/response-language';
+import { normalizeStayRooms } from '@/lib/services/search-state';
 
 const root = process.cwd();
 const read = (...segments: string[]) => fs.readFileSync(path.join(root, ...segments), 'utf8');
@@ -32,6 +33,7 @@ test('all active service and marketplace copy sources exclude unsupported claims
     ['components', 'services', 'ServicePageContent.tsx'],
     ['components', 'home', 'PlatformFoundationHome.tsx'],
     ['components', 'public', 'MarketplaceExplorer.tsx'],
+    ['components', 'public', 'PublicFeatureStrip.tsx'],
     ['components', 'public', 'public-page-data.ts'],
     ['components', 'shared', 'ServiceCard.tsx'],
     ['lib', 'services', 'canonical.ts'],
@@ -43,6 +45,7 @@ test('all active service and marketplace copy sources exclude unsupported claims
     'best prices', 'competitive rates', 'trusted drivers', 'carefully selected', 'professional drivers',
     'premium quality', 'exclusive experiences', 'guaranteed', 'verified providers', 'licensed providers',
     'premium discovery', 'premium service', 'اكتشاف فاخر', 'خدمة مميزة', 'التجربة المميزة',
+    'تجربة فاخرة نظيفة',
     '120+', '24/7', 'fast lane',
   ]) {
     assert.equal(source.includes(unsupported.toLowerCase()), false, `unsupported claim remains: ${unsupported}`);
@@ -52,6 +55,21 @@ test('all active service and marketplace copy sources exclude unsupported claims
   for (const family of ['dir3 Drive', 'dir3 Stay', 'dir3 Fly', 'dir3 Concierge', 'dir3 VIP']) assert.match(canonical, new RegExp(family));
   assert.match(component, /getCanonicalService\(service\)/);
   assert.match(component, /getCanonicalService\(item\.key\)/);
+});
+
+test('Stay rooms are normalized to an integer minimum before URL construction', () => {
+  assert.equal(normalizeStayRooms('0'), 1);
+  assert.equal(normalizeStayRooms('-1'), 1);
+  assert.equal(normalizeStayRooms(''), 1);
+  assert.equal(normalizeStayRooms('NaN'), 1);
+  assert.equal(normalizeStayRooms('malformed'), 1);
+  assert.equal(normalizeStayRooms('1.5'), 1);
+  assert.equal(normalizeStayRooms('1'), 1);
+  assert.equal(normalizeStayRooms('2'), 2);
+
+  const source = read('components', 'shared', 'ServiceSearchTable.tsx');
+  assert.match(source, /submissionValues\.rooms = String\(normalizeStayRooms\(values\.rooms\)\)/);
+  assert.match(source, /params\.set\(field\.name, submissionValues\[field\.name\]\)/);
 });
 
 test('approved Home hero and CTAs render from the selected AR or EN locale', () => {
@@ -78,7 +96,7 @@ test('dedicated journeys initialize the shared search with family-native semanti
   for (const field of ['city', 'checkIn', 'checkOut', 'rooms', 'guests']) assert.match(stay, new RegExp(field));
   assert.doesNotMatch(stay, /originCity|destinationCity|passengers/);
   assert.match(source, /service === 'stay' \? \{ rooms: '1' \} : \{\}/);
-  assert.match(source, /params\.set\(field\.name, values\[field\.name\]\)/);
+  assert.match(source, /params\.set\(field\.name, submissionValues\[field\.name\]\)/);
   const drive = source.slice(source.indexOf("key: 'drive'"), source.indexOf("key: 'stay'"));
   for (const field of ['pickupCity', 'dropoffCity', 'pickupDate', 'passengers']) assert.match(drive, new RegExp(field));
   const concierge = source.slice(source.indexOf("key: 'concierge'"), source.indexOf("key: 'vip'"));
