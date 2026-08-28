@@ -22,6 +22,23 @@ test('each canonical service journey exposes its own family-filtered Marketplace
   assert.match(source, /href={`\/marketplace\?family=dir3-\${service}`}/);
   assert.match(source, /Browse \${page\.eyebrow} marketplace/);
   assert.match(source, /تصفح سوق \${page\.eyebrow}/);
+  assert.match(source, /<ServiceSearchTable initialService=\{service\} \/>/);
+});
+
+test('dedicated journeys initialize the shared search with family-native semantics', () => {
+  const source = read('components', 'shared', 'ServiceSearchTable.tsx');
+  assert.match(source, /useState<ServiceDef\['key'\]>\(initialService\)/);
+  const fly = source.slice(source.indexOf("key: 'fly'"), source.indexOf("key: 'concierge'"));
+  for (const field of ['originCity', 'destinationCity', 'departureDate', 'returnDate', 'passengers']) assert.match(fly, new RegExp(field));
+  const stay = source.slice(source.indexOf("key: 'stay'"), source.indexOf("key: 'fly'"));
+  for (const field of ['city', 'checkIn', 'checkOut', 'guests']) assert.match(stay, new RegExp(field));
+  assert.doesNotMatch(stay, /originCity|destinationCity|passengers/);
+  const drive = source.slice(source.indexOf("key: 'drive'"), source.indexOf("key: 'stay'"));
+  for (const field of ['pickupCity', 'dropoffCity', 'pickupDate', 'passengers']) assert.match(drive, new RegExp(field));
+  const concierge = source.slice(source.indexOf("key: 'concierge'"), source.indexOf("key: 'vip'"));
+  for (const field of ['city', 'serviceDate', 'guests']) assert.match(concierge, new RegExp(field));
+  const vip = source.slice(source.indexOf("key: 'vip'"), source.indexOf('const copy'));
+  for (const field of ['city', 'tripDate', 'guests']) assert.match(vip, new RegExp(field));
 });
 
 test('DABRA client binds UI, request, history boundary, recognition, and speech to selected locale', () => {

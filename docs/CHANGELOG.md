@@ -3,6 +3,7 @@
 ## 2026-08-28 — Customer journey and DABRA locale continuity
 
 - Restored the global family navigation to the dedicated Fly, Stay, Drive, Concierge, and VIP service journeys while keeping Marketplace as its own destination and adding family-filtered Marketplace calls to action on each service page.
+- Made each dedicated journey initialize the existing shared search with that family's truthful field model instead of defaulting every service page to Drive.
 - Bound DABRA interface copy, request context, response validation, speech recognition, and text-to-speech to the customer-selected Arabic or English locale so prior messages and proper nouns cannot silently switch the active language.
 
 ## 2026-08-28 — Marketplace production schema contract closure

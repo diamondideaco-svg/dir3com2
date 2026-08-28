@@ -126,12 +126,12 @@ function iconFor(kind: FieldKind) {
   return FiMapPin;
 }
 
-export default function ServiceSearchTable() {
+export default function ServiceSearchTable({ initialService = 'drive' }: { initialService?: ServiceDef['key'] }) {
   const { language, direction } = useLanguage();
   const router = useRouter();
   const t = copy[language];
   const today = useMemo(() => todayIsoDate(), []);
-  const [selectedKey, setSelectedKey] = useState<ServiceDef['key']>('drive');
+  const [selectedKey, setSelectedKey] = useState<ServiceDef['key']>(initialService);
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState(true);

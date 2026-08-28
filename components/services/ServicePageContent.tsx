@@ -113,7 +113,7 @@ export function ServicePageContent({ service, stories }: { service: TravelStoryS
         </div>
       </section>
 
-      <ServiceSearchTable />
+      <ServiceSearchTable initialService={service} />
       <HomeUtilities />
 
       <section className="drive-master-products px-4 py-10 sm:px-6 lg:px-10">
