@@ -5,7 +5,6 @@ import { isProductBookable } from '@/app/api/bookings/route';
 
 const product = (overrides: Record<string, unknown> = {}) => ({
   status: 'active',
-  is_active: true,
   deleted_at: null,
   synthetic: false,
   marketplace_environment: 'production',
@@ -27,7 +26,8 @@ test('unpublished and hidden live products cannot bypass instant booking', () =>
 });
 
 test('inactive and soft-deleted live products cannot book', () => {
-  assert.equal(isProductBookable(product({ is_active: false })), false);
+  assert.equal(isProductBookable(product({ status: 'inactive' })), false);
+  assert.equal(isProductBookable(product({ status: 'disabled' })), false);
   assert.equal(isProductBookable(product({ deleted_at: '2026-08-28T00:00:00.000Z' })), false);
 });
 

@@ -6,10 +6,11 @@ export function applyPublicServiceFilters<T>(query: T): T {
 
 export function applyPublicProductFilters<T>(query: T): T {
   const chained = (query as { in: (column: string, values: readonly string[]) => unknown })
-    .in('status', PUBLISHED_STATUSES) as { eq: (column: string, value: unknown) => unknown };
+    .in('status', PUBLISHED_STATUSES) as { eq: (column: string, value: unknown) => unknown; is: (column: string, value: null) => unknown };
   const nonSynthetic = chained.eq('synthetic', false) as { eq: (column: string, value: unknown) => unknown };
   const production = nonSynthetic.eq('marketplace_environment', 'production') as { neq: (column: string, value: unknown) => unknown };
-  return production.neq('fulfilment_state', 'test_sandbox') as T;
+  const nonTest = production.neq('fulfilment_state', 'test_sandbox') as { is: (column: string, value: null) => unknown };
+  return nonTest.is('deleted_at', null) as T;
 }
 
 export function applyPublicCategoryFilters<T>(query: T): T {
@@ -25,10 +26,12 @@ export function isPublicMarketplaceProduct(input: {
   synthetic: boolean | null | undefined;
   marketplace_environment?: string | null;
   fulfilment_state?: string | null;
+  deleted_at?: string | null;
 }) {
   const status = String(input.status || '').toLowerCase();
   return PUBLISHED_STATUSES.includes(status as (typeof PUBLISHED_STATUSES)[number]) &&
     input.synthetic === false &&
     input.marketplace_environment === 'production' &&
-    input.fulfilment_state !== 'test_sandbox';
+    input.fulfilment_state !== 'test_sandbox' &&
+    input.deleted_at == null;
 }

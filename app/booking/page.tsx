@@ -22,7 +22,6 @@ interface Product {
   address_en?: string;
   latitude?: number;
   longitude?: number;
-  is_active: boolean;
   max_guests?: number;
   images?: string[];
   product_type?: string;
