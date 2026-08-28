@@ -143,3 +143,4 @@
 - Unified Preview supply across Duffel Fly sandbox results, LiteAPI Stay sandbox results, and Ticketmaster Concierge discovery while retaining all five canonical marketplace families and truthful empty states.
 - Grounded DABRA in the same bounded provider results and preserved explicit sandbox/production and native/external transaction distinctions in Arabic and English.
 - Moved existing testable booking, request, sandbox, and request-context helpers out of Next.js Route Handler modules so the unchanged controls satisfy the Next.js 16 export contract and production builds remain type-safe.
+- Removed unsupported comparative, verification, and quality claims from the five customer service-family pages, replacing them with neutral bilingual service descriptions.

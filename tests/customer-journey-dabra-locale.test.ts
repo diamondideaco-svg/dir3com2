@@ -25,6 +25,21 @@ test('each canonical service journey exposes its own family-filtered Marketplace
   assert.match(source, /<ServiceSearchTable initialService=\{service\} \/>/);
 });
 
+test('service journeys use neutral bilingual copy without unsupported commercial or verification claims', () => {
+  const source = read('components', 'services', 'ServicePageContent.tsx');
+  for (const unsupported of [
+    'أفضل الأسعار', 'سائقين موثوقين', 'مختارة بعناية', 'سائقون محترفون', 'مستوى حصري',
+    'best prices', 'competitive rates', 'trusted drivers', 'carefully selected', 'professional drivers',
+    'premium quality', 'exclusive experiences', 'guaranteed', 'verified providers', 'licensed providers',
+  ]) {
+    assert.equal(source.toLowerCase().includes(unsupported.toLowerCase()), false, `unsupported claim remains: ${unsupported}`);
+  }
+  assert.match(source, /خيارات رحلات الطيران وقارن تفاصيلها/);
+  assert.match(source, /Explore flight options and compare their details/);
+  assert.match(source, /خيارات تنقل بسيارات خاصة مع عرض تفاصيل الخدمة/);
+  assert.match(source, /Private transport options with service details shown/);
+});
+
 test('dedicated journeys initialize the shared search with family-native semantics', () => {
   const source = read('components', 'shared', 'ServiceSearchTable.tsx');
   assert.match(source, /useState<ServiceDef\['key'\]>\(initialService\)/);
