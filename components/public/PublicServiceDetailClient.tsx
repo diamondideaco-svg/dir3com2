@@ -3,44 +3,38 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { FiArrowLeft, FiCheckCircle, FiMapPin, FiShield, FiStar } from 'react-icons/fi';
+import { FiArrowLeft, FiMapPin } from 'react-icons/fi';
 import {
-  AppDownloadComponent,
-  Badge,
   Chip,
   ContentContainer,
   EmptyState,
-  FaqComponent,
   HeroBlock,
   LoadingSkeletonGrid,
   PartnerComponent,
-  PaymentComponent,
   ResponsiveGrid,
-  ReviewComponent,
   SectionContainer,
   SectionDescription,
   SectionSurface,
   SectionTitle,
   ServiceComponent,
-  ShieldGuaranteeComponent,
-  TrustComponent,
-  TrustPill,
 } from '@/components/design-system';
 import { buttonVariants } from '@/components/ui/button';
-import { marketplaceCatalogEntries, normalizeMarketplaceServices } from '@/lib/marketplace/data';
+import { normalizeMarketplaceServices } from '@/lib/marketplace/data';
+import { marketplacePrimaryAction } from '@/lib/marketplace/truth';
 import { getCanonicalService } from '@/lib/services/canonical';
-import PublicCtaBanner from '@/components/public/PublicCtaBanner';
-import PublicRouteIndex from '@/components/public/PublicRouteIndex';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
 
 type ServiceProduct = {
   id: string;
   name_ar?: string | null;
+  name_en?: string | null;
   description_ar?: string | null;
+  description_en?: string | null;
   price_per_unit?: number | null;
   unit_type?: string | null;
   slug?: string | null;
-  partner?: { name_ar?: string | null } | null;
-  region?: { name_ar?: string | null } | null;
+  partner?: { name_ar?: string | null; name_en?: string | null } | null;
+  region?: { name_ar?: string | null; name_en?: string | null } | null;
   images?: Array<{ is_primary?: boolean | null; image_url?: string | null }>;
 };
 
@@ -58,50 +52,43 @@ type ServiceDetail = {
   status?: string | null;
   created_at?: string | null;
   products?: ServiceProduct[];
+  marketplace_family?: 'drive' | 'stay' | 'fly' | 'concierge' | 'vip' | null;
+  fulfilment_state?: import('@/lib/marketplace/truth').MarketplaceFulfilmentState | null;
+  transaction_method?: import('@/lib/marketplace/truth').MarketplaceTransactionMethod | null;
+  marketplace_environment?: import('@/lib/marketplace/truth').MarketplaceEnvironment | null;
+  supply_type?: import('@/lib/marketplace/truth').MarketplaceSupplyType | null;
+  supplier_name?: string | null;
+  supplier_verified?: boolean | null;
+  cancellation_summary?: string | null;
 };
 
-function unitLabel(unitType?: string | null) {
-  if (unitType === 'day') return 'يوم';
-  if (unitType === 'night') return 'ليلة';
-  if (unitType === 'trip') return 'رحلة';
-  return unitType || 'وحدة';
+function unitLabel(unitType: string | null | undefined, en: boolean) {
+  if (unitType === 'day') return en ? 'day' : 'يوم';
+  if (unitType === 'night') return en ? 'night' : 'ليلة';
+  if (unitType === 'trip') return en ? 'trip' : 'رحلة';
+  return unitType || (en ? 'unit' : 'وحدة');
 }
 
-const fallbackInclusions = ['دعم ضيافة مخصص', 'تأكيد سريع وواضح', 'تجربة حجز محسنة للمستخدم الخليجي'];
-
-const trustItems = [
-  { title: 'شفافية التسعير', note: 'السعر واضح قبل إتمام أي خطوة، مع إبراز تفاصيل الوحدة والمورد.' },
-  { title: 'مراجعة قبل الدفع', note: 'يمكن مراجعة الخيارات بالتفصيل ضمن واجهة هادئة وسهلة القراءة.' },
-  { title: 'دعم موثوق', note: 'إذا صار شيء... حنا معك، وفق معايير dir3com المعتمدة.' },
-];
-
-const paymentMethods = ['mada', 'Visa', 'Mastercard', 'Apple Pay', 'Tabby', 'Tamara'];
-
-const staticReviews = [
-  { author: 'ضيف من الرياض', text: 'التجربة واضحة جداً والخيارات مرتبة، حسيت بثقة من أول خطوة.' },
-  { author: 'مسافر أعمال', text: 'واجهة أنيقة وسريعة، وسهلت علي اختيار الخدمة المناسبة بدون تعقيد.' },
-  { author: 'عائلة من جدة', text: 'عرض التفاصيل ممتاز، وكل المعلومات الأساسية كانت قدامي بشكل مريح.' },
-];
-
-const staticFaq = [
-  { question: 'هل الأسعار تشمل كل الرسوم؟', answer: 'الواجهة تعرض السعر الأساسي بوضوح، وتفاصيل كل منتج تظهر قبل الحجز.' },
-  { question: 'هل يمكن مقارنة أكثر من خيار؟', answer: 'نعم، صفحة الخدمة تعرض المنتجات ضمن بنية موحدة تساعدك على المقارنة سريعاً.' },
-  { question: 'هل هذا القسم مرتبط مباشرة بالنظام التشغيلي؟', answer: 'هذه الطبقة واجهة خدمة معتمدة وجاهزة للتكامل، دون تعديل على منطق الخلفية حالياً.' },
-];
-
 export default function PublicServiceDetailClient({ slug }: { slug: string }) {
+  const { language } = useLanguage();
+  const en = language === 'en';
   const canonical = getCanonicalService(slug);
   const [service, setService] = useState<ServiceDetail | null>(null);
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [requestState, setRequestState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [requestReference, setRequestReference] = useState<string | null>(null);
+  const [requestedFor, setRequestedFor] = useState('');
+  const [travellerCount, setTravellerCount] = useState(1);
+  const [requestNotes, setRequestNotes] = useState('');
 
   useEffect(() => {
     async function loadService() {
       try {
         const response = await fetch(`/api/services/${slug}`, { cache: 'no-store' });
         if (!response.ok) {
-          throw new Error('الخدمة غير موجودة حالياً');
+          throw new Error(en ? 'This service is not currently available' : 'الخدمة غير موجودة حالياً');
         }
 
         const data = (await response.json()) as ServiceDetail;
@@ -113,14 +100,14 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
         setService(data);
         setActiveImage(initialImage);
       } catch (fetchError) {
-        setError(fetchError instanceof Error ? fetchError.message : 'تعذر تحميل الخدمة');
+        setError(fetchError instanceof Error ? fetchError.message : (en ? 'Unable to load this service' : 'تعذر تحميل الخدمة'));
       } finally {
         setLoading(false);
       }
     }
 
     loadService();
-  }, [slug]);
+  }, [slug, en]);
 
   const canonicalShell: ServiceDetail | null = canonical
     ? {
@@ -145,15 +132,6 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
     .flatMap((product) => product.images?.map((image) => image.image_url).filter(Boolean) ?? [])
     .filter((value): value is string => Boolean(value));
   const mainImage = activeImage && galleryImages.includes(activeImage) ? activeImage : galleryImages[0] ?? null;
-  const features = marketplaceService?.tags?.length ? marketplaceService.tags : fallbackInclusions;
-  const relatedServices = marketplaceService
-    ? [
-        ...marketplaceCatalogEntries.filter(
-          (entry) => entry.family === marketplaceService.family && entry.category !== marketplaceService.category
-        ),
-        ...marketplaceCatalogEntries.filter((entry) => entry.category !== marketplaceService.category),
-      ].slice(0, 3)
-    : marketplaceCatalogEntries.slice(0, 3);
 
   if (loading) {
     return (
@@ -169,9 +147,9 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
     return (
       <SectionContainer className="py-16">
         <ContentContainer>
-          <EmptyState title="الخدمة غير متاحة حالياً" description={error ?? 'تعذر العثور على الخدمة المطلوبة.'} />
+          <EmptyState title={en ? 'Service currently unavailable' : 'الخدمة غير متاحة حالياً'} description={error ?? (en ? 'The requested service could not be found.' : 'تعذر العثور على الخدمة المطلوبة.')} />
           <Link href="/services" className={`${buttonVariants({ variant: 'gold', size: 'lg' })} mt-6`}>
-            العودة إلى الخدمات
+            {en ? 'Back to services' : 'العودة إلى الخدمات'}
           </Link>
         </ContentContainer>
       </SectionContainer>
@@ -179,13 +157,49 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
   }
 
   const service_ = resolvedService;
+  const serviceName = en ? (service_.name_en ?? service_.name_ar) : service_.name_ar;
+  const serviceDescription = en ? (service_.description_en ?? service_.description_ar) : service_.description_ar;
+  const primaryAction = service_.marketplace_family ? marketplacePrimaryAction({
+    family: service_.marketplace_family,
+    fulfilmentState: service_.fulfilment_state ?? 'catalog_only',
+    transactionMethod: service_.transaction_method ?? 'none',
+    environment: service_.marketplace_environment ?? 'production',
+    supplyType: service_.supply_type ?? 'unknown',
+    supplierVerified: service_.supplier_verified === true,
+  }) : 'view_details';
+  const submitRequest = async () => {
+    if (primaryAction !== 'request_to_confirm' && primaryAction !== 'request_quote') return;
+    setRequestState('sending');
+    try {
+      const response = await fetch('/api/marketplace/requests', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          product_id: service_.id,
+          request_type: primaryAction,
+          requested_for: requestedFor || null,
+          traveller_count: travellerCount,
+          customer_brief: { notes: requestNotes },
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { request?: { request_reference?: string } };
+      if (response.ok && payload.request?.request_reference) {
+        setRequestReference(payload.request.request_reference);
+        setRequestState('sent');
+      } else {
+        setRequestState('error');
+      }
+    } catch {
+      setRequestState('error');
+    }
+  };
 
   return (
     <div className="page-stack-shell">
       <SectionContainer className="pb-10 pt-8 lg:pt-12">
         <ContentContainer>
           <Link href="/services" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-gold)] transition hover:gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35">
-            <FiArrowLeft /> العودة إلى الخدمات
+            <FiArrowLeft /> {en ? 'Back to services' : 'العودة إلى الخدمات'}
           </Link>
           {canonical ? (
             <div className="mt-5 overflow-hidden rounded-[28px] border border-[color:var(--color-border)] shadow-[var(--shadow-soft)]">
@@ -205,16 +219,46 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
               <p className="text-sm font-medium tracking-[0.18em] text-[var(--color-gold)]">
                 {marketplaceService?.familyLabel ?? service_.badge ?? 'SERVICE DETAIL'}
               </p>
-              <h1 className="mt-3 text-4xl font-semibold text-[var(--color-navy)] sm:text-5xl">{service_.name_ar ?? 'خدمة dir3com'}</h1>
+              <h1 className="mt-3 text-4xl font-semibold text-[var(--color-navy)] sm:text-5xl">{serviceName ?? (en ? 'dir3com service' : 'خدمة dir3com')}</h1>
               <p className="mt-5 max-w-2xl text-lg leading-9 text-[var(--color-muted)]">
-                {service_.description_ar ?? 'تفاصيل الخدمة ستظهر هنا مع نفس اللغة البصرية المعتمدة في المنصة العامة.'}
+                {serviceDescription ?? (en ? 'Service details will appear here when verified data is available.' : 'تفاصيل الخدمة ستظهر هنا مع نفس اللغة البصرية المعتمدة في المنصة العامة.')}
               </p>
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                {primaryAction === 'continue_to_booking' ? (
+                  <Link href={`/booking?product=${service_.slug ?? ''}`} className={buttonVariants({ variant: 'gold', size: 'lg' })}>{en ? 'Continue to booking' : 'متابعة الحجز'}</Link>
+                ) : primaryAction === 'request_to_confirm' || primaryAction === 'request_quote' ? (
+                  <button type="button" disabled={requestState === 'sending' || requestState === 'sent'} onClick={submitRequest} className={buttonVariants({ variant: 'gold', size: 'lg' })}>
+                    {requestState === 'sent' ? (en ? 'Request submitted' : 'تم إرسال الطلب') : requestState === 'sending' ? (en ? 'Sending…' : 'جارٍ الإرسال…') : primaryAction === 'request_quote' ? (en ? 'Request a quote' : 'طلب عرض سعر') : (en ? 'Request confirmation' : 'طلب تأكيد')}
+                  </button>
+                ) : (
+                  <span className="rounded-full border border-[color:var(--color-border)] px-5 py-3 text-sm text-[var(--color-muted)]">
+                    {primaryAction === 'unavailable' ? (en ? 'Service currently unavailable' : 'الخدمة غير متاحة حاليًا') : service_.fulfilment_state === 'availability_unknown' ? (en ? 'Availability is not currently confirmed' : 'التوفر غير مؤكد حاليًا') : (en ? 'View only' : 'للاطلاع فقط')}
+                  </span>
+                )}
+                {requestState === 'error' ? <span className="text-sm text-red-700">{en ? 'Unable to submit the request. Sign in and try again.' : 'تعذر إرسال الطلب. سجّل الدخول ثم حاول مجددًا.'}</span> : null}
+                {requestReference ? <span className="text-sm font-semibold text-[var(--color-navy)]">{en ? 'Request ID' : 'رقم الطلب'}: {requestReference}</span> : null}
+              </div>
+              {primaryAction === 'request_to_confirm' || primaryAction === 'request_quote' ? (
+                <div className="mt-4 grid max-w-2xl gap-3 sm:grid-cols-2">
+                  <label className="text-sm text-[var(--color-muted)]">{en ? 'Requested date' : 'التاريخ المطلوب'}
+                    <input type="datetime-local" value={requestedFor} onChange={(event) => setRequestedFor(event.target.value)} className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-[var(--color-navy)]" />
+                  </label>
+                  <label className="text-sm text-[var(--color-muted)]">{en ? 'Number of travellers' : 'عدد المسافرين'}
+                    <input type="number" min={1} max={99} value={travellerCount} onChange={(event) => setTravellerCount(Math.max(1, Math.min(99, Number(event.target.value) || 1)))} className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-[var(--color-navy)]" />
+                  </label>
+                  <label className="text-sm text-[var(--color-muted)] sm:col-span-2">{en ? 'Request details' : 'تفاصيل الطلب'}
+                    <textarea value={requestNotes} maxLength={1000} onChange={(event) => setRequestNotes(event.target.value)} className="mt-1 min-h-24 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-[var(--color-navy)]" />
+                  </label>
+                </div>
+              ) : null}
+              {service_.supplier_name ? <p className="mt-4 text-sm text-[var(--color-muted)]">{en ? 'Supplier' : 'المورد'}: {service_.supplier_name}{service_.supplier_verified ? (en ? ' — verified' : ' — موثّق') : ''}</p> : null}
+              {service_.cancellation_summary ? <p className="mt-2 text-sm text-[var(--color-muted)]">{en ? 'Cancellation' : 'الإلغاء'}: {service_.cancellation_summary}</p> : null}
               {marketplaceService ? (
                 <div className="mt-5 flex flex-wrap gap-2">
                   <Chip className="bg-[var(--color-surface)] px-4 text-sm font-medium text-[var(--color-navy)]">
-                    {marketplaceService.categoryLabel}
+                    {en ? ({ السيارات: 'Cars', الفنادق: 'Hotels', الشقق: 'Apartments', 'النقل من وإلى المطار': 'Airport transfers', الكونسيرج: 'Concierge', التجارب: 'Experiences', العروض: 'Offers' }[marketplaceService.categoryLabel] ?? marketplaceService.categoryLabel) : marketplaceService.categoryLabel}
                   </Chip>
-                  {marketplaceService.tags.map((tag) => (
+                  {!en && marketplaceService.tags.map((tag) => (
                     <Chip key={tag} className="px-4 text-sm font-medium text-[var(--color-muted)]">
                       {tag}
                     </Chip>
@@ -224,22 +268,13 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
             </div>
             <HeroBlock>
               <div>
-                <Badge className="border-[color:var(--color-border)] bg-[var(--color-surface)] text-sm">
-                  <FiShield /> ضمان الدرع
-                </Badge>
-                <p className="mt-5 text-2xl font-semibold leading-[1.5]">الخدمة أول... والحساب بعد رضاك.</p>
-                {marketplaceService ? (
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-white/72">
-                    <div className="rounded-[20px] border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-                      featured: {marketplaceService.featured ? 'نعم' : 'لا'}
-                    </div>
-                    <div className="rounded-[20px] border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
-                      recommended: {marketplaceService.recommended ? 'نعم' : 'لا'}
-                    </div>
-                  </div>
-                ) : null}
-                <p className="mt-4 text-sm leading-8 text-white/72">
-                  كل بطاقة منتج هنا جاهزة لعرض الأسعار والموردين والصور ضمن نفس هيكلية dir3com دون أي تعديل على الخلفية التشغيلية.
+                <p className="text-sm text-white/72">{en ? 'Recorded fulfilment status' : 'حالة التنفيذ المسجلة'}</p>
+                <p className="mt-4 text-2xl font-semibold leading-[1.5]">
+                  {service_.fulfilment_state === 'live_bookable' ? (en ? 'Available for direct booking' : 'متاح للحجز المباشر') :
+                    service_.fulfilment_state === 'verified_requestable' ? (en ? 'Confirmation request required' : 'يتطلب طلب تأكيد') :
+                    service_.fulfilment_state === 'verified_quote' ? (en ? 'Quote request required' : 'يتطلب طلب عرض سعر') :
+                    service_.fulfilment_state === 'unavailable' ? (en ? 'Currently unavailable' : 'غير متاح حاليًا') :
+                    service_.fulfilment_state === 'availability_unknown' ? (en ? 'Availability not currently confirmed' : 'التوفر غير مؤكد حاليًا') : (en ? 'View only' : 'للاطلاع فقط')}
                 </p>
               </div>
             </HeroBlock>
@@ -250,18 +285,18 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
       <div className="luxury-section-shell">
         <SectionContainer className="py-8">
           <ContentContainer>
-            <SectionTitle>معرض الخدمة</SectionTitle>
-            <SectionDescription>صور مختارة لعرض التجربة بأسلوب راقٍ ومرتب.</SectionDescription>
+            <SectionTitle>{en ? 'Service gallery' : 'معرض الخدمة'}</SectionTitle>
+            <SectionDescription>{en ? 'Images supplied for this service.' : 'صور مختارة لعرض التجربة بأسلوب راقٍ ومرتب.'}</SectionDescription>
 
             <div className="mt-6 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
               <SectionSurface className="overflow-hidden p-0">
                 {mainImage ? (
                   <div className="relative h-[320px] w-full sm:h-[420px]">
-                    <Image src={mainImage} alt={service_.name_ar ?? 'خدمة dir3com'} fill className="object-cover" unoptimized />
+                    <Image src={mainImage} alt={serviceName ?? (en ? 'dir3com service' : 'خدمة dir3com')} fill className="object-cover" unoptimized />
                   </div>
                 ) : (
                   <div className="flex h-[320px] items-center justify-center bg-[var(--color-surface)] text-sm text-[var(--color-muted)] sm:h-[420px]">
-                    لا توجد صورة حالياً
+                    {en ? 'No image currently available' : 'لا توجد صورة حالياً'}
                   </div>
                 )}
               </SectionSurface>
@@ -274,15 +309,15 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
                         key={`${image}-${index}`}
                         type="button"
                         onClick={() => setActiveImage(image)}
-                        aria-label={`عرض صورة ${index + 1}`}
+                        aria-label={`${en ? 'View image' : 'عرض صورة'} ${index + 1}`}
                         aria-pressed={mainImage === image}
                         className={`relative h-28 overflow-hidden rounded-[18px] border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35 sm:h-32 ${mainImage === image ? 'border-[var(--color-gold)]' : 'border-[color:var(--color-border)]'}`}
                       >
-                        <Image src={image} alt={`صورة ${index + 1}`} fill className="object-cover" unoptimized />
+                        <Image src={image} alt={`${en ? 'Image' : 'صورة'} ${index + 1}`} fill className="object-cover" unoptimized />
                       </button>
                     ))
                   ) : (
-                    <EmptyState title="لا توجد صور متاحة" description="سيظهر معرض الصور فور توفر صور المنتجات." className="col-span-2" />
+                    <EmptyState title={en ? 'No images available' : 'لا توجد صور متاحة'} description={en ? 'The gallery will appear when product images are available.' : 'سيظهر معرض الصور فور توفر صور المنتجات.'} className="col-span-2" />
                   )}
                 </div>
               </SectionSurface>
@@ -296,175 +331,73 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
           <ContentContainer>
             <ResponsiveGrid>
               <ServiceComponent
-                title="نظرة عامة على الخدمة"
-                description={service_.description_ar ?? 'تفاصيل الخدمة ستظهر هنا مع نفس اللغة البصرية المعتمدة في المنصة العامة.'}
+                title={en ? 'Service overview' : 'نظرة عامة على الخدمة'}
+                description={serviceDescription ?? (en ? 'Service details will appear when verified data is available.' : 'تفاصيل الخدمة ستظهر هنا مع نفس اللغة البصرية المعتمدة في المنصة العامة.')}
               />
-              <ServiceComponent
-                title="المزايا والتضمينات"
-                description="تجربة تشغيلية مصممة لتكون واضحة، أنيقة، وقابلة للتوسع عبر جميع واجهات dir3com." 
-              />
-              <SectionSurface>
-                <p className="text-base font-semibold text-[var(--color-navy)]">أهم المميزات</p>
-                <div className="mt-4 space-y-2">
-                  {features.map((feature) => (
-                    <p key={feature} className="inline-flex items-center gap-2 text-sm text-[var(--color-muted)]">
-                      <FiCheckCircle className="text-[var(--color-gold)]" /> {feature}
-                    </p>
-                  ))}
-                </div>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {fallbackInclusions.map((item) => (
-                    <Chip key={item}>{item}</Chip>
-                  ))}
-                </div>
-              </SectionSurface>
             </ResponsiveGrid>
           </ContentContainer>
         </SectionContainer>
       </div>
 
-      <div className="luxury-section-shell">
+      {primaryAction === 'continue_to_booking' ? <div className="luxury-section-shell">
         <SectionContainer>
           <ContentContainer>
             <SectionSurface>
-              <SectionTitle>ضمان الدرع والثقة</SectionTitle>
-              <SectionDescription>الضمان الموثوق، الوضوح المالي، والالتزام بجودة التجربة.</SectionDescription>
-
-              <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                <ShieldGuaranteeComponent message="رحلتكم محمية بضمان الدرع." />
-                <TrustPill>
-                  إذا صار شيء... حنا معك.
-                </TrustPill>
-              </div>
-            </SectionSurface>
-
-            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {trustItems.map((item) => (
-                <TrustComponent key={item.title} title={item.title} note={item.note} />
-              ))}
-            </div>
-          </ContentContainer>
-        </SectionContainer>
-      </div>
-
-      <div className="luxury-section-shell">
-        <SectionContainer>
-          <ContentContainer>
-            <SectionTitle>آراء وتقييمات</SectionTitle>
-            <SectionDescription>انطباعات المستخدمين ضمن تجربة عرض راقية وموحدة.</SectionDescription>
-            <div className="mt-4 inline-flex items-center gap-2 text-[var(--color-gold)]">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <FiStar key={index} />
-              ))}
-              <span className="me-2 text-sm font-semibold text-[var(--color-navy)]">4.9 / 5</span>
-            </div>
-            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {staticReviews.map((review) => (
-                <ReviewComponent key={review.author} author={review.author} text={review.text} />
-              ))}
-            </div>
-          </ContentContainer>
-        </SectionContainer>
-      </div>
-
-      <div className="luxury-section-shell">
-        <SectionContainer>
-          <ContentContainer>
-            <SectionTitle>الأسئلة الشائعة</SectionTitle>
-            <SectionDescription>إجابات مختصرة تساعدك على اتخاذ قرار أسرع بثقة أعلى.</SectionDescription>
-            <div className="mt-6 space-y-3">
-              {staticFaq.map((item) => (
-                <FaqComponent key={item.question} question={item.question} answer={item.answer} />
-              ))}
-            </div>
-          </ContentContainer>
-        </SectionContainer>
-      </div>
-
-      <div className="luxury-section-shell">
-        <SectionContainer>
-          <ContentContainer>
-            <SectionSurface>
-              <SectionTitle>طرق الدفع والضمان</SectionTitle>
-              <SectionDescription>واجهات دفع محلية موثوقة مصممة للسوق الخليجي.</SectionDescription>
+              <SectionTitle>{en ? 'Booking and payment' : 'الحجز والدفع'}</SectionTitle>
+              <SectionDescription>{en ? 'Final price, taxes, fees, and payment timing appear in the booking flow before any transaction.' : 'تظهر تفاصيل السعر والدفع النهائية في مسار الحجز قبل تنفيذ أي عملية.'}</SectionDescription>
               <div className="mt-5">
-                <PaymentComponent methods={paymentMethods} />
-              </div>
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <PartnerComponent name={products[0]?.partner?.name_ar ?? 'شريك dir3com معتمد'} detail="مراجعة الجودة تتم ضمن معايير dir3com المعتمدة." />
-                <AppDownloadComponent title="تابع الخدمة من التطبيق" note="واجهة جاهزة لإدارة الخدمات والحجوزات بسهولة من شاشة واحدة." />
+                <PartnerComponent name={service_.supplier_name ?? (en ? products[0]?.partner?.name_en : products[0]?.partner?.name_ar) ?? (en ? 'Service provider' : 'مقدم الخدمة')} detail={service_.supplier_verified ? (en ? 'Supplier verified in dir3com records.' : 'مورد موثّق وفق سجل dir3com.') : (en ? 'Supplier status is shown exactly as recorded, without a verification claim.' : 'تظهر حالة المورد كما هي مسجلة دون ادعاء توثيق.')} />
               </div>
             </SectionSurface>
           </ContentContainer>
         </SectionContainer>
-      </div>
-
-      <div className="luxury-section-shell">
-        <SectionContainer>
-          <ContentContainer>
-            <SectionTitle>خدمات مشابهة</SectionTitle>
-            <SectionDescription>خيارات قريبة من نفس التجربة لتوسيع اختياراتك.</SectionDescription>
-            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {relatedServices.map((item) => (
-                <SectionSurface key={item.id}>
-                  <p className="text-sm font-semibold tracking-[0.18em] text-[var(--color-gold)]">{item.familyLabel}</p>
-                  <p className="mt-2 text-xl font-semibold text-[var(--color-navy)]">{item.title}</p>
-                  <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">{item.description}</p>
-                  <Link href={item.href} className={`${buttonVariants({ variant: 'gold', size: 'default' })} mt-5 w-full`}>
-                    استكشف الخدمة
-                  </Link>
-                </SectionSurface>
-              ))}
-            </div>
-          </ContentContainer>
-        </SectionContainer>
-      </div>
+      </div> : null}
 
       <div className="luxury-section-shell">
         <SectionContainer className="py-8">
           <ContentContainer>
-            {products.length ? (
-              <SectionTitle>خيارات الحجز المتاحة</SectionTitle>
+            {products.length && primaryAction === 'continue_to_booking' ? (
+              <SectionTitle>{en ? 'Available booking options' : 'خيارات الحجز المتاحة'}</SectionTitle>
             ) : null}
 
-            {products.length ? (
+            {products.length && primaryAction === 'continue_to_booking' ? (
               <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {products.map((product) => (
                   <SectionSurface key={product.id} className="overflow-hidden">
-                    <p className="text-lg font-semibold text-[var(--color-navy)]">{product.name_ar ?? 'منتج dir3com'}</p>
+                    <p className="text-lg font-semibold text-[var(--color-navy)]">{(en ? product.name_en : product.name_ar) ?? product.name_ar ?? product.name_en ?? (en ? 'dir3com product' : 'منتج dir3com')}</p>
                     <p className="mt-2 text-sm text-[var(--color-muted)]">
-                      {product.partner?.name_ar ? `الشريك: ${product.partner.name_ar}` : 'شريك معتمد من dir3com'}
+                      {(en ? product.partner?.name_en : product.partner?.name_ar) ? `${en ? 'Partner' : 'الشريك'}: ${(en ? product.partner?.name_en : product.partner?.name_ar)}` : (en ? 'Service provider is not specified in the public record' : 'مقدم الخدمة غير محدد في السجل العام')}
                     </p>
-                    <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">{product.description_ar ?? 'وصف الخدمة سيظهر هنا عند توفر البيانات.'}</p>
+                    <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">{(en ? product.description_en : product.description_ar) ?? product.description_ar ?? product.description_en ?? (en ? 'The service description will appear when data is available.' : 'وصف الخدمة سيظهر هنا عند توفر البيانات.')}</p>
                     <div className="mt-4 flex items-center justify-between gap-3 text-sm text-[var(--color-muted)]">
-                      <span className="inline-flex items-center gap-2"><FiMapPin /> {product.region?.name_ar ?? 'السعودية'}</span>
+                      <span className="inline-flex items-center gap-2"><FiMapPin /> {(en ? product.region?.name_en : product.region?.name_ar) ?? product.region?.name_ar ?? product.region?.name_en ?? (en ? 'Saudi Arabia' : 'السعودية')}</span>
                       <span className="text-xl font-semibold text-[var(--color-gold)]">
-                        {product.price_per_unit ?? '--'} ر.س
-                        <span className="me-1 text-xs text-[var(--color-muted)]">/ {unitLabel(product.unit_type)}</span>
+                        {product.price_per_unit ?? '--'} {en ? 'SAR' : 'ر.س'}
+                        <span className="me-1 text-xs text-[var(--color-muted)]">/ {unitLabel(product.unit_type, en)}</span>
                       </span>
                     </div>
                     <Link href={`/booking?product=${product.slug ?? ''}`} className={`${buttonVariants({ variant: 'gold', size: 'default' })} mt-5 w-full`}>
-                      احجز الآن
+                      {en ? 'Book now' : 'احجز الآن'}
                     </Link>
                   </SectionSurface>
                 ))}
               </div>
             ) : (
-              <EmptyState title="لا توجد منتجات متاحة حالياً" description="نحدّث القائمة باستمرار، راجع الخدمة لاحقاً لعرض الخيارات الجديدة." className="mt-6" />
+              <EmptyState title={en ? 'No products currently available' : 'لا توجد منتجات متاحة حالياً'} description={en ? 'Check this service later for newly verified options.' : 'نحدّث القائمة باستمرار، راجع الخدمة لاحقاً لعرض الخيارات الجديدة.'} className="mt-6" />
             )}
           </ContentContainer>
         </SectionContainer>
       </div>
 
       <div className="luxury-section-shell">
-        <PublicRouteIndex />
-      </div>
-
-      <div className="luxury-section-shell">
-        <PublicCtaBanner
-          title="استكشف الخدمة ثم انتقل إلى الحجز عندما تكون جاهزاً."
-          description="صفحة التفاصيل أصبحت جزءاً من نفس نظام dir3com العام، مع مكونات قابلة لإعادة الاستخدام وقابلة للتوسع مستقبلاً."
-        />
+        <SectionContainer className="py-10"><ContentContainer><SectionSurface>
+          <SectionTitle>{en ? 'Need help with this service?' : 'هل تحتاج مساعدة في هذه الخدمة؟'}</SectionTitle>
+          <SectionDescription>{en ? 'Ask DABRA for contextual help, or return to the marketplace to compare verified options.' : 'اسأل DABRA عن هذه الخدمة، أو ارجع إلى السوق لمقارنة الخيارات الموثّقة.'}</SectionDescription>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link href="/dabra" className={buttonVariants({ variant: 'gold', size: 'lg' })}>{en ? 'Ask DABRA' : 'اسأل DABRA'}</Link>
+            <Link href="/marketplace" className={buttonVariants({ variant: 'outline', size: 'lg' })}>{en ? 'Back to marketplace' : 'العودة إلى السوق'}</Link>
+          </div>
+        </SectionSurface></ContentContainer></SectionContainer>
       </div>
     </div>
   );

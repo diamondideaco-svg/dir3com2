@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { applyPublicCategoryFilters, applyPublicProductFilters, applyPublicServiceFilters } from '@/lib/marketplace/public-filters';
+import type { MarketplaceEnvironment, MarketplaceFulfilmentState, MarketplaceSupplyType, MarketplaceTransactionMethod } from '@/lib/marketplace/truth';
 
 export type RawMarketplaceServiceRecord = {
   id?: string | number | null;
@@ -13,11 +14,18 @@ export type RawMarketplaceServiceRecord = {
   status?: string | null;
   featured?: boolean | null;
   marketplace_category?: string | null;
+  marketplace_family?: 'drive' | 'stay' | 'fly' | 'concierge' | 'vip' | null;
   category_slug?: string | null;
   category_name_en?: string | null;
   category_name_ar?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  fulfilment_state?: MarketplaceFulfilmentState | null;
+  transaction_method?: MarketplaceTransactionMethod | null;
+  marketplace_environment?: MarketplaceEnvironment | null;
+  supply_type?: MarketplaceSupplyType | null;
+  supplier_name?: string | null;
+  supplier_verified?: boolean | null;
   products?: Array<{
     id?: string | number | null;
     price_per_unit?: number | null;
@@ -38,8 +46,15 @@ type RawMarketplaceProductRecord = {
   featured?: boolean | null;
   verified?: boolean | null;
   category_id?: string | null;
+  marketplace_family?: 'drive' | 'stay' | 'fly' | 'concierge' | 'vip' | null;
   created_at?: string | null;
   updated_at?: string | null;
+  fulfilment_state?: MarketplaceFulfilmentState | null;
+  transaction_method?: MarketplaceTransactionMethod | null;
+  marketplace_environment?: MarketplaceEnvironment | null;
+  supply_type?: MarketplaceSupplyType | null;
+  supplier_name?: string | null;
+  supplier_verified?: boolean | null;
 };
 
 type RawMarketplaceProductCategoryRecord = {
@@ -76,7 +91,7 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
     }
 
     const [
-      { data: servicesData, error: servicesError },
+      { error: servicesError },
       { data: productsData, error: productsError },
       { data: categoriesData, error: categoriesError },
     ] = await Promise.all([
@@ -86,7 +101,7 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
       applyPublicProductFilters(
         supabaseAdmin
           .from('products')
-          .select('id,slug,name_ar,name_en,description_ar,description_en,base_price,currency,status,featured,verified,category_id,created_at,updated_at')
+          .select('id,slug,name_ar,name_en,description_ar,description_en,base_price,currency,status,featured,verified,category_id,marketplace_family,created_at,updated_at,fulfilment_state,transaction_method,marketplace_environment,supply_type,supplier_name,supplier_verified')
       ).order('created_at', { ascending: true }),
       applyPublicCategoryFilters(supabaseAdmin.from('product_categories').select('id,slug,name_en,name_ar')),
     ]);
@@ -95,17 +110,11 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
       return null;
     }
 
-    const services = (servicesData ?? []) as RawMarketplaceServiceRecord[];
     const products = (productsData ?? []) as RawMarketplaceProductRecord[];
     const categories = (categoriesData ?? []) as RawMarketplaceProductCategoryRecord[];
     const categoriesById = new Map(categories.map((category) => [category.id, category]));
 
-    const existingServiceKeys = new Set(
-      services.map((service) => String(service.slug ?? service.id ?? '')).filter((key) => key.length > 0)
-    );
-
     const productAsServices: RawMarketplaceServiceRecord[] = products
-      .filter((product) => existingServiceKeys.has(String(product.slug ?? product.id)) === false)
       .map((product) => {
         const category = product.category_id ? categoriesById.get(product.category_id) : undefined;
 
@@ -121,11 +130,18 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
           status: product.status,
           featured: Boolean(product.featured) || product.status === 'featured',
           marketplace_category: category?.slug ?? category?.name_en ?? category?.name_ar ?? null,
+          marketplace_family: product.marketplace_family,
           category_slug: category?.slug ?? null,
           category_name_en: category?.name_en ?? null,
           category_name_ar: category?.name_ar ?? null,
           created_at: product.created_at,
           updated_at: product.updated_at,
+          fulfilment_state: product.fulfilment_state,
+          transaction_method: product.transaction_method,
+          marketplace_environment: product.marketplace_environment,
+          supply_type: product.supply_type,
+          supplier_name: product.supplier_name,
+          supplier_verified: product.supplier_verified,
           products: [
             {
               id: product.id,
@@ -138,7 +154,7 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
 
     return {
       source: 'supabase',
-      services: [...services, ...productAsServices],
+      services: productAsServices,
     };
   },
 };

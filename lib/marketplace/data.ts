@@ -59,9 +59,16 @@ type RawServiceApiItem = {
   region_name?: string | null;
   availability_status?: string | null;
   marketplace_category?: string | null;
+  marketplace_family?: 'drive' | 'stay' | 'fly' | 'concierge' | 'vip' | null;
   category_slug?: string | null;
   category_name_en?: string | null;
   category_name_ar?: string | null;
+  fulfilment_state?: import('./truth').MarketplaceFulfilmentState | null;
+  transaction_method?: import('./truth').MarketplaceTransactionMethod | null;
+  marketplace_environment?: import('./truth').MarketplaceEnvironment | null;
+  supply_type?: import('./truth').MarketplaceSupplyType | null;
+  supplier_name?: string | null;
+  supplier_verified?: boolean | null;
 };
 
 export type MarketplaceService = {
@@ -91,8 +98,22 @@ export type MarketplaceService = {
   recommended: boolean;
   source: MarketplaceDataSource;
   provenance: MarketplaceProvenance;
+  fulfilmentState?: import('./truth').MarketplaceFulfilmentState;
+  transactionMethod?: import('./truth').MarketplaceTransactionMethod;
+  marketplaceEnvironment?: import('./truth').MarketplaceEnvironment;
+  supplyType?: import('./truth').MarketplaceSupplyType;
+  supplierName?: string;
+  supplierVerified?: boolean;
   createdAt?: string | null;
   updatedAt?: string | null;
+};
+
+const storedFamilyToMarketplaceFamily: Record<NonNullable<RawServiceApiItem['marketplace_family']>, MarketplaceFamilyKey> = {
+  drive: 'dir3-drive',
+  stay: 'dir3-stay',
+  fly: 'dir3-fly',
+  concierge: 'dir3-concierge',
+  vip: 'dir3-vip',
 };
 
 export type MarketplaceQueryOptions = {
@@ -323,10 +344,26 @@ function inferAvailability(item: RawServiceApiItem, productCount: number): Marke
 function categoryToFamily(category: MarketplacePageCategory): MarketplaceFamilyKey {
   if (category === 'cars') return 'dir3-drive';
   if (category === 'hotels' || category === 'apartments') return 'dir3-stay';
-  if (category === 'airport-transfers') return 'dir3-fly';
+  if (category === 'airport-transfers') return 'dir3-drive';
   if (category === 'concierge') return 'dir3-concierge';
   // experiences and offers are catalog collections, surfaced under dir3 Concierge.
   return 'dir3-concierge';
+}
+
+function resolveMarketplaceFamily(item: RawServiceApiItem, category: MarketplacePageCategory): MarketplaceFamilyKey {
+  const haystack = [item.slug, item.name_ar, item.name_en, item.description_ar, item.description_en, item.marketplace_category, item.category_slug]
+    .map(normalizeText)
+    .join(' ');
+  const airportContext = /airport|مطار/.test(haystack) || category === 'airport-transfers';
+  const vipHandling = /vip|meet.?and.?assist|fast.?track|استقبال كبار|كبار الشخصيات/.test(haystack);
+  const groundTransfer = /transfer|chauffeur|pickup|pick-up|dropoff|drop-off|driver|taxi|نقل|سائق|توصيل/.test(haystack);
+  const airTravel = /flight|airline|airfare|boarding|air ticket|رحلة جوية|رحلات جوية|طيران|تذكرة طيران/.test(haystack);
+
+  if (airportContext && vipHandling) return 'dir3-vip';
+  if (airTravel) return 'dir3-fly';
+  if (airportContext && groundTransfer) return 'dir3-drive';
+  if (category === 'airport-transfers') return 'dir3-drive';
+  return item.marketplace_family ? storedFamilyToMarketplaceFamily[item.marketplace_family] : categoryToFamily(category);
 }
 
 function findCatalogEntry(category: MarketplacePageCategory) {
@@ -375,6 +412,11 @@ function buildFallbackService(entry: MarketplaceCatalogEntry, index: number): Ma
     recommended: true,
     source: 'fallback',
     provenance: 'FALLBACK',
+    fulfilmentState: 'catalog_only',
+    transactionMethod: 'none',
+    marketplaceEnvironment: 'fallback',
+    supplyType: 'unknown',
+    supplierVerified: false,
     createdAt: null,
     updatedAt: null,
   };
@@ -396,7 +438,7 @@ export function normalizeMarketplaceServices(
   const normalized = source.map((item, index) => {
     const category = inferCategory(item);
     const catalogEntry = findCatalogEntry(category);
-    const family = categoryToFamily(category);
+    const family = resolveMarketplaceFamily(item, category);
     const productCount = Array.isArray(item.products) ? item.products.length : 0;
     const basePriceFromProducts = Array.isArray(item.products)
       ? item.products
@@ -438,7 +480,17 @@ export function normalizeMarketplaceServices(
       popular,
       recommended,
       source: sourceLabel,
-      provenance: sourceLabel === 'fallback' ? 'FALLBACK' : 'PARTNER_VERIFIED',
+      provenance: sourceLabel === 'fallback'
+        ? 'FALLBACK'
+        : item.supplier_verified === true
+          ? 'PARTNER_VERIFIED'
+          : 'PROVIDER_LIVE',
+      fulfilmentState: item.fulfilment_state ?? 'catalog_only',
+      transactionMethod: item.transaction_method ?? 'none',
+      marketplaceEnvironment: item.marketplace_environment ?? (sourceLabel === 'fallback' ? 'fallback' : 'production'),
+      supplyType: item.supply_type ?? 'unknown',
+      supplierName: item.supplier_name ?? undefined,
+      supplierVerified: item.supplier_verified === true,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
     } satisfies MarketplaceService;

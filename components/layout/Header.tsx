@@ -11,11 +11,12 @@ import LogoutButton from '@/components/auth/LogoutButton';
 const copy = {
   ar: {
     nav: [
-      { label: 'الخدمات', href: '/services' },
-      { label: 'السيارات', href: '/services/drive' },
-      { label: 'الفنادق', href: '/services/stay' },
-      { label: 'التجارب', href: '/services/concierge' },
-      { label: 'العروض', href: '/offers' },
+      { label: 'السوق', href: '/marketplace' },
+      { label: 'Drive', href: '/marketplace?family=dir3-drive' },
+      { label: 'Stay', href: '/marketplace?family=dir3-stay' },
+      { label: 'Fly', href: '/marketplace?family=dir3-fly' },
+      { label: 'Concierge', href: '/marketplace?family=dir3-concierge' },
+      { label: 'VIP', href: '/marketplace?family=dir3-vip' },
       { label: 'الدبرة', href: '/dabra' },
       { label: 'تواصل', href: '/contact' },
     ],
@@ -33,11 +34,12 @@ const copy = {
   },
   en: {
     nav: [
-      { label: 'Services', href: '/services' },
-      { label: 'Cars', href: '/services/drive' },
-      { label: 'Hotels', href: '/services/stay' },
-      { label: 'Experiences', href: '/services/concierge' },
-      { label: 'Offers', href: '/offers' },
+      { label: 'Marketplace', href: '/marketplace' },
+      { label: 'Drive', href: '/marketplace?family=dir3-drive' },
+      { label: 'Stay', href: '/marketplace?family=dir3-stay' },
+      { label: 'Fly', href: '/marketplace?family=dir3-fly' },
+      { label: 'Concierge', href: '/marketplace?family=dir3-concierge' },
+      { label: 'VIP', href: '/marketplace?family=dir3-vip' },
       { label: 'DABRA', href: '/dabra' },
       { label: 'Contact', href: '/contact' },
     ],

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-28 — Customer marketplace truth foundation
+
+- Added one fail-closed marketplace truth contract separating family, fulfilment, transaction method, environment, supplier type, and verification state.
+- Added the canonical `/marketplace` surface with exactly Drive, Stay, Fly, Concierge, and VIP, plus truthful empty/error states that never substitute fallback inventory.
+- Gated instant booking, request-to-confirm, and quote creation against server-verified production truth; added an owner-scoped request/payment lifecycle with server-authoritative mutations.
+- Grounded DABRA and public marketplace reads in the same customer-safe inventory gate so sandbox, test, synthetic, fallback, and pilot-labelled records cannot masquerade as verified supply.
+- Completed Arabic/English localization for the new marketplace, product-detail, transaction, and account request surfaces using the existing platform language context without changing truth or CTA gates.
+- Closed mutation/publication parity so hidden products cannot be requested, quoted, or booked by UUID, and corrected airport ground transfers to the canonical Drive family while preserving VIP handling and true air-travel classification.
+- Aligned request and quote mutations with active/non-deleted public eligibility and made strong flight identity take precedence over overlapping airport-transfer category wording.
+
 ## 2026-08-27 — Platform navigation full-experience closure
 
 - Restored the previously approved Terms, Privacy, and Support routes so global footer and consent links no longer lead to 404 pages.
