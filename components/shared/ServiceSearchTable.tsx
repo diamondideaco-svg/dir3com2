@@ -49,6 +49,7 @@ const services: ServiceDef[] = [
       { name: 'city', kind: 'city', countryField: 'country', ar: 'المدينة', en: 'City' },
       { name: 'checkIn', kind: 'date', ar: 'تاريخ الوصول', en: 'Check-in' },
       { name: 'checkOut', kind: 'date', ar: 'تاريخ المغادرة', en: 'Check-out', notBefore: 'checkIn' },
+      { name: 'rooms', kind: 'count', ar: 'عدد الغرف', en: 'Rooms' },
       { name: 'guests', kind: 'count', ar: 'عدد الضيوف', en: 'Guests' },
     ],
   },
@@ -89,6 +90,10 @@ const services: ServiceDef[] = [
     ],
   },
 ];
+
+function defaultValuesForService(service: ServiceDef['key']): Record<string, string> {
+  return service === 'stay' ? { rooms: '1' } : {};
+}
 
 const copy = {
   ar: {
@@ -132,7 +137,7 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
   const t = copy[language];
   const today = useMemo(() => todayIsoDate(), []);
   const [selectedKey, setSelectedKey] = useState<ServiceDef['key']>(initialService);
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>(() => defaultValuesForService(initialService));
   const [error, setError] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState(true);
 
@@ -223,7 +228,7 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
                 className={selectedKey === service.key ? 'service-search-table__tab service-search-table__tab--active' : 'service-search-table__tab'}
                 onClick={() => {
                   setSelectedKey(service.key);
-                  setValues({});
+                  setValues(defaultValuesForService(service.key));
                   setError(null);
                 }}
               >

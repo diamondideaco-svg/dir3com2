@@ -7,6 +7,19 @@ import ServiceSearchTable from '@/components/shared/ServiceSearchTable';
 
 export type ApprovedVisualKey = 'home' | 'drive' | 'fly' | 'concierge' | 'vip' | 'stay';
 
+const approvedHomeCopy = {
+  ar: {
+    journey: <>من فكرة السفرة ....<br />إلى سلامة الرجعة .</>,
+    book: 'احجز الآن',
+    explore: 'استكشف',
+  },
+  en: {
+    journey: <>From planning the journey...<br />to returning safely.</>,
+    book: 'Book now',
+    explore: 'Explore',
+  },
+} as const;
+
 const approvedVisuals: Record<ApprovedVisualKey, {
   src: string;
   width: number;
@@ -54,6 +67,7 @@ const approvedVisuals: Record<ApprovedVisualKey, {
 export default function ApprovedVisualPage({ page }: { page: ApprovedVisualKey }) {
   const { language, direction } = useLanguage();
   const visual = approvedVisuals[page];
+  const homeCopy = approvedHomeCopy[language];
 
   return (
     <main className="approved-visual-page" dir={direction} data-approved-page={page}>
@@ -79,10 +93,10 @@ export default function ApprovedVisualPage({ page }: { page: ApprovedVisualKey }
             </video>
             <div className="approved-home-hero-copy" dir={direction}>
               <h1><span>dir3com</span></h1>
-              <p>من فكرة السفرة ....<br />إلى سلامة الرجعة .</p>
+              <p>{homeCopy.journey}</p>
               <div className="approved-home-hero-actions">
-                <Link href="/login?redirect=%2Fbooking&next=%2Fbooking">احجز الآن</Link>
-                <Link href="/services">استكشف</Link>
+                <Link href="/login?redirect=%2Fbooking&next=%2Fbooking">{homeCopy.book}</Link>
+                <Link href="/services">{homeCopy.explore}</Link>
               </div>
             </div>
           </>

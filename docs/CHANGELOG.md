@@ -149,3 +149,9 @@
 - Grounded DABRA in the same bounded provider results and preserved explicit sandbox/production and native/external transaction distinctions in Arabic and English.
 - Moved existing testable booking, request, sandbox, and request-context helpers out of Next.js Route Handler modules so the unchanged controls satisfy the Next.js 16 export contract and production builds remain type-safe.
 - Removed unsupported comparative, verification, and quality claims from the five customer service-family pages, replacing them with neutral bilingual service descriptions.
+
+# 2026-08-28 — Post-PR61 production UAT hotfix
+
+- Bound the approved Home hero and CTA copy to the active Arabic/English locale without changing the approved visual composition.
+- Added a bilingual Rooms input to Stay search with a minimum/default of one and preserved it in the existing search query contract.
+- Replaced unsupported premium discovery and generic premium-service wording on active customer marketplace surfaces with neutral descriptive copy.

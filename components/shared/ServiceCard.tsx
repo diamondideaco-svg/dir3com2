@@ -99,7 +99,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
             </div>
             <div className="flex-1">
               <p className="text-[11px] font-semibold tracking-[0.25em] text-[var(--color-gold)]">
-                {service.badge ?? service.familyLabel ?? (en ? 'Premium service' : 'خدمة مميزة')}
+                {service.badge ?? service.familyLabel ?? (en ? 'Service' : 'خدمة')}
               </p>
               <h3 className="mt-3 text-xl font-semibold text-white sm:text-2xl">{serviceName}</h3>
             </div>
