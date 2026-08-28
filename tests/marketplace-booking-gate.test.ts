@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isProductBookable } from '@/app/api/bookings/route';
+import { isProductBookable } from '@/lib/marketplace/booking-gate';
 
 const product = (overrides: Record<string, unknown> = {}) => ({
   status: 'active',

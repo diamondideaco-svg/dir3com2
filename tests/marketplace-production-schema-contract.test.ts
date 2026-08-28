@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-import { isProductBookable } from '@/app/api/bookings/route';
-import { requestTypeMatchesProduct } from '@/app/api/marketplace/requests/route';
+import { isProductBookable } from '@/lib/marketplace/booking-gate';
+import { requestTypeMatchesProduct } from '@/lib/marketplace/request-gate';
 import { isPublicMarketplaceProduct } from '@/lib/marketplace/public-filters';
 
 const product = (overrides: Record<string, unknown> = {}) => ({

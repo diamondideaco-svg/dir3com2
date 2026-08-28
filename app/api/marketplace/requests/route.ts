@@ -2,23 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { createSupabaseRequestClient, supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError } from '@/lib/security/safe-logger';
-import { isPublicMarketplaceProduct } from '@/lib/marketplace/public-filters';
-
-type RequestType = 'request_to_confirm' | 'request_quote';
-
-export function requestTypeMatchesProduct(requestType: RequestType, product: Record<string, unknown>) {
-  if (!isPublicMarketplaceProduct({
-    status: typeof product.status === 'string' ? product.status : null,
-    synthetic: typeof product.synthetic === 'boolean' ? product.synthetic : null,
-    marketplace_environment: typeof product.marketplace_environment === 'string' ? product.marketplace_environment : null,
-    fulfilment_state: typeof product.fulfilment_state === 'string' ? product.fulfilment_state : null,
-    deleted_at: typeof product.deleted_at === 'string' ? product.deleted_at : null,
-  })) return false;
-  if (requestType === 'request_to_confirm') {
-    return product.fulfilment_state === 'verified_requestable' && product.transaction_method === requestType;
-  }
-  return product.fulfilment_state === 'verified_quote' && product.transaction_method === requestType;
-}
+import { requestTypeMatchesProduct } from '@/lib/marketplace/request-gate';
 
 function validUuid(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);

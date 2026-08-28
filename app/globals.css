@@ -1430,3 +1430,9 @@ html[data-theme='dark'] .portal-dashboard-shell [class*='text-[#9EB0C3]'] {
 #dibrah {
   margin-bottom: env(safe-area-inset-bottom);
 }
+
+@media (max-width: 767px) {
+  .real-preview-family-tab {
+    min-height: 44px;
+  }
+}
