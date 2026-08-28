@@ -12,11 +12,11 @@ const copy = {
   ar: {
     nav: [
       { label: 'السوق', href: '/marketplace' },
-      { label: 'Drive', href: '/marketplace?family=dir3-drive' },
-      { label: 'Stay', href: '/marketplace?family=dir3-stay' },
-      { label: 'Fly', href: '/marketplace?family=dir3-fly' },
-      { label: 'Concierge', href: '/marketplace?family=dir3-concierge' },
-      { label: 'VIP', href: '/marketplace?family=dir3-vip' },
+      { label: 'Drive', href: '/services/drive' },
+      { label: 'Stay', href: '/services/stay' },
+      { label: 'Fly', href: '/services/fly' },
+      { label: 'Concierge', href: '/services/concierge' },
+      { label: 'VIP', href: '/services/vip' },
       { label: 'الدبرة', href: '/dabra' },
       { label: 'تواصل', href: '/contact' },
     ],
@@ -35,11 +35,11 @@ const copy = {
   en: {
     nav: [
       { label: 'Marketplace', href: '/marketplace' },
-      { label: 'Drive', href: '/marketplace?family=dir3-drive' },
-      { label: 'Stay', href: '/marketplace?family=dir3-stay' },
-      { label: 'Fly', href: '/marketplace?family=dir3-fly' },
-      { label: 'Concierge', href: '/marketplace?family=dir3-concierge' },
-      { label: 'VIP', href: '/marketplace?family=dir3-vip' },
+      { label: 'Drive', href: '/services/drive' },
+      { label: 'Stay', href: '/services/stay' },
+      { label: 'Fly', href: '/services/fly' },
+      { label: 'Concierge', href: '/services/concierge' },
+      { label: 'VIP', href: '/services/vip' },
       { label: 'DABRA', href: '/dabra' },
       { label: 'Contact', href: '/contact' },
     ],

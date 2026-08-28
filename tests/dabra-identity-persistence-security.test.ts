@@ -48,7 +48,7 @@ test('user transition detaches transcript cart and favorites before identity fet
   const fetchIndex = component.indexOf("fetch('/api/dabra/session-identity'", start);
   const detachCall = component.indexOf('detachSensitiveState()', start);
   assert(detachCall > start && detachCall < fetchIndex);
-  for (const clear of ['setMessages([welcomeMessage])', 'setCart([])', 'setFavorites([])', 'setPersistenceContext(null)']) {
+  for (const clear of ['setMessages([welcomeMessage(languageRef.current)])', 'setCart([])', 'setFavorites([])', 'setPersistenceContext(null)']) {
     assert.match(component.slice(component.indexOf('function detachSensitiveState()'), start), new RegExp(clear.replace(/[()[\]]/g, '\\$&')));
   }
 });
@@ -85,7 +85,8 @@ test('chat controls stay disabled until validated identity resolution completes'
   assert.match(component, /AbortSignal\.timeout\(8_000\)/);
   assert.match(component, /if \(!message \|\| chatInFlightRef\.current \|\| !identityResolved\) return/);
   assert.match(component, /disabled=\{!identityResolved \|\| \(!input\.trim\(\) && !attachments\.length\) \|\| chatInFlight\}/);
-  assert.match(component, /placeholder=\{identityResolved \?[^:]+: 'نجهز جلستك الآمنة\.\.\.'/);
+  assert.match(component, /placeholder=\{identityResolved \? t\.placeholder : t\.securePlaceholder\}/);
+  assert.match(component, /securePlaceholder: 'Preparing your secure session\.\.\.'/);
 });
 
 test('initial Supabase session notification cannot detach a newly entered turn', () => {

@@ -369,9 +369,10 @@ export async function buildAI2ChatResponse(
   message: string,
   history: AI2ChatTurn[] = [],
   account?: AI2ChatAccountContext,
+  preferredLanguage?: AI2ChatLanguage,
 ): Promise<AI2ChatResponse> {
   const requestStartedAt = Date.now();
-  const language = detectLanguage(message);
+  const language = preferredLanguage ?? detectLanguage(message);
   const intent = classifyDabraIntent(message);
 
   if (isOutOfScopeIntent(message)) {

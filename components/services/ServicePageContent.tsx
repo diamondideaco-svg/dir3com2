@@ -98,9 +98,14 @@ export function ServicePageContent({ service, stories }: { service: TravelStoryS
             <p className="text-xs font-semibold tracking-[0.22em] text-[var(--home-gold)]">{page.eyebrow}</p>
             <h1 className="mt-4 text-4xl font-semibold leading-tight sm:text-6xl">{page.title[language]}</h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-[#5d6672]">{page.description[language]}</p>
-            <a href="#service-search" className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--home-gold)] px-6 py-3 font-semibold text-white">
-              {language === 'ar' ? 'ابدأ البحث' : 'Start search'} <FiArrowUpLeft />
-            </a>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <a href="#service-search" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--home-gold)] px-6 py-3 font-semibold text-white">
+                {language === 'ar' ? 'ابدأ البحث' : 'Start search'} <FiArrowUpLeft />
+              </a>
+              <a href={`/marketplace?family=dir3-${service}`} className="inline-flex min-h-12 items-center gap-2 rounded-full border border-[var(--home-gold)] px-6 py-3 font-semibold text-[var(--color-navy)]">
+                {language === 'ar' ? `تصفح سوق ${page.eyebrow}` : `Browse ${page.eyebrow} marketplace`} <FiArrowUpLeft />
+              </a>
+            </div>
           </div>
           <div className="drive-master-hero__image">
             <img src={page.heroImage} alt={page.eyebrow} className="drive-master-hero__asset" />

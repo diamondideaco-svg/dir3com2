@@ -55,8 +55,10 @@ test('responsive and accessibility hooks exist for the primary experience', () =
   assert.match(styles, /@media \(min-width: 700px\)/);
   assert.match(styles, /@media \(min-width: 1100px\)/);
   assert.match(component, /aria-live="polite"/);
-  assert.match(component, /aria-label="محادثة الدبرة"/);
-  assert.match(component, /aria-label="نتائج السفر"/);
+  assert.match(component, /aria-label=\{t\.conversation\}/);
+  assert.match(component, /aria-label=\{t\.results\}/);
+  assert.match(component, /conversation: 'DABRA conversation'/);
+  assert.match(component, /results: 'Travel results'/);
   assert.match(component, /onKeyDown/);
 });
 
