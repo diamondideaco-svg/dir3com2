@@ -3,7 +3,7 @@
 ## 2026-08-28 — Customer claim truth and DABRA response-language enforcement
 
 - Consolidated service-page descriptions onto the existing canonical family copy and replaced unsupported superiority, verification, availability, count, and response-time claims across active customer-facing service and Marketplace sources with neutral Arabic/English descriptions.
-- Added server-side DABRA response-language identification that rejects Cyrillic and non-English conversational output, permits travel proper nouns inside the selected language, and performs at most one locale repair before using a deterministic Arabic or English fallback.
+- Added server-side n-gram DABRA response-language identification that positively identifies Arabic or English, fails closed on foreign or low-confidence conversational output, permits bounded travel identifiers, and performs at most one locale repair before using a deterministic fallback.
 
 ## 2026-08-28 — Customer journey and DABRA locale continuity
 

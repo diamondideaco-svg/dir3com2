@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { buildAI2ChatResponse } from '@/lib/ai2/runtime/chat';
 import { DABRA_LOCALE_FALLBACK, parseDabraLocale } from '@/lib/dabra/locale-contract';
-import { answerMatchesDabraLocale, ensureDabraResponseLocale } from '@/lib/dabra/response-language';
+import { answerMatchesDabraLocale, ensureDabraResponseLocale, identifyDabraResponseLanguage } from '@/lib/dabra/response-language';
 
 const root = process.cwd();
 const read = (...segments: string[]) => fs.readFileSync(path.join(root, ...segments), 'utf8');
@@ -95,28 +95,51 @@ const response = (answer: string) => ({
 });
 
 test('DABRA locale validator rejects Arabic, Russian, and Romanian in English mode', () => {
-  assert.equal(answerMatchesDabraLocale('I can help you compare hotels in Riyadh and flights from CAI to RUH.', 'en'), true);
-  assert.equal(answerMatchesDabraLocale('أقدر أساعدك في مقارنة الرحلات إلى Riyadh على طيران Saudia عبر RUH.', 'ar'), true);
+  assert.equal(answerMatchesDabraLocale('The hotel is available in Cairo.', 'en'), true);
   for (const foreign of [
-    'هذه إجابة عربية بالكامل ولا تطابق اللغة الإنجليزية المختارة.',
-    'Я могу помочь вам выбрать отель и рейс.',
-    'Vă pot ajuta să alegeți hotelul potrivit pentru călătorie.',
+    'الفندق متاح في القاهرة.',
+    'Отель доступен в Каире.',
+    'Un hotel bun în Cairo.',
+    'Un hotel bun la Cairo.',
+    'Hotel bun la Cairo.',
+    'El hotel está disponible en Cairo.',
+    "L'hôtel est disponible au Caire.",
+    "L'hotel è disponibile al Cairo.",
+    'Das Hotel ist in Kairo verfügbar.',
+    'qzvxx blorf nyrt ulm qxw',
   ]) assert.equal(answerMatchesDabraLocale(foreign, 'en'), false);
 });
 
 test('short travel proper nouns and codes do not falsely trigger locale rejection', () => {
-  for (const identifier of ['Riyadh', 'Cairo', 'RUH', 'CAI', 'Saudia', 'Hilton Riyadh']) {
+  for (const identifier of ['Riyadh', 'Cairo', 'RUH', 'CAI', 'Saudia', 'Hilton', 'Marriott', 'Hilton Riyadh', 'RUH → CAI']) {
     assert.equal(answerMatchesDabraLocale(identifier, 'ar'), true);
     assert.equal(answerMatchesDabraLocale(identifier, 'en'), true);
+  }
+  for (const sentence of [
+    'Book Hilton Cairo for two guests.',
+    'Saudia RUH to CAI is the selected route.',
+    'Show Marriott Riyadh.',
+  ]) assert.equal(answerMatchesDabraLocale(sentence, 'en'), true);
+  for (const sentence of ['اعرض لي Hilton في Cairo.', 'رحلة Saudia من RUH إلى CAI.']) {
+    assert.equal(answerMatchesDabraLocale(sentence, 'ar'), true);
   }
 });
 
 test('DABRA locale validator rejects English, Russian, and Romanian in Arabic mode', () => {
+  assert.equal(answerMatchesDabraLocale('الفندق متاح في القاهرة ويمكنني عرض التفاصيل.', 'ar'), true);
   for (const foreign of [
     'I can help you compare flights and hotels for your trip.',
-    'Я могу помочь вам выбрать отель и рейс.',
-    'Vă pot ajuta să alegeți hotelul potrivit pentru călătorie.',
+    'Отель доступен в Каире.',
+    'Un hotel bun la Cairo.',
+    'El hotel está disponible en Cairo.',
+    "L'hôtel est disponible au Caire.",
   ]) assert.equal(answerMatchesDabraLocale(foreign, 'ar'), false);
+});
+
+test('language identification reports positive language evidence and fails closed on low-confidence text', () => {
+  assert.equal(identifyDabraResponseLanguage('The hotel is available in Cairo.').language, 'en');
+  assert.equal(identifyDabraResponseLanguage('الفندق متاح في القاهرة.').language, 'ar');
+  assert.equal(answerMatchesDabraLocale('qzvxx blorf nyrt ulm qxw', 'en'), false);
 });
 
 test('response boundary performs one repair and then uses deterministic selected-locale fallback', async () => {
@@ -144,6 +167,8 @@ test('response boundary performs one repair and then uses deterministic selected
   assert.equal(repairCalls, 2);
   const failedArabic = await ensureDabraResponseLocale(response('Vă pot ajuta să alegeți hotelul.'), 'ar', async () => response('Still in English.'));
   assert.equal(failedArabic.answer, DABRA_LOCALE_FALLBACK.ar);
+  const reproduced = await ensureDabraResponseLocale(response('Un hotel bun la Cairo.'), 'en', async () => response('Hotel bun la Cairo.'));
+  assert.equal(reproduced.answer, DABRA_LOCALE_FALLBACK.en);
   assert.equal(parseDabraLocale('fr'), null);
 });
 
