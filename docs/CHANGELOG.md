@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-28 — Marketplace production schema contract closure
+
+- Aligned public browsing, request, quote, and booking eligibility with the canonical production `products.status` and `products.deleted_at` lifecycle instead of the nonexistent `products.is_active` column.
+- Kept all customer paths fail-closed for hidden, inactive, deleted, synthetic, sandbox, fallback, non-production, and transaction-ineligible inventory, including direct UUID lookups.
+
 ## 2026-08-28 — Customer marketplace truth foundation
 
 - Added one fail-closed marketplace truth contract separating family, fulfilment, transaction method, environment, supplier type, and verification state.

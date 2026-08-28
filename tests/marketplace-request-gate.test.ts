@@ -7,7 +7,6 @@ import { requestTypeMatchesProduct } from '@/app/api/marketplace/requests/route'
 
 const product = (overrides: Record<string, unknown> = {}) => ({
   status: 'active',
-  is_active: true,
   deleted_at: null,
   synthetic: false,
   marketplace_environment: 'production',
@@ -33,13 +32,14 @@ test('only publicly published products can use request and quote mutations', () 
 
 test('hidden UUID lookup cannot bypass the same public eligibility gate', () => {
   const route = fs.readFileSync(path.resolve('app/api/marketplace/requests/route.ts'), 'utf8');
-  assert.match(route, /select\('id, status, is_active, deleted_at, synthetic, marketplace_environment, fulfilment_state, transaction_method'\)/);
+  assert.match(route, /select\('id, status, deleted_at, synthetic, marketplace_environment, fulfilment_state, transaction_method'\)/);
+  assert.doesNotMatch(route, /is_active/);
   assert.match(route, /isPublicMarketplaceProduct/);
   assert.equal(requestTypeMatchesProduct('request_to_confirm', product({ status: 'draft', id: '00000000-0000-4000-8000-000000000001' })), false);
 });
 
 test('inactive and soft-deleted products cannot use request or quote mutations', () => {
-  for (const overrides of [{ is_active: false }, { deleted_at: '2026-08-28T00:00:00.000Z' }]) {
+  for (const overrides of [{ status: 'inactive' }, { status: 'disabled' }, { deleted_at: '2026-08-28T00:00:00.000Z' }]) {
     assert.equal(requestTypeMatchesProduct('request_to_confirm', product(overrides)), false);
     assert.equal(requestTypeMatchesProduct('request_quote', product({ ...overrides, fulfilment_state: 'verified_quote', transaction_method: 'request_quote' })), false);
   }

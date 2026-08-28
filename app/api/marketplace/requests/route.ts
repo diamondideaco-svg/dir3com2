@@ -7,12 +7,12 @@ import { isPublicMarketplaceProduct } from '@/lib/marketplace/public-filters';
 type RequestType = 'request_to_confirm' | 'request_quote';
 
 export function requestTypeMatchesProduct(requestType: RequestType, product: Record<string, unknown>) {
-  if (product.is_active !== true || product.deleted_at !== null) return false;
   if (!isPublicMarketplaceProduct({
     status: typeof product.status === 'string' ? product.status : null,
     synthetic: typeof product.synthetic === 'boolean' ? product.synthetic : null,
     marketplace_environment: typeof product.marketplace_environment === 'string' ? product.marketplace_environment : null,
     fulfilment_state: typeof product.fulfilment_state === 'string' ? product.fulfilment_state : null,
+    deleted_at: typeof product.deleted_at === 'string' ? product.deleted_at : null,
   })) return false;
   if (requestType === 'request_to_confirm') {
     return product.fulfilment_state === 'verified_requestable' && product.transaction_method === requestType;
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
   const { data: product, error: productError } = await supabaseAdmin
     .from('products')
-    .select('id, status, is_active, deleted_at, synthetic, marketplace_environment, fulfilment_state, transaction_method')
+    .select('id, status, deleted_at, synthetic, marketplace_environment, fulfilment_state, transaction_method')
     .eq('id', body.product_id)
     .maybeSingle();
 
