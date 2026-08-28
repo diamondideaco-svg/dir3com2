@@ -160,6 +160,10 @@ test('public marketplace isolation excludes synthetic items even if status is pu
       calls.push({ type: 'neq', column, value });
       return this;
     },
+    is(column: string, value: unknown) {
+      calls.push({ type: 'is', column, value });
+      return this;
+    },
   };
 
   applyPublicProductFilters(fakeQuery);
@@ -168,6 +172,7 @@ test('public marketplace isolation excludes synthetic items even if status is pu
   assert.equal(calls.some((call) => call.type === 'eq' && call.column === 'synthetic' && call.value === false), true);
   assert.equal(calls.some((call) => call.type === 'eq' && call.column === 'marketplace_environment' && call.value === 'production'), true);
   assert.equal(calls.some((call) => call.type === 'neq' && call.column === 'fulfilment_state' && call.value === 'test_sandbox'), true);
+  assert.equal(calls.some((call) => call.type === 'is' && call.column === 'deleted_at' && call.value === null), true);
 
   const serviceCalls: Array<{ type: string; column: string; value: unknown }> = [];
   const fakeServiceQuery = {
