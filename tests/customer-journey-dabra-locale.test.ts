@@ -5,6 +5,7 @@ import test from 'node:test';
 import { buildAI2ChatResponse } from '@/lib/ai2/runtime/chat';
 import { DABRA_LOCALE_FALLBACK, parseDabraLocale } from '@/lib/dabra/locale-contract';
 import { answerMatchesDabraLocale, ensureDabraResponseLocale, identifyDabraResponseLanguage } from '@/lib/dabra/response-language';
+import { normalizeStayRooms } from '@/lib/services/search-state';
 
 const root = process.cwd();
 const read = (...segments: string[]) => fs.readFileSync(path.join(root, ...segments), 'utf8');
@@ -28,9 +29,13 @@ test('each canonical service journey exposes its own family-filtered Marketplace
 
 test('all active service and marketplace copy sources exclude unsupported claims in AR and EN', () => {
   const sources = [
+    ['components', 'approved', 'ApprovedVisualPage.tsx'],
     ['components', 'services', 'ServicePageContent.tsx'],
     ['components', 'home', 'PlatformFoundationHome.tsx'],
+    ['components', 'public', 'MarketplaceExplorer.tsx'],
+    ['components', 'public', 'PublicFeatureStrip.tsx'],
     ['components', 'public', 'public-page-data.ts'],
+    ['components', 'shared', 'ServiceCard.tsx'],
     ['lib', 'services', 'canonical.ts'],
     ['lib', 'marketplace', 'data.ts'],
   ].map((segments) => read(...segments));
@@ -39,6 +44,8 @@ test('all active service and marketplace copy sources exclude unsupported claims
     'أفضل الأسعار', 'سائقين موثوقين', 'مختارة بعناية', 'سائقون محترفون', 'مستوى حصري',
     'best prices', 'competitive rates', 'trusted drivers', 'carefully selected', 'professional drivers',
     'premium quality', 'exclusive experiences', 'guaranteed', 'verified providers', 'licensed providers',
+    'premium discovery', 'premium service', 'اكتشاف فاخر', 'خدمة مميزة', 'التجربة المميزة',
+    'تجربة فاخرة نظيفة',
     '120+', '24/7', 'fast lane',
   ]) {
     assert.equal(source.includes(unsupported.toLowerCase()), false, `unsupported claim remains: ${unsupported}`);
@@ -50,14 +57,46 @@ test('all active service and marketplace copy sources exclude unsupported claims
   assert.match(component, /getCanonicalService\(item\.key\)/);
 });
 
+test('Stay rooms are normalized to an integer minimum before URL construction', () => {
+  assert.equal(normalizeStayRooms('0'), 1);
+  assert.equal(normalizeStayRooms('-1'), 1);
+  assert.equal(normalizeStayRooms(''), 1);
+  assert.equal(normalizeStayRooms('NaN'), 1);
+  assert.equal(normalizeStayRooms('malformed'), 1);
+  assert.equal(normalizeStayRooms('1.5'), 1);
+  assert.equal(normalizeStayRooms('1'), 1);
+  assert.equal(normalizeStayRooms('2'), 2);
+
+  const source = read('components', 'shared', 'ServiceSearchTable.tsx');
+  assert.match(source, /submissionValues\.rooms = String\(normalizeStayRooms\(values\.rooms\)\)/);
+  assert.match(source, /params\.set\(field\.name, submissionValues\[field\.name\]\)/);
+});
+
+test('approved Home hero and CTAs render from the selected AR or EN locale', () => {
+  const source = read('components', 'approved', 'ApprovedVisualPage.tsx');
+  assert.match(source, /const approvedHomeCopy =/);
+  assert.match(source, /journey: <>من فكرة السفرة/);
+  assert.match(source, /book: 'احجز الآن'/);
+  assert.match(source, /explore: 'استكشف'/);
+  assert.match(source, /journey: <>From planning the journey/);
+  assert.match(source, /book: 'Book now'/);
+  assert.match(source, /explore: 'Explore'/);
+  assert.match(source, /const homeCopy = approvedHomeCopy\[language\]/);
+  assert.match(source, /<p>\{homeCopy\.journey\}<\/p>/);
+  assert.match(source, />\{homeCopy\.book\}<\/Link>/);
+  assert.match(source, />\{homeCopy\.explore\}<\/Link>/);
+});
+
 test('dedicated journeys initialize the shared search with family-native semantics', () => {
   const source = read('components', 'shared', 'ServiceSearchTable.tsx');
   assert.match(source, /useState<ServiceDef\['key'\]>\(initialService\)/);
   const fly = source.slice(source.indexOf("key: 'fly'"), source.indexOf("key: 'concierge'"));
   for (const field of ['originCity', 'destinationCity', 'departureDate', 'returnDate', 'passengers']) assert.match(fly, new RegExp(field));
   const stay = source.slice(source.indexOf("key: 'stay'"), source.indexOf("key: 'fly'"));
-  for (const field of ['city', 'checkIn', 'checkOut', 'guests']) assert.match(stay, new RegExp(field));
+  for (const field of ['city', 'checkIn', 'checkOut', 'rooms', 'guests']) assert.match(stay, new RegExp(field));
   assert.doesNotMatch(stay, /originCity|destinationCity|passengers/);
+  assert.match(source, /service === 'stay' \? \{ rooms: '1' \} : \{\}/);
+  assert.match(source, /params\.set\(field\.name, submissionValues\[field\.name\]\)/);
   const drive = source.slice(source.indexOf("key: 'drive'"), source.indexOf("key: 'stay'"));
   for (const field of ['pickupCity', 'dropoffCity', 'pickupDate', 'passengers']) assert.match(drive, new RegExp(field));
   const concierge = source.slice(source.indexOf("key: 'concierge'"), source.indexOf("key: 'vip'"));

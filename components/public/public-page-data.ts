@@ -96,7 +96,7 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
     highlight: 'المحتوى هنا مهيأ للتوسع إلى تجارب موسمية وفعاليات متغيرة من دون تغيير النظام البصري.',
     chips: ['ثقافة', 'فعاليات', 'رحلات'],
     stats: [],
-    trustMessage: 'التجربة المميزة لا تحتاج صخباً؛ تحتاج عرضاً مقنعاً ومحترماً للوقت.',
+    trustMessage: 'تفاصيل التجربة الواضحة تساعدك على مراجعة الخيار بهدوء.',
     marketplaceFamily: 'dir3-concierge',
     marketplaceCategory: 'experiences',
   },

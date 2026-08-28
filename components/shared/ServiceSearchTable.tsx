@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FiCalendar, FiChevronDown, FiChevronUp, FiFlag, FiMapPin, FiSearch, FiUsers } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { canonicalCountries, citiesForCountry, todayIsoDate } from '@/lib/services/coverage';
+import { normalizeStayRooms } from '@/lib/services/search-state';
 
 type FieldKind = 'country' | 'city' | 'date' | 'count';
 
@@ -49,6 +50,7 @@ const services: ServiceDef[] = [
       { name: 'city', kind: 'city', countryField: 'country', ar: 'المدينة', en: 'City' },
       { name: 'checkIn', kind: 'date', ar: 'تاريخ الوصول', en: 'Check-in' },
       { name: 'checkOut', kind: 'date', ar: 'تاريخ المغادرة', en: 'Check-out', notBefore: 'checkIn' },
+      { name: 'rooms', kind: 'count', ar: 'عدد الغرف', en: 'Rooms' },
       { name: 'guests', kind: 'count', ar: 'عدد الضيوف', en: 'Guests' },
     ],
   },
@@ -89,6 +91,10 @@ const services: ServiceDef[] = [
     ],
   },
 ];
+
+function defaultValuesForService(service: ServiceDef['key']): Record<string, string> {
+  return service === 'stay' ? { rooms: '1' } : {};
+}
 
 const copy = {
   ar: {
@@ -132,7 +138,7 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
   const t = copy[language];
   const today = useMemo(() => todayIsoDate(), []);
   const [selectedKey, setSelectedKey] = useState<ServiceDef['key']>(initialService);
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>(() => defaultValuesForService(initialService));
   const [error, setError] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState(true);
 
@@ -169,12 +175,15 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
   };
 
   function submitSearch() {
-    if (selected.fields.some((field) => !values[field.name]?.trim())) {
+    const submissionValues = { ...values };
+    if (selected.key === 'stay') submissionValues.rooms = String(normalizeStayRooms(values.rooms));
+
+    if (selected.fields.some((field) => !submissionValues[field.name]?.trim())) {
       setError(t.required);
       return;
     }
 
-    const cityValues = selected.fields.filter((field) => field.kind === 'city').map((field) => values[field.name]);
+    const cityValues = selected.fields.filter((field) => field.kind === 'city').map((field) => submissionValues[field.name]);
     if (cityValues.length === 2 && cityValues[0] === cityValues[1]) {
       setError(t.sameCity);
       return;
@@ -182,18 +191,18 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
 
     for (const field of selected.fields) {
       if (field.kind !== 'date') continue;
-      if (values[field.name] < today) {
+      if (submissionValues[field.name] < today) {
         setError(t.pastDate);
         return;
       }
-      if (field.notBefore && values[field.name] < values[field.notBefore]) {
+      if (field.notBefore && submissionValues[field.name] < submissionValues[field.notBefore]) {
         setError(t.dateOrder);
         return;
       }
     }
 
     const params = new URLSearchParams({ service: selected.key });
-    for (const field of selected.fields) params.set(field.name, values[field.name]);
+    for (const field of selected.fields) params.set(field.name, submissionValues[field.name]);
     router.push(`/services/${selected.key}?${params.toString()}`);
   }
 
@@ -223,7 +232,7 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
                 className={selectedKey === service.key ? 'service-search-table__tab service-search-table__tab--active' : 'service-search-table__tab'}
                 onClick={() => {
                   setSelectedKey(service.key);
-                  setValues({});
+                  setValues(defaultValuesForService(service.key));
                   setError(null);
                 }}
               >

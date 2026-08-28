@@ -18,7 +18,7 @@ const features = [
     icon: FiCheckCircle,
   },
   {
-    title: 'تجربة فاخرة نظيفة',
+    title: 'تجربة متسقة وواضحة',
     description: 'هوية dir3com تبقى ثابتة عبر كل الصفحات العامة بنفس المسافات والخطوط والألوان.',
     icon: FiStar,
   },
