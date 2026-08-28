@@ -5,7 +5,8 @@ import { DabraTravelOrchestrator } from '@/lib/ai2/orchestration';
 import { TravelProviderError } from '@/lib/travel/errors';
 import { createDabraAssistantTextResponse } from '@/lib/dabra/chat-response-contract';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
-import { DABRA_LOCALE_ERROR, enforceDabraResponseLocale, parseDabraLocale } from '@/lib/dabra/locale-contract';
+import { DABRA_LOCALE_ERROR, parseDabraLocale, type DabraLocale } from '@/lib/dabra/locale-contract';
+import { ensureDabraResponseLocale } from '@/lib/dabra/response-language';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,21 @@ type AI2RequestIdentity = {
 const MAX_HISTORY_TURNS = 8;
 const MAX_TURN_LENGTH = 500;
 const MAX_ATTACHMENTS = 3;
+
+async function buildLocaleSafeResponse(
+  message: string,
+  history: AI2ChatTurn[],
+  account: AI2ChatAccountContext | undefined,
+  locale: DabraLocale,
+) {
+  const response = await buildAI2ChatResponse(message, history, account, locale);
+  return ensureDabraResponseLocale(response, locale, async (invalidAnswer) => {
+    const repairInstruction = locale === 'ar'
+      ? `أعد صياغة النص التالي بالعربية فقط مع إبقاء أسماء المدن والمطارات والعلامات التجارية كما هي. لا تضف معلومات جديدة:\n\n${invalidAnswer.slice(0, 1500)}`
+      : `Rewrite the following text in English only, preserving city, airport, and brand names. Do not add new information:\n\n${invalidAnswer.slice(0, 1500)}`;
+    return buildAI2ChatResponse(repairInstruction, [], account, locale);
+  });
+}
 
 async function parseChatRequest(request: NextRequest): Promise<ParsedChatRequest> {
   const contentType = request.headers.get('content-type')?.toLowerCase() ?? '';
@@ -176,12 +192,12 @@ export async function POST(request: NextRequest) {
       }
       throw error;
     }
-    const response = enforceDabraResponseLocale(await buildAI2ChatResponse(modelMessage, history, identity.account, locale), locale);
+    const response = await buildLocaleSafeResponse(modelMessage, history, identity.account, locale);
     if (body.stream === true) return createDabraAssistantTextResponse(response);
     return NextResponse.json({ ...response, travel }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const response = enforceDabraResponseLocale(await buildAI2ChatResponse(modelMessage, history, identity.account, locale), locale);
+  const response = await buildLocaleSafeResponse(modelMessage, history, identity.account, locale);
   if (body?.stream === true) {
     return createDabraAssistantTextResponse(response);
   }

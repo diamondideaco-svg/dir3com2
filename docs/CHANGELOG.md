@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-28 — Customer claim truth and DABRA response-language enforcement
+
+- Consolidated service-page descriptions onto the existing canonical family copy and replaced unsupported superiority, verification, availability, count, and response-time claims across active customer-facing service and Marketplace sources with neutral Arabic/English descriptions.
+- Added server-side DABRA response-language identification that rejects Cyrillic and non-English conversational output, permits travel proper nouns inside the selected language, and performs at most one locale repair before using a deterministic Arabic or English fallback.
+
 ## 2026-08-28 — Customer journey and DABRA locale continuity
 
 - Restored the global family navigation to the dedicated Fly, Stay, Drive, Concierge, and VIP service journeys while keeping Marketplace as its own destination and adding family-filtered Marketplace calls to action on each service page.

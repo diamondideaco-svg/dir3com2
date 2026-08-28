@@ -9,13 +9,13 @@ import StoriesCarousel from '@/components/shared/StoriesCarousel';
 import { partners } from '@/lib/content/partners';
 import type { PartnerScope } from '@/lib/content/partners';
 import type { TravelStory, TravelStoryService } from '@/lib/content/travel-stories';
+import { getCanonicalService } from '@/lib/services/canonical';
 
 type ServicePageConfig = {
   key: TravelStoryService;
   scope: PartnerScope;
   title: { ar: string; en: string };
   eyebrow: string;
-  description: { ar: string; en: string };
   heroImage: string;
 };
 
@@ -25,10 +25,6 @@ const servicePages: Record<TravelStoryService, ServicePageConfig> = {
     scope: 'drive',
     title: { ar: 'السيارات', en: 'Cars' },
     eyebrow: 'dir3com Drive',
-    description: {
-      ar: 'خيارات تنقل ومسارات للضيف المحلي والدولي مع عرض التفاصيل قبل المتابعة.',
-      en: 'Ride and route options for local and international guests, with details shown before continuing.',
-    },
     heroImage: '/brand/runtime/1000467135.png',
   },
   stay: {
@@ -36,10 +32,6 @@ const servicePages: Record<TravelStoryService, ServicePageConfig> = {
     scope: 'stay',
     title: { ar: 'الفنادق', en: 'Hotels' },
     eyebrow: 'dir3com Stay',
-    description: {
-      ar: 'خيارات إقامة مع عرض المزايا والسياسات بوضوح قبل اتخاذ القرار.',
-      en: 'Stay options with amenities and policies presented clearly before a decision.',
-    },
     heroImage: '/brand/runtime/1000467134.png',
   },
   fly: {
@@ -47,10 +39,6 @@ const servicePages: Record<TravelStoryService, ServicePageConfig> = {
     scope: 'fly',
     title: { ar: 'dir3com Fly', en: 'dir3com Fly' },
     eyebrow: 'dir3com Fly',
-    description: {
-      ar: 'استكشف خيارات رحلات الطيران وقارن تفاصيلها قبل المتابعة.',
-      en: 'Explore flight options and compare their details before continuing.',
-    },
     heroImage: '/brand/runtime/1000467131.png',
   },
   concierge: {
@@ -58,10 +46,6 @@ const servicePages: Record<TravelStoryService, ServicePageConfig> = {
     scope: 'concierge',
     title: { ar: 'الكونسيرج', en: 'Concierge' },
     eyebrow: 'dir3com Concierge',
-    description: {
-      ar: 'تنسيق الطلبات والمواعيد وتفاصيل الرحلة في تجربة عربية سهلة القراءة.',
-      en: 'Coordinate requests, schedules, and trip details in an Arabic-first experience.',
-    },
     heroImage: '/brand/runtime/1000467128 (1).png',
   },
   vip: {
@@ -69,25 +53,22 @@ const servicePages: Record<TravelStoryService, ServicePageConfig> = {
     scope: 'vip',
     title: { ar: 'dir3com VIP', en: 'dir3com VIP' },
     eyebrow: 'dir3com VIP',
-    description: {
-      ar: 'استكشف خدمات وتجارب VIP وتفاصيلها قبل تقديم الطلب.',
-      en: 'Explore VIP services and experiences with their details before submitting a request.',
-    },
     heroImage: '/brand/runtime/1000467129 (1).png',
   },
 };
 
 const relatedServices = [
-  { key: 'drive', title: 'dir3com Drive', body: { ar: 'خيارات تنقل بسيارات خاصة مع عرض تفاصيل الخدمة.', en: 'Private transport options with service details shown.' }, href: '/services/drive', image: '/brand/runtime/1000467135.png' },
-  { key: 'stay', title: 'dir3com Stay', body: { ar: 'خيارات إقامة مع عرض المزايا والسياسات.', en: 'Stay options with amenities and policies shown.' }, href: '/services/stay', image: '/brand/runtime/1000467134.png' },
-  { key: 'fly', title: 'dir3com Fly', body: { ar: 'خيارات رحلات طيران للمقارنة قبل المتابعة.', en: 'Flight options to compare before continuing.' }, href: '/services/fly', image: '/brand/runtime/1000467131.png' },
-  { key: 'concierge', title: 'dir3com Concierge', body: { ar: 'تنسيق طلبات وتفاصيل الرحلة.', en: 'Coordination for requests and trip details.' }, href: '/services/concierge', image: '/brand/runtime/1000467128 (1).png' },
-  { key: 'vip', title: 'dir3com VIP', body: { ar: 'خدمات وتجارب VIP مع عرض التفاصيل.', en: 'VIP services and experiences with details shown.' }, href: '/services/vip', image: '/brand/runtime/1000467129 (1).png' },
+  { key: 'drive', title: 'dir3com Drive', href: '/services/drive', image: '/brand/runtime/1000467135.png' },
+  { key: 'stay', title: 'dir3com Stay', href: '/services/stay', image: '/brand/runtime/1000467134.png' },
+  { key: 'fly', title: 'dir3com Fly', href: '/services/fly', image: '/brand/runtime/1000467131.png' },
+  { key: 'concierge', title: 'dir3com Concierge', href: '/services/concierge', image: '/brand/runtime/1000467128 (1).png' },
+  { key: 'vip', title: 'dir3com VIP', href: '/services/vip', image: '/brand/runtime/1000467129 (1).png' },
 ] as const;
 
 export function ServicePageContent({ service, stories }: { service: TravelStoryService; stories: readonly TravelStory[] }) {
   const { language } = useLanguage();
   const page = servicePages[service];
+  const canonicalPage = getCanonicalService(service);
   const related = relatedServices.filter((item) => item.key !== service);
 
   return (
@@ -97,7 +78,7 @@ export function ServicePageContent({ service, stories }: { service: TravelStoryS
           <div>
             <p className="text-xs font-semibold tracking-[0.22em] text-[var(--home-gold)]">{page.eyebrow}</p>
             <h1 className="mt-4 text-4xl font-semibold leading-tight sm:text-6xl">{page.title[language]}</h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-[#5d6672]">{page.description[language]}</p>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-[#5d6672]">{language === 'ar' ? canonicalPage?.descriptionAr : canonicalPage?.descriptionEn}</p>
             <div className="mt-7 flex flex-wrap gap-3">
               <a href="#service-search" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--home-gold)] px-6 py-3 font-semibold text-white">
                 {language === 'ar' ? 'ابدأ البحث' : 'Start search'} <FiArrowUpLeft />
@@ -128,7 +109,7 @@ export function ServicePageContent({ service, stories }: { service: TravelStoryS
                 </a>
                 <div className="drive-core-service-card__body">
                   <h3>{item.title}</h3>
-                  <p>{item.body[language]}</p>
+                  <p>{language === 'ar' ? getCanonicalService(item.key)?.descriptionAr : getCanonicalService(item.key)?.descriptionEn}</p>
                   <a href={item.href} className="drive-core-service-card__cta">{language === 'ar' ? 'عرض الخدمات' : 'Explore services'} <FiArrowUpLeft /></a>
                 </div>
               </article>

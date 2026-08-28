@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { buildAI2ChatResponse } from '@/lib/ai2/runtime/chat';
-import { answerMatchesDabraLocale, enforceDabraResponseLocale, parseDabraLocale } from '@/lib/dabra/locale-contract';
+import { DABRA_LOCALE_FALLBACK, parseDabraLocale } from '@/lib/dabra/locale-contract';
+import { answerMatchesDabraLocale, ensureDabraResponseLocale } from '@/lib/dabra/response-language';
 
 const root = process.cwd();
 const read = (...segments: string[]) => fs.readFileSync(path.join(root, ...segments), 'utf8');
@@ -25,19 +26,28 @@ test('each canonical service journey exposes its own family-filtered Marketplace
   assert.match(source, /<ServiceSearchTable initialService=\{service\} \/>/);
 });
 
-test('service journeys use neutral bilingual copy without unsupported commercial or verification claims', () => {
-  const source = read('components', 'services', 'ServicePageContent.tsx');
+test('all active service and marketplace copy sources exclude unsupported claims in AR and EN', () => {
+  const sources = [
+    ['components', 'services', 'ServicePageContent.tsx'],
+    ['components', 'home', 'PlatformFoundationHome.tsx'],
+    ['components', 'public', 'public-page-data.ts'],
+    ['lib', 'services', 'canonical.ts'],
+    ['lib', 'marketplace', 'data.ts'],
+  ].map((segments) => read(...segments));
+  const source = sources.join('\n').toLowerCase();
   for (const unsupported of [
     'أفضل الأسعار', 'سائقين موثوقين', 'مختارة بعناية', 'سائقون محترفون', 'مستوى حصري',
     'best prices', 'competitive rates', 'trusted drivers', 'carefully selected', 'professional drivers',
     'premium quality', 'exclusive experiences', 'guaranteed', 'verified providers', 'licensed providers',
+    '120+', '24/7', 'fast lane',
   ]) {
-    assert.equal(source.toLowerCase().includes(unsupported.toLowerCase()), false, `unsupported claim remains: ${unsupported}`);
+    assert.equal(source.includes(unsupported.toLowerCase()), false, `unsupported claim remains: ${unsupported}`);
   }
-  assert.match(source, /خيارات رحلات الطيران وقارن تفاصيلها/);
-  assert.match(source, /Explore flight options and compare their details/);
-  assert.match(source, /خيارات تنقل بسيارات خاصة مع عرض تفاصيل الخدمة/);
-  assert.match(source, /Private transport options with service details shown/);
+  const canonical = read('lib', 'services', 'canonical.ts');
+  const component = read('components', 'services', 'ServicePageContent.tsx');
+  for (const family of ['dir3 Drive', 'dir3 Stay', 'dir3 Fly', 'dir3 Concierge', 'dir3 VIP']) assert.match(canonical, new RegExp(family));
+  assert.match(component, /getCanonicalService\(service\)/);
+  assert.match(component, /getCanonicalService\(item\.key\)/);
 });
 
 test('dedicated journeys initialize the shared search with family-native semantics', () => {
@@ -77,17 +87,63 @@ test('server selected locale overrides current text and prior-history script', a
   assert.equal(answerMatchesDabraLocale(arabic.answer, 'ar'), true);
 });
 
-test('response boundary replaces a provider answer that violates selected locale before delivery', () => {
+const response = (answer: string) => ({
+  answer,
+  sources: [], language: 'en' as const, groundingStatus: 'answered-general' as const,
+  promptBound: true as const, promptVersion: 'dabra-character-conversation-v1' as const,
+  retrievalMode: 'internal-rag' as const, provider: 'local' as const,
+});
+
+test('DABRA locale validator rejects Arabic, Russian, and Romanian in English mode', () => {
+  assert.equal(answerMatchesDabraLocale('I can help you compare hotels in Riyadh and flights from CAI to RUH.', 'en'), true);
+  assert.equal(answerMatchesDabraLocale('أقدر أساعدك في مقارنة الرحلات إلى Riyadh على طيران Saudia عبر RUH.', 'ar'), true);
+  for (const foreign of [
+    'هذه إجابة عربية بالكامل ولا تطابق اللغة الإنجليزية المختارة.',
+    'Я могу помочь вам выбрать отель и рейс.',
+    'Vă pot ajuta să alegeți hotelul potrivit pentru călătorie.',
+  ]) assert.equal(answerMatchesDabraLocale(foreign, 'en'), false);
+});
+
+test('short travel proper nouns and codes do not falsely trigger locale rejection', () => {
+  for (const identifier of ['Riyadh', 'Cairo', 'RUH', 'CAI', 'Saudia', 'Hilton Riyadh']) {
+    assert.equal(answerMatchesDabraLocale(identifier, 'ar'), true);
+    assert.equal(answerMatchesDabraLocale(identifier, 'en'), true);
+  }
+});
+
+test('DABRA locale validator rejects English, Russian, and Romanian in Arabic mode', () => {
+  for (const foreign of [
+    'I can help you compare flights and hotels for your trip.',
+    'Я могу помочь вам выбрать отель и рейс.',
+    'Vă pot ajuta să alegeți hotelul potrivit pentru călătorie.',
+  ]) assert.equal(answerMatchesDabraLocale(foreign, 'ar'), false);
+});
+
+test('response boundary performs one repair and then uses deterministic selected-locale fallback', async () => {
   const base = {
     answer: 'هذه إجابة عربية بالكامل ولا تطابق اللغة الإنجليزية المختارة.',
     sources: [], language: 'ar' as const, groundingStatus: 'answered-general' as const,
     promptBound: true as const, promptVersion: 'dabra-character-conversation-v1' as const,
     retrievalMode: 'internal-rag' as const, provider: 'local' as const,
   };
-  const safe = enforceDabraResponseLocale(base, 'en');
+  let repairCalls = 0;
+  const safe = await ensureDabraResponseLocale(base, 'en', async () => {
+    repairCalls += 1;
+    return response('I can help you compare the available travel options.');
+  });
   assert.equal(safe.language, 'en');
   assert.equal(answerMatchesDabraLocale(safe.answer, 'en'), true);
   assert.notEqual(safe.answer, base.answer);
+  assert.equal(repairCalls, 1);
+
+  const failedEnglish = await ensureDabraResponseLocale(base, 'en', async () => {
+    repairCalls += 1;
+    return response('Я могу помочь вам выбрать отель.');
+  });
+  assert.equal(failedEnglish.answer, DABRA_LOCALE_FALLBACK.en);
+  assert.equal(repairCalls, 2);
+  const failedArabic = await ensureDabraResponseLocale(response('Vă pot ajuta să alegeți hotelul.'), 'ar', async () => response('Still in English.'));
+  assert.equal(failedArabic.answer, DABRA_LOCALE_FALLBACK.ar);
   assert.equal(parseDabraLocale('fr'), null);
 });
 
