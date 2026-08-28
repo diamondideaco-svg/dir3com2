@@ -130,3 +130,10 @@
 
 - Hardened Partner/Provider portal authorization to trust only the authoritative server profile role, and fixed DIR-93 so missing private product-image objects return a deterministic 404 while real storage outages remain sanitized 500 responses.
 - Replaced ephemeral Partner/Provider onboarding state with owner-scoped PostgreSQL persistence and completed private document preview, replacement, deletion, and reload wiring.
+
+# 2026-08-28 — Global travel supply Preview activation
+
+- Added a server-only Ticketmaster Discovery integration with strict response normalization, official-domain redirect allowlisting, truthful external-checkout semantics, and no invented pricing.
+- Unified Preview supply across Duffel Fly sandbox results, LiteAPI Stay sandbox results, and Ticketmaster Concierge discovery while retaining all five canonical marketplace families and truthful empty states.
+- Grounded DABRA in the same bounded provider results and preserved explicit sandbox/production and native/external transaction distinctions in Arabic and English.
+- Moved existing testable booking, request, sandbox, and request-context helpers out of Next.js Route Handler modules so the unchanged controls satisfy the Next.js 16 export contract and production builds remain type-safe.

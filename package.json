@@ -52,8 +52,9 @@
     "test:schema-compat": "node --import tsx --test tests/schema-compatibility.integration.test.ts",
     "test:liteapi": "node --import tsx --test tests/liteapi-provider.test.ts",
     "test:liteapi-hmac": "node --import tsx --test tests/liteapi-hmac-auth.test.ts",
+    "test:ticketmaster": "node --conditions=react-server --import tsx --test tests/ticketmaster-discovery.test.ts",
     "smoke:liteapi": "node --import tsx scripts/liteapi-sandbox-smoke.ts",
-    "test:all": "node --import tsx --test tests/*.test.ts",
+    "test:all": "node scripts/run-tests.mjs",
     "mobile:dev": "npm --workspace @dir3com/mobile run start",
     "mobile:typecheck": "npm --workspace @dir3com/mobile run typecheck"
   },
@@ -70,6 +71,7 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-icons": "^5.7.0",
+    "server-only": "0.0.1",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRequestClient, supabaseAdmin } from '@/lib/supabase/server';
 import { sanitizeMessage, sanitizeNumber, sanitizeText } from '@/lib/security/validation';
 import { logServerError } from '@/lib/security/safe-logger';
-import { isPublicMarketplaceProduct } from '@/lib/marketplace/public-filters';
+import { isProductBookable } from '@/lib/marketplace/booking-gate';
 
 type BookingCreateErrorCode = 'AUTH_REQUIRED' | 'INVALID_REQUEST' | 'BOOKING_CREATE_FAILED';
 
@@ -104,24 +104,6 @@ function toMoneyNumber(value: unknown) {
   }
 
   return roundMoney(parsed);
-}
-
-export function isProductBookable(product: Record<string, unknown>) {
-  if (!isPublicMarketplaceProduct({
-    status: sanitizeText(product.status, '').toLowerCase(),
-    synthetic: typeof product.synthetic === 'boolean' ? product.synthetic : null,
-    marketplace_environment: typeof product.marketplace_environment === 'string' ? product.marketplace_environment : null,
-    fulfilment_state: typeof product.fulfilment_state === 'string' ? product.fulfilment_state : null,
-    deleted_at: typeof product.deleted_at === 'string' ? product.deleted_at : null,
-  })) {
-    return false;
-  }
-
-  if (product.fulfilment_state !== 'live_bookable' || product.transaction_method !== 'instant_booking') {
-    return false;
-  }
-
-  return true;
 }
 
 function getProductDisplayName(product: Record<string, unknown>) {
