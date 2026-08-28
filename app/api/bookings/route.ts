@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRequestClient, supabaseAdmin } from '@/lib/supabase/server';
 import { sanitizeMessage, sanitizeNumber, sanitizeText } from '@/lib/security/validation';
 import { logServerError } from '@/lib/security/safe-logger';
+import { isPublicMarketplaceProduct } from '@/lib/marketplace/public-filters';
 
 type BookingCreateErrorCode = 'AUTH_REQUIRED' | 'INVALID_REQUEST' | 'BOOKING_CREATE_FAILED';
 
@@ -105,17 +106,25 @@ function toMoneyNumber(value: unknown) {
   return roundMoney(parsed);
 }
 
-function isProductBookable(product: Record<string, unknown>) {
-  const status = sanitizeText(product.status, '').toLowerCase();
-  if (status && status !== 'active') {
-    return false;
-  }
-
+export function isProductBookable(product: Record<string, unknown>) {
   if (typeof product.is_active === 'boolean' && !product.is_active) {
     return false;
   }
 
   if (product.deleted_at) {
+    return false;
+  }
+
+  if (!isPublicMarketplaceProduct({
+    status: sanitizeText(product.status, '').toLowerCase(),
+    synthetic: typeof product.synthetic === 'boolean' ? product.synthetic : null,
+    marketplace_environment: typeof product.marketplace_environment === 'string' ? product.marketplace_environment : null,
+    fulfilment_state: typeof product.fulfilment_state === 'string' ? product.fulfilment_state : null,
+  })) {
+    return false;
+  }
+
+  if (product.fulfilment_state !== 'live_bookable' || product.transaction_method !== 'instant_booking') {
     return false;
   }
 

@@ -12,6 +12,7 @@ import { useMarketplaceServices } from '@/components/public/useMarketplaceServic
 import { fadeUpItem, revealViewport, sectionStagger, subtleEasing } from '@/components/shared/motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
 import {
   type MarketplaceCollectionKey,
   type MarketplaceFamilyKey,
@@ -20,53 +21,34 @@ import {
 } from '@/lib/marketplace/data';
 
 type MarketplaceExplorerProps = {
-  title: string;
-  description: string;
+  title?: string;
+  description?: string;
   family?: MarketplaceFamilyKey;
   defaultCategory?: MarketplacePageCategory;
   defaultCollection?: MarketplaceCollectionKey;
 };
 
-const collectionLabels: Array<{ value: MarketplaceCollectionKey; label: string }> = [
-  { value: 'all', label: 'الكل' },
-  { value: 'featured', label: 'المميز' },
-  { value: 'popular', label: 'الشائع' },
-  { value: 'recommended', label: 'موصى به' },
-];
+const copy = {
+  ar: {
+    title: 'السوق', description: 'تصفّح بحرية، واعرف ما هو متاح فعلاً، واطلب ما يحتاج إلى تأكيد بشري.', all: 'الكل', featured: 'المميز', popular: 'الشائع', recommended: 'موصى به',
+    destinations: ['كل الوجهات','السعودية','مصر','الرياض','جدة','مكة','المدينة','الدمام','الخبر','أبها','الطائف','العلا','نيوم','القاهرة','الجيزة','الإسكندرية','الغردقة','شرم الشيخ','الأقصر','أسوان','مرسى علم','العلمين الجديدة'],
+    sorts: ['الأكثر ملاءمة','المميز أولا','الأكثر شعبية','السعر: الأقل أولا','السعر: الأعلى أولا','الاسم'],
+    allServices: 'كل الخدمات', smartTitle: 'ابحث في سوق dir3com بذكاء وبساطة.', smartDescription: 'واجهة اكتشاف راقية مهيأة للمستخدم الخليجي، مع مرشحات مرنة وتجربة قراءة سريعة.', discovery: 'اكتشاف فاخر', searchPlaceholder: 'ابحث عن خدمة، فئة، أو تجربة', sort: 'الترتيب', searchNow: 'ابحث الآن', filters: 'المرشحات', filtersNote: 'التواريخ وعدد المسافرين واجهة جاهزة للربط المباشر في مراحل التكامل القادمة.', result: 'نتيجة', categoriesPending: 'فئات السوق تظهر تلقائيا عند توفر البيانات.', browseAll: 'تصفح الفئات: الكل', safeError: 'لم نعرض أي مخزون غير متحقق بدلاً منه.', visible: 'النتائج الظاهرة', total: 'إجمالي النتائج', source: 'المصدر', verified: 'مخزون موثّق', noVerified: 'لا يوجد مخزون موثّق', emptyTitle: 'لا يوجد توفر موثّق يطابق بحثك حتى الآن.', emptyDescription: 'عدّل البحث، تصفّح عائلة أخرى، أو اطلب مساعدة DABRA من دون تصنيع نتائج أو أسعار.', reset: 'إعادة ضبط المرشحات', browseServices: 'تصفح كل الخدمات', askDabra: 'اسأل DABRA', noResults: 'لا توجد نتائج مطابقة للمرشحات الحالية.', previous: 'السابق', next: 'التالي', families: 'عائلات السوق',
+  },
+  en: {
+    title: 'Marketplace', description: 'Browse freely, see what is genuinely available, and request anything that needs human confirmation.', all: 'All', featured: 'Featured', popular: 'Popular', recommended: 'Recommended',
+    destinations: ['All destinations','Saudi Arabia','Egypt','Riyadh','Jeddah','Makkah','Madinah','Dammam','Khobar','Abha','Taif','AlUla','NEOM','Cairo','Giza','Alexandria','Hurghada','Sharm El Sheikh','Luxor','Aswan','Marsa Alam','New Alamein'],
+    sorts: ['Most relevant','Featured first','Most popular','Price: low to high','Price: high to low','Name'],
+    allServices: 'All services', smartTitle: 'Search the dir3com marketplace with clarity.', smartDescription: 'A refined discovery experience with flexible filters and quick, clear browsing.', discovery: 'Premium discovery', searchPlaceholder: 'Search for a service, category, or experience', sort: 'Sort', searchNow: 'Search now', filters: 'Filters', filtersNote: 'Dates and traveller count are ready for direct integration in a later phase.', result: 'results', categoriesPending: 'Marketplace categories appear when verified data is available.', browseAll: 'Browse categories: All', safeError: 'No unverified inventory was shown as a substitute.', visible: 'Visible results', total: 'Total results', source: 'Source', verified: 'Verified inventory', noVerified: 'No verified inventory', emptyTitle: 'No verified availability matches your search yet.', emptyDescription: 'Adjust your search, browse another family, or ask DABRA for help without fabricated results or prices.', reset: 'Reset filters', browseServices: 'Browse all services', askDabra: 'Ask DABRA', noResults: 'No results match the current filters.', previous: 'Previous', next: 'Next', families: 'Marketplace families',
+  },
+} as const;
 
-const destinationOptions = [
-  { value: 'all', label: 'كل الوجهات' },
-  { value: 'saudi-arabia', label: 'Saudi Arabia | السعودية' },
-  { value: 'egypt', label: 'Egypt | مصر' },
-  { value: 'riyadh', label: 'Riyadh | الرياض' },
-  { value: 'jeddah', label: 'Jeddah | جدة' },
-  { value: 'makkah', label: 'Makkah | مكة' },
-  { value: 'madinah', label: 'Madinah | المدينة' },
-  { value: 'dammam', label: 'Dammam | الدمام' },
-  { value: 'khobar', label: 'Khobar | الخبر' },
-  { value: 'abha', label: 'Abha | أبها' },
-  { value: 'taif', label: 'Taif | الطائف' },
-  { value: 'alula', label: 'AlUla | العلا' },
-  { value: 'neom', label: 'NEOM | نيوم' },
-  { value: 'cairo', label: 'Cairo | القاهرة' },
-  { value: 'giza', label: 'Giza | الجيزة' },
-  { value: 'alexandria', label: 'Alexandria | الإسكندرية' },
-  { value: 'hurghada', label: 'Hurghada | الغردقة' },
-  { value: 'sharm-el-sheikh', label: 'Sharm El Sheikh | شرم الشيخ' },
-  { value: 'luxor', label: 'Luxor | الأقصر' },
-  { value: 'aswan', label: 'Aswan | أسوان' },
-  { value: 'marsa-alam', label: 'Marsa Alam | مرسى علم' },
-  { value: 'new-alamein', label: 'New Alamein | العلمين الجديدة' },
-];
-
-const sortOptions: Array<{ value: MarketplaceSortKey; label: string }> = [
-  { value: 'recommended', label: 'الأكثر ملاءمة' },
-  { value: 'featured', label: 'المميز أولا' },
-  { value: 'popular', label: 'الأكثر شعبية' },
-  { value: 'price-low', label: 'السعر: الأقل أولا' },
-  { value: 'price-high', label: 'السعر: الأعلى أولا' },
-  { value: 'name', label: 'الاسم' },
-];
+const destinationValues = ['all','saudi-arabia','egypt','riyadh','jeddah','makkah','madinah','dammam','khobar','abha','taif','alula','neom','cairo','giza','alexandria','hurghada','sharm-el-sheikh','luxor','aswan','marsa-alam','new-alamein'];
+const sortValues: MarketplaceSortKey[] = ['recommended','featured','popular','price-low','price-high','name'];
+const categoryCopy: Record<MarketplacePageCategory, { ar: string; en: string }> = {
+  cars: { ar: 'السيارات', en: 'Cars' }, hotels: { ar: 'الفنادق', en: 'Hotels' }, apartments: { ar: 'الشقق', en: 'Apartments' },
+  'airport-transfers': { ar: 'النقل من وإلى المطار', en: 'Airport transfers' }, concierge: { ar: 'الكونسيرج', en: 'Concierge' }, experiences: { ar: 'التجارب', en: 'Experiences' }, offers: { ar: 'العروض', en: 'Offers' },
+};
 
 export default function MarketplaceExplorer({
   title,
@@ -75,6 +57,13 @@ export default function MarketplaceExplorer({
   defaultCategory,
   defaultCollection = 'all',
 }: MarketplaceExplorerProps) {
+  const { language } = useLanguage();
+  const t = copy[language];
+  const collectionLabels: Array<{ value: MarketplaceCollectionKey; label: string }> = [
+    { value: 'all', label: t.all }, { value: 'featured', label: t.featured }, { value: 'popular', label: t.popular }, { value: 'recommended', label: t.recommended },
+  ];
+  const destinationOptions = destinationValues.map((value, index) => ({ value, label: t.destinations[index] }));
+  const sortOptions = sortValues.map((value, index) => ({ value, label: t.sorts[index] }));
   const initialUrlParams =
     typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
   const initialQuery = initialUrlParams.get('query') ?? '';
@@ -128,18 +117,18 @@ export default function MarketplaceExplorer({
         .filter((item) => item.count > 0)
         .map((item) => ({
           category: item.category as MarketplacePageCategory,
-          categoryLabel: item.label,
+          categoryLabel: categoryCopy[item.category as MarketplacePageCategory]?.[language] ?? item.label,
           count: item.count,
         })),
-    [meta.facets.categories]
+    [language, meta.facets.categories]
   );
 
   const serviceTypeOptions = useMemo(
     () => [
-      { value: 'all', label: 'كل الخدمات' },
+      { value: 'all', label: t.allServices },
       ...categoryBrowseItems.map((option) => ({ value: option.category, label: option.categoryLabel })),
     ],
-    [categoryBrowseItems]
+    [categoryBrowseItems, t.allServices]
   );
 
   const paginationPages = useMemo(() => {
@@ -158,7 +147,22 @@ export default function MarketplaceExplorer({
   return (
     <SectionContainer>
       <ContentContainer>
-        <SectionHeading eyebrow="MARKETPLACE" title={title} description={description} />
+        <SectionHeading eyebrow="MARKETPLACE" title={title ?? t.title} description={description ?? t.description} />
+
+        <nav aria-label={t.families} className="mt-6 flex flex-wrap gap-2">
+          {[
+            [t.all, '/marketplace'],
+            ['Fly', '/marketplace?family=dir3-fly'],
+            ['Stay', '/marketplace?family=dir3-stay'],
+            ['Drive', '/marketplace?family=dir3-drive'],
+            ['Concierge', '/marketplace?family=dir3-concierge'],
+            ['VIP', '/marketplace?family=dir3-vip'],
+          ].map(([label, href]) => (
+            <Link key={href} href={href} className={buttonVariants({ variant: 'outline', size: 'default' })}>
+              {label}
+            </Link>
+          ))}
+        </nav>
 
         <motion.div variants={sectionStagger} initial="hidden" whileInView="visible" viewport={revealViewport} className="mt-8 space-y-5">
           <motion.div variants={fadeUpItem}>
@@ -167,17 +171,17 @@ export default function MarketplaceExplorer({
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <p className="text-xs font-semibold tracking-[0.24em] text-[var(--color-gold)]">SMART SEARCH</p>
-                    <h3 className="mt-2 text-2xl font-semibold text-[var(--color-navy)] sm:text-3xl">ابحث في سوق dir3com بذكاء وبساطة.</h3>
-                    <p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">واجهة اكتشاف راقية مهيأة للمستخدم الخليجي، مع مرشحات مرنة وتجربة قراءة سريعة.</p>
+                    <h3 className="mt-2 text-2xl font-semibold text-[var(--color-navy)] sm:text-3xl">{t.smartTitle}</h3>
+                    <p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">{t.smartDescription}</p>
                   </div>
                   <Badge className="self-start">
-                    <FiCompass /> اكتشاف فاخر
+                    <FiCompass /> {t.discovery}
                   </Badge>
                 </div>
 
                 <div className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
-                  <SearchField value={searchInput} onChange={setSearchInput} placeholder="ابحث عن خدمة، فئة، أو تجربة" />
-                  <SelectField label="الترتيب" value={sort} onChange={(next) => setSort(next as MarketplaceSortKey)} options={sortOptions} />
+                  <SearchField label={language === 'en' ? 'Search' : 'البحث'} value={searchInput} onChange={setSearchInput} placeholder={t.searchPlaceholder} />
+                  <SelectField label={t.sort} value={sort} onChange={(next) => setSort(next as MarketplaceSortKey)} options={sortOptions} />
                 </div>
 
                 <div className="mt-4 flex justify-end">
@@ -191,13 +195,13 @@ export default function MarketplaceExplorer({
                     }}
                     className={buttonVariants({ variant: 'gold', size: 'default' })}
                   >
-                    ابحث الآن
+                    {t.searchNow}
                   </button>
                 </div>
 
                 <div className="mt-6 rounded-[24px] border border-[var(--color-gold)]/14 bg-white/72 p-4 sm:p-5">
                   <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold tracking-[0.2em] text-[var(--color-gold)] sm:text-sm">
-                    <FiFilter /> FILTERS
+                    <FiFilter /> {t.filters}
                   </div>
                   <MarketplaceFilters
                     value={advancedFilters}
@@ -209,7 +213,7 @@ export default function MarketplaceExplorer({
                     }}
                   />
                   <p className="mt-3 text-xs leading-6 text-[var(--color-muted)]">
-                    التواريخ وعدد المسافرين واجهة جاهزة للربط المباشر في مراحل التكامل القادمة.
+                    {t.filtersNote}
                   </p>
                 </div>
               </CardContent>
@@ -235,13 +239,13 @@ export default function MarketplaceExplorer({
                 }`}
               >
                 <p className="text-sm font-semibold text-[var(--color-navy)]">{option.categoryLabel}</p>
-                <p className="mt-1 text-xs text-[var(--color-muted)]">{option.count} نتيجة</p>
+                <p className="mt-1 text-xs text-[var(--color-muted)]">{option.count} {t.result}</p>
               </motion.button>
             ))}
             {categoryBrowseItems.length === 0
               ? Array.from({ length: 2 }).map((_, index) => (
                   <div key={index} className="rounded-[22px] border border-dashed border-[var(--color-border)] bg-white/60 px-4 py-4 text-sm text-[var(--color-muted)]">
-                    فئات السوق تظهر تلقائيا عند توفر البيانات.
+                    {t.categoriesPending}
                   </div>
                 ))
               : null}
@@ -292,7 +296,7 @@ export default function MarketplaceExplorer({
                     : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
                 }`}
               >
-                تصفح الفئات: الكل
+                {t.browseAll}
               </button>
               {categoryBrowseItems.map((option) => (
                 <button
@@ -320,22 +324,22 @@ export default function MarketplaceExplorer({
         {error && (
           <Card className="mt-6 border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 shadow-none">
             <CardContent className="p-4 text-sm text-[var(--color-navy)]">
-              {error} تم عرض طبقة البيانات الاحتياطية تلقائيا للحفاظ على استمرارية التجربة.
+              {error} {t.safeError}
             </CardContent>
           </Card>
         )}
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--color-muted)]">
-          <Chip className="text-sm">النتائج الظاهرة: {services.length}</Chip>
-          <Chip className="text-sm">إجمالي النتائج: {meta.total}</Chip>
-          <Chip className="text-sm">المصدر: {meta.hasRealData ? 'Live Inventory' : 'Fallback Catalog'}</Chip>
+          <Chip className="text-sm">{t.visible}: {services.length}</Chip>
+          <Chip className="text-sm">{t.total}: {meta.total}</Chip>
+          <Chip className="text-sm">{t.source}: {meta.hasRealData ? t.verified : t.noVerified}</Chip>
         </div>
 
         <div id="marketplace-results" className="mt-6">
           {!loading && services.length === 0 ? (
             <SectionSurface>
-              <p className="text-xl font-semibold text-[var(--color-navy)]">لا توجد خدمات مطابقة للمرشحات الحالية.</p>
-              <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">جرّب إعادة ضبط المرشحات أو تصفح جميع الخدمات لاكتشاف خيارات أخرى.</p>
+              <p className="text-xl font-semibold text-[var(--color-navy)]">{t.emptyTitle}</p>
+              <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">{t.emptyDescription}</p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <button
                   type="button"
@@ -357,15 +361,18 @@ export default function MarketplaceExplorer({
                   }}
                   className={buttonVariants({ variant: 'gold', size: 'default' })}
                 >
-                  إعادة ضبط المرشحات
+                  {t.reset}
                 </button>
                 <Link href="/services" className={buttonVariants({ variant: 'outline', size: 'default' })}>
-                  تصفح كل الخدمات
+                  {t.browseServices}
+                </Link>
+                <Link href="/dabra" className={buttonVariants({ variant: 'outline', size: 'default' })}>
+                  {t.askDabra}
                 </Link>
               </div>
             </SectionSurface>
           ) : (
-            <ServicesGrid services={services} loading={loading} emptyMessage="لا توجد نتائج مطابقة للمرشحات الحالية." skeletonCount={6} />
+            <ServicesGrid services={services} loading={loading} emptyMessage={t.noResults} skeletonCount={6} />
           )}
         </div>
 
@@ -381,7 +388,7 @@ export default function MarketplaceExplorer({
                   : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
               }`}
             >
-              السابق
+              {t.previous}
             </button>
 
             {paginationPages.map((pageNumber) => (
@@ -409,7 +416,7 @@ export default function MarketplaceExplorer({
                   : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
               }`}
             >
-              التالي
+              {t.next}
             </button>
           </div>
         ) : null}

@@ -141,9 +141,10 @@ test('booking mutation payloads stay synthetic and scoped', () => {
 });
 
 test('public marketplace isolation excludes synthetic items even if status is published/active', () => {
-  assert.equal(isPublicMarketplaceProduct({ status: 'published', synthetic: false }), true);
-  assert.equal(isPublicMarketplaceProduct({ status: 'published', synthetic: true }), false);
-  assert.equal(isPublicMarketplaceProduct({ status: 'active', synthetic: true }), false);
+  assert.equal(isPublicMarketplaceProduct({ status: 'published', synthetic: false }), false);
+  assert.equal(isPublicMarketplaceProduct({ status: 'published', synthetic: false, marketplace_environment: 'production', fulfilment_state: 'catalog_only' }), true);
+  assert.equal(isPublicMarketplaceProduct({ status: 'published', synthetic: true, marketplace_environment: 'production', fulfilment_state: 'live_bookable' }), false);
+  assert.equal(isPublicMarketplaceProduct({ status: 'active', synthetic: false, marketplace_environment: 'sandbox', fulfilment_state: 'live_bookable' }), false);
 
   const calls: Array<{ type: string; column: string; value: unknown }> = [];
   const fakeQuery = {
@@ -155,12 +156,18 @@ test('public marketplace isolation excludes synthetic items even if status is pu
       calls.push({ type: 'eq', column, value });
       return this;
     },
+    neq(column: string, value: unknown) {
+      calls.push({ type: 'neq', column, value });
+      return this;
+    },
   };
 
   applyPublicProductFilters(fakeQuery);
 
   assert.equal(calls.some((call) => call.type === 'in' && call.column === 'status'), true);
   assert.equal(calls.some((call) => call.type === 'eq' && call.column === 'synthetic' && call.value === false), true);
+  assert.equal(calls.some((call) => call.type === 'eq' && call.column === 'marketplace_environment' && call.value === 'production'), true);
+  assert.equal(calls.some((call) => call.type === 'neq' && call.column === 'fulfilment_state' && call.value === 'test_sandbox'), true);
 
   const serviceCalls: Array<{ type: string; column: string; value: unknown }> = [];
   const fakeServiceQuery = {
@@ -186,6 +193,8 @@ test('public adapters and service API keep DB-level synthetic isolation and avoi
   assert.match(serviceRoute, /applyPublicProductFilters/);
   assert.match(serviceRoute, /applyPublicAssetSyntheticFilter/);
   assert.match(serviceRoute, /eq\('products\.images\.synthetic', false\)/);
+  assert.match(serviceRoute, /eq\('products\.marketplace_environment', 'production'\)/);
+  assert.match(serviceRoute, /neq\('products\.fulfilment_state', 'test_sandbox'\)/);
   assert.doesNotMatch(serviceRoute, /resolveSingleWithSyntheticCompatibility/);
   assert.doesNotMatch(serviceRoute, /resolveArrayWithSyntheticCompatibility/);
 
@@ -193,6 +202,16 @@ test('public adapters and service API keep DB-level synthetic isolation and avoi
   assert.match(searchRoute, /getMarketplaceSnapshot/);
   assert.doesNotMatch(searchRoute, /supabaseAdmin/);
   assert.doesNotMatch(searchRoute, /from\('products'\)|from\('services'\)|from\('product_categories'\)/);
+});
+
+test('DABRA marketplace grounding is family-scoped and runs before strong RAG return', () => {
+  const chatRuntime = fs.readFileSync(path.resolve('lib/ai2/runtime/chat.ts'), 'utf8');
+  assert.match(chatRuntime, /buildMarketplaceGroundingNote\(language, detectedServices\)/);
+  assert.match(chatRuntime, /requestedFamilies\.has\(service\.family\)/);
+  assert.match(chatRuntime, /supplierVerified === true/);
+  const noteIndex = chatRuntime.indexOf('const marketplaceNote =');
+  const strongMatchIndex = chatRuntime.indexOf('if (internalMatchGate.hasStrongMatch');
+  assert.ok(noteIndex >= 0 && noteIndex < strongMatchIndex);
 });
 
 test('public isolation script covers search, service detail, and synthetic image leakage checks', () => {

@@ -284,14 +284,21 @@ const CANONICAL_SERVICES_NOTE: Record<AI2ChatLanguage, string> = {
 };
 
 // V5: verified marketplace grounding — only mention real, non-synthetic inventory state; never fabricate price/availability.
-async function buildMarketplaceGroundingNote(language: AI2ChatLanguage): Promise<string> {
+async function buildMarketplaceGroundingNote(language: AI2ChatLanguage, families: DabraCanonicalService[]): Promise<string> {
   try {
     const snapshot = await getMarketplaceSnapshot();
-    const verifiedCount = snapshot.services.filter((service) => service.source !== 'fallback').length;
-    if (verifiedCount > 0) {
+    const requestedFamilies = new Set(families.map((family) => `dir3-${family}`));
+    const verified = snapshot.services.filter((service) =>
+      requestedFamilies.has(service.family) && service.source !== 'fallback' && service.supplierVerified === true
+    );
+    if (verified.length > 0) {
+      const listings = verified.slice(0, 5).map((service) => {
+        const name = (language === 'ar' ? service.name_ar : service.name_en || service.name_ar).replace(/[\r\n\t]+/g, ' ').slice(0, 80);
+        return `${name} (${service.fulfilmentState ?? 'availability_unknown'}; ${service.transactionMethod ?? 'none'})`;
+      }).join('، ');
       return language === 'ar'
-        ? `بيانات السوق الموثقة: يوجد حاليًا ${verifiedCount} خدمة/منتج حقيقي منشور على المنصة. اذكر فقط ما هو موثق فعليًا، ولا تختلق أسعارًا أو إتاحة أو شركاء.`
-        : `Verified marketplace data: ${verifiedCount} real, published listing(s) currently exist. State only actually verified data; never invent prices, availability, or partners.`;
+        ? `حالة السوق الموثقة للعائلة المطلوبة فقط: ${listings}. هذه هي السجلات الموثقة المتاحة للسياق؛ لا تختلق سعرًا أو إتاحة أو موردًا، ولا تسمِّ أي حالة حجزًا مؤكدًا إلا إذا كانت live_bookable.`
+        : `Verified marketplace state for the requested family only: ${listings}. These are the only verified records available for this context; never invent price, availability, or supplier, and never call anything confirmed unless it is live_bookable.`;
     }
     return language === 'ar'
       ? 'بيانات السوق الموثقة: لا يوجد حاليًا مخزون حقيقي منشور موثق لهذه الخدمة على المنصة. أخبر المستخدم أن الإتاحة الفعلية غير مؤكدة حاليًا بدلاً من اختلاق سعر أو تفاصيل حجز.'
@@ -385,11 +392,13 @@ export async function buildAI2ChatResponse(
   const internalSources = uniqueSourcesFromMatches(matches);
   const internalMatchGate = evaluateAI2InternalMatchGate(message, matches);
   const globalWebEnabled = String(process.env.DABRA_GLOBAL_WEB_ENABLED ?? '').toLowerCase() === 'true';
+  const detectedServices = classifyCanonicalServices(message);
+  const marketplaceNote = detectedServices.length > 0 ? await buildMarketplaceGroundingNote(language, detectedServices) : '';
 
   if (internalMatchGate.hasStrongMatch && internalSources.length > 0) {
     logDabraLatency({ totalMs: Date.now() - requestStartedAt, route: 'internal', provider: 'local', grounded: true });
     return {
-      answer: finalizeDabraAnswer(composeGroundedAnswer(matches, language), message),
+      answer: finalizeDabraAnswer([composeGroundedAnswer(matches, language), marketplaceNote].filter(Boolean).join('\n\n'), message),
       sources: internalSources,
       language,
       groundingStatus: 'grounded',
@@ -422,8 +431,6 @@ export async function buildAI2ChatResponse(
     }
     const configuredProviders = providerPlan.providers;
     // Conversational asks skip forced citation grounding; the model still answers with the same canonical persona/prompt.
-    const detectedServices = classifyCanonicalServices(message);
-    const marketplaceNote = detectedServices.length > 0 ? await buildMarketplaceGroundingNote(language) : '';
     const contextSections = [
       CONCISE_ANSWER_HINT[language],
       CANONICAL_SERVICES_NOTE[language],

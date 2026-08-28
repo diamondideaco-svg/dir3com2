@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { normalizeRole } from '@/lib/auth/identity';
 import { getRoleLabel } from '@/lib/auth/identity-contract';
+import MarketplaceRequestsPanel from '@/components/account/MarketplaceRequestsPanel';
 
 function buildLoginTarget(destination: string) {
   const encoded = encodeURIComponent(destination);
@@ -25,11 +26,18 @@ async function getAccountProfile() {
     .eq('id', user.id)
     .maybeSingle();
 
-  return { user, profile: data };
+  const { data: requests } = await supabase
+    .from('marketplace_requests')
+    .select('id, request_reference, request_type, status, payment_status, quote_amount, quote_currency, quote_expires_at, created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  return { user, profile: data, requests: requests ?? [] };
 }
 
 export default async function MyAccountPage() {
-  const { user, profile } = await getAccountProfile();
+  const { user, profile, requests } = await getAccountProfile();
   const displayName = profile?.full_name || user.user_metadata?.full_name_ar || user.user_metadata?.full_name || user.email?.split('@')[0] || 'عميل dir3com';
   const displayEmail = profile?.email || user.email || '—';
   const displayRole = getRoleLabel(normalizeRole(profile?.role), typeof profile?.role === 'string' ? profile.role : null);
@@ -82,6 +90,7 @@ export default async function MyAccountPage() {
             </div>
           </div>
         </div>
+        <MarketplaceRequestsPanel requests={requests} />
       </div>
     </div>
   );

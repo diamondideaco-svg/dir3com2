@@ -3,7 +3,6 @@ import { fetchAllTravelProviderCards } from '@/lib/marketplace/travel-provider-i
 import type { MarketplaceCard } from '@/lib/marketplace/cards';
 import { fetchProtectedProviderCards } from '@/lib/marketplace/provider-search-protection';
 import {
-  createMarketplaceFallbackServices,
   filterMarketplaceServices,
   normalizeMarketplaceServices,
   queryMarketplaceServices,
@@ -56,7 +55,7 @@ function containsPilotMarker(value: unknown) {
 }
 
 export function classifyMarketplaceAssistantDataQuality(
-  services: Array<Pick<MarketplaceService, 'slug' | 'name_ar' | 'name_en' | 'description_ar' | 'description_en' | 'badge'>>,
+  services: Array<Pick<MarketplaceService, 'slug' | 'name_ar' | 'name_en' | 'description_ar' | 'description_en' | 'badge' | 'supplierVerified'>>,
   hasRealData: boolean,
 ): MarketplaceAssistantDataQuality {
   if (services.length === 0) return 'unavailable';
@@ -64,12 +63,25 @@ export function classifyMarketplaceAssistantDataQuality(
     [service.slug, service.name_ar, service.name_en, service.description_ar, service.description_en, service.badge]
       .some(containsPilotMarker),
   );
-  return hasPilotMarkers || !hasRealData ? 'pilot-test' : 'live-verified';
+  const allSuppliersVerified = services.every((service) => service.supplierVerified === true);
+  return hasPilotMarkers || !hasRealData || !allSuppliersVerified ? 'pilot-test' : 'live-verified';
 }
 
-export function filterAssistantServices<T extends Pick<MarketplaceService, 'source' | 'slug' | 'name_ar' | 'name_en' | 'description_ar' | 'description_en' | 'badge'>>(services: T[]) {
+export function filterAssistantServices<T extends Pick<MarketplaceService, 'source' | 'slug' | 'name_ar' | 'name_en' | 'description_ar' | 'description_en' | 'badge' | 'supplierVerified'>>(services: T[]) {
   return services.filter((service) => service.source !== 'fallback')
+    .filter((service) => service.supplierVerified === true)
     .filter((service) => ![service.slug, service.name_ar, service.name_en, service.description_ar, service.description_en, service.badge].some(containsPilotMarker));
+}
+
+export function filterCustomerMarketplaceServices<T extends Pick<MarketplaceService, 'source' | 'provenance' | 'marketplaceEnvironment' | 'fulfilmentState'>>(services: T[]) {
+  return services.filter((service) =>
+    service.source !== 'fallback' &&
+    service.provenance !== 'FALLBACK' &&
+    service.provenance !== 'SYNTHETIC_TEST' &&
+    service.provenance !== 'PROVIDER_SANDBOX' &&
+    service.marketplaceEnvironment === 'production' &&
+    service.fulfilmentState !== 'test_sandbox'
+  );
 }
 
 function withDestination(records: Array<Record<string, unknown>>) {
@@ -107,7 +119,7 @@ async function fetchSupabaseServices(): Promise<MarketplaceService[]> {
 
 export async function getMarketplaceSnapshot(): Promise<MarketplaceSnapshot> {
   try {
-    const services = await fetchSupabaseServices();
+    const services = filterCustomerMarketplaceServices(await fetchSupabaseServices());
     const hasRealData = services.some((service) => service.source !== 'fallback');
     const source = hasRealData
       ? services.find((service) => service.source !== 'fallback')?.source ?? 'supabase'
@@ -121,7 +133,8 @@ export async function getMarketplaceSnapshot(): Promise<MarketplaceSnapshot> {
     };
   } catch {
     return {
-      services: createMarketplaceFallbackServices(),
+      // Catalogue fallbacks are discovery content, never customer inventory.
+      services: [],
       source: 'fallback',
       hasRealData: false,
       generatedAt: new Date().toISOString(),
@@ -201,6 +214,12 @@ function providerCardsToServices(cards: MarketplaceCard[]): MarketplaceService[]
       recommended: true,
       source: 'api',
       provenance: card.verified ? 'PARTNER_VERIFIED' : 'PROVIDER_LIVE',
+      fulfilmentState: card.availabilityStatus === 'sold-out' ? 'unavailable' : 'availability_unknown',
+      transactionMethod: 'none',
+      marketplaceEnvironment: 'production',
+      supplyType: card.verified ? 'verified_local_partner' : 'global_travel_partner',
+      supplierName: card.provider,
+      supplierVerified: card.verified,
       createdAt: null,
       updatedAt: null,
     } satisfies MarketplaceService;
@@ -232,9 +251,9 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: M
       )
     : { cards: [], limited: false };
   const providerServices = providerCardsToServices(providerResult.cards);
-  const services = providerServices.length > 0
+  const services = filterCustomerMarketplaceServices(providerServices.length > 0
     ? [...providerServices, ...snapshot.services]
-    : snapshot.services;
+    : snapshot.services);
 
   const scoped = filterMarketplaceServices(services, {
     family: apiQuery.family,
@@ -262,8 +281,8 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: M
 
 export async function getMarketplaceAssistantContext() {
   const snapshot = await getMarketplaceSnapshot();
-  const services = snapshot.services;
-  const topServices = filterAssistantServices(services)
+  const services = filterAssistantServices(snapshot.services);
+  const topServices = services
     .slice(0, 6)
     .map((service) => ({
       id: service.id,

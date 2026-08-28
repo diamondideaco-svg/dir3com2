@@ -22,6 +22,11 @@ test('public navigation makes the full DABRA route canonical', () => {
   assert.doesNotMatch(approvedVisual, /href="\/ai\/pilot"/);
 });
 
+test('marketplace browsing remains public for late authentication', () => {
+  const proxy = fs.readFileSync(path.resolve('proxy.ts'), 'utf8');
+  assert.match(proxy, /PUBLIC_PATHS[^\n]*['"]\/marketplace['"]/);
+});
+
 test('admin shell wires all approved routes and reuses canonical logout', () => {
   const shell = read('components/admin/AdminPlatformShell.tsx');
   for (const route of ['/admin/audit', '/admin/events', '/admin/notifications', '/admin/shield', '/admin/partners/vip-local-egypt']) {

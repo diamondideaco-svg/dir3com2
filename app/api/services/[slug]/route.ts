@@ -98,6 +98,8 @@ export async function GET(
             )
                 .eq('products.synthetic', false)
                 .in('products.status', ['published', 'active', 'featured'])
+                .eq('products.marketplace_environment', 'production')
+                .neq('products.fulfilment_state', 'test_sandbox')
                 .eq('products.images.synthetic', false)
                 .maybeSingle();
 
@@ -172,6 +174,14 @@ export async function GET(
                     currency: product.currency,
                     featured: product.featured,
                     status: product.status,
+                    marketplace_family: product.marketplace_family,
+                    fulfilment_state: product.fulfilment_state,
+                    transaction_method: product.transaction_method,
+                    marketplace_environment: product.marketplace_environment,
+                    supply_type: product.supply_type,
+                    supplier_name: product.supplier_name,
+                    supplier_verified: product.supplier_verified,
+                    cancellation_summary: product.cancellation_summary,
                     marketplace_category: category?.slug ?? category?.name_en ?? category?.name_ar ?? null,
                     category_slug: category?.slug ?? null,
                     category_name_en: category?.name_en ?? null,
@@ -222,6 +232,13 @@ export async function GET(
             currency: fallback.currency,
             featured: fallback.featured,
             status: fallback.availability,
+            marketplace_family: fallback.family.replace('dir3-', ''),
+            fulfilment_state: fallback.fulfilmentState,
+            transaction_method: fallback.transactionMethod,
+            marketplace_environment: fallback.marketplaceEnvironment,
+            supply_type: fallback.supplyType,
+            supplier_name: fallback.supplierName,
+            supplier_verified: fallback.supplierVerified,
             created_at: fallback.createdAt,
             products: [],
         });

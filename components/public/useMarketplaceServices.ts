@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { isPublicAISearchEnabled } from '@/lib/ai/config';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
 import {
-  createMarketplaceFallbackServices,
   normalizeMarketplaceServices,
   type MarketplaceCollectionKey,
   type MarketplaceFamilyKey,
@@ -70,7 +70,7 @@ const fallbackMeta: MarketplaceServicesMeta = {
 
 function parsePayload(data: unknown): { services: MarketplaceService[]; meta: MarketplaceServicesMeta } {
   if (Array.isArray(data)) {
-    const services = normalizeMarketplaceServices(data);
+    const services = normalizeMarketplaceServices(data, { includeFallback: false });
     return {
       services,
       meta: {
@@ -90,7 +90,7 @@ function parsePayload(data: unknown): { services: MarketplaceService[]; meta: Ma
   }
 
   const payload = data as { services?: unknown; meta?: Partial<MarketplaceServicesMeta> };
-  const services = Array.isArray(payload.services) ? (payload.services as MarketplaceService[]) : createMarketplaceFallbackServices();
+  const services = Array.isArray(payload.services) ? (payload.services as MarketplaceService[]) : [];
 
   return {
     services,
@@ -111,7 +111,8 @@ function parsePayload(data: unknown): { services: MarketplaceService[]; meta: Ma
 }
 
 export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
-  const [services, setServices] = useState<MarketplaceService[]>(() => createMarketplaceFallbackServices());
+  const { language: interfaceLanguage } = useLanguage();
+  const [services, setServices] = useState<MarketplaceService[]>([]);
   const [meta, setMeta] = useState<MarketplaceServicesMeta>(fallbackMeta);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -245,7 +246,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
             });
 
             if (!fallbackResponse.ok) {
-              throw new Error('تعذر تحميل الخدمات حالياً');
+              throw new Error(interfaceLanguage === 'en' ? 'Unable to load services right now' : 'تعذر تحميل الخدمات حالياً');
             }
 
             data = (await fallbackResponse.json()) as unknown;
@@ -257,7 +258,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
           });
 
           if (!response.ok) {
-            throw new Error('تعذر تحميل الخدمات حالياً');
+            throw new Error(interfaceLanguage === 'en' ? 'Unable to load services right now' : 'تعذر تحميل الخدمات حالياً');
           }
 
           data = (await response.json()) as unknown;
@@ -280,22 +281,9 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
           return;
         }
 
-        setError(fetchError instanceof Error ? fetchError.message : 'تعذر تحميل الخدمات حالياً');
-        const fallbackServices = createMarketplaceFallbackServices();
-        setServices(fallbackServices);
-        setMeta({
-          ...fallbackMeta,
-          total: fallbackServices.length,
-          facets: {
-            ...fallbackMeta.facets,
-            collections: {
-              all: fallbackServices.length,
-              featured: fallbackServices.filter((service) => service.featured).length,
-              popular: fallbackServices.filter((service) => service.popular).length,
-              recommended: fallbackServices.filter((service) => service.recommended).length,
-            },
-          },
-        });
+        setError(fetchError instanceof Error ? fetchError.message : (interfaceLanguage === 'en' ? 'Unable to load services right now' : 'تعذر تحميل الخدمات حالياً'));
+        setServices([]);
+        setMeta(fallbackMeta);
       } finally {
         if (active) {
           setLoading(false);
@@ -309,7 +297,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
       active = false;
       controller.abort();
     };
-  }, [aiRequestBody, requestQuery, shouldUseAISearch]);
+  }, [aiRequestBody, interfaceLanguage, requestQuery, shouldUseAISearch]);
 
   return { services, loading, error, meta };
 }
