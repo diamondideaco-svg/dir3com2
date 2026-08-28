@@ -3,8 +3,10 @@ import { buildAI2ChatResponse, type AI2ChatAccountContext, type AI2ChatTurn } fr
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DabraTravelOrchestrator } from '@/lib/ai2/orchestration';
 import { TravelProviderError } from '@/lib/travel/errors';
-import { createDabraAssistantTextResponse, DABRA_SAFE_CHAT_ERROR } from '@/lib/dabra/chat-response-contract';
+import { createDabraAssistantTextResponse } from '@/lib/dabra/chat-response-contract';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
+import { DABRA_LOCALE_ERROR, parseDabraLocale, type DabraLocale } from '@/lib/dabra/locale-contract';
+import { ensureDabraResponseLocale } from '@/lib/dabra/response-language';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +15,7 @@ type AI2ChatRequest = {
   history?: Array<{ role?: string; content?: string }>;
   mode?: 'chat' | 'travel-plan';
   stream?: boolean;
+  locale?: 'ar' | 'en';
 };
 
 type ParsedChatRequest = { body: AI2ChatRequest | null; attachmentCount: number; attachmentError: boolean };
@@ -25,6 +28,21 @@ type AI2RequestIdentity = {
 const MAX_HISTORY_TURNS = 8;
 const MAX_TURN_LENGTH = 500;
 const MAX_ATTACHMENTS = 3;
+
+async function buildLocaleSafeResponse(
+  message: string,
+  history: AI2ChatTurn[],
+  account: AI2ChatAccountContext | undefined,
+  locale: DabraLocale,
+) {
+  const response = await buildAI2ChatResponse(message, history, account, locale);
+  return ensureDabraResponseLocale(response, locale, async (invalidAnswer) => {
+    const repairInstruction = locale === 'ar'
+      ? `أعد صياغة النص التالي بالعربية فقط مع إبقاء أسماء المدن والمطارات والعلامات التجارية كما هي. لا تضف معلومات جديدة:\n\n${invalidAnswer.slice(0, 1500)}`
+      : `Rewrite the following text in English only, preserving city, airport, and brand names. Do not add new information:\n\n${invalidAnswer.slice(0, 1500)}`;
+    return buildAI2ChatResponse(repairInstruction, [], account, locale);
+  });
+}
 
 async function parseChatRequest(request: NextRequest): Promise<ParsedChatRequest> {
   const contentType = request.headers.get('content-type')?.toLowerCase() ?? '';
@@ -43,7 +61,9 @@ async function parseChatRequest(request: NextRequest): Promise<ParsedChatRequest
     const stream = streamValue === 'true' ? true : streamValue === 'false' || streamValue === null ? undefined : streamValue as unknown as boolean;
     const modeValue = form.get('mode');
     const mode = modeValue === 'chat' || modeValue === 'travel-plan' ? modeValue : undefined;
-    const body: AI2ChatRequest = { message: String(form.get('message') ?? ''), history, stream, mode };
+    const localeValue = form.get('locale');
+    const locale = parseDabraLocale(localeValue);
+    const body: AI2ChatRequest = { message: String(form.get('message') ?? ''), history, stream, mode, locale: locale ?? undefined };
     const files = form.getAll('attachment');
     if (files.length > MAX_ATTACHMENTS || files.some((item) => !(item instanceof File))) return { body, attachmentCount: 0, attachmentError: true };
     const seen = new Set<string>();
@@ -105,6 +125,11 @@ export async function POST(request: NextRequest) {
   // conversational inference must never require pilot authorization.
   const parsed = await parseChatRequest(request);
   const { body } = parsed;
+  const locale = parseDabraLocale(body?.locale) ?? (/[؀-ۿ]/u.test(body?.message ?? '') ? 'ar' : 'en');
+
+  if (body?.locale !== undefined && !parseDabraLocale(body.locale)) {
+    return NextResponse.json({ error: 'Invalid locale.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+  }
 
   if (body?.stream !== undefined && typeof body.stream !== 'boolean') {
     return NextResponse.json(
@@ -114,18 +139,18 @@ export async function POST(request: NextRequest) {
   }
 
   if (parsed.attachmentError) {
-    if (body?.stream === true) return createDabraAssistantTextResponse(null, { status: 400, fallback: DABRA_SAFE_CHAT_ERROR });
+    if (body?.stream === true) return createDabraAssistantTextResponse(null, { status: 400, fallback: DABRA_LOCALE_ERROR[locale] });
     return NextResponse.json({ error: 'Invalid attachment.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
   }
 
   const message = body?.message?.trim().slice(0, MAX_TURN_LENGTH);
   const modelMessage = message && parsed.attachmentCount
-    ? `${message}\n\n[أرفق المستخدم ${parsed.attachmentCount} ملفًا تحقق الخادم من سلامة نوعه. محتوى الملفات غير مُرسل إلى مزود الذكاء الاصطناعي، فلا تدّعِ قراءته.]`
+    ? `${message}\n\n${locale === 'ar' ? `[أرفق المستخدم ${parsed.attachmentCount} ملفًا تحقق الخادم من سلامة نوعه. محتوى الملفات غير مُرسل إلى مزود الذكاء الاصطناعي، فلا تدّعِ قراءته.]` : `[The user attached ${parsed.attachmentCount} server-validated file(s). Their contents are not sent to the AI provider, so do not claim to have read them.]`}`
     : message ?? '';
 
   if (!message) {
     if (body?.stream === true) {
-      return createDabraAssistantTextResponse(null, { status: 400, fallback: DABRA_SAFE_CHAT_ERROR });
+      return createDabraAssistantTextResponse(null, { status: 400, fallback: DABRA_LOCALE_ERROR[locale] });
     }
     return NextResponse.json(
       {
@@ -144,7 +169,7 @@ export async function POST(request: NextRequest) {
   const identity = await resolveSafeRequestIdentity(request);
   if (body?.mode === 'travel-plan' && !identity.scope) {
     if (body.stream === true) {
-      return createDabraAssistantTextResponse(null, { status: 401, fallback: DABRA_SAFE_CHAT_ERROR });
+      return createDabraAssistantTextResponse(null, { status: 401, fallback: DABRA_LOCALE_ERROR[locale] });
     }
     return NextResponse.json(
       { error: 'Authentication is required for user-scoped travel planning.' },
@@ -158,7 +183,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       if (error instanceof TravelProviderError && error.code === 'INVALID_TRAVELER_COUNT') {
         if (body.stream === true) {
-          return createDabraAssistantTextResponse(null, { status: 400, fallback: DABRA_SAFE_CHAT_ERROR });
+          return createDabraAssistantTextResponse(null, { status: 400, fallback: DABRA_LOCALE_ERROR[locale] });
         }
         return NextResponse.json(
           { error: 'Traveler counts are invalid.' },
@@ -167,12 +192,12 @@ export async function POST(request: NextRequest) {
       }
       throw error;
     }
-    const response = await buildAI2ChatResponse(modelMessage, history, identity.account);
+    const response = await buildLocaleSafeResponse(modelMessage, history, identity.account, locale);
     if (body.stream === true) return createDabraAssistantTextResponse(response);
     return NextResponse.json({ ...response, travel }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const response = await buildAI2ChatResponse(modelMessage, history, identity.account);
+  const response = await buildLocaleSafeResponse(modelMessage, history, identity.account, locale);
   if (body?.stream === true) {
     return createDabraAssistantTextResponse(response);
   }

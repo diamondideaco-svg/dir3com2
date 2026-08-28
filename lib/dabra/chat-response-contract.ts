@@ -43,24 +43,25 @@ export function createDabraAssistantTextResponse(
   });
 }
 
-function safeAnswerFromJsonText(raw: string): string {
+function safeAnswerFromJsonText(raw: string, fallback = DABRA_SAFE_EMPTY_ANSWER): string {
   try {
-    return approvedAssistantAnswer(JSON.parse(raw)) ?? DABRA_SAFE_EMPTY_ANSWER;
+    return approvedAssistantAnswer(JSON.parse(raw)) ?? fallback;
   } catch {
-    return DABRA_SAFE_EMPTY_ANSWER;
+    return fallback;
   }
 }
 
 export async function consumeDabraChatResponse(
   response: Response,
   onVisibleText: (answer: string) => void,
+  fallback = DABRA_SAFE_EMPTY_ANSWER,
 ): Promise<string> {
   if (!response.ok) throw new Error(`DABRA chat request failed (${response.status})`);
 
   const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
   if (contentType.includes('application/json')) {
     const raw = await response.text();
-    const answer = safeAnswerFromJsonText(raw);
+    const answer = safeAnswerFromJsonText(raw, fallback);
     onVisibleText(answer);
     return answer;
   }
@@ -71,8 +72,8 @@ export async function consumeDabraChatResponse(
     || streamContract !== DABRA_CHAT_STREAM_CONTRACT_VERSION
     || !response.body
   ) {
-    onVisibleText(DABRA_SAFE_EMPTY_ANSWER);
-    return DABRA_SAFE_EMPTY_ANSWER;
+    onVisibleText(fallback);
+    return fallback;
   }
 
   const reader = response.body.getReader();
@@ -95,8 +96,8 @@ export async function consumeDabraChatResponse(
   raw += decoder.decode();
 
   const answer = looksLikeEnvelope
-    ? safeAnswerFromJsonText(raw)
-    : raw.trim() || DABRA_SAFE_EMPTY_ANSWER;
+    ? safeAnswerFromJsonText(raw, fallback)
+    : raw.trim() || fallback;
   onVisibleText(answer);
   return answer;
 }

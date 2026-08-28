@@ -17,47 +17,21 @@ const copy = {
   ar: {
     heroTitle: 'كل رحلة تحت الدرع.',
     heroBody:
-      'dir3com تقدم تجربة سفر فاخرة بواجهة واضحة، خدمات موثوقة، ومساعد ذكي يرافقك من أول اكتشاف حتى إتمام الحجز.',
+      'dir3com تجمع اكتشاف خدمات السفر ومقارنتها وطلبها في واجهة واضحة، مع الدبرة للمساعدة في التخطيط.',
     primaryCta: 'ابدأ رحلتك الآن',
     dabraTitle: 'الدبرة',
-    dabraBody: 'مساعدك الذكي لتنظيم رحلتك وخدمتك بثقة.',
-    features: ['ثقة وأمان', 'خدمات فاخرة', 'مساعد شخصي', 'تجارب استثنائية'],
+    dabraBody: 'مساعدك الذكي لتنظيم خيارات الرحلة.',
     servicesTitle: 'الخدمات الأساسية',
-    services: [
-      { title: 'dir3com Drive', subtitle: 'تنقل بسيارات خاصة وسائقين موثوقين.', href: '/services/drive', image: '/brand/runtime/1000467135.png' },
-      { title: 'dir3com Stay', subtitle: 'إقامة فاخرة تناسب ميزانيتك.', href: '/services/stay', image: '/brand/runtime/1000467134.png' },
-      { title: 'dir3com Fly', subtitle: 'حجوزات رحلات الطيران بأفضل الأسعار.', href: '/services/fly', image: '/brand/runtime/1000467131.png' },
-      { title: 'dir3com Concierge', subtitle: 'مساعد شخصي لتفاصيل الرحلة.', href: '/services/concierge', image: '/brand/runtime/1000467128 (1).png' },
-      { title: 'dir3com VIP', subtitle: 'تجارب استثنائية بمستوى حصري.', href: '/services/vip', image: '/brand/runtime/1000467129 (1).png' },
-    ],
-    products: [
-      { title: 'الحجوزات المرنة', body: 'حجز الفنادق والنقل والخدمات اليومية ضمن مسار موحد.' },
-      { title: 'تنسيق الدبرة', body: 'اقتراحات ذكية للخيارات الأنسب بحسب احتياج الرحلة.' },
-      { title: 'ضمان التجربة', body: 'شبكة شركاء موثوقين مع متابعة مستمرة أثناء الرحلة.' },
-    ],
   },
   en: {
     heroTitle: 'Every journey under the shield.',
     heroBody:
-      'dir3com delivers a premium travel journey with clear flows, trusted services, and a smart concierge from discovery to booking.',
+      'dir3com brings travel-service discovery, comparison, and requests into one clear interface, with DABRA for planning support.',
     primaryCta: 'Start your journey',
     secondaryCta: 'Explore services',
     dabraTitle: 'DABRA',
-    dabraBody: 'Your smart assistant for confident travel planning.',
-    features: ['Trust and safety', 'Premium services', 'Personal concierge', 'Exceptional experiences'],
+    dabraBody: 'Your smart assistant for organizing trip options.',
     servicesTitle: 'Core services',
-    services: [
-      { title: 'dir3com Drive', subtitle: 'Private transport with trusted drivers.', href: '/services/drive', image: '/brand/runtime/1000467135.png' },
-      { title: 'dir3com Stay', subtitle: 'Luxury stays aligned with your budget.', href: '/services/stay', image: '/brand/runtime/1000467134.png' },
-      { title: 'dir3com Fly', subtitle: 'Flight bookings at clear, competitive rates.', href: '/services/fly', image: '/brand/runtime/1000467131.png' },
-      { title: 'dir3com Concierge', subtitle: 'Personal support for every detail.', href: '/services/concierge', image: '/brand/runtime/1000467128 (1).png' },
-      { title: 'dir3com VIP', subtitle: 'Exclusive experiences with premium quality.', href: '/services/vip', image: '/brand/runtime/1000467129 (1).png' },
-    ],
-    products: [
-      { title: 'Flexible bookings', body: 'Hotels, transport, and daily services in one unified flow.' },
-      { title: 'DABRA guidance', body: 'Smart recommendations aligned with your travel intent.' },
-      { title: 'Trusted execution', body: 'Reliable partners with end-to-end trip follow-up.' },
-    ],
   },
 } as const;
 

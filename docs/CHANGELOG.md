@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-08-28 — Customer claim truth and DABRA response-language enforcement
+
+- Consolidated service-page descriptions onto the existing canonical family copy and replaced unsupported superiority, verification, availability, count, and response-time claims across active customer-facing service and Marketplace sources with neutral Arabic/English descriptions.
+- Added server-side n-gram DABRA response-language identification that positively identifies Arabic or English, fails closed on foreign or low-confidence conversational output, permits bounded travel identifiers, and performs at most one locale repair before using a deterministic fallback.
+
+## 2026-08-28 — Customer journey and DABRA locale continuity
+
+- Restored the global family navigation to the dedicated Fly, Stay, Drive, Concierge, and VIP service journeys while keeping Marketplace as its own destination and adding family-filtered Marketplace calls to action on each service page.
+- Made each dedicated journey initialize the existing shared search with that family's truthful field model instead of defaulting every service page to Drive.
+- Bound DABRA interface copy, request context, response validation, speech recognition, and text-to-speech to the customer-selected Arabic or English locale so prior messages and proper nouns cannot silently switch the active language.
+
 ## 2026-08-28 — Marketplace production schema contract closure
 
 - Aligned public browsing, request, quote, and booking eligibility with the canonical production `products.status` and `products.deleted_at` lifecycle instead of the nonexistent `products.is_active` column.
@@ -137,3 +148,4 @@
 - Unified Preview supply across Duffel Fly sandbox results, LiteAPI Stay sandbox results, and Ticketmaster Concierge discovery while retaining all five canonical marketplace families and truthful empty states.
 - Grounded DABRA in the same bounded provider results and preserved explicit sandbox/production and native/external transaction distinctions in Arabic and English.
 - Moved existing testable booking, request, sandbox, and request-context helpers out of Next.js Route Handler modules so the unchanged controls satisfy the Next.js 16 export contract and production builds remain type-safe.
+- Removed unsupported comparative, verification, and quality claims from the five customer service-family pages, replacing them with neutral bilingual service descriptions.
