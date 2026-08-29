@@ -6,12 +6,17 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { getPostLoginDestination, getRolePostLoginDestination, type TrustedSessionIdentity } from '@/lib/auth/redirect';
+import { buildOAuthCallbackUrl } from '@/lib/auth/oauth-callback';
 
 async function resolveTrustedRoleDestination() {
     const response = await fetch('/api/auth/session-identity', { cache: 'no-store' });
     if (!response.ok) return '/my-account';
     const identity = await response.json() as TrustedSessionIdentity;
     return identity.authenticated ? getRolePostLoginDestination(identity) : '/my-account';
+}
+
+async function resolvePostLoginDestination(requested: string | null, sanitizedDestination: string) {
+    return requested ? sanitizedDestination : resolveTrustedRoleDestination();
 }
 
 export default function LoginPage() {
@@ -41,9 +46,9 @@ function LoginContent() {
 
     useEffect(() => {
         supabase.auth.getSession().then(async ({ data }: { data: { session: unknown } }) => {
-            if (data.session) window.location.replace(await resolveTrustedRoleDestination());
+            if (data.session) window.location.replace(await resolvePostLoginDestination(requestedDestination, redirectTo));
         });
-    }, []);
+    }, [redirectTo, requestedDestination]);
 
     const handleEmailLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -61,21 +66,17 @@ function LoginContent() {
             return;
         }
 
-        window.location.assign(await resolveTrustedRoleDestination());
+        window.location.assign(await resolvePostLoginDestination(requestedDestination, redirectTo));
     };
 
     const handleGoogleLogin = async () => {
         setLoading(true);
         setError(null);
 
-        const callbackParams = new URLSearchParams();
-        callbackParams.set('redirect', redirectTo);
-        callbackParams.set('next', redirectTo);
-
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: `${window.location.origin}/auth/callback?${callbackParams.toString()}`,
+                redirectTo: buildOAuthCallbackUrl(window.location.origin, redirectTo),
                 skipBrowserRedirect: true,
             },
         });

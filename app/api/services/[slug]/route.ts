@@ -103,17 +103,7 @@ export async function GET(
                 .eq('products.images.synthetic', false)
                 .maybeSingle();
 
-            if (error) {
-                const shell = buildCanonicalShellResponse(lookupSlug);
-
-                if (shell) {
-                    return shell;
-                }
-
-                return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
-            }
-
-            if (service) {
+            if (!error && service) {
                 const safeProducts = sanitizeServiceProductsForCompatibility(Array.isArray(service.products) ? service.products : []);
 
                 return NextResponse.json({
@@ -140,12 +130,14 @@ export async function GET(
             }
 
             if (product) {
-                const { data: category, error: categoryError } = await applyPublicCategoryFilters(
-                    client
-                        .from('product_categories')
-                        .select('id,slug,name_en,name_ar')
-                        .eq('id', product.category_id)
-                ).maybeSingle();
+                const { data: category, error: categoryError } = product.category_id
+                    ? await applyPublicCategoryFilters(
+                        client
+                            .from('product_categories')
+                            .select('id,slug,name_en,name_ar')
+                            .eq('id', product.category_id)
+                    ).maybeSingle()
+                    : { data: null, error: null };
 
                 if (categoryError) {
                     return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
@@ -161,6 +153,14 @@ export async function GET(
                 if (imagesError) {
                     return buildErrorResponse('internal_error', 'Unable to load service right now.', 500);
                 }
+
+                const safeImages = await Promise.all((images ?? []).map(async (image: { image_url?: string | null; is_primary?: boolean | null }) => {
+                    if (!image.image_url || /^https?:\/\//i.test(image.image_url)) {
+                        return { image_url: image.image_url, is_primary: Boolean(image.is_primary) };
+                    }
+                    const { data: signed } = await client.storage.from('partner-media').createSignedUrl(image.image_url, 300);
+                    return { image_url: signed?.signedUrl ?? null, is_primary: Boolean(image.is_primary) };
+                }));
 
                 return NextResponse.json({
                     id: product.id,
@@ -197,10 +197,7 @@ export async function GET(
                             slug: product.slug,
                             partner: null,
                             region: null,
-                            images: (images ?? []).map((image: { image_url?: string | null; is_primary?: boolean | null }) => ({
-                                image_url: image.image_url,
-                                is_primary: Boolean(image.is_primary),
-                            })),
+                            images: safeImages.filter((image) => Boolean(image.image_url)),
                         },
                     ],
                 });

@@ -111,7 +111,7 @@ export default function MarketplaceExplorer({
     budget: advancedFilters.budget,
     travelers: advancedFilters.travelers,
     page,
-    pageSize: 9,
+    pageSize: 30,
   });
 
   const categoryBrowseItems = useMemo(

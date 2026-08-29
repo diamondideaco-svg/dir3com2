@@ -1,7 +1,7 @@
 // src/app/auth/callback/route.ts
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
-import { getRolePostLoginDestination } from '@/lib/auth/redirect';
+import { getPostLoginDestination, getRolePostLoginDestination } from '@/lib/auth/redirect';
 import { ensureCanonicalProfileFromAuthUser } from '@/lib/auth/identity';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 
@@ -27,6 +27,8 @@ export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
     const flowId = searchParams.get('sb_flow_id');
+    const requestedDestination = searchParams.get('redirect') ?? searchParams.get('next');
+    const safeRequestedDestination = getPostLoginDestination(requestedDestination, origin);
 
     if (!code) {
         return NextResponse.redirect(`${origin}/login?error=no_code`);
@@ -61,7 +63,9 @@ export async function GET(request: Request) {
             ? await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
             : { data: null };
         const roleRaw = typeof profile?.role === 'string' ? profile.role : null;
-        const next = getRolePostLoginDestination({ role: roleRaw, roleRaw });
+        const next = requestedDestination
+            ? safeRequestedDestination
+            : getRolePostLoginDestination({ role: roleRaw, roleRaw });
 
         return NextResponse.redirect(`${origin}${next}`);
     } catch (err) {

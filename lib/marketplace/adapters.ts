@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { applyPublicCategoryFilters, applyPublicProductFilters, applyPublicServiceFilters } from '@/lib/marketplace/public-filters';
+import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters, applyPublicServiceFilters } from '@/lib/marketplace/public-filters';
 import type { MarketplaceEnvironment, MarketplaceFulfilmentState, MarketplaceSupplyType, MarketplaceTransactionMethod } from '@/lib/marketplace/truth';
 
 export type RawMarketplaceServiceRecord = {
@@ -26,6 +26,7 @@ export type RawMarketplaceServiceRecord = {
   supply_type?: MarketplaceSupplyType | null;
   supplier_name?: string | null;
   supplier_verified?: boolean | null;
+  primary_image_url?: string | null;
   products?: Array<{
     id?: string | number | null;
     price_per_unit?: number | null;
@@ -55,6 +56,13 @@ type RawMarketplaceProductRecord = {
   supply_type?: MarketplaceSupplyType | null;
   supplier_name?: string | null;
   supplier_verified?: boolean | null;
+};
+
+type RawMarketplaceProductImageRecord = {
+  product_id: string;
+  image_url?: string | null;
+  is_primary?: boolean | null;
+  sort_order?: number | null;
 };
 
 type RawMarketplaceProductCategoryRecord = {
@@ -113,6 +121,35 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
     const products = (productsData ?? []) as RawMarketplaceProductRecord[];
     const categories = (categoriesData ?? []) as RawMarketplaceProductCategoryRecord[];
     const categoriesById = new Map(categories.map((category) => [category.id, category]));
+    const productIds = products.map((product) => product.id);
+    const imageResult = productIds.length
+      ? await applyPublicAssetSyntheticFilter(
+          supabaseAdmin
+            .from('product_images')
+            .select('product_id,image_url,is_primary,sort_order')
+            .in('product_id', productIds)
+        ).order('sort_order', { ascending: true })
+      : { data: [], error: null };
+    const images = (imageResult.data ?? []) as RawMarketplaceProductImageRecord[];
+    const firstImageByProduct = new Map<string, RawMarketplaceProductImageRecord>();
+
+    for (const image of images) {
+      const current = firstImageByProduct.get(image.product_id);
+      if (!current || image.is_primary === true) {
+        firstImageByProduct.set(image.product_id, image);
+      }
+    }
+
+    const signedImageByProduct = new Map<string, string>();
+    await Promise.all(Array.from(firstImageByProduct.entries()).map(async ([productId, image]) => {
+      if (!image.image_url) return;
+      if (/^https?:\/\//i.test(image.image_url)) {
+        signedImageByProduct.set(productId, image.image_url);
+        return;
+      }
+      const { data } = await supabaseAdmin!.storage.from('partner-media').createSignedUrl(image.image_url, 300);
+      if (data?.signedUrl) signedImageByProduct.set(productId, data.signedUrl);
+    }));
 
     const productAsServices: RawMarketplaceServiceRecord[] = products
       .map((product) => {
@@ -142,6 +179,7 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
           supply_type: product.supply_type,
           supplier_name: product.supplier_name,
           supplier_verified: product.supplier_verified,
+          primary_image_url: signedImageByProduct.get(product.id) ?? null,
           products: [
             {
               id: product.id,
