@@ -11,10 +11,16 @@ ALTER TABLE public.marketplace_requests
   ADD COLUMN IF NOT EXISTS next_action text;
 
 UPDATE public.marketplace_requests
-SET fulfilment_method = request_type,
-    transaction_method = request_type
-WHERE handoff_type = 'none'
-  AND request_type IN ('request_to_confirm', 'request_quote');
+SET marketplace_family = COALESCE(marketplace_requests.marketplace_family, products.marketplace_family),
+    supplier_name = COALESCE(marketplace_requests.supplier_name, products.supplier_name),
+    service_name = COALESCE(marketplace_requests.service_name, products.name_ar, products.name_en),
+    fulfilment_method = marketplace_requests.request_type,
+    transaction_method = COALESCE(products.transaction_method, marketplace_requests.request_type),
+    next_action = COALESCE(marketplace_requests.next_action, 'operations_review')
+FROM public.products
+WHERE products.id = marketplace_requests.product_id
+  AND marketplace_requests.handoff_type = 'none'
+  AND marketplace_requests.request_type IN ('request_to_confirm', 'request_quote');
 
 ALTER TABLE public.marketplace_requests DROP CONSTRAINT IF EXISTS marketplace_requests_family_check;
 ALTER TABLE public.marketplace_requests ADD CONSTRAINT marketplace_requests_family_check

@@ -1,16 +1,22 @@
 import { requireAdminPageAccess } from '@/lib/auth/admin';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { updateMarketplaceRequestStatus } from '@/lib/actions/operations-actions';
+import { logServerError } from '@/lib/security/safe-logger';
 
 export async function MarketplaceRequestOperationsTable() {
   await requireAdminPageAccess('/admin/operations');
-  const { data } = supabaseAdmin
+  const { data, error } = supabaseAdmin
     ? await supabaseAdmin
         .from('marketplace_requests')
         .select('id, request_reference, user_id, product_id, service_name, supplier_name, marketplace_family, requested_for, traveller_count, fulfilment_method, transaction_method, handoff_type, status, next_action, created_at, updated_at')
         .order('created_at', { ascending: false })
         .limit(50)
-    : { data: [] };
+    : { data: [], error: new Error('Marketplace request operations data source is unavailable.') };
+
+  if (error) {
+    logServerError('admin.operations.marketplace_requests_read_failed', error);
+    throw new Error('Unable to load marketplace revenue requests.');
+  }
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/5 p-5">

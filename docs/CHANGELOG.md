@@ -185,3 +185,7 @@
 - Persisted customer, product, supplier, family, fulfilment, transaction, and controlled-handoff truth on marketplace requests before any external transition.
 - Added truthful request lifecycle visibility to My Bookings and an admin-authorized operations queue without promoting requests to confirmed bookings.
 - Kept provider checkout and WhatsApp as optional temporary rails; no production inventory, payment, booking, or supplier settlement capability was fabricated.
+## 2026-08-30 — DIR-118 request persistence traceability remediation
+
+- Backfilled existing marketplace request snapshots from their authoritative product record so legacy Request-to-Confirm references remain visible through the unified Admin Operations and customer read contract.
+- Made Admin Operations fail explicitly on request-query/schema errors instead of silently presenting a false empty queue.

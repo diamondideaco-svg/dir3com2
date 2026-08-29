@@ -34,9 +34,20 @@ test('operations visibility is authorized beside the privileged query', () => {
   assert.match(operations, /new Date\(request\.created_at\)\.toLocaleString\('en-GB'\)/);
   assert.match(operations, /new Date\(request\.updated_at\)\.toLocaleString\('en-GB'\)/);
   assert.match(operations, /request\.user_id/);
+  assert.match(operations, /admin\.operations\.marketplace_requests_read_failed/);
+  assert.match(operations, /throw new Error\('Unable to load marketplace revenue requests\.'\)/);
   assert.match(operationsActions, /requireAdminActionAccess/);
   assert.match(operationsActions, /supabaseAdmin[\s\S]*from\('marketplace_requests'\)[\s\S]*update/);
   assert.match(operationsActions, /createAuditEntry/);
+});
+
+test('DIR-118 migration backfills authoritative legacy request context from products', () => {
+  assert.match(migration, /FROM public\.products/);
+  assert.match(migration, /products\.id = marketplace_requests\.product_id/);
+  assert.match(migration, /marketplace_family = COALESCE\(marketplace_requests\.marketplace_family, products\.marketplace_family\)/);
+  assert.match(migration, /supplier_name = COALESCE\(marketplace_requests\.supplier_name, products\.supplier_name\)/);
+  assert.match(migration, /service_name = COALESCE\(marketplace_requests\.service_name, products\.name_ar, products\.name_en\)/);
+  assert.match(migration, /next_action = COALESCE\(marketplace_requests\.next_action, 'operations_review'\)/);
 });
 
 test('request lifecycle supports launch-safe human operations states', () => {
