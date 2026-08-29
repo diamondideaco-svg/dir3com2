@@ -22,7 +22,7 @@ test('production product contract uses status and deleted_at without is_active',
   const bookingRoute = fs.readFileSync(path.resolve('app/api/bookings/route.ts'), 'utf8');
   const publicFilters = fs.readFileSync(path.resolve('lib/marketplace/public-filters.ts'), 'utf8');
   assert.doesNotMatch(`${requestRoute}\n${bookingRoute}\n${publicFilters}`, /\bis_active\b/);
-  assert.match(requestRoute, /status, deleted_at, synthetic, marketplace_environment, fulfilment_state, transaction_method/);
+  assert.match(requestRoute, /status[^']*deleted_at[^']*synthetic[^']*marketplace_environment[^']*fulfilment_state[^']*transaction_method/);
   assert.match(publicFilters, /\.is\('deleted_at', null\)/);
 });
 

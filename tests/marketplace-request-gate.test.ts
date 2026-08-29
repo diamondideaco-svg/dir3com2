@@ -33,7 +33,7 @@ test('only publicly published products can use request and quote mutations', () 
 test('hidden UUID lookup cannot bypass the same public eligibility gate', () => {
   const route = fs.readFileSync(path.resolve('app/api/marketplace/requests/route.ts'), 'utf8');
   const gate = fs.readFileSync(path.resolve('lib/marketplace/request-gate.ts'), 'utf8');
-  assert.match(route, /select\('id, status, deleted_at, synthetic, marketplace_environment, fulfilment_state, transaction_method'\)/);
+  assert.match(route, /select\('[^']*id[^']*status[^']*deleted_at[^']*synthetic[^']*marketplace_environment[^']*fulfilment_state[^']*transaction_method[^']*'\)/);
   assert.doesNotMatch(route, /is_active/);
   assert.match(route, /requestTypeMatchesProduct/);
   assert.match(gate, /isPublicMarketplaceProduct/);

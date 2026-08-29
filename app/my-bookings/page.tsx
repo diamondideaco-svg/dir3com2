@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import BookingStatusBadge from '@/components/booking/BookingStatusBadge';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { BookingEngineRecord } from '@/lib/supabase/types';
+import MarketplaceRequestsPanel from '@/components/account/MarketplaceRequestsPanel';
 
 function buildLoginTarget(destination: string) {
   const encoded = encodeURIComponent(destination);
@@ -25,7 +26,13 @@ async function getCustomerBookings() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
-  return (data || []) as BookingEngineRecord[];
+  const { data: requests } = await supabase
+    .from('marketplace_requests')
+    .select('id, request_reference, request_type, status, payment_status, quote_amount, quote_currency, quote_expires_at, marketplace_family, supplier_name, service_name, fulfilment_method, handoff_type, created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  return { bookings: (data || []) as BookingEngineRecord[], requests: requests ?? [] };
 }
 
 function getBookingServiceName(booking: BookingEngineRecord) {
@@ -39,7 +46,7 @@ function getBookingAmount(booking: BookingEngineRecord) {
 }
 
 export default async function MyBookingsPage() {
-  const bookings = await getCustomerBookings();
+  const { bookings, requests } = await getCustomerBookings();
 
   return (
     <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]" dir="rtl">
@@ -74,6 +81,7 @@ export default async function MyBookingsPage() {
             </div>
           ))}
         </div>
+        <MarketplaceRequestsPanel requests={requests} />
       </div>
     </div>
   );

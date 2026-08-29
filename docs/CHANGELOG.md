@@ -175,3 +175,8 @@
 
 - Kept OAuth callbacks on the stable Vercel branch preview origin so Supabase can consume the authorization code in Preview instead of falling back to the production Site URL.
 - Preserved the validated internal marketplace return destination across Google sign-in without changing local or production callback behavior.
+## 2026-08-29 — DIR-118 revenue launch traceability
+
+- Persisted customer, product, supplier, family, fulfilment, transaction, and controlled-handoff truth on marketplace requests before any external transition.
+- Added truthful request lifecycle visibility to My Bookings and an admin-authorized operations queue without promoting requests to confirmed bookings.
+- Kept provider checkout and WhatsApp as optional temporary rails; no production inventory, payment, booking, or supplier settlement capability was fabricated.
