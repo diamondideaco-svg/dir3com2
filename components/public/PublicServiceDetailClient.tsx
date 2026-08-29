@@ -23,6 +23,7 @@ import { normalizeMarketplaceServices, sanitizeMarketplaceCustomerCopy } from '@
 import { marketplacePrimaryAction } from '@/lib/marketplace/truth';
 import { getCanonicalService } from '@/lib/services/canonical';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { buildMarketplaceLoginHandoff, buildMarketplaceRequestReturnPath } from '@/lib/auth/marketplace-request-handoff';
 
 type ServiceProduct = {
   id: string;
@@ -176,8 +177,27 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
   }) : 'view_details';
   const submitRequest = async () => {
     if (primaryAction !== 'request_to_confirm' && primaryAction !== 'request_quote') return;
-    setRequestState('sending');
+
+    const returnPath = buildMarketplaceRequestReturnPath({
+      slug: service_.slug ?? slug,
+      productId: String(service_.id),
+      family: service_.marketplace_family ?? 'drive',
+      intent: primaryAction,
+    });
+
     try {
+      const identityResponse = await fetch('/api/auth/session-identity', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      const identity = (await identityResponse.json().catch(() => null)) as { authenticated?: boolean } | null;
+
+      if (!identityResponse.ok || identity?.authenticated !== true) {
+        window.location.assign(buildMarketplaceLoginHandoff(returnPath));
+        return;
+      }
+
+      setRequestState('sending');
       const response = await fetch('/api/marketplace/requests', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

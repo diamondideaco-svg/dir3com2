@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-29 — Marketplace request authentication handoff
+
+- Kept public Marketplace/PDP browsing open while moving authentication to the durable Request to Confirm action boundary.
+- Preserved the product, PDP, family, and request intent through the existing safe Login/OAuth callback return mechanism without automatically creating or replaying a request.
+
 ## 2026-08-29 — Drive customer-surface remediation
 
 - Replaced the non-rendering Drive fallback image request with the existing platform vehicle icon, removed internal seed/review language at the customer presentation boundary, and kept stored Drive products in vehicle taxonomy across cards and PDP.

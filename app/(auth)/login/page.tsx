@@ -14,6 +14,10 @@ async function resolveTrustedRoleDestination() {
     return identity.authenticated ? getRolePostLoginDestination(identity) : '/my-account';
 }
 
+async function resolvePostLoginDestination(requested: string | null, sanitizedDestination: string) {
+    return requested ? sanitizedDestination : resolveTrustedRoleDestination();
+}
+
 export default function LoginPage() {
     return (
         <Suspense fallback={<div style={{ backgroundColor: '#FAF8F4', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37' }}>جاري التحميل...</div>}>
@@ -41,9 +45,9 @@ function LoginContent() {
 
     useEffect(() => {
         supabase.auth.getSession().then(async ({ data }: { data: { session: unknown } }) => {
-            if (data.session) window.location.replace(await resolveTrustedRoleDestination());
+            if (data.session) window.location.replace(await resolvePostLoginDestination(requestedDestination, redirectTo));
         });
-    }, []);
+    }, [redirectTo, requestedDestination]);
 
     const handleEmailLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -61,7 +65,7 @@ function LoginContent() {
             return;
         }
 
-        window.location.assign(await resolveTrustedRoleDestination());
+        window.location.assign(await resolvePostLoginDestination(requestedDestination, redirectTo));
     };
 
     const handleGoogleLogin = async () => {
