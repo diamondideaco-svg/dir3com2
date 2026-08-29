@@ -92,7 +92,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
           <div className="flex flex-1 items-start gap-4">
             <div className="mt-1 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/88 shadow-[0_8px_18px_rgba(13,27,42,0.2)]">
               {service.icon ? (
-                <Image src={service.icon} alt={serviceName} width={28} height={28} className="h-7 w-7" />
+                <Image src={service.icon} alt={serviceName} width={28} height={28} className="h-7 w-7 rounded-lg object-cover" unoptimized />
               ) : (
                 <span className="h-7 w-7 rounded-full bg-[var(--color-gold)]/30" />
               )}

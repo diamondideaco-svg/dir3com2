@@ -28,6 +28,10 @@ export function getMarketplaceFamilyLabel(
   return marketplaceFamilyDefinitions.find((definition) => definition.key === family)?.label[language] ?? allLabel;
 }
 
+function getMarketplaceFamilyBrandLabel(family: MarketplaceFamilyKey): string {
+  return `dir3 ${family.slice('dir3-'.length).replace(/^./, (value) => value.toUpperCase())}`;
+}
+
 export type MarketplacePageCategory =
   | 'cars'
   | 'hotels'
@@ -92,6 +96,7 @@ type RawServiceApiItem = {
   supply_type?: import('./truth').MarketplaceSupplyType | null;
   supplier_name?: string | null;
   supplier_verified?: boolean | null;
+  primary_image_url?: string | null;
 };
 
 export type MarketplaceService = {
@@ -462,6 +467,7 @@ export function normalizeMarketplaceServices(
     const category = inferCategory(item);
     const catalogEntry = findCatalogEntry(category);
     const family = resolveMarketplaceFamily(item, category);
+    const familyLabel = getMarketplaceFamilyBrandLabel(family);
     const productCount = Array.isArray(item.products) ? item.products.length : 0;
     const basePriceFromProducts = Array.isArray(item.products)
       ? item.products
@@ -484,12 +490,12 @@ export function normalizeMarketplaceServices(
       name_en: item.name_en ?? item.name_ar ?? catalogEntry.title,
       description_ar: item.description_ar ?? item.description_en ?? catalogEntry.description,
       description_en: item.description_en ?? item.description_ar ?? catalogEntry.description,
-      badge: catalogEntry.familyLabel,
+      badge: familyLabel,
       family,
-      familyLabel: catalogEntry.familyLabel,
+      familyLabel,
       category,
       categoryLabel: categoryLabels[category],
-      icon: catalogEntry.icon,
+      icon: item.primary_image_url ?? catalogEntry.icon,
       href: resolveServiceHref(item, catalogEntry, fallbackSlug),
       metric: productCount > 0 ? `${productCount} خيارات` : catalogEntry.metric,
       tags: catalogEntry.tags,
