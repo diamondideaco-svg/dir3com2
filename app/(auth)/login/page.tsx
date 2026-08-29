@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { getPostLoginDestination, getRolePostLoginDestination, type TrustedSessionIdentity } from '@/lib/auth/redirect';
+import { buildOAuthCallbackUrl } from '@/lib/auth/oauth-callback';
 
 async function resolveTrustedRoleDestination() {
     const response = await fetch('/api/auth/session-identity', { cache: 'no-store' });
@@ -72,14 +73,10 @@ function LoginContent() {
         setLoading(true);
         setError(null);
 
-        const callbackParams = new URLSearchParams();
-        callbackParams.set('redirect', redirectTo);
-        callbackParams.set('next', redirectTo);
-
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: `${window.location.origin}/auth/callback?${callbackParams.toString()}`,
+                redirectTo: buildOAuthCallbackUrl(window.location.origin, redirectTo),
                 skipBrowserRedirect: true,
             },
         });

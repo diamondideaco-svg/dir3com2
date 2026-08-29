@@ -170,3 +170,8 @@
 ## 2026-08-29 — Marketplace family context hotfix
 
 - Synchronized the visible and accessible Marketplace family context with its canonical URL parameter and replaced internal integration-roadmap copy with neutral customer guidance.
+
+## 2026-08-29 — Preview OAuth callback return-state closure
+
+- Kept OAuth callbacks on the stable Vercel branch preview origin so Supabase can consume the authorization code in Preview instead of falling back to the production Site URL.
+- Preserved the validated internal marketplace return destination across Google sign-in without changing local or production callback behavior.
