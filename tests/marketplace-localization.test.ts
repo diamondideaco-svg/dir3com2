@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import { marketplaceFamilyDefinitions } from '@/lib/marketplace/data';
 
 const read = (file: string) => fs.readFileSync(path.join(process.cwd(), file), 'utf8');
 
@@ -34,10 +35,10 @@ test('Arabic marketplace copy remains present and locale switching owns document
 });
 
 test('localization preserves the five-family taxonomy and truth-gated CTA eligibility', () => {
-  const explorer = read('components/public/MarketplaceExplorer.tsx');
-  for (const family of ['dir3-fly', 'dir3-stay', 'dir3-drive', 'dir3-concierge', 'dir3-vip']) {
-    assert.ok(explorer.includes(family));
-  }
+  assert.deepEqual(
+    marketplaceFamilyDefinitions.map((definition) => definition.key),
+    ['dir3-fly', 'dir3-stay', 'dir3-drive', 'dir3-concierge', 'dir3-vip'],
+  );
   const card = read('components/shared/ServiceCard.tsx');
   const detail = read('components/public/PublicServiceDetailClient.tsx');
   assert.match(card, /marketplacePrimaryAction/);
