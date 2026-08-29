@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await auth.supabase
     .from('marketplace_requests')
-    .select('id, request_reference, product_id, request_type, status, requested_for, traveller_count, quote_amount, quote_currency, quote_expires_at, payment_status, created_at, updated_at')
+    .select('id, request_reference, product_id, request_type, status, requested_for, traveller_count, quote_amount, quote_currency, quote_expires_at, payment_status, marketplace_family, supplier_name, service_name, fulfilment_method, transaction_method, handoff_type, handoff_reference, handoff_started_at, next_action, created_at, updated_at')
     .eq('user_id', auth.user.id)
     .order('created_at', { ascending: false });
 
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
   const { data: product, error: productError } = await supabaseAdmin
     .from('products')
-    .select('id, status, deleted_at, synthetic, marketplace_environment, fulfilment_state, transaction_method')
+    .select('id, name_ar, name_en, status, deleted_at, synthetic, marketplace_environment, marketplace_family, fulfilment_state, transaction_method, supplier_name')
     .eq('id', body.product_id)
     .maybeSingle();
 
@@ -82,7 +82,13 @@ export async function POST(request: NextRequest) {
     traveller_count: travellers,
     customer_brief: parseBrief(body.customer_brief),
     status: 'request_submitted',
-  }).select('id, request_reference, request_type, status, payment_status, created_at').single();
+    marketplace_family: product.marketplace_family,
+    supplier_name: product.supplier_name,
+    service_name: product.name_ar || product.name_en,
+    fulfilment_method: requestType,
+    transaction_method: product.transaction_method,
+    next_action: 'operations_review',
+  }).select('id, request_reference, request_type, status, payment_status, marketplace_family, supplier_name, service_name, fulfilment_method, transaction_method, handoff_type, created_at').single();
 
   if (error) {
     logServerError('api.marketplace.requests.insert_failed', error);

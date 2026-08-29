@@ -5,6 +5,50 @@ import { redirect } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/auth/admin';
 import { appendTimelineRecord, createAuditRecord as createAuditEntry, createNotificationRecord, publishEvent, sendNotificationRecord } from '@/lib/operations/operations-engine';
 import { bookingStatusFromAssignmentStatus, bookingStatusFromLifecycleOutcome, normalizeBookingStatus, type CanonicalAssignmentStatus, type CanonicalLifecycleOutcome } from '@/lib/booking/workflow-status';
+import { supabaseAdmin } from '@/lib/supabase/server';
+
+const marketplaceRequestTransitions = {
+  under_review: 'assign_owner',
+  awaiting_supplier: 'contact_supplier',
+  confirmed: 'notify_customer',
+  declined: 'notify_customer',
+  cancelled: 'none',
+} as const;
+
+export async function updateMarketplaceRequestStatus(formData: FormData) {
+  const requestId = formData.get('requestId')?.toString();
+  const status = formData.get('status')?.toString() as keyof typeof marketplaceRequestTransitions | undefined;
+  if (!requestId || !status || !(status in marketplaceRequestTransitions)) return;
+
+  const { user } = await requireAdminActionAccess();
+  if (!supabaseAdmin) throw new Error('Operations service unavailable');
+
+  const { data: current } = await supabaseAdmin
+    .from('marketplace_requests')
+    .select('id, status, request_reference')
+    .eq('id', requestId)
+    .single();
+  if (!current) throw new Error('Request not found');
+
+  const { error } = await supabaseAdmin
+    .from('marketplace_requests')
+    .update({ status, next_action: marketplaceRequestTransitions[status], updated_at: new Date().toISOString() })
+    .eq('id', requestId);
+  if (error) throw new Error('Unable to update request');
+
+  await createAuditEntry(supabaseAdmin, {
+    entityType: 'marketplace_requests',
+    entityId: requestId,
+    action: 'request_status_updated',
+    oldValues: { status: current.status },
+    newValues: { status, next_action: marketplaceRequestTransitions[status] },
+    performedBy: user.id,
+  });
+
+  revalidatePath('/admin/operations');
+  revalidatePath('/my-account');
+  revalidatePath('/my-bookings');
+}
 
 export async function createNotification(input: {
   recipientType: string;

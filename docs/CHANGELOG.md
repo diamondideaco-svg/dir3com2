@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-30 — PR #68 Preview auth and operations timestamp remediation
+
+- Kept OAuth callbacks on the initiating, trusted dir3com-owned Vercel Preview host instead of relying on a branch-specific alias.
+- Added the persisted marketplace request `updated_at` value to the guarded Admin Operations queue alongside `created_at`.
+
 ## 2026-08-29 — Marketplace request authentication handoff
 
 - Kept public Marketplace/PDP browsing open while moving authentication to the durable Request to Confirm action boundary.
@@ -175,3 +180,12 @@
 
 - Kept OAuth callbacks on the stable Vercel branch preview origin so Supabase can consume the authorization code in Preview instead of falling back to the production Site URL.
 - Preserved the validated internal marketplace return destination across Google sign-in without changing local or production callback behavior.
+## 2026-08-29 — DIR-118 revenue launch traceability
+
+- Persisted customer, product, supplier, family, fulfilment, transaction, and controlled-handoff truth on marketplace requests before any external transition.
+- Added truthful request lifecycle visibility to My Bookings and an admin-authorized operations queue without promoting requests to confirmed bookings.
+- Kept provider checkout and WhatsApp as optional temporary rails; no production inventory, payment, booking, or supplier settlement capability was fabricated.
+## 2026-08-30 — DIR-118 request persistence traceability remediation
+
+- Backfilled existing marketplace request snapshots from their authoritative product record so legacy Request-to-Confirm references remain visible through the unified Admin Operations and customer read contract.
+- Made Admin Operations fail explicitly on request-query/schema errors instead of silently presenting a false empty queue.

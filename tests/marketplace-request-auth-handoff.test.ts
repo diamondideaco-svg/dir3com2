@@ -7,7 +7,7 @@ import {
   buildMarketplaceRequestReturnPath,
 } from '../lib/auth/marketplace-request-handoff';
 import { getPostLoginDestination } from '../lib/auth/redirect';
-import { buildOAuthCallbackUrl, getOAuthCallbackOrigin } from '../lib/auth/oauth-callback';
+import { buildOAuthCallbackUrl, getOAuthCallbackOrigin, getTrustedVercelPreviewOrigin } from '../lib/auth/oauth-callback';
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -48,16 +48,16 @@ test('login and OAuth callback honor the existing safe return mechanism', () => 
   assert.match(callback, /requestedDestination\s*\?\s*safeRequestedDestination/);
 });
 
-test('preview OAuth uses the stable Vercel branch origin and preserves request state', () => {
+test('preview OAuth uses the current trusted dir3com Preview origin and preserves request state', () => {
   const branchOrigin = getOAuthCallbackOrigin(
-    'https://dir3com2-random-dir3com.vercel.app',
+    'https://dir3com2-git-feat-dir118-revenue-launch-v1-dir3com.vercel.app',
     'preview',
     'dir3com2-git-fix-marketplace-drive-p0-read-path-v1-dir3com.vercel.app',
   );
 
   assert.equal(
     branchOrigin,
-    'https://dir3com2-git-fix-marketplace-drive-p0-read-path-v1-dir3com.vercel.app',
+    'https://dir3com2-git-feat-dir118-revenue-launch-v1-dir3com.vercel.app',
   );
 
   const previousEnvironment = process.env.NEXT_PUBLIC_VERCEL_ENV;
@@ -67,7 +67,7 @@ test('preview OAuth uses the stable Vercel branch origin and preserves request s
 
   try {
     const destination = '/services/drive-product?intent=request_to_confirm&product=drive-1&family=drive';
-    const callback = new URL(buildOAuthCallbackUrl('https://dir3com2-random-dir3com.vercel.app', destination));
+    const callback = new URL(buildOAuthCallbackUrl('https://dir3com2-git-feat-dir118-revenue-launch-v1-dir3com.vercel.app', destination));
     assert.equal(callback.origin, branchOrigin);
     assert.equal(callback.pathname, '/auth/callback');
     assert.equal(callback.searchParams.get('redirect'), destination);
@@ -91,6 +91,13 @@ test('OAuth callback origin preserves production and local behavior and rejects 
     getOAuthCallbackOrigin('https://safe-preview.example', 'preview', 'good.vercel.app@attacker.example'),
     'https://safe-preview.example',
   );
+  assert.equal(
+    getOAuthCallbackOrigin('https://dir3com2-git-another-branch-dir3com.vercel.app', 'preview', undefined),
+    'https://dir3com2-git-another-branch-dir3com.vercel.app',
+  );
+  assert.equal(getTrustedVercelPreviewOrigin('https://attacker.vercel.app'), null);
+  assert.equal(getTrustedVercelPreviewOrigin('https://dir3com2-git-safe-attacker.vercel.app'), null);
+  assert.equal(getTrustedVercelPreviewOrigin('https://dir3com2-git-safe-dir3com.vercel.app.attacker.example'), null);
 });
 
 test('callback rejects external returns and exchanges the authorization code exactly once', () => {
