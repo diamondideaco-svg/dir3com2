@@ -10,6 +10,11 @@ import { normalizeDabraSpeechText } from '@/lib/dabra/speech-pronunciation';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { DABRA_LOCALE_ERROR } from '@/lib/dabra/locale-contract';
 import {
+  createDabraWelcomeMessage,
+  DABRA_WELCOME_COPY,
+  localizePersistedDabraWelcome,
+} from '@/lib/dabra/welcome-locale';
+import {
   DABRA_ANONYMOUS_SESSION_KEY,
   applyScopedHotelChange,
   anonymousOwnerId,
@@ -50,21 +55,21 @@ function safeAttachmentName(name: string) {
 const dabraCopy = {
   ar: {
     name: 'الدبرة', subtitle: 'مساعد السفر الذكي والحارس السياحي', online: 'متاحة الآن', settings: 'الإعدادات', conversation: 'محادثة الدبرة', kicker: 'رحلتك، على رواق', heading: 'خلنا نرتبها سوا.', session: 'جلسة جديدة',
-    welcome: 'هلا بك. أنا الدبرة، أساعدك ترتب الرحلة بهدوء ووضوح. وش أهم شيء عندك اليوم؟', attachmentPrompt: 'راجع المرفقات المضافة وساعدني في تخطيط الرحلة.', attachmentSendError: 'تعذر الإرسال. حاول مرة أخرى.', attachmentLimit: `يمكن إضافة ${MAX_ATTACHMENTS} مرفقات كحد أقصى.`, attachmentUnsupported: 'المرفق غير مدعوم. استخدم PDF أو JPEG أو PNG أو WebP بحجم لا يتجاوز 8 MB.',
+    welcome: DABRA_WELCOME_COPY.ar, attachmentPrompt: 'راجع المرفقات المضافة وساعدني في تخطيط الرحلة.', attachmentSendError: 'تعذر الإرسال. حاول مرة أخرى.', attachmentLimit: `يمكن إضافة ${MAX_ATTACHMENTS} مرفقات كحد أقصى.`, attachmentUnsupported: 'المرفق غير مدعوم. استخدم PDF أو JPEG أو PNG أو WebP بحجم لا يتجاوز 8 MB.',
     status: { idle: 'جاهز أسمعك', listening: 'أسمعك الآن', processing: 'أرتب طلبك...', speaking: 'الدبرة يتحدث', muted: 'الصوت مكتوم', error: 'تعذر تشغيل الصوت' },
     voiceHint: { idle: 'الميكروفون يعمل فقط عندما تبدأ وضع الصوت', error: 'جرّب الكتابة بدلًا من الصوت', active: 'تقدر توقفني أو تقاطعني بأي وقت' }, voiceOn: 'تشغيل صوت الدبرة', voiceOff: 'كتم صوت الدبرة', stopListening: 'إيقاف الاستماع', talk: 'تحدث مع الدبرة', attach: 'إرفاق صورة أو ملف PDF', enableVoice: 'تفعيل الصوت', placeholder: 'قل للدبرة وش تحتاج...', securePlaceholder: 'نجهز جلستك الآمنة...', messageLabel: 'رسالة للدبرة', send: 'إرسال الرسالة', selectedAttachments: 'المرفقات المحددة', uploading: 'جارٍ الإرسال', ready: 'جاهز', remove: 'إزالة', quick: 'إجراءات سريعة',
     quickActions: ['قارن', 'أرخص', 'أريح', 'بدون توقف', 'أقرب', 'الأعلى سعرًا', 'غير التاريخ', 'شوف بدائل', 'اختصرها لي', 'اختاره لي'], tabs: ['الكل', 'طيران', 'فنادق', 'شقق', 'سيارات', 'باكدجات'], market: 'سوق الدبرة', options: 'خيارات تناسبك', results: 'نتائج السفر', openBag: 'فتح حقيبة الرحلة', marketSections: 'أقسام السوق', searchMarket: 'ابحث في السوق', searchPlaceholder: 'ابحث في سوق الدبرة', search: 'بحث', availableOnly: 'المتاح فقط', saved: 'المحفوظات', sort: 'ترتيب النتائج', sortOptions: ['الأفضل لك', 'السعر: الأقل', 'السعر: الأعلى', 'الأريح', 'الأقرب'], endCompare: 'إنهاء المقارنة', compare: 'قارن', loading: 'أبحث لك عن الخيارات المناسبة...', empty: 'ما لقيت خيارًا مطابقًا الآن. جرّب تغيير الوجهة أو التاريخ.', marketError: 'السوق غير متاح مؤقتًا. نقدر نكمل المحادثة بدون ما نفقد طلبك.', marketWelcome: 'اكتب وجهتك أو أولويتك، وأنا أجيب لك الخيارات الواضحة.', recommendation: 'ترشيح الدبرة', alternatives: 'بدائل ومحتوى استكشافي',
   },
   en: {
     name: 'DABRA', subtitle: 'Your intelligent travel assistant and trip guardian', online: 'Available now', settings: 'Settings', conversation: 'DABRA conversation', kicker: 'Your trip, at your pace', heading: 'Let’s arrange it together.', session: 'New session',
-    welcome: 'Welcome. I’m DABRA, here to arrange your trip calmly and clearly. What matters most to you today?', attachmentPrompt: 'Review the attached files and help me plan my trip.', attachmentSendError: 'Unable to send. Please try again.', attachmentLimit: `You can add up to ${MAX_ATTACHMENTS} attachments.`, attachmentUnsupported: 'Unsupported attachment. Use PDF, JPEG, PNG, or WebP up to 8 MB.',
+    welcome: DABRA_WELCOME_COPY.en, attachmentPrompt: 'Review the attached files and help me plan my trip.', attachmentSendError: 'Unable to send. Please try again.', attachmentLimit: `You can add up to ${MAX_ATTACHMENTS} attachments.`, attachmentUnsupported: 'Unsupported attachment. Use PDF, JPEG, PNG, or WebP up to 8 MB.',
     status: { idle: 'Ready to listen', listening: 'Listening now', processing: 'Arranging your request...', speaking: 'DABRA is speaking', muted: 'Voice muted', error: 'Voice unavailable' },
     voiceHint: { idle: 'The microphone activates only when you start voice mode', error: 'Try typing instead', active: 'You can stop or interrupt me at any time' }, voiceOn: 'Turn on DABRA voice', voiceOff: 'Mute DABRA voice', stopListening: 'Stop listening', talk: 'Talk to DABRA', attach: 'Attach an image or PDF', enableVoice: 'Enable voice', placeholder: 'Tell DABRA what you need...', securePlaceholder: 'Preparing your secure session...', messageLabel: 'Message DABRA', send: 'Send message', selectedAttachments: 'Selected attachments', uploading: 'Sending', ready: 'Ready', remove: 'Remove', quick: 'Quick actions',
     quickActions: ['Compare', 'Cheapest', 'Most comfortable', 'Nonstop', 'Closest', 'Highest price', 'Change date', 'Show alternatives', 'Shortlist', 'Choose for me'], tabs: ['All', 'Flights', 'Hotels', 'Apartments', 'Cars', 'Packages'], market: 'DABRA marketplace', options: 'Options for you', results: 'Travel results', openBag: 'Open trip bag', marketSections: 'Marketplace sections', searchMarket: 'Search marketplace', searchPlaceholder: 'Search DABRA marketplace', search: 'Search', availableOnly: 'Available only', saved: 'Saved', sort: 'Sort results', sortOptions: ['Recommended', 'Price: low to high', 'Price: high to low', 'Most comfortable', 'Closest'], endCompare: 'End comparison', compare: 'Compare', loading: 'Finding suitable options...', empty: 'No matching option is available right now. Try another destination or date.', marketError: 'The marketplace is temporarily unavailable. We can continue without losing your request.', marketWelcome: 'Enter your destination or priority and I’ll bring you clear options.', recommendation: 'DABRA recommendation', alternatives: 'Alternatives and discovery content',
   },
 } as const;
 
-function welcomeMessage(language: 'ar' | 'en'): Message { return { id: 'welcome', role: 'assistant', text: dabraCopy[language].welcome }; }
+function welcomeMessage(language: 'ar' | 'en'): Message { return createDabraWelcomeMessage(language); }
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -220,7 +225,10 @@ export default function DabraChatCommerce() {
     const hydrate = window.setTimeout(() => {
       const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
       const { ownerId } = persistenceContext;
-      setMessages(readPersisted(storage.getItem(storageKey(ownerId, 'context')), ownerId, validatePersistedMessages) ?? [welcomeMessage(languageRef.current)]);
+      const restoredMessages = readPersisted(storage.getItem(storageKey(ownerId, 'context')), ownerId, validatePersistedMessages);
+      setMessages(restoredMessages
+        ? localizePersistedDabraWelcome(restoredMessages, languageRef.current)
+        : [welcomeMessage(languageRef.current)]);
       setCart(readPersisted(storage.getItem(storageKey(ownerId, 'cart')), ownerId, validatePersistedCart) ?? []);
       setFavorites(readPersisted(storage.getItem(storageKey(ownerId, 'favorites')), ownerId, validatePersistedFavorites) ?? []);
       setStorageHydrated(true);
