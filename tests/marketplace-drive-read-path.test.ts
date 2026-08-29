@@ -24,7 +24,37 @@ test('stored Drive truth controls the customer family label and partner image', 
   assert.equal(service.family, 'dir3-drive');
   assert.equal(service.familyLabel, 'dir3 Drive');
   assert.equal(service.badge, 'dir3 Drive');
+  assert.equal(service.category, 'cars');
+  assert.equal(service.categoryLabel, 'السيارات');
   assert.equal(service.icon, 'https://example.test/approved-drive.jpg');
+});
+
+test('Drive customer copy drops internal seed and review language', () => {
+  for (const description of ['Phase Zero test data', 'Seed inventory', 'REVIEW']) {
+    const [service] = normalizeMarketplaceServices([{
+      slug: 'hyundai-drive',
+      name_en: 'Hyundai Drive',
+      description_en: description,
+      marketplace_family: 'drive',
+      status: 'published',
+    }], { includeFallback: false, source: 'supabase' });
+
+    assert.doesNotMatch(service.description_en ?? '', /phase zero|seed|review/i);
+    assert.match(service.description_en ?? '', /Vehicle and transfer options/);
+    assert.equal(service.category, 'cars');
+  }
+});
+
+test('Drive fallback uses the stable platform vehicle icon rather than requesting the broken SVG', () => {
+  const source = readFileSync(new URL('../components/shared/ServiceCard.tsx', import.meta.url), 'utf8');
+  assert.match(source, /service\.icon === '\/icons\/drive\.svg'/);
+  assert.match(source, /<FiTruck/);
+});
+
+test('requestable Drive PDP does not show a false empty-products state', () => {
+  const source = readFileSync(new URL('../components/public/PublicServiceDetailClient.tsx', import.meta.url), 'utf8');
+  assert.match(source, /primaryAction === 'continue_to_booking' \? <div className="luxury-section-shell">/);
+  assert.match(source, /sanitizeMarketplaceCustomerCopy/);
 });
 
 test('product PDP continues to the direct product query when the legacy service join fails', () => {

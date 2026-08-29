@@ -345,6 +345,34 @@ function inferCategory(item: RawServiceApiItem): MarketplacePageCategory {
   return match?.category ?? 'hotels';
 }
 
+function alignCategoryWithStoredFamily(
+  category: MarketplacePageCategory,
+  family: MarketplaceFamilyKey,
+): MarketplacePageCategory {
+  if (family === 'dir3-drive' && category !== 'cars' && category !== 'airport-transfers') {
+    return 'cars';
+  }
+
+  return category;
+}
+
+const internalCustomerCopyPattern = /(?:phase\s*zero|\bseed(?:ed|ing)?\b|\breview\b)/i;
+
+export function sanitizeMarketplaceCustomerCopy(value: string | null | undefined, fallback: string): string {
+  const copy = value?.trim();
+  return copy && !internalCustomerCopyPattern.test(copy) ? copy : fallback;
+}
+
+const customerSafeCategoryDescriptionEn: Record<MarketplacePageCategory, string> = {
+  cars: 'Vehicle and transfer options with service details shown before you continue.',
+  hotels: 'Hotel and serviced-stay options with their details and policies.',
+  apartments: 'Serviced-apartment options with their details and policies.',
+  'airport-transfers': 'Arrival and departure transfer options with journey details.',
+  concierge: 'Concierge assistance presented through a clear request path.',
+  experiences: 'Experience options with their details shown before you continue.',
+  offers: 'Available service options with their recorded details.',
+};
+
 function inferDestination(item: RawServiceApiItem) {
   const haystack = [item.destination, item.region_name, item.slug, item.name_ar, item.name_en, item.description_ar, item.description_en]
     .map(normalizeText)
@@ -464,9 +492,10 @@ export function normalizeMarketplaceServices(
 
   const source = Array.isArray(data) ? (data as RawServiceApiItem[]) : [];
   const normalized = source.map((item, index) => {
-    const category = inferCategory(item);
+    const inferredCategory = inferCategory(item);
+    const family = resolveMarketplaceFamily(item, inferredCategory);
+    const category = alignCategoryWithStoredFamily(inferredCategory, family);
     const catalogEntry = findCatalogEntry(category);
-    const family = resolveMarketplaceFamily(item, category);
     const familyLabel = getMarketplaceFamilyBrandLabel(family);
     const productCount = Array.isArray(item.products) ? item.products.length : 0;
     const basePriceFromProducts = Array.isArray(item.products)
@@ -488,8 +517,8 @@ export function normalizeMarketplaceServices(
       slug: item.slug ?? fallbackSlug,
       name_ar: item.name_ar ?? item.name_en ?? catalogEntry.title,
       name_en: item.name_en ?? item.name_ar ?? catalogEntry.title,
-      description_ar: item.description_ar ?? item.description_en ?? catalogEntry.description,
-      description_en: item.description_en ?? item.description_ar ?? catalogEntry.description,
+      description_ar: sanitizeMarketplaceCustomerCopy(item.description_ar ?? item.description_en, catalogEntry.description),
+      description_en: sanitizeMarketplaceCustomerCopy(item.description_en ?? item.description_ar, customerSafeCategoryDescriptionEn[category]),
       badge: familyLabel,
       family,
       familyLabel,

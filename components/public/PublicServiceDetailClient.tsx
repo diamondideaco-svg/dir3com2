@@ -19,7 +19,7 @@ import {
   ServiceComponent,
 } from '@/components/design-system';
 import { buttonVariants } from '@/components/ui/button';
-import { normalizeMarketplaceServices } from '@/lib/marketplace/data';
+import { normalizeMarketplaceServices, sanitizeMarketplaceCustomerCopy } from '@/lib/marketplace/data';
 import { marketplacePrimaryAction } from '@/lib/marketplace/truth';
 import { getCanonicalService } from '@/lib/services/canonical';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
@@ -157,8 +157,15 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
   }
 
   const service_ = resolvedService;
-  const serviceName = en ? (service_.name_en ?? service_.name_ar) : service_.name_ar;
-  const serviceDescription = en ? (service_.description_en ?? service_.description_ar) : service_.description_ar;
+  const serviceName = marketplaceService
+    ? (en ? (marketplaceService.name_en ?? marketplaceService.name_ar) : marketplaceService.name_ar)
+    : (en ? (service_.name_en ?? service_.name_ar) : service_.name_ar);
+  const serviceDescription = marketplaceService
+    ? (en ? (marketplaceService.description_en ?? marketplaceService.description_ar) : marketplaceService.description_ar)
+    : sanitizeMarketplaceCustomerCopy(
+        en ? (service_.description_en ?? service_.description_ar) : service_.description_ar,
+        en ? 'Service details will appear when verified data is available.' : 'تظهر تفاصيل الخدمة هنا عند توفر البيانات.',
+      );
   const primaryAction = service_.marketplace_family ? marketplacePrimaryAction({
     family: service_.marketplace_family,
     fulfilmentState: service_.fulfilment_state ?? 'catalog_only',
@@ -353,14 +360,14 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
         </SectionContainer>
       </div> : null}
 
-      <div className="luxury-section-shell">
+      {primaryAction === 'continue_to_booking' ? <div className="luxury-section-shell">
         <SectionContainer className="py-8">
           <ContentContainer>
-            {products.length && primaryAction === 'continue_to_booking' ? (
+            {products.length ? (
               <SectionTitle>{en ? 'Available booking options' : 'خيارات الحجز المتاحة'}</SectionTitle>
             ) : null}
 
-            {products.length && primaryAction === 'continue_to_booking' ? (
+            {products.length ? (
               <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {products.map((product) => (
                   <SectionSurface key={product.id} className="overflow-hidden">
@@ -368,7 +375,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
                     <p className="mt-2 text-sm text-[var(--color-muted)]">
                       {(en ? product.partner?.name_en : product.partner?.name_ar) ? `${en ? 'Partner' : 'الشريك'}: ${(en ? product.partner?.name_en : product.partner?.name_ar)}` : (en ? 'Service provider is not specified in the public record' : 'مقدم الخدمة غير محدد في السجل العام')}
                     </p>
-                    <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">{(en ? product.description_en : product.description_ar) ?? product.description_ar ?? product.description_en ?? (en ? 'The service description will appear when data is available.' : 'وصف الخدمة سيظهر هنا عند توفر البيانات.')}</p>
+                    <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">{sanitizeMarketplaceCustomerCopy((en ? product.description_en : product.description_ar) ?? product.description_ar ?? product.description_en, en ? 'The service description will appear when data is available.' : 'وصف الخدمة سيظهر هنا عند توفر البيانات.')}</p>
                     <div className="mt-4 flex items-center justify-between gap-3 text-sm text-[var(--color-muted)]">
                       <span className="inline-flex items-center gap-2"><FiMapPin /> {(en ? product.region?.name_en : product.region?.name_ar) ?? product.region?.name_ar ?? product.region?.name_en ?? (en ? 'Saudi Arabia' : 'السعودية')}</span>
                       <span className="text-xl font-semibold text-[var(--color-gold)]">
@@ -387,7 +394,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
             )}
           </ContentContainer>
         </SectionContainer>
-      </div>
+      </div> : null}
 
       <div className="luxury-section-shell">
         <SectionContainer className="py-10"><ContentContainer><SectionSurface>

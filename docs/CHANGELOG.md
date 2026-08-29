@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-29 — Drive customer-surface remediation
+
+- Replaced the non-rendering Drive fallback image request with the existing platform vehicle icon, removed internal seed/review language at the customer presentation boundary, and kept stored Drive products in vehicle taxonomy across cards and PDP.
+- Removed the false empty-products panel from request-to-confirm PDPs without changing inventory, fulfilment, authorization, or transaction gates.
+
 ## 2026-08-28 — Customer claim truth and DABRA response-language enforcement
 
 - Consolidated service-page descriptions onto the existing canonical family copy and replaced unsupported superiority, verification, availability, count, and response-time claims across active customer-facing service and Marketplace sources with neutral Arabic/English descriptions.
