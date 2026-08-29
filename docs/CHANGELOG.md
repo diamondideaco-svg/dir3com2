@@ -156,3 +156,7 @@
 - Added a bilingual Rooms input to Stay search with a minimum/default of one and preserved it in the existing search query contract.
 - Replaced unsupported premium discovery and generic premium-service wording on active customer marketplace surfaces with neutral descriptive copy.
 - Enforced Stay Rooms as an integer minimum of one at the submission boundary and removed the remaining unsupported Arabic quality phrase from the rendered offers feature strip.
+
+## 2026-08-29 — Marketplace family context hotfix
+
+- Synchronized the visible and accessible Marketplace family context with its canonical URL parameter and replaced internal integration-roadmap copy with neutral customer guidance.

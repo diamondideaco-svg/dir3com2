@@ -1,9 +1,5 @@
 import MarketplaceExplorer from '@/components/public/MarketplaceExplorer';
-import type { MarketplaceFamilyKey } from '@/lib/marketplace/data';
-
-const allowedFamilies = new Set<MarketplaceFamilyKey>([
-  'dir3-drive', 'dir3-stay', 'dir3-fly', 'dir3-concierge', 'dir3-vip',
-]);
+import { isMarketplaceFamilyKey } from '@/lib/marketplace/data';
 
 export default async function MarketplacePage({
   searchParams,
@@ -12,9 +8,7 @@ export default async function MarketplacePage({
 }) {
   const query = await searchParams;
   const requested = typeof query.family === 'string' ? query.family : undefined;
-  const family = allowedFamilies.has(requested as MarketplaceFamilyKey)
-    ? requested as MarketplaceFamilyKey
-    : undefined;
+  const family = isMarketplaceFamilyKey(requested) ? requested : undefined;
 
   return (
     <MarketplaceExplorer

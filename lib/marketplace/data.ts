@@ -5,6 +5,29 @@ export type MarketplaceFamilyKey =
   | 'dir3-concierge'
   | 'dir3-vip';
 
+export const marketplaceFamilyDefinitions: ReadonlyArray<{
+  key: MarketplaceFamilyKey;
+  label: { ar: string; en: string };
+}> = [
+  { key: 'dir3-fly', label: { ar: 'الطيران', en: 'Fly' } },
+  { key: 'dir3-stay', label: { ar: 'الإقامة', en: 'Stay' } },
+  { key: 'dir3-drive', label: { ar: 'التنقّل', en: 'Drive' } },
+  { key: 'dir3-concierge', label: { ar: 'الكونسيرج', en: 'Concierge' } },
+  { key: 'dir3-vip', label: { ar: 'VIP', en: 'VIP' } },
+];
+
+export function isMarketplaceFamilyKey(value: string | undefined): value is MarketplaceFamilyKey {
+  return marketplaceFamilyDefinitions.some((definition) => definition.key === value);
+}
+
+export function getMarketplaceFamilyLabel(
+  family: MarketplaceFamilyKey | undefined,
+  language: 'ar' | 'en',
+  allLabel: string,
+): string {
+  return marketplaceFamilyDefinitions.find((definition) => definition.key === family)?.label[language] ?? allLabel;
+}
+
 export type MarketplacePageCategory =
   | 'cars'
   | 'hotels'

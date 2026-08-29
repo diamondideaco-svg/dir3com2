@@ -14,6 +14,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import {
+  getMarketplaceFamilyLabel,
+  marketplaceFamilyDefinitions,
   type MarketplaceCollectionKey,
   type MarketplaceFamilyKey,
   type MarketplacePageCategory,
@@ -33,13 +35,13 @@ const copy = {
     title: 'السوق', description: 'تصفّح بحرية، واعرف ما هو متاح فعلاً، واطلب ما يحتاج إلى تأكيد بشري.', all: 'الكل', featured: 'المميز', popular: 'الشائع', recommended: 'موصى به',
     destinations: ['كل الوجهات','السعودية','مصر','الرياض','جدة','مكة','المدينة','الدمام','الخبر','أبها','الطائف','العلا','نيوم','القاهرة','الجيزة','الإسكندرية','الغردقة','شرم الشيخ','الأقصر','أسوان','مرسى علم','العلمين الجديدة'],
     sorts: ['الأكثر ملاءمة','المميز أولا','الأكثر شعبية','السعر: الأقل أولا','السعر: الأعلى أولا','الاسم'],
-    allServices: 'كل الخدمات', smartTitle: 'ابحث في سوق dir3com بوضوح وبساطة.', smartDescription: 'واجهة لاكتشاف الخدمات مع مرشحات مرنة وتجربة قراءة سريعة.', discovery: 'استكشاف السوق', searchPlaceholder: 'ابحث عن خدمة، فئة، أو تجربة', sort: 'الترتيب', searchNow: 'ابحث الآن', filters: 'المرشحات', filtersNote: 'التواريخ وعدد المسافرين واجهة جاهزة للربط المباشر في مراحل التكامل القادمة.', result: 'نتيجة', categoriesPending: 'فئات السوق تظهر تلقائيا عند توفر البيانات.', browseAll: 'تصفح الفئات: الكل', safeError: 'لم نعرض أي مخزون غير متحقق بدلاً منه.', visible: 'النتائج الظاهرة', total: 'إجمالي النتائج', source: 'المصدر', verified: 'مخزون موثّق', noVerified: 'لا يوجد مخزون موثّق', emptyTitle: 'لا يوجد توفر موثّق يطابق بحثك حتى الآن.', emptyDescription: 'عدّل البحث، تصفّح عائلة أخرى، أو اطلب مساعدة DABRA من دون تصنيع نتائج أو أسعار.', reset: 'إعادة ضبط المرشحات', browseServices: 'تصفح كل الخدمات', askDabra: 'اسأل DABRA', noResults: 'لا توجد نتائج مطابقة للمرشحات الحالية.', previous: 'السابق', next: 'التالي', families: 'عائلات السوق',
+    allServices: 'كل الخدمات', smartTitle: 'ابحث في سوق dir3com بوضوح وبساطة.', smartDescription: 'واجهة لاكتشاف الخدمات مع مرشحات مرنة وتجربة قراءة سريعة.', discovery: 'استكشاف السوق', searchPlaceholder: 'ابحث عن خدمة، فئة، أو تجربة', sort: 'الترتيب', searchNow: 'ابحث الآن', filters: 'المرشحات', filtersNote: 'اختر التواريخ وعدد المسافرين لتوضيح تفضيلات بحثك.', result: 'نتيجة', categoriesPending: 'فئات السوق تظهر تلقائيا عند توفر البيانات.', browseCategories: 'تصفح الفئات', safeError: 'لم نعرض أي مخزون غير متحقق بدلاً منه.', visible: 'النتائج الظاهرة', total: 'إجمالي النتائج', source: 'المصدر', verified: 'مخزون موثّق', noVerified: 'لا يوجد مخزون موثّق', emptyTitle: 'لا يوجد توفر موثّق يطابق بحثك حتى الآن.', emptyDescription: 'عدّل البحث، تصفّح عائلة أخرى، أو اطلب مساعدة DABRA من دون تصنيع نتائج أو أسعار.', reset: 'إعادة ضبط المرشحات', browseServices: 'تصفح كل الخدمات', askDabra: 'اسأل DABRA', noResults: 'لا توجد نتائج مطابقة للمرشحات الحالية.', previous: 'السابق', next: 'التالي', families: 'عائلات السوق',
   },
   en: {
     title: 'Marketplace', description: 'Browse freely, see what is genuinely available, and request anything that needs human confirmation.', all: 'All', featured: 'Featured', popular: 'Popular', recommended: 'Recommended',
     destinations: ['All destinations','Saudi Arabia','Egypt','Riyadh','Jeddah','Makkah','Madinah','Dammam','Khobar','Abha','Taif','AlUla','NEOM','Cairo','Giza','Alexandria','Hurghada','Sharm El Sheikh','Luxor','Aswan','Marsa Alam','New Alamein'],
     sorts: ['Most relevant','Featured first','Most popular','Price: low to high','Price: high to low','Name'],
-    allServices: 'All services', smartTitle: 'Search the dir3com marketplace with clarity.', smartDescription: 'A clear discovery experience with flexible filters and quick browsing.', discovery: 'Marketplace discovery', searchPlaceholder: 'Search for a service, category, or experience', sort: 'Sort', searchNow: 'Search now', filters: 'Filters', filtersNote: 'Dates and traveller count are ready for direct integration in a later phase.', result: 'results', categoriesPending: 'Marketplace categories appear when verified data is available.', browseAll: 'Browse categories: All', safeError: 'No unverified inventory was shown as a substitute.', visible: 'Visible results', total: 'Total results', source: 'Source', verified: 'Verified inventory', noVerified: 'No verified inventory', emptyTitle: 'No verified availability matches your search yet.', emptyDescription: 'Adjust your search, browse another family, or ask DABRA for help without fabricated results or prices.', reset: 'Reset filters', browseServices: 'Browse all services', askDabra: 'Ask DABRA', noResults: 'No results match the current filters.', previous: 'Previous', next: 'Next', families: 'Marketplace families',
+    allServices: 'All services', smartTitle: 'Search the dir3com marketplace with clarity.', smartDescription: 'A clear discovery experience with flexible filters and quick browsing.', discovery: 'Marketplace discovery', searchPlaceholder: 'Search for a service, category, or experience', sort: 'Sort', searchNow: 'Search now', filters: 'Filters', filtersNote: 'Choose dates and traveller count to clarify your search preferences.', result: 'results', categoriesPending: 'Marketplace categories appear when verified data is available.', browseCategories: 'Browse categories', safeError: 'No unverified inventory was shown as a substitute.', visible: 'Visible results', total: 'Total results', source: 'Source', verified: 'Verified inventory', noVerified: 'No verified inventory', emptyTitle: 'No verified availability matches your search yet.', emptyDescription: 'Adjust your search, browse another family, or ask DABRA for help without fabricated results or prices.', reset: 'Reset filters', browseServices: 'Browse all services', askDabra: 'Ask DABRA', noResults: 'No results match the current filters.', previous: 'Previous', next: 'Next', families: 'Marketplace families',
   },
 } as const;
 
@@ -59,6 +61,7 @@ export default function MarketplaceExplorer({
 }: MarketplaceExplorerProps) {
   const { language } = useLanguage();
   const t = copy[language];
+  const activeFamilyLabel = getMarketplaceFamilyLabel(family, language, t.all);
   const collectionLabels: Array<{ value: MarketplaceCollectionKey; label: string }> = [
     { value: 'all', label: t.all }, { value: 'featured', label: t.featured }, { value: 'popular', label: t.popular }, { value: 'recommended', label: t.recommended },
   ];
@@ -150,18 +153,24 @@ export default function MarketplaceExplorer({
         <SectionHeading eyebrow="MARKETPLACE" title={title ?? t.title} description={description ?? t.description} />
 
         <nav aria-label={t.families} className="mt-6 flex flex-wrap gap-2">
-          {[
-            [t.all, '/marketplace'],
-            ['Fly', '/marketplace?family=dir3-fly'],
-            ['Stay', '/marketplace?family=dir3-stay'],
-            ['Drive', '/marketplace?family=dir3-drive'],
-            ['Concierge', '/marketplace?family=dir3-concierge'],
-            ['VIP', '/marketplace?family=dir3-vip'],
-          ].map(([label, href]) => (
-            <Link key={href} href={href} className={buttonVariants({ variant: 'outline', size: 'default' })}>
-              {label}
-            </Link>
-          ))}
+          {[{ key: undefined, label: t.all }, ...marketplaceFamilyDefinitions.map((definition) => ({
+            key: definition.key,
+            label: definition.label[language],
+          }))].map((item) => {
+            const isActive = family === item.key;
+            const href = item.key ? `/marketplace?family=${item.key}` : '/marketplace';
+
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={isActive ? 'page' : undefined}
+                className={buttonVariants({ variant: isActive ? 'gold' : 'outline', size: 'default' })}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <motion.div variants={sectionStagger} initial="hidden" whileInView="visible" viewport={revealViewport} className="mt-8 space-y-5">
@@ -296,7 +305,7 @@ export default function MarketplaceExplorer({
                     : 'border border-[color:var(--color-border)] bg-[var(--color-shell)] text-[var(--color-navy)] hover:border-[var(--color-gold)]'
                 }`}
               >
-                {t.browseAll}
+                {t.browseCategories}: {activeFamilyLabel}
               </button>
               {categoryBrowseItems.map((option) => (
                 <button
