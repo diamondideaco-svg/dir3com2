@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-30 — PR #68 Preview auth and operations timestamp remediation
+
+- Kept OAuth callbacks on the initiating, trusted dir3com-owned Vercel Preview host instead of relying on a branch-specific alias.
+- Added the persisted marketplace request `updated_at` value to the guarded Admin Operations queue alongside `created_at`.
+
 ## 2026-08-29 — Marketplace request authentication handoff
 
 - Kept public Marketplace/PDP browsing open while moving authentication to the durable Request to Confirm action boundary.
