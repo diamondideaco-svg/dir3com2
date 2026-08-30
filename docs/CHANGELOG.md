@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-30 — DIR-120 authoritative confirmation evidence and CI closure
+
+- Replaced free-text-only confirmation proof with a server-only, request/customer/product/supplier-bound evidence ledger and fail-closed validation for supplier, payment, and accepted quote evidence.
+- Added a real 20-case PostgreSQL safety suite to the normal PR workflow using a disposable database, covering authoritative evidence, tenant/context mismatch, atomic rollback, stale/no-op/terminal transitions, quotes, and legacy reconciliation.
+
 ## 2026-08-30 — PR #68 Preview auth and operations timestamp remediation
 
 - Kept OAuth callbacks on the initiating, trusted dir3com-owned Vercel Preview host instead of relying on a branch-specific alias.
