@@ -7,6 +7,7 @@ const route = readFileSync('app/api/marketplace/requests/route.ts', 'utf8');
 const bookings = readFileSync('app/my-bookings/page.tsx', 'utf8');
 const operations = readFileSync('components/admin/MarketplaceRequestOperationsTable.tsx', 'utf8');
 const operationsActions = readFileSync('lib/actions/operations-actions.ts', 'utf8');
+const revenueSafetyMigration = readFileSync('supabase/migrations/20260829234937_dir120_revenue_request_transition_safety.sql', 'utf8');
 
 test('request snapshot persists revenue-launch truth before any handoff', () => {
   for (const field of ['marketplace_family', 'supplier_name', 'service_name', 'fulfilment_method', 'transaction_method', 'handoff_type', 'next_action']) {
@@ -37,8 +38,9 @@ test('operations visibility is authorized beside the privileged query', () => {
   assert.match(operations, /admin\.operations\.marketplace_requests_read_failed/);
   assert.match(operations, /throw new Error\('Unable to load marketplace revenue requests\.'\)/);
   assert.match(operationsActions, /requireAdminActionAccess/);
-  assert.match(operationsActions, /supabaseAdmin[\s\S]*from\('marketplace_requests'\)[\s\S]*update/);
-  assert.match(operationsActions, /createAuditEntry/);
+  assert.match(operationsActions, /supabaseAdmin\.rpc\('transition_marketplace_request'/);
+  assert.match(revenueSafetyMigration, /UPDATE public\.marketplace_requests/);
+  assert.match(revenueSafetyMigration, /INSERT INTO public\.audit_logs/);
 });
 
 test('DIR-118 migration backfills authoritative legacy request context from products', () => {

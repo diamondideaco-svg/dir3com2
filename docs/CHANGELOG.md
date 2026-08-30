@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-30 — DIR-120 authoritative confirmation evidence and CI closure
+
+- Replaced free-text-only confirmation proof with a server-only, request/customer/product/supplier-bound evidence ledger and fail-closed validation for supplier, payment, and accepted quote evidence.
+- Added a real 20-case PostgreSQL safety suite to the normal PR workflow using a disposable database, covering authoritative evidence, tenant/context mismatch, atomic rollback, stale/no-op/terminal transitions, quotes, and legacy reconciliation.
+
 ## 2026-08-30 — PR #68 Preview auth and operations timestamp remediation
 
 - Kept OAuth callbacks on the initiating, trusted dir3com-owned Vercel Preview host instead of relying on a branch-specific alias.
@@ -189,3 +194,10 @@
 
 - Backfilled existing marketplace request snapshots from their authoritative product record so legacy Request-to-Confirm references remain visible through the unified Admin Operations and customer read contract.
 - Made Admin Operations fail explicitly on request-query/schema errors instead of silently presenting a false empty queue.
+
+## 2026-08-30 — DIR-120 production revenue safety hotfix
+
+- Prevented category-less marketplace products from issuing invalid UUID category lookups while preserving the fail-closed PDP contract.
+- Moved admin marketplace-request transitions and their audit record into one stale-state-protected database operation.
+- Required supplier/provider and verified-payment evidence before a request can claim confirmation, with quote evidence required for quote requests.
+- Bound the operations status selector to the persisted current state instead of an unsafe fixed default.
