@@ -1431,8 +1431,68 @@ html[data-theme='dark'] .portal-dashboard-shell [class*='text-[#9EB0C3]'] {
   margin-bottom: env(safe-area-inset-bottom);
 }
 
-@media (max-width: 767px) {
-  .real-preview-family-tab {
-    min-height: 44px;
-  }
+/* DIR-121 is isolated from the legacy unlayered universal reset above. */
+.real-preview-shell,
+.real-preview-detail-shell { padding: 2rem 1rem; }
+.real-preview-container,
+.real-preview-detail-container { width: 100%; margin-inline: auto; }
+.real-preview-container { max-width: 80rem; }
+.real-preview-detail-container { max-width: 56rem; }
+.real-preview-hero { padding: 1.5rem; }
+.real-preview-hero h1 { margin-top: 1.25rem; }
+.real-preview-hero h1 + p { margin-top: 1rem; }
+.real-preview-provider-summary { margin-top: 1.75rem; gap: .75rem; }
+.real-preview-provider-summary > div { padding: 1rem; }
+.real-preview-search { margin-top: 1.5rem; gap: 1rem; padding: 1.25rem; }
+.real-preview-search label { display: grid; gap: .5rem; }
+.real-preview-search button { padding: .625rem 1.5rem; }
+.real-preview-family-tabs { margin-top: 1.5rem; gap: .5rem; padding-bottom: .5rem; }
+.real-preview-family-tab { min-height: 44px; padding: .625rem 1.25rem; }
+.real-preview-section { margin-top: 2.5rem; }
+.real-preview-events { margin-top: 3rem; }
+.real-preview-city { margin-top: 1.75rem; }
+.real-preview-grid { margin-top: 1rem; gap: 1.25rem; }
+.real-preview-empty { margin-top: 1rem; padding: 1.5rem; }
+.real-preview-card-body { padding: 1.25rem; }
+.real-preview-card-body h3 { margin-top: 1rem; }
+.real-preview-card-body h3 + p,
+.real-preview-card-body h3 + p + p,
+.real-preview-card-body h3 + p + p + p { margin-top: .5rem; }
+.real-preview-card-body .real-preview-price { margin-top: 1.25rem; }
+.real-preview-card-body .real-preview-price + p { margin-top: .25rem; }
+.real-preview-source-trace { margin-top: 1.25rem; gap: .5rem; padding-top: 1rem; }
+.real-preview-card-body > a { margin-top: 1.25rem; padding: .625rem 1.25rem; }
+.real-preview-detail-shell { overflow-x: hidden; }
+.real-preview-detail-container > a { min-height: 44px; }
+.real-preview-detail-container > article { margin-top: 1rem; }
+.real-preview-detail-body,
+.real-preview-detail-unavailable { padding: 1.5rem; }
+.real-preview-detail-body h1,
+.real-preview-detail-unavailable h1 { margin-top: 1.25rem; }
+.real-preview-detail-body h1 + p,
+.real-preview-detail-unavailable h1 + p { margin-top: 1rem; }
+.real-preview-detail-body > p,
+.real-preview-detail-body > div,
+.real-preview-detail-unavailable > p,
+.real-preview-detail-unavailable > section { margin-top: 1.5rem; }
+.real-preview-detail-body a,
+.real-preview-detail-body > span,
+.real-preview-detail-unavailable > span:last-child { margin-top: 1.75rem; padding: .75rem 1.5rem; }
+
+@media (min-width: 640px) {
+  .real-preview-shell,
+  .real-preview-detail-shell { padding: 3rem 1.5rem; }
+  .real-preview-hero { padding: 2.5rem; }
+  .real-preview-card-body { padding: 1.5rem; }
+  .real-preview-detail-body,
+  .real-preview-detail-unavailable { padding: 2.25rem; }
+}
+
+@media (max-width: 639px) {
+  /* Keep the initial DIR-121 viewport content above the canonical floating DABRA launcher. */
+  .real-preview-hero-stage { min-height: calc(100dvh - 7.5rem); }
+  .real-preview-hero { padding-block: 1rem; }
+  .real-preview-hero h1 { margin-top: 1rem; }
+  .real-preview-hero h1 + p { margin-top: .75rem; }
+  .real-preview-provider-summary { margin-top: 1.25rem; }
 }

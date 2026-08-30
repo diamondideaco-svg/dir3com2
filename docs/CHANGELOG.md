@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-30 — DIR-121 provider-sourced visual marketplace preview
+
+- Reworked the gated Marketplace Preview around LiteAPI stays for Riyadh/Cairo and official Ticketmaster Saudi events while retaining exactly the five canonical family filters.
+- Added provider item IDs, source URLs where supplied, environment, retrieval time, transaction method, and fulfilment state to every provider-derived preview item and PDP.
+- Kept LiteAPI sandbox or non-transactional results explicitly non-bookable, routed eligible Ticketmaster events only to official provider checkout, and added graceful provider-image fallbacks without substitute inventory.
+- Made retrieval timestamps deterministic between Vercel SSR and browser hydration, and reserved the DIR-121 mobile hero footprint for the existing floating DABRA launcher without changing desktop positioning or provider truth.
+
 - Closed the remaining DIR-120 audit-provenance boundary: marketplace request transitions now derive human actors from the signed Supabase session, record service-only calls as an explicit system actor, remove the caller-supplied actor overload, and deny direct service-role audit insertion.
 
 ## 2026-08-30 — DIR-120 request audit schema dependency closure

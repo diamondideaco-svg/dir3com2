@@ -1,21 +1,39 @@
 import RealMarketplacePreviewClient from '@/components/public/RealMarketplacePreviewClient';
-import { getRealFlightPreview } from '@/lib/marketplace/real-preview';
+import { getRealMarketplacePreview } from '@/lib/marketplace/real-preview';
+import type { PreviewCitySelection } from '@/lib/marketplace/real-preview-contract';
 
 export const dynamic = 'force-dynamic';
 
-function futureDate() {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() + 30);
-  return date.toISOString().slice(0, 10);
+function defaultStayDates() {
+  const checkIn = new Date();
+  checkIn.setUTCDate(checkIn.getUTCDate() + 30);
+  const checkOut = new Date(checkIn);
+  checkOut.setUTCDate(checkOut.getUTCDate() + 2);
+  return {
+    checkIn: checkIn.toISOString().slice(0, 10),
+    checkOut: checkOut.toISOString().slice(0, 10),
+  };
 }
 
-export default async function RealMarketplacePreviewPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+export default async function RealMarketplacePreviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const query = await searchParams;
-  const from = typeof query.from === 'string' ? query.from.toUpperCase() : 'RUH';
-  const to = typeof query.to === 'string' ? query.to.toUpperCase() : 'JED';
-  const departureDate = typeof query.date === 'string' ? query.date : futureDate();
-  const language = query.lang === 'en' ? 'en' : 'ar';
-  const countryCode = query.country === 'EG' ? 'EG' : 'SA';
-  const result = await getRealFlightPreview({ from, to, departureDate, language, countryCode });
-  return <RealMarketplacePreviewClient offers={result.offers} stays={result.stays} events={result.events} dabraContext={result.dabraContext} search={{ from, to, departureDate, countryCode }} />;
+  const defaults = defaultStayDates();
+  const city: PreviewCitySelection = query.city === 'Riyadh' || query.city === 'Cairo' ? query.city : 'all';
+  const checkIn = typeof query.checkIn === 'string' ? query.checkIn : defaults.checkIn;
+  const checkOut = typeof query.checkOut === 'string' ? query.checkOut : defaults.checkOut;
+  const result = await getRealMarketplacePreview({ city, checkIn, checkOut });
+
+  return (
+    <RealMarketplacePreviewClient
+      stays={result.stays}
+      events={result.events}
+      providers={result.providers}
+      search={{ city, checkIn, checkOut }}
+      retrievedAt={result.retrievedAt}
+    />
+  );
 }
