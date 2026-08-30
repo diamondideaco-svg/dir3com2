@@ -171,6 +171,24 @@ test('DIR-121 customer preview is scoped to Stay and Saudi Concierge', () => {
   assert.doesNotMatch(source, /DABRA/);
 });
 
+test('DIR-121 public page and API remain reachable in production without weakening local sandbox isolation', () => {
+  const data = fs.readFileSync(new URL('../lib/marketplace/real-preview.ts', import.meta.url), 'utf8');
+  const page = fs.readFileSync(new URL('../app/marketplace/preview/page.tsx', import.meta.url), 'utf8');
+  const api = fs.readFileSync(new URL('../app/api/preview/marketplace/route.ts', import.meta.url), 'utf8');
+  const localPreview = fs.readFileSync(new URL('../lib/marketplace/local-preview-mode.ts', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(data, /requireRealMarketplacePreview/);
+  assert.doesNotMatch(data, /if \(!isRealMarketplacePreviewEnabled\(\)\) notFound\(\)/);
+  assert.match(data, /env\.VERCEL_ENV === 'preview'/);
+  assert.match(data, /env\.NODE_ENV !== 'production'/);
+  assert.match(data, /environment === 'sandbox'[\s\S]*sandboxPreviewEnabled[\s\S]*LITEAPI_TEST_API_KEY/);
+  assert.match(page, /await getRealMarketplacePreview\(/);
+  assert.match(api, /await getRealMarketplacePreview\(/);
+  assert.match(api, /Cache-Control': 'private, no-store'/);
+  assert.match(localPreview, /process\.env\.NODE_ENV !== 'production'/);
+  assert.match(localPreview, /DIR3COM_LOCAL_PREVIEW_ENABLED === 'true'/);
+});
+
 test('provider cards and PDP preserve source traceability and image fallback', () => {
   const card = fs.readFileSync(new URL('../components/public/RealMarketplacePreviewClient.tsx', import.meta.url), 'utf8');
   const detail = fs.readFileSync(new URL('../components/public/RealMarketplacePreviewDetail.tsx', import.meta.url), 'utf8');
