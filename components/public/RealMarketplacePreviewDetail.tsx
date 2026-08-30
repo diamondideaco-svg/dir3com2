@@ -3,7 +3,10 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
-import type { RealPreviewOffer } from '@/lib/marketplace/real-preview-contract';
+import {
+  formatPreviewRetrievedAt,
+  type RealPreviewOffer,
+} from '@/lib/marketplace/real-preview-contract';
 
 function DetailImage({ src, alt, fallback }: { src: string | null; alt: string; fallback: string }) {
   const [failed, setFailed] = useState(false);
@@ -23,7 +26,7 @@ function Traceability({ offer, ar }: { offer: RealPreviewOffer; ar: boolean }) {
         <div><dt className="text-[#64748b]">{ar ? 'البيئة' : 'Environment'}</dt><dd className="mt-1 font-semibold uppercase text-[#0d1b2a]">{offer.environment}</dd></div>
         <div><dt className="text-[#64748b]">{ar ? 'طريقة الإتمام' : 'Transaction method'}</dt><dd className="mt-1 font-semibold text-[#0d1b2a]">{offer.transactionMethod}</dd></div>
         <div><dt className="text-[#64748b]">{ar ? 'حالة التنفيذ' : 'Fulfilment state'}</dt><dd className="mt-1 font-semibold text-[#0d1b2a]">{offer.fulfilmentState}</dd></div>
-        <div><dt className="text-[#64748b]">{ar ? 'وقت الاسترجاع' : 'Retrieved at'}</dt><dd className="mt-1 text-[#0d1b2a]">{new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(offer.retrievedAt))}</dd></div>
+        <div><dt className="text-[#64748b]">{ar ? 'وقت الاسترجاع' : 'Retrieved at'}</dt><dd className="mt-1 text-[#0d1b2a]">{formatPreviewRetrievedAt(offer.retrievedAt, ar ? 'ar' : 'en')}</dd></div>
       </dl>
     </section>
   );

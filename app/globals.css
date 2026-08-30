@@ -1487,3 +1487,12 @@ html[data-theme='dark'] .portal-dashboard-shell [class*='text-[#9EB0C3]'] {
   .real-preview-detail-body,
   .real-preview-detail-unavailable { padding: 2.25rem; }
 }
+
+@media (max-width: 639px) {
+  /* Keep the initial DIR-121 viewport content above the canonical floating DABRA launcher. */
+  .real-preview-hero-stage { min-height: calc(100dvh - 7.5rem); }
+  .real-preview-hero { padding-block: 1rem; }
+  .real-preview-hero h1 { margin-top: 1rem; }
+  .real-preview-hero h1 + p { margin-top: .75rem; }
+  .real-preview-provider-summary { margin-top: 1.25rem; }
+}

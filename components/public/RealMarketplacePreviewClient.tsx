@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import {
+  formatPreviewRetrievedAt,
   previewFamilies,
   type PreviewCity,
   type PreviewCitySelection,
@@ -183,29 +184,31 @@ export default function RealMarketplacePreviewClient({ stays, events, providers,
   const showStays = activeFamily === 'all' || activeFamily === 'dir3-stay';
   const showEvents = activeFamily === 'all' || activeFamily === 'dir3-concierge';
   const selectedCities: PreviewCity[] = search.city === 'all' ? ['Riyadh', 'Cairo'] : [search.city];
-  const retrievedLabel = new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(retrievedAt));
+  const retrievedLabel = formatPreviewRetrievedAt(retrievedAt, language);
 
   return (
     <main className="real-preview-shell min-h-screen overflow-x-hidden bg-[#faf8f4] px-4 py-8 sm:px-6 sm:py-12" dir={ar ? 'rtl' : 'ltr'}>
       <div className="real-preview-container mx-auto max-w-7xl">
-        <section className="real-preview-hero overflow-hidden rounded-[32px] bg-[radial-gradient(circle_at_80%_0%,rgba(212,175,55,0.3),transparent_22rem),linear-gradient(135deg,#0d1b2a,#1c3144)] p-6 text-white sm:p-10">
-          <span className="inline-flex rounded-full border border-[#d4af37]/60 bg-[#d4af37]/15 px-3 py-1 text-xs font-bold tracking-[0.14em] text-[#f6d77d]">
-            DIR-121 · PROVIDER-SOURCED PREVIEW
-          </span>
-          <h1 className="mt-5 max-w-3xl text-3xl font-semibold leading-tight sm:text-5xl">
-            {ar ? 'سوق سفر بصري مبني على حقيقة المزود' : 'A visual travel marketplace grounded in provider truth'}
-          </h1>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/75 sm:text-base">
-            {ar
-              ? 'إقامات LiteAPI في الرياض والقاهرة، وفعاليات Ticketmaster السعودية. نعرض السعر والتوفر وطريقة الإتمام فقط بالقدر الذي يثبته المصدر.'
-              : 'LiteAPI stays in Riyadh and Cairo, plus Saudi Ticketmaster events. Price, availability, and transaction method are shown only to the extent proven by the source.'}
-          </p>
-          <div className="real-preview-provider-summary mt-7 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/15 bg-white/8 p-4 backdrop-blur-sm"><p className="text-xs text-white/60">LiteAPI</p><p className="mt-1 font-semibold uppercase">{providers.liteapi.environment}</p></div>
-            <div className="rounded-2xl border border-white/15 bg-white/8 p-4 backdrop-blur-sm"><p className="text-xs text-white/60">Ticketmaster Saudi</p><p className="mt-1 font-semibold uppercase">{providers.ticketmaster.status}</p></div>
-            <div className="rounded-2xl border border-white/15 bg-white/8 p-4 backdrop-blur-sm"><p className="text-xs text-white/60">{ar ? 'آخر استرجاع' : 'Retrieved'}</p><p className="mt-1 text-sm font-semibold">{retrievedLabel}</p></div>
-          </div>
-        </section>
+        <div className="real-preview-hero-stage">
+          <section className="real-preview-hero overflow-hidden rounded-[32px] bg-[radial-gradient(circle_at_80%_0%,rgba(212,175,55,0.3),transparent_22rem),linear-gradient(135deg,#0d1b2a,#1c3144)] p-6 text-white sm:p-10">
+            <span className="inline-flex rounded-full border border-[#d4af37]/60 bg-[#d4af37]/15 px-3 py-1 text-xs font-bold tracking-[0.14em] text-[#f6d77d]">
+              DIR-121 · PROVIDER-SOURCED PREVIEW
+            </span>
+            <h1 className="mt-5 max-w-3xl text-3xl font-semibold leading-tight sm:text-5xl">
+              {ar ? 'سوق سفر بصري مبني على حقيقة المزود' : 'A visual travel marketplace grounded in provider truth'}
+            </h1>
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-white/75 sm:text-base">
+              {ar
+                ? 'إقامات LiteAPI في الرياض والقاهرة، وفعاليات Ticketmaster السعودية. نعرض السعر والتوفر وطريقة الإتمام فقط بالقدر الذي يثبته المصدر.'
+                : 'LiteAPI stays in Riyadh and Cairo, plus Saudi Ticketmaster events. Price, availability, and transaction method are shown only to the extent proven by the source.'}
+            </p>
+            <div className="real-preview-provider-summary mt-7 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/15 bg-white/8 p-4 backdrop-blur-sm"><p className="text-xs text-white/60">LiteAPI</p><p className="mt-1 font-semibold uppercase">{providers.liteapi.environment}</p></div>
+              <div className="rounded-2xl border border-white/15 bg-white/8 p-4 backdrop-blur-sm"><p className="text-xs text-white/60">Ticketmaster Saudi</p><p className="mt-1 font-semibold uppercase">{providers.ticketmaster.status}</p></div>
+              <div className="rounded-2xl border border-white/15 bg-white/8 p-4 backdrop-blur-sm"><p className="text-xs text-white/60">{ar ? 'آخر استرجاع' : 'Retrieved'}</p><p className="mt-1 text-sm font-semibold">{retrievedLabel}</p></div>
+            </div>
+          </section>
+        </div>
 
         <form className="real-preview-search mt-6 grid gap-4 rounded-[28px] border border-[#d4af37]/20 bg-white p-5 shadow-[0_16px_45px_rgba(13,27,42,0.06)] md:grid-cols-[1fr_1fr_1fr_auto]" action="/marketplace/preview" method="get">
           <label className="text-sm font-semibold text-[#0d1b2a]">{ar ? 'مدينة الإقامة' : 'Stay city'}

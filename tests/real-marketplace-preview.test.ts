@@ -3,6 +3,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 import {
   buildUnavailablePreviewOffer,
+  formatPreviewRetrievedAt,
   normalizeLiteApiPreviewStay,
   normalizeTicketmasterPreviewEvent,
   previewFamilies,
@@ -140,6 +141,21 @@ test('preview preserves exactly the five canonical marketplace families', () => 
   assert.deepEqual(previewFamilies, ['dir3-fly', 'dir3-stay', 'dir3-drive', 'dir3-concierge', 'dir3-vip']);
 });
 
+test('provider retrieval time is deterministic across server and browser time zones in AR and EN', () => {
+  const originalTimeZone = process.env.TZ;
+  try {
+    process.env.TZ = 'UTC';
+    const serverArabic = formatPreviewRetrievedAt(retrievedAt, 'ar');
+    const serverEnglish = formatPreviewRetrievedAt(retrievedAt, 'en');
+    process.env.TZ = 'Asia/Riyadh';
+    assert.equal(formatPreviewRetrievedAt(retrievedAt, 'ar'), serverArabic);
+    assert.equal(formatPreviewRetrievedAt(retrievedAt, 'en'), serverEnglish);
+  } finally {
+    if (originalTimeZone === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTimeZone;
+  }
+});
+
 test('DIR-121 customer preview is scoped to Stay and Saudi Concierge', () => {
   const source = fs.readFileSync(new URL('../components/public/RealMarketplacePreviewClient.tsx', import.meta.url), 'utf8');
   assert.match(source, /name="city"/);
@@ -177,4 +193,20 @@ test('mobile family tabs preserve a 44px minimum touch target', () => {
   const css = fs.readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
   assert.equal((source.match(/real-preview-family-tab\b/g) || []).length, 2);
   assert.match(css, /\.real-preview-family-tab\s*\{[^}]*min-height:\s*44px/);
+});
+
+test('DIR-121 initial render and mobile DABRA spacing stay hydration-safe', () => {
+  const preview = fs.readFileSync(new URL('../components/public/RealMarketplacePreviewClient.tsx', import.meta.url), 'utf8');
+  const detail = fs.readFileSync(new URL('../components/public/RealMarketplacePreviewDetail.tsx', import.meta.url), 'utf8');
+  const floatingDabra = fs.readFileSync(new URL('../components/layout/FloatingDibrah.tsx', import.meta.url), 'utf8');
+  const css = fs.readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
+  assert.match(preview, /formatPreviewRetrievedAt\(retrievedAt, language\)/);
+  assert.doesNotMatch(preview, /new Intl\.DateTimeFormat/);
+  assert.match(detail, /formatPreviewRetrievedAt\(offer\.retrievedAt, ar \? 'ar' : 'en'\)/);
+  assert.doesNotMatch(detail, /new Intl\.DateTimeFormat/);
+  assert.match(floatingDabra, /useState<\{ x: number; y: number \}>\(DEFAULT_DIBRAH_POSITION\)/);
+  assert.doesNotMatch(floatingDabra, /useState<\{ x: number; y: number \}>\(\(\) => \{[\s\S]*typeof window/);
+  assert.match(floatingDabra, /if \(dir121Mobile\) \{[\s\S]*setPosition\(clampPosition\(12, Number\.POSITIVE_INFINITY\)\);[\s\S]*return;/);
+  assert.match(preview, /className="real-preview-hero-stage"/);
+  assert.match(css, /@media \(max-width: 639px\)[\s\S]*\.real-preview-hero-stage\s*\{\s*min-height:\s*calc\(100dvh - 7\.5rem\)/);
 });

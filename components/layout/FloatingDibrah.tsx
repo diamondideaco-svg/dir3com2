@@ -32,6 +32,7 @@ type DibrahMessage = {
 
 const DIBRAH_POSITION_STORAGE_KEY = 'dir3com:dibrah-position:v1';
 const DIBRAH_POLICY_ACCEPTED_KEY = 'dir3com:dibrah-policy-accepted:v1';
+const DEFAULT_DIBRAH_POSITION = { x: 12, y: 120 };
 
 function buildSeedMessages(context: DibrahAssistantContext | null): DibrahMessage[] {
   const sourceLine = context?.dataQuality === 'live-verified'
@@ -77,31 +78,7 @@ export default function FloatingDibrah() {
   const pointerTargetRef = useRef<HTMLButtonElement | null>(null);
   const suppressClickRef = useRef(false);
 
-  const [position, setPosition] = useState<{ x: number; y: number }>(() => {
-    if (typeof window === 'undefined') {
-      return { x: 12, y: 120 };
-    }
-
-    const stored = window.localStorage.getItem(DIBRAH_POSITION_STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as { x?: unknown; y?: unknown };
-        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
-          return {
-            x: Math.min(Math.max(parsed.x, 12), window.innerWidth - 220 - 12),
-            y: Math.min(Math.max(parsed.y, 84), window.innerHeight - 72 - 12),
-          };
-        }
-      } catch {
-        window.localStorage.removeItem(DIBRAH_POSITION_STORAGE_KEY);
-      }
-    }
-
-    return {
-      x: 12,
-      y: Math.max(window.innerHeight - 124, 84),
-    };
-  });
+  const [position, setPosition] = useState<{ x: number; y: number }>(DEFAULT_DIBRAH_POSITION);
   const [dragging, setDragging] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [policyOpen, setPolicyOpen] = useState(false);
@@ -129,6 +106,34 @@ export default function FloatingDibrah() {
       y: Math.min(Math.max(y, 84), window.innerHeight - height - margin),
     };
   }, []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const dir121Mobile = window.matchMedia('(max-width: 639px)').matches
+        && document.querySelector('.real-preview-shell') !== null;
+      if (dir121Mobile) {
+        setPosition(clampPosition(12, Number.POSITIVE_INFINITY));
+        return;
+      }
+
+      const stored = window.localStorage.getItem(DIBRAH_POSITION_STORAGE_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as { x?: unknown; y?: unknown };
+          if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+            setPosition(clampPosition(parsed.x, parsed.y));
+            return;
+          }
+        } catch {
+          window.localStorage.removeItem(DIBRAH_POSITION_STORAGE_KEY);
+        }
+      }
+
+      setPosition(clampPosition(12, Math.max(window.innerHeight - 124, 84)));
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [clampPosition]);
 
   useEffect(() => {
     const handleResize = () => {

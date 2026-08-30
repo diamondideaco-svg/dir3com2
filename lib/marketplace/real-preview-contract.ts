@@ -76,6 +76,14 @@ export type RealPreviewStay = PreviewSourceTrace & {
 
 export type RealPreviewOffer = RealPreviewStay | RealPreviewEvent | RealPreviewUnavailableOffer;
 
+export function formatPreviewRetrievedAt(retrievedAt: string, language: 'ar' | 'en') {
+  return new Intl.DateTimeFormat(language === 'ar' ? 'ar-SA' : 'en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(retrievedAt));
+}
+
 export function buildUnavailablePreviewOffer(input: {
   provider: 'liteapi' | 'ticketmaster';
   providerItemId: string;
