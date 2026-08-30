@@ -3,6 +3,22 @@ DO $$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL;
 DO $$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE ROLE service_role NOLOGIN BYPASSRLS; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE OR REPLACE FUNCTION auth.jwt()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
+$$;
+CREATE OR REPLACE FUNCTION auth.uid()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT NULLIF(auth.jwt()->>'sub', '')::uuid
+$$;
+
 CREATE TABLE public.marketplace_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   request_reference text NOT NULL UNIQUE,
@@ -45,6 +61,7 @@ INSERT INTO public.profiles (id, role)
 VALUES ('12000000-0000-4000-8000-000000000001', 'admin');
 
 CREATE TEMP TABLE dir120_case_results (case_number integer PRIMARY KEY, case_name text NOT NULL);
+GRANT ALL ON TABLE dir120_case_results TO service_role;
 
 CREATE OR REPLACE FUNCTION public.dir120_actor_id()
 RETURNS uuid
@@ -147,7 +164,7 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
   PERFORM public.transition_marketplace_request(
-    p_request_id, p_expected_status, p_new_status, public.dir120_actor_id(), p_evidence
+    p_request_id, p_expected_status, p_new_status, p_evidence
   );
   RETURN false;
 EXCEPTION WHEN OTHERS THEN
@@ -155,12 +172,15 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
+SET ROLE service_role;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false);
+
 -- 1. Valid authoritative evidence permits request-to-confirm confirmation.
 DO $$
 DECLARE request_id uuid := public.dir120_seed_request('01-VALID'); evidence jsonb; result public.marketplace_requests;
 BEGIN
   evidence := public.dir120_seed_valid_evidence(request_id);
-  result := public.transition_marketplace_request(request_id, 'awaiting_supplier', 'confirmed', public.dir120_actor_id(), evidence);
+  result := public.transition_marketplace_request(request_id, 'awaiting_supplier', 'confirmed', evidence);
   IF result.status <> 'confirmed'
     OR result.confirmation_evidence->>'validation' <> 'authoritative_request_bound_v1' THEN
     RAISE EXCEPTION 'case 1 failed';
@@ -300,7 +320,6 @@ BEGIN
     target_request_id,
     'request_submitted',
     'under_review',
-    public.dir120_actor_id(),
     '{}'::jsonb
   );
   SELECT * INTO STRICT audit_row
@@ -310,10 +329,10 @@ BEGIN
   IF result.status <> 'under_review'
     OR (SELECT count(*) FROM public.marketplace_request_audit_logs a WHERE a.request_id = target_request_id) <> 1
     OR audit_row.request_id <> target_request_id
-    OR audit_row.actor_user_id <> public.dir120_actor_id()
-    OR audit_row.actor_identity <> public.dir120_actor_id()::text
-    OR audit_row.actor_role <> 'admin'
-    OR audit_row.actor_source <> 'admin_operations_rpc'
+    OR audit_row.actor_user_id IS NOT NULL
+    OR audit_row.actor_identity <> 'system:service_role'
+    OR audit_row.actor_role <> 'service_role'
+    OR audit_row.actor_source <> 'system_service'
     OR audit_row.previous_status <> 'request_submitted'
     OR audit_row.new_status <> 'under_review'
     OR audit_row.event_type <> 'request_status_updated'
@@ -326,8 +345,10 @@ BEGIN
 END $$;
 
 -- 11. Forced audit failure rolls the status update back.
+RESET ROLE;
 CREATE FUNCTION public.reject_dir120_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'DIR120_FORCED_AUDIT_FAILURE'; END $$;
 CREATE TRIGGER reject_dir120_audit BEFORE INSERT ON public.marketplace_request_audit_logs FOR EACH ROW EXECUTE FUNCTION public.reject_dir120_audit();
+SET ROLE service_role;
 DO $$
 DECLARE request_id uuid := public.dir120_seed_request('11-ROLLBACK', 'request_to_confirm', 'request_submitted');
 BEGIN
@@ -335,8 +356,10 @@ BEGIN
   IF (SELECT status FROM public.marketplace_requests WHERE id = request_id) <> 'request_submitted' THEN RAISE EXCEPTION 'case 11 failed to roll back'; END IF;
   INSERT INTO dir120_case_results VALUES (11, 'audit failure rollback');
 END $$;
+RESET ROLE;
 DROP TRIGGER reject_dir120_audit ON public.marketplace_request_audit_logs;
 DROP FUNCTION public.reject_dir120_audit();
+SET ROLE service_role;
 
 -- 12. Stale expected state is denied.
 DO $$
@@ -399,7 +422,7 @@ DO $$
 DECLARE request_id uuid := public.dir120_seed_request('18-QUOTE', 'request_quote', 'payment_verification'); evidence jsonb; result public.marketplace_requests;
 BEGIN
   evidence := public.dir120_seed_valid_evidence(request_id, true);
-  result := public.transition_marketplace_request(request_id, 'payment_verification', 'confirmed', public.dir120_actor_id(), evidence);
+  result := public.transition_marketplace_request(request_id, 'payment_verification', 'confirmed', evidence);
   IF result.status <> 'confirmed' OR result.confirmation_evidence->>'quote_evidence_id' IS NULL THEN RAISE EXCEPTION 'case 18 failed'; END IF;
   INSERT INTO dir120_case_results VALUES (18, 'valid quote evidence');
 END $$;
@@ -430,16 +453,17 @@ END $$;
 
 DO $$
 BEGIN
-  IF has_function_privilege('anon', 'public.transition_marketplace_request(uuid,text,text,uuid,jsonb)', 'EXECUTE')
-    OR has_function_privilege('authenticated', 'public.transition_marketplace_request(uuid,text,text,uuid,jsonb)', 'EXECUTE')
+  IF has_function_privilege('anon', 'public.transition_marketplace_request(uuid,text,text,jsonb)', 'EXECUTE')
+    OR NOT has_function_privilege('authenticated', 'public.transition_marketplace_request(uuid,text,text,jsonb)', 'EXECUTE')
+    OR NOT has_function_privilege('service_role', 'public.transition_marketplace_request(uuid,text,text,jsonb)', 'EXECUTE')
+    OR to_regprocedure('public.transition_marketplace_request(uuid,text,text,uuid,jsonb)') IS NOT NULL
     OR has_table_privilege('anon', 'public.marketplace_request_evidence', 'SELECT')
     OR has_table_privilege('authenticated', 'public.marketplace_request_evidence', 'SELECT')
     OR has_table_privilege('anon', 'public.marketplace_request_audit_logs', 'INSERT')
     OR has_table_privilege('authenticated', 'public.marketplace_request_audit_logs', 'INSERT')
     OR has_table_privilege('service_role', 'public.marketplace_request_audit_logs', 'UPDATE')
     OR has_table_privilege('service_role', 'public.marketplace_request_audit_logs', 'DELETE')
-    OR NOT has_table_privilege('service_role', 'public.marketplace_request_audit_logs', 'INSERT')
-    OR NOT has_function_privilege('service_role', 'public.transition_marketplace_request(uuid,text,text,uuid,jsonb)', 'EXECUTE')
+    OR has_table_privilege('service_role', 'public.marketplace_request_audit_logs', 'INSERT')
   THEN
     RAISE EXCEPTION 'DIR120 privilege boundary is unsafe';
   END IF;
@@ -451,5 +475,8 @@ BEGIN
     RAISE EXCEPTION 'DIR120 did not execute exactly 20 cases';
   END IF;
 END $$;
+
+RESET ROLE;
+RESET request.jwt.claims;
 
 SELECT 'DIR120_POSTGRESQL=PASS cases=20' AS result;

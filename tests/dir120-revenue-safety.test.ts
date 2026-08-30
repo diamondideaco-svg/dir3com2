@@ -38,15 +38,16 @@ test('request transition and audit are one atomic database operation', () => {
   assert.match(correctiveMigration, /FOR UPDATE/);
   assert.match(correctiveMigration, /UPDATE public\.marketplace_requests[\s\S]*?INSERT INTO public\.marketplace_request_audit_logs/);
   assert.doesNotMatch(correctiveMigration, /INSERT INTO public\.audit_logs/);
-  assert.match(correctiveMigration, /SECURITY INVOKER/);
-  assert.match(correctiveMigration, /REVOKE ALL ON FUNCTION[\s\S]*FROM PUBLIC, anon, authenticated/);
-  assert.match(correctiveMigration, /GRANT EXECUTE ON FUNCTION[\s\S]*TO service_role/);
+  assert.match(correctiveMigration, /SECURITY DEFINER/);
+  assert.match(correctiveMigration, /SET search_path = ''/);
+  assert.match(correctiveMigration, /REVOKE ALL ON FUNCTION[\s\S]*FROM PUBLIC, anon, authenticated, service_role/);
+  assert.match(correctiveMigration, /GRANT EXECUTE ON FUNCTION[\s\S]*TO authenticated, service_role/);
 });
 
 test('canonical request audit ledger is append only and client-write closed', () => {
   assert.match(correctiveMigration, /CREATE TABLE public\.marketplace_request_audit_logs/);
   assert.match(correctiveMigration, /request_id uuid NOT NULL REFERENCES public\.marketplace_requests\(id\) ON DELETE RESTRICT/);
-  assert.match(correctiveMigration, /actor_user_id uuid NOT NULL/);
+  assert.match(correctiveMigration, /actor_user_id uuid,/);
   assert.doesNotMatch(correctiveMigration, /actor_user_id uuid[^\n]*REFERENCES/);
   assert.match(correctiveMigration, /actor_identity text NOT NULL/);
   assert.match(correctiveMigration, /previous_status text NOT NULL/);
@@ -54,7 +55,8 @@ test('canonical request audit ledger is append only and client-write closed', ()
   assert.match(correctiveMigration, /metadata jsonb NOT NULL/);
   assert.match(correctiveMigration, /ENABLE ROW LEVEL SECURITY/);
   assert.match(correctiveMigration, /REVOKE ALL ON TABLE public\.marketplace_request_audit_logs FROM PUBLIC, anon, authenticated, service_role/);
-  assert.match(correctiveMigration, /GRANT SELECT, INSERT ON TABLE public\.marketplace_request_audit_logs TO service_role/);
+  assert.match(correctiveMigration, /GRANT SELECT ON TABLE public\.marketplace_request_audit_logs TO service_role/);
+  assert.doesNotMatch(correctiveMigration, /GRANT[^;]*INSERT[^;]*marketplace_request_audit_logs/);
   assert.match(correctiveMigration, /BEFORE UPDATE OR DELETE ON public\.marketplace_request_audit_logs/);
   assert.match(correctiveMigration, /BEFORE TRUNCATE ON public\.marketplace_request_audit_logs/);
   assert.match(correctiveMigration, /DIR120_REQUEST_AUDIT_APPEND_ONLY/);
@@ -63,6 +65,25 @@ test('canonical request audit ledger is append only and client-write closed', ()
   assert.match(correctiveMigration, /AND deleted_at IS NULL/);
   assert.match(correctiveMigration, /idx_marketplace_request_audit_logs_request_created/);
   assert.match(correctiveMigration, /idx_marketplace_request_audit_logs_created/);
+});
+
+test('audit actor provenance is derived from signed caller context and cannot be substituted', () => {
+  assert.match(operationsAction, /const \{ supabase \} = await requireAdminActionAccess\(\)/);
+  assert.match(operationsAction, /await supabase\.rpc\('transition_marketplace_request'/);
+  assert.doesNotMatch(operationsAction, /supabaseAdmin\.rpc\('transition_marketplace_request'/);
+  assert.doesNotMatch(operationsAction, /p_actor_id/);
+  assert.doesNotMatch(correctiveMigration, /CREATE OR REPLACE FUNCTION public\.transition_marketplace_request\([\s\S]{0,180}p_actor_id/);
+  assert.match(correctiveMigration, /DROP FUNCTION public\.transition_marketplace_request\(uuid, text, text, uuid, jsonb\)/);
+  assert.match(correctiveMigration, /caller_claims jsonb := COALESCE\(auth\.jwt\(\), '\{\}'::jsonb\)/);
+  assert.match(correctiveMigration, /trusted_actor_id := auth\.uid\(\)/);
+  assert.match(correctiveMigration, /actor_source_value := 'authenticated_admin'/);
+  assert.match(correctiveMigration, /trusted_actor_id := NULL/);
+  assert.match(correctiveMigration, /actor_source_value := 'system_service'/);
+  assert.match(correctiveMigration, /marketplace_request_audit_truthful_actor/);
+  assert.match(postgresRunner, /Admin A was not bound to the truthful audit actor/);
+  assert.match(postgresRunner, /service role fabricated a human actor instead of system provenance/);
+  assert.match(postgresRunner, /actor_provenance=PASS/);
+  assert.match(postgresRunner, /ACTOR_PROVENANCE_TEST=PASS/);
 });
 
 test('stale and unsafe confirmation transitions fail closed', () => {
@@ -116,4 +137,5 @@ test('normal PR validation executes the real disposable PostgreSQL safety suite'
   assert.match(postgresSuite, /public\.marketplace_request_audit_logs/);
   assert.match(postgresSuite, /DIR120_POSTGRESQL=PASS cases=20/);
   assert.match(postgresSuite, /count\(\*\) FROM dir120_case_results\) <> 20/);
+  assert.match(postgresRunner, /actor_provenance=PASS/);
 });

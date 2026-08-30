@@ -48,9 +48,9 @@ async function expectPermissionDenied(client, role, sql, params = [], userId) {
   await client.query('BEGIN');
   try {
     await client.query(`SET LOCAL ROLE ${role}`);
-    if (userId) {
-      await client.query("SELECT set_config('request.jwt.claim.sub', $1, true)", [userId]);
-    }
+    await client.query("SELECT set_config('request.jwt.claims', $1, true)", [
+      JSON.stringify({ role, ...(userId ? { sub: userId } : {}) }),
+    ]);
     await client.query(sql, params);
     throw new Error(`DIR120 ${role} unexpectedly crossed a denied database boundary.`);
   } catch (error) {
@@ -82,6 +82,14 @@ async function expectDatabaseError(client, sql, params, code, message) {
   }
 }
 
+async function beginRoleContext(client, role, userId) {
+  await client.query('BEGIN');
+  await client.query(`SET LOCAL ROLE ${role}`);
+  await client.query("SELECT set_config('request.jwt.claims', $1, true)", [
+    JSON.stringify({ role, ...(userId ? { sub: userId } : {}) }),
+  ]);
+}
+
 try {
   await admin.connect();
   adminConnected = true;
@@ -103,10 +111,10 @@ try {
     throw new Error('DIR120 PostgreSQL suite did not emit the required 20-case PASS marker.');
   }
 
-  const roleRequestId = randomUUID();
   const roleUserId = randomUUID();
   const roleProductId = randomUUID();
-  const roleActorId = randomUUID();
+  const adminAId = randomUUID();
+  const adminBId = randomUUID();
   const customerUserId = randomUUID();
   const partnerUserId = randomUUID();
   const inactiveAdminId = randomUUID();
@@ -116,48 +124,76 @@ try {
   await testClient.query(
     `INSERT INTO public.profiles (id, role, status, deleted_at) VALUES
       ($1, 'admin', 'active', NULL),
-      ($2, 'customer', 'active', NULL),
-      ($3, 'partner', 'active', NULL),
-      ($4, 'admin', 'inactive', NULL),
-      ($5, 'admin', 'banned', NULL),
-      ($6, 'admin', 'active', NOW())`,
-    [roleActorId, customerUserId, partnerUserId, inactiveAdminId, bannedAdminId, deletedAdminId],
-  );
-  await testClient.query(
-    `INSERT INTO public.marketplace_requests (
-      id, request_reference, user_id, product_id, request_type, transaction_method,
-      supplier_name, status, payment_status, quote_amount, quote_currency
-    ) VALUES ($1, $2, $3, $4, 'request_to_confirm', 'request_to_confirm',
-      'Role Boundary Supplier', 'request_submitted', 'payment_verified', 500, 'SAR')`,
-    [roleRequestId, `REQ-${roleEvidenceReference}`, roleUserId, roleProductId],
+      ($2, 'admin', 'active', NULL),
+      ($3, 'customer', 'active', NULL),
+      ($4, 'partner', 'active', NULL),
+      ($5, 'admin', 'inactive', NULL),
+      ($6, 'admin', 'banned', NULL),
+      ($7, 'admin', 'active', NOW())`,
+    [adminAId, adminBId, customerUserId, partnerUserId, inactiveAdminId, bannedAdminId, deletedAdminId],
   );
 
-  for (const actorCase of [
-    { label: 'customer', actorId: customerUserId },
-    { label: 'inactive-admin', actorId: inactiveAdminId },
-    { label: 'banned-admin', actorId: bannedAdminId },
-    { label: 'deleted-admin', actorId: deletedAdminId },
-  ]) {
-    const unauthorizedActorRequestId = randomUUID();
+  async function seedRoleRequest(label) {
+    const requestId = randomUUID();
     await testClient.query(
       `INSERT INTO public.marketplace_requests (
         id, request_reference, user_id, product_id, request_type, transaction_method,
         supplier_name, status, payment_status, quote_amount, quote_currency
       ) VALUES ($1, $2, $3, $4, 'request_to_confirm', 'request_to_confirm',
         'Role Boundary Supplier', 'request_submitted', 'payment_verified', 500, 'SAR')`,
-      [
-        unauthorizedActorRequestId,
-        `REQ-ACTOR-${actorCase.label}-${roleEvidenceReference}`,
-        roleUserId,
-        roleProductId,
-      ],
+      [requestId, `REQ-${label}-${roleEvidenceReference}`, roleUserId, roleProductId],
     );
+    return requestId;
+  }
+
+  const roleRequestId = await seedRoleRequest('ADMIN-A');
+  await beginRoleContext(testClient, 'authenticated', adminAId);
+  try {
+    await testClient.query(
+      `SELECT public.transition_marketplace_request(
+        $1, 'request_submitted', 'under_review', $2::jsonb
+      )`,
+      [roleRequestId, JSON.stringify({ actor_user_id: adminBId, actor_id: adminBId })],
+    );
+    await testClient.query('COMMIT');
+  } catch (error) {
+    await testClient.query('ROLLBACK');
+    throw error;
+  }
+
+  const humanAudit = await testClient.query(
+    `SELECT actor_user_id, actor_identity, actor_role, actor_source
+     FROM public.marketplace_request_audit_logs
+     WHERE request_id = $1`,
+    [roleRequestId],
+  );
+  if (
+    humanAudit.rows.length !== 1
+    || humanAudit.rows[0]?.actor_user_id !== adminAId
+    || humanAudit.rows[0]?.actor_identity !== adminAId
+    || humanAudit.rows[0]?.actor_role !== 'admin'
+    || humanAudit.rows[0]?.actor_source !== 'authenticated_admin'
+  ) {
+    throw new Error('DIR120 authenticated Admin A was not bound to the truthful audit actor.');
+  }
+
+  for (const actorCase of [
+    { label: 'customer', actorId: customerUserId },
+    { label: 'partner-cross-tenant', actorId: partnerUserId },
+    { label: 'inactive-admin', actorId: inactiveAdminId },
+    { label: 'banned-admin', actorId: bannedAdminId },
+    { label: 'deleted-admin', actorId: deletedAdminId },
+  ]) {
+    const unauthorizedActorRequestId = await seedRoleRequest(`ACTOR-${actorCase.label}`);
 
     await expectPermissionDenied(
       testClient,
-      'service_role',
-      `SELECT public.transition_marketplace_request($1, 'request_submitted', 'under_review', $2, '{}'::jsonb)`,
-      [unauthorizedActorRequestId, actorCase.actorId],
+      'authenticated',
+      `SELECT public.transition_marketplace_request(
+        $1, 'request_submitted', 'under_review', $2::jsonb
+      )`,
+      [unauthorizedActorRequestId, JSON.stringify({ actor_user_id: adminBId, actor_id: adminBId })],
+      actorCase.actorId,
     );
 
     const unchanged = await testClient.query(
@@ -171,9 +207,9 @@ try {
     }
   }
 
-  await testClient.query('BEGIN');
+  const systemRequestId = await seedRoleRequest('SYSTEM');
+  await beginRoleContext(testClient, 'service_role', adminBId);
   try {
-    await testClient.query('SET LOCAL ROLE service_role');
     await testClient.query('SELECT count(*) FROM public.marketplace_request_evidence');
     const insertedEvidence = await testClient.query(
       `INSERT INTO public.marketplace_request_evidence (
@@ -181,7 +217,7 @@ try {
         source_type, evidence_reference, status, accepted_at
       ) VALUES ($1, $2, $3, 'Role Boundary Supplier', 'supplier_confirmation',
         'supplier', $4, 'confirmed', NOW()) RETURNING id`,
-      [roleRequestId, roleUserId, roleProductId, roleEvidenceReference],
+      [systemRequestId, roleUserId, roleProductId, roleEvidenceReference],
     );
     const evidenceId = insertedEvidence.rows[0]?.id;
     await testClient.query(
@@ -190,8 +226,10 @@ try {
     );
     await testClient.query('DELETE FROM public.marketplace_request_evidence WHERE id = $1', [evidenceId]);
     await testClient.query(
-      `SELECT public.transition_marketplace_request($1, 'request_submitted', 'under_review', $2, '{}'::jsonb)`,
-      [roleRequestId, roleActorId],
+      `SELECT public.transition_marketplace_request(
+        $1, 'request_submitted', 'under_review', $2::jsonb
+      )`,
+      [systemRequestId, JSON.stringify({ actor_user_id: adminBId, actor_id: adminBId })],
     );
     await testClient.query('COMMIT');
   } catch (error) {
@@ -199,7 +237,41 @@ try {
     throw error;
   }
 
-  await testClient.query('DELETE FROM public.profiles WHERE id = $1', [roleActorId]);
+  const systemAudit = await testClient.query(
+    `SELECT actor_user_id, actor_identity, actor_role, actor_source
+     FROM public.marketplace_request_audit_logs
+     WHERE request_id = $1`,
+    [systemRequestId],
+  );
+  if (
+    systemAudit.rows.length !== 1
+    || systemAudit.rows[0]?.actor_user_id !== null
+    || systemAudit.rows[0]?.actor_identity !== 'system:service_role'
+    || systemAudit.rows[0]?.actor_role !== 'service_role'
+    || systemAudit.rows[0]?.actor_source !== 'system_service'
+  ) {
+    throw new Error('DIR120 service role fabricated a human actor instead of system provenance.');
+  }
+
+  const unsafeOverload = await testClient.query(
+    "SELECT to_regprocedure('public.transition_marketplace_request(uuid,text,text,uuid,jsonb)') AS procedure",
+  );
+  if (unsafeOverload.rows[0]?.procedure !== null) {
+    throw new Error('DIR120 forgeable actor-UUID RPC overload still exists.');
+  }
+
+  await expectPermissionDenied(
+    testClient,
+    'service_role',
+    `INSERT INTO public.marketplace_request_audit_logs (
+      request_id, actor_user_id, actor_identity, actor_role, actor_source,
+      previous_status, new_status, event_type, metadata
+    ) VALUES ($1, $2::uuid, $2::text, 'admin', 'authenticated_admin',
+      'under_review', 'awaiting_supplier', 'request_status_updated', '{}'::jsonb)`,
+    [roleRequestId, adminBId],
+  );
+
+  await testClient.query('DELETE FROM public.profiles WHERE id = $1', [adminAId]);
   const retainedActorAudit = await testClient.query(
     `SELECT actor_user_id, actor_identity
      FROM public.marketplace_request_audit_logs
@@ -208,8 +280,8 @@ try {
   );
   if (
     retainedActorAudit.rows.length !== 1
-    || retainedActorAudit.rows[0]?.actor_user_id !== roleActorId
-    || retainedActorAudit.rows[0]?.actor_identity !== roleActorId
+    || retainedActorAudit.rows[0]?.actor_user_id !== adminAId
+    || retainedActorAudit.rows[0]?.actor_identity !== adminAId
   ) {
     throw new Error('DIR120 profile deletion did not preserve immutable actor identity.');
   }
@@ -241,8 +313,11 @@ try {
     await expectPermissionDenied(
       testClient,
       role,
-      `SELECT public.transition_marketplace_request($1, 'under_review', 'awaiting_supplier', $2, '{}'::jsonb)`,
-      [roleRequestId, roleUserId],
+      `SELECT public.transition_marketplace_request(
+        $1, 'under_review', 'awaiting_supplier', '{}'::jsonb
+      )`,
+      [roleRequestId],
+      role === 'authenticated' ? customerUserId : undefined,
     );
   }
 
@@ -291,7 +366,7 @@ try {
       `INSERT INTO public.marketplace_request_audit_logs (
         request_id, actor_user_id, actor_identity, actor_role, actor_source,
         previous_status, new_status, event_type, metadata
-      ) VALUES ($1, $2, $3, 'admin', 'admin_operations_rpc',
+      ) VALUES ($1, $2, $3, 'admin', 'authenticated_admin',
         'request_submitted', 'under_review', 'request_status_updated', '{}'::jsonb)`,
       [roleRequestId, identity.userId, identity.userId],
       identity.userId,
@@ -312,7 +387,8 @@ try {
     );
   }
 
-  console.log('DIR120_POSTGRESQL=PASS cases=20 role_boundary=PASS audit_boundary=PASS');
+  console.log('DIR120_POSTGRESQL=PASS cases=20 role_boundary=PASS audit_boundary=PASS actor_provenance=PASS');
+  console.log('ACTOR_PROVENANCE_TEST=PASS');
 } finally {
   if (testClient) {
     await testClient.end().catch(() => undefined);
