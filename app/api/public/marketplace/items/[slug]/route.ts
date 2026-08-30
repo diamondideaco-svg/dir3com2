@@ -8,6 +8,8 @@ import {
   getSyntheticSchemaOperationalMessage,
   isOperationalSyntheticSchemaError,
 } from '@/lib/marketplace/synthetic-compat';
+import { normalizeOptionalUuid } from '@/lib/marketplace/optional-uuid';
+import { resolveStoredMarketplaceFamily } from '@/lib/marketplace/data';
 
 function buildUnavailableResponse() {
   return NextResponse.json({ error: 'This marketplace item is unavailable.' }, { status: 404 });
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { data: product, error: productError } = await applyPublicProductFilters(
       client
         .from('products')
-        .select('id, slug, name_ar, name_en, description_ar, description_en, city, base_price, currency, featured, category_id, synthetic')
+        .select('id, slug, name_ar, name_en, description_ar, description_en, city, base_price, currency, featured, category_id, marketplace_family, synthetic')
         .eq('slug', normalizedSlug)
     ).maybeSingle();
 
@@ -57,12 +59,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return buildUnavailableResponse();
     }
 
-    const { data: category, error: categoryError } = await applyPublicCategoryFilters(
-      client
-        .from('product_categories')
-        .select('slug, name_ar, name_en, synthetic')
-        .eq('id', product.category_id)
-    ).maybeSingle();
+    const categoryId = normalizeOptionalUuid(product.category_id);
+    const storedFamily = resolveStoredMarketplaceFamily(product.marketplace_family);
+    let category = storedFamily
+      ? { slug: storedFamily.key, name_ar: storedFamily.label.ar, name_en: storedFamily.label.en }
+      : null;
+    let categoryError = null;
+
+    if (categoryId) {
+      const categoryResult = await applyPublicCategoryFilters(
+        client
+          .from('product_categories')
+          .select('slug, name_ar, name_en, synthetic')
+          .eq('id', categoryId)
+      ).maybeSingle();
+      category = categoryResult.data;
+      categoryError = categoryResult.error;
+    }
 
     if (categoryError) {
       logServerError('api.public.marketplace.item_detail.category_read_failed', categoryError);

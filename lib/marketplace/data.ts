@@ -20,6 +20,12 @@ export function isMarketplaceFamilyKey(value: string | undefined): value is Mark
   return marketplaceFamilyDefinitions.some((definition) => definition.key === value);
 }
 
+export function resolveStoredMarketplaceFamily(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const key = `dir3-${value.trim().toLowerCase()}`;
+  return marketplaceFamilyDefinitions.find((definition) => definition.key === key) ?? null;
+}
+
 export function getMarketplaceFamilyLabel(
   family: MarketplaceFamilyKey | undefined,
   language: 'ar' | 'en',

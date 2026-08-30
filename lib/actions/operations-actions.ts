@@ -15,35 +15,46 @@ const marketplaceRequestTransitions = {
   cancelled: 'none',
 } as const;
 
+type MarketplaceRequestTransition = keyof typeof marketplaceRequestTransitions;
+
+function readOptionalEvidence(formData: FormData, key: string) {
+  const value = formData.get(key)?.toString().trim();
+  return value || undefined;
+}
+
 export async function updateMarketplaceRequestStatus(formData: FormData) {
   const requestId = formData.get('requestId')?.toString();
-  const status = formData.get('status')?.toString() as keyof typeof marketplaceRequestTransitions | undefined;
-  if (!requestId || !status || !(status in marketplaceRequestTransitions)) return;
+  const expectedStatus = formData.get('expectedStatus')?.toString();
+  const status = formData.get('status')?.toString() as MarketplaceRequestTransition | undefined;
+  if (!requestId || !expectedStatus || !status || !(status in marketplaceRequestTransitions)) {
+    throw new Error('Invalid request transition');
+  }
 
   const { user } = await requireAdminActionAccess();
   if (!supabaseAdmin) throw new Error('Operations service unavailable');
 
-  const { data: current } = await supabaseAdmin
-    .from('marketplace_requests')
-    .select('id, status, request_reference')
-    .eq('id', requestId)
-    .single();
-  if (!current) throw new Error('Request not found');
+  const confirmationEvidence = status === 'confirmed'
+    ? {
+        confirmation_source: readOptionalEvidence(formData, 'confirmationSource'),
+        confirmation_reference: readOptionalEvidence(formData, 'confirmationReference'),
+        payment_reference: readOptionalEvidence(formData, 'paymentReference'),
+        quote_reference: readOptionalEvidence(formData, 'quoteReference'),
+      }
+    : {};
 
-  const { error } = await supabaseAdmin
-    .from('marketplace_requests')
-    .update({ status, next_action: marketplaceRequestTransitions[status], updated_at: new Date().toISOString() })
-    .eq('id', requestId);
-  if (error) throw new Error('Unable to update request');
-
-  await createAuditEntry(supabaseAdmin, {
-    entityType: 'marketplace_requests',
-    entityId: requestId,
-    action: 'request_status_updated',
-    oldValues: { status: current.status },
-    newValues: { status, next_action: marketplaceRequestTransitions[status] },
-    performedBy: user.id,
+  const { error } = await supabaseAdmin.rpc('transition_marketplace_request', {
+    p_request_id: requestId,
+    p_expected_status: expectedStatus,
+    p_new_status: status,
+    p_actor_id: user.id,
+    p_confirmation_evidence: confirmationEvidence,
   });
+  if (error) {
+    if (error.message?.includes('DIR120_STALE_REQUEST_STATE')) {
+      throw new Error('Request state changed; refresh and try again');
+    }
+    throw new Error('Unable to update request safely');
+  }
 
   revalidatePath('/admin/operations');
   revalidatePath('/my-account');
