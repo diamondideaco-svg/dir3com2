@@ -143,6 +143,8 @@ const labels = {
     tabSettlements: 'المستحقات',
     tabCompliance: 'الامتثال',
     save: 'حفظ الملف',
+    saveContinue: 'حفظ ومتابعة',
+    saveFailed: 'تعذر حفظ الخدمة. لم يتم الانتقال.',
     upload: 'رفع',
     addService: 'إضافة خدمة',
     uploadImage: 'رفع صورة',
@@ -190,6 +192,8 @@ const labels = {
     tabSettlements: 'Settlements',
     tabCompliance: 'Compliance',
     save: 'Save Profile',
+    saveContinue: 'Save & Continue',
+    saveFailed: 'The service could not be saved. You have not been moved to the next step.',
     upload: 'Upload',
     addService: 'Add Service',
     uploadImage: 'Upload Image',
@@ -570,10 +574,16 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         throw new Error('UPDATE_PRODUCT_FAILED');
       }
 
+      const payload = await response.json().catch(() => null);
+      if (payload?.data?.product?.id !== productId) {
+        throw new Error('UPDATE_PRODUCT_RESPONSE_INVALID');
+      }
+
+      await loadAll();
       setMessage(t.done);
-      void loadAll();
+      setTab('bookings');
     } catch {
-      setMessage(t.failed);
+      setMessage(t.saveFailed);
     } finally {
       setBusy(false);
     }
@@ -772,7 +782,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                           onClick={() => void saveExistingProduct(row.products!.id)}
                           className="rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60"
                         >
-                          {t.save}
+                          {t.saveContinue}
                         </button>
                       </div>
                       {Array.isArray(row.products.product_images) && row.products.product_images.length > 0 ? <div className="sm:col-span-2 rounded-xl border border-[#334155]/15 bg-white p-3">
