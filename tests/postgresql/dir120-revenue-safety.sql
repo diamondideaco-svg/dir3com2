@@ -20,24 +20,37 @@ CREATE TABLE public.marketplace_requests (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE public.audit_logs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  entity_type text NOT NULL,
-  entity_id text NOT NULL,
-  action text NOT NULL,
-  old_values jsonb DEFAULT '{}'::jsonb,
-  new_values jsonb DEFAULT '{}'::jsonb,
-  performed_by text,
-  timestamp timestamptz NOT NULL DEFAULT now()
+CREATE TABLE public.profiles (
+  id uuid PRIMARY KEY,
+  role text NOT NULL,
+  status text NOT NULL DEFAULT 'active',
+  deleted_at timestamptz
 );
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.marketplace_requests TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.audit_logs TO service_role;
+GRANT SELECT ON TABLE public.profiles TO service_role;
 
--- Replaced by scripts/run-dir120-postgresql.mjs with the exact repository migration.
--- DIR120_MIGRATION_INCLUDE
+-- Replaced by scripts/run-dir120-postgresql.mjs with the exact repository migrations.
+-- DIR120_BASE_MIGRATION_INCLUDE
+-- DIR120_CORRECTIVE_MIGRATION_INCLUDE
+
+DO $$
+BEGIN
+  IF to_regclass('public.marketplace_request_audit_logs') IS NULL THEN
+    RAISE EXCEPTION 'DIR120 canonical request audit table is missing';
+  END IF;
+END $$;
+
+INSERT INTO public.profiles (id, role)
+VALUES ('12000000-0000-4000-8000-000000000001', 'admin');
 
 CREATE TEMP TABLE dir120_case_results (case_number integer PRIMARY KEY, case_name text NOT NULL);
+
+CREATE OR REPLACE FUNCTION public.dir120_actor_id()
+RETURNS uuid
+LANGUAGE sql
+IMMUTABLE
+AS $$ SELECT '12000000-0000-4000-8000-000000000001'::uuid $$;
 
 CREATE OR REPLACE FUNCTION public.dir120_seed_request(
   p_label text,
@@ -134,7 +147,7 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
   PERFORM public.transition_marketplace_request(
-    p_request_id, p_expected_status, p_new_status, gen_random_uuid(), p_evidence
+    p_request_id, p_expected_status, p_new_status, public.dir120_actor_id(), p_evidence
   );
   RETURN false;
 EXCEPTION WHEN OTHERS THEN
@@ -147,7 +160,7 @@ DO $$
 DECLARE request_id uuid := public.dir120_seed_request('01-VALID'); evidence jsonb; result public.marketplace_requests;
 BEGIN
   evidence := public.dir120_seed_valid_evidence(request_id);
-  result := public.transition_marketplace_request(request_id, 'awaiting_supplier', 'confirmed', gen_random_uuid(), evidence);
+  result := public.transition_marketplace_request(request_id, 'awaiting_supplier', 'confirmed', public.dir120_actor_id(), evidence);
   IF result.status <> 'confirmed'
     OR result.confirmation_evidence->>'validation' <> 'authoritative_request_bound_v1' THEN
     RAISE EXCEPTION 'case 1 failed';
@@ -278,16 +291,43 @@ END $$;
 
 -- 10. Status update and audit commit atomically on a valid non-confirming edge.
 DO $$
-DECLARE request_id uuid := public.dir120_seed_request('10-ATOMIC', 'request_to_confirm', 'request_submitted'); result public.marketplace_requests;
+DECLARE
+  target_request_id uuid := public.dir120_seed_request('10-ATOMIC', 'request_to_confirm', 'request_submitted');
+  result public.marketplace_requests;
+  audit_row public.marketplace_request_audit_logs%ROWTYPE;
 BEGIN
-  result := public.transition_marketplace_request(request_id, 'request_submitted', 'under_review', gen_random_uuid(), '{}'::jsonb);
-  IF result.status <> 'under_review' OR (SELECT count(*) FROM public.audit_logs WHERE entity_id = request_id::text) <> 1 THEN RAISE EXCEPTION 'case 10 failed'; END IF;
+  result := public.transition_marketplace_request(
+    target_request_id,
+    'request_submitted',
+    'under_review',
+    public.dir120_actor_id(),
+    '{}'::jsonb
+  );
+  SELECT * INTO STRICT audit_row
+  FROM public.marketplace_request_audit_logs AS audit
+  WHERE audit.request_id = target_request_id;
+
+  IF result.status <> 'under_review'
+    OR (SELECT count(*) FROM public.marketplace_request_audit_logs a WHERE a.request_id = target_request_id) <> 1
+    OR audit_row.request_id <> target_request_id
+    OR audit_row.actor_user_id <> public.dir120_actor_id()
+    OR audit_row.actor_identity <> public.dir120_actor_id()::text
+    OR audit_row.actor_role <> 'admin'
+    OR audit_row.actor_source <> 'admin_operations_rpc'
+    OR audit_row.previous_status <> 'request_submitted'
+    OR audit_row.new_status <> 'under_review'
+    OR audit_row.event_type <> 'request_status_updated'
+    OR audit_row.metadata->>'request_reference' <> 'REQ-10-ATOMIC'
+    OR audit_row.metadata->>'next_action' <> 'assign_owner'
+  THEN
+    RAISE EXCEPTION 'case 10 failed';
+  END IF;
   INSERT INTO dir120_case_results VALUES (10, 'atomic status and audit success');
 END $$;
 
 -- 11. Forced audit failure rolls the status update back.
 CREATE FUNCTION public.reject_dir120_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'DIR120_FORCED_AUDIT_FAILURE'; END $$;
-CREATE TRIGGER reject_dir120_audit BEFORE INSERT ON public.audit_logs FOR EACH ROW EXECUTE FUNCTION public.reject_dir120_audit();
+CREATE TRIGGER reject_dir120_audit BEFORE INSERT ON public.marketplace_request_audit_logs FOR EACH ROW EXECUTE FUNCTION public.reject_dir120_audit();
 DO $$
 DECLARE request_id uuid := public.dir120_seed_request('11-ROLLBACK', 'request_to_confirm', 'request_submitted');
 BEGIN
@@ -295,7 +335,7 @@ BEGIN
   IF (SELECT status FROM public.marketplace_requests WHERE id = request_id) <> 'request_submitted' THEN RAISE EXCEPTION 'case 11 failed to roll back'; END IF;
   INSERT INTO dir120_case_results VALUES (11, 'audit failure rollback');
 END $$;
-DROP TRIGGER reject_dir120_audit ON public.audit_logs;
+DROP TRIGGER reject_dir120_audit ON public.marketplace_request_audit_logs;
 DROP FUNCTION public.reject_dir120_audit();
 
 -- 12. Stale expected state is denied.
@@ -359,7 +399,7 @@ DO $$
 DECLARE request_id uuid := public.dir120_seed_request('18-QUOTE', 'request_quote', 'payment_verification'); evidence jsonb; result public.marketplace_requests;
 BEGIN
   evidence := public.dir120_seed_valid_evidence(request_id, true);
-  result := public.transition_marketplace_request(request_id, 'payment_verification', 'confirmed', gen_random_uuid(), evidence);
+  result := public.transition_marketplace_request(request_id, 'payment_verification', 'confirmed', public.dir120_actor_id(), evidence);
   IF result.status <> 'confirmed' OR result.confirmation_evidence->>'quote_evidence_id' IS NULL THEN RAISE EXCEPTION 'case 18 failed'; END IF;
   INSERT INTO dir120_case_results VALUES (18, 'valid quote evidence');
 END $$;
@@ -394,6 +434,11 @@ BEGIN
     OR has_function_privilege('authenticated', 'public.transition_marketplace_request(uuid,text,text,uuid,jsonb)', 'EXECUTE')
     OR has_table_privilege('anon', 'public.marketplace_request_evidence', 'SELECT')
     OR has_table_privilege('authenticated', 'public.marketplace_request_evidence', 'SELECT')
+    OR has_table_privilege('anon', 'public.marketplace_request_audit_logs', 'INSERT')
+    OR has_table_privilege('authenticated', 'public.marketplace_request_audit_logs', 'INSERT')
+    OR has_table_privilege('service_role', 'public.marketplace_request_audit_logs', 'UPDATE')
+    OR has_table_privilege('service_role', 'public.marketplace_request_audit_logs', 'DELETE')
+    OR NOT has_table_privilege('service_role', 'public.marketplace_request_audit_logs', 'INSERT')
     OR NOT has_function_privilege('service_role', 'public.transition_marketplace_request(uuid,text,text,uuid,jsonb)', 'EXECUTE')
   THEN
     RAISE EXCEPTION 'DIR120 privilege boundary is unsafe';
