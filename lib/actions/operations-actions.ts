@@ -5,7 +5,6 @@ import { redirect } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/auth/admin';
 import { appendTimelineRecord, createAuditRecord as createAuditEntry, createNotificationRecord, publishEvent, sendNotificationRecord } from '@/lib/operations/operations-engine';
 import { bookingStatusFromAssignmentStatus, bookingStatusFromLifecycleOutcome, normalizeBookingStatus, type CanonicalAssignmentStatus, type CanonicalLifecycleOutcome } from '@/lib/booking/workflow-status';
-import { supabaseAdmin } from '@/lib/supabase/server';
 
 const marketplaceRequestTransitions = {
   under_review: 'assign_owner',
@@ -30,8 +29,7 @@ export async function updateMarketplaceRequestStatus(formData: FormData) {
     throw new Error('Invalid request transition');
   }
 
-  const { user } = await requireAdminActionAccess();
-  if (!supabaseAdmin) throw new Error('Operations service unavailable');
+  const { supabase } = await requireAdminActionAccess();
 
   const confirmationEvidence = status === 'confirmed'
     ? {
@@ -42,11 +40,10 @@ export async function updateMarketplaceRequestStatus(formData: FormData) {
       }
     : {};
 
-  const { error } = await supabaseAdmin.rpc('transition_marketplace_request', {
+  const { error } = await supabase.rpc('transition_marketplace_request', {
     p_request_id: requestId,
     p_expected_status: expectedStatus,
     p_new_status: status,
-    p_actor_id: user.id,
     p_confirmation_evidence: confirmationEvidence,
   });
   if (error) {

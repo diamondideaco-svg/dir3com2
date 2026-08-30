@@ -1,5 +1,12 @@
 # Changelog
 
+- Closed the remaining DIR-120 audit-provenance boundary: marketplace request transitions now derive human actors from the signed Supabase session, record service-only calls as an explicit system actor, remove the caller-supplied actor overload, and deny direct service-role audit insertion.
+
+## 2026-08-30 — DIR-120 request audit schema dependency closure
+
+- Added a canonical, append-only `marketplace_request_audit_logs` ledger for atomic Marketplace request transitions, with request/actor/status/source/metadata traceability and no customer or partner write path.
+- Retargeted the existing DIR-120 transition RPC through a follow-up migration without rewriting merged migration history; CI now applies the historical and corrective migrations in order on a disposable PostgreSQL database that has no global `audit_logs` table.
+
 ## 2026-08-30 — DIR-120 authoritative confirmation evidence and CI closure
 
 - Replaced free-text-only confirmation proof with a server-only, request/customer/product/supplier-bound evidence ledger and fail-closed validation for supplier, payment, and accepted quote evidence.

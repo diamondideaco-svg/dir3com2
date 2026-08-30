@@ -38,7 +38,8 @@ test('operations visibility is authorized beside the privileged query', () => {
   assert.match(operations, /admin\.operations\.marketplace_requests_read_failed/);
   assert.match(operations, /throw new Error\('Unable to load marketplace revenue requests\.'\)/);
   assert.match(operationsActions, /requireAdminActionAccess/);
-  assert.match(operationsActions, /supabaseAdmin\.rpc\('transition_marketplace_request'/);
+  assert.match(operationsActions, /supabase\.rpc\('transition_marketplace_request'/);
+  assert.doesNotMatch(operationsActions, /p_actor_id/);
   assert.match(revenueSafetyMigration, /UPDATE public\.marketplace_requests/);
   assert.match(revenueSafetyMigration, /INSERT INTO public\.audit_logs/);
 });
