@@ -204,7 +204,8 @@ export async function searchTicketmasterEvents(input: {
   const rawEvents = Array.isArray(embedded?.events) ? embedded.events : [];
   const events = rawEvents
     .map(normalizeTicketmasterEvent)
-    .filter((event): event is TicketmasterDiscoveryEvent => event !== null);
+    .filter((event): event is TicketmasterDiscoveryEvent => event !== null)
+    .filter((event) => event.countryCode === countryCode);
   const page = asRecord(root?.page);
   const total = asNumber(page?.totalElements) ?? events.length;
   return {

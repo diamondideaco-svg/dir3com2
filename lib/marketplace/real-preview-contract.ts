@@ -1,40 +1,41 @@
-import type { FlightOffer, FlightOfferDetails, HotelResult } from '@/lib/travel/contracts';
+import type { HotelResult, StayRate } from '@/lib/travel/contracts';
 import type { TicketmasterDiscoveryEvent } from '@/lib/travel/ticketmaster/discovery';
 
 export const previewFamilies = ['dir3-fly', 'dir3-stay', 'dir3-drive', 'dir3-concierge', 'dir3-vip'] as const;
 export type PreviewFamily = (typeof previewFamilies)[number];
+export type PreviewCity = 'Riyadh' | 'Cairo';
+export type PreviewCitySelection = PreviewCity | 'all';
+export type PreviewProviderStatus = 'ok' | 'no_results' | 'access_blocked' | 'unavailable';
+export type PreviewEnvironment = 'production' | 'sandbox';
 
-export type RealPreviewFlightOffer = {
-  kind: 'flight';
-  id: string;
-  family: 'dir3-fly';
-  provider: 'duffel';
-  environment: 'sandbox';
-  fulfilmentState: 'test_sandbox';
-  transactionMethod: 'none';
-  supplierVerified: false;
-  availability: 'available';
-  origin: string;
-  destination: string;
-  departureDate?: string;
-  expiresAt?: string;
-  currency: string;
-  totalAmount: string;
-  slices: FlightOffer['slices'];
-  conditions?: FlightOfferDetails['conditions'];
+export type PreviewSourceTrace = {
+  provider: 'liteapi' | 'ticketmaster';
+  providerItemId: string;
+  sourceUrl: string | null;
+  environment: PreviewEnvironment;
+  retrievedAt: string;
+  transactionMethod: 'none' | 'external_redirect';
+  fulfilmentState: 'availability_unknown' | 'test_sandbox' | 'external_provider' | 'unavailable';
 };
 
-export type RealPreviewEvent = {
+export type RealPreviewUnavailableOffer = PreviewSourceTrace & {
+  kind: 'unavailable';
+  family: 'dir3-stay' | 'dir3-concierge';
+  reason: Exclude<PreviewProviderStatus, 'ok'>;
+  city: PreviewCity | null;
+  checkIn: string | null;
+  checkOut: string | null;
+};
+
+export type RealPreviewEvent = PreviewSourceTrace & {
   kind: 'event';
   id: string;
   family: 'dir3-concierge';
   provider: 'ticketmaster';
   environment: 'production';
-  fulfilmentState: 'external_provider';
-  transactionMethod: 'external_redirect';
-  supplierVerified: true;
-  availability: 'available' | 'unavailable';
-  priceState: 'live' | 'check_price';
+  availability: 'available' | 'sold_out' | 'unavailable' | 'unknown';
+  priceState: 'live' | 'not_supplied';
+  salesStatus: string;
   title: string;
   imageUrl: string | null;
   localDate: string | null;
@@ -49,61 +50,92 @@ export type RealPreviewEvent = {
   providerUrl: string;
 };
 
-export type RealPreviewStay = {
+export type RealPreviewStay = PreviewSourceTrace & {
   kind: 'stay';
   id: string;
   family: 'dir3-stay';
   provider: 'liteapi';
-  environment: 'sandbox';
-  fulfilmentState: 'test_sandbox';
-  transactionMethod: 'none';
-  supplierVerified: false;
-  availability: 'available';
+  city: PreviewCity;
+  hotelId: string;
+  rateId: string;
+  availability: 'provider_result';
+  priceState: 'live' | 'provider_preview';
   title: string;
   address: string;
   rating: number | null;
   imageUrl: string | null;
   roomName: string;
+  boardName: string | null;
+  refundable: boolean;
+  cancellationDeadline: string | null;
   totalAmount: string;
   currency: string;
+  checkIn: string;
+  checkOut: string;
 };
 
-export type RealPreviewOffer = RealPreviewFlightOffer | RealPreviewStay | RealPreviewEvent;
+export type RealPreviewOffer = RealPreviewStay | RealPreviewEvent | RealPreviewUnavailableOffer;
 
-export function normalizeDuffelPreviewOffer(offer: FlightOffer | FlightOfferDetails): RealPreviewFlightOffer {
+export function buildUnavailablePreviewOffer(input: {
+  provider: 'liteapi' | 'ticketmaster';
+  providerItemId: string;
+  environment: PreviewEnvironment;
+  reason: RealPreviewUnavailableOffer['reason'];
+  city?: PreviewCity;
+  checkIn?: string;
+  checkOut?: string;
+}): RealPreviewUnavailableOffer {
   return {
-    kind: 'flight',
-    id: offer.id,
-    family: 'dir3-fly',
-    provider: 'duffel',
-    environment: 'sandbox',
-    fulfilmentState: 'test_sandbox',
+    kind: 'unavailable',
+    family: input.provider === 'liteapi' ? 'dir3-stay' : 'dir3-concierge',
+    provider: input.provider,
+    providerItemId: input.providerItemId,
+    sourceUrl: null,
+    environment: input.environment,
+    retrievedAt: new Date().toISOString(),
     transactionMethod: 'none',
-    supplierVerified: false,
-    availability: 'available',
-    origin: offer.origin,
-    destination: offer.destination,
-    departureDate: offer.departureDate,
-    expiresAt: offer.expiresAt,
-    currency: offer.currency,
-    totalAmount: offer.totalAmount,
-    slices: offer.slices,
-    ...('conditions' in offer && offer.conditions ? { conditions: offer.conditions } : {}),
+    fulfilmentState: 'availability_unknown',
+    reason: input.reason,
+    city: input.city ?? null,
+    checkIn: input.checkIn ?? null,
+    checkOut: input.checkOut ?? null,
   };
 }
 
-export function normalizeTicketmasterPreviewEvent(event: TicketmasterDiscoveryEvent): RealPreviewEvent {
+function eventAvailability(salesStatus: string): RealPreviewEvent['availability'] {
+  const normalized = salesStatus.trim().toLowerCase();
+  if (normalized === 'onsale') return 'available';
+  if (normalized === 'soldout' || normalized === 'sold_out') return 'sold_out';
+  if (normalized === 'cancelled' || normalized === 'canceled') return 'unavailable';
+  return 'unknown';
+}
+
+export function normalizeTicketmasterPreviewEvent(
+  event: TicketmasterDiscoveryEvent,
+  retrievedAt = new Date().toISOString(),
+): RealPreviewEvent {
+  const availability = eventAvailability(event.salesStatus);
+  const transactionMethod = availability === 'available' ? 'external_redirect' : 'none';
+  const fulfilmentState = availability === 'available'
+    ? 'external_provider'
+    : availability === 'sold_out' || availability === 'unavailable'
+      ? 'unavailable'
+      : 'availability_unknown';
+
   return {
     kind: 'event',
     id: event.id,
     family: 'dir3-concierge',
     provider: 'ticketmaster',
+    providerItemId: event.id,
+    sourceUrl: event.url,
     environment: 'production',
-    fulfilmentState: 'external_provider',
-    transactionMethod: 'external_redirect',
-    supplierVerified: true,
-    availability: event.salesStatus === 'onsale' ? 'available' : 'unavailable',
-    priceState: event.priceMin !== null && event.currency ? 'live' : 'check_price',
+    retrievedAt,
+    transactionMethod,
+    fulfilmentState,
+    availability,
+    priceState: event.priceMin !== null && event.currency ? 'live' : 'not_supplied',
+    salesStatus: event.salesStatus,
     title: event.name,
     imageUrl: event.imageUrl,
     localDate: event.localDate,
@@ -119,35 +151,75 @@ export function normalizeTicketmasterPreviewEvent(event: TicketmasterDiscoveryEv
   };
 }
 
-export function normalizeLiteApiPreviewStay(hotel: HotelResult): RealPreviewStay | null {
-  const room = hotel.rooms?.find((candidate) => candidate.rates?.length > 0);
-  const rate = room?.rates?.[0];
-  if (!room || !rate) return null;
-  return {
-    kind: 'stay',
-    id: rate.id,
-    family: 'dir3-stay',
-    provider: 'liteapi',
-    environment: 'sandbox',
-    fulfilmentState: 'test_sandbox',
-    transactionMethod: 'none',
-    supplierVerified: false,
-    availability: 'available',
-    title: hotel.name || 'Hotel',
-    address: hotel.address || '',
-    rating: hotel.rating ?? null,
-    imageUrl: hotel.imageUrl ?? null,
-    roomName: room.name || 'Room',
-    totalAmount: rate.totalAmount,
-    currency: rate.currency,
-  };
+function isSafeProviderImage(value: string | null | undefined): value is string {
+  if (!value || value.length > 2_048) return false;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    return url.protocol === 'https:'
+      && !url.username
+      && !url.password
+      && host !== 'localhost'
+      && !host.endsWith('.local')
+      && host.includes('.');
+  } catch {
+    return false;
+  }
 }
 
-export function buildPreviewDabraContext(offers: RealPreviewFlightOffer[], stays: RealPreviewStay[], events: RealPreviewEvent[], language: 'ar' | 'en') {
-  const names = offers.slice(0, 5).map((offer) => `${offer.origin}-${offer.destination} ${offer.totalAmount} ${offer.currency}`);
-  const stayNames = stays.slice(0, 5).map((stay) => `${stay.title} ${stay.totalAmount} ${stay.currency}`);
-  const eventNames = events.slice(0, 5).map((event) => `${event.title}${event.city ? ` — ${event.city}` : ''}`);
-  return language === 'ar'
-    ? `الطيران: بيانات فعلية من بيئة Duffel التجريبية: ${names.join('، ') || 'لا توجد نتائج حالياً'}. الإقامة: بيانات LiteAPI التجريبية: ${stayNames.join('، ') || 'لا توجد نتائج حالياً'}. الكونسيرج: أحداث Ticketmaster الحالية: ${eventNames.join('، ') || 'لا توجد أحداث حالياً'}. Duffel وLiteAPI للمعاينة فقط، وإتمام تذاكر Ticketmaster يتم لدى المزود الخارجي.`
-    : `Flights: actual data from Duffel's test environment: ${names.join(', ') || 'no current results'}. Stays: LiteAPI test data: ${stayNames.join(', ') || 'no current results'}. Concierge: current Ticketmaster events: ${eventNames.join(', ') || 'no current events'}. Duffel and LiteAPI are preview-only, while Ticketmaster checkout completes with the external provider.`;
+function findRate(hotel: HotelResult, rateId?: string): { roomName: string; rate: StayRate } | null {
+  for (const room of hotel.rooms ?? []) {
+    const rate = rateId
+      ? room.rates?.find((candidate) => candidate.id === rateId)
+      : room.rates?.[0];
+    if (rate) return { roomName: room.name || rate.roomName || 'Room', rate };
+  }
+  return null;
+}
+
+export function normalizeLiteApiPreviewStay(
+  hotel: HotelResult,
+  context: {
+    city: PreviewCity;
+    environment: PreviewEnvironment;
+    checkIn: string;
+    checkOut: string;
+    retrievedAt?: string;
+    rateId?: string;
+  },
+): RealPreviewStay | null {
+  const selected = findRate(hotel, context.rateId);
+  if (!selected || !hotel.id || !hotel.name) return null;
+  const { rate } = selected;
+  const sandbox = context.environment === 'sandbox';
+
+  return {
+    kind: 'stay',
+    id: `liteapi:${hotel.id}`,
+    family: 'dir3-stay',
+    provider: 'liteapi',
+    providerItemId: hotel.id,
+    sourceUrl: null,
+    environment: context.environment,
+    retrievedAt: context.retrievedAt ?? new Date().toISOString(),
+    transactionMethod: 'none',
+    fulfilmentState: sandbox ? 'test_sandbox' : 'availability_unknown',
+    city: context.city,
+    hotelId: hotel.id,
+    rateId: rate.id,
+    availability: 'provider_result',
+    priceState: sandbox ? 'provider_preview' : 'live',
+    title: hotel.name,
+    address: hotel.address || context.city,
+    rating: hotel.rating ?? null,
+    imageUrl: isSafeProviderImage(hotel.imageUrl) ? hotel.imageUrl : null,
+    roomName: selected.roomName,
+    boardName: rate.boardName || null,
+    refundable: rate.refundable,
+    cancellationDeadline: rate.cancellationDeadline || null,
+    totalAmount: rate.totalAmount,
+    currency: rate.currency,
+    checkIn: context.checkIn,
+    checkOut: context.checkOut,
+  };
 }

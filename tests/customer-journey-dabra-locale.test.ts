@@ -221,12 +221,13 @@ test('Ticketmaster remains server-only preview supply and production public expo
   assert.match(preview, /if \(!isRealMarketplacePreviewEnabled\(\)\) notFound\(\)/);
 });
 
-test('blocked Duffel and LiteAPI records cannot surface through public preview fallback', () => {
+test('DIR-121 preview omits out-of-scope Duffel and keeps LiteAPI capability fail-closed', () => {
   const preview = read('lib', 'marketplace', 'real-preview.ts');
   const client = read('components', 'public', 'RealMarketplacePreviewClient.tsx');
-  assert.match(preview, /flightResult\.status === 'ok'/);
-  assert.match(preview, /stayResult\.status === 'ok'/);
-  assert.match(client, /Duffel · TEST SANDBOX/);
-  assert.match(client, /LiteAPI · TEST SANDBOX/);
-  assert.match(client, /booking and payment are unavailable here/);
+  const detail = read('components', 'public', 'RealMarketplacePreviewDetail.tsx');
+  assert.doesNotMatch(preview, /searchDuffelFlights/);
+  assert.match(preview, /environment: liteApiEnvironment/);
+  assert.match(client, /LiteAPI ·/);
+  assert.match(client, /Provider sandbox data for preview only; no production booking/);
+  assert.match(detail, /Preview only — no booking action/);
 });

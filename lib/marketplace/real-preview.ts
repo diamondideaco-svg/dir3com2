@@ -1,19 +1,26 @@
 import 'server-only';
 
 import { notFound } from 'next/navigation';
-import { searchDuffelFlights } from '@/lib/travel/duffel/search';
-import { getDuffelFlightOffer } from '@/lib/travel/duffel/flights';
+import { TravelProviderError } from '@/lib/travel/errors';
 import { searchLiteApiHotels } from '@/lib/travel/liteapi/stays';
 import { getTicketmasterEvent, searchTicketmasterEvents } from '@/lib/travel/ticketmaster/discovery';
 import {
-  buildPreviewDabraContext,
-  normalizeDuffelPreviewOffer,
+  buildUnavailablePreviewOffer,
   normalizeLiteApiPreviewStay,
   normalizeTicketmasterPreviewEvent,
+  type PreviewCity,
+  type PreviewCitySelection,
+  type PreviewEnvironment,
+  type PreviewProviderStatus,
+  type RealPreviewStay,
 } from '@/lib/marketplace/real-preview-contract';
 
-const IATA_PATTERN = /^[A-Z]{3}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const PROVIDER_ID_PATTERN = /^[A-Za-z0-9._:-]{1,160}$/;
+const STAY_CITIES = {
+  Riyadh: { countryCode: 'SA', guestNationality: 'SA' },
+  Cairo: { countryCode: 'EG', guestNationality: 'EG' },
+} as const;
 
 export function isRealMarketplacePreviewEnabled() {
   return process.env.VERCEL_ENV === 'preview'
@@ -24,73 +31,195 @@ export function requireRealMarketplacePreview() {
   if (!isRealMarketplacePreviewEnabled()) notFound();
 }
 
-export async function getRealFlightPreview(input: {
-  from: string;
-  to: string;
-  departureDate: string;
-  language: 'ar' | 'en';
-  countryCode?: string;
-}) {
-  requireRealMarketplacePreview();
-  if (!IATA_PATTERN.test(input.from) || !IATA_PATTERN.test(input.to) || !DATE_PATTERN.test(input.departureDate)) notFound();
+export function getLiteApiPreviewEnvironment(env: NodeJS.ProcessEnv = process.env): PreviewEnvironment | null {
+  const environment = env.LITEAPI_ENV?.trim().toLowerCase();
+  if (environment === 'sandbox' && env.LITEAPI_TEST_API_KEY?.trim().startsWith('sand_')) return 'sandbox';
+  if (
+    environment !== 'sandbox'
+    && env.LITEAPI_AUTH_MODE?.trim().toLowerCase() === 'hmac'
+    && env.LITEAPI_PUBLIC_API_KEY?.trim()
+    && env.LITEAPI_PRIVATE_API_KEY?.trim()
+    && env.LITEAPI_SHARED_SECRET?.trim()
+  ) return 'production';
+  return null;
+}
 
-  const countryCode = input.countryCode?.trim().toUpperCase() === 'EG' ? 'EG' : 'SA';
-  const checkOut = new Date(`${input.departureDate}T00:00:00.000Z`);
-  checkOut.setUTCDate(checkOut.getUTCDate() + 2);
-  const [flightProbe, stayProbe, eventProbe] = await Promise.allSettled([
-    searchDuffelFlights({ from: input.from, to: input.to, departureDate: input.departureDate, adults: 1 }),
-    searchLiteApiHotels({
-      cityName: countryCode === 'EG' ? 'Cairo' : 'Riyadh',
-      countryCode,
-      checkIn: input.departureDate,
-      checkOut: checkOut.toISOString().slice(0, 10),
+function assertStayDates(checkIn: string, checkOut: string) {
+  if (!DATE_PATTERN.test(checkIn) || !DATE_PATTERN.test(checkOut)) notFound();
+  const start = Date.parse(`${checkIn}T00:00:00.000Z`);
+  const end = Date.parse(`${checkOut}T00:00:00.000Z`);
+  const nights = (end - start) / 86_400_000;
+  if (!Number.isFinite(nights) || nights < 1 || nights > 30) notFound();
+}
+
+function statusFromLiteApi(status: 'ok' | 'no_results' | 'blocked' | 'unavailable'): PreviewProviderStatus {
+  if (status === 'blocked') return 'access_blocked';
+  return status;
+}
+
+function isAccessBlocked(error: unknown) {
+  return error instanceof TravelProviderError && error.code === 'UNAUTHORIZED_VENDOR_ACCESS';
+}
+
+async function getCityStays(input: {
+  city: PreviewCity;
+  checkIn: string;
+  checkOut: string;
+  environment: PreviewEnvironment | null;
+  retrievedAt: string;
+  hotelIds?: string[];
+  rateId?: string;
+}): Promise<{ status: PreviewProviderStatus; stays: RealPreviewStay[] }> {
+  if (!input.environment) return { status: 'access_blocked', stays: [] };
+  const city = STAY_CITIES[input.city];
+  try {
+    const result = await searchLiteApiHotels({
+      ...(input.hotelIds?.length ? { hotelIds: input.hotelIds } : { cityName: input.city, countryCode: city.countryCode }),
+      checkIn: input.checkIn,
+      checkOut: input.checkOut,
       occupancies: [{ adults: 1 }],
       currency: 'USD',
-      guestNationality: countryCode,
-      maxRatesPerHotel: 2,
+      guestNationality: city.guestNationality,
+      maxRatesPerHotel: 3,
+    });
+    if (result.status !== 'ok') return { status: statusFromLiteApi(result.status), stays: [] };
+    const stays = result.hotels
+      .map((hotel) => normalizeLiteApiPreviewStay(hotel, {
+        city: input.city,
+        environment: input.environment as PreviewEnvironment,
+        checkIn: input.checkIn,
+        checkOut: input.checkOut,
+        retrievedAt: input.retrievedAt,
+        rateId: input.rateId,
+      }))
+      .filter((stay): stay is RealPreviewStay => stay !== null)
+      .slice(0, 10);
+    return { status: stays.length ? 'ok' : 'no_results', stays };
+  } catch (error) {
+    return { status: isAccessBlocked(error) ? 'access_blocked' : 'unavailable', stays: [] };
+  }
+}
+
+export async function getRealMarketplacePreview(input: {
+  city: PreviewCitySelection;
+  checkIn: string;
+  checkOut: string;
+}) {
+  requireRealMarketplacePreview();
+  assertStayDates(input.checkIn, input.checkOut);
+  const retrievedAt = new Date().toISOString();
+  const liteApiEnvironment = getLiteApiPreviewEnvironment();
+  const selectedCities: PreviewCity[] = input.city === 'all' ? ['Riyadh', 'Cairo'] : [input.city];
+
+  const cityRequests = selectedCities.map(async (city) => ({
+    city,
+    result: await getCityStays({
+      city,
+      checkIn: input.checkIn,
+      checkOut: input.checkOut,
+      environment: liteApiEnvironment,
+      retrievedAt,
     }),
-    searchTicketmasterEvents({ countryCode, size: 20 }),
+  }));
+  const [cityResults, eventProbe] = await Promise.all([
+    Promise.all(cityRequests),
+    searchTicketmasterEvents({ countryCode: 'SA', size: 24 }).catch(() => ({
+      provider: 'ticketmaster' as const,
+      status: 'unavailable' as const,
+      total: 0,
+      events: [],
+    })),
   ]);
-  const flightResult = flightProbe.status === 'fulfilled'
-    ? flightProbe.value
-    : { provider: 'duffel' as const, status: 'unavailable' as const, offers: [] };
-  const eventResult = eventProbe.status === 'fulfilled'
-    ? eventProbe.value
-    : { provider: 'ticketmaster' as const, status: 'unavailable' as const, total: 0, events: [] };
-  const stayResult = stayProbe.status === 'fulfilled'
-    ? stayProbe.value
-    : { provider: 'liteapi' as const, status: 'unavailable' as const, hotels: [] };
-  const offers = flightResult.status === 'ok' ? flightResult.offers.slice(0, 10).map(normalizeDuffelPreviewOffer) : [];
-  const stays = stayResult.status === 'ok'
-    ? stayResult.hotels.map(normalizeLiteApiPreviewStay).filter((stay) => stay !== null).slice(0, 10)
+
+  const stayStatus: Record<PreviewCity, PreviewProviderStatus | 'not_requested'> = {
+    Riyadh: 'not_requested',
+    Cairo: 'not_requested',
+  };
+  const stays: RealPreviewStay[] = [];
+  for (const cityResult of cityResults) {
+    stayStatus[cityResult.city] = cityResult.result.status;
+    stays.push(...cityResult.result.stays);
+  }
+  const events = eventProbe.status === 'ok'
+    ? eventProbe.events
+      .filter((event) => event.countryCode === 'SA')
+      .map((event) => normalizeTicketmasterPreviewEvent(event, retrievedAt))
     : [];
-  const events = eventResult.status === 'ok' ? eventResult.events.map(normalizeTicketmasterPreviewEvent) : [];
+
   return {
-    provider: 'duffel' as const,
-    providerStatus: flightResult.status,
-    stayProvider: 'liteapi' as const,
-    stayProviderStatus: stayResult.status,
-    eventProvider: 'ticketmaster' as const,
-    eventProviderStatus: eventResult.status,
-    offers,
+    retrievedAt,
     stays,
     events,
-    dabraContext: buildPreviewDabraContext(offers, stays, events, input.language),
+    providers: {
+      liteapi: {
+        access: liteApiEnvironment ? 'authorized' as const : 'blocked' as const,
+        environment: liteApiEnvironment ?? 'unconfigured' as const,
+        cities: stayStatus,
+      },
+      ticketmaster: {
+        access: eventProbe.status === 'access_blocked' ? 'blocked' as const : 'authorized' as const,
+        environment: 'production' as const,
+        status: eventProbe.status,
+      },
+    },
   };
 }
 
-export async function getRealPreviewOffer(id: string) {
+export async function getRealPreviewOffer(
+  id: string,
+  context?: { city?: string; checkIn?: string; checkOut?: string },
+) {
   requireRealMarketplacePreview();
-  if (id.startsWith('off_')) {
-    if (id.length > 160) notFound();
-    try {
-      return normalizeDuffelPreviewOffer(await getDuffelFlightOffer(id));
-    } catch {
-      notFound();
+  let providerId: string;
+  try {
+    providerId = decodeURIComponent(id);
+  } catch {
+    notFound();
+  }
+  if (providerId.startsWith('liteapi:')) {
+    const hotelId = providerId.slice('liteapi:'.length);
+    const city = context?.city === 'Cairo' ? 'Cairo' : context?.city === 'Riyadh' ? 'Riyadh' : null;
+    const checkIn = context?.checkIn ?? '';
+    const checkOut = context?.checkOut ?? '';
+    if (!PROVIDER_ID_PATTERN.test(hotelId) || !city) notFound();
+    assertStayDates(checkIn, checkOut);
+    const environment = getLiteApiPreviewEnvironment();
+    const result = await getCityStays({
+      city,
+      checkIn,
+      checkOut,
+      environment,
+      retrievedAt: new Date().toISOString(),
+      hotelIds: [hotelId],
+    });
+    const stay = result.stays.find((candidate) => candidate.hotelId === hotelId);
+    if (!stay) {
+      return buildUnavailablePreviewOffer({
+        provider: 'liteapi',
+        providerItemId: hotelId,
+        environment: environment ?? 'sandbox',
+        reason: environment ? (result.status === 'ok' ? 'no_results' : result.status) : 'access_blocked',
+        city,
+        checkIn,
+        checkOut,
+      });
     }
+    return stay;
   }
 
-  const event = await getTicketmasterEvent(id);
-  if (!event) notFound();
-  return normalizeTicketmasterPreviewEvent(event);
+  if (!PROVIDER_ID_PATTERN.test(providerId)) notFound();
+  try {
+    const event = await getTicketmasterEvent(providerId);
+    if (!event || event.countryCode !== 'SA') {
+      return buildUnavailablePreviewOffer({ provider: 'ticketmaster', providerItemId: providerId, environment: 'production', reason: 'no_results' });
+    }
+    return normalizeTicketmasterPreviewEvent(event);
+  } catch (error) {
+    return buildUnavailablePreviewOffer({
+      provider: 'ticketmaster',
+      providerItemId: providerId,
+      environment: 'production',
+      reason: isAccessBlocked(error) ? 'access_blocked' : 'unavailable',
+    });
+  }
 }

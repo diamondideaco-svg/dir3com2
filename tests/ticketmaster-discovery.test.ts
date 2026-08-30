@@ -78,6 +78,30 @@ test('search uses server credential and returns normalized official events', asy
   assert.equal(result.events[0].url, rawEvent.url);
 });
 
+test('Saudi discovery drops provider rows whose authoritative venue country does not match', async () => {
+  process.env.TICKETMASTER_API_KEY = 'test-key-not-real';
+  globalThis.fetch = async () => Response.json({
+    _embedded: {
+      events: [
+        rawEvent,
+        {
+          ...rawEvent,
+          id: 'event_wrong_market',
+          _embedded: {
+            venues: [{ name: 'Cairo Venue', city: { name: 'Cairo' }, country: { countryCode: 'EG' } }],
+          },
+        },
+      ],
+    },
+    page: { totalElements: 2 },
+  });
+
+  const result = await searchTicketmasterEvents({ countryCode: 'SA', size: 20 });
+  assert.equal(result.status, 'ok');
+  assert.equal(result.total, 2);
+  assert.deepEqual(result.events.map((event) => event.id), [rawEvent.id]);
+});
+
 test('search fails closed when credential is absent or rejected', async () => {
   delete process.env.TICKETMASTER_API_KEY;
   const absent = await searchTicketmasterEvents({ countryCode: 'SA' });
