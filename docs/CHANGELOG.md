@@ -6,6 +6,7 @@
 - Added provider item IDs, source URLs where supplied, environment, retrieval time, transaction method, and fulfilment state to every provider-derived preview item and PDP.
 - Kept LiteAPI sandbox or non-transactional results explicitly non-bookable, routed eligible Ticketmaster events only to official provider checkout, and added graceful provider-image fallbacks without substitute inventory.
 - Made retrieval timestamps deterministic between Vercel SSR and browser hydration, and reserved the DIR-121 mobile hero footprint for the existing floating DABRA launcher without changing desktop positioning or provider truth.
+- Enabled the public DIR-121 page and read API in Production while retaining fail-closed provider availability, sandbox labeling, and non-transactional supply boundaries.
 
 - Closed the remaining DIR-120 audit-provenance boundary: marketplace request transitions now derive human actors from the signed Supabase session, record service-only calls as an explicit system actor, remove the caller-supplied actor overload, and deny direct service-role audit insertion.
 

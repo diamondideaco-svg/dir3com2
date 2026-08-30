@@ -211,14 +211,15 @@ test('response boundary performs one repair and then uses deterministic selected
   assert.equal(parseDabraLocale('fr'), null);
 });
 
-test('Ticketmaster remains server-only preview supply and production public exposure stays gated', () => {
+test('Ticketmaster remains server-only supply while DIR-121 public exposure is production-reachable', () => {
   const provider = read('lib', 'travel', 'ticketmaster', 'discovery.ts');
   const preview = read('lib', 'marketplace', 'real-preview.ts');
   assert.match(provider, /import 'server-only'/);
-  assert.match(preview, /process\.env\.VERCEL_ENV === 'preview'/);
-  assert.match(preview, /process\.env\.NODE_ENV !== 'production'/);
-  assert.match(preview, /requireRealMarketplacePreview\(\)/);
-  assert.match(preview, /if \(!isRealMarketplacePreviewEnabled\(\)\) notFound\(\)/);
+  assert.doesNotMatch(preview, /requireRealMarketplacePreview/);
+  assert.doesNotMatch(preview, /if \(!isRealMarketplacePreviewEnabled\(\)\) notFound\(\)/);
+  assert.match(preview, /env\.VERCEL_ENV === 'preview'/);
+  assert.match(preview, /env\.NODE_ENV !== 'production'/);
+  assert.match(preview, /sandboxPreviewEnabled/);
 });
 
 test('DIR-121 preview omits out-of-scope Duffel and keeps LiteAPI capability fail-closed', () => {

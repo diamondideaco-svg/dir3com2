@@ -22,18 +22,15 @@ const STAY_CITIES = {
   Cairo: { countryCode: 'EG', guestNationality: 'EG' },
 } as const;
 
-export function isRealMarketplacePreviewEnabled() {
-  return process.env.VERCEL_ENV === 'preview'
-    || (process.env.NODE_ENV !== 'production' && process.env.DIR3COM_REAL_MARKETPLACE_PREVIEW_ENABLED === 'true');
-}
-
-export function requireRealMarketplacePreview() {
-  if (!isRealMarketplacePreviewEnabled()) notFound();
-}
-
 export function getLiteApiPreviewEnvironment(env: NodeJS.ProcessEnv = process.env): PreviewEnvironment | null {
   const environment = env.LITEAPI_ENV?.trim().toLowerCase();
-  if (environment === 'sandbox' && env.LITEAPI_TEST_API_KEY?.trim().startsWith('sand_')) return 'sandbox';
+  const sandboxPreviewEnabled = env.VERCEL_ENV === 'preview'
+    || (env.NODE_ENV !== 'production' && env.DIR3COM_REAL_MARKETPLACE_PREVIEW_ENABLED === 'true');
+  if (
+    environment === 'sandbox'
+    && sandboxPreviewEnabled
+    && env.LITEAPI_TEST_API_KEY?.trim().startsWith('sand_')
+  ) return 'sandbox';
   if (
     environment !== 'sandbox'
     && env.LITEAPI_AUTH_MODE?.trim().toLowerCase() === 'hmac'
@@ -105,7 +102,6 @@ export async function getRealMarketplacePreview(input: {
   checkIn: string;
   checkOut: string;
 }) {
-  requireRealMarketplacePreview();
   assertStayDates(input.checkIn, input.checkOut);
   const retrievedAt = new Date().toISOString();
   const liteApiEnvironment = getLiteApiPreviewEnvironment();
@@ -169,7 +165,6 @@ export async function getRealPreviewOffer(
   id: string,
   context?: { city?: string; checkIn?: string; checkOut?: string },
 ) {
-  requireRealMarketplacePreview();
   let providerId: string;
   try {
     providerId = decodeURIComponent(id);
