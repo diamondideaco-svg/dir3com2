@@ -37,6 +37,43 @@ test('replace persists new image before cleaning up old image', () => {
   assert.match(source, /replaceImageId/);
 });
 
+test('replacement upload fails closed before association or old-image cleanup', () => {
+  const source = route();
+  const uploadFailure = source.indexOf('if (!upload.ok)');
+  const newInsert = source.indexOf('.insert({', uploadFailure);
+  const durableCleanup = source.indexOf('deleteImageDurably(actor.userId, oldImage)');
+  assert.notEqual(uploadFailure, -1);
+  assert.notEqual(newInsert, -1);
+  assert.notEqual(durableCleanup, -1);
+  assert.ok(uploadFailure < newInsert);
+  assert.ok(newInsert < durableCleanup);
+  assert.match(source, /if \(error\) \{[\s\S]*storage\.from\(BUCKET\)\.remove\(\[path\]\)[\s\S]*throw error/);
+});
+
+test('replacement retries one server-authored path and reconciles ambiguous storage results', () => {
+  const source = route();
+  assert.match(source, /uploadStorageObjectWithRecovery/);
+  assert.match(source, /bucket\.list\(folder, \{ limit: 2, search: filename \}\)/);
+  assert.match(source, /item\.name === filename/);
+  assert.match(source, /const path = buildPath\(actor\.userId, productId/);
+  assert.doesNotMatch(source, /upsert:\s*true/);
+});
+
+test('missing old object completes durable row cleanup without deleting the replacement', () => {
+  const source = route();
+  assert.match(source, /if \(!storageError \|\| isMissingStorageObject\(storageError\)\)/);
+  assert.match(source, /from\('partner_image_cleanup_queue'\)[\s\S]*\.delete\(\)[\s\S]*return \{ cleanupPending: false \}/);
+  assert.match(source, /storage\.from\(BUCKET\)\.remove\(\[image\.image_url\]\)/);
+});
+
+test('replacement never changes product ownership and invalid media IDs fail closed', () => {
+  const source = route();
+  assert.match(source, /const replaceImageId = safeImageId\(formData\.get\('replaceImageId'\)\)/);
+  assert.match(source, /if \(replaceImageId\)[\s\S]*getOwnedImage\(replaceImageId, actor\.userId\)/);
+  assert.match(source, /owned\.image\.product_id !== productId/);
+  assert.doesNotMatch(source, /from\('product_availability'\)[\s\S]{0,160}\.update\(/);
+});
+
 test('partner preview distinguishes a missing object from a storage outage', () => {
   const source = route();
   assert.match(source, /isMissingStorageObject\(error\)/);
