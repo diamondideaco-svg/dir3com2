@@ -8,6 +8,7 @@ import { FiTruck } from 'react-icons/fi';
 import { Badge, Chip } from '@/components/design-system';
 import { buttonVariants } from '@/components/ui/button';
 import { marketplacePrimaryAction, type MarketplaceTruth } from '@/lib/marketplace/truth';
+import { marketplaceBadgeLabels, marketplaceOptionCountLabel } from '@/lib/marketplace/localization';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
 export type ServiceItem = {
@@ -49,11 +50,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
   const router = useRouter();
   const [providerImageFailed, setProviderImageFailed] = useState(false);
   const href = service.href?.startsWith('/') ? service.href : `/services/${service.slug}`;
-  const labels = [
-    service.featured ? 'Featured' : null,
-    service.popular ? 'Popular' : null,
-    service.recommended ? 'Recommended' : null,
-  ].filter(Boolean) as string[];
+  const labels = marketplaceBadgeLabels(language, service);
   const action = marketplacePrimaryAction({
     family: service.familyLabel?.toLowerCase().includes('stay') ? 'stay' :
       service.familyLabel?.toLowerCase().includes('fly') ? 'fly' :
@@ -90,7 +87,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
           navigateToService();
         }
       }}
-      className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-[32px] border border-[color:var(--color-border)] bg-[linear-gradient(170deg,rgba(255,255,255,0.9)_0%,rgba(247,242,233,0.82)_100%)] p-6 text-right shadow-[0_20px_48px_rgba(13,27,42,0.08)] transition-all duration-200 hover:-translate-y-2 hover:border-[var(--color-gold)]/45 hover:shadow-[0_28px_62px_rgba(13,27,42,0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40"
+      className={`group flex h-full cursor-pointer flex-col overflow-hidden rounded-[32px] border border-[color:var(--color-border)] bg-[linear-gradient(170deg,rgba(255,255,255,0.9)_0%,rgba(247,242,233,0.82)_100%)] p-6 shadow-[0_20px_48px_rgba(13,27,42,0.08)] transition-all duration-200 hover:-translate-y-2 hover:border-[var(--color-gold)]/45 hover:shadow-[0_28px_62px_rgba(13,27,42,0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/40 ${en ? 'text-left' : 'text-right'}`}
     >
       <div className="-mx-6 -mt-6 mb-5 border-b border-[var(--color-gold)]/14 bg-[linear-gradient(145deg,rgba(13,27,42,0.9)_0%,rgba(28,49,68,0.72)_60%,rgba(212,175,55,0.44)_140%)] px-6 py-5 text-[var(--color-light)]">
         {service.imageUrl && !providerImageFailed ? (
@@ -169,7 +166,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
 
       {(service.basePrice || service.productCount || service.fulfilmentState) ? (
         <div className="mt-5 flex items-center justify-between gap-3 text-sm text-[var(--color-muted)]">
-          <span>{service.productCount ? `${service.productCount} ${en ? 'options' : 'خيار'}` : (en ? 'Service ready to view' : 'خدمة جاهزة للعرض')}</span>
+          <span>{service.productCount ? marketplaceOptionCountLabel(service.productCount, language) : (en ? 'Service ready to view' : 'خدمة جاهزة للعرض')}</span>
           <span className="text-base font-semibold text-[var(--color-gold)]">
             {service.fulfilmentState === 'verified_quote' ? (en ? 'Quote required' : 'عرض سعر مطلوب') :
               service.fulfilmentState === 'verified_requestable' ? (en ? 'Confirmation required' : 'يتطلب تأكيداً') :
