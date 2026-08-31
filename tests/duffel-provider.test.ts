@@ -4,6 +4,7 @@ import test from "node:test";
 import { getDuffelHealthStatus } from "@/lib/travel/duffel/health";
 import { searchDuffelFlights } from "@/lib/travel/duffel/search";
 import { createDuffelFlightBooking, getDuffelFlightOffer, getDuffelFlightOrder, refreshDuffelFlightOffer } from "@/lib/travel/duffel/flights";
+import { DuffelAccessBlockedError, duffelRequest } from "@/lib/travel/duffel/client";
 
 const originalFetch = global.fetch;
 
@@ -34,6 +35,45 @@ test("duffel health reports access blocked when no test token is configured", as
   assert.equal(health.provider, "duffel");
   assert.equal(health.auth.status, "access_blocked");
   assert.equal(health.flights.status, "access_blocked");
+});
+
+test("Duffel production token never leaves the official API origin", async () => {
+  process.env.DUFFEL_ENV = "production";
+  process.env.DUFFEL_API_KEY = "live_token";
+  process.env.DUFFEL_API_BASE_URL = "https://evil.example";
+  let called = false;
+  global.fetch = (async () => {
+    called = true;
+    return json({});
+  }) as typeof fetch;
+
+  await assert.rejects(
+    () => duffelRequest("/air/offer_requests", { method: "POST" }),
+    (error: unknown) => error instanceof DuffelAccessBlockedError,
+  );
+  assert.equal(called, false);
+});
+
+test("Duffel rejects credential-bearing or origin-changing resolved URLs", async () => {
+  process.env.DUFFEL_ENV = "production";
+  process.env.DUFFEL_API_KEY = "live_token";
+  process.env.DUFFEL_API_BASE_URL = "https://api.duffel.com";
+  let called = false;
+  global.fetch = (async () => {
+    called = true;
+    return json({});
+  }) as typeof fetch;
+
+  for (const path of [
+    "https://user:pass@api.duffel.com/air/offer_requests",
+    "//evil.example/air/offer_requests",
+  ]) {
+    await assert.rejects(
+      () => duffelRequest(path, { method: "POST" }),
+      (error: unknown) => error instanceof DuffelAccessBlockedError,
+    );
+  }
+  assert.equal(called, false);
 });
 
 test("duffel flight search normalizes a successful provider response", async () => {

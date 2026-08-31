@@ -76,7 +76,7 @@ function SourceTrace({ item, ar }: { item: RealPreviewStay | RealPreviewEvent; a
 }
 
 function statusLabel(item: RealPreviewStay | RealPreviewEvent, ar: boolean) {
-  if (item.kind === 'event' && item.availability === 'available' && item.transactionMethod === 'external_redirect') {
+  if (item.kind === 'event' && item.availability === 'available' && item.transactionMethod === 'provider_checkout') {
     return ar ? 'إتمام لدى المزود' : 'Provider Checkout';
   }
   if (item.kind === 'event' && item.availability === 'sold_out') return ar ? 'نفدت التذاكر' : 'Sold Out';
