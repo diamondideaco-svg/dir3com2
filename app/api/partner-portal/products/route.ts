@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import {
+  resolvePartnerProductCreateStatus,
+  resolvePartnerProductUpdateStatus,
+} from '@/lib/partner-portal/product-status';
 import { ensurePartnerRecord, requirePortalActor } from '@/lib/partner-portal/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
@@ -12,12 +16,6 @@ function privateHeaders() {
 function safeText(value: unknown, max = 160) {
   if (typeof value !== 'string') return '';
   return value.trim().slice(0, max);
-}
-
-function normalizeProductStatus(value: unknown) {
-  const normalized = safeText(value, 30).toLowerCase();
-  const partnerEditableStatuses = new Set(['draft', 'inactive']);
-  return partnerEditableStatuses.has(normalized) ? normalized : 'draft';
 }
 
 function normalizeCurrency(value: unknown) {
@@ -100,7 +98,19 @@ export async function POST(request: Request) {
     const currency = normalizeCurrency(payload.currency);
     const descriptionAr = safeText(payload.descriptionAr || payload.description, 1000);
     const descriptionEn = safeText(payload.descriptionEn || payload.description, 1000);
-    const status = normalizeProductStatus(payload.status);
+    const statusResolution = resolvePartnerProductCreateStatus(
+      payload.status,
+      Object.prototype.hasOwnProperty.call(payload, 'status'),
+    );
+
+    if (!statusResolution.ok) {
+      return NextResponse.json(
+        { error: { code: statusResolution.code } },
+        { status: statusResolution.httpStatus, headers: privateHeaders() },
+      );
+    }
+
+    const status = statusResolution.status;
 
     if (!nameAr) {
       return NextResponse.json({ error: { code: 'PRODUCT_NAME_REQUIRED' } }, { status: 400, headers: privateHeaders() });
@@ -196,13 +206,38 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: { code: 'PRODUCT_SCOPE_DENIED' } }, { status: 403, headers: privateHeaders() });
     }
 
+    const { data: currentProduct, error: currentProductError } = await supabaseAdmin
+      .from('products')
+      .select('id, status')
+      .eq('id', productId)
+      .maybeSingle();
+
+    if (currentProductError) {
+      throw currentProductError;
+    }
+
+    if (!currentProduct) {
+      return NextResponse.json({ error: { code: 'PRODUCT_NOT_FOUND' } }, { status: 404, headers: privateHeaders() });
+    }
+
+    const statusResolution = resolvePartnerProductUpdateStatus(
+      currentProduct.status,
+      payload.status,
+      Object.prototype.hasOwnProperty.call(payload, 'status'),
+    );
+
+    if (!statusResolution.ok) {
+      return NextResponse.json(
+        { error: { code: statusResolution.code } },
+        { status: statusResolution.httpStatus, headers: privateHeaders() },
+      );
+    }
+
     const nameAr = safeText(payload.nameAr || payload.serviceNameAr, 120);
     const nameEn = safeText(payload.nameEn || payload.serviceNameEn, 120) || nameAr;
     const city = safeText(payload.city, 80);
     const basePrice = Math.max(0, safeNumber(payload.basePrice ?? payload.price, 0));
     const currency = normalizeCurrency(payload.currency);
-    const status = normalizeProductStatus(payload.status);
-
     if (!nameAr) {
       return NextResponse.json({ error: { code: 'PRODUCT_NAME_REQUIRED' } }, { status: 400, headers: privateHeaders() });
     }
@@ -215,14 +250,19 @@ export async function PUT(request: Request) {
         city,
         base_price: basePrice,
         currency,
-        status,
+        ...(statusResolution.changed ? { status: statusResolution.status } : {}),
       })
       .eq('id', productId)
+      .eq('status', currentProduct.status)
       .select('id, name_ar, name_en, slug, city, base_price, currency, status, featured, verified, shield_certified, updated_at')
-      .single();
+      .maybeSingle();
 
-    if (productUpdateError || !updatedProduct) {
-      throw productUpdateError || new Error('PRODUCT_UPDATE_FAILED');
+    if (productUpdateError) {
+      throw productUpdateError;
+    }
+
+    if (!updatedProduct) {
+      return NextResponse.json({ error: { code: 'PRODUCT_STATUS_STALE' } }, { status: 409, headers: privateHeaders() });
     }
 
     if (city) {

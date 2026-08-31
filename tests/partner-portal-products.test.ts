@@ -12,9 +12,12 @@ test.before(() => {
   );
 });
 
-test('partner product status policy allows drafts only and never publishes', () => {
-  assert.match(routeSource, /new Set\(\s*\[\s*['"]draft['"]\s*,\s*['"]inactive['"]\s*\]\s*\)/);
-  assert.doesNotMatch(routeSource, /new Set\(\s*\[[^\]]*['"](published|active|featured)['"]/);
+test('partner product status policy is server-authoritative and never silently normalizes', () => {
+  assert.match(routeSource, /resolvePartnerProductCreateStatus/);
+  assert.match(routeSource, /resolvePartnerProductUpdateStatus/);
+  assert.match(routeSource, /\.select\(\s*['"]id, status['"]\s*\)/);
+  assert.match(routeSource, /PRODUCT_STATUS_STALE/);
+  assert.doesNotMatch(routeSource, /normalizeProductStatus/);
 });
 
 test('partner product updates are owner-scoped and exclude admin fields', () => {

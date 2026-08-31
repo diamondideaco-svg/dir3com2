@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-31 — Partner product publication-status preservation
+
+- Made existing-product saves derive publication state from the authoritative server row so an unchanged published product cannot be silently demoted to draft.
+- Preserved the existing partner-only draft/inactive transition boundary, rejected publication escalation and unknown status values explicitly, and retained owner-scoped updates with a stale-state guard.
+- Added focused regression coverage for published, draft, inactive, media, Save & Continue, invalid-status, publication-authority, and tenant-isolation behavior.
+
 ## 2026-08-31 — Partner product save-and-continue closure
 
 - Kept the partner product save request owner-scoped while validating its returned product before any client-side workflow transition.
