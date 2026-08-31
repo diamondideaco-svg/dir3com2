@@ -61,6 +61,7 @@ export default function RealMarketplacePreviewDetail({ offer }: { offer: RealPre
   }
 
   if (offer.kind === 'event') {
+    const providerCheckoutHref = `/api/marketplace/provider-checkout?provider=ticketmaster&item=${encodeURIComponent(offer.providerItemId)}`;
     const status = offer.availability === 'available'
       ? (ar ? 'إتمام لدى المزود' : 'Provider Checkout')
       : offer.availability === 'sold_out'
@@ -83,9 +84,15 @@ export default function RealMarketplacePreviewDetail({ offer }: { offer: RealPre
                   : (ar ? 'حالة الإتاحة الحالية لا تثبت إمكانية الشراء. يمكنك فتح صفحة المزود الرسمية للتحقق، دون ادعاء حجز داخل dir3com.' : 'Current availability does not prove purchase eligibility. You can view the official provider page to verify, without a dir3com checkout claim.')}
               </div>
               <Traceability offer={offer} ar={ar} />
-              <a href={offer.providerUrl} rel="noopener noreferrer sponsored" target="_blank" className="mt-7 inline-flex min-h-11 items-center justify-center rounded-full bg-[#0d1b2a] px-6 py-3 text-sm font-bold text-white">
-                {offer.availability === 'available' ? (ar ? 'المتابعة إلى Ticketmaster' : 'Continue to Ticketmaster') : (ar ? 'عرض الصفحة الرسمية' : 'View official listing')}
-              </a>
+              {offer.availability === 'available' ? (
+                <a href={providerCheckoutHref} rel="noopener noreferrer sponsored" target="_blank" className="mt-7 inline-flex min-h-11 items-center justify-center rounded-full bg-[#0d1b2a] px-6 py-3 text-sm font-bold text-white">
+                  {ar ? 'المتابعة إلى Ticketmaster' : 'Continue to Ticketmaster'}
+                </a>
+              ) : (
+                <span aria-disabled="true" className="mt-7 inline-flex min-h-11 cursor-not-allowed items-center justify-center rounded-full border border-[#0d1b2a]/20 bg-[#f3f4f6] px-6 py-3 text-sm font-bold text-[#64748b]">
+                  {ar ? 'لا يوجد إكمال متاح' : 'Checkout unavailable'}
+                </span>
+              )}
             </div>
           </article>
         </div>

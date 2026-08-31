@@ -1,7 +1,14 @@
 import { readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
-const serverOnlyTests = new Set(['ticketmaster-discovery.test.ts']);
+const serverOnlyTests = new Set([
+  'ticketmaster-discovery.test.ts',
+  'marketplace-provider-activation.test.ts',
+  'marketplace-provider-checkout.test.ts',
+  'marketplace-launch-bridge.test.ts',
+  'marketplace-travel-provider-integration.test.ts',
+  'marketplace-truth-contract.test.ts',
+]);
 const databaseTests = new Set([
   'customer-documents-postgres.integration.test.ts',
   'marketplace-production-schema-contract.integration.test.ts',

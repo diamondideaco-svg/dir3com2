@@ -104,7 +104,7 @@ test('Ticketmaster on-sale event uses only official provider checkout and source
   assert.equal(event.sourceUrl, rawEvent.url);
   assert.equal(event.environment, 'production');
   assert.equal(event.availability, 'available');
-  assert.equal(event.transactionMethod, 'external_redirect');
+  assert.equal(event.transactionMethod, 'provider_checkout');
   assert.equal(event.fulfilmentState, 'external_provider');
   assert.equal(event.priceState, 'not_supplied');
   assert.equal(event.retrievedAt, retrievedAt);
@@ -201,6 +201,8 @@ test('provider cards and PDP preserve source traceability and image fallback', (
   assert.match(detail, /Preview only — no booking action/);
   assert.match(detail, /No stale price or availability is shown/);
   assert.match(detail, /noopener noreferrer sponsored/);
+  assert.match(detail, /\/api\/marketplace\/provider-checkout\?provider=ticketmaster/);
+  assert.doesNotMatch(detail, /href=\{offer\.providerUrl\}/);
   assert.doesNotMatch(card, /[?&]rate=/);
   assert.doesNotMatch(fs.readFileSync(new URL('../lib/marketplace/real-preview.ts', import.meta.url), 'utf8'), /context\?\.rateId/);
   assert.match(fs.readFileSync(new URL('../lib/marketplace/real-preview.ts', import.meta.url), 'utf8'), /decodeURIComponent\(id\)/);

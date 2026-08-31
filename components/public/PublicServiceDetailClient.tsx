@@ -71,7 +71,7 @@ function unitLabel(unitType: string | null | undefined, en: boolean) {
 }
 
 export default function PublicServiceDetailClient({ slug }: { slug: string }) {
-  const { language } = useLanguage();
+  const { language, direction } = useLanguage();
   const en = language === 'en';
   const canonical = getCanonicalService(slug);
   const [service, setService] = useState<ServiceDetail | null>(null);
@@ -136,24 +136,24 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
 
   if (loading) {
     return (
-      <SectionContainer className="py-16">
+      <div dir={direction} lang={language}><SectionContainer className="py-16">
         <ContentContainer>
           <LoadingSkeletonGrid count={2} className="xl:grid-cols-2" />
         </ContentContainer>
-      </SectionContainer>
+      </SectionContainer></div>
     );
   }
 
   if (!resolvedService) {
     return (
-      <SectionContainer className="py-16">
+      <div dir={direction} lang={language}><SectionContainer className="py-16">
         <ContentContainer>
           <EmptyState title={en ? 'Service currently unavailable' : 'الخدمة غير متاحة حالياً'} description={error ?? (en ? 'The requested service could not be found.' : 'تعذر العثور على الخدمة المطلوبة.')} />
           <Link href="/services" className={`${buttonVariants({ variant: 'gold', size: 'lg' })} mt-6`}>
             {en ? 'Back to services' : 'العودة إلى الخدمات'}
           </Link>
         </ContentContainer>
-      </SectionContainer>
+      </SectionContainer></div>
     );
   }
 
@@ -222,7 +222,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
   };
 
   return (
-    <div className="page-stack-shell">
+    <div className={`page-stack-shell ${en ? 'text-left' : 'text-right'}`} dir={direction} lang={language}>
       <SectionContainer className="pb-10 pt-8 lg:pt-12">
         <ContentContainer>
           <Link href="/services" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-gold)] transition hover:gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35">
@@ -266,7 +266,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
                 {requestReference ? <span className="text-sm font-semibold text-[var(--color-navy)]">{en ? 'Request ID' : 'رقم الطلب'}: {requestReference}</span> : null}
               </div>
               {primaryAction === 'request_to_confirm' || primaryAction === 'request_quote' ? (
-                <div className="mt-4 grid max-w-2xl gap-3 sm:grid-cols-2">
+                <div data-marketplace-request-form className="mt-4 grid max-w-2xl gap-3 pb-24 sm:grid-cols-2 sm:pb-0">
                   <label className="text-sm text-[var(--color-muted)]">{en ? 'Requested date' : 'التاريخ المطلوب'}
                     <input type="datetime-local" value={requestedFor} onChange={(event) => setRequestedFor(event.target.value)} className="mt-1 w-full rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-[var(--color-navy)]" />
                   </label>
