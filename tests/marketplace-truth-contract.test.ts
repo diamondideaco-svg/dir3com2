@@ -42,7 +42,6 @@ test('catalogue-only and unknown availability never become bookable', () => {
 
 test('each transactional CTA is gated by matching fulfilment truth', () => {
   assert.equal(marketplacePrimaryAction(truth({ fulfilmentState: 'live_bookable', transactionMethod: 'instant_booking' })), 'continue_to_booking');
-  assert.equal(marketplacePrimaryAction(truth({ fulfilmentState: 'external_provider', transactionMethod: 'provider_checkout' })), 'continue_to_provider');
   assert.equal(marketplacePrimaryAction(truth({ fulfilmentState: 'verified_requestable', transactionMethod: 'request_to_confirm' })), 'request_to_confirm');
   assert.equal(marketplacePrimaryAction(truth({ fulfilmentState: 'verified_quote', transactionMethod: 'request_quote' })), 'request_quote');
   assert.equal(marketplacePrimaryAction(truth({ fulfilmentState: 'unavailable', transactionMethod: 'instant_booking' })), 'unavailable');

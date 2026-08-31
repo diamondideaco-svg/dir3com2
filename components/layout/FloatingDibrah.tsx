@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { FiMessageCircle, FiMic, FiMicOff, FiSend, FiX } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
@@ -74,7 +73,6 @@ function detectConversationLanguage(text: string, fallback: 'ar' | 'en' = 'ar'):
 }
 
 export default function FloatingDibrah() {
-  const pathname = usePathname();
   const controlRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef({ active: false, moved: false, pointerId: -1, startX: 0, startY: 0, originX: 0, originY: 0 });
   const pointerTargetRef = useRef<HTMLButtonElement | null>(null);
@@ -111,16 +109,7 @@ export default function FloatingDibrah() {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      const mobile = window.matchMedia('(max-width: 639px)').matches;
-      const marketplaceRequestMobile = mobile
-        && pathname.startsWith('/services/')
-        && document.querySelector('[data-marketplace-request-form]') !== null;
-      if (marketplaceRequestMobile) {
-        setPosition(clampPosition(Number.POSITIVE_INFINITY, 96));
-        return;
-      }
-
-      const dir121Mobile = mobile
+      const dir121Mobile = window.matchMedia('(max-width: 639px)').matches
         && document.querySelector('.real-preview-shell') !== null;
       if (dir121Mobile) {
         setPosition(clampPosition(12, Number.POSITIVE_INFINITY));
@@ -144,23 +133,16 @@ export default function FloatingDibrah() {
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [clampPosition, pathname]);
+  }, [clampPosition]);
 
   useEffect(() => {
     const handleResize = () => {
-      const marketplaceRequestMobile = window.matchMedia('(max-width: 639px)').matches
-        && pathname.startsWith('/services/')
-        && document.querySelector('[data-marketplace-request-form]') !== null;
-      if (marketplaceRequestMobile) {
-        setPosition(clampPosition(Number.POSITIVE_INFINITY, 96));
-        return;
-      }
       setPosition((previous) => clampPosition(previous.x, previous.y));
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [clampPosition, pathname]);
+  }, [clampPosition]);
 
   useEffect(() => {
     if (!panelOpen) return;

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { GET } from "@/app/api/providers/health/route";
 import { clearTravelportAuthCache } from "@/lib/travelport/auth";
-import { resetProviderSearchProtection } from "@/lib/marketplace/provider-search-protection";
 
 const originalFetch = global.fetch;
 
@@ -16,7 +15,6 @@ function json(body: unknown, status = 200) {
 test.afterEach(() => {
   global.fetch = originalFetch;
   clearTravelportAuthCache();
-  resetProviderSearchProtection();
 });
 
 test("provider health route surfaces travelport readiness", async () => {

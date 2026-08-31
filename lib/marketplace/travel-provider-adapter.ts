@@ -12,11 +12,13 @@
  * - FALLBACK → internal only
  */
 
-import type { FlightSearchResult, StaySearchResult } from '@/lib/travel/contracts';
-import type { TicketmasterDiscoveryResult } from '@/lib/travel/ticketmaster/discovery';
-import { isAllowedTicketmasterCheckoutUrl } from '@/lib/marketplace/provider-url-safety';
-import type { MarketplaceCard, MarketplaceCardInput } from '@/lib/marketplace/cards';
-import { normalizeMarketplaceCard } from '@/lib/marketplace/cards';
+import type { FlightOffer, FlightSearchResult } from '@/lib/travel/contracts';
+import type { StaySearchResult, HotelResult, StayRate } from '@/lib/travel/contracts';
+import type { MarketplaceCard, MarketplaceCardInput, ServiceType } from '@/lib/marketplace/cards';
+import {
+  normalizeMarketplaceCard,
+  resolveMarketplaceImage,
+} from '@/lib/marketplace/cards';
 
 export type DataSourceMode =
   | 'PROVIDER_LIVE'
@@ -51,6 +53,7 @@ export function mapFlightOffers(
   }
 
   return result.offers.map((offer) => {
+    const firstSlice = offer.slices?.[0];
     const departureParts = offer.departureDate?.split('T') ?? [];
     const departureDate = departureParts[0] ?? '';
     const departureTime = departureParts[1]?.substring(0, 5) ?? '';
@@ -66,8 +69,6 @@ export function mapFlightOffers(
             : 'Available',
       location: offer.destination,
       provider: offer.provider,
-      providerItemId: offer.id,
-      retrievedAt: new Date().toISOString(),
       image: null, // Duffel doesn't provide images directly
       priceFrom: Number(offer.totalAmount) || null,
       totalPrice: Number(offer.totalAmount) || null,
@@ -82,9 +83,6 @@ export function mapFlightOffers(
       verified: input.mode === 'PARTNER_VERIFIED',
       synthetic: false,
       providerSandbox: false,
-      transactionMethod: 'none',
-      fulfilmentState: 'availability_unknown',
-      marketplaceEnvironment: 'production',
     };
 
     const card = normalizeMarketplaceCard(cardInput);
@@ -125,8 +123,6 @@ export function mapHotelOffers(
         subtitle: room.name || 'Standard Room',
         location: hotel.address || 'Hotel Location',
         provider: hotel.provider,
-        providerItemId: rate.id,
-        retrievedAt: new Date().toISOString(),
         image: hotel.imageUrl || null,
         imageSource: hotel.imageUrl ? 'PROVIDER' : 'DIR3COM_FALLBACK',
         priceFrom: Number(rate.totalAmount) || null,
@@ -142,9 +138,6 @@ export function mapHotelOffers(
         verified: input.mode === 'PARTNER_VERIFIED',
         synthetic: false,
         providerSandbox: false,
-        transactionMethod: 'none',
-        fulfilmentState: 'availability_unknown',
-        marketplaceEnvironment: 'production',
       };
 
       const card = normalizeMarketplaceCard(cardInput);
@@ -157,62 +150,15 @@ export function mapHotelOffers(
   return cards;
 }
 
-/** CONCIERGE mapping: official Ticketmaster Discovery results → MarketplaceCard[]. */
-export function mapTicketmasterEvents(
-  result: TicketmasterDiscoveryResult,
-  input: TravelProviderCardInput & { retrievedAt?: string },
-): MarketplaceCard[] {
-  if (input.mode !== 'PROVIDER_LIVE' || result.status !== 'ok') return [];
-
-  const retrievedAt = input.retrievedAt ?? new Date().toISOString();
-
-  return result.events
-    .filter((event) => isAllowedTicketmasterCheckoutUrl(event.url))
-    .map((event) => {
-      const status = event.salesStatus.trim().toLowerCase();
-      const available = status === 'onsale';
-      const soldOut = status === 'soldout';
-      return normalizeMarketplaceCard({
-        serviceType: 'concierge',
-        title: event.name,
-        subtitle: [event.localDate, event.localTime, event.venue].filter(Boolean).join(' · ') || 'Event details',
-        location: event.city || event.countryCode || 'Saudi Arabia',
-        provider: result.provider,
-        providerItemId: event.id,
-        sourceUrl: event.url,
-        retrievedAt,
-        image: event.imageUrl,
-        imageSource: event.imageUrl ? 'PROVIDER' : 'DIR3COM_FALLBACK',
-        priceFrom: event.priceMin,
-        totalPrice: event.priceMin,
-        currency: event.currency ?? 'SAR',
-        availabilityStatus: soldOut ? 'sold-out' : available ? 'available' : 'limited',
-        rating: null,
-        category: 'experiences',
-        deepLink: `/marketplace/preview/${encodeURIComponent(event.id)}`,
-        capabilityStatus: available ? 'available' : soldOut ? 'blocked' : 'pending',
-        verified: false,
-        synthetic: false,
-        providerSandbox: false,
-        transactionMethod: available ? 'provider_checkout' : 'none',
-        fulfilmentState: available ? 'external_provider' : soldOut ? 'unavailable' : 'availability_unknown',
-        marketplaceEnvironment: 'production',
-      });
-    })
-    .filter((card): card is MarketplaceCard => card !== null);
-}
-
 /**
  * DRIVE mapping: CarTrawler quote results → MarketplaceCard[]
  *
  * Currently vendor-blocked from public rendering.
  */
 export function mapCarTrawlerQuotes(
-  result: unknown,
-  input: TravelProviderCardInput,
+  _result: unknown,
+  _input: TravelProviderCardInput,
 ): MarketplaceCard[] {
-  void result;
-  void input;
   // CarTrawler currently vendor-blocked
   // Return empty array for all modes (fail-closed)
   return [];
@@ -224,11 +170,9 @@ export function mapCarTrawlerQuotes(
  * Currently entitlement-blocked from public rendering.
  */
 export function mapViatorActivities(
-  result: unknown,
-  input: TravelProviderCardInput,
+  _result: unknown,
+  _input: TravelProviderCardInput,
 ): MarketplaceCard[] {
-  void result;
-  void input;
   // Viator currently entitlement-blocked
   // Return empty array for all modes (fail-closed)
   return [];

@@ -1,46 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { FlightSearchResult, StaySearchResult } from '@/lib/travel/contracts';
 import {
   mapFlightOffers,
   mapHotelOffers,
   mapCarTrawlerQuotes,
   mapViatorActivities,
   mapVIPServices,
-  mapTicketmasterEvents,
   isPublicSafeMode,
   isLocalPreviewMode,
   type DataSourceMode,
 } from '@/lib/marketplace/travel-provider-adapter';
-
-test('Ticketmaster official on-sale inventory normalizes to provider checkout truth', () => {
-  const cards = mapTicketmasterEvents({
-    provider: 'ticketmaster', status: 'ok', total: 1, events: [{
-      id: 'event_sa_1', name: 'Saudi Event', locale: 'en-us', url: 'https://events.tmtickets.sa/event/1',
-      imageUrl: 'https://s1.ticketm.net/event.jpg', localDate: '2026-10-01', localTime: '20:00:00', timezone: 'Asia/Riyadh',
-      salesStatus: 'onsale', venue: 'Riyadh Venue', city: 'Riyadh', countryCode: 'SA', priceMin: null, priceMax: null, currency: null,
-    }],
-  }, { mode: 'PROVIDER_LIVE', retrievedAt: '2026-08-31T18:00:00.000Z' });
-  assert.equal(cards.length, 1);
-  assert.equal(cards[0]?.providerItemId, 'event_sa_1');
-  assert.equal(cards[0]?.transactionMethod, 'provider_checkout');
-  assert.equal(cards[0]?.fulfilmentState, 'external_provider');
-  assert.equal(cards[0]?.deepLink, '/marketplace/preview/event_sa_1');
-  assert.equal(cards[0]?.priceFrom, 0);
-});
-
-test('Ticketmaster sandbox, malformed URL, and no-results sources fail closed', () => {
-  const result = {
-    provider: 'ticketmaster' as const, status: 'ok' as const, total: 1, events: [{
-      id: 'event_sa_1', name: 'Bad redirect', locale: 'en-us', url: 'https://evil.example/event/1', imageUrl: null,
-      localDate: null, localTime: null, timezone: null, salesStatus: 'onsale', venue: '', city: 'Riyadh', countryCode: 'SA',
-      priceMin: null, priceMax: null, currency: null,
-    }],
-  };
-  assert.equal(mapTicketmasterEvents(result, { mode: 'PROVIDER_LIVE' }).length, 0);
-  assert.equal(mapTicketmasterEvents(result, { mode: 'PROVIDER_SANDBOX' }).length, 0);
-  assert.equal(mapTicketmasterEvents({ ...result, status: 'no_results', events: [] }, { mode: 'PROVIDER_LIVE' }).length, 0);
-});
+import type { FlightSearchResult, StaySearchResult } from '@/lib/travel/contracts';
 
 // ============================================
 // Test data

@@ -59,7 +59,7 @@ export default function MarketplaceExplorer({
   defaultCategory,
   defaultCollection = 'all',
 }: MarketplaceExplorerProps) {
-  const { language, direction } = useLanguage();
+  const { language } = useLanguage();
   const t = copy[language];
   const activeFamilyLabel = getMarketplaceFamilyLabel(family, language, t.all);
   const collectionLabels: Array<{ value: MarketplaceCollectionKey; label: string }> = [
@@ -148,7 +148,6 @@ export default function MarketplaceExplorer({
   }, [meta.page, meta.totalPages]);
 
   return (
-    <div className={language === 'en' ? 'text-left' : 'text-right'} dir={direction} lang={language}>
     <SectionContainer>
       <ContentContainer>
         <SectionHeading eyebrow="MARKETPLACE" title={title ?? t.title} description={description ?? t.description} />
@@ -432,6 +431,5 @@ export default function MarketplaceExplorer({
         ) : null}
       </ContentContainer>
     </SectionContainer>
-    </div>
   );
 }
