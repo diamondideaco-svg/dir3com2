@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-31 — Customer Hub English localization parity
+
+- Bound My Account, My Documents, and My Profile system copy and direction to the existing Arabic/English language context without translating customer-entered values.
+- Added bilingual role, account-status, and verification-status labels with deterministic UTC date formatting to prevent mixed-language bodies and hydration drift.
+- Preserved authenticated data loading, ownership filters, request/document truth, and all existing Customer Hub authorization boundaries.
+
 ## 2026-08-31 — Customer documents fail-safe loading
 
 - Distinguished a valid zero-document result from a database/query failure on My Documents.
