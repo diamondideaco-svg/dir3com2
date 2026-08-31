@@ -7,6 +7,7 @@ import path from 'node:path';
 import { resolveDocumentQuery } from '@/lib/customer/document-query';
 
 const pagePath = path.resolve('app/my-documents/page.tsx');
+const contentPath = path.resolve('components/account/MyDocumentsContent.tsx');
 const reconciliationMigrationPath = path.resolve(
   'supabase/migrations/20260831171448_reconcile_verification_documents_postgres17.sql',
 );
@@ -36,14 +37,15 @@ test('a database failure cannot be represented as an empty document list', () =>
 
 test('My Documents keeps auth protection and renders a customer-safe error state', () => {
   const source = fs.readFileSync(pagePath, 'utf8');
+  const content = fs.readFileSync(contentPath, 'utf8');
 
   assert.match(source, /redirect\(buildLoginTarget\('\/my-documents'\)\)/);
   assert.match(source, /\.eq\('owner_type', 'customer'\)/);
   assert.match(source, /\.eq\('owner_id', user\.id\)/);
-  assert.match(source, /documentsState\.status === 'error'/);
-  assert.match(source, /role="alert"/);
-  assert.match(source, /تعذر تحميل مستنداتك حالياً/);
-  assert.doesNotMatch(source, /error\.message/);
+  assert.match(content, /documentsState\.status === 'error'/);
+  assert.match(content, /role="alert"/);
+  assert.match(content, /t\.error/);
+  assert.doesNotMatch(source + content, /error\.message/);
 });
 
 test('the PostgreSQL 17 reconciliation migration defines only the current verification contract', () => {
