@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-31 — Partner product save-and-continue closure
+
+- Kept the partner product save request owner-scoped while validating its returned product before any client-side workflow transition.
+- Reconciled the saved draft from the server before showing durable success feedback, then advanced exactly one step from Services to Bookings.
+- Added explicit localized save-failure feedback so a failed or malformed save cannot silently appear stuck or advance the workflow.
+
 ## 2026-08-30 — DIR-121 provider-sourced visual marketplace preview
 
 - Reworked the gated Marketplace Preview around LiteAPI stays for Riyadh/Cairo and official Ticketmaster Saudi events while retaining exactly the five canonical family filters.
