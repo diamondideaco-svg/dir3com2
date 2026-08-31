@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -49,6 +49,9 @@ jobs:
 
       - name: DIR-120 PostgreSQL Safety
         run: npm run test:dir120-postgresql
+
+      - name: Verification Documents Reconciliation (PostgreSQL 17)
+        run: npm run test:customer-documents-postgresql
 
       - name: Repository Tests
         run: |

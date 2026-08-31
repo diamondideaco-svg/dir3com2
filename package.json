@@ -51,6 +51,7 @@
     "smoke:providers-matrix": "node --import tsx scripts/provider-matrix-live.ts",
     "test:schema-compat": "node --import tsx --test tests/schema-compatibility.integration.test.ts",
     "test:dir120-postgresql": "node scripts/run-dir120-postgresql.mjs",
+    "test:customer-documents-postgresql": "node --import tsx --test tests/customer-documents-postgres.integration.test.ts",
     "test:liteapi": "node --import tsx --test tests/liteapi-provider.test.ts",
     "test:liteapi-hmac": "node --import tsx --test tests/liteapi-hmac-auth.test.ts",
     "test:ticketmaster": "node --conditions=react-server --import tsx --test tests/ticketmaster-discovery.test.ts",

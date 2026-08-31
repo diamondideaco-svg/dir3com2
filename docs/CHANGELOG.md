@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-31 — Customer documents fail-safe loading
+
+- Distinguished a valid zero-document result from a database/query failure on My Documents.
+- Added a customer-safe operational error state without exposing internal SQL details, while preserving session-derived ownership filters and the existing authenticated-route redirect.
+- Added a forward-only PostgreSQL 17 reconciliation for the four current verification relations, with customer-owned reads, current-admin access, explicit grants, fail-closed schema checks, and preservation of historical migrations.
+
 ## 2026-08-31 — Customer marketplace request details
 
 - Added one owner-scoped customer request-detail route shared by My Account and My Bookings summaries, with bilingual customer-safe request truth, deterministic UTC timestamps, and an accessible detail action.
