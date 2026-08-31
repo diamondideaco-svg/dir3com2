@@ -103,6 +103,10 @@ type RawServiceApiItem = {
   supplier_name?: string | null;
   supplier_verified?: boolean | null;
   primary_image_url?: string | null;
+  provider?: string | null;
+  provider_item_id?: string | null;
+  source_url?: string | null;
+  retrieved_at?: string | null;
 };
 
 export type MarketplaceService = {
@@ -140,6 +144,11 @@ export type MarketplaceService = {
   supplierVerified?: boolean;
   createdAt?: string | null;
   updatedAt?: string | null;
+  imageUrl?: string | null;
+  provider?: string;
+  providerItemId?: string;
+  sourceUrl?: string | null;
+  retrievedAt?: string | null;
 };
 
 const storedFamilyToMarketplaceFamily: Record<NonNullable<RawServiceApiItem['marketplace_family']>, MarketplaceFamilyKey> = {
@@ -557,6 +566,11 @@ export function normalizeMarketplaceServices(
       supplierVerified: item.supplier_verified === true,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
+      imageUrl: item.primary_image_url ?? null,
+      provider: item.provider ?? undefined,
+      providerItemId: item.provider_item_id ?? undefined,
+      sourceUrl: item.source_url ?? null,
+      retrievedAt: item.retrieved_at ?? null,
     } satisfies MarketplaceService;
   });
 

@@ -1,4 +1,5 @@
 import { TravelProviderError } from "../errors";
+const DUFFEL_OFFICIAL_ORIGIN = "https://api.duffel.com";
 export class DuffelAccessBlockedError extends Error {
   constructor(message = "Duffel access is blocked because no valid API token is configured.") {
     super(message);
@@ -44,20 +45,38 @@ async function fetchBodyWithTimeout(input: string, init: RequestInit, timeoutMs:
 export async function duffelRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const environment = process.env.DUFFEL_ENV?.trim().toLowerCase();
   const explicitTestMode = environment === "test" || environment === "sandbox";
+  const explicitProductionMode = environment === "production" || environment === "live";
   const testToken = process.env.DUFFEL_TEST_TOKEN?.trim();
   const genericTestToken = explicitTestMode ? process.env.DUFFEL_API_KEY?.trim() : undefined;
-  const token = testToken || genericTestToken;
+  const productionToken = explicitProductionMode ? process.env.DUFFEL_API_KEY?.trim() : undefined;
+  const token = explicitProductionMode ? productionToken : testToken || genericTestToken;
 
   if (!token) {
     throw new DuffelAccessBlockedError();
   }
 
-  const baseUrl = process.env.DUFFEL_API_BASE_URL || "https://api.duffel.com";
-  const url = new URL(path, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`).toString();
+  let baseUrl: URL;
+  let url: URL;
+  try {
+    baseUrl = new URL(process.env.DUFFEL_API_BASE_URL || DUFFEL_OFFICIAL_ORIGIN);
+    url = new URL(path, baseUrl);
+  } catch {
+    throw new DuffelAccessBlockedError("Duffel API origin is invalid.");
+  }
+  if (
+    baseUrl.origin !== DUFFEL_OFFICIAL_ORIGIN
+    || baseUrl.username
+    || baseUrl.password
+    || url.origin !== DUFFEL_OFFICIAL_ORIGIN
+    || url.username
+    || url.password
+  ) {
+    throw new DuffelAccessBlockedError("Duffel API origin is not allowlisted.");
+  }
 
   let result: { response: Response; text: string };
   try {
-    result = await fetchBodyWithTimeout(url, {
+    result = await fetchBodyWithTimeout(url.toString(), {
       ...init,
       headers: {
         Accept: "application/json",

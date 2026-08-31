@@ -1,4 +1,7 @@
 import 'server-only';
+import { isAllowedTicketmasterCheckoutUrl } from '@/lib/marketplace/provider-url-safety';
+
+export { isAllowedTicketmasterCheckoutUrl } from '@/lib/marketplace/provider-url-safety';
 
 const API_BASE_URL = 'https://app.ticketmaster.com/discovery/v2';
 const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
@@ -54,20 +57,6 @@ function asString(value: unknown): string {
 
 function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
-}
-
-export function isAllowedTicketmasterCheckoutUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== 'https:' || url.username || url.password) return false;
-    const host = url.hostname.toLowerCase();
-    return host === 'ticketmaster.com'
-      || host.endsWith('.ticketmaster.com')
-      || host === 'tmtickets.sa'
-      || host.endsWith('.tmtickets.sa');
-  } catch {
-    return false;
-  }
 }
 
 function isAllowedTicketmasterImageUrl(value: string): boolean {

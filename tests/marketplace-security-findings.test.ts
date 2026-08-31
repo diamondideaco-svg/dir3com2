@@ -79,6 +79,26 @@ test('security: authentication requires validated server-side user resolution', 
   assert.equal(authenticated.clientKey, 'authenticated:user-1');
 });
 
+test('security: Vercel anonymous provider budgets are isolated without retaining raw addresses', async () => {
+  const previous = process.env.VERCEL;
+  process.env.VERCEL = '1';
+  try {
+    const first = await resolveMarketplaceRequestContext(
+      new NextRequest('http://localhost/api/services', { headers: { 'x-vercel-forwarded-for': '203.0.113.10' } }),
+      async () => null,
+    );
+    const second = await resolveMarketplaceRequestContext(
+      new NextRequest('http://localhost/api/services', { headers: { 'x-vercel-forwarded-for': '203.0.113.11' } }),
+      async () => null,
+    );
+    assert.notEqual(first.clientKey, second.clientKey);
+    assert.match(first.clientKey, /^anonymous:[a-f0-9]{24}$/);
+    assert.doesNotMatch(first.clientKey, /203\.0\.113\.10/);
+  } finally {
+    if (previous === undefined) delete process.env.VERCEL; else process.env.VERCEL = previous;
+  }
+});
+
 type AuthenticationResolverForTest = typeof import('@/lib/supabase/server').createSupabaseRequestClient;
 
 test('security: anonymous repeated provider searches are rate limited', async () => {
@@ -102,9 +122,9 @@ test('security: fake authentication cannot invoke providers after the anonymous 
   const options = { mode: 'PROVIDER_LIVE' as const, destination: 'Cairo', departureDate: '2026-09-10' };
   const fetcher = async () => { calls += 1; return [card]; };
   for (let index = 0; index < 20; index += 1) {
-    await fetchProtectedProviderCards(options, context.clientKey, fetcher, { rateLimit: context.anonymous });
+    await fetchProtectedProviderCards(options, context.clientKey, fetcher);
   }
-  const limited = await fetchProtectedProviderCards(options, context.clientKey, fetcher, { rateLimit: context.anonymous });
+  const limited = await fetchProtectedProviderCards(options, context.clientKey, fetcher);
   assert.equal(limited.limited, true);
   assert.equal(calls, 1);
 });
@@ -136,17 +156,17 @@ test('security: provider result collection is capped and fallback provenance sta
   assert.equal(result.cards[0]?.provider, 'LiteAPI');
 });
 
-test('security: authenticated searches retain provider caps without anonymous rate counting', async () => {
+test('security: authenticated searches retain provider caps and per-user request budgets', async () => {
   resetProviderSearchProtection();
   const options = { mode: 'PROVIDER_LIVE' as const, destination: 'Cairo', departureDate: '2026-09-10' };
-  const result = await fetchProtectedProviderCards(
-    options,
-    'authenticated:user-1',
-    async () => Array.from({ length: 30 }, () => card),
-    { rateLimit: false },
-  );
+  const fetcher = async () => Array.from({ length: 30 }, () => card);
+  let result = await fetchProtectedProviderCards(options, 'authenticated:user-1', fetcher);
+  for (let index = 1; index < 20; index += 1) {
+    result = await fetchProtectedProviderCards(options, 'authenticated:user-1', fetcher);
+  }
   assert.equal(result.cards.length, 20);
   assert.equal(result.limited, false);
+  assert.equal((await fetchProtectedProviderCards(options, 'authenticated:user-1', fetcher)).limited, true);
 });
 
 test('security: response provenance describes only final returned items', () => {
