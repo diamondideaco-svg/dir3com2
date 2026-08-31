@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-01 — External Marketplace activation evidence
+
+- Recovered the complete Marketplace Launch Bridge on current master while preserving Customer Hub localization and documents work.
+- Expanded the Admin provider matrix with exact CarTrawler, Travelpayouts, Ticketmaster, and Viator account, entitlement, and server-variable blockers without exposing credential values.
+- Kept all unapproved external Drive and Concierge sources fail-closed; no inventory, price, availability, booking, payment, database, or Production state was fabricated or changed.
+
 ## 2026-08-31 — Customer Hub English localization parity
 
 - Bound My Account, My Documents, and My Profile system copy and direction to the existing Arabic/English language context without translating customer-entered values.

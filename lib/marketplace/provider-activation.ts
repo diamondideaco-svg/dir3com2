@@ -69,23 +69,42 @@ export function getMarketplaceProviderActivationMatrix(env: NodeJS.ProcessEnv = 
       providerName: 'CarTrawler', serviceFamily: 'DRIVE', accountStatus: carTrawler ? 'CONFIGURED' : 'BLOCKED', testAccess: carTrawler,
       productionAccess: false, apiAccess: carTrawler, affiliateDeepLinkAccess: false, commercialApproval: 'Not proven for Production',
       commissionRevenueModel: 'Vendor agreement required', checkoutMode: 'NONE', countriesCovered: 'Unknown until vendor activation',
-      saudiCoverage: 'Not verified', egyptCoverage: 'Not verified', activationBlocker: 'Authorized affiliate/API access not proven',
-      owner: 'Commercial / Travel Supply', nextAction: 'Draft vendor access request for CEO approval; do not send automatically.',
+      saudiCoverage: 'Not verified', egyptCoverage: 'Not verified',
+      activationBlocker: carTrawler
+        ? 'Configured credentials are staging-only; Production B2B partner authorization and approved endpoint are not proven'
+        : 'CarTrawler B2B partner agreement plus CARTRAWLER_PARTNER_TOKEN, CARTRAWLER_PARTNER_ID, and CARTRAWLER_API_BASE_URL are required',
+      owner: 'Commercial / Travel Supply',
+      nextAction: 'Obtain written B2B partner approval, the vendor-issued endpoint and partner credentials, then validate search without booking; do not send outreach automatically.',
+    },
+    {
+      providerName: 'Travelpayouts car-rental affiliate', serviceFamily: 'DRIVE', accountStatus: 'BLOCKED', testAccess: false,
+      productionAccess: false, apiAccess: false, affiliateDeepLinkAccess: false, commercialApproval: 'No connected/approved car-rental program is evidenced',
+      commissionRevenueModel: 'Program-specific affiliate terms required', checkoutMode: 'NONE', countriesCovered: 'Unknown until a program is approved',
+      saudiCoverage: 'Not verified', egyptCoverage: 'Not verified',
+      activationBlocker: 'Travelpayouts account/project, connected car-rental program approval, and an issued link/widget/API tool are required',
+      owner: 'Commercial / Travel Supply',
+      nextAction: 'Connect and obtain approval for a car-rental program in Travelpayouts, record its authorized tool and domains, then implement only that issued tool.',
     },
     {
       providerName: 'Ticketmaster Discovery', serviceFamily: 'CONCIERGE', accountStatus: ticketmaster ? 'CONFIGURED' : 'BLOCKED', testAccess: false,
       productionAccess: ticketmaster, apiAccess: ticketmaster, affiliateDeepLinkAccess: ticketmaster, commercialApproval: 'Official Discovery API/deep link only',
       commissionRevenueModel: 'External provider checkout; revenue terms not encoded', checkoutMode: ticketmaster ? 'PROVIDER_CHECKOUT' : 'NONE',
       countriesCovered: 'Discovery API country search', saudiCoverage: 'SA official event search', egyptCoverage: 'Not enabled in launch query',
-      activationBlocker: ticketmaster ? 'None for source-authoritative external handoff' : 'TICKETMASTER_API_KEY access', owner: 'Marketplace Engineering',
-      nextAction: ticketmaster ? 'Monitor provider results and handoff failures.' : 'Validate existing account access.',
+      activationBlocker: ticketmaster
+        ? 'None for source-authoritative Discovery API handoff; affiliate commission still requires separate program approval'
+        : 'Ticketmaster developer application Consumer Key is required as TICKETMASTER_API_KEY or TICKETMASTER_CONSUMER_KEY',
+      owner: 'Marketplace Engineering',
+      nextAction: ticketmaster
+        ? 'Validate Saudi results and official handoff; add affiliate tracking only after separate affiliate approval.'
+        : 'Register/sign in to the Ticketmaster Developer Portal, create the default application, and add its Consumer Key to Preview and Production server environments.',
     },
     {
       providerName: 'Viator Basic', serviceFamily: 'CONCIERGE', accountStatus: viator ? 'CONFIGURED' : 'NOT_APPROVED', testAccess: viator,
       productionAccess: false, apiAccess: viator, affiliateDeepLinkAccess: false, commercialApproval: 'Booking/merchant capability not approved',
       commissionRevenueModel: 'Vendor activation required', checkoutMode: 'NONE', countriesCovered: 'Taxonomy adapter only until entitlement',
-      saudiCoverage: 'Not authorized for launch', egyptCoverage: 'Not authorized for launch', activationBlocker: 'Commercial/API entitlement',
-      owner: 'Commercial / Travel Supply', nextAction: 'Draft entitlement request for CEO approval; do not send automatically.',
+      saudiCoverage: 'Not authorized for launch', egyptCoverage: 'Not authorized for launch',
+      activationBlocker: 'Approved Viator affiliate/content API partnership and VIATOR_API_KEY are required; merchant booking entitlement is separate',
+      owner: 'Commercial / Travel Supply', nextAction: 'Obtain affiliate/content API approval and an API key; keep booking/cancellation disabled unless merchant entitlement is separately approved.',
     },
     {
       providerName: 'Verified local/manual partners', serviceFamily: 'VIP', accountStatus: 'ACTIVE', testAccess: true, productionAccess: true,

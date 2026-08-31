@@ -20,6 +20,15 @@ The router currently supports direct booking, provider checkout, and request-to-
 | Viator Basic | Concierge | Commercial/API entitlement blocker | None | Basic/search code is not treated as booking authority |
 | Verified local/manual partners | VIP | Published verified records only | Request to Confirm | Synthetic local-test fixtures remain isolated |
 
+### Verified external activation blockers (2026-09-01)
+
+- **CarTrawler / Drive:** the repository expects `CARTRAWLER_PARTNER_TOKEN`, `CARTRAWLER_PARTNER_ID`, and a vendor-issued `CARTRAWLER_API_BASE_URL`. None is configured in DIR3COM Preview or Production. A CarTrawler B2B partner agreement, approved endpoint, credentials, and confirmed Saudi/Egypt coverage are required before search can be enabled; Production checkout authority remains separate.
+- **Travelpayouts / Drive alternative:** no DIR3COM Travelpayouts project, connected/approved car-rental program, or issued link/widget/API tool is evidenced. Travelpayouts tools are program-specific, so no generic link or widget may be invented. The exact next step is program connection/approval in the affiliate dashboard, followed by recording the issued tool, tracking identity, allowed domains, coverage, and terms before implementation.
+- **Ticketmaster Discovery / Concierge:** the existing server adapter requires a developer-application Consumer Key through `TICKETMASTER_API_KEY` or `TICKETMASTER_CONSUMER_KEY`; neither exists in Preview or Production. Discovery content and official event URLs can be activated after that key is added server-side. Commission tracking additionally requires separate Ticketmaster affiliate approval and publisher tracking.
+- **Viator / Concierge alternative:** `VIATOR_API_KEY` is absent and no affiliate/content API partnership is proven. Affiliate approval authorizes content plus provider-site checkout; merchant booking endpoints require a separate merchant entitlement and remain disabled.
+
+No external Drive or Concierge inventory is rendered until one of these authorization paths is completed and runtime-validated. This is a vendor/account blocker, not a payment dependency.
+
 The live Admin Operations matrix derives credential *presence* only and never returns credential values.
 
 Public provider-backed endpoints use bounded request budgets before issuing upstream calls. Ticketmaster handoffs reject malformed input before budget consumption and revalidate current sale state plus the official checkout destination. Deployment-wide distributed rate enforcement remains an infrastructure responsibility in addition to these application controls.
