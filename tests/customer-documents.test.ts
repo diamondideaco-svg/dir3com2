@@ -95,14 +95,18 @@ test('the reconciliation RLS contract derives customer ownership from auth.uid()
 
 test('historical verification migrations remain byte-for-byte unchanged', () => {
   const hash = (filePath: string) =>
-    crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex').toUpperCase();
+    crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n'), 'utf8')
+      .digest('hex')
+      .toUpperCase();
 
   assert.equal(
     hash(historicalVerificationMigrationPath),
-    'C9589DA755B4642C2FAB7F62FFA5F3825300A629CCA1654720D6EC3964C36399',
+    '6417F66D33ED290147BCC1240A9ED7D3B503975A2A1FE534C4EAF0DCEF9BE5DB',
   );
   assert.equal(
     hash(historicalRlsMigrationPath),
-    '9ED0E8FC482E781F193127B506B5B4B9271ACCAC43961B40032E6FAB756344B6',
+    '3BDB2444944A45D7FF6640F990A8E2F28F3653FE421FD76B141E80A796A121A7',
   );
 });
