@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 import { isMissingStorageObject } from '@/lib/storage/errors';
+import { uploadStorageObjectWithRecovery } from '@/lib/storage/resilient-upload';
 
 const BUCKET = 'partner-media';
 
@@ -21,13 +22,30 @@ async function uploadWithBucketRecovery(input: { path: string; bytes: Uint8Array
     return { ok: false as const, code: 'PORTAL_UNAVAILABLE' as const, details: null };
   }
 
-  const first = await supabaseAdmin.storage.from(BUCKET).upload(input.path, input.bytes, {
+  const bucket = supabaseAdmin.storage.from(BUCKET);
+  const objectExists = async (path: string) => {
+    const lastSlash = path.lastIndexOf('/');
+    const folder = lastSlash === -1 ? '' : path.slice(0, lastSlash);
+    const filename = lastSlash === -1 ? path : path.slice(lastSlash + 1);
+    const { data, error } = await bucket.list(folder, { limit: 2, search: filename });
+    return {
+      exists: !error && Boolean(data?.some((item) => item.name === filename)),
+      error,
+    };
+  };
+  const upload = () => bucket.upload(input.path, input.bytes, {
     contentType: input.contentType,
     upsert: false,
   });
 
-  if (!first.error) {
-    return { ok: true as const };
+  const first = await uploadStorageObjectWithRecovery({
+    path: input.path,
+    upload,
+    objectExists,
+  });
+
+  if (first.ok) {
+    return { ok: true as const, attempts: first.attempts, recoveredExistingObject: first.recoveredExistingObject };
   }
 
   if (!isBucketMissingError(first.error)) {
@@ -44,16 +62,17 @@ async function uploadWithBucketRecovery(input: { path: string; bytes: Uint8Array
     return { ok: false as const, code: 'MEDIA_STORAGE_BUCKET_CREATE_FAILED' as const, details: create.error };
   }
 
-  const second = await supabaseAdmin.storage.from(BUCKET).upload(input.path, input.bytes, {
-    contentType: input.contentType,
-    upsert: false,
+  const second = await uploadStorageObjectWithRecovery({
+    path: input.path,
+    upload,
+    objectExists,
   });
 
-  if (second.error) {
+  if (!second.ok) {
     return { ok: false as const, code: 'MEDIA_UPLOAD_FAILED' as const, details: second.error };
   }
 
-  return { ok: true as const };
+  return { ok: true as const, attempts: second.attempts, recoveredExistingObject: second.recoveredExistingObject };
 }
 
 function privateHeaders() {
@@ -281,6 +300,7 @@ export async function POST(request: Request) {
         route: '/api/partner-portal/products/images',
         actorId: actor.userId,
         productId,
+        storagePath: path,
         code: upload.code,
       });
       return NextResponse.json({ error: { code: upload.code } }, { status: 500, headers: privateHeaders() });

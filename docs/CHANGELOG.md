@@ -228,3 +228,9 @@
 - Moved admin marketplace-request transitions and their audit record into one stale-state-protected database operation.
 - Required supplier/provider and verified-payment evidence before a request can claim confirmation, with quote evidence required for quote requests.
 - Bound the operations status selector to the persisted current state instead of an unsafe fixed default.
+
+# 2026-08-31 — Partner product image replacement recovery
+
+- Added bounded recovery for transient Supabase Storage upload failures while reusing the same server-generated tenant/product object path.
+- Reconciles an ambiguous upload response against that exact path before retrying, so a 520 cannot create duplicate replacement objects.
+- Preserves the existing upload → association → durable old-image cleanup order and fails closed before any database mutation when the replacement upload cannot be proven successful.
