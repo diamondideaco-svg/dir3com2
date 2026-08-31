@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { normalizeRole } from '@/lib/auth/identity';
 import { getRoleLabel } from '@/lib/auth/identity-contract';
 import MarketplaceRequestsPanel from '@/components/account/MarketplaceRequestsPanel';
+import { listCustomerMarketplaceRequests } from '@/lib/marketplace/customer-requests';
 
 function buildLoginTarget(destination: string) {
   const encoded = encodeURIComponent(destination);
@@ -26,14 +27,9 @@ async function getAccountProfile() {
     .eq('id', user.id)
     .maybeSingle();
 
-  const { data: requests } = await supabase
-    .from('marketplace_requests')
-    .select('id, request_reference, request_type, status, payment_status, quote_amount, quote_currency, quote_expires_at, marketplace_family, supplier_name, service_name, fulfilment_method, handoff_type, created_at')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(5);
+  const { requests } = await listCustomerMarketplaceRequests(supabase, user.id, 5);
 
-  return { user, profile: data, requests: requests ?? [] };
+  return { user, profile: data, requests };
 }
 
 export default async function MyAccountPage() {

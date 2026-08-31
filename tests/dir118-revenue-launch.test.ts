@@ -5,6 +5,7 @@ import test from 'node:test';
 const migration = readFileSync('supabase/migrations/20260829223000_dir118_revenue_launch_requests.sql', 'utf8');
 const route = readFileSync('app/api/marketplace/requests/route.ts', 'utf8');
 const bookings = readFileSync('app/my-bookings/page.tsx', 'utf8');
+const customerRequests = readFileSync('lib/marketplace/customer-requests.ts', 'utf8');
 const operations = readFileSync('components/admin/MarketplaceRequestOperationsTable.tsx', 'utf8');
 const operationsActions = readFileSync('lib/actions/operations-actions.ts', 'utf8');
 const revenueSafetyMigration = readFileSync('supabase/migrations/20260829234937_dir120_revenue_request_transition_safety.sql', 'utf8');
@@ -19,8 +20,9 @@ test('request snapshot persists revenue-launch truth before any handoff', () => 
 });
 
 test('customer bookings page includes owner-scoped marketplace requests without relabelling them as bookings', () => {
-  assert.match(bookings, /from\('marketplace_requests'\)/);
-  assert.match(bookings, /eq\('user_id', user\.id\)/);
+  assert.match(bookings, /listCustomerMarketplaceRequests\(supabase, user\.id\)/);
+  assert.match(customerRequests, /from\('marketplace_requests'\)/);
+  assert.match(customerRequests, /eq\('user_id', authenticatedUserId\)/);
   assert.match(bookings, /MarketplaceRequestsPanel/);
 });
 

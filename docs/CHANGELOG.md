@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-31 — Customer marketplace request details
+
+- Added one owner-scoped customer request-detail route shared by My Account and My Bookings summaries, with bilingual customer-safe request truth, deterministic UTC timestamps, and an accessible detail action.
+- Preserved session-derived ownership plus the existing RLS boundary so anonymous, foreign-customer, partner, and guessed references cannot expose another customer’s request.
+
 ## 2026-08-31 — Partner product publication-status preservation
 
 - Made existing-product saves derive publication state from the authoritative server row so an unchanged published product cannot be silently demoted to draft.

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRequestClient, supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError } from '@/lib/security/safe-logger';
 import { requestTypeMatchesProduct } from '@/lib/marketplace/request-gate';
+import { listCustomerMarketplaceRequests } from '@/lib/marketplace/customer-requests';
 
 function validUuid(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -24,17 +25,13 @@ export async function GET(request: NextRequest) {
   const auth = await createSupabaseRequestClient(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data, error } = await auth.supabase
-    .from('marketplace_requests')
-    .select('id, request_reference, product_id, request_type, status, requested_for, traveller_count, quote_amount, quote_currency, quote_expires_at, payment_status, marketplace_family, supplier_name, service_name, fulfilment_method, transaction_method, handoff_type, handoff_reference, handoff_started_at, next_action, created_at, updated_at')
-    .eq('user_id', auth.user.id)
-    .order('created_at', { ascending: false });
+  const { requests, error } = await listCustomerMarketplaceRequests(auth.supabase, auth.user.id);
 
   if (error) {
     logServerError('api.marketplace.requests.read_failed', error);
     return NextResponse.json({ error: 'Unable to load requests.' }, { status: 500 });
   }
-  return NextResponse.json({ requests: data ?? [] });
+  return NextResponse.json({ requests });
 }
 
 export async function POST(request: NextRequest) {
