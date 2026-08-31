@@ -252,3 +252,9 @@
 - Kept Duffel and LiteAPI sandbox supply out of public live inventory, preserved verified local Drive/VIP request-to-confirm paths, and retained fail-closed CarTrawler/Viator activation blockers.
 - Added an admin-only provider activation matrix covering access, commercial, checkout, country, owner, blocker, and next-action evidence without exposing credentials.
 - Added request budgets before public provider calls and restricted Duffel bearer requests plus Ticketmaster redirects to their verified official origins.
+
+# 2026-08-31 — Marketplace visual parity remediation
+
+- Bound Marketplace and service-detail direction and alignment to the existing AR/EN language context.
+- Localized Marketplace system badges and singular/plural option counts without translating provider content.
+- Added a mobile request-form safe zone and context-aware DABRA positioning to prevent critical-field overlap.
