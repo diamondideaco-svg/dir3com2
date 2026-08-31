@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-01 — Executive dashboard Production truth and localization
+
+- Restricted executive booking and revenue KPIs to records explicitly proven as non-synthetic Production bookings, with confirmed payment evidence required before revenue contributes.
+- Replaced hardcoded health, escrow, and zero claims with query-backed operational queue counts and explicit bilingual unavailable states when a source query fails.
+- Localized the Executive Dashboard and shared admin shell through the existing Arabic/English language context while preserving the current admin authorization contract.
+
 ## 2026-08-31 — Customer Hub English localization parity
 
 - Bound My Account, My Documents, and My Profile system copy and direction to the existing Arabic/English language context without translating customer-entered values.
