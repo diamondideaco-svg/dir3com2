@@ -4,6 +4,7 @@ import BookingStatusBadge from '@/components/booking/BookingStatusBadge';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { BookingEngineRecord } from '@/lib/supabase/types';
 import MarketplaceRequestsPanel from '@/components/account/MarketplaceRequestsPanel';
+import { listCustomerMarketplaceRequests } from '@/lib/marketplace/customer-requests';
 
 function buildLoginTarget(destination: string) {
   const encoded = encodeURIComponent(destination);
@@ -26,13 +27,9 @@ async function getCustomerBookings() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
-  const { data: requests } = await supabase
-    .from('marketplace_requests')
-    .select('id, request_reference, request_type, status, payment_status, quote_amount, quote_currency, quote_expires_at, marketplace_family, supplier_name, service_name, fulfilment_method, handoff_type, created_at')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false });
+  const { requests } = await listCustomerMarketplaceRequests(supabase, user.id);
 
-  return { bookings: (data || []) as BookingEngineRecord[], requests: requests ?? [] };
+  return { bookings: (data || []) as BookingEngineRecord[], requests };
 }
 
 function getBookingServiceName(booking: BookingEngineRecord) {
