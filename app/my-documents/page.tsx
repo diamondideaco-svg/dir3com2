@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { resolveDocumentQuery } from '@/lib/customer/document-query';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { normalizeVerificationStatus } from '@/lib/verification/status';
 
@@ -29,18 +30,22 @@ async function getDocs() {
     redirect(buildLoginTarget('/my-documents'));
   }
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('verification_documents')
     .select('id, document_type, file_url, verification_status, verification_request_id, expiry_date, created_at, verification_requests(status)')
     .eq('owner_type', 'customer')
     .eq('owner_id', user.id)
     .order('created_at', { ascending: false });
 
-  return (data || []) as VerificationDocumentRow[];
+  if (error) {
+    console.error('[my-documents] failed to load customer documents', { code: error.code });
+  }
+
+  return resolveDocumentQuery(data as VerificationDocumentRow[] | null, error);
 }
 
 export default async function MyDocumentsPage() {
-  const documents = await getDocs();
+  const documentsState = await getDocs();
 
   return (
     <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]" dir="rtl">
@@ -53,12 +58,16 @@ export default async function MyDocumentsPage() {
           <Link href="/my-account" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
         </div>
         <div className="space-y-4">
-          {documents.length === 0 ? (
+          {documentsState.status === 'error' ? (
+            <div role="alert" className="rounded-[1.5rem] border border-red-300/40 bg-red-50 p-6 text-sm text-red-900">
+              تعذر تحميل مستنداتك حالياً. حاول مرة أخرى لاحقاً، أو تواصل مع الدعم إذا استمرت المشكلة.
+            </div>
+          ) : documentsState.documents.length === 0 ? (
             <div className="rounded-[1.5rem] border border-dashed border-white/20 bg-[var(--color-surface)] p-6 text-sm text-[var(--color-muted)]">
               لا توجد مستندات مرتبطة بحسابك حالياً.
             </div>
           ) : (
-            documents.map((document) => {
+            documentsState.documents.map((document) => {
               const resolvedStatus = normalizeVerificationStatus(document.verification_requests?.status ?? document.verification_status);
 
               return (
