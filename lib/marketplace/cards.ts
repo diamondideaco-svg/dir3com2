@@ -1,5 +1,3 @@
-import { isSafeProviderImageUrl } from './provider-url-safety';
-
 export type ServiceType = 'stay' | 'drive' | 'fly' | 'concierge' | 'vip';
 export type ImageSource = 'PROVIDER' | 'PARTNER' | 'DIR3COM_FALLBACK' | 'NONE';
 export type MarketplaceAvailabilityStatus = 'available' | 'limited' | 'unavailable' | 'sold-out';
@@ -11,9 +9,6 @@ export type MarketplaceCardInput = {
   subtitle?: string | null;
   location?: string | null;
   provider?: string | null;
-  providerItemId?: string | null;
-  sourceUrl?: string | null;
-  retrievedAt?: string | null;
   image?: string | null;
   imageSource?: ImageSource | string | null;
   priceFrom?: number | null;
@@ -27,9 +22,6 @@ export type MarketplaceCardInput = {
   verified?: boolean | null;
   synthetic?: boolean | null;
   providerSandbox?: boolean | null;
-  transactionMethod?: import('./truth').MarketplaceTransactionMethod | null;
-  fulfilmentState?: import('./truth').MarketplaceFulfilmentState | null;
-  marketplaceEnvironment?: import('./truth').MarketplaceEnvironment | null;
 };
 
 export type MarketplaceCard = {
@@ -38,9 +30,6 @@ export type MarketplaceCard = {
   subtitle: string;
   location: string;
   provider: string;
-  providerItemId: string | null;
-  sourceUrl: string | null;
-  retrievedAt: string | null;
   image: string | null;
   imageSource: ImageSource;
   priceFrom: number | null;
@@ -54,9 +43,6 @@ export type MarketplaceCard = {
   verified: boolean;
   synthetic: boolean;
   providerSandbox: boolean;
-  transactionMethod: import('./truth').MarketplaceTransactionMethod;
-  fulfilmentState: import('./truth').MarketplaceFulfilmentState;
-  marketplaceEnvironment: import('./truth').MarketplaceEnvironment;
 };
 
 const SERVICE_FALLBACK_IMAGES: Record<ServiceType, string> = {
@@ -143,10 +129,6 @@ export function resolveMarketplaceImage(input: {
 
   const candidateImage = coerceString(input.image).trim();
   if (candidateImage) {
-    if (normalizeImageSource(input.imageSource) === 'PROVIDER' && !isSafeProviderImageUrl(candidateImage)) {
-      const serviceType = normalizeServiceType(input.serviceType as string | null | undefined);
-      return serviceType ? SERVICE_FALLBACK_IMAGES[serviceType] : null;
-    }
     return candidateImage;
   }
 
@@ -202,9 +184,6 @@ export function normalizeMarketplaceCard(input: MarketplaceCardInput | null | un
   const subtitle = coerceString(input.subtitle, 'Service detail');
   const location = coerceString(input.location, 'General');
   const provider = coerceString(input.provider, 'dir3com');
-  const providerItemId = coerceString(input.providerItemId) || null;
-  const sourceUrl = coerceString(input.sourceUrl) || null;
-  const retrievedAt = coerceString(input.retrievedAt) || null;
   const category = coerceString(input.category, serviceType);
   const deepLink = coerceString(input.deepLink || input.title || '').trim() ? input.deepLink ?? null : null;
   const rating = typeof input.rating === 'number' && Number.isFinite(input.rating) ? input.rating : null;
@@ -215,9 +194,6 @@ export function normalizeMarketplaceCard(input: MarketplaceCardInput | null | un
     subtitle,
     location,
     provider,
-    providerItemId,
-    sourceUrl,
-    retrievedAt,
     image,
     imageSource,
     priceFrom,
@@ -231,9 +207,6 @@ export function normalizeMarketplaceCard(input: MarketplaceCardInput | null | un
     verified: Boolean(input.verified),
     synthetic,
     providerSandbox,
-    transactionMethod: input.transactionMethod ?? 'none',
-    fulfilmentState: input.fulfilmentState ?? 'availability_unknown',
-    marketplaceEnvironment: input.marketplaceEnvironment ?? 'production',
   } satisfies MarketplaceCard;
 }
 

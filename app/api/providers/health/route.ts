@@ -6,17 +6,9 @@ import { getLiteApiHealthStatus } from "@/lib/travel/liteapi/health";
 import { getCarTrawlerHealth } from "@/lib/travel/cartrawler/health";
 import { getViatorHealth } from "@/lib/travel/viator/health";
 import { syntheticVipPartnerConfig } from "@/lib/travel/vip/config";
-import { consumeProviderRequestBudget } from "@/lib/marketplace/provider-search-protection";
 
 export async function GET() {
   try {
-    if (!consumeProviderRequestBudget("providers-health:anonymous")) {
-      return NextResponse.json(
-        { ok: false, error: "RATE_LIMITED" },
-        { status: 429, headers: { "Cache-Control": "private, no-store", "Retry-After": "60" } },
-      );
-    }
-
     const [travelport, duffel, liteapi] = await Promise.all([
       getTravelportHealthStatus(),
       getDuffelHealthStatus(),

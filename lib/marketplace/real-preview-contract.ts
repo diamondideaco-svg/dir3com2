@@ -1,6 +1,5 @@
 import type { HotelResult, StayRate } from '@/lib/travel/contracts';
 import type { TicketmasterDiscoveryEvent } from '@/lib/travel/ticketmaster/discovery';
-import { isSafeProviderImageUrl } from '@/lib/marketplace/provider-url-safety';
 
 export const previewFamilies = ['dir3-fly', 'dir3-stay', 'dir3-drive', 'dir3-concierge', 'dir3-vip'] as const;
 export type PreviewFamily = (typeof previewFamilies)[number];
@@ -15,7 +14,7 @@ export type PreviewSourceTrace = {
   sourceUrl: string | null;
   environment: PreviewEnvironment;
   retrievedAt: string;
-  transactionMethod: 'none' | 'provider_checkout';
+  transactionMethod: 'none' | 'external_redirect';
   fulfilmentState: 'availability_unknown' | 'test_sandbox' | 'external_provider' | 'unavailable';
 };
 
@@ -124,7 +123,7 @@ export function normalizeTicketmasterPreviewEvent(
   retrievedAt = new Date().toISOString(),
 ): RealPreviewEvent {
   const availability = eventAvailability(event.salesStatus);
-  const transactionMethod = availability === 'available' ? 'provider_checkout' : 'none';
+  const transactionMethod = availability === 'available' ? 'external_redirect' : 'none';
   const fulfilmentState = availability === 'available'
     ? 'external_provider'
     : availability === 'sold_out' || availability === 'unavailable'
@@ -158,6 +157,22 @@ export function normalizeTicketmasterPreviewEvent(
     currency: event.currency,
     providerUrl: event.url,
   };
+}
+
+function isSafeProviderImage(value: string | null | undefined): value is string {
+  if (!value || value.length > 2_048) return false;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    return url.protocol === 'https:'
+      && !url.username
+      && !url.password
+      && host !== 'localhost'
+      && !host.endsWith('.local')
+      && host.includes('.');
+  } catch {
+    return false;
+  }
 }
 
 function findRate(hotel: HotelResult, rateId?: string): { roomName: string; rate: StayRate } | null {
@@ -205,7 +220,7 @@ export function normalizeLiteApiPreviewStay(
     title: hotel.name,
     address: hotel.address || context.city,
     rating: hotel.rating ?? null,
-    imageUrl: isSafeProviderImageUrl(hotel.imageUrl) ? hotel.imageUrl : null,
+    imageUrl: isSafeProviderImage(hotel.imageUrl) ? hotel.imageUrl : null,
     roomName: selected.roomName,
     boardName: rate.boardName || null,
     refundable: rate.refundable,
