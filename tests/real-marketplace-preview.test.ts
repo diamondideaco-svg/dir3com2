@@ -169,6 +169,19 @@ test('DIR-121 customer preview is scoped to Stay and Saudi Concierge', () => {
   assert.match(source, /Availability Unknown/);
   assert.doesNotMatch(source, /Duffel/);
   assert.doesNotMatch(source, /DABRA/);
+  assert.match(source, /Expected env var/);
+  assert.match(source, /Account \/ API product/);
+  assert.match(source, /HTTP \/ provider response/);
+  assert.match(source, /Activation required/);
+});
+
+test('preview has truthful route-level loading and error states', () => {
+  const loading = fs.readFileSync(new URL('../app/marketplace/preview/loading.tsx', import.meta.url), 'utf8');
+  const error = fs.readFileSync(new URL('../app/marketplace/preview/error.tsx', import.meta.url), 'utf8');
+  assert.match(loading, /Loading provider results/);
+  assert.match(loading, /No inventory or availability is asserted/);
+  assert.match(error, /No substitute inventory, images, prices, or availability were shown/);
+  assert.doesNotMatch(loading + error, /Unsplash|stock image|Book Now/);
 });
 
 test('DIR-121 public page and API remain reachable in production without weakening local sandbox isolation', () => {

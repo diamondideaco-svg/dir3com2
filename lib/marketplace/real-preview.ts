@@ -124,6 +124,7 @@ export async function getRealMarketplacePreview(input: {
       status: 'unavailable' as const,
       total: 0,
       events: [],
+      diagnostic: 'provider_error' as const,
     })),
   ]);
 
@@ -151,11 +152,47 @@ export async function getRealMarketplacePreview(input: {
         access: liteApiEnvironment ? 'authorized' as const : 'blocked' as const,
         environment: liteApiEnvironment ?? 'unconfigured' as const,
         cities: stayStatus,
+        blocker: liteApiEnvironment ? (
+          Object.values(stayStatus).some((status) => status === 'unavailable')
+            ? {
+              expectedEnvVar: liteApiEnvironment === 'sandbox' ? 'LITEAPI_ENV=sandbox + LITEAPI_TEST_API_KEY' : 'LITEAPI_AUTH_MODE=hmac + LITEAPI_PUBLIC_API_KEY + LITEAPI_PRIVATE_API_KEY + LITEAPI_SHARED_SECRET',
+              accountProduct: 'LiteAPI / Nuitee hotel rates API',
+              currentStatus: { ar: 'تم إعداد الاعتماد، لكن بحث المزوّد غير متاح حالياً.', en: 'Credential configured; provider search is currently unavailable.' },
+              providerResponse: { ar: 'فشل الطلب — مهلة أو شبكة أو استجابة مزوّد غير صالحة.', en: 'REQUEST FAILED — timeout, network failure, or invalid provider response.' },
+              activationRequired: { ar: 'تحقق من بيئة LiteAPI المصرح بها وصلاحية الاعتماد، دون تفعيل الحجز في هذه المعاينة.', en: 'Verify the authorized LiteAPI environment and credential entitlement; do not enable booking for this preview.' },
+            }
+            : null
+        ) : {
+          expectedEnvVar: 'LITEAPI_ENV=sandbox + LITEAPI_TEST_API_KEY',
+          accountProduct: 'LiteAPI / Nuitee sandbox hotel rates API',
+          currentStatus: { ar: 'اعتماد بيئة الاختبار غير مهيأ على الخادم في Vercel Preview.', en: 'Server-side sandbox credential is not configured for Vercel Preview.' },
+          providerResponse: { ar: 'لم يُرسل طلب — إغلاق آمن قبل الوصول إلى المزوّد.', en: 'NOT REQUESTED — fail-closed before provider access.' },
+          activationRequired: { ar: 'أضف مفتاح LiteAPI sandbox مصرحاً به إلى Vercel Preview مع إبقاء التنفيذ test_sandbox / preview-only.', en: 'Add an authorized LiteAPI sandbox key to Vercel Preview and keep fulfilment test_sandbox / preview-only.' },
+        },
       },
       ticketmaster: {
         access: eventProbe.status === 'access_blocked' ? 'blocked' as const : 'authorized' as const,
         environment: 'production' as const,
         status: eventProbe.status,
+        blocker: eventProbe.status === 'access_blocked' ? {
+          expectedEnvVar: 'TICKETMASTER_API_KEY or TICKETMASTER_CONSUMER_KEY',
+          accountProduct: 'Ticketmaster Developer Account / Discovery API Consumer Key',
+          currentStatus: eventProbe.diagnostic === 'missing_credential'
+            ? { ar: 'اعتماد الخادم غير موجود.', en: 'Server-side credential is absent.' }
+            : { ar: 'رفض Ticketmaster الاعتماد المهيأ.', en: 'Configured credential was rejected by Ticketmaster.' },
+          providerResponse: eventProbe.diagnostic === 'http_401'
+            ? { ar: 'HTTP 401', en: 'HTTP 401' }
+            : eventProbe.diagnostic === 'http_403'
+              ? { ar: 'HTTP 403', en: 'HTTP 403' }
+              : { ar: 'لم يُرسل طلب — الاعتماد غير موجود.', en: 'NOT REQUESTED — credential absent.' },
+          activationRequired: { ar: 'أصدر أو فعّل Consumer Key لمنتج Discovery API على الحساب واضبطه على الخادم في Vercel Preview.', en: 'Issue or authorize a Discovery API Consumer Key for the account and configure it server-side in Vercel Preview.' },
+        } : eventProbe.status === 'unavailable' ? {
+          expectedEnvVar: 'TICKETMASTER_API_KEY or TICKETMASTER_CONSUMER_KEY',
+          accountProduct: 'Ticketmaster Discovery API',
+          currentStatus: { ar: 'تم إعداد الاعتماد، لكن طلب المزوّد غير متاح حالياً.', en: 'Credential configured; provider request is currently unavailable.' },
+          providerResponse: eventProbe.diagnostic === 'http_0' ? { ar: 'الشبكة / انتهاء المهلة', en: 'NETWORK / TIMEOUT' } : { ar: 'خطأ من المزوّد', en: 'PROVIDER ERROR' },
+          activationRequired: { ar: 'تحقق من توفر Discovery API وتغطية الفعاليات السعودية للمفتاح المصرح به.', en: 'Confirm Discovery API availability and Saudi event coverage for the authorized key.' },
+        } : null,
       },
     },
   };

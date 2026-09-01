@@ -9,6 +9,14 @@ export type PreviewCitySelection = PreviewCity | 'all';
 export type PreviewProviderStatus = 'ok' | 'no_results' | 'access_blocked' | 'unavailable';
 export type PreviewEnvironment = 'production' | 'sandbox';
 
+export type PreviewProviderBlocker = {
+  expectedEnvVar: string;
+  accountProduct: string;
+  currentStatus: { ar: string; en: string };
+  providerResponse: { ar: string; en: string };
+  activationRequired: { ar: string; en: string };
+};
+
 export type PreviewSourceTrace = {
   provider: 'liteapi' | 'ticketmaster';
   providerItemId: string;

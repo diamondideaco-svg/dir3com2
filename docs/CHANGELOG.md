@@ -269,3 +269,8 @@
 
 - Localized the existing Login form from the shared application language context so Arabic and English request-to-confirm handoffs preserve their active locale without changing authentication or return-path logic.
 - Separated Marketplace loading, error, authoritative empty, and successful inventory states so unresolved requests never appear as verified zero inventory.
+
+## 2026-09-01 — Visual Marketplace Preview #71 blocker truth
+
+- Added safe, visible LiteAPI and Ticketmaster activation diagnostics without exposing credential values or inventing provider inventory.
+- Added explicit route-level loading and error states that never present unresolved or failed provider requests as authoritative inventory.
