@@ -28,7 +28,7 @@ type AdminPlatformShellProps = {
 };
 
 export default function AdminPlatformShell({ children, adminRole }: AdminPlatformShellProps) {
-  const { language, direction } = useLanguage();
+  const { language, direction, toggleLanguage } = useLanguage();
   const t = executiveDashboardCopy[language].shell;
 
   return (
@@ -43,6 +43,14 @@ export default function AdminPlatformShell({ children, adminRole }: AdminPlatfor
             <div className="inline-flex items-center rounded-full border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-3 py-1 text-xs font-semibold text-[#D4AF37]">
               {t.role}: {adminRole}
             </div>
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              className="inline-flex min-h-10 items-center rounded-full border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-4 text-sm font-semibold text-[#D4AF37] transition hover:bg-[#D4AF37]/20"
+              aria-label={language === 'ar' ? 'Switch admin interface to English' : 'تبديل واجهة الإدارة إلى العربية'}
+            >
+              {language === 'ar' ? 'EN' : 'AR'}
+            </button>
             <LogoutButton label={t.logout} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-4 text-sm font-semibold text-[#D4AF37] transition hover:bg-[#D4AF37]/20 disabled:cursor-wait disabled:opacity-60" />
           </div>
 

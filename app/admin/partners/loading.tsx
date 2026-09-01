@@ -1,6 +1,6 @@
 export default function AdminPartnersLoading() {
   return (
-    <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]" dir="rtl">
+    <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 animate-pulse">
           <div className="h-4 w-28 rounded bg-slate-200" />

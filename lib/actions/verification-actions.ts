@@ -1,9 +1,11 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { requireAdminActionAccess } from '@/lib/auth/admin';
-import { applyVerificationDecision, approveVerification, createVerificationRequest, expireVerification, rejectVerification, renewVerification, uploadDocument, type VerificationDecision } from '@/lib/verification/verification-engine';
+import { requireAdminActionAccess, requireAdminReadAccess } from '@/lib/auth/admin';
+
+async function rejectUnsafeVerificationMutation() {
+  await requireAdminActionAccess();
+  throw new Error('ADMIN_VERIFICATION_MUTATION_UNAVAILABLE');
+}
 
 export async function createVerification(input: {
   requestType: string;
@@ -13,18 +15,22 @@ export async function createVerification(input: {
   score?: number;
   verificationLevel?: 'basic' | 'silver' | 'gold' | 'platinum';
 }) {
-  const { supabase } = await requireAdminActionAccess();
-  return createVerificationRequest(supabase, input);
+  void input;
+  return rejectUnsafeVerificationMutation();
 }
 
 export async function approveVerificationRequest(verificationRequestId: string, reviewerId?: string, notes?: string) {
-  const { supabase } = await requireAdminActionAccess();
-  return approveVerification(supabase, verificationRequestId, reviewerId, notes);
+  void verificationRequestId;
+  void reviewerId;
+  void notes;
+  return rejectUnsafeVerificationMutation();
 }
 
 export async function rejectVerificationRequest(verificationRequestId: string, reviewerId?: string, notes?: string) {
-  const { supabase } = await requireAdminActionAccess();
-  return rejectVerification(supabase, verificationRequestId, reviewerId, notes);
+  void verificationRequestId;
+  void reviewerId;
+  void notes;
+  return rejectUnsafeVerificationMutation();
 }
 
 export async function uploadVerificationDocument(input: {
@@ -39,27 +45,32 @@ export async function uploadVerificationDocument(input: {
   verifiedBy?: string;
   verificationStatus?: 'Pending' | 'Under Review' | 'Approved' | 'Rejected' | 'Expired' | 'Suspended';
 }) {
-  const { supabase } = await requireAdminActionAccess();
-  return uploadDocument(supabase, input);
+  void input;
+  return rejectUnsafeVerificationMutation();
 }
 
 export async function renewVerificationRequest(verificationRequestId: string, expiryDate?: string) {
-  const { supabase } = await requireAdminActionAccess();
-  return renewVerification(supabase, verificationRequestId, expiryDate);
+  void verificationRequestId;
+  void expiryDate;
+  return rejectUnsafeVerificationMutation();
 }
 
 export async function expireVerificationRequest(verificationRequestId: string) {
-  const { supabase } = await requireAdminActionAccess();
-  return expireVerification(supabase, verificationRequestId);
+  void verificationRequestId;
+  return rejectUnsafeVerificationMutation();
 }
 
 export async function getVerificationOverview() {
-  const { supabase } = await requireAdminActionAccess();
+  const { supabase } = await requireAdminReadAccess();
   const [requestsRes, documentsRes, reviewsRes] = await Promise.all([
     supabase.from('verification_requests').select('*').order('created_at', { ascending: false }).limit(10),
     supabase.from('verification_documents').select('*').order('created_at', { ascending: false }).limit(10),
     supabase.from('verification_reviews').select('*').order('created_at', { ascending: false }).limit(10),
   ]);
+
+  if (requestsRes.error || documentsRes.error || reviewsRes.error) {
+    throw new Error('ADMIN_VERIFICATION_READ_FAILED');
+  }
 
   return {
     requests: requestsRes.data ?? [],
@@ -68,33 +79,7 @@ export async function getVerificationOverview() {
   };
 }
 
-const decisionResultMap: Record<VerificationDecision, string> = {
-  approve: 'verification_approved',
-  reject: 'verification_rejected',
-  pending: 'verification_pending',
-};
-
 export async function submitVerificationDecisionAction(formData: FormData) {
-  const verificationRequestId = formData.get('verificationRequestId')?.toString();
-  const decision = formData.get('decision')?.toString() as VerificationDecision | undefined;
-  const notes = formData.get('notes')?.toString() || undefined;
-  const returnPath = formData.get('returnPath')?.toString() || '/admin/verification';
-
-  if (!verificationRequestId || !decision || !decisionResultMap[decision]) {
-    redirect(`${returnPath}?error=verification_invalid_decision`);
-  }
-
-  const { supabase, user } = await requireAdminActionAccess();
-  const result = await applyVerificationDecision(supabase, verificationRequestId, decision, user.id, notes);
-
-  revalidatePath('/admin/verification');
-  revalidatePath('/admin/verification/customers');
-  revalidatePath('/admin/verification/partners');
-  revalidatePath('/my-documents');
-
-  if (!result.success) {
-    redirect(`${returnPath}?error=verification_decision_failed`);
-  }
-
-  redirect(`${returnPath}?result=${decisionResultMap[decision]}`);
+  void formData;
+  return rejectUnsafeVerificationMutation();
 }

@@ -1,4 +1,5 @@
 import { getVerificationOverview } from '@/lib/actions/verification-actions';
+import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
 
 export async function VerificationCard() {
   const { overview, error } = await getVerificationOverview()
@@ -9,14 +10,14 @@ export async function VerificationCard() {
     }));
 
   if (error) {
-    return <div className="rounded-2xl border border-red-400/35 bg-red-500/10 p-4 text-sm text-red-100">{error}</div>;
+    return <div className="rounded-2xl border border-red-400/35 bg-red-500/10 p-4 text-sm text-red-100"><AdminText ar={error} en="Verification summary could not be loaded. No fallback values are shown." /><AdminRetryButton /></div>;
   }
 
   const pending = overview.requests.filter((item: { status?: string | null }) => item.status === 'Pending').length;
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-      <p className="text-sm text-[var(--color-muted)]">Pending reviews</p>
+      <p className="text-sm text-[var(--color-muted)]"><AdminText ar="المراجعات المعلقة" en="Pending reviews" /></p>
       <p className="mt-2 text-2xl font-semibold text-white">{pending}</p>
     </div>
   );

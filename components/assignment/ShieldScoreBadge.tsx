@@ -1,3 +1,5 @@
+import { AdminText } from '@/components/admin/AdminLocale';
+
 type ShieldScoreBadgeProps = {
   score: number;
   label?: string;
@@ -8,7 +10,7 @@ export default function ShieldScoreBadge({ score, label = 'Shield Score' }: Shie
 
   return (
     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>
-      {label}: {score}
+      {label === 'Shield Score' ? <AdminText ar="درجة الدرع" en="Shield Score" /> : label}: {score}
     </span>
   );
 }
