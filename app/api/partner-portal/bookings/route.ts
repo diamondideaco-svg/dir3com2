@@ -27,7 +27,7 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin
       .from('bookings')
-      .select('id, booking_reference, status, total_amount, total_price, currency, created_at, updated_at, customer_name, product_name, partner_id')
+      .select('id, booking_reference, status, total_amount, total_price, currency, created_at, updated_at, guest_name, product_name, partner_id')
       .eq('partner_id', actor.userId)
       .order('created_at', { ascending: false })
       .limit(100);

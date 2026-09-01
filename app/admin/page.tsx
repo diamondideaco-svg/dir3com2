@@ -5,13 +5,14 @@ import BookingsTable from '@/components/admin/BookingsTable';
 import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
 import { requireAdminPageDataAccess } from '@/lib/auth/admin';
 import { isConfirmedProductionRevenue, isProductionBooking } from '@/lib/integration/executive-dashboard-contract';
+import { attachAuthoritativeCustomerName } from '@/lib/admin/booking-customer';
 
 async function getAdminData() {
     const { supabase } = await requireAdminPageDataAccess('/admin');
 
     const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('id, booking_reference, guest_name, product_name, customer_name, service_name, status, payment_status, total_amount, total_price, currency, synthetic, environment, source_channel, deleted_at, created_at')
+        .select('id, booking_reference, user_id, guest_name, guest_email, product_name, status, payment_status, total_amount, total_price, currency, synthetic, environment, source_channel, deleted_at, created_at')
         .eq('synthetic', false)
         .eq('environment', 'production')
         .is('deleted_at', null)
@@ -22,7 +23,18 @@ async function getAdminData() {
         return { bookings: [], stats: null, error: true };
     }
 
-    const productionBookings = (bookings ?? []).filter(isProductionBooking);
+    const ownerIds = [...new Set((bookings ?? []).map((booking) => booking.user_id).filter((id): id is string => Boolean(id)))];
+    const profileNames = new Map<string, string>();
+    if (ownerIds.length) {
+        const { data: profiles, error: profilesError } = await supabase.from('profiles').select('id, full_name').in('id', ownerIds);
+        if (profilesError) {
+            console.error('Error fetching booking customer profiles:', profilesError);
+            return { bookings: [], stats: null, error: true };
+        }
+        for (const profile of profiles ?? []) profileNames.set(profile.id, profile.full_name);
+    }
+
+    const productionBookings = (bookings ?? []).filter(isProductionBooking).map((booking) => attachAuthoritativeCustomerName(booking, profileNames));
     const revenueBookings = productionBookings.filter(isConfirmedProductionRevenue);
 
     const stats = {

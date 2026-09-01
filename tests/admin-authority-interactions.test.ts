@@ -65,7 +65,7 @@ test('admin booking surfaces fail closed to eligible Production records', () => 
     assert.match(source, /isProductionBooking/);
   }
   const details = read('app/admin/bookings/[id]/page.tsx');
-  assert.match(details, /!isProductionBooking\(booking\)/);
+  assert.match(details, /!isProductionBooking\((?:rawBooking|booking)\)/);
   assert.match(details, /notFound\(\)/);
 });
 

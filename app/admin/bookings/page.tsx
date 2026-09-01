@@ -4,6 +4,8 @@ import { requireAdminPageDataAccess } from '@/lib/auth/admin';
 import type { BookingEngineRecord } from '@/lib/supabase/types';
 import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
 import { isProductionBooking } from '@/lib/integration/executive-dashboard-contract';
+import { attachAuthoritativeCustomerName, filterAndSortAdminBookings } from '@/lib/admin/booking-customer';
+import AdminBookingFilters from '@/components/admin/AdminBookingFilters';
 
 async function getBookings() {
   const { supabase } = await requireAdminPageDataAccess('/admin/bookings');
@@ -19,14 +21,23 @@ async function getBookings() {
     console.error(error);
     return { bookings: [] as BookingEngineRecord[], error: true };
   }
+  const ownerIds = [...new Set((data ?? []).map((booking) => booking.user_id).filter((id): id is string => Boolean(id)))];
+  const profileNames = new Map<string, string>();
+  if (ownerIds.length) {
+    const { data: profiles, error: profilesError } = await supabase.from('profiles').select('id, full_name').in('id', ownerIds);
+    if (profilesError) return { bookings: [] as BookingEngineRecord[], error: true };
+    for (const profile of profiles ?? []) profileNames.set(profile.id, profile.full_name);
+  }
   return {
-    bookings: ((data || []) as BookingEngineRecord[]).filter(isProductionBooking),
+    bookings: ((data || []) as BookingEngineRecord[]).filter(isProductionBooking).map((booking) => attachAuthoritativeCustomerName(booking, profileNames)),
     error: false,
   };
 }
 
-export default async function AdminBookingsPage() {
+export default async function AdminBookingsPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; sort?: 'newest' | 'oldest' | 'customer_asc' | 'customer_desc' }> }) {
   const { bookings, error } = await getBookings();
+  const search = await searchParams;
+  const visibleBookings = filterAndSortAdminBookings(bookings, { query: search.q, status: search.status, sort: search.sort });
 
   return (
     <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]">
@@ -46,6 +57,8 @@ export default async function AdminBookingsPage() {
           </div>
         ) : null}
 
+        <AdminBookingFilters search={{ query: search.q, status: search.status, sort: search.sort }} />
+
         <div className="overflow-hidden rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)]">
           <div className="border-b border-[color:var(--color-border)] px-5 py-4">
             <h2 className="text-lg font-semibold text-[#334155]"><AdminText ar="إدارة حجوزات الإنتاج" en="Manage Production bookings" /></h2>
@@ -62,17 +75,18 @@ export default async function AdminBookingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {bookings.map((booking) => (
+                {visibleBookings.map((booking) => (
                   <tr key={booking.id} className="border-t border-[color:var(--color-border)] text-sm text-[var(--color-muted)]">
                     <td className="px-5 py-4">{booking.booking_reference}</td>
                     <td className="px-5 py-4">{booking.customer_name || '—'}</td>
-                    <td className="px-5 py-4">{booking.service_name || '—'}</td>
+                    <td className="px-5 py-4">{booking.product_name || '—'}</td>
                     <td className="px-5 py-4"><BookingStatusBadge status={booking.status} /></td>
                     <td className="px-5 py-4">
                       <Link href={`/admin/bookings/${booking.id}`} className="text-[#D4AF37] hover:underline"><AdminText ar="تفاصيل" en="Details" /></Link>
                     </td>
                   </tr>
                 ))}
+                {!error && visibleBookings.length === 0 ? <tr><td colSpan={5} className="px-5 py-8 text-center text-sm text-[var(--color-muted)]"><AdminText ar="لا توجد حجوزات مطابقة." en="No matching bookings." /></td></tr> : null}
               </tbody>
             </table>
           </div>

@@ -285,3 +285,7 @@
 
 - Localized the existing Login form from the shared application language context so Arabic and English request-to-confirm handoffs preserve their active locale without changing authentication or return-path logic.
 - Separated Marketplace loading, error, authoritative empty, and successful inventory states so unresolved requests never appear as verified zero inventory.
+## 2026-09-01 — Admin booking customer query remediation
+
+- Replaced the nonexistent `bookings.customer_name` dependency with canonical `bookings.user_id` to `profiles.full_name` resolution and a truthful guest-name fallback.
+- Added deterministic Admin booking search, status filtering, sorting, reset, and no-result behavior without changing Admin authorization or database schema.

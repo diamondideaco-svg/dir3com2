@@ -9,13 +9,21 @@ import ReviewCard from '@/components/booking/ReviewCard';
 import { AdminCurrency, AdminText, AdminUnavailableControl } from '@/components/admin/AdminLocale';
 import { isProductionBooking } from '@/lib/integration/executive-dashboard-contract';
 import type { BookingEngineRecord, BookingStatusHistoryRecord, PartnerAssignmentRecord, PartnerSettlementRecord, BookingReviewRecord } from '@/lib/supabase/types';
+import { attachAuthoritativeCustomerName } from '@/lib/admin/booking-customer';
 
 async function getBooking(id: string) {
   const { supabase } = await requireAdminPageDataAccess(`/admin/bookings/${id}`);
   const { data: bookingData, error: bookingError } = await supabase.from('bookings').select('*').eq('id', id).maybeSingle();
   if (bookingError) return { booking: null, error: true, missing: false, history: [], assignments: [], settlements: [], reviews: [] };
-  const booking = (bookingData || null) as BookingEngineRecord | null;
-  if (!booking || !isProductionBooking(booking)) return { booking: null, error: false, missing: true, history: [], assignments: [], settlements: [], reviews: [] };
+  const rawBooking = (bookingData || null) as BookingEngineRecord | null;
+  if (!rawBooking || !isProductionBooking(rawBooking)) return { booking: null, error: false, missing: true, history: [], assignments: [], settlements: [], reviews: [] };
+  const profileNames = new Map<string, string>();
+  if (rawBooking.user_id) {
+    const { data: profile, error: profileError } = await supabase.from('profiles').select('id, full_name').eq('id', rawBooking.user_id).maybeSingle();
+    if (profileError) return { booking: null, error: true, missing: false, history: [], assignments: [], settlements: [], reviews: [] };
+    if (profile) profileNames.set(profile.id, profile.full_name);
+  }
+  const booking = attachAuthoritativeCustomerName(rawBooking, profileNames);
 
   const [historyRes, assignmentRes, settlementRes, reviewRes] = await Promise.all([
     supabase.from('booking_status_history').select('*').eq('booking_id', id).order('created_at', { ascending: true }),
@@ -54,7 +62,7 @@ export default async function AdminBookingDetailsPage({ params, searchParams }: 
         <div className="mb-6 rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div><p className="text-sm text-[var(--color-muted)]"><AdminText ar="العميل" en="Customer" /></p><p className="text-lg font-semibold text-white">{booking.customer_name || '—'}</p></div>
-            <div><p className="text-sm text-[var(--color-muted)]"><AdminText ar="الخدمة" en="Service" /></p><p className="text-lg font-semibold text-white">{booking.service_name || '—'}</p></div>
+            <div><p className="text-sm text-[var(--color-muted)]"><AdminText ar="الخدمة" en="Service" /></p><p className="text-lg font-semibold text-white">{booking.product_name || '—'}</p></div>
             <div><p className="text-sm text-[var(--color-muted)]"><AdminText ar="المبلغ" en="Amount" /></p><p className="text-lg font-semibold text-white"><AdminCurrency value={Number(booking.total_amount ?? booking.total_price ?? 0)} currency={booking.currency || 'SAR'} /></p></div>
             <BookingStatusBadge status={booking.status} />
           </div>
