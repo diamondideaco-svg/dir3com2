@@ -264,3 +264,8 @@
 - Bound Marketplace and service-detail direction and alignment to the existing AR/EN language context.
 - Localized Marketplace system badges and singular/plural option counts without translating provider content.
 - Added a mobile request-form safe zone and context-aware DABRA positioning to prevent critical-field overlap.
+
+## 2026-09-01 — Marketplace browser QA remediation
+
+- Localized the existing Login form from the shared application language context so Arabic and English request-to-confirm handoffs preserve their active locale without changing authentication or return-path logic.
+- Separated Marketplace loading, error, authoritative empty, and successful inventory states so unresolved requests never appear as verified zero inventory.

@@ -281,7 +281,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
           return;
         }
 
-        setError(fetchError instanceof Error ? fetchError.message : (interfaceLanguage === 'en' ? 'Unable to load services right now' : 'تعذر تحميل الخدمات حالياً'));
+        setError(interfaceLanguage === 'en' ? 'Unable to load services right now.' : 'تعذر تحميل الخدمات حالياً.');
         setServices([]);
         setMeta(fallbackMeta);
       } finally {
