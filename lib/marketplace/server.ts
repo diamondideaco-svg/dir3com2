@@ -182,24 +182,25 @@ export function sanitizeMarketplaceQuery(input: URLSearchParams): MarketplaceApi
 function providerCardsToServices(cards: MarketplaceCard[]): MarketplaceService[] {
   return cards.map((card, index) => {
     const isStay = card.serviceType === 'stay';
-    const category: MarketplacePageCategory = isStay ? 'hotels' : 'airport-transfers';
-    const family: MarketplaceFamilyKey = isStay ? 'dir3-stay' : 'dir3-fly';
+    const isConcierge = card.serviceType === 'concierge';
+    const category: MarketplacePageCategory = isStay ? 'hotels' : isConcierge ? 'experiences' : 'airport-transfers';
+    const family: MarketplaceFamilyKey = isStay ? 'dir3-stay' : isConcierge ? 'dir3-concierge' : 'dir3-fly';
     const name = card.title || 'Travel service';
     const description = card.subtitle || card.location;
 
     return {
-      id: `provider-${card.serviceType}-${index}-${card.provider}`,
-      slug: `provider-${card.serviceType}-${index}`,
+      id: `provider-${card.provider}-${card.providerItemId ?? `${card.serviceType}-${index}`}`,
+      slug: `provider-${card.provider}-${card.providerItemId ?? `${card.serviceType}-${index}`}`,
       name_ar: name,
       name_en: name,
       description_ar: description,
       description_en: description,
       badge: card.provider,
       family,
-      familyLabel: isStay ? 'dir3 Stay' : 'dir3 Fly',
+      familyLabel: isStay ? 'dir3 Stay' : isConcierge ? 'dir3 Concierge' : 'dir3 Fly',
       category,
-      categoryLabel: isStay ? 'Hotels' : 'Flights',
-      icon: isStay ? 'hotel' : 'plane',
+      categoryLabel: isStay ? 'Hotels' : isConcierge ? 'Experiences' : 'Flights',
+      icon: isStay ? '/icons/stay.svg' : isConcierge ? '/icons/concierge.svg' : '/icons/airport.svg',
       href: card.deepLink ?? (isStay ? '/hotels' : '/fly'),
       metric: card.rating ? `${card.rating}/5` : card.location,
       tags: [card.provider, card.location],
@@ -214,14 +215,19 @@ function providerCardsToServices(cards: MarketplaceCard[]): MarketplaceService[]
       recommended: true,
       source: 'api',
       provenance: card.verified ? 'PARTNER_VERIFIED' : 'PROVIDER_LIVE',
-      fulfilmentState: card.availabilityStatus === 'sold-out' ? 'unavailable' : 'availability_unknown',
-      transactionMethod: 'none',
-      marketplaceEnvironment: 'production',
+      fulfilmentState: card.fulfilmentState,
+      transactionMethod: card.transactionMethod,
+      marketplaceEnvironment: card.marketplaceEnvironment,
       supplyType: card.verified ? 'verified_local_partner' : 'global_travel_partner',
       supplierName: card.provider,
       supplierVerified: card.verified,
       createdAt: null,
       updatedAt: null,
+      imageUrl: card.image,
+      provider: card.provider,
+      providerItemId: card.providerItemId ?? undefined,
+      sourceUrl: card.sourceUrl,
+      retrievedAt: card.retrievedAt,
     } satisfies MarketplaceService;
   });
 }
@@ -229,7 +235,9 @@ function providerCardsToServices(cards: MarketplaceCard[]): MarketplaceService[]
 export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: MarketplaceRequestContext = {}) {
   const snapshot = await getMarketplaceSnapshot();
   const hasTravelSearch = Boolean(
-    apiQuery.destination && (apiQuery.checkIn || apiQuery.departureDate),
+    (apiQuery.destination && (apiQuery.checkIn || apiQuery.departureDate))
+    || !apiQuery.family
+    || apiQuery.family === 'dir3-concierge',
   );
   const providerOptions = {
         mode: 'PROVIDER_LIVE',
@@ -247,7 +255,6 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: M
         providerOptions,
         context.clientKey ?? 'anonymous',
         fetchAllTravelProviderCards,
-        { rateLimit: context.anonymous !== false },
       )
     : { cards: [], limited: false };
   const providerServices = providerCardsToServices(providerResult.cards);

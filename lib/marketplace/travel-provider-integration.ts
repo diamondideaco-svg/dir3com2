@@ -13,15 +13,11 @@
 
 import { searchDuffelFlights } from '@/lib/travel/duffel/search';
 import { searchLiteApiHotels } from '@/lib/travel/liteapi/stays';
-import type { FlightSearchResult, StaySearchResult } from '@/lib/travel/contracts';
 import {
   mapFlightOffers,
   mapHotelOffers,
-  mapCarTrawlerQuotes,
-  mapViatorActivities,
-  mapVIPServices,
+  mapTicketmasterEvents,
   isPublicSafeMode,
-  isLocalPreviewMode,
   type DataSourceMode,
 } from '@/lib/marketplace/travel-provider-adapter';
 import type { MarketplaceCard } from '@/lib/marketplace/cards';
@@ -95,6 +91,9 @@ export async function fetchTravelProviderFlights(
     return [];
   }
 
+  const duffelEnvironment = process.env.DUFFEL_ENV?.trim().toLowerCase();
+  if (duffelEnvironment !== 'production' && duffelEnvironment !== 'live') return [];
+
   if (!options.destination || !options.departureDate) {
     return [];
   }
@@ -149,6 +148,9 @@ export async function fetchTravelProviderHotels(
   if (!isPublicSafeMode(options.mode)) {
     return [];
   }
+
+  const liteApiEnvironment = process.env.LITEAPI_ENV?.trim().toLowerCase();
+  if (liteApiEnvironment !== 'production' && liteApiEnvironment !== 'live') return [];
 
   if (!options.destination || !options.checkIn || !options.checkOut) {
     return [];
@@ -208,8 +210,9 @@ export async function fetchTravelProviderHotels(
  * Always returns empty array (vendor-access blocked)
  */
 export async function fetchTravelProviderDrive(
-  _options: TravelProviderMarketplaceOptions,
+  options: TravelProviderMarketplaceOptions,
 ): Promise<MarketplaceCard[]> {
+  void options;
   // CarTrawler vendor access blocked
   return [];
 }
@@ -220,10 +223,18 @@ export async function fetchTravelProviderDrive(
  * Always returns empty array (entitlement blocked)
  */
 export async function fetchTravelProviderConcierge(
-  _options: TravelProviderMarketplaceOptions,
+  options: TravelProviderMarketplaceOptions,
 ): Promise<MarketplaceCard[]> {
-  // Viator entitlement blocked
-  return [];
+  if (options.mode !== 'PROVIDER_LIVE') return [];
+  if (!process.env.TICKETMASTER_API_KEY?.trim() && !process.env.TICKETMASTER_CONSUMER_KEY?.trim()) return [];
+
+  try {
+    const { searchTicketmasterEvents } = await import('@/lib/travel/ticketmaster/discovery');
+    const result = await searchTicketmasterEvents({ countryCode: 'SA', size: 20 });
+    return mapTicketmasterEvents(result, { mode: options.mode, language: options.language });
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -232,8 +243,9 @@ export async function fetchTravelProviderConcierge(
  * Always returns empty array (synthetic test data only)
  */
 export async function fetchTravelProviderVIP(
-  _options: TravelProviderMarketplaceOptions,
+  options: TravelProviderMarketplaceOptions,
 ): Promise<MarketplaceCard[]> {
+  void options;
   // VIP synthetic test data—never public
   return [];
 }
@@ -246,13 +258,11 @@ export async function fetchTravelProviderVIP(
 export async function fetchAllTravelProviderCards(
   options: TravelProviderMarketplaceOptions,
 ): Promise<MarketplaceCard[]> {
-  const [flights, hotels, _drives, _concierge, _vip] = await Promise.all([
+  const [flights, hotels, concierge] = await Promise.all([
     fetchTravelProviderFlights(options),
     fetchTravelProviderHotels(options),
-    fetchTravelProviderDrive(options),
     fetchTravelProviderConcierge(options),
-    fetchTravelProviderVIP(options),
   ]);
 
-  return [...flights, ...hotels];
+  return [...flights, ...hotels, ...concierge];
 }

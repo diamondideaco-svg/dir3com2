@@ -5,6 +5,7 @@ import { Timeline } from '@/components/admin/Timeline';
 import { EventLogTable } from '@/components/admin/EventLogTable';
 import { MarketplaceRequestOperationsTable } from '@/components/admin/MarketplaceRequestOperationsTable';
 import { AdminText } from '@/components/admin/AdminLocale';
+import { MarketplaceProviderMatrix } from '@/components/admin/MarketplaceProviderMatrix';
 
 export const metadata = {
   title: 'Operations Engine | DIR3COM',
@@ -33,6 +34,7 @@ export default async function OperationsPage({ searchParams }: { searchParams: P
         ) : null}
 
         <OperationSummaryCards />
+        <MarketplaceProviderMatrix />
         <MarketplaceRequestOperationsTable />
 
         <div className="grid gap-6 lg:grid-cols-2">

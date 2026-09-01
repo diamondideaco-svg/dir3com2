@@ -35,13 +35,13 @@ const copy = {
     title: 'السوق', description: 'تصفّح بحرية، واعرف ما هو متاح فعلاً، واطلب ما يحتاج إلى تأكيد بشري.', all: 'الكل', featured: 'المميز', popular: 'الشائع', recommended: 'موصى به',
     destinations: ['كل الوجهات','السعودية','مصر','الرياض','جدة','مكة','المدينة','الدمام','الخبر','أبها','الطائف','العلا','نيوم','القاهرة','الجيزة','الإسكندرية','الغردقة','شرم الشيخ','الأقصر','أسوان','مرسى علم','العلمين الجديدة'],
     sorts: ['الأكثر ملاءمة','المميز أولا','الأكثر شعبية','السعر: الأقل أولا','السعر: الأعلى أولا','الاسم'],
-    allServices: 'كل الخدمات', smartTitle: 'ابحث في سوق dir3com بوضوح وبساطة.', smartDescription: 'واجهة لاكتشاف الخدمات مع مرشحات مرنة وتجربة قراءة سريعة.', discovery: 'استكشاف السوق', searchPlaceholder: 'ابحث عن خدمة، فئة، أو تجربة', sort: 'الترتيب', searchNow: 'ابحث الآن', filters: 'المرشحات', filtersNote: 'اختر التواريخ وعدد المسافرين لتوضيح تفضيلات بحثك.', result: 'نتيجة', categoriesPending: 'فئات السوق تظهر تلقائيا عند توفر البيانات.', browseCategories: 'تصفح الفئات', safeError: 'لم نعرض أي مخزون غير متحقق بدلاً منه.', visible: 'النتائج الظاهرة', total: 'إجمالي النتائج', source: 'المصدر', verified: 'مخزون موثّق', noVerified: 'لا يوجد مخزون موثّق', emptyTitle: 'لا يوجد توفر موثّق يطابق بحثك حتى الآن.', emptyDescription: 'عدّل البحث، تصفّح عائلة أخرى، أو اطلب مساعدة DABRA من دون تصنيع نتائج أو أسعار.', reset: 'إعادة ضبط المرشحات', browseServices: 'تصفح كل الخدمات', askDabra: 'اسأل DABRA', noResults: 'لا توجد نتائج مطابقة للمرشحات الحالية.', previous: 'السابق', next: 'التالي', families: 'عائلات السوق',
+    allServices: 'كل الخدمات', smartTitle: 'ابحث في سوق dir3com بوضوح وبساطة.', smartDescription: 'واجهة لاكتشاف الخدمات مع مرشحات مرنة وتجربة قراءة سريعة.', discovery: 'استكشاف السوق', searchPlaceholder: 'ابحث عن خدمة، فئة، أو تجربة', sort: 'الترتيب', searchNow: 'ابحث الآن', filters: 'المرشحات', filtersNote: 'اختر التواريخ وعدد المسافرين لتوضيح تفضيلات بحثك.', result: 'نتيجة', categoriesPending: 'فئات السوق تظهر تلقائيا عند توفر البيانات.', browseCategories: 'تصفح الفئات', loadingResults: 'جاري تحميل النتائج…', loadError: 'تعذر تحميل نتائج السوق حالياً.', safeError: 'لم نعرض أي مخزون غير متحقق بدلاً منه.', visible: 'النتائج الظاهرة', total: 'إجمالي النتائج', source: 'المصدر', verified: 'مخزون موثّق', noVerified: 'لا يوجد مخزون موثّق', emptyTitle: 'لا يوجد توفر موثّق يطابق بحثك حتى الآن.', emptyDescription: 'عدّل البحث، تصفّح عائلة أخرى، أو اطلب مساعدة DABRA من دون تصنيع نتائج أو أسعار.', reset: 'إعادة ضبط المرشحات', browseServices: 'تصفح كل الخدمات', askDabra: 'اسأل DABRA', noResults: 'لا توجد نتائج مطابقة للمرشحات الحالية.', previous: 'السابق', next: 'التالي', families: 'عائلات السوق',
   },
   en: {
     title: 'Marketplace', description: 'Browse freely, see what is genuinely available, and request anything that needs human confirmation.', all: 'All', featured: 'Featured', popular: 'Popular', recommended: 'Recommended',
     destinations: ['All destinations','Saudi Arabia','Egypt','Riyadh','Jeddah','Makkah','Madinah','Dammam','Khobar','Abha','Taif','AlUla','NEOM','Cairo','Giza','Alexandria','Hurghada','Sharm El Sheikh','Luxor','Aswan','Marsa Alam','New Alamein'],
     sorts: ['Most relevant','Featured first','Most popular','Price: low to high','Price: high to low','Name'],
-    allServices: 'All services', smartTitle: 'Search the dir3com marketplace with clarity.', smartDescription: 'A clear discovery experience with flexible filters and quick browsing.', discovery: 'Marketplace discovery', searchPlaceholder: 'Search for a service, category, or experience', sort: 'Sort', searchNow: 'Search now', filters: 'Filters', filtersNote: 'Choose dates and traveller count to clarify your search preferences.', result: 'results', categoriesPending: 'Marketplace categories appear when verified data is available.', browseCategories: 'Browse categories', safeError: 'No unverified inventory was shown as a substitute.', visible: 'Visible results', total: 'Total results', source: 'Source', verified: 'Verified inventory', noVerified: 'No verified inventory', emptyTitle: 'No verified availability matches your search yet.', emptyDescription: 'Adjust your search, browse another family, or ask DABRA for help without fabricated results or prices.', reset: 'Reset filters', browseServices: 'Browse all services', askDabra: 'Ask DABRA', noResults: 'No results match the current filters.', previous: 'Previous', next: 'Next', families: 'Marketplace families',
+    allServices: 'All services', smartTitle: 'Search the dir3com marketplace with clarity.', smartDescription: 'A clear discovery experience with flexible filters and quick browsing.', discovery: 'Marketplace discovery', searchPlaceholder: 'Search for a service, category, or experience', sort: 'Sort', searchNow: 'Search now', filters: 'Filters', filtersNote: 'Choose dates and traveller count to clarify your search preferences.', result: 'results', categoriesPending: 'Marketplace categories appear when verified data is available.', browseCategories: 'Browse categories', loadingResults: 'Loading results…', loadError: 'Marketplace results are temporarily unavailable.', safeError: 'No unverified inventory was shown as a substitute.', visible: 'Visible results', total: 'Total results', source: 'Source', verified: 'Verified inventory', noVerified: 'No verified inventory', emptyTitle: 'No verified availability matches your search yet.', emptyDescription: 'Adjust your search, browse another family, or ask DABRA for help without fabricated results or prices.', reset: 'Reset filters', browseServices: 'Browse all services', askDabra: 'Ask DABRA', noResults: 'No results match the current filters.', previous: 'Previous', next: 'Next', families: 'Marketplace families',
   },
 } as const;
 
@@ -59,7 +59,7 @@ export default function MarketplaceExplorer({
   defaultCategory,
   defaultCollection = 'all',
 }: MarketplaceExplorerProps) {
-  const { language } = useLanguage();
+  const { language, direction } = useLanguage();
   const t = copy[language];
   const activeFamilyLabel = getMarketplaceFamilyLabel(family, language, t.all);
   const collectionLabels: Array<{ value: MarketplaceCollectionKey; label: string }> = [
@@ -148,6 +148,7 @@ export default function MarketplaceExplorer({
   }, [meta.page, meta.totalPages]);
 
   return (
+    <div className={language === 'en' ? 'text-left' : 'text-right'} dir={direction} lang={language}>
     <SectionContainer>
       <ContentContainer>
         <SectionHeading eyebrow="MARKETPLACE" title={title ?? t.title} description={description ?? t.description} />
@@ -229,6 +230,7 @@ export default function MarketplaceExplorer({
             </SectionSurface>
           </motion.div>
 
+          {!loading && !error ? <>
           <motion.div variants={fadeUpItem} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {categoryBrowseItems.map((option) => (
               <motion.button
@@ -328,24 +330,32 @@ export default function MarketplaceExplorer({
               ))}
             </div>
           </motion.div>
+          </> : null}
         </motion.div>
 
-        {error && (
-          <Card className="mt-6 border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 shadow-none">
-            <CardContent className="p-4 text-sm text-[var(--color-navy)]">
-              {error} {t.safeError}
+        {loading ? (
+          <Card className="mt-6 border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 shadow-none" role="status" aria-live="polite">
+            <CardContent className="p-5 text-sm font-medium text-[var(--color-navy)]">
+              {t.loadingResults}
             </CardContent>
           </Card>
-        )}
+        ) : error ? (
+          <Card className="mt-6 border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 shadow-none">
+            <CardContent className="p-4 text-sm text-[var(--color-navy)]">
+              <p className="font-semibold">{t.loadError}</p>
+              <p className="mt-2">{error} {t.safeError}</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--color-muted)]">
+            <Chip className="text-sm">{t.visible}: {services.length}</Chip>
+            <Chip className="text-sm">{t.total}: {meta.total}</Chip>
+            <Chip className="text-sm">{t.source}: {meta.hasRealData ? t.verified : t.noVerified}</Chip>
+          </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--color-muted)]">
-          <Chip className="text-sm">{t.visible}: {services.length}</Chip>
-          <Chip className="text-sm">{t.total}: {meta.total}</Chip>
-          <Chip className="text-sm">{t.source}: {meta.hasRealData ? t.verified : t.noVerified}</Chip>
-        </div>
-
-        <div id="marketplace-results" className="mt-6">
-          {!loading && services.length === 0 ? (
+          <div id="marketplace-results" className="mt-6">
+          {services.length === 0 ? (
             <SectionSurface>
               <p className="text-xl font-semibold text-[var(--color-navy)]">{t.emptyTitle}</p>
               <p className="mt-3 text-sm leading-7 text-[var(--color-muted)]">{t.emptyDescription}</p>
@@ -381,9 +391,11 @@ export default function MarketplaceExplorer({
               </div>
             </SectionSurface>
           ) : (
-            <ServicesGrid services={services} loading={loading} emptyMessage={t.noResults} skeletonCount={6} />
+            <ServicesGrid services={services} loading={false} emptyMessage={t.noResults} skeletonCount={6} />
           )}
-        </div>
+          </div>
+          </>
+        )}
 
         {meta.totalPages > 1 ? (
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
@@ -431,5 +443,6 @@ export default function MarketplaceExplorer({
         ) : null}
       </ContentContainer>
     </SectionContainer>
+    </div>
   );
 }
