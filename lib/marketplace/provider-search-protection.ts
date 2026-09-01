@@ -7,6 +7,7 @@ const MAX_CONCURRENT_SEARCHES = 2;
 const CACHE_MS = 15_000;
 const MAX_CACHED_ENTRIES = 64;
 const MAX_PROVIDER_CARDS = 20;
+const MAX_REQUEST_ENTRIES = 1_024;
 
 type Entry = { count: number; resetAt: number };
 const requests = new Map<string, Entry>();
@@ -30,12 +31,25 @@ function cap(cards: MarketplaceCard[]) {
 function isAllowed(clientKey: string, now: number) {
   const current = requests.get(clientKey);
   if (!current || current.resetAt <= now) {
+    for (const [key, entry] of requests) {
+      if (entry.resetAt <= now) requests.delete(key);
+    }
+    while (requests.size >= MAX_REQUEST_ENTRIES) {
+      const first = requests.keys().next().value as string | undefined;
+      if (!first) break;
+      requests.delete(first);
+    }
     requests.set(clientKey, { count: 1, resetAt: now + WINDOW_MS });
     return true;
   }
   if (current.count >= MAX_ANONYMOUS_REQUESTS) return false;
   current.count += 1;
   return true;
+}
+
+/** Shared process-local budget for public provider-backed entry points. */
+export function consumeProviderRequestBudget(clientKey: string, now = Date.now()) {
+  return isAllowed(clientKey, now);
 }
 
 function trimCache() {
@@ -50,10 +64,9 @@ export async function fetchProtectedProviderCards(
   options: TravelProviderMarketplaceOptions,
   clientKey: string,
   fetcher: (options: TravelProviderMarketplaceOptions) => Promise<MarketplaceCard[]>,
-  protection: { rateLimit?: boolean } = {},
 ): Promise<ProviderSearchProtectionResult> {
   const now = Date.now();
-  if (protection.rateLimit !== false && !isAllowed(clientKey, now)) return { cards: [], limited: true };
+  if (!isAllowed(clientKey, now)) return { cards: [], limited: true };
 
   const key = keyFor(options);
   const cached = cache.get(key);

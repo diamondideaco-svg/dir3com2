@@ -12,7 +12,9 @@ export type DuffelHealthStatus = {
 
 export async function getDuffelHealthStatus(): Promise<DuffelHealthStatus> {
   const environment = process.env.DUFFEL_ENV?.trim().toLowerCase();
-  const token = process.env.DUFFEL_TEST_TOKEN?.trim() || ((environment === "test" || environment === "sandbox") ? process.env.DUFFEL_API_KEY?.trim() : undefined);
+  const token = (environment === "production" || environment === "live")
+    ? process.env.DUFFEL_API_KEY?.trim()
+    : process.env.DUFFEL_TEST_TOKEN?.trim() || ((environment === "test" || environment === "sandbox") ? process.env.DUFFEL_API_KEY?.trim() : undefined);
 
   if (!token) {
     return {

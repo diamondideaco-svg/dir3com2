@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-01 — External Marketplace activation evidence
+
+- Recovered the complete Marketplace Launch Bridge on current master while preserving Customer Hub localization and documents work.
+- Expanded the Admin provider matrix with exact CarTrawler, Travelpayouts, Ticketmaster, and Viator account, entitlement, and server-variable blockers without exposing credential values.
+- Kept all unapproved external Drive and Concierge sources fail-closed; no inventory, price, availability, booking, payment, database, or Production state was fabricated or changed.
+
 ## 2026-08-31 — Customer Hub English localization parity
 
 - Bound My Account, My Documents, and My Profile system copy and direction to the existing Arabic/English language context without translating customer-entered values.
@@ -245,3 +251,21 @@
 - Moved admin marketplace-request transitions and their audit record into one stale-state-protected database operation.
 - Required supplier/provider and verified-payment evidence before a request can claim confirmation, with quote evidence required for quote requests.
 - Bound the operations status selector to the persisted current state instead of an unsafe fixed default.
+# 2026-08-31 — Immediate Marketplace Launch Bridge
+
+- Added `PROVIDER_CHECKOUT` as a canonical Marketplace transaction rail while keeping inventory adapters independent from payment strategy and reserving disabled `DIR3COM_CHECKOUT` for future native payment.
+- Connected authorized Ticketmaster Discovery results to the canonical Concierge Marketplace, preserving provider/item/source/environment/retrieval/availability truth and routing checkout through server-side revalidation plus an official-domain allowlist and internal handoff reference.
+- Kept Duffel and LiteAPI sandbox supply out of public live inventory, preserved verified local Drive/VIP request-to-confirm paths, and retained fail-closed CarTrawler/Viator activation blockers.
+- Added an admin-only provider activation matrix covering access, commercial, checkout, country, owner, blocker, and next-action evidence without exposing credentials.
+- Added request budgets before public provider calls and restricted Duffel bearer requests plus Ticketmaster redirects to their verified official origins.
+
+# 2026-08-31 — Marketplace visual parity remediation
+
+- Bound Marketplace and service-detail direction and alignment to the existing AR/EN language context.
+- Localized Marketplace system badges and singular/plural option counts without translating provider content.
+- Added a mobile request-form safe zone and context-aware DABRA positioning to prevent critical-field overlap.
+
+## 2026-09-01 — Marketplace browser QA remediation
+
+- Localized the existing Login form from the shared application language context so Arabic and English request-to-confirm handoffs preserve their active locale without changing authentication or return-path logic.
+- Separated Marketplace loading, error, authoritative empty, and successful inventory states so unresolved requests never appear as verified zero inventory.
