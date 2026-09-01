@@ -136,6 +136,11 @@ test('the admin shell exposes authoritative AR/EN direction and localized contro
   assert.match(read('components/admin/AdminLocale.tsx'), /AdminLocalizedInput/);
 });
 
+test('admin timestamps are deterministic between server and browser hydration', () => {
+  const localeSource = read('components/admin/AdminLocale.tsx');
+  assert.match(localeSource, /timeZone:\s*['"]UTC['"]/);
+});
+
 test('unimplemented controls are disabled with a truthful explanation', () => {
   const partner = read('components/admin/PartnerForm.tsx');
   const upload = read('components/admin/DocumentUploader.tsx');

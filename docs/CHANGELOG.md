@@ -6,6 +6,7 @@
 - Replaced hardcoded health, escrow, and zero claims with query-backed operational queue counts and explicit bilingual unavailable states when a source query fails.
 - Localized the Executive Dashboard and shared admin shell through the existing Arabic/English language context while preserving the current admin authorization contract.
 - Completed the admin interaction safety closure: authoritative reads now follow canonical server-side admin authorization, customer booking ownership is read-only at the database boundary, malformed currency data cannot crash privileged views, and non-atomic mutations are explicitly disabled with bilingual explanations pending transaction-bound audited workflows.
+- Made admin timestamps render in UTC on both the server and browser so operational tables do not trigger hydration mismatches across client time zones.
 
 ## 2026-09-01 — External Marketplace activation evidence
 

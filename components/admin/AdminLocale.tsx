@@ -61,7 +61,11 @@ export function AdminDateTime({ value }: { value: string | null | undefined }) {
   if (!value) return <>—</>;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return <>—</>;
-  return <>{new Intl.DateTimeFormat(language === 'ar' ? 'ar-SA' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(date)}</>;
+  return <>{new Intl.DateTimeFormat(language === 'ar' ? 'ar-SA' : 'en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'UTC',
+  }).format(date)}</>;
 }
 
 export function AdminCurrency({ value, currency = 'SAR' }: { value: number; currency?: string }) {
