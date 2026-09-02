@@ -87,6 +87,7 @@ export async function setTeamAccessStatusAction(formData: FormData) {
     .eq('email', email)
     .maybeSingle();
   if (readError) throw readError;
+  if (!grant) throw new Error('Team access grant not found');
 
   const { error: updateError } = await admin
     .from('team_access_grants')
@@ -94,7 +95,7 @@ export async function setTeamAccessStatusAction(formData: FormData) {
     .eq('email', email);
   if (updateError) throw updateError;
 
-  if (grant?.invited_user_id) {
+  if (grant.invited_user_id) {
     const profileStatus = status === 'active' ? 'active' : 'inactive';
     const profileRole = grant.access_level === 'global_admin' ? 'admin' : 'staff';
     const { error: profileError } = await admin
