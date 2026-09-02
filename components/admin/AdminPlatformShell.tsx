@@ -12,13 +12,13 @@ const adminNavItems = [
   { href: '/admin/customers', key: 'customers', permission: 'customers:read' },
   { href: '/admin/products', key: 'products', permission: 'products:read' },
   { href: '/admin/assignment', key: 'assignment', globalOnly: true },
-  { href: '/admin/finance', key: 'finance', permission: 'finance:read' },
-  { href: '/admin/operations', key: 'operations', permission: 'operations:read' },
-  { href: '/admin/verification', key: 'verification', permission: 'verification:read' },
+  { href: '/admin/finance', key: 'finance', globalOnly: true },
+  { href: '/admin/operations', key: 'operations', globalOnly: true },
+  { href: '/admin/verification', key: 'verification', globalOnly: true },
   { href: '/admin/audit', key: 'audit', globalOnly: true },
   { href: '/admin/events', key: 'events', globalOnly: true },
   { href: '/admin/notifications', key: 'notifications', globalOnly: true },
-  { href: '/admin/shield', key: 'shield', permission: 'customers:write' },
+  { href: '/admin/shield', key: 'shield', globalOnly: true },
   { href: '/admin/partners/vip-local-egypt', key: 'vipEgypt', globalOnly: true },
 ] as const;
 
