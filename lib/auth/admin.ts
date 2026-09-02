@@ -54,9 +54,9 @@ export function assertCountryAllowed(scope: AdminScope, country: unknown) {
   }
 }
 
-export function filterRowsByCountryScope<T extends Record<string, unknown>>(scope: AdminScope, rows: T[], field = 'country') {
+export function filterRowsByCountryScope<T extends object>(scope: AdminScope, rows: T[], field = 'country') {
   if (scope.mode === 'global') return rows;
-  return rows.filter((row) => isCountryAllowed(scope, row[field]));
+  return rows.filter((row) => isCountryAllowed(scope, (row as Record<string, unknown>)[field]));
 }
 
 async function resolveAdministrativeAccess(permission?: TeamPermission) {
