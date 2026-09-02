@@ -9,7 +9,10 @@ import {
   type PreviewCity,
   type PreviewCitySelection,
   type PreviewFamily,
+  type LiteApiPreviewAccessState,
+  type PreviewProviderAccess,
   type PreviewProviderStatus,
+  type PreviewProviderBlocker,
   type RealPreviewEvent,
   type RealPreviewStay,
 } from '@/lib/marketplace/real-preview-contract';
@@ -24,16 +27,42 @@ const labels: Record<PreviewFamily, { ar: string; en: string }> = {
 
 type Providers = {
   liteapi: {
-    access: 'authorized' | 'blocked';
+    access: PreviewProviderAccess;
+    accessState: LiteApiPreviewAccessState;
     environment: 'production' | 'sandbox' | 'unconfigured';
     cities: Record<PreviewCity, PreviewProviderStatus | 'not_requested'>;
+    blocker: PreviewProviderBlocker | null;
   };
   ticketmaster: {
     access: 'authorized' | 'blocked';
     environment: 'production';
     status: PreviewProviderStatus;
+    blocker: PreviewProviderBlocker | null;
   };
 };
+
+function ProviderBlocker({ blocker, ar }: { blocker: PreviewProviderBlocker; ar: boolean }) {
+  const rows = [
+    [ar ? 'المزوّد' : 'Provider', blocker.provider],
+    [ar ? 'رمز التشخيص' : 'Diagnostic code', blocker.code],
+    [ar ? 'البيئة' : 'Environment', blocker.environment],
+    [ar ? 'متغير البيئة المتوقع' : 'Expected env var', blocker.expectedEnvVar],
+    [ar ? 'الحساب / منتج API' : 'Account / API product', blocker.accountProduct],
+    [ar ? 'الحالة الحالية' : 'Current status', blocker.currentStatus[ar ? 'ar' : 'en']],
+    [ar ? 'استجابة المزود / HTTP' : 'HTTP / provider response', blocker.providerResponse[ar ? 'ar' : 'en']],
+    [ar ? 'التفعيل المطلوب' : 'Activation required', blocker.activationRequired[ar ? 'ar' : 'en']],
+  ];
+  return (
+    <dl className="mt-4 grid gap-3 rounded-2xl border border-amber-300/70 bg-amber-50 p-5 text-sm text-[#5f4612]" data-provider-blocker>
+      {rows.map(([label, value]) => (
+        <div className="grid gap-1 sm:grid-cols-[12rem_1fr]" key={label}>
+          <dt className="font-bold uppercase tracking-wide">{label}</dt>
+          <dd className="break-words">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
 function ProviderImage({ src, alt, fallback }: { src: string | null; alt: string; fallback: string }) {
   const [failed, setFailed] = useState(false);
@@ -242,6 +271,7 @@ export default function RealMarketplacePreviewClient({ stays, events, providers,
               <div><p className="text-xs font-bold tracking-[0.16em] text-[#9b741c]">LITEAPI</p><h2 id="preview-stays-heading" className="mt-2 text-3xl font-semibold text-[#0d1b2a]">{ar ? 'إقامات الرياض والقاهرة' : 'Riyadh & Cairo stays'}</h2></div>
               <p className="max-w-xl text-sm leading-6 text-[#64748b]">{providers.liteapi.environment === 'sandbox' ? (ar ? 'بيانات بيئة اختبار المزود للمعاينة فقط؛ لا يوجد حجز إنتاجي.' : 'Provider sandbox data for preview only; no production booking.') : (ar ? 'نتائج بحث المزود؛ الحجز غير مفعّل في هذه المعاينة.' : 'Provider search results; booking is not enabled in this preview.')}</p>
             </div>
+            {providers.liteapi.blocker ? <ProviderBlocker blocker={providers.liteapi.blocker} ar={ar} /> : null}
             {selectedCities.map((city) => {
               const cityStays = stays.filter((stay) => stay.city === city);
               return (
@@ -257,6 +287,7 @@ export default function RealMarketplacePreviewClient({ stays, events, providers,
         {showEvents ? (
           <section className="real-preview-section real-preview-events mt-12" aria-labelledby="preview-events-heading">
             <div><p className="text-xs font-bold tracking-[0.16em] text-[#1b4f82]">TICKETMASTER SAUDI</p><h2 id="preview-events-heading" className="mt-2 text-3xl font-semibold text-[#0d1b2a]">{ar ? 'فعاليات الكونسيرج السعودية' : 'Saudi concierge events'}</h2></div>
+            {providers.ticketmaster.blocker ? <ProviderBlocker blocker={providers.ticketmaster.blocker} ar={ar} /> : null}
             {events.length ? <div className="real-preview-grid mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{events.map((event) => <EventCard key={event.id} event={event} ar={ar} />)}</div> : <p className="real-preview-empty mt-5 rounded-2xl border border-dashed border-[#d4af37]/35 bg-white p-6 text-sm leading-6 text-[#64748b]">{providers.ticketmaster.status === 'access_blocked' ? (ar ? 'وصول Ticketmaster غير مهيأ لهذه المعاينة؛ لم نعرض فعاليات بديلة.' : 'Ticketmaster access is not configured for this preview; no substitute events are shown.') : providers.ticketmaster.status === 'unavailable' ? (ar ? 'Ticketmaster غير متاح الآن؛ لم نعرض بيانات أو صورًا بديلة.' : 'Ticketmaster is unavailable right now; no substitute data or images are shown.') : (ar ? 'لم يُرجع Ticketmaster فعاليات سعودية حالية. لم نختلق نتائج بديلة.' : 'Ticketmaster returned no current Saudi events. No substitute results were invented.')}</p>}
           </section>
         ) : null}
