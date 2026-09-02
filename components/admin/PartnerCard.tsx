@@ -8,7 +8,7 @@ type PartnerCardProps = {
 
 export default function PartnerCard({ partner }: PartnerCardProps) {
   return (
-    <div className="rounded-[1.25rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-5 text-right">
+    <div className="rounded-[1.25rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-5 text-start">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-semibold text-white">{partner.company_name}</h3>

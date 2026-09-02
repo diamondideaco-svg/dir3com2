@@ -1,10 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { requireAdminActionAccess } from '@/lib/auth/admin';
+import { requireAdminActionAccess, requireAdminReadAccess } from '@/lib/auth/admin';
 import { appendTimelineRecord, createAuditRecord as createAuditEntry, createNotificationRecord, publishEvent, sendNotificationRecord } from '@/lib/operations/operations-engine';
-import { bookingStatusFromAssignmentStatus, bookingStatusFromLifecycleOutcome, normalizeBookingStatus, type CanonicalAssignmentStatus, type CanonicalLifecycleOutcome } from '@/lib/booking/workflow-status';
+import type { CanonicalAssignmentStatus, CanonicalLifecycleOutcome } from '@/lib/booking/workflow-status';
 
 const marketplaceRequestTransitions = {
   under_review: 'assign_owner',
@@ -83,11 +82,10 @@ export async function createAuditLog(input: {
   action: string;
   oldValues?: Record<string, unknown>;
   newValues?: Record<string, unknown>;
-  performedBy?: string;
   ipAddress?: string;
 }) {
-  const { supabase } = await requireAdminActionAccess();
-  return createAuditEntry(supabase, input);
+  const { supabase, user } = await requireAdminActionAccess();
+  return createAuditEntry(supabase, { ...input, performedBy: user.id });
 }
 
 export async function publishSystemEvent(eventName: string, payload: Record<string, unknown>, source = 'operations-engine') {
@@ -101,20 +99,24 @@ export async function appendTimeline(input: {
   eventType: string;
   summary?: string;
   metadata?: Record<string, unknown>;
-  performedBy?: string;
 }) {
-  const { supabase } = await requireAdminActionAccess();
-  return appendTimelineRecord(supabase, input);
+  const { supabase, user } = await requireAdminActionAccess();
+  return appendTimelineRecord(supabase, { ...input, performedBy: user.id });
 }
 
 export async function getOperationsSummary() {
-  const { supabase } = await requireAdminActionAccess();
+  const { supabase } = await requireAdminReadAccess();
   const [notificationsRes, auditRes, timelineRes, eventsRes] = await Promise.all([
     supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(8),
     supabase.from('audit_logs').select('*').order('timestamp', { ascending: false }).limit(8),
     supabase.from('activity_timeline').select('*').order('created_at', { ascending: false }).limit(8),
     supabase.from('system_events').select('*').order('created_at', { ascending: false }).limit(8),
   ]);
+
+  const queryError = notificationsRes.error ?? auditRes.error ?? timelineRes.error ?? eventsRes.error;
+  if (queryError) {
+    throw new Error('ADMIN_OPERATIONS_READ_FAILED');
+  }
 
   return {
     notifications: notificationsRes.data ?? [],
@@ -131,107 +133,19 @@ export async function synchronizeBookingLifecycle(input: {
   note?: string;
   source?: string;
 }) {
-  const { supabase, user } = await requireAdminActionAccess();
-  const { data: booking } = await supabase.from('bookings').select('id, status').eq('id', input.bookingId).single();
-  const { data: latestAssignment } = await supabase
-    .from('partner_assignments')
-    .select('assignment_status')
-    .eq('booking_id', input.bookingId)
-    .order('assigned_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!booking) {
-    return { success: false, error: 'Booking not found' };
-  }
-
-  const previousStatus = normalizeBookingStatus(booking.status as string | null | undefined);
-  const statusFromOutcome = bookingStatusFromLifecycleOutcome(input.outcome);
-  const resolvedAssignmentStatus = input.assignmentStatus
-    ?? ((latestAssignment?.assignment_status as CanonicalAssignmentStatus | null | undefined) ?? null);
-  const nextStatus = resolvedAssignmentStatus
-    ? bookingStatusFromAssignmentStatus(resolvedAssignmentStatus)
-    : statusFromOutcome;
-
-  if (previousStatus !== nextStatus) {
-    await supabase.from('bookings').update({ status: nextStatus }).eq('id', input.bookingId);
-  }
-
-  await supabase.from('booking_status_history').insert({
-    booking_id: input.bookingId,
-    status: nextStatus,
-    changed_by: user.id,
-    notes: input.note ?? `Lifecycle updated via ${input.outcome}`,
-  });
-
-  const eventType = `booking_status.${nextStatus.toLowerCase().replace(/\s+/g, '_')}`;
-  const payload = {
-    entityType: 'booking',
-    entityId: input.bookingId,
-    outcome: input.outcome,
-    assignmentStatus: resolvedAssignmentStatus,
-    previousStatus,
-    nextStatus,
-  };
-
-  await Promise.all([
-    appendTimelineRecord(supabase, {
-      entityType: 'booking',
-      entityId: input.bookingId,
-      eventType,
-      summary: input.note ?? `Booking moved to ${nextStatus}`,
-      metadata: payload,
-      performedBy: user.id,
-    }),
-    createAuditEntry(supabase, {
-      entityType: 'bookings',
-      entityId: input.bookingId,
-      action: 'lifecycle_status_updated',
-      oldValues: { status: previousStatus },
-      newValues: { status: nextStatus, outcome: input.outcome, assignment_status: resolvedAssignmentStatus },
-      performedBy: user.id,
-    }),
-    publishEvent(
-      supabase,
-      'booking.lifecycle.updated',
-      payload,
-      input.source ?? 'assignment-operations-sync',
-    ),
-  ]);
-
-  return { success: true, previousStatus, nextStatus };
+  await requireAdminActionAccess();
+  void input;
+  return { success: false, error: 'ADMIN_BOOKING_LIFECYCLE_MUTATION_UNAVAILABLE' };
 }
 
 export async function completeBookingLifecycleAction(formData: FormData) {
-  const bookingId = formData.get('bookingId')?.toString();
-  if (!bookingId) return;
-
-  await synchronizeBookingLifecycle({
-    bookingId,
-    outcome: 'completed',
-    note: 'Booking marked completed from operations workflow',
-  });
-
-  revalidatePath('/admin/bookings');
-  revalidatePath(`/admin/bookings/${bookingId}`);
-  revalidatePath('/my-bookings');
-  revalidatePath(`/my-bookings/${bookingId}`);
-  redirect(`/admin/bookings/${bookingId}?result=booking_completed`);
+  await requireAdminActionAccess();
+  void formData;
+  throw new Error('ADMIN_BOOKING_LIFECYCLE_MUTATION_UNAVAILABLE');
 }
 
 export async function cancelBookingLifecycleAction(formData: FormData) {
-  const bookingId = formData.get('bookingId')?.toString();
-  if (!bookingId) return;
-
-  await synchronizeBookingLifecycle({
-    bookingId,
-    outcome: 'cancelled',
-    note: 'Booking marked cancelled from operations workflow',
-  });
-
-  revalidatePath('/admin/bookings');
-  revalidatePath(`/admin/bookings/${bookingId}`);
-  revalidatePath('/my-bookings');
-  revalidatePath(`/my-bookings/${bookingId}`);
-  redirect(`/admin/bookings/${bookingId}?result=booking_cancelled`);
+  await requireAdminActionAccess();
+  void formData;
+  throw new Error('ADMIN_BOOKING_LIFECYCLE_MUTATION_UNAVAILABLE');
 }

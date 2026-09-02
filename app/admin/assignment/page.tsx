@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { requireAdminPageDataAccess } from '@/lib/auth/admin';
 import AssignmentTable from '@/components/assignment/AssignmentTable';
+import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
 
 type AssignmentRecord = {
   id: string;
@@ -20,7 +21,7 @@ const resultMessages: Record<string, string> = {
 };
 
 async function getAssignments() {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminPageDataAccess('/admin/assignment');
   const { data, error } = await supabase.from('partner_assignments').select('*').order('assigned_at', { ascending: false });
 
   if (error) {
@@ -37,16 +38,16 @@ export default async function AssignmentPage({ searchParams }: { searchParams: P
   const resultMessage = params?.result ? resultMessages[params.result] : null;
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]" dir="rtl">
+    <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">Shield Assignment Engine</p>
-            <h1 className="mt-2 text-3xl font-semibold text-[#334155]">إدارة التعيينات</h1>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]"><AdminText ar="محرك تعيين الدرع" en="Shield Assignment Engine" /></p>
+            <h1 className="mt-2 text-3xl font-semibold text-[#334155]"><AdminText ar="إدارة التعيينات" en="Assignment management" /></h1>
           </div>
           <div className="flex gap-2">
-            <Link href="/admin/assignment/rules" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">القواعد</Link>
-            <Link href="/admin/assignment/logs" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">السجلات</Link>
+            <Link href="/admin/assignment/rules" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]"><AdminText ar="القواعد" en="Rules" /></Link>
+            <Link href="/admin/assignment/logs" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]"><AdminText ar="السجلات" en="Logs" /></Link>
           </div>
         </div>
 
@@ -55,10 +56,10 @@ export default async function AssignmentPage({ searchParams }: { searchParams: P
         ) : null}
 
         {error ? (
-          <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-700"><AdminText ar={error} en="Assignment data could not be loaded. No fallback empty state is shown." /><AdminRetryButton /></div>
         ) : null}
 
-        <AssignmentTable assignments={assignments} />
+        {!error && <AssignmentTable assignments={assignments} />}
       </div>
     </div>
   );

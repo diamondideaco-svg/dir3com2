@@ -43,6 +43,7 @@ export type TicketmasterDiscoveryResult = {
   status: 'ok' | 'no_results' | 'access_blocked' | 'unavailable';
   total: number;
   events: TicketmasterDiscoveryEvent[];
+  diagnostic?: 'missing_credential' | 'http_401' | 'http_403' | 'http_0' | 'provider_error';
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -166,7 +167,7 @@ export async function searchTicketmasterEvents(input: {
   }
 
   if (!process.env.TICKETMASTER_API_KEY?.trim() && !process.env.TICKETMASTER_CONSUMER_KEY?.trim()) {
-    return { provider: 'ticketmaster', status: 'access_blocked', total: 0, events: [] };
+    return { provider: 'ticketmaster', status: 'access_blocked', total: 0, events: [], diagnostic: 'missing_credential' };
   }
 
   const params = new URLSearchParams({
@@ -186,6 +187,7 @@ export async function searchTicketmasterEvents(input: {
       status: status === 401 || status === 403 ? 'access_blocked' : 'unavailable',
       total: 0,
       events: [],
+      diagnostic: status === 401 ? 'http_401' : status === 403 ? 'http_403' : status === 0 ? 'http_0' : 'provider_error',
     };
   }
 

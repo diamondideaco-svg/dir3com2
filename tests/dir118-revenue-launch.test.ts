@@ -32,10 +32,10 @@ test('operations visibility is authorized beside the privileged query', () => {
   assert.match(operations, /supplier_name, marketplace_family/);
   assert.match(operations, /handoff_type, status, next_action/);
   assert.match(operations, /requested_for, traveller_count/);
-  assert.match(operations, />Created</);
-  assert.match(operations, />Last updated</);
-  assert.match(operations, /new Date\(request\.created_at\)\.toLocaleString\('en-GB'\)/);
-  assert.match(operations, /new Date\(request\.updated_at\)\.toLocaleString\('en-GB'\)/);
+  assert.match(operations, /en="Created"/);
+  assert.match(operations, /en="Last updated"/);
+  assert.match(operations, /AdminDateTime value=\{request\.created_at\}/);
+  assert.match(operations, /AdminDateTime value=\{request\.updated_at\}/);
   assert.match(operations, /request\.user_id/);
   assert.match(operations, /admin\.operations\.marketplace_requests_read_failed/);
   assert.match(operations, /throw new Error\('Unable to load marketplace revenue requests\.'\)/);

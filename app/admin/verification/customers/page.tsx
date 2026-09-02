@@ -1,4 +1,5 @@
 import { VerificationTable } from '@/components/admin/VerificationTable';
+import { AdminText } from '@/components/admin/AdminLocale';
 
 export const metadata = {
   title: 'Customer Verification | DIR3COM',
@@ -10,8 +11,8 @@ export default async function CustomerVerificationPage({ searchParams }: { searc
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-[var(--color-navy)]">
       <div className="mx-auto max-w-6xl">
-        <h1 className="text-3xl font-semibold">Customer verification</h1>
-        <p className="mt-2 text-[var(--color-muted)]">Review identity, passport, and national ID requests for customer trust scoring.</p>
+        <h1 className="text-3xl font-semibold"><AdminText ar="تحقق العملاء" en="Customer verification" /></h1>
+        <p className="mt-2 text-[var(--color-muted)]"><AdminText ar="راجع طلبات الهوية والجواز والهوية الوطنية لتقييم ثقة العميل." en="Review identity, passport, and national ID requests for customer trust scoring." /></p>
         <div className="mt-6">
           <VerificationTable returnPath="/admin/verification/customers" result={params?.result} actionErrorCode={params?.error} />
         </div>

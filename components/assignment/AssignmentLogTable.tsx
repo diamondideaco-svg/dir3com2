@@ -1,3 +1,5 @@
+import { AdminText } from '@/components/admin/AdminLocale';
+
 type AssignmentLogTableProps = {
   logs: Array<{
     id: string;
@@ -12,19 +14,19 @@ type AssignmentLogTableProps = {
 
 export default function AssignmentLogTable({ logs }: AssignmentLogTableProps) {
   if (!logs.length) {
-    return <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6 text-[var(--color-muted)]">لا توجد سجلات حتى الآن.</div>;
+    return <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6 text-[var(--color-muted)]"><AdminText ar="لا توجد سجلات حتى الآن." en="No logs yet." /></div>;
   }
 
   return (
     <div className="overflow-hidden rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)]">
-      <table className="min-w-full text-right">
+      <table className="min-w-full text-start">
         <thead className="bg-white text-sm text-[var(--color-muted)]">
           <tr>
-            <th className="px-5 py-3">الحجز</th>
-            <th className="px-5 py-3">الشريك</th>
-            <th className="px-5 py-3">النتيجة</th>
-            <th className="px-5 py-3">السبب</th>
-            <th className="px-5 py-3">المشغل</th>
+            <th className="px-5 py-3"><AdminText ar="الحجز" en="Booking" /></th>
+            <th className="px-5 py-3"><AdminText ar="الشريك" en="Partner" /></th>
+            <th className="px-5 py-3"><AdminText ar="النتيجة" en="Score" /></th>
+            <th className="px-5 py-3"><AdminText ar="السبب" en="Reason" /></th>
+            <th className="px-5 py-3"><AdminText ar="المشغل" en="Actor" /></th>
           </tr>
         </thead>
         <tbody>

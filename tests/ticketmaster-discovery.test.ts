@@ -106,12 +106,14 @@ test('search fails closed when credential is absent or rejected', async () => {
   delete process.env.TICKETMASTER_API_KEY;
   const absent = await searchTicketmasterEvents({ countryCode: 'SA' });
   assert.equal(absent.status, 'access_blocked');
+  assert.equal(absent.diagnostic, 'missing_credential');
   assert.deepEqual(absent.events, []);
 
   process.env.TICKETMASTER_API_KEY = 'test-key-not-real';
   globalThis.fetch = async () => new Response('{}', { status: 401 });
   const rejected = await searchTicketmasterEvents({ countryCode: 'SA' });
   assert.equal(rejected.status, 'access_blocked');
+  assert.equal(rejected.diagnostic, 'http_401');
   assert.deepEqual(rejected.events, []);
 });
 

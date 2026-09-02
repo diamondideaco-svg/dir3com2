@@ -4,6 +4,7 @@ import { AuditTable } from '@/components/admin/AuditTable';
 import { Timeline } from '@/components/admin/Timeline';
 import { EventLogTable } from '@/components/admin/EventLogTable';
 import { MarketplaceRequestOperationsTable } from '@/components/admin/MarketplaceRequestOperationsTable';
+import { AdminText } from '@/components/admin/AdminLocale';
 import { MarketplaceProviderMatrix } from '@/components/admin/MarketplaceProviderMatrix';
 
 export const metadata = {
@@ -23,9 +24,9 @@ export default async function OperationsPage({ searchParams }: { searchParams: P
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-[var(--color-navy)]">
       <div className="mx-auto max-w-7xl space-y-6">
         <div>
-          <p className="text-sm uppercase tracking-[0.3em] text-gold-400">DIR3 Operations Engine</p>
-          <h1 className="mt-2 text-3xl font-semibold">Notifications, audit, timeline, and system events</h1>
-          <p className="mt-3 max-w-3xl text-[var(--color-muted)]">Every important action in the platform is now traceable through one operational backbone.</p>
+        <p className="text-sm uppercase tracking-[0.3em] text-gold-400"><AdminText ar="محرك عمليات DIR3" en="DIR3 Operations Engine" /></p>
+        <h1 className="mt-2 text-3xl font-semibold"><AdminText ar="الإشعارات والتدقيق والخط الزمني وأحداث النظام" en="Notifications, audit, timeline, and system events" /></h1>
+        <p className="mt-3 max-w-3xl text-[var(--color-muted)]"><AdminText ar="كل إجراء مهم قابل للتتبع عبر العمود التشغيلي الموحّد للمنصة." en="Every important action in the platform is traceable through one operational backbone." /></p>
         </div>
 
         {resultMessage ? (
