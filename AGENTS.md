@@ -8,6 +8,48 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 These instructions apply to every Codex surface working in this repository: Desktop, IDE, CLI, cloud tasks, and code review.
 
+## Operating Roles
+
+The authoritative coordinator is the ChatGPT conversation named **مهندس المشروع — Control Tower**. It assigns work, records the owner and reviewer, tracks the PR and current SHA, and recommends MERGE, RETURN FOR FIX, or BLOCKED. It does not compete with implementation agents by editing the same task.
+
+Each working surface must use exactly one of these identities:
+
+### Codex Desktop — Engineer A / Primary Implementation
+
+- Owns the main complex implementation assigned by Control Tower.
+- Creates and owns its task branch, commits, tests, and PR.
+- Fixes findings on its own PR.
+- Reviews VS Code Codex work only after that work has a fixed commit SHA and while remaining read-only.
+- Must not edit a branch or PR currently owned by VS Code Codex.
+
+### VS Code Codex — Engineer B / Secondary Implementation and Cross-Review
+
+- Owns a separate implementation only when it has a separate branch/worktree and non-conflicting scope.
+- Creates and owns its task branch, commits, tests, and PR.
+- Fixes findings on its own PR.
+- Reviews Codex Desktop work only after Desktop provides a fixed commit SHA and while remaining read-only.
+- Must not edit a branch or PR currently owned by Codex Desktop.
+
+### VS Code Chat — Lightweight Assistant
+
+- Handles small, bounded, low-cost work: explain a local file, inspect a narrow diff, locate references, draft a small test, check a focused error, or answer an IDE-context question.
+- It is not a third primary engineer and must not own complex features, migrations, broad refactors, full-repository audits, long builds, endurance tests, or production releases.
+- Prefer focused reads and targeted checks because this surface may be unavailable and its budget is constrained.
+- It may provide a lightweight review finding, but it must not be the sole approval for a security-sensitive or release-critical PR.
+- If a task grows beyond a small bounded change, return it to Control Tower for reassignment to Codex Desktop or VS Code Codex.
+
+A surface must state its identity, task, branch, PR, owner/reviewer role, and target SHA at the start of an engineering handoff. If identity is not explicitly assigned, it must ask Control Tower or act read-only; it must not assume ownership.
+
+## Cross-Review Protocol
+
+- One PR has one implementation owner. Reviewers do not modify the owner's branch.
+- Codex Desktop and VS Code Codex may review each other, but never while both are editing the same PR.
+- Every review records the exact commit SHA. A code change invalidates earlier approvals until the reviewers evaluate the new SHA.
+- The implementation owner receives findings, applies fixes, publishes a new SHA, and requests re-review.
+- Functional review and security review are distinct. Security-sensitive scope requires a dedicated security pass; when TAC/Codex Security is unavailable, record that limitation and perform the strongest available standard security review without claiming specialized coverage.
+- Do not duplicate identical full scans across surfaces merely to create another PASS; assign distinct review scopes.
+- Control Tower consolidates evidence. It does not treat one agent's self-review as independent approval.
+
 ## Product Architecture
 
 DIR3COM uses one shared core platform/backend.
@@ -72,4 +114,4 @@ Verification:
 - A green CI run is evidence, not permission to merge or deploy.
 - Do not merge, enable auto-merge, deploy production, run production migrations, rotate credentials, or mutate live data without explicit authorization.
 - Preview deployment and browser QA must pass before a release candidate is recommended.
-- Final handoff must include scope, files changed, tests run, unresolved risks, and explicit status: PASS, PARTIAL, BLOCKED, or FAIL.
+- Final handoff must include surface identity, owner/reviewer role, branch, PR, exact SHA, scope, files changed, tests run, unresolved risks, and explicit status: PASS, PARTIAL, BLOCKED, or FAIL.
