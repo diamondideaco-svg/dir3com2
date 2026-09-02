@@ -8,6 +8,7 @@ import {
   buildUnavailablePreviewOffer,
   normalizeLiteApiPreviewStay,
   normalizeTicketmasterPreviewEvent,
+  resolveLiteApiPreviewProviderState,
   type PreviewCity,
   type PreviewCitySelection,
   type PreviewEnvironment,
@@ -142,6 +143,7 @@ export async function getRealMarketplacePreview(input: {
       .filter((event) => event.countryCode === 'SA')
       .map((event) => normalizeTicketmasterPreviewEvent(event, retrievedAt))
     : [];
+  const liteApiProviderState = resolveLiteApiPreviewProviderState(liteApiEnvironment, stayStatus);
 
   return {
     retrievedAt,
@@ -149,32 +151,18 @@ export async function getRealMarketplacePreview(input: {
     events,
     providers: {
       liteapi: {
-        access: liteApiEnvironment ? 'authorized' as const : 'blocked' as const,
+        ...liteApiProviderState,
         environment: liteApiEnvironment ?? 'unconfigured' as const,
         cities: stayStatus,
-        blocker: liteApiEnvironment ? (
-          Object.values(stayStatus).some((status) => status === 'unavailable')
-            ? {
-              expectedEnvVar: liteApiEnvironment === 'sandbox' ? 'LITEAPI_ENV=sandbox + LITEAPI_TEST_API_KEY' : 'LITEAPI_AUTH_MODE=hmac + LITEAPI_PUBLIC_API_KEY + LITEAPI_PRIVATE_API_KEY + LITEAPI_SHARED_SECRET',
-              accountProduct: 'LiteAPI / Nuitee hotel rates API',
-              currentStatus: { ar: 'تم إعداد الاعتماد، لكن بحث المزوّد غير متاح حالياً.', en: 'Credential configured; provider search is currently unavailable.' },
-              providerResponse: { ar: 'فشل الطلب — مهلة أو شبكة أو استجابة مزوّد غير صالحة.', en: 'REQUEST FAILED — timeout, network failure, or invalid provider response.' },
-              activationRequired: { ar: 'تحقق من بيئة LiteAPI المصرح بها وصلاحية الاعتماد، دون تفعيل الحجز في هذه المعاينة.', en: 'Verify the authorized LiteAPI environment and credential entitlement; do not enable booking for this preview.' },
-            }
-            : null
-        ) : {
-          expectedEnvVar: 'LITEAPI_ENV=sandbox + LITEAPI_TEST_API_KEY',
-          accountProduct: 'LiteAPI / Nuitee sandbox hotel rates API',
-          currentStatus: { ar: 'اعتماد بيئة الاختبار غير مهيأ على الخادم في Vercel Preview.', en: 'Server-side sandbox credential is not configured for Vercel Preview.' },
-          providerResponse: { ar: 'لم يُرسل طلب — إغلاق آمن قبل الوصول إلى المزوّد.', en: 'NOT REQUESTED — fail-closed before provider access.' },
-          activationRequired: { ar: 'أضف مفتاح LiteAPI sandbox مصرحاً به إلى Vercel Preview مع إبقاء التنفيذ test_sandbox / preview-only.', en: 'Add an authorized LiteAPI sandbox key to Vercel Preview and keep fulfilment test_sandbox / preview-only.' },
-        },
       },
       ticketmaster: {
         access: eventProbe.status === 'access_blocked' ? 'blocked' as const : 'authorized' as const,
         environment: 'production' as const,
         status: eventProbe.status,
         blocker: eventProbe.status === 'access_blocked' ? {
+          provider: 'ticketmaster' as const,
+          code: eventProbe.diagnostic ?? 'access_blocked',
+          environment: 'production' as const,
           expectedEnvVar: 'TICKETMASTER_API_KEY or TICKETMASTER_CONSUMER_KEY',
           accountProduct: 'Ticketmaster Developer Account / Discovery API Consumer Key',
           currentStatus: eventProbe.diagnostic === 'missing_credential'
@@ -187,6 +175,9 @@ export async function getRealMarketplacePreview(input: {
               : { ar: 'لم يُرسل طلب — الاعتماد غير موجود.', en: 'NOT REQUESTED — credential absent.' },
           activationRequired: { ar: 'أصدر أو فعّل Consumer Key لمنتج Discovery API على الحساب واضبطه على الخادم في Vercel Preview.', en: 'Issue or authorize a Discovery API Consumer Key for the account and configure it server-side in Vercel Preview.' },
         } : eventProbe.status === 'unavailable' ? {
+          provider: 'ticketmaster' as const,
+          code: eventProbe.diagnostic ?? 'provider_error',
+          environment: 'production' as const,
           expectedEnvVar: 'TICKETMASTER_API_KEY or TICKETMASTER_CONSUMER_KEY',
           accountProduct: 'Ticketmaster Discovery API',
           currentStatus: { ar: 'تم إعداد الاعتماد، لكن طلب المزوّد غير متاح حالياً.', en: 'Credential configured; provider request is currently unavailable.' },

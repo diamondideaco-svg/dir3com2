@@ -274,3 +274,4 @@
 
 - Added safe, visible LiteAPI and Ticketmaster activation diagnostics without exposing credential values or inventing provider inventory.
 - Added explicit route-level loading and error states that never present unresolved or failed provider requests as authoritative inventory.
+- Corrected LiteAPI preview access truth so configured credentials are not reported as authorized when the provider rejects access, with localized fail-closed diagnostics for missing, rejected, and temporarily unavailable states.

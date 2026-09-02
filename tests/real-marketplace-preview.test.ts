@@ -7,6 +7,7 @@ import {
   normalizeLiteApiPreviewStay,
   normalizeTicketmasterPreviewEvent,
   previewFamilies,
+  resolveLiteApiPreviewProviderState,
 } from '../lib/marketplace/real-preview-contract';
 
 const retrievedAt = '2026-08-30T10:00:00.000Z';
@@ -182,6 +183,16 @@ test('preview has truthful route-level loading and error states', () => {
   assert.match(loading, /No inventory or availability is asserted/);
   assert.match(error, /No substitute inventory, images, prices, or availability were shown/);
   assert.doesNotMatch(loading + error, /Unsplash|stock image|Book Now/);
+});
+
+test('preview renders the shared provider blocker diagnostics in Arabic and English', () => {
+  const source = fs.readFileSync(new URL('../components/public/RealMarketplacePreviewClient.tsx', import.meta.url), 'utf8');
+  const rejected = resolveLiteApiPreviewProviderState('sandbox', { Riyadh: 'access_blocked', Cairo: 'access_blocked' });
+  assert.match(source, /Diagnostic code/);
+  assert.match(source, /رمز التشخيص/);
+  assert.match(rejected.blocker?.currentStatus.ar ?? '', /رفض LiteAPI/);
+  assert.match(rejected.blocker?.currentStatus.en ?? '', /rejected/i);
+  assert.doesNotMatch(JSON.stringify(rejected), /sand_[A-Za-z0-9]|PublicKey=|Signature=/);
 });
 
 test('DIR-121 public page and API remain reachable in production without weakening local sandbox isolation', () => {

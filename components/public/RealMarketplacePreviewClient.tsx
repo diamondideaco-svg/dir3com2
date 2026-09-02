@@ -9,6 +9,8 @@ import {
   type PreviewCity,
   type PreviewCitySelection,
   type PreviewFamily,
+  type LiteApiPreviewAccessState,
+  type PreviewProviderAccess,
   type PreviewProviderStatus,
   type PreviewProviderBlocker,
   type RealPreviewEvent,
@@ -25,7 +27,8 @@ const labels: Record<PreviewFamily, { ar: string; en: string }> = {
 
 type Providers = {
   liteapi: {
-    access: 'authorized' | 'blocked';
+    access: PreviewProviderAccess;
+    accessState: LiteApiPreviewAccessState;
     environment: 'production' | 'sandbox' | 'unconfigured';
     cities: Record<PreviewCity, PreviewProviderStatus | 'not_requested'>;
     blocker: PreviewProviderBlocker | null;
@@ -40,6 +43,9 @@ type Providers = {
 
 function ProviderBlocker({ blocker, ar }: { blocker: PreviewProviderBlocker; ar: boolean }) {
   const rows = [
+    [ar ? 'المزوّد' : 'Provider', blocker.provider],
+    [ar ? 'رمز التشخيص' : 'Diagnostic code', blocker.code],
+    [ar ? 'البيئة' : 'Environment', blocker.environment],
     [ar ? 'متغير البيئة المتوقع' : 'Expected env var', blocker.expectedEnvVar],
     [ar ? 'الحساب / منتج API' : 'Account / API product', blocker.accountProduct],
     [ar ? 'الحالة الحالية' : 'Current status', blocker.currentStatus[ar ? 'ar' : 'en']],
