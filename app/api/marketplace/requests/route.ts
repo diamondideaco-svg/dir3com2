@@ -4,6 +4,7 @@ import { createSupabaseRequestClient, supabaseAdmin } from '@/lib/supabase/serve
 import { logServerError } from '@/lib/security/safe-logger';
 import { requestTypeMatchesProduct } from '@/lib/marketplace/request-gate';
 import { listCustomerMarketplaceRequests } from '@/lib/marketplace/customer-requests';
+import { parseMarketplaceRequestInputs } from '@/lib/marketplace/request-input';
 
 function validUuid(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -39,15 +40,26 @@ export async function POST(request: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ error: 'Request service unavailable' }, { status: 503 });
 
-  let body: Record<string, unknown>;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
+
+  if (!rawBody || typeof rawBody !== 'object' || Array.isArray(rawBody)) {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  const body = rawBody as Record<string, unknown>;
+
   const requestType = body.request_type;
   if (!validUuid(body.product_id) || (requestType !== 'request_to_confirm' && requestType !== 'request_quote')) {
     return NextResponse.json({ error: 'Invalid product or request type' }, { status: 400 });
+  }
+
+  const parsedInputs = parseMarketplaceRequestInputs(body);
+  if (!parsedInputs.ok) {
+    return NextResponse.json({ error: parsedInputs.error }, { status: 400 });
   }
 
   const { data: product, error: productError } = await supabaseAdmin
@@ -64,19 +76,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Product is not eligible for this request path' }, { status: 409 });
   }
 
-  const travellers = Number(body.traveller_count ?? 1);
-  if (!Number.isInteger(travellers) || travellers < 1 || travellers > 99) {
-    return NextResponse.json({ error: 'Invalid traveller count' }, { status: 400 });
-  }
-
   const requestReference = `REQ-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
   const { data, error } = await supabaseAdmin.from('marketplace_requests').insert({
     request_reference: requestReference,
     user_id: auth.user.id,
     product_id: body.product_id,
     request_type: requestType,
-    requested_for: typeof body.requested_for === 'string' ? body.requested_for : null,
-    traveller_count: travellers,
+    requested_for: parsedInputs.requestedFor,
+    traveller_count: parsedInputs.travellers,
     customer_brief: parseBrief(body.customer_brief),
     status: 'request_submitted',
     marketplace_family: product.marketplace_family,
