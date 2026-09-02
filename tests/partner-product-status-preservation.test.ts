@@ -85,9 +85,11 @@ test('update route resolves status after owner scope and from authoritative prod
   assert.match(route, /PRODUCT_SCOPE_DENIED/);
 });
 
-test('publication remains an authenticated admin action outside the partner route', () => {
+test('publication remains an authenticated and country-scoped admin action outside the partner route', () => {
   assert.match(adminActions, /publishProductAction/);
-  assert.match(adminActions, /requireAdminActionAccess\(\)/);
+  assert.match(adminActions, /requireScopedAdminActionAccess/);
+  assert.match(adminActions, /products:write/);
+  assert.match(adminActions, /assertCountryAllowed/);
   assert.match(adminActions, /update\(\{ status: 'published', verified: true \}\)/);
   assert.doesNotMatch(route, /status:\s*['"]published['"]/);
 });
