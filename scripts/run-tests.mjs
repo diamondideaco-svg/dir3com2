@@ -11,6 +11,7 @@ const serverOnlyTests = new Set([
 ]);
 const databaseTests = new Set([
   'assignment-schema-postgres.integration.test.ts',
+  'customer-activity-postgres.integration.test.ts',
   'customer-documents-postgres.integration.test.ts',
   'marketplace-production-schema-contract.integration.test.ts',
   'schema-compatibility.integration.test.ts',
