@@ -1,9 +1,10 @@
 // src/app/admin/page.tsx
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import AdminStats from '@/components/admin/AdminStats';
 import BookingsTable from '@/components/admin/BookingsTable';
 import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
-import { requireAdminPageDataAccess } from '@/lib/auth/admin';
+import { requireAdminPageDataAccess, requireAdminShellAccess } from '@/lib/auth/admin';
 import { isConfirmedProductionRevenue, isProductionBooking } from '@/lib/integration/executive-dashboard-contract';
 import { attachAuthoritativeCustomerName } from '@/lib/admin/booking-customer';
 
@@ -49,6 +50,15 @@ async function getAdminData() {
 }
 
 export default async function AdminPage() {
+    const shell = await requireAdminShellAccess('/admin');
+    if (shell.scope.mode === 'country') {
+        const permissions = shell.scope.grant?.permissions ?? [];
+        if (permissions.includes('customers:read')) redirect('/admin/customers');
+        if (permissions.includes('partners:read')) redirect('/admin/partners');
+        if (permissions.includes('products:read')) redirect('/admin/products');
+        throw new Error('SCOPED_ADMIN_HAS_NO_SUPPORTED_ROUTE');
+    }
+
     const { bookings, stats, error } = await getAdminData();
 
     return (
