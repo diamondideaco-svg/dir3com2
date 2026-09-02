@@ -25,9 +25,10 @@ const adminNavItems = [
 type AdminPlatformShellProps = {
   children: ReactNode;
   adminRole: string;
+  isCeo?: boolean;
 };
 
-export default function AdminPlatformShell({ children, adminRole }: AdminPlatformShellProps) {
+export default function AdminPlatformShell({ children, adminRole, isCeo = false }: AdminPlatformShellProps) {
   const { language, direction, toggleLanguage } = useLanguage();
   const t = executiveDashboardCopy[language].shell;
 
@@ -41,7 +42,7 @@ export default function AdminPlatformShell({ children, adminRole }: AdminPlatfor
               <h1 className="mt-1 text-xl font-semibold text-white">{t.title}</h1>
             </div>
             <div className="inline-flex items-center rounded-full border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-3 py-1 text-xs font-semibold text-[#D4AF37]">
-              {t.role}: {adminRole}
+              {t.role}: {isCeo ? 'CEO' : adminRole}
             </div>
             <button
               type="button"
@@ -64,6 +65,14 @@ export default function AdminPlatformShell({ children, adminRole }: AdminPlatfor
                 {t.nav[item.key]}
               </Link>
             ))}
+            {isCeo ? (
+              <Link
+                href="/admin/team"
+                className="rounded-full border border-[#D4AF37]/45 bg-[#D4AF37]/10 px-3 py-1.5 text-sm font-semibold text-[#D4AF37] transition hover:bg-[#D4AF37]/20"
+              >
+                {t.nav.team}
+              </Link>
+            ) : null}
           </nav>
         </div>
       </header>
