@@ -4,6 +4,7 @@ import { createSupabaseRequestClient, supabaseAdmin } from '@/lib/supabase/serve
 import { logServerError } from '@/lib/security/safe-logger';
 import { requestTypeMatchesProduct } from '@/lib/marketplace/request-gate';
 import { listCustomerMarketplaceRequests } from '@/lib/marketplace/customer-requests';
+import { parseMarketplaceRequestInputs } from '@/lib/marketplace/request-input';
 
 function validUuid(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -19,15 +20,6 @@ function parseBrief(value: unknown) {
     if (typeof item === 'number' && Number.isFinite(item)) brief[key] = item;
   }
   return brief;
-}
-
-function parseRequestedFor(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const timestamp = Date.parse(trimmed);
-  if (!Number.isFinite(timestamp)) return null;
-  return new Date(timestamp).toISOString();
 }
 
 export async function GET(request: NextRequest) {
@@ -48,28 +40,26 @@ export async function POST(request: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   if (!supabaseAdmin) return NextResponse.json({ error: 'Request service unavailable' }, { status: 503 });
 
-  let body: Record<string, unknown>;
+  let rawBody: unknown;
   try {
-    body = await request.json();
+    rawBody = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
+
+  if (!rawBody || typeof rawBody !== 'object' || Array.isArray(rawBody)) {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  const body = rawBody as Record<string, unknown>;
+
   const requestType = body.request_type;
   if (!validUuid(body.product_id) || (requestType !== 'request_to_confirm' && requestType !== 'request_quote')) {
     return NextResponse.json({ error: 'Invalid product or request type' }, { status: 400 });
   }
 
-  const requestedFor = parseRequestedFor(body.requested_for);
-  if (!requestedFor) {
-    return NextResponse.json({ error: 'Requested date is required' }, { status: 400 });
-  }
-
-  if (body.traveller_count === undefined || body.traveller_count === null || body.traveller_count === '') {
-    return NextResponse.json({ error: 'Traveller count is required' }, { status: 400 });
-  }
-  const travellers = Number(body.traveller_count);
-  if (!Number.isInteger(travellers) || travellers < 1 || travellers > 99) {
-    return NextResponse.json({ error: 'Invalid traveller count' }, { status: 400 });
+  const parsedInputs = parseMarketplaceRequestInputs(body);
+  if (!parsedInputs.ok) {
+    return NextResponse.json({ error: parsedInputs.error }, { status: 400 });
   }
 
   const { data: product, error: productError } = await supabaseAdmin
@@ -92,8 +82,8 @@ export async function POST(request: NextRequest) {
     user_id: auth.user.id,
     product_id: body.product_id,
     request_type: requestType,
-    requested_for: requestedFor,
-    traveller_count: travellers,
+    requested_for: parsedInputs.requestedFor,
+    traveller_count: parsedInputs.travellers,
     customer_brief: parseBrief(body.customer_brief),
     status: 'request_submitted',
     marketplace_family: product.marketplace_family,
