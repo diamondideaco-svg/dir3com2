@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireAdminPageDataAccess } from '@/lib/auth/admin';
+import { filterRowsByCountryScope, requireScopedAdminPageDataAccess } from '@/lib/auth/admin';
 import ProductTable from '@/components/products/ProductTable';
 import ProductForm from '@/components/products/ProductForm';
 import type { ProductRecord } from '@/lib/supabase/types';
@@ -12,7 +12,7 @@ const resultMessages: Record<string, string> = {
 };
 
 async function getProducts() {
-  const { supabase } = await requireAdminPageDataAccess('/admin/products');
+  const { supabase, scope } = await requireScopedAdminPageDataAccess('/admin/products', 'products:read');
   const { data, error } = await supabase.from('products').select('*, product_images(id, product_id, image_url, caption, sort_order, created_at)').order('created_at', { ascending: false });
 
   if (error) {
@@ -20,7 +20,8 @@ async function getProducts() {
     return { products: [] as ProductRecord[], error: 'تعذر تحميل بيانات المنتجات حالياً.' };
   }
 
-  return { products: (data || []) as ProductRecord[], error: null };
+  const scoped = filterRowsByCountryScope(scope, (data || []) as ProductRecord[]);
+  return { products: scoped as ProductRecord[], error: null };
 }
 
 export default async function AdminProductsPage({ searchParams }: { searchParams: Promise<{ result?: string }> }) {
