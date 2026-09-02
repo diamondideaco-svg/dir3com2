@@ -17,15 +17,15 @@ async function getProducts() {
 
   if (error) {
     console.error(error);
-    return { products: [] as ProductRecord[], error: 'تعذر تحميل بيانات المنتجات حالياً.' };
+    return { products: [] as ProductRecord[], error: 'تعذر تحميل بيانات المنتجات حالياً.', isGlobal: scope.mode === 'global' };
   }
 
   const scoped = filterRowsByCountryScope(scope, (data || []) as ProductRecord[]);
-  return { products: scoped as ProductRecord[], error: null };
+  return { products: scoped as ProductRecord[], error: null, isGlobal: scope.mode === 'global' };
 }
 
 export default async function AdminProductsPage({ searchParams }: { searchParams: Promise<{ result?: string }> }) {
-  const { products, error } = await getProducts();
+  const { products, error, isGlobal } = await getProducts();
   const params = await searchParams;
   const resultMessage = params?.result ? resultMessages[params.result] : null;
 
@@ -37,10 +37,12 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]"><AdminText ar="لوحة الإدارة" en="Admin platform" /></p>
             <h1 className="mt-2 text-3xl font-semibold text-[#334155]"><AdminText ar="إدارة المنتجات" en="Product management" /></h1>
           </div>
-          <div className="flex gap-2">
-            <Link href="/admin/categories" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]"><AdminText ar="التصنيفات" en="Categories" /></Link>
-            <Link href="/admin/pricing" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]"><AdminText ar="التسعير" en="Pricing" /></Link>
-          </div>
+          {isGlobal ? (
+            <div className="flex gap-2">
+              <Link href="/admin/categories" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]"><AdminText ar="التصنيفات" en="Categories" /></Link>
+              <Link href="/admin/pricing" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]"><AdminText ar="التسعير" en="Pricing" /></Link>
+            </div>
+          ) : null}
         </div>
 
         {resultMessage ? (
