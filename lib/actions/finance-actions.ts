@@ -1,6 +1,6 @@
 'use server';
 
-import { requireAdminActionAccess } from '@/lib/auth/admin';
+import { requireAdminActionAccess, requireAdminReadAccess } from '@/lib/auth/admin';
 import { calculateSettlement, createInvoice, createSettlement, createWallet, creditWallet, debitWallet, holdFunds, releaseFunds } from '@/lib/finance/finance-engine';
 import { reconcileWalletAgainstLedger } from '@/lib/finance/wallet-ledger';
 
@@ -64,12 +64,16 @@ export async function createFinanceInvoice(ownerId: string, ownerType: string, i
 }
 
 export async function getFinanceSummary() {
-  const { supabase } = await requireAdminActionAccess();
+  const { supabase } = await requireAdminReadAccess();
   const [walletsRes, settlementsRes, invoicesRes] = await Promise.all([
     supabase.from('wallets').select('*').order('created_at', { ascending: false }),
     supabase.from('partner_settlements').select('*').order('created_at', { ascending: false }),
     supabase.from('invoices').select('*').order('created_at', { ascending: false }),
   ]);
+
+  if (walletsRes.error || settlementsRes.error || invoicesRes.error) {
+    throw new Error('ADMIN_FINANCE_READ_FAILED');
+  }
 
   const wallets = walletsRes.data || [];
   const walletIds = wallets.map((wallet: { id: string }) => wallet.id);
@@ -81,6 +85,10 @@ export async function getFinanceSummary() {
         .in('wallet_id', walletIds)
         .order('created_at', { ascending: false })
     : { data: [] as Array<Record<string, unknown>> };
+
+  if ('error' in walletTransactionsRes && walletTransactionsRes.error) {
+    throw new Error('ADMIN_FINANCE_TRANSACTION_READ_FAILED');
+  }
 
   const transactionsByWallet = new Map<string, Array<Record<string, unknown>>>();
   for (const tx of walletTransactionsRes.data || []) {

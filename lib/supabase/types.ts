@@ -184,6 +184,8 @@ export interface BookingEngineRecord {
   id: string;
   booking_reference: string;
   user_id?: string | null;
+  guest_name?: string | null;
+  guest_email?: string | null;
   customer_id?: string | null;
   service_id?: string | null;
   partner_id?: string | null;
@@ -194,6 +196,7 @@ export interface BookingEngineRecord {
   payment_status?: string | null;
   currency?: string | null;
   notes?: string | null;
+  product_name?: string | null;
   customer_name?: string | null;
   service_name?: string | null;
   partner_name?: string | null;

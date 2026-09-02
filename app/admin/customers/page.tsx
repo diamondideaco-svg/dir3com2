@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { requireAdminPageDataAccess } from '@/lib/auth/admin';
 import CustomerTable from '@/components/customers/CustomerTable';
 import CustomerForm from '@/components/customers/CustomerForm';
 import type { CustomerRecord } from '@/lib/supabase/types';
+import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
 
 const resultMessages: Record<string, string> = {
   created: 'تم إنشاء العميل بنجاح.',
@@ -11,7 +12,7 @@ const resultMessages: Record<string, string> = {
 };
 
 async function getCustomers() {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminPageDataAccess('/admin/customers');
   const { data, error } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
 
   if (error) {
@@ -28,14 +29,14 @@ export default async function AdminCustomersPage({ searchParams }: { searchParam
   const resultMessage = params?.result ? resultMessages[params.result] : null;
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]" dir="rtl">
+    <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">لوحة الإدارة</p>
-            <h1 className="mt-2 text-3xl font-semibold text-[#334155]">إدارة العملاء</h1>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]"><AdminText ar="لوحة الإدارة" en="Admin platform" /></p>
+            <h1 className="mt-2 text-3xl font-semibold text-[#334155]"><AdminText ar="إدارة العملاء" en="Customer management" /></h1>
           </div>
-          <Link href="/admin" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
+          <Link href="/admin" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]"><AdminText ar="العودة" en="Back" /></Link>
         </div>
 
         {resultMessage ? (
@@ -43,12 +44,12 @@ export default async function AdminCustomersPage({ searchParams }: { searchParam
         ) : null}
 
         {error ? (
-          <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-700"><AdminText ar={error} en="Customer data could not be loaded. No fallback empty state is shown." /><AdminRetryButton /></div>
         ) : null}
 
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <CustomerForm />
-          <CustomerTable customers={customers} />
+          {!error && <CustomerTable customers={customers} />}
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { getLifecycleStatusContract } from '@/lib/booking/workflow-status';
+import { AdminStatusText } from '@/components/admin/AdminLocale';
 
 type BookingStatusBadgeProps = {
   status: string;
@@ -21,7 +22,7 @@ export default function BookingStatusBadge({ status }: BookingStatusBadgeProps) 
 
   return (
     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneMap[customerVisibleStatus] || 'bg-slate-500/15 text-[var(--color-muted)]'}`}>
-      {customerVisibleStatus}
+      <AdminStatusText value={customerVisibleStatus} />
     </span>
   );
 }

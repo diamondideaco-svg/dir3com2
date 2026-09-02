@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-01 — Executive dashboard Production truth and localization
+
+- Restricted executive booking and revenue KPIs to records explicitly proven as non-synthetic Production bookings, with confirmed payment evidence required before revenue contributes.
+- Replaced hardcoded health, escrow, and zero claims with query-backed operational queue counts and explicit bilingual unavailable states when a source query fails.
+- Localized the Executive Dashboard and shared admin shell through the existing Arabic/English language context while preserving the current admin authorization contract.
+- Completed the admin interaction safety closure: authoritative reads now follow canonical server-side admin authorization, customer booking ownership is read-only at the database boundary, malformed currency data cannot crash privileged views, and non-atomic mutations are explicitly disabled with bilingual explanations pending transaction-bound audited workflows.
+- Made admin timestamps render in UTC on both the server and browser so operational tables do not trigger hydration mismatches across client time zones.
+
 ## 2026-09-01 — External Marketplace activation evidence
 
 - Recovered the complete Marketplace Launch Bridge on current master while preserving Customer Hub localization and documents work.
@@ -251,6 +259,14 @@
 - Moved admin marketplace-request transitions and their audit record into one stale-state-protected database operation.
 - Required supplier/provider and verified-payment evidence before a request can claim confirmation, with quote evidence required for quote requests.
 - Bound the operations status selector to the persisted current state instead of an unsafe fixed default.
+# 2026-09-01 — CEO admin authority and `/admin` interaction closure
+
+- Kept the approved executive identity on the canonical `admin` role and documented that runtime Admin creation/role management is not implemented; no new CEO role or privilege path was added.
+- Restricted Admin booking/revenue surfaces to authoritative Production, non-synthetic records and made query failures explicit instead of displaying false zero/empty states.
+- Bound operational audit and timeline actor identity to the authenticated server user rather than caller input.
+- Added shared AR/EN Admin copy, status/date/currency rendering, route loading/error/retry states, localized controls, and confirmation plus pending protection for state-changing actions.
+- Marked currently unimplemented partner-save and document-upload controls as disabled with truthful explanations.
+
 # 2026-08-31 — Immediate Marketplace Launch Bridge
 
 - Added `PROVIDER_CHECKOUT` as a canonical Marketplace transaction rail while keeping inventory adapters independent from payment strategy and reserving disabled `DIR3COM_CHECKOUT` for future native payment.
@@ -269,6 +285,15 @@
 
 - Localized the existing Login form from the shared application language context so Arabic and English request-to-confirm handoffs preserve their active locale without changing authentication or return-path logic.
 - Separated Marketplace loading, error, authoritative empty, and successful inventory states so unresolved requests never appear as verified zero inventory.
+## 2026-09-01 — Admin booking customer query remediation
+
+- Replaced the nonexistent `bookings.customer_name` dependency with canonical `bookings.user_id` to `profiles.full_name` resolution and a truthful guest-name fallback.
+- Added deterministic Admin booking search, status filtering, sorting, reset, and no-result behavior without changing Admin authorization or database schema.
+
+## 2026-09-01 — Assignment schema reconciliation
+
+- Added an idempotent forward reconciliation for the canonical `assignment_rules` and `assignment_logs` tables after authenticated Preview QA proved schema-cache absence while the active Admin routes and shared assignment engine still depend on them.
+- Preserved Admin-only RLS, service-role access, anonymous denial, and the existing explicit unavailable UI until the migration is applied.
 
 ## 2026-09-01 — Visual Marketplace Preview #71 blocker truth
 

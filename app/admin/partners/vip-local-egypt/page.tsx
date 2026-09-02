@@ -1,4 +1,5 @@
 import VipPartnerConfigForm from '@/components/admin/VipPartnerConfigForm';
+import { AdminText } from '@/components/admin/AdminLocale';
 import { syntheticVipPartnerConfig } from '@/lib/travel/vip/config';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { VipPartnerConfig } from '@/lib/travel/contracts';
@@ -13,5 +14,5 @@ async function loadConfig(): Promise<VipPartnerConfig> {
 }
 export default async function VipLocalEgyptPartnerPage() {
   const config = await loadConfig();
-  return <main className="mx-auto max-w-5xl space-y-6 p-6"><div><p className="text-sm font-semibold text-amber-700">DIR3 VIP / LOCAL PARTNER / EGYPT</p><h1 className="text-3xl font-bold text-slate-900">VIP partner configuration</h1><p className="mt-2 text-slate-600">Replace every placeholder with partner-confirmed data before any production activation.</p></div><VipPartnerConfigForm config={config} /></main>;
+  return <main className="mx-auto max-w-5xl space-y-6 p-6"><div><p className="text-sm font-semibold text-amber-700">DIR3 VIP / LOCAL PARTNER / EGYPT</p><h1 className="text-3xl font-bold text-slate-900"><AdminText ar="إعداد شريك VIP" en="VIP partner configuration" /></h1><p className="mt-2 text-slate-600"><AdminText ar="استبدل كل البيانات المؤقتة ببيانات مؤكدة من الشريك قبل أي تفعيل إنتاجي." en="Replace every placeholder with partner-confirmed data before any production activation." /></p></div><VipPartnerConfigForm config={config} /></main>;
 }

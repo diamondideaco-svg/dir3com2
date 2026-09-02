@@ -1,3 +1,5 @@
+import { AdminStatusText } from './AdminLocale';
+
 export function VerificationStatusBadge({ status }: { status: string }) {
   const tone = {
     Pending: 'bg-amber-500/15 text-amber-300',
@@ -8,5 +10,5 @@ export function VerificationStatusBadge({ status }: { status: string }) {
     Suspended: 'bg-fuchsia-500/15 text-fuchsia-300',
   } as Record<string, string>;
 
-  return <span className={`rounded-full px-3 py-1 text-xs font-medium ${tone[status] ?? 'bg-slate-500/15 text-[var(--color-muted)]'}`}>{status}</span>;
+  return <span className={`rounded-full px-3 py-1 text-xs font-medium ${tone[status] ?? 'bg-slate-500/15 text-[var(--color-muted)]'}`}><AdminStatusText value={status} /></span>;
 }

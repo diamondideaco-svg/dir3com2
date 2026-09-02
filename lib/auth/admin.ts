@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { notFound, redirect } from 'next/navigation';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
 import { isAdminRole, resolveCanonicalUserRole } from '@/lib/auth/identity';
 
 function buildLoginTarget(destination: string) {
@@ -43,4 +43,22 @@ export async function requireAdminActionAccess() {
   }
 
   return { supabase, user, role };
+}
+
+export async function requireAdminPageDataAccess(destination = '/admin') {
+  const { user, role } = await requireAdminPageAccess(destination);
+  if (!supabaseAdmin) {
+    throw new Error('ADMIN_DATA_ACCESS_UNAVAILABLE');
+  }
+
+  return { supabase: supabaseAdmin, user, role };
+}
+
+export async function requireAdminReadAccess() {
+  const { user, role } = await requireAdminActionAccess();
+  if (!supabaseAdmin) {
+    throw new Error('ADMIN_DATA_ACCESS_UNAVAILABLE');
+  }
+
+  return { supabase: supabaseAdmin, user, role };
 }

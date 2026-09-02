@@ -2,34 +2,54 @@
 import Link from 'next/link';
 import AdminStats from '@/components/admin/AdminStats';
 import BookingsTable from '@/components/admin/BookingsTable';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
+import { requireAdminPageDataAccess } from '@/lib/auth/admin';
+import { isConfirmedProductionRevenue, isProductionBooking } from '@/lib/integration/executive-dashboard-contract';
+import { attachAuthoritativeCustomerName } from '@/lib/admin/booking-customer';
 
 async function getAdminData() {
-    const supabase = await createSupabaseServerClient();
+    const { supabase } = await requireAdminPageDataAccess('/admin');
 
     const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('*')
+        .select('id, booking_reference, user_id, guest_name, guest_email, product_name, status, payment_status, total_amount, total_price, currency, synthetic, environment, source_channel, deleted_at, created_at')
+        .eq('synthetic', false)
+        .eq('environment', 'production')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
     if (bookingsError) {
         console.error('Error fetching bookings:', bookingsError);
-        return { bookings: [], stats: { total: 0, pending: 0, confirmed: 0, completed: 0, revenue: 0 } };
+        return { bookings: [], stats: null, error: true };
     }
 
+    const ownerIds = [...new Set((bookings ?? []).map((booking) => booking.user_id).filter((id): id is string => Boolean(id)))];
+    const profileNames = new Map<string, string>();
+    if (ownerIds.length) {
+        const { data: profiles, error: profilesError } = await supabase.from('profiles').select('id, full_name').in('id', ownerIds);
+        if (profilesError) {
+            console.error('Error fetching booking customer profiles:', profilesError);
+            return { bookings: [], stats: null, error: true };
+        }
+        for (const profile of profiles ?? []) profileNames.set(profile.id, profile.full_name);
+    }
+
+    const productionBookings = (bookings ?? []).filter(isProductionBooking).map((booking) => attachAuthoritativeCustomerName(booking, profileNames));
+    const revenueBookings = productionBookings.filter(isConfirmedProductionRevenue);
+
     const stats = {
-        total: bookings?.length || 0,
-        pending: bookings?.filter((b: { status?: string | null }) => b.status === 'pending').length || 0,
-        confirmed: bookings?.filter((b: { status?: string | null }) => b.status === 'confirmed').length || 0,
-        completed: bookings?.filter((b: { status?: string | null }) => b.status === 'completed').length || 0,
-        revenue: bookings?.reduce((sum: number, b: { total_price?: number | null }) => sum + (b.total_price || 0), 0) || 0,
+        total: productionBookings.length,
+        pending: productionBookings.filter((booking) => booking.status === 'pending').length,
+        confirmed: productionBookings.filter((booking) => booking.status === 'confirmed').length,
+        completed: productionBookings.filter((booking) => booking.status === 'completed').length,
+        revenue: revenueBookings.reduce((sum, booking) => sum + Number(booking.total_amount ?? booking.total_price ?? 0), 0),
     };
 
-    return { bookings: bookings || [], stats };
+    return { bookings: productionBookings, stats, error: false };
 }
 
 export default async function AdminPage() {
-    const { bookings, stats } = await getAdminData();
+    const { bookings, stats, error } = await getAdminData();
 
     return (
         <div style={{
@@ -37,7 +57,6 @@ export default async function AdminPage() {
             minHeight: '100vh',
             color: '#334155',
             fontFamily: 'var(--font-arabic)',
-            direction: 'rtl',
             padding: '40px 20px'
         }}>
             <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
@@ -56,10 +75,10 @@ export default async function AdminPage() {
                             color: '#D4AF37',
                             marginBottom: '5px'
                         }}>
-                            🛡️ لوحة التحكم
+                            🛡️ <AdminText ar="لوحة التحكم" en="Admin dashboard" />
                         </h1>
                         <p style={{ color: '#8A9BB0', fontSize: '0.95rem' }}>
-                            إدارة الحجوزات والخدمات
+                            <AdminText ar="إدارة حجوزات الإنتاج والخدمات" en="Manage Production bookings and services" />
                         </p>
                     </div>
                     <Link href="/" style={{
@@ -71,11 +90,18 @@ export default async function AdminPage() {
                         border: '1px solid rgba(255,255,255,0.1)',
                         fontSize: '0.9rem'
                     }}>
-                        ← العودة إلى الموقع
+                        <AdminText ar="← العودة إلى الموقع" en="← Back to site" />
                     </Link>
                 </div>
 
-                <AdminStats stats={stats} />
+                {error || !stats ? (
+                    <div className="rounded-2xl border border-red-400/35 bg-red-500/10 p-5 text-red-700">
+                        <AdminText ar="تعذر تحميل بيانات حجوزات الإنتاج. لم تُعرض قيم بديلة." en="Production booking data could not be loaded. No fallback values are shown." />
+                        <AdminRetryButton />
+                    </div>
+                ) : (
+                    <AdminStats stats={stats} />
+                )}
 
                 <div style={{
                     marginTop: '24px',
@@ -91,7 +117,7 @@ export default async function AdminPage() {
                         textDecoration: 'none',
                         fontWeight: 700
                     }}>
-                        📊 لوحة القيادة التنفيذية
+                        📊 <AdminText ar="لوحة القيادة التنفيذية" en="Executive dashboard" />
                     </Link>
                     <Link href="/admin/finance" style={{
                         background: '#FFFFFF',
@@ -101,7 +127,7 @@ export default async function AdminPage() {
                         textDecoration: 'none',
                         border: '1px solid rgba(255,255,255,0.1)'
                     }}>
-                        💼 إدارة التمويل والثقة
+                        💼 <AdminText ar="إدارة التمويل والثقة" en="Finance and trust" />
                     </Link>
                     <Link href="/admin/operations" style={{
                         background: '#FFFFFF',
@@ -111,7 +137,7 @@ export default async function AdminPage() {
                         textDecoration: 'none',
                         border: '1px solid rgba(255,255,255,0.1)'
                     }}>
-                        🔧 العمليات
+                        🔧 <AdminText ar="العمليات" en="Operations" />
                     </Link>
                     <Link href="/admin/verification" style={{
                         background: '#FFFFFF',
@@ -121,7 +147,7 @@ export default async function AdminPage() {
                         textDecoration: 'none',
                         border: '1px solid rgba(255,255,255,0.1)'
                     }}>
-                        🛡️ التحقق والسمعة
+                        🛡️ <AdminText ar="التحقق والسمعة" en="Verification and reputation" />
                     </Link>
                 </div>
 
@@ -145,17 +171,17 @@ export default async function AdminPage() {
                             fontSize: '1.5rem',
                             color: '#FFFFFF'
                         }}>
-                            📋 الحجوزات
+                            📋 <AdminText ar="حجوزات الإنتاج" en="Production bookings" />
                         </h2>
                         <span style={{
                             color: '#8A9BB0',
                             fontSize: '0.85rem'
                         }}>
-                            إجمالي: {stats.total} حجز
+                            {stats ? <><AdminText ar="الإجمالي" en="Total" />: {stats.total}</> : <AdminText ar="غير متاح" en="Unavailable" />}
                         </span>
                     </div>
 
-                    <BookingsTable bookings={bookings} />
+                    {!error && <BookingsTable bookings={bookings} />}
                 </div>
             </div>
         </div>

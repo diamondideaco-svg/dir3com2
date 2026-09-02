@@ -1,3 +1,5 @@
+import { AdminStatusText } from './AdminLocale';
+
 type ShieldLevelBadgeProps = {
   level: string;
 };
@@ -12,7 +14,7 @@ const toneMap: Record<string, string> = {
 export default function ShieldLevelBadge({ level }: ShieldLevelBadgeProps) {
   return (
     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${toneMap[level] || 'bg-slate-500/15 text-[var(--color-muted)]'}`}>
-      {level}
+      <AdminStatusText value={level} />
     </span>
   );
 }

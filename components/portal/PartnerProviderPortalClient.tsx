@@ -74,7 +74,7 @@ type BookingRow = {
   total_amount?: number | null;
   total_price?: number | null;
   currency?: string | null;
-  customer_name?: string | null;
+  guest_name?: string | null;
   product_name?: string | null;
   created_at?: string;
 };

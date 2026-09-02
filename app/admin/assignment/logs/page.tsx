@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { requireAdminPageDataAccess } from '@/lib/auth/admin';
 import AssignmentLogTable from '@/components/assignment/AssignmentLogTable';
+import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
 
 type AssignmentLog = {
   id: string;
@@ -13,7 +14,7 @@ type AssignmentLog = {
 };
 
 async function getLogs() {
-  const supabase = await createSupabaseServerClient();
+  const { supabase } = await requireAdminPageDataAccess('/admin/assignment/logs');
   const { data, error } = await supabase.from('assignment_logs').select('*').order('created_at', { ascending: false });
 
   if (error) {
@@ -28,21 +29,21 @@ export default async function AssignmentLogsPage() {
   const { logs, error } = await getLogs();
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]" dir="rtl">
+    <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">السجلات</p>
-            <h1 className="mt-2 text-3xl font-semibold text-[#334155]">سجل التعيينات</h1>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]"><AdminText ar="السجلات" en="Logs" /></p>
+            <h1 className="mt-2 text-3xl font-semibold text-[#334155]"><AdminText ar="سجل التعيينات" en="Assignment log" /></h1>
           </div>
-          <Link href="/admin/assignment" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">العودة</Link>
+          <Link href="/admin/assignment" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]"><AdminText ar="العودة" en="Back" /></Link>
         </div>
 
         {error ? (
-          <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-700">{error}</div>
+          <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-700"><AdminText ar={error} en="Assignment logs could not be loaded. No fallback empty state is shown." /><AdminRetryButton /></div>
         ) : null}
 
-        <AssignmentLogTable logs={logs} />
+        {!error && <AssignmentLogTable logs={logs} />}
       </div>
     </div>
   );
