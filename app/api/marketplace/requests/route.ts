@@ -21,6 +21,15 @@ function parseBrief(value: unknown) {
   return brief;
 }
 
+function parseRequestedFor(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const timestamp = Date.parse(trimmed);
+  if (!Number.isFinite(timestamp)) return null;
+  return new Date(timestamp).toISOString();
+}
+
 export async function GET(request: NextRequest) {
   const auth = await createSupabaseRequestClient(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -50,6 +59,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid product or request type' }, { status: 400 });
   }
 
+  const requestedFor = parseRequestedFor(body.requested_for);
+  if (!requestedFor) {
+    return NextResponse.json({ error: 'Requested date is required' }, { status: 400 });
+  }
+
+  if (body.traveller_count === undefined || body.traveller_count === null || body.traveller_count === '') {
+    return NextResponse.json({ error: 'Traveller count is required' }, { status: 400 });
+  }
+  const travellers = Number(body.traveller_count);
+  if (!Number.isInteger(travellers) || travellers < 1 || travellers > 99) {
+    return NextResponse.json({ error: 'Invalid traveller count' }, { status: 400 });
+  }
+
   const { data: product, error: productError } = await supabaseAdmin
     .from('products')
     .select('id, name_ar, name_en, status, deleted_at, synthetic, marketplace_environment, marketplace_family, fulfilment_state, transaction_method, supplier_name')
@@ -64,18 +86,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Product is not eligible for this request path' }, { status: 409 });
   }
 
-  const travellers = Number(body.traveller_count ?? 1);
-  if (!Number.isInteger(travellers) || travellers < 1 || travellers > 99) {
-    return NextResponse.json({ error: 'Invalid traveller count' }, { status: 400 });
-  }
-
   const requestReference = `REQ-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
   const { data, error } = await supabaseAdmin.from('marketplace_requests').insert({
     request_reference: requestReference,
     user_id: auth.user.id,
     product_id: body.product_id,
     request_type: requestType,
-    requested_for: typeof body.requested_for === 'string' ? body.requested_for : null,
+    requested_for: requestedFor,
     traveller_count: travellers,
     customer_brief: parseBrief(body.customer_brief),
     status: 'request_submitted',
