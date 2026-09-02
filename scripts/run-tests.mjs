@@ -10,6 +10,7 @@ const serverOnlyTests = new Set([
   'marketplace-truth-contract.test.ts',
 ]);
 const databaseTests = new Set([
+  'assignment-schema-postgres.integration.test.ts',
   'customer-documents-postgres.integration.test.ts',
   'marketplace-production-schema-contract.integration.test.ts',
   'schema-compatibility.integration.test.ts',

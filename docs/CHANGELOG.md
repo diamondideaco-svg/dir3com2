@@ -289,3 +289,8 @@
 
 - Replaced the nonexistent `bookings.customer_name` dependency with canonical `bookings.user_id` to `profiles.full_name` resolution and a truthful guest-name fallback.
 - Added deterministic Admin booking search, status filtering, sorting, reset, and no-result behavior without changing Admin authorization or database schema.
+
+## 2026-09-01 — Assignment schema reconciliation
+
+- Added an idempotent forward reconciliation for the canonical `assignment_rules` and `assignment_logs` tables after authenticated Preview QA proved schema-cache absence while the active Admin routes and shared assignment engine still depend on them.
+- Preserved Admin-only RLS, service-role access, anonymous denial, and the existing explicit unavailable UI until the migration is applied.
