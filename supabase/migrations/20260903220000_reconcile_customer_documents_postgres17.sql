@@ -2,7 +2,9 @@ BEGIN;
 
 -- Reconcile environments where the historical customer-management migration
 -- did not materialize the canonical customer_documents relation used by the
--- Admin customer detail and document upload paths. This is additive only.
+-- Admin customer detail and document upload paths. This is additive with respect
+-- to customer data: no existing rows are deleted or rewritten. Security objects
+-- (RLS policies and table privileges) are reconciled to the canonical contract.
 DO $$
 DECLARE
   column_contract RECORD;
