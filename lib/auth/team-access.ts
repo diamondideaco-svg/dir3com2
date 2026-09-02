@@ -33,6 +33,8 @@ export type TeamAccessGrant = {
   invited_user_id?: string | null;
 };
 
+const TEAM_ACCESS_SELECT = 'id, email, job_title, access_level, country_scope, permissions, status, invited_user_id';
+
 export function normalizeEmail(value: unknown) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
@@ -45,14 +47,22 @@ export async function getTeamAccessGrant(supabase: SupabaseClient, user: User): 
   const email = normalizeEmail(user.email);
   if (!email) return null;
 
-  const { data, error } = await supabase
+  const { data: byUserId, error: byUserIdError } = await supabase
     .from('team_access_grants')
-    .select('id, email, job_title, access_level, country_scope, permissions, status, invited_user_id')
-    .or(`invited_user_id.eq.${user.id},email.ilike.${email}`)
+    .select(TEAM_ACCESS_SELECT)
+    .eq('invited_user_id', user.id)
     .maybeSingle();
 
-  if (error || !data) return null;
-  return data as TeamAccessGrant;
+  if (!byUserIdError && byUserId) return byUserId as TeamAccessGrant;
+
+  const { data: byEmail, error: byEmailError } = await supabase
+    .from('team_access_grants')
+    .select(TEAM_ACCESS_SELECT)
+    .eq('email', email)
+    .maybeSingle();
+
+  if (byEmailError || !byEmail) return null;
+  return byEmail as TeamAccessGrant;
 }
 
 export function hasPermission(grant: TeamAccessGrant | null, permission: TeamPermission) {
