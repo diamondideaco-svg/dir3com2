@@ -3,7 +3,7 @@
 ## 2026-09-02 — Customer activity schema reconciliation
 
 - Added a forward-only PostgreSQL 17 reconciliation for the canonical `customer_activity` relation, including its customer foreign key, actual read-path index, row-level security, and least-privilege Admin/service access.
-- Made Admin customer details render an explicit bilingual activity-unavailable state with retry when that optional query fails, instead of entering the generic error boundary or presenting a false empty history.
+- Made Admin customer details render explicit bilingual unavailable states with retry when the activity or sibling documents query fails, instead of entering the generic error boundary or presenting a false empty history.
 - Preserved existing activity rows on compatible environments and added regression coverage for idempotence, access isolation, real rows, truthful empty state, and missing-schema behavior.
 
 ## 2026-09-01 — Executive dashboard Production truth and localization

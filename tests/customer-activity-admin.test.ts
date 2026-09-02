@@ -35,6 +35,24 @@ test('customer activity unavailable state does not replace real rows or truthful
   assert.doesNotMatch(timeline, /PGRST205|relation .* does not exist|customer_activity.*missing/i);
 });
 
+test('Admin customer details keeps sibling documents schema failures out of the route error boundary', () => {
+  const page = read('app/admin/customers/[id]/page.tsx');
+  const documents = read('components/customers/CustomerDocuments.tsx');
+
+  assert.match(page, /documentsAvailable: !documentError/);
+  assert.match(page, /documentError \? \[\]/);
+  assert.match(page, /CustomerDocuments documents=\{documents\} available=\{documentsAvailable\}/);
+  assert.doesNotMatch(page, /throw new Error\(`Customer documents query failed:/);
+  assert.doesNotMatch(page, /documentError\.message/);
+
+  assert.match(documents, /available\?: boolean/);
+  assert.match(documents, /Customer documents are currently unavailable/);
+  assert.match(documents, /تعذر تحميل مستندات العميل حاليًا/);
+  assert.match(documents, /AdminRetryButton/);
+  assert.match(documents, /available && documents\.length === 0/);
+  assert.doesNotMatch(documents, /PGRST205|relation .* does not exist|customer_documents.*missing/i);
+});
+
 test('forward reconciliation is canonical, PostgreSQL 17 compatible, and least privilege', () => {
   const migration = read('supabase/migrations/20260902163712_reconcile_customer_activity_postgres17.sql');
 

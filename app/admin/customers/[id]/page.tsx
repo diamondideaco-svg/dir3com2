@@ -12,14 +12,12 @@ async function getCustomer(id: string) {
   const { data: customerData, error: customerError } = await supabase.from('customers').select('*').eq('id', id).maybeSingle();
 
   if (customerError) throw new Error(`Customer query failed: ${customerError.message}`);
-  if (!customerData) return { customer: null, activity: [], activityAvailable: true, documents: [] };
+  if (!customerData) return { customer: null, activity: [], activityAvailable: true, documents: [], documentsAvailable: true };
 
   const [{ data: activityData, error: activityError }, { data: documentData, error: documentError }] = await Promise.all([
     supabase.from('customer_activity').select('*').eq('customer_id', id).order('created_at', { ascending: false }),
     supabase.from('customer_documents').select('*').eq('customer_id', id).order('uploaded_at', { ascending: false }),
   ]);
-
-  if (documentError) throw new Error(`Customer documents query failed: ${documentError.message}`);
 
   if (activityError) {
     console.error('[admin-customer-details] customer activity unavailable', {
@@ -27,17 +25,24 @@ async function getCustomer(id: string) {
     });
   }
 
+  if (documentError) {
+    console.error('[admin-customer-details] customer documents unavailable', {
+      code: documentError.code ?? 'unknown',
+    });
+  }
+
   return {
     customer: customerData as CustomerRecord,
     activity: activityError ? [] : (activityData || []) as CustomerActivityRecord[],
     activityAvailable: !activityError,
-    documents: (documentData || []) as CustomerDocumentRecord[],
+    documents: documentError ? [] : (documentData || []) as CustomerDocumentRecord[],
+    documentsAvailable: !documentError,
   };
 }
 
 export default async function AdminCustomerDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { customer, activity, activityAvailable, documents } = await getCustomer(id);
+  const { customer, activity, activityAvailable, documents, documentsAvailable } = await getCustomer(id);
 
   if (!customer) {
     return <div className="min-h-screen bg-[#0D1B2A] p-10 text-white"><AdminText ar="العميل غير موجود." en="Customer not found." /></div>;
@@ -59,7 +64,7 @@ export default async function AdminCustomerDetailsPage({ params }: { params: Pro
 
         <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
           <CustomerProfile customer={customer} />
-          <CustomerDocuments documents={documents} />
+          <CustomerDocuments documents={documents} available={documentsAvailable} />
         </div>
         <div className="mt-6">
           <CustomerTimeline items={activity} available={activityAvailable} />
