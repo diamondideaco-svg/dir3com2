@@ -294,3 +294,9 @@
 
 - Added an idempotent forward reconciliation for the canonical `assignment_rules` and `assignment_logs` tables after authenticated Preview QA proved schema-cache absence while the active Admin routes and shared assignment engine still depend on them.
 - Preserved Admin-only RLS, service-role access, anonymous denial, and the existing explicit unavailable UI until the migration is applied.
+
+## 2026-09-01 — Visual Marketplace Preview #71 blocker truth
+
+- Added safe, visible LiteAPI and Ticketmaster activation diagnostics without exposing credential values or inventing provider inventory.
+- Added explicit route-level loading and error states that never present unresolved or failed provider requests as authoritative inventory.
+- Corrected LiteAPI preview access truth so configured credentials are not reported as authorized when the provider rejects access, with localized fail-closed diagnostics for missing, rejected, and temporarily unavailable states.

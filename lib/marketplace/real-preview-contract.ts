@@ -8,6 +8,103 @@ export type PreviewCity = 'Riyadh' | 'Cairo';
 export type PreviewCitySelection = PreviewCity | 'all';
 export type PreviewProviderStatus = 'ok' | 'no_results' | 'access_blocked' | 'unavailable';
 export type PreviewEnvironment = 'production' | 'sandbox';
+export type PreviewProviderAccess = 'authorized' | 'blocked' | 'unavailable';
+export type LiteApiPreviewAccessState = 'credential_missing' | 'credential_rejected' | 'access_unverified' | 'authorized' | 'temporarily_unavailable';
+
+export type PreviewProviderBlocker = {
+  provider: 'liteapi' | 'ticketmaster';
+  code: string;
+  environment: PreviewEnvironment | 'unconfigured';
+  expectedEnvVar: string;
+  accountProduct: string;
+  currentStatus: { ar: string; en: string };
+  providerResponse: { ar: string; en: string };
+  activationRequired: { ar: string; en: string };
+};
+
+export function resolveLiteApiPreviewProviderState(
+  environment: PreviewEnvironment | null,
+  cities: Record<PreviewCity, PreviewProviderStatus | 'not_requested'>,
+): {
+  access: PreviewProviderAccess;
+  accessState: LiteApiPreviewAccessState;
+  blocker: PreviewProviderBlocker | null;
+} {
+  if (!environment) {
+    return {
+      access: 'blocked',
+      accessState: 'credential_missing',
+      blocker: {
+        provider: 'liteapi',
+        code: 'credential_missing',
+        environment: 'unconfigured',
+        expectedEnvVar: 'LITEAPI_ENV=sandbox + LITEAPI_TEST_API_KEY',
+        accountProduct: 'LiteAPI / Nuitee sandbox hotel rates API',
+        currentStatus: { ar: 'اعتماد بيئة الاختبار غير مهيأ على الخادم في Vercel Preview.', en: 'Server-side sandbox credential is not configured for Vercel Preview.' },
+        providerResponse: { ar: 'UNAUTHORIZED_VENDOR_ACCESS — لم يُرسل طلب؛ إغلاق آمن قبل الوصول إلى المزوّد.', en: 'UNAUTHORIZED_VENDOR_ACCESS — NOT REQUESTED; fail-closed before provider access.' },
+        activationRequired: { ar: 'أضف مفتاح LiteAPI sandbox مصرحاً به إلى Vercel Preview مع إبقاء التنفيذ test_sandbox / preview-only.', en: 'Add an authorized LiteAPI sandbox key to Vercel Preview and keep fulfilment test_sandbox / preview-only.' },
+      },
+    };
+  }
+
+  const requestedStatuses = Object.values(cities).filter((status) => status !== 'not_requested');
+  const expectedEnvVar = environment === 'sandbox'
+    ? 'LITEAPI_ENV=sandbox + LITEAPI_TEST_API_KEY'
+    : 'LITEAPI_AUTH_MODE=hmac + LITEAPI_PUBLIC_API_KEY + LITEAPI_PRIVATE_API_KEY + LITEAPI_SHARED_SECRET';
+
+  if (!requestedStatuses.length) {
+    return {
+      access: 'blocked',
+      accessState: 'access_unverified',
+      blocker: {
+        provider: 'liteapi',
+        code: 'access_unverified',
+        environment,
+        expectedEnvVar,
+        accountProduct: 'LiteAPI / Nuitee hotel rates API',
+        currentStatus: { ar: 'الاعتماد مهيأ، لكن لم يُنفذ طلب مزوّد يثبت صلاحية الوصول.', en: 'Credential configured, but no provider request proved access.' },
+        providerResponse: { ar: 'NOT REQUESTED — لم يتم إثبات تفويض الوصول.', en: 'NOT REQUESTED — provider authorization was not proven.' },
+        activationRequired: { ar: 'نفّذ فحص بحث مصرحاً به قبل إعلان الوصول كمفوض.', en: 'Complete an authorized search probe before reporting access as authorized.' },
+      },
+    };
+  }
+
+  if (requestedStatuses.includes('access_blocked')) {
+    return {
+      access: 'blocked',
+      accessState: 'credential_rejected',
+      blocker: {
+        provider: 'liteapi',
+        code: 'credential_rejected',
+        environment,
+        expectedEnvVar,
+        accountProduct: 'LiteAPI / Nuitee hotel rates API',
+        currentStatus: { ar: 'رفض LiteAPI الاعتماد المهيأ؛ لم يتم إثبات صلاحية الوصول إلى المزوّد.', en: 'LiteAPI rejected the configured credential; provider access was not proven.' },
+        providerResponse: { ar: 'UNAUTHORIZED_VENDOR_ACCESS — رفض المزوّد الوصول.', en: 'UNAUTHORIZED_VENDOR_ACCESS — provider access was rejected.' },
+        activationRequired: { ar: 'تحقق من صلاحية اعتماد LiteAPI وتفويض منتج البحث للبيئة المهيأة قبل إعادة المحاولة.', en: 'Verify the LiteAPI credential and search-product entitlement for the configured environment before retrying.' },
+      },
+    };
+  }
+
+  if (requestedStatuses.includes('unavailable')) {
+    return {
+      access: 'unavailable',
+      accessState: 'temporarily_unavailable',
+      blocker: {
+        provider: 'liteapi',
+        code: 'temporarily_unavailable',
+        environment,
+        expectedEnvVar,
+        accountProduct: 'LiteAPI / Nuitee hotel rates API',
+        currentStatus: { ar: 'تم إعداد الاعتماد، لكن بحث المزوّد غير متاح حالياً؛ لم تُفترض صلاحية الوصول.', en: 'Credential configured, but provider search is currently unavailable; access was not assumed.' },
+        providerResponse: { ar: 'PROVIDER_UNAVAILABLE — مهلة أو شبكة أو استجابة مزوّد غير صالحة.', en: 'PROVIDER_UNAVAILABLE — timeout, network failure, or invalid provider response.' },
+        activationRequired: { ar: 'تحقق من توفر LiteAPI وصلاحية الاعتماد دون تفعيل الحجز في هذه المعاينة.', en: 'Verify LiteAPI availability and credential entitlement; do not enable booking for this preview.' },
+      },
+    };
+  }
+
+  return { access: 'authorized', accessState: 'authorized', blocker: null };
+}
 
 export type PreviewSourceTrace = {
   provider: 'liteapi' | 'ticketmaster';
