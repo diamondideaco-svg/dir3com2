@@ -1,0 +1,4 @@
+# Shared repository defaults for Codex.
+# Model selection and approval policy remain user- or environment-controlled.
+model_reasoning_effort = "high"
+project_doc_max_bytes = 65536
