@@ -53,8 +53,12 @@ test('assignment reconciliation passes twice on PostgreSQL 17 with Admin isolati
       || (row.policyname === 'service_role_full_access' && row.roles.includes('service_role'))
     ));
 
-    await client.query('SET LOCAL ROLE anon');
-    await assert.rejects(client.query('SELECT * FROM public.assignment_rules'), /permission denied/);
+    await client.query('SET ROLE anon');
+    try {
+      await assert.rejects(client.query('SELECT * FROM public.assignment_rules'), /permission denied/);
+    } finally {
+      await client.query('RESET ROLE');
+    }
   } finally {
     await client?.end().catch(() => undefined);
     await admin.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1', [databaseName]).catch(() => undefined);
