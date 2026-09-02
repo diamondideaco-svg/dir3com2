@@ -7,30 +7,48 @@ import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { executiveDashboardCopy } from '@/lib/i18n/executive-dashboard';
 
 const adminNavItems = [
-  { href: '/admin', key: 'dashboard' },
-  { href: '/admin/partners', key: 'partners' },
-  { href: '/admin/customers', key: 'customers' },
-  { href: '/admin/products', key: 'products' },
-  { href: '/admin/assignment', key: 'assignment' },
-  { href: '/admin/finance', key: 'finance' },
-  { href: '/admin/operations', key: 'operations' },
-  { href: '/admin/verification', key: 'verification' },
-  { href: '/admin/audit', key: 'audit' },
-  { href: '/admin/events', key: 'events' },
-  { href: '/admin/notifications', key: 'notifications' },
-  { href: '/admin/shield', key: 'shield' },
-  { href: '/admin/partners/vip-local-egypt', key: 'vipEgypt' },
+  { href: '/admin', key: 'dashboard', globalOnly: true },
+  { href: '/admin/partners', key: 'partners', permission: 'partners:read' },
+  { href: '/admin/customers', key: 'customers', permission: 'customers:read' },
+  { href: '/admin/products', key: 'products', permission: 'products:read' },
+  { href: '/admin/assignment', key: 'assignment', globalOnly: true },
+  { href: '/admin/finance', key: 'finance', permission: 'finance:read' },
+  { href: '/admin/operations', key: 'operations', permission: 'operations:read' },
+  { href: '/admin/verification', key: 'verification', permission: 'verification:read' },
+  { href: '/admin/audit', key: 'audit', globalOnly: true },
+  { href: '/admin/events', key: 'events', globalOnly: true },
+  { href: '/admin/notifications', key: 'notifications', globalOnly: true },
+  { href: '/admin/shield', key: 'shield', permission: 'customers:write' },
+  { href: '/admin/partners/vip-local-egypt', key: 'vipEgypt', globalOnly: true },
 ] as const;
 
 type AdminPlatformShellProps = {
   children: ReactNode;
   adminRole: string;
   isCeo?: boolean;
+  isGlobal?: boolean;
+  permissions?: string[];
+  countryScope?: string[];
 };
 
-export default function AdminPlatformShell({ children, adminRole, isCeo = false }: AdminPlatformShellProps) {
+export default function AdminPlatformShell({
+  children,
+  adminRole,
+  isCeo = false,
+  isGlobal = true,
+  permissions = [],
+  countryScope = [],
+}: AdminPlatformShellProps) {
   const { language, direction, toggleLanguage } = useLanguage();
   const t = executiveDashboardCopy[language].shell;
+  const visibleNavItems = adminNavItems.filter((item) => {
+    if (isGlobal) return true;
+    if ('globalOnly' in item && item.globalOnly) return false;
+    if ('permission' in item && item.permission) {
+      return permissions.includes('admin:full') || permissions.includes(item.permission);
+    }
+    return false;
+  });
 
   return (
     <div className="min-h-screen bg-[#0A1726] text-white" dir={direction} lang={language}>
@@ -42,7 +60,7 @@ export default function AdminPlatformShell({ children, adminRole, isCeo = false 
               <h1 className="mt-1 text-xl font-semibold text-white">{t.title}</h1>
             </div>
             <div className="inline-flex items-center rounded-full border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-3 py-1 text-xs font-semibold text-[#D4AF37]">
-              {t.role}: {isCeo ? 'CEO' : adminRole}
+              {t.role}: {isCeo ? 'CEO' : adminRole}{!isGlobal && countryScope.length ? ` · ${countryScope.join(', ')}` : ''}
             </div>
             <button
               type="button"
@@ -56,7 +74,7 @@ export default function AdminPlatformShell({ children, adminRole, isCeo = false 
           </div>
 
           <nav aria-label={t.navigation} className="flex flex-wrap gap-2">
-            {adminNavItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
