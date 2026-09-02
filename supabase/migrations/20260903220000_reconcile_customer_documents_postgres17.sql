@@ -46,7 +46,7 @@ BEGIN
       RAISE EXCEPTION 'customer documents reconciliation refused: public.customer_documents has incompatible shape';
     END IF;
   END IF;
-END
+END;
 $$;
 
 CREATE TABLE IF NOT EXISTS public.customer_documents (
@@ -111,7 +111,7 @@ BEGIN
       REFERENCES public.customers(id)
       ON DELETE RESTRICT;
   END IF;
-END
+END;
 $$;
 
 CREATE INDEX IF NOT EXISTS idx_customer_documents_customer_uploaded_at
@@ -135,7 +135,7 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'customer documents reconciliation refused: unexpected existing RLS policy';
   END IF;
-END
+END;
 $$;
 
 DROP POLICY IF EXISTS admin_full_access ON public.customer_documents;
