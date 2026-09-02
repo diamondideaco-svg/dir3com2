@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.team_access_grants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  email text NOT NULL,
+  email text NOT NULL UNIQUE,
   job_title text NOT NULL,
   access_level text NOT NULL DEFAULT 'scoped_staff' CHECK (access_level IN ('scoped_staff', 'global_admin')),
   country_scope text[] NOT NULL DEFAULT '{}',
@@ -14,8 +14,6 @@ CREATE TABLE IF NOT EXISTS public.team_access_grants (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS team_access_grants_email_unique
-  ON public.team_access_grants (lower(email));
 CREATE INDEX IF NOT EXISTS team_access_grants_user_idx
   ON public.team_access_grants (invited_user_id);
 
@@ -57,7 +55,7 @@ CREATE POLICY team_access_self_read
   FOR SELECT
   TO authenticated
   USING (
-    lower(email) = lower(COALESCE(auth.jwt() ->> 'email', ''))
+    email = lower(COALESCE(auth.jwt() ->> 'email', ''))
     OR invited_user_id = auth.uid()
   );
 
