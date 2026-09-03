@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
@@ -32,6 +32,12 @@ type PartnerRequest = {
   timeline?: TimelineEvent[];
 };
 
+type RequestsPayload = {
+  data?: PartnerRequest[];
+  whatsappConfigured?: boolean;
+  error?: { code?: string };
+};
+
 export default function PartnerRequestsClient() {
   const { language } = useLanguage();
   const ar = language === 'ar';
@@ -41,23 +47,35 @@ export default function PartnerRequestsClient() {
   const [error, setError] = useState<string | null>(null);
   const [workingId, setWorkingId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/partner-portal/requests', { cache: 'no-store' });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error?.code || 'REQUESTS_LOAD_FAILED');
-      setRequests(Array.isArray(payload.data) ? payload.data : []);
-      setWhatsappConfigured(Boolean(payload.whatsappConfigured));
-    } catch {
-      setError(ar ? 'تعذر تحميل الطلبات حالياً.' : 'Requests could not be loaded right now.');
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetch('/api/partner-portal/requests', { cache: 'no-store' })
+      .then(async (response) => {
+        const payload = (await response.json()) as RequestsPayload;
+        if (!response.ok) throw new Error(payload?.error?.code || 'REQUESTS_LOAD_FAILED');
+        if (cancelled) return;
+        setRequests(Array.isArray(payload.data) ? payload.data : []);
+        setWhatsappConfigured(Boolean(payload.whatsappConfigured));
+        setError(null);
+      })
+      .catch(() => {
+        if (!cancelled) setError(ar ? 'تعذر تحميل الطلبات حالياً.' : 'Requests could not be loaded right now.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
   }, [ar]);
 
-  useEffect(() => { void load(); }, [load]);
+  async function refreshRequests() {
+    const response = await fetch('/api/partner-portal/requests', { cache: 'no-store' });
+    const payload = (await response.json()) as RequestsPayload;
+    if (!response.ok) throw new Error(payload?.error?.code || 'REQUESTS_LOAD_FAILED');
+    setRequests(Array.isArray(payload.data) ? payload.data : []);
+    setWhatsappConfigured(Boolean(payload.whatsappConfigured));
+  }
 
   async function startWhatsapp(requestId: string) {
     if (!window.confirm(ar ? 'بدء تسليم هذا الطلب عبر واتساب؟ سيتم تسجيل التسليم داخل dir3com أولاً.' : 'Start this WhatsApp handoff? DIR3COM will record the handoff before WhatsApp opens.')) return;
@@ -71,7 +89,7 @@ export default function PartnerRequestsClient() {
       });
       const payload = await response.json();
       if (!response.ok || !payload?.data?.url) throw new Error(payload?.error?.code || 'HANDOFF_FAILED');
-      await load();
+      await refreshRequests();
       window.open(payload.data.url, '_blank', 'noopener,noreferrer');
     } catch {
       setError(ar ? 'تعذر بدء تسليم واتساب. لم يتم فتح رابط غير مسجل.' : 'WhatsApp handoff could not be started. No unrecorded link was opened.');
