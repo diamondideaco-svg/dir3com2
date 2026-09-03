@@ -250,7 +250,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
               <p className="mt-5 max-w-2xl text-lg leading-9 text-[var(--color-muted)]">
                 {serviceDescription ?? (en ? 'Service details will appear here when verified data is available.' : 'تفاصيل الخدمة ستظهر هنا مع نفس اللغة البصرية المعتمدة في المنصة العامة.')}
               </p>
-              <div className="mt-6 flex flex-wrap items-center gap-3">
+              <div data-marketplace-critical-action className="mt-6 flex flex-wrap items-center gap-3">
                 {primaryAction === 'continue_to_booking' ? (
                   <Link href={`/booking?product=${service_.slug ?? ''}`} className={buttonVariants({ variant: 'gold', size: 'lg' })}>{en ? 'Continue to booking' : 'متابعة الحجز'}</Link>
                 ) : primaryAction === 'request_to_confirm' || primaryAction === 'request_quote' ? (

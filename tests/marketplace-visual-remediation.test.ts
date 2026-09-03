@@ -32,8 +32,8 @@ test('mobile request form exposes a safe zone and DABRA uses a context-aware avo
   const dabra = read('components/layout/FloatingDibrah.tsx');
   assert.match(detail, /data-marketplace-request-form/);
   assert.match(detail, /pb-24[\s\S]*sm:pb-0/);
-  assert.match(dabra, /pathname\.startsWith\('\/services\/'\)/);
-  assert.match(dabra, /querySelector\('\[data-marketplace-request-form\]'\)/);
-  assert.match(dabra, /setPosition\(clampPosition\(Number\.POSITIVE_INFINITY, 96\)\)/);
-  assert.match(dabra, /if \(marketplaceRequestMobile\)[\s\S]*setPosition\(clampPosition\(Number\.POSITIVE_INFINITY, 96\)\)/);
+  assert.match(dabra, /data-marketplace-critical-action/);
+  assert.match(dabra, /getBoundingClientRect\(\)/);
+  assert.match(dabra, /placeDabraLauncher\(\{ language, viewport/);
+  assert.match(dabra, /\[language, pathname, positionStorageKey\]/);
 });

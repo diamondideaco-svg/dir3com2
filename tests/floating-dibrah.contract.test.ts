@@ -36,7 +36,9 @@ test('floating DABRA registers repeatable global pointer lifecycle handlers', ()
   assert.match(source, /pointerId: event\.pointerId/);
   assert.match(source, /setPointerCapture\(event\.pointerId\)/);
   assert.match(source, /releasePointerCapture\(event\.pointerId\)/);
-  assert.match(source, /localStorage\.getItem\(DIBRAH_POSITION_STORAGE_KEY\)/);
+  assert.match(source, /positionStorageKey = `\$\{DIBRAH_POSITION_STORAGE_KEY\}:\$\{language\}`/);
+  assert.match(source, /localStorage\.getItem\(positionStorageKey\)/);
+  assert.match(source, /localStorage\.setItem\(positionStorageKey, JSON\.stringify\(dockPreferenceRef\.current\)\)/);
 });
 
 test('floating DABRA remains a single viewport-level canonical runtime', () => {

@@ -250,7 +250,9 @@ test('DIR-121 initial render and mobile DABRA spacing stay hydration-safe', () =
   assert.doesNotMatch(detail, /new Intl\.DateTimeFormat/);
   assert.match(floatingDabra, /useState<\{ x: number; y: number \}>\(DEFAULT_DIBRAH_POSITION\)/);
   assert.doesNotMatch(floatingDabra, /useState<\{ x: number; y: number \}>\(\(\) => \{[\s\S]*typeof window/);
-  assert.match(floatingDabra, /if \(dir121Mobile\) \{[\s\S]*setPosition\(clampPosition\(12, Number\.POSITIVE_INFINITY\)\);[\s\S]*return;/);
+  assert.match(floatingDabra, /placeDabraLauncher\(\{ language, viewport/);
+  assert.match(floatingDabra, /window\.addEventListener\('resize', schedule\)/);
+  assert.match(floatingDabra, /new MutationObserver\(schedule\)/);
   assert.match(preview, /className="real-preview-hero-stage"/);
   assert.match(css, /@media \(max-width: 639px\)[\s\S]*\.real-preview-hero-stage\s*\{\s*min-height:\s*calc\(100dvh - 7\.5rem\)/);
 });

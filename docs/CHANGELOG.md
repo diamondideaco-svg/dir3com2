@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-02 — Production-safe DABRA Family
+
+- Added one shared DABRA Family contract for Concierge, Partner, Admin, CEO, Mall Center, Customer Service, and Travel Agent identities derived from trusted session roles.
+- Classified DABRA actions as read-only, reversible draft, human-approval required, or autonomously prohibited; model text cannot execute a transaction and the server performs role, ownership, provider, environment, and Marketplace transaction checks before returning a canonical handoff.
+- Kept DABRA optional, aligned its embedded discovery with the five canonical Marketplace families, added bilingual human-approval guidance, and made the floating launcher default to the language-correct side while avoiding critical mobile PDP actions.
+- Preserved the existing Marketplace truth, Request-to-Confirm, Provider Checkout, Trip Guardian, scoped memory, and fail-closed provider boundaries without adding a database migration or Production mutation.
+- Round 1 browser remediation positions the optional launcher around visible controls and recalculates on route, scroll, resize, and keyboard viewport changes. If no safe slot exists it temporarily hides the launcher while preserving canonical DABRA navigation; mobile panels follow the visible viewport.
+
 ## 2026-09-02 — Customer activity schema reconciliation
 
 - Added a forward-only PostgreSQL 17 reconciliation for the canonical `customer_activity` relation, including its customer foreign key, actual read-path index, row-level security, and least-privilege Admin/service access.
