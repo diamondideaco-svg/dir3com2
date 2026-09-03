@@ -6,6 +6,7 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 
 const lifecycleMigration = read('supabase/migrations/20260903234500_admin_product_lifecycle_and_request_handoff.sql');
 const partnerMigration = read('supabase/migrations/20260903234600_partner_request_handoff.sql');
+const cleanupMigration = read('supabase/migrations/20260903234700_drop_legacy_admin_handoff_rpc.sql');
 const productActions = read('lib/actions/product-actions.ts');
 const productForm = read('components/products/ProductForm.tsx');
 const productTable = read('components/products/ProductTable.tsx');
@@ -81,18 +82,24 @@ test('edit and preview routes preserve country scope and preview does not mutate
 });
 
 test('partner request handoff is scoped to owned products and recorded before WhatsApp opens', () => {
+  assert.match(partnerMigration, /create table if not exists public\.marketplace_request_handoff_events/i);
   assert.match(partnerMigration, /v_profile_role <> 'partner'/);
   assert.match(partnerMigration, /from public\.product_availability/);
   assert.match(partnerMigration, /pa\.partner_id = p_actor_user_id/);
   assert.match(partnerMigration, /handoff_started_at = coalesce\(handoff_started_at, now\(\)\)/);
-  assert.match(partnerMigration, /insert into public\.marketplace_request_audit_logs/);
+  assert.match(partnerMigration, /insert into public\.marketplace_request_handoff_events/);
+  assert.doesNotMatch(partnerMigration, /insert into public\.marketplace_request_audit_logs/);
+  assert.match(partnerMigration, /MARKETPLACE_REQUEST_HANDOFF_APPEND_ONLY/);
+  assert.match(partnerMigration, /REQUEST_HANDOFF_ALREADY_STARTED/);
   assert.match(partnerMigration, /grant execute on function public\.start_partner_marketplace_request_handoff[^;]+to service_role/i);
+  assert.match(cleanupMigration, /drop function if exists public\.start_marketplace_request_handoff/);
 
   assert.match(partnerRequestsApi, /requirePortalActor/);
   assert.match(partnerRequestsApi, /actor\.authRole !== 'partner'/);
   assert.match(partnerRequestsApi, /\.eq\('partner_id', actor\.userId\)/);
   assert.match(partnerRequestsApi, /DIR3COM_BOOKING_WHATSAPP_E164/);
   assert.match(partnerRequestsApi, /start_partner_marketplace_request_handoff/);
+  assert.match(partnerRequestsApi, /marketplace_request_handoff_events/);
   assert.match(partnerRequestsApi, /const url = `https:\/\/wa\.me\//);
 });
 
@@ -103,7 +110,9 @@ test('partner Requests workspace is visible and truthful without DABRA coupling'
   assert.match(partnerRequestsClient, /Handoff started/);
   assert.match(partnerRequestsClient, /Timeline/);
   assert.match(partnerRequestsClient, /WhatsApp handoff is not configured/);
+  assert.match(partnerRequestsClient, /Unknown/);
+  assert.doesNotMatch(partnerRequestsClient, /fulfilment_method \|\| 'request_to_confirm'/);
 
-  const changedScope = [lifecycleMigration, partnerMigration, productActions, productForm, productTable, lifecycleControls, productList, editPage, previewPage, partnerRequestsApi, partnerRequestsClient, partnerRequestsPage, partnerPortalPage].join('\n');
+  const changedScope = [lifecycleMigration, partnerMigration, cleanupMigration, productActions, productForm, productTable, lifecycleControls, productList, editPage, previewPage, partnerRequestsApi, partnerRequestsClient, partnerRequestsPage, partnerPortalPage].join('\n');
   assert.doesNotMatch(changedScope, /components\/dabra|lib\/dabra|api\/dabra/i);
 });
