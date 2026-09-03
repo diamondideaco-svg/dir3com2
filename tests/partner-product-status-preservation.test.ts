@@ -90,7 +90,8 @@ test('publication remains an authenticated and country-scoped admin action outsi
   assert.match(adminActions, /requireScopedAdminActionAccess/);
   assert.match(adminActions, /products:write/);
   assert.match(adminActions, /assertCountryAllowed/);
-  assert.match(adminActions, /update\(\{ status: 'published', verified: true \}\)/);
+  assert.match(adminActions, /rpc\('publish_product_lifecycle'/);
+  assert.doesNotMatch(adminActions, /update\(\{ status: 'published', verified: true \}\)/);
   assert.doesNotMatch(route, /status:\s*['"]published['"]/);
 });
 
