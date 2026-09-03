@@ -62,7 +62,8 @@ test('product PDP continues to the direct product query when the legacy service 
 
   assert.match(source, /if \(!error && service\)/);
   assert.doesNotMatch(source, /if \(error\)[\s\S]{0,500}return buildErrorResponse\('internal_error'/);
-  assert.match(source, /from\('products'\)[\s\S]*\.eq\('slug', normalizedSlug\)/);
+  assert.match(source, /from\('products'\)[\s\S]*customerProductAliasId\(normalizedSlug\)[\s\S]*'id'\s*:\s*'slug'/);
+  assert.match(source, /customerProductAliasId\(normalizedSlug\)\s*\?\?\s*normalizedSlug/);
   assert.match(source, /product\.category_id\s*\? await applyPublicCategoryFilters/);
   assert.match(source, /: \{ data: null, error: null \}/);
 });
