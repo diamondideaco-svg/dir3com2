@@ -127,13 +127,15 @@ test('Executive dashboard and admin shell follow the authoritative language cont
   }
 });
 
-test('CEO access continues to use the existing admin guard without RBAC widening', () => {
+test('CEO access keeps canonical admin authority while scoped staff cannot widen into the executive dashboard', () => {
   const layout = read('app/admin/layout.tsx');
   const guard = read('lib/auth/admin.ts');
 
-  assert.match(layout, /requireAdminPageAccess\('\/admin'\)/);
+  assert.match(layout, /requireAdminShellAccess\('\/admin'\)/);
   assert.match(guard, /supabase\.auth\.getUser\(\)/);
   assert.match(guard, /isAdminRole\(role\)/);
+  assert.match(guard, /getTeamAccessGrant\(supabase, user\)/);
+  assert.match(guard, /scope\.mode === 'country'/);
   assert.match(guard, /notFound\(\)/);
   assert.doesNotMatch(guard, /user_metadata/);
 });

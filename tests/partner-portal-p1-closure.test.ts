@@ -52,16 +52,19 @@ test('durable portal migration enforces owner-scoped RLS and client grants', () 
   assert.match(remediation, /revoke all on table public\.partner_image_cleanup_queue from anon, authenticated/);
 });
 
-test('admin partner reads stay server-authoritative after partner table grants are revoked', () => {
+test('admin partner reads stay server-authoritative and country-scoped after partner table grants are revoked', () => {
   const listPage = read('app/admin/partners/page.tsx');
   const detailPage = read('app/admin/partners/[id]/page.tsx');
 
   for (const source of [listPage, detailPage]) {
-    assert.match(source, /supabaseAdmin/);
-    assert.match(source, /requireAdminPageAccess/);
-    assert.ok(source.indexOf('requireAdminPageAccess') < source.indexOf("supabaseAdmin.from('partners')"));
+    assert.match(source, /requireScopedAdminPageDataAccess/);
+    assert.match(source, /partners:read/);
+    assert.match(source, /scope/);
     assert.doesNotMatch(source, /createSupabaseServerClient/);
   }
+  assert.match(listPage, /filterRowsByCountryScope/);
+  assert.match(detailPage, /isCountryAllowed\(scope, data\.country\)/);
+  assert.match(detailPage, /notFound\(\)/);
 });
 
 test('private document lifecycle is owner-scoped, signed, sanitized, and complete', () => {

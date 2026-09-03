@@ -1,25 +1,20 @@
 import Link from 'next/link';
 import PartnerTable from '@/components/admin/PartnerTable';
-import { requireAdminPageAccess } from '@/lib/auth/admin';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { filterRowsByCountryScope, requireScopedAdminPageDataAccess } from '@/lib/auth/admin';
 import type { PartnerRecord } from '@/lib/supabase/types';
 import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
 
 async function getPartners() {
-  await requireAdminPageAccess('/admin/partners');
-
-  if (!supabaseAdmin) {
-    return { partners: [] as PartnerRecord[], error: 'تعذر تحميل قائمة الشركاء حالياً.' };
-  }
-
-  const { data, error } = await supabaseAdmin.from('partners').select('*').order('created_at', { ascending: false });
+  const { supabase, scope } = await requireScopedAdminPageDataAccess('/admin/partners', 'partners:read');
+  const { data, error } = await supabase.from('partners').select('*').order('created_at', { ascending: false });
 
   if (error) {
     console.error(error);
     return { partners: [] as PartnerRecord[], error: 'تعذر تحميل قائمة الشركاء حالياً.' };
   }
 
-  return { partners: (data || []) as PartnerRecord[], error: null };
+  const scoped = filterRowsByCountryScope(scope, (data || []) as PartnerRecord[]);
+  return { partners: scoped as PartnerRecord[], error: null };
 }
 
 export default async function AdminPartnersPage() {

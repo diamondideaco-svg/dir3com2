@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { normalizeRole } from '@/lib/auth/identity';
+import { isCeoActor } from '@/lib/auth/team-access';
 import {
   DABRA_ACTION_RULES,
   DABRA_FAMILY_PERSONAS,
@@ -32,11 +33,14 @@ async function resolveTrustedActor(request: NextRequest): Promise<{
     };
   }
 
-  const { data: profile, error } = await auth.supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', auth.user.id)
-    .maybeSingle();
+  const [{ data: profile, error }, executive] = await Promise.all([
+    auth.supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', auth.user.id)
+      .maybeSingle(),
+    isCeoActor(auth.supabase, auth.user),
+  ]);
   if (error) logServerError('api.dabra.family.profile_read_failed', error);
   const rawRole = typeof profile?.role === 'string' ? profile.role : null;
   const platformRole = (normalizeRole(rawRole) ?? 'anonymous') as DabraPlatformRole;
@@ -47,6 +51,7 @@ async function resolveTrustedActor(request: NextRequest): Promise<{
       tenantId: auth.user.id,
       platformRole,
       rawRole,
+      executive,
     },
     auth,
   };

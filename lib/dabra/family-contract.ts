@@ -73,6 +73,7 @@ export type TrustedDabraActor = {
   tenantId: string | null;
   platformRole: DabraPlatformRole;
   rawRole: string | null;
+  executive?: boolean;
 };
 
 export type TrustedDabraResource = {
@@ -187,8 +188,9 @@ export function normalizeDabraActionRequest(value: unknown): {
 }
 
 export function hasDabraExecutiveAccess(actor: TrustedDabraActor): boolean {
-  // Preserve the existing reachable policy; a display persona cannot grant it.
-  return actor.authenticated && !!actor.userId && actor.platformRole === 'admin' && actor.rawRole?.trim().toLowerCase() === 'super_admin';
+  // This flag is resolved only from the authenticated server-side CEO identity.
+  // A display persona or caller-supplied role string can never grant authority.
+  return actor.authenticated && !!actor.userId && actor.platformRole === 'admin' && actor.executive === true;
 }
 
 export function resolveDabraFamilyRole(actor: TrustedDabraActor): DabraFamilyPersona | null {

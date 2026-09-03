@@ -17,7 +17,7 @@ import type { MarketplaceTruth } from '@/lib/marketplace/truth';
 const customer: TrustedDabraActor = { authenticated: true, userId: 'user-1', tenantId: 'tenant-1', platformRole: 'customer', rawRole: 'customer' };
 const partner: TrustedDabraActor = { authenticated: true, userId: 'partner-1', tenantId: 'partner-1', platformRole: 'partner', rawRole: 'partner' };
 const admin: TrustedDabraActor = { authenticated: true, userId: 'admin-1', tenantId: 'admin-1', platformRole: 'admin', rawRole: 'admin' };
-const ceo: TrustedDabraActor = { ...admin, rawRole: 'super_admin' };
+const ceo: TrustedDabraActor = { ...admin, executive: true };
 const anonymous: TrustedDabraActor = { authenticated: false, userId: null, tenantId: null, platformRole: 'anonymous', rawRole: null };
 
 function truth(overrides: Partial<MarketplaceTruth> = {}): MarketplaceTruth {
@@ -116,6 +116,7 @@ test('roles remain separated and only trusted CEO identity can reach executive s
   assert.equal(evaluateDabraAction({ actor: admin, action: 'view_executive_workspace', resource: { kind: 'executive_workspace' } }).reason, 'ROLE_NOT_ALLOWED');
   assert.equal(evaluateDabraAction({ actor: ceo, action: 'view_executive_workspace', resource: { kind: 'executive_workspace' } }).allowed, true);
   assert.equal(evaluateDabraAction({ actor: { ...customer, rawRole: 'super_admin' }, action: 'view_executive_workspace', resource: { kind: 'executive_workspace' } }).reason, 'ROLE_NOT_ALLOWED');
+  assert.equal(evaluateDabraAction({ actor: { ...admin, rawRole: 'super_admin' }, action: 'view_executive_workspace', resource: { kind: 'executive_workspace' } }).reason, 'ROLE_NOT_ALLOWED');
 });
 
 test('prohibited autonomous actions fail closed for every role', () => {
@@ -137,6 +138,7 @@ test('client action parser ignores supplied actor role owner and tenant fields',
 test('server endpoint derives actor and owned resources and contains no mutation path', () => {
   const route = fs.readFileSync(path.join(process.cwd(), 'app', 'api', 'dabra', 'family', 'route.ts'), 'utf8');
   assert.match(route, /createSupabaseRequestClient\(request\)/);
+  assert.match(route, /isCeoActor\(auth\.supabase, auth\.user\)/);
   assert.match(route, /\.from\('profiles'\)[\s\S]*?\.select\('role'\)/);
   assert.match(route, /\.eq\('user_id', actor\.userId\)/);
   assert.match(route, /normalizeTruth/);
