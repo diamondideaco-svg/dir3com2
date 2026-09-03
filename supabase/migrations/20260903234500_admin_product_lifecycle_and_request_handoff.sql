@@ -1,5 +1,7 @@
 -- DIR3COM Admin Product Lifecycle + Request Handoff
--- Scope: audited, fail-closed operational lifecycle. No DABRA changes.
+-- Audited, fail-closed operational lifecycle. No DABRA changes.
+-- RPCs are service-role only. The application resolves auth/RBAC/country scope
+-- before calling them and actor identity is revalidated here.
 
 alter table public.products
   add column if not exists lifecycle_version integer not null default 1,
@@ -27,7 +29,6 @@ create index if not exists idx_product_audit_events_product_created
 
 alter table public.product_audit_events enable row level security;
 
--- Admin/staff may read lifecycle history. Writes occur only inside the audited RPCs below.
 drop policy if exists product_audit_admin_read on public.product_audit_events;
 create policy product_audit_admin_read
 on public.product_audit_events
@@ -46,36 +47,36 @@ using (
 revoke insert, update, delete on public.product_audit_events from anon, authenticated;
 grant select on public.product_audit_events to authenticated;
 
-create or replace function public.product_lifecycle_actor_role()
-returns text
+create or replace function public.assert_product_lifecycle_actor(
+  p_actor_user_id uuid,
+  p_actor_role text
+)
+returns void
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = public
 as $$
 declare
   v_role text;
   v_status text;
 begin
-  if auth.uid() is null then
-    raise exception 'PRODUCT_LIFECYCLE_AUTH_REQUIRED';
+  if p_actor_user_id is null or p_actor_role not in ('admin','staff') then
+    raise exception 'PRODUCT_LIFECYCLE_ACTOR_INVALID';
   end if;
 
   select role, status into v_role, v_status
   from public.profiles
-  where id = auth.uid() and deleted_at is null;
+  where id = p_actor_user_id and deleted_at is null;
 
-  if v_role not in ('admin','staff') or v_status <> 'active' then
-    raise exception 'PRODUCT_LIFECYCLE_DENIED';
+  if v_role is null or v_role <> p_actor_role or v_status <> 'active' then
+    raise exception 'PRODUCT_LIFECYCLE_ACTOR_DENIED';
   end if;
-
-  return v_role;
 end;
 $$;
 
-revoke all on function public.product_lifecycle_actor_role() from public, anon;
-grant execute on function public.product_lifecycle_actor_role() to authenticated;
-
 create or replace function public.create_product_draft_lifecycle(
+  p_actor_user_id uuid,
+  p_actor_role text,
   p_name_ar text,
   p_name_en text,
   p_slug text,
@@ -94,15 +95,13 @@ create or replace function public.create_product_draft_lifecycle(
 returns uuid
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = public
 as $$
 declare
-  v_actor uuid := auth.uid();
-  v_role text;
   v_id uuid;
   v_after jsonb;
 begin
-  v_role := public.product_lifecycle_actor_role();
+  perform public.assert_product_lifecycle_actor(p_actor_user_id, p_actor_role);
 
   if nullif(btrim(coalesce(p_name_ar,'')), '') is null
      and nullif(btrim(coalesce(p_name_en,'')), '') is null then
@@ -127,18 +126,16 @@ begin
   returning id into v_id;
 
   select to_jsonb(p) into v_after from public.products p where p.id = v_id;
-
-  insert into public.product_audit_events(
-    product_id, action, actor_user_id, actor_role, country, before_state, after_state, reason
-  ) values (
-    v_id, 'create_draft', v_actor, v_role, p_country, '{}'::jsonb, v_after, nullif(btrim(coalesce(p_reason,'')), '')
-  );
+  insert into public.product_audit_events(product_id, action, actor_user_id, actor_role, country, before_state, after_state, reason)
+  values (v_id, 'create_draft', p_actor_user_id, p_actor_role, p_country, '{}'::jsonb, v_after, nullif(btrim(coalesce(p_reason,'')), ''));
 
   return v_id;
 end;
 $$;
 
 create or replace function public.update_product_draft_lifecycle(
+  p_actor_user_id uuid,
+  p_actor_role text,
   p_product_id uuid,
   p_expected_version integer,
   p_name_ar text,
@@ -159,24 +156,20 @@ create or replace function public.update_product_draft_lifecycle(
 returns integer
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = public
 as $$
 declare
-  v_actor uuid := auth.uid();
-  v_role text;
   v_before jsonb;
   v_after jsonb;
   v_version integer;
   v_status text;
   v_deleted timestamptz;
 begin
-  v_role := public.product_lifecycle_actor_role();
+  perform public.assert_product_lifecycle_actor(p_actor_user_id, p_actor_role);
 
   select to_jsonb(p), p.lifecycle_version, p.status, p.deleted_at
     into v_before, v_version, v_status, v_deleted
-  from public.products p
-  where p.id = p_product_id
-  for update;
+  from public.products p where p.id = p_product_id for update;
 
   if v_before is null then raise exception 'PRODUCT_NOT_FOUND'; end if;
   if v_deleted is not null then raise exception 'PRODUCT_ARCHIVED'; end if;
@@ -203,15 +196,16 @@ begin
   returning lifecycle_version into v_version;
 
   select to_jsonb(p) into v_after from public.products p where p.id = p_product_id;
-
   insert into public.product_audit_events(product_id, action, actor_user_id, actor_role, country, before_state, after_state, reason)
-  values (p_product_id, 'update_draft', v_actor, v_role, p_country, v_before, v_after, nullif(btrim(coalesce(p_reason,'')), ''));
+  values (p_product_id, 'update_draft', p_actor_user_id, p_actor_role, p_country, v_before, v_after, nullif(btrim(coalesce(p_reason,'')), ''));
 
   return v_version;
 end;
 $$;
 
 create or replace function public.publish_product_lifecycle(
+  p_actor_user_id uuid,
+  p_actor_role text,
   p_product_id uuid,
   p_expected_version integer,
   p_reason text default 'Admin publish'
@@ -219,11 +213,9 @@ create or replace function public.publish_product_lifecycle(
 returns integer
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = public
 as $$
 declare
-  v_actor uuid := auth.uid();
-  v_role text;
   v_before jsonb;
   v_after jsonb;
   v_version integer;
@@ -236,16 +228,14 @@ declare
   v_fulfilment text;
   v_transaction text;
 begin
-  v_role := public.product_lifecycle_actor_role();
+  perform public.assert_product_lifecycle_actor(p_actor_user_id, p_actor_role);
 
   select to_jsonb(p), p.lifecycle_version, p.country, p.status, p.deleted_at,
          p.synthetic, p.marketplace_environment, p.marketplace_family,
          p.fulfilment_state, p.transaction_method
     into v_before, v_version, v_country, v_status, v_deleted,
          v_synthetic, v_environment, v_family, v_fulfilment, v_transaction
-  from public.products p
-  where p.id = p_product_id
-  for update;
+  from public.products p where p.id = p_product_id for update;
 
   if v_before is null then raise exception 'PRODUCT_NOT_FOUND'; end if;
   if v_deleted is not null then raise exception 'PRODUCT_ARCHIVED'; end if;
@@ -261,20 +251,22 @@ begin
     status = 'published',
     lifecycle_version = lifecycle_version + 1,
     published_at = now(),
-    published_by = v_actor,
+    published_by = p_actor_user_id,
     updated_at = now()
   where id = p_product_id
   returning lifecycle_version into v_version;
 
   select to_jsonb(p) into v_after from public.products p where p.id = p_product_id;
   insert into public.product_audit_events(product_id, action, actor_user_id, actor_role, country, before_state, after_state, reason)
-  values (p_product_id, 'publish', v_actor, v_role, v_country, v_before, v_after, nullif(btrim(coalesce(p_reason,'')), ''));
+  values (p_product_id, 'publish', p_actor_user_id, p_actor_role, v_country, v_before, v_after, nullif(btrim(coalesce(p_reason,'')), ''));
 
   return v_version;
 end;
 $$;
 
 create or replace function public.unpublish_product_lifecycle(
+  p_actor_user_id uuid,
+  p_actor_role text,
   p_product_id uuid,
   p_expected_version integer,
   p_reason text default 'Admin unpublish'
@@ -282,11 +274,9 @@ create or replace function public.unpublish_product_lifecycle(
 returns integer
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = public
 as $$
 declare
-  v_actor uuid := auth.uid();
-  v_role text;
   v_before jsonb;
   v_after jsonb;
   v_version integer;
@@ -294,7 +284,7 @@ declare
   v_status text;
   v_deleted timestamptz;
 begin
-  v_role := public.product_lifecycle_actor_role();
+  perform public.assert_product_lifecycle_actor(p_actor_user_id, p_actor_role);
 
   select to_jsonb(p), p.lifecycle_version, p.country, p.status, p.deleted_at
     into v_before, v_version, v_country, v_status, v_deleted
@@ -314,13 +304,15 @@ begin
 
   select to_jsonb(p) into v_after from public.products p where p.id = p_product_id;
   insert into public.product_audit_events(product_id, action, actor_user_id, actor_role, country, before_state, after_state, reason)
-  values (p_product_id, 'unpublish', v_actor, v_role, v_country, v_before, v_after, nullif(btrim(coalesce(p_reason,'')), ''));
+  values (p_product_id, 'unpublish', p_actor_user_id, p_actor_role, v_country, v_before, v_after, nullif(btrim(coalesce(p_reason,'')), ''));
 
   return v_version;
 end;
 $$;
 
 create or replace function public.archive_product_lifecycle(
+  p_actor_user_id uuid,
+  p_actor_role text,
   p_product_id uuid,
   p_expected_version integer,
   p_reason text default 'Admin archive'
@@ -328,11 +320,9 @@ create or replace function public.archive_product_lifecycle(
 returns integer
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = public
 as $$
 declare
-  v_actor uuid := auth.uid();
-  v_role text;
   v_before jsonb;
   v_after jsonb;
   v_version integer;
@@ -340,7 +330,7 @@ declare
   v_request_count bigint;
   v_booking_count bigint;
 begin
-  v_role := public.product_lifecycle_actor_role();
+  perform public.assert_product_lifecycle_actor(p_actor_user_id, p_actor_role);
 
   select to_jsonb(p), p.lifecycle_version, p.country
     into v_before, v_version, v_country
@@ -354,12 +344,11 @@ begin
   select count(*) into v_request_count from public.marketplace_requests where product_id = p_product_id;
   select count(*) into v_booking_count from public.bookings where product_id = p_product_id;
 
-  -- Archive is intentionally allowed with historical dependencies; hard delete is not exposed.
   update public.products set
     status = 'draft',
     deleted_at = now(),
     archived_at = now(),
-    archived_by = v_actor,
+    archived_by = p_actor_user_id,
     lifecycle_version = lifecycle_version + 1,
     updated_at = now()
   where id = p_product_id
@@ -368,7 +357,7 @@ begin
   select to_jsonb(p) into v_after from public.products p where p.id = p_product_id;
   insert into public.product_audit_events(product_id, action, actor_user_id, actor_role, country, before_state, after_state, reason)
   values (
-    p_product_id, 'archive', v_actor, v_role, v_country, v_before, v_after,
+    p_product_id, 'archive', p_actor_user_id, p_actor_role, v_country, v_before, v_after,
     coalesce(nullif(btrim(coalesce(p_reason,'')), ''), 'Admin archive') ||
       format(' [historical_requests=%s historical_bookings=%s]', v_request_count, v_booking_count)
   );
@@ -377,35 +366,22 @@ begin
 end;
 $$;
 
-revoke all on function public.create_product_draft_lifecycle(text,text,text,numeric,text,text,text,text,text,text,boolean,boolean,boolean,text) from public, anon;
-revoke all on function public.update_product_draft_lifecycle(uuid,integer,text,text,text,numeric,text,text,text,text,text,text,boolean,boolean,boolean,text) from public, anon;
-revoke all on function public.publish_product_lifecycle(uuid,integer,text) from public, anon;
-revoke all on function public.unpublish_product_lifecycle(uuid,integer,text) from public, anon;
-revoke all on function public.archive_product_lifecycle(uuid,integer,text) from public, anon;
-
-grant execute on function public.create_product_draft_lifecycle(text,text,text,numeric,text,text,text,text,text,text,boolean,boolean,boolean,text) to authenticated;
-grant execute on function public.update_product_draft_lifecycle(uuid,integer,text,text,text,numeric,text,text,text,text,text,text,boolean,boolean,boolean,text) to authenticated;
-grant execute on function public.publish_product_lifecycle(uuid,integer,text) to authenticated;
-grant execute on function public.unpublish_product_lifecycle(uuid,integer,text) to authenticated;
-grant execute on function public.archive_product_lifecycle(uuid,integer,text) to authenticated;
-
--- Atomically persist the handoff start before redirecting an operator to WhatsApp.
 create or replace function public.start_marketplace_request_handoff(
+  p_actor_user_id uuid,
+  p_actor_role text,
   p_request_id uuid,
   p_handoff_reference text
 )
 returns void
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = public
 as $$
 declare
-  v_actor uuid := auth.uid();
-  v_role text;
   v_status text;
   v_product_id uuid;
 begin
-  v_role := public.product_lifecycle_actor_role();
+  perform public.assert_product_lifecycle_actor(p_actor_user_id, p_actor_role);
 
   select status, product_id into v_status, v_product_id
   from public.marketplace_requests
@@ -427,7 +403,7 @@ begin
     request_id, actor_user_id, actor_identity, actor_role, actor_source,
     previous_status, new_status, event_type, metadata
   ) values (
-    p_request_id, v_actor, v_actor::text, v_role, 'authenticated_admin',
+    p_request_id, p_actor_user_id, p_actor_user_id::text, p_actor_role, 'authenticated_admin',
     v_status, v_status, 'request_status_updated',
     jsonb_build_object(
       'operation', 'whatsapp_handoff_started',
@@ -438,5 +414,18 @@ begin
 end;
 $$;
 
-revoke all on function public.start_marketplace_request_handoff(uuid,text) from public, anon;
-grant execute on function public.start_marketplace_request_handoff(uuid,text) to authenticated;
+revoke all on function public.assert_product_lifecycle_actor(uuid,text) from public, anon, authenticated;
+revoke all on function public.create_product_draft_lifecycle(uuid,text,text,text,text,numeric,text,text,text,text,text,text,boolean,boolean,boolean,text) from public, anon, authenticated;
+revoke all on function public.update_product_draft_lifecycle(uuid,text,uuid,integer,text,text,text,numeric,text,text,text,text,text,text,boolean,boolean,boolean,text) from public, anon, authenticated;
+revoke all on function public.publish_product_lifecycle(uuid,text,uuid,integer,text) from public, anon, authenticated;
+revoke all on function public.unpublish_product_lifecycle(uuid,text,uuid,integer,text) from public, anon, authenticated;
+revoke all on function public.archive_product_lifecycle(uuid,text,uuid,integer,text) from public, anon, authenticated;
+revoke all on function public.start_marketplace_request_handoff(uuid,text,uuid,text) from public, anon, authenticated;
+
+grant execute on function public.assert_product_lifecycle_actor(uuid,text) to service_role;
+grant execute on function public.create_product_draft_lifecycle(uuid,text,text,text,text,numeric,text,text,text,text,text,text,boolean,boolean,boolean,text) to service_role;
+grant execute on function public.update_product_draft_lifecycle(uuid,text,uuid,integer,text,text,text,numeric,text,text,text,text,text,text,boolean,boolean,boolean,text) to service_role;
+grant execute on function public.publish_product_lifecycle(uuid,text,uuid,integer,text) to service_role;
+grant execute on function public.unpublish_product_lifecycle(uuid,text,uuid,integer,text) to service_role;
+grant execute on function public.archive_product_lifecycle(uuid,text,uuid,integer,text) to service_role;
+grant execute on function public.start_marketplace_request_handoff(uuid,text,uuid,text) to service_role;
