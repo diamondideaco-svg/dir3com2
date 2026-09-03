@@ -76,11 +76,13 @@ function refreshProductSurfaces() {
 }
 
 export async function createProductAction(formData: FormData) {
-  const { supabase, scope } = await requireScopedAdminActionAccess('products:write');
+  const { supabase, scope, user, role } = await requireScopedAdminActionAccess('products:write');
   const fields = readLifecycleFields(formData);
   assertCountryAllowed(scope, fields.country);
 
   const { error } = await supabase.rpc('create_product_draft_lifecycle', {
+    p_actor_user_id: user.id,
+    p_actor_role: role,
     p_name_ar: fields.nameAr,
     p_name_en: fields.nameEn,
     p_slug: fields.slug,
@@ -106,11 +108,13 @@ export async function updateProductAction(formData: FormData) {
   const id = formData.get('id')?.toString();
   if (!id) throw new Error('PRODUCT_ID_REQUIRED');
   const expectedVersion = parseVersion(formData.get('expectedVersion'));
-  const { supabase, scope } = await requireProductInScope(id, 'products:write');
+  const { supabase, scope, user, role } = await requireProductInScope(id, 'products:write');
   const fields = readLifecycleFields(formData);
   assertCountryAllowed(scope, fields.country);
 
   const { error } = await supabase.rpc('update_product_draft_lifecycle', {
+    p_actor_user_id: user.id,
+    p_actor_role: role,
     p_product_id: id,
     p_expected_version: expectedVersion,
     p_name_ar: fields.nameAr,
@@ -138,10 +142,12 @@ export async function publishProductAction(formData: FormData) {
   const id = formData.get('id')?.toString();
   if (!id) throw new Error('PRODUCT_ID_REQUIRED');
   const expectedVersion = parseVersion(formData.get('expectedVersion'));
-  const { supabase } = await requireProductInScope(id, 'products:write');
+  const { supabase, user, role } = await requireProductInScope(id, 'products:write');
   const reason = sanitizeText(formData.get('reason')?.toString(), 'Admin publish').slice(0, 300);
 
   const { error } = await supabase.rpc('publish_product_lifecycle', {
+    p_actor_user_id: user.id,
+    p_actor_role: role,
     p_product_id: id,
     p_expected_version: expectedVersion,
     p_reason: reason,
@@ -156,10 +162,12 @@ export async function unpublishProductAction(formData: FormData) {
   const id = formData.get('id')?.toString();
   if (!id) throw new Error('PRODUCT_ID_REQUIRED');
   const expectedVersion = parseVersion(formData.get('expectedVersion'));
-  const { supabase } = await requireProductInScope(id, 'products:write');
+  const { supabase, user, role } = await requireProductInScope(id, 'products:write');
   const reason = sanitizeText(formData.get('reason')?.toString(), 'Admin unpublish').slice(0, 300);
 
   const { error } = await supabase.rpc('unpublish_product_lifecycle', {
+    p_actor_user_id: user.id,
+    p_actor_role: role,
     p_product_id: id,
     p_expected_version: expectedVersion,
     p_reason: reason,
@@ -174,10 +182,12 @@ export async function archiveProductAction(formData: FormData) {
   const id = formData.get('id')?.toString();
   if (!id) throw new Error('PRODUCT_ID_REQUIRED');
   const expectedVersion = parseVersion(formData.get('expectedVersion'));
-  const { supabase } = await requireProductInScope(id, 'products:write');
+  const { supabase, user, role } = await requireProductInScope(id, 'products:write');
   const reason = sanitizeText(formData.get('reason')?.toString(), 'Admin archive').slice(0, 300);
 
   const { error } = await supabase.rpc('archive_product_lifecycle', {
+    p_actor_user_id: user.id,
+    p_actor_role: role,
     p_product_id: id,
     p_expected_version: expectedVersion,
     p_reason: reason,
@@ -188,7 +198,6 @@ export async function archiveProductAction(formData: FormData) {
   redirect('/admin/products?result=archived');
 }
 
-// Kept as a compatibility alias for old callers. Direct hard-delete is intentionally removed.
 export async function deleteProductAction(formData: FormData) {
   return archiveProductAction(formData);
 }
