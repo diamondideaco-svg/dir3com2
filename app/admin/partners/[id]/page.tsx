@@ -1,18 +1,16 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import PartnerForm from '@/components/admin/PartnerForm';
-import { requireAdminPageAccess } from '@/lib/auth/admin';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { isCountryAllowed, requireScopedAdminPageDataAccess } from '@/lib/auth/admin';
 import type { PartnerRecord } from '@/lib/supabase/types';
 import { AdminText } from '@/components/admin/AdminLocale';
 
 async function getPartner(id: string) {
-  await requireAdminPageAccess(`/admin/partners/${id}`);
-
-  if (!supabaseAdmin) throw new Error('Admin database client is not configured.');
-
-  const { data, error } = await supabaseAdmin.from('partners').select('*').eq('id', id).maybeSingle();
+  const { supabase, scope } = await requireScopedAdminPageDataAccess(`/admin/partners/${id}`, 'partners:read');
+  const { data, error } = await supabase.from('partners').select('*').eq('id', id).maybeSingle();
   if (error) throw new Error(`Partner query failed: ${error.message}`);
   if (!data) return null;
+  if (!isCountryAllowed(scope, data.country)) notFound();
   return data as PartnerRecord;
 }
 

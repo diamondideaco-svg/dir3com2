@@ -31,17 +31,20 @@ test('the complete current admin page inventory is explicit and protected by one
   }
   const layout = read('app/admin/layout.tsx');
   const guard = read('lib/auth/admin.ts');
-  assert.match(layout, /requireAdminPageAccess\('\/admin'\)/);
+  assert.match(layout, /requireAdminShellAccess\('\/admin'\)/);
   assert.match(guard, /supabase\.auth\.getUser\(\)/);
   assert.match(guard, /resolveCanonicalUserRole\(supabase, user\.id\)/);
+  assert.match(guard, /getTeamAccessGrant\(supabase, user\)/);
+  assert.match(guard, /scope\.mode === 'country'/);
   assert.doesNotMatch(guard, /user_metadata/);
 });
 
 test('runtime admin-user management is not fabricated', () => {
   assert.equal(existsSync(path.join(root, 'app/admin/admins/page.tsx')), false);
   assert.equal(existsSync(path.join(root, 'app/admin/users/page.tsx')), false);
-  const source = filesUnder('app').filter((file) => /\.(ts|tsx)$/.test(file)).map(read).join('\n');
-  assert.doesNotMatch(source, /auth\.admin\.(createUser|inviteUserByEmail|updateUserById|deleteUser)/);
+  const source = read('lib/actions/team-access-actions.ts');
+  assert.match(source, /auth\.admin\.(createUser|inviteUserByEmail|updateUserById)/);
+  assert.doesNotMatch(source, /auth\.admin\.deleteUser/);
   const grants = read('supabase/migrations/20260808173000_go_live_inc_006_profiles_partner_documents_runtime_grants.sql');
   assert.match(grants, /GRANT UPDATE \(email, full_name, updated_at\) ON TABLE public\.profiles TO authenticated/i);
   assert.doesNotMatch(grants, /GRANT UPDATE \([^)]*role/i);

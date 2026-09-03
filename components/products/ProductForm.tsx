@@ -14,6 +14,7 @@ export default function ProductForm() {
       <input name="slug" placeholder={ar ? 'المعرّف النصي' : 'Slug'} aria-label={ar ? 'المعرّف النصي' : 'Slug'} required className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-[#334155] outline-none" />
       <input name="categoryId" placeholder={ar ? 'معرّف الفئة' : 'Category ID'} aria-label={ar ? 'معرّف الفئة' : 'Category ID'} required className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-[#334155] outline-none" />
       <input name="basePrice" type="number" min="0" placeholder={ar ? 'السعر الأساسي' : 'Base price'} aria-label={ar ? 'السعر الأساسي' : 'Base price'} required className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-[#334155] outline-none" />
+      <input name="country" placeholder={ar ? 'الدولة' : 'Country'} aria-label={ar ? 'الدولة' : 'Country'} required className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-[#334155] outline-none" />
       <input name="city" placeholder={ar ? 'المدينة' : 'City'} aria-label={ar ? 'المدينة' : 'City'} className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-[#334155] outline-none" />
       <select name="status" className="w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-white outline-none">
         <option value="draft">{ar ? 'مسودة' : 'Draft'}</option>

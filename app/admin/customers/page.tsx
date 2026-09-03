@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireAdminPageDataAccess } from '@/lib/auth/admin';
+import { filterRowsByCountryScope, requireScopedAdminPageDataAccess } from '@/lib/auth/admin';
 import CustomerTable from '@/components/customers/CustomerTable';
 import CustomerForm from '@/components/customers/CustomerForm';
 import type { CustomerRecord } from '@/lib/supabase/types';
@@ -12,7 +12,7 @@ const resultMessages: Record<string, string> = {
 };
 
 async function getCustomers() {
-  const { supabase } = await requireAdminPageDataAccess('/admin/customers');
+  const { supabase, scope } = await requireScopedAdminPageDataAccess('/admin/customers', 'customers:read');
   const { data, error } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
 
   if (error) {
@@ -20,7 +20,8 @@ async function getCustomers() {
     return { customers: [] as CustomerRecord[], error: 'تعذر تحميل بيانات العملاء حالياً.' };
   }
 
-  return { customers: (data || []) as CustomerRecord[], error: null };
+  const scoped = filterRowsByCountryScope(scope, (data || []) as CustomerRecord[]);
+  return { customers: scoped as CustomerRecord[], error: null };
 }
 
 export default async function AdminCustomersPage({ searchParams }: { searchParams: Promise<{ result?: string }> }) {

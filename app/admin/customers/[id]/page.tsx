@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { requireAdminPageDataAccess } from '@/lib/auth/admin';
+import { notFound } from 'next/navigation';
+import { isCountryAllowed, requireScopedAdminPageDataAccess } from '@/lib/auth/admin';
 import CustomerProfile from '@/components/customers/CustomerProfile';
 import CustomerShieldBadge from '@/components/customers/CustomerShieldBadge';
 import CustomerTimeline from '@/components/customers/CustomerTimeline';
@@ -8,11 +9,12 @@ import type { CustomerRecord, CustomerActivityRecord, CustomerDocumentRecord } f
 import { AdminText } from '@/components/admin/AdminLocale';
 
 async function getCustomer(id: string) {
-  const { supabase } = await requireAdminPageDataAccess(`/admin/customers/${id}`);
+  const { supabase, scope } = await requireScopedAdminPageDataAccess(`/admin/customers/${id}`, 'customers:read');
   const { data: customerData, error: customerError } = await supabase.from('customers').select('*').eq('id', id).maybeSingle();
 
   if (customerError) throw new Error(`Customer query failed: ${customerError.message}`);
   if (!customerData) return { customer: null, activity: [], activityAvailable: true, documents: [], documentsAvailable: true };
+  if (!isCountryAllowed(scope, customerData.country)) notFound();
 
   const [{ data: activityData, error: activityError }, { data: documentData, error: documentError }] = await Promise.all([
     supabase.from('customer_activity').select('*').eq('customer_id', id).order('created_at', { ascending: false }),

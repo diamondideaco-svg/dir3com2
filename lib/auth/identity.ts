@@ -41,11 +41,11 @@ function getAuthUserDisplayName(user: User) {
 export async function resolveCanonicalUserRole(supabase: SupabaseClient, userId: string): Promise<CanonicalRole | null> {
   const { data: profileData, error: profileError } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, status')
     .eq('id', userId)
     .maybeSingle();
 
-  if (!profileError && profileData?.role) {
+  if (!profileError && profileData?.role && profileData.status === 'active') {
     return normalizeRole(profileData.role);
   }
 
