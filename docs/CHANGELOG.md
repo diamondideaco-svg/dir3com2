@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-03 — Legacy team grant attachment compatibility
+
+- Attach a single normalized-email legacy invitation to its uniquely resolved Auth UUID in place, preserving grant ID and creation history; reject conflicting or normalized-email-ambiguous Auth/grant identities without partially changing access.
+- Save grant/profile access and status changes atomically through authenticated CEO-only database functions. Actor authority comes from the canonical active CEO UUID, never caller-supplied identity or email; existing RLS, country scope, and service-role table access remain intact.
+- Reconcile a same-name non-unique legacy UUID index transactionally in the pending migration. Duplicate UUID data blocks migration without deleting rows. Added actual-action PostgreSQL 17 attachment, conflict, rollback, authorization, and replay coverage. No Production migration or business-data changes.
+
 ## 2026-09-03 — Team & Access pre-migration runtime safety
 
 - Render a localized not-activated state when the pending team table or CEO database function is absent, and distinguish other read failures from a genuinely empty team list.

@@ -32,9 +32,31 @@ function fixture(id: string | null = ceo, role = 'admin', status = 'active', ema
   const users: Row[] = [];
   const writes: { table: string; values: Row }[] = [];
   const filters: [string, string, unknown][] = [];
-  const options = { queryError: false, tableError: null as { code: string } | null, functionError: null as { code: string } | null, inviteUser: { id: employee, email: 'invite@example.invalid' } as Row | null, invitations: 0 };
+  const options = { queryError: false, tableError: null as { code: string } | null, functionError: null as { code: string } | null, writeError: null as {code:string;message:string} | null, inviteUser: { id: employee, email: 'employee@example.invalid' } as Row | null, invitations: 0 };
+  const rpcCalls: {name:string;params:Row}[]=[];
   const client = {
-    rpc: async () => ({ data: false, error: options.functionError }),
+    rpc: async (name:string,params:Row={}) => {
+      if(name==='is_ceo_actor') return {data:false,error:options.functionError};
+      rpcCalls.push({name,params});
+      if(options.writeError) return {data:null,error:options.writeError};
+      // This substitutes RPC IO only. Real conflict/transaction semantics are
+      // exercised by the PostgreSQL suite, not inferred from this fake.
+      const rows=grants.filter(row=>row.invited_user_id===params.p_user_id || team.normalizeEmail(row.email)===params.p_email);
+      const grant=rows[0];
+      if(name==='set_team_access_status') {
+        if(!grant) return {data:null,error:{message:'TEAM_ACCESS_NOT_FOUND'}};
+        if(grant.invited_user_id===ceo && (params.p_status!=='active'||grant.access_level!=='global_admin')) return {data:null,error:{message:'TEAM_ACCESS_CEO_PROTECTED'}};
+        writes.push({table:'team_access_grants',values:{status:params.p_status}});
+        writes.push({table:'profiles',values:{status:params.p_status}});
+        return {data:grant.id,error:null};
+      }
+      const values={email:params.p_email,invited_user_id:params.p_user_id,job_title:params.p_job_title,access_level:params.p_access_level,country_scope:params.p_country_scope,permissions:params.p_permissions,status:'active'};
+      if(grant) Object.assign(grant,values);
+      else grants.push({id:`grant-${grants.length}`,created_by:id,...values});
+      writes.push({table:'profiles',values:{id:params.p_user_id,role:params.p_access_level==='global_admin'?'admin':'staff'}});
+      writes.push({table:'team_access_grants',values:grants.find(row=>row.invited_user_id===params.p_user_id)!});
+      return {data:grants.find(row=>row.invited_user_id===params.p_user_id)?.id,error:null};
+    },
     auth: {
       getUser: async () => ({ data: { user: actor }, error: null }),
       admin: {
@@ -86,7 +108,7 @@ function fixture(id: string | null = ceo, role = 'admin', status = 'active', ema
     '@/lib/supabase/server': { supabaseAdmin: supabase },
     'next/cache': { revalidatePath: () => undefined },
   });
-  return { actor, profiles, grants, users, writes, filters, options, supabase, admin, actions };
+  return { actor, profiles, grants, users, writes, filters, options, rpcCalls, supabase, admin, actions };
 }
 
 function form(values: Record<string, string>) {
@@ -153,7 +175,7 @@ for (const [status, level] of [['inactive', 'global_admin'], ['active', 'scoped_
   test(`CEO target protected for ${status}/${level}, even with stale grant contact email`, async () => {
     const f = fixture();
     f.grants.push({ email: 'stale-contact@example.invalid', invited_user_id: ceo, access_level: level });
-    await assert.rejects(f.actions.setTeamAccessStatusAction(form({ email: 'stale-contact@example.invalid', status })), /CEO access cannot be disabled|CEO access cannot be reduced/);
+    await assert.rejects(f.actions.setTeamAccessStatusAction(form({ email: 'stale-contact@example.invalid', status })), /CEO access cannot be disabled or reduced/);
     assert.equal(f.writes.length, 0);
   });
 }
@@ -213,6 +235,37 @@ test('grant lookup never falls back to email on missing, failed or ambiguous ide
   assert.ok(f.filters.every(([, column]) => column === 'invited_user_id'));
   f.options.queryError = true;
   assert.equal(await team.getTeamAccessGrant(f.supabase, f.actor!), null);
+});
+
+test('attachment RPC receives Auth-resolved UUID, never a caller actor or target override',async()=>{
+  const f=fixture(); f.users.push({id:employee,email:'employee@example.invalid'});
+  await f.actions.upsertTeamAccessGrantAction(form({email:'  EMPLOYEE@EXAMPLE.INVALID ',invited_user_id:other,actorId:other}));
+  assert.equal(f.rpcCalls.length,1);
+  assert.equal(f.rpcCalls[0].name,'save_team_access_grant');
+  assert.equal(f.rpcCalls[0].params.p_user_id,employee);
+  assert.equal(f.rpcCalls[0].params.p_email,'employee@example.invalid');
+  assert.equal(Object.keys(f.rpcCalls[0].params).some(key=>/actor|created_by/.test(key)),false);
+});
+
+test('mismatched or ambiguous Auth identity fails before any write RPC',async()=>{
+  const mismatch=fixture(); mismatch.options.inviteUser={id:employee,email:'different@example.invalid'};
+  await assert.rejects(mismatch.actions.upsertTeamAccessGrantAction(form({})),/Team identity conflict/);
+  assert.equal(mismatch.rpcCalls.length,0); assert.equal(mismatch.writes.length,0);
+  const ambiguous=fixture(); ambiguous.users.push({id:employee,email:'employee@example.invalid'},{id:other,email:'EMPLOYEE@example.invalid'});
+  await assert.rejects(ambiguous.actions.upsertTeamAccessGrantAction(form({})),/Team identity conflict/);
+  assert.equal(ambiguous.rpcCalls.length,0); assert.equal(ambiguous.options.invitations,0);
+});
+
+test('RPC conflict and database failures expose only truthful application errors',async()=>{
+  for(const message of ['TEAM_ACCESS_IDENTITY_CONFLICT','private SQL details token=secret']) {
+    const f=fixture(); f.users.push({id:employee,email:'employee@example.invalid'});
+    f.options.writeError={code:'22023',message};
+    await assert.rejects(f.actions.upsertTeamAccessGrantAction(form({})),error=>{
+      assert.match(String(error),/Team identity conflict|No access changes were applied/);
+      assert.doesNotMatch(String(error),/private SQL|secret|22023/); return true;
+    });
+    assert.equal(f.writes.length,0);
+  }
 });
 
 for (const country of ['EG', 'QA']) {

@@ -16,6 +16,14 @@ function selectedPermissions(formData: FormData) {
   return requested.filter((permission) => TEAM_PERMISSIONS.includes(permission as (typeof TEAM_PERMISSIONS)[number]));
 }
 
+function teamWriteError(error: { code?: string; message?: string }) {
+  if (error.message === 'TEAM_ACCESS_IDENTITY_CONFLICT') return new Error('Team identity conflict. Review the existing employee access before trying again.');
+  if (error.message === 'TEAM_ACCESS_CEO_PROTECTED') return new Error('CEO access cannot be disabled or reduced');
+  if (error.message === 'TEAM_ACCESS_NOT_FOUND') return new Error('Team access grant not found');
+  if (['PGRST202', '42883', 'PGRST205', '42P01'].includes(error.code ?? '')) return new Error('TEAM_ACCESS_UNAVAILABLE');
+  return new Error('Team access could not be saved. No access changes were applied.');
+}
+
 async function requireCeo() {
   const context = await requireAdminActionAccess();
   if (!await isCeoActor(context.supabase, context.user)) throw new Error('CEO access required');
@@ -26,7 +34,7 @@ async function requireCeo() {
 }
 
 export async function upsertTeamAccessGrantAction(formData: FormData) {
-  const { user, admin } = await requireCeo();
+  const { user, admin, supabase } = await requireCeo();
   const email = normalizeEmail(formData.get('email'));
   const jobTitle = String(formData.get('jobTitle') || '').trim().slice(0, 120);
   const accessLevel = formData.get('accessLevel') === 'global_admin' ? 'global_admin' : 'scoped_staff';
@@ -37,79 +45,42 @@ export async function upsertTeamAccessGrantAction(formData: FormData) {
   if (!jobTitle) throw new Error('Job title is required');
 
   const { data: existingUsers, error: listError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (listError) throw listError;
-  let authUser = existingUsers.users.find((candidate) => normalizeEmail(candidate.email) === email) ?? null;
+  if (listError) throw new Error('Team identity lookup is unavailable');
+  const candidates = existingUsers.users.filter((candidate) => normalizeEmail(candidate.email) === email);
+  if (candidates.length > 1) throw new Error('Team identity conflict. Review the existing employee access before trying again.');
+  let authUser = candidates[0] ?? null;
 
   if (!authUser) {
     const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
       data: { invited_by: user.id, invited_job_title: jobTitle },
     });
-    if (inviteError) throw inviteError;
+    if (inviteError) throw new Error('Team invitation could not be completed');
     authUser = invited.user;
   }
 
   if (!authUser?.id) throw new Error('Authenticated team identity is required');
+  if (normalizeEmail(authUser.email) !== email) throw new Error('Team identity conflict. Review the existing employee access before trying again.');
   if (isCeoUserId(authUser.id) && accessLevel !== 'global_admin') throw new Error('CEO access cannot be reduced');
 
-  const profileRole = accessLevel === 'global_admin' ? 'admin' : 'staff';
-  const { error: profileError } = await admin.from('profiles').upsert({
-    id: authUser.id,
-    email,
-    full_name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || email.split('@')[0],
-    role: profileRole,
-    status: 'active',
-  }, { onConflict: 'id' });
-  if (profileError) throw profileError;
-
-  const { error: grantError } = await admin.from('team_access_grants').upsert({
-    email,
-    job_title: jobTitle,
-    access_level: accessLevel,
-    country_scope: countryScope,
-    permissions,
-    status: 'active',
-    invited_user_id: authUser.id,
-    created_by: user.id,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'invited_user_id' });
-  if (grantError) throw grantError;
+  // Use the authenticated client: SQL derives the actor from auth.uid(), checks
+  // the Auth identity again, and attaches/saves grant + profile atomically.
+  const { error: grantError } = await supabase.rpc('save_team_access_grant', {
+    p_user_id: authUser.id, p_email: email, p_job_title: jobTitle,
+    p_access_level: accessLevel, p_country_scope: countryScope, p_permissions: permissions,
+  });
+  if (grantError) throw teamWriteError(grantError);
 
   revalidatePath('/admin/team');
 }
 
 export async function setTeamAccessStatusAction(formData: FormData) {
-  const { admin } = await requireCeo();
+  const { supabase } = await requireCeo();
   const email = normalizeEmail(formData.get('email'));
   const status = formData.get('status') === 'active' ? 'active' : 'inactive';
   if (!email) throw new Error('Email is required');
 
-  const { data: grant, error: readError } = await admin
-    .from('team_access_grants')
-    .select('invited_user_id, access_level')
-    .eq('email', email)
-    .maybeSingle();
-  if (readError) throw readError;
-  if (!grant) throw new Error('Team access grant not found');
-  if (isCeoUserId(grant.invited_user_id)) {
-    if (status !== 'active') throw new Error('CEO access cannot be disabled');
-    if (grant.access_level !== 'global_admin') throw new Error('CEO access cannot be reduced');
-  }
-
-  const { error: updateError } = await admin
-    .from('team_access_grants')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('email', email);
-  if (updateError) throw updateError;
-
-  if (grant.invited_user_id) {
-    const profileStatus = status === 'active' ? 'active' : 'inactive';
-    const profileRole = grant.access_level === 'global_admin' ? 'admin' : 'staff';
-    const { error: profileError } = await admin
-      .from('profiles')
-      .update({ status: profileStatus, role: profileRole })
-      .eq('id', grant.invited_user_id);
-    if (profileError) throw profileError;
-  }
+  const { error } = await supabase.rpc('set_team_access_status', { p_email: email, p_status: status });
+  if (error) throw teamWriteError(error);
 
   revalidatePath('/admin/team');
 }

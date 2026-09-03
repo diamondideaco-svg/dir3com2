@@ -40,17 +40,20 @@ test('team access grants are protected by CEO/self RLS and service role', () => 
   assert.match(migration, /CREATE POLICY team_access_self_read/i);
   assert.match(migration, /CREATE POLICY team_access_service_role_all/i);
   assert.doesNotMatch(migration, /DISABLE ROW LEVEL SECURITY/i);
-  assert.match(actions, /onConflict: 'invited_user_id'/);
-  assert.match(migration, /CREATE UNIQUE INDEX IF NOT EXISTS team_access_grants_user_idx/);
+  assert.match(actions, /supabase\.rpc\('save_team_access_grant'/);
+  assert.match(migration, /DROP INDEX IF EXISTS public\.team_access_grants_user_idx/);
+  assert.match(migration, /CREATE UNIQUE INDEX team_access_grants_user_idx/);
 });
 
 test('CEO can invite or attach an auth user and safely provision a profile', () => {
   assert.match(actions, /requireCeo\(\)/);
   assert.match(actions, /auth\.admin\.listUsers/);
   assert.match(actions, /auth\.admin\.inviteUserByEmail/);
-  assert.match(actions, /from\('profiles'\)\.upsert/);
-  assert.match(actions, /role: profileRole/);
-  assert.match(actions, /accessLevel === 'global_admin' \? 'admin' : 'staff'/);
+  assert.doesNotMatch(actions, /from\('profiles'\).*upsert/);
+  assert.match(migration, /INSERT INTO public\.profiles/);
+  assert.match(migration, /v_role:='admin'; ELSE v_role:='staff'/);
+  assert.match(migration, /SELECT array_agg\(id\) INTO v_auth_ids FROM auth\.users/);
+  assert.match(migration, /cardinality\(v_auth_ids\).*<>1/);
 });
 
 test('team access lookup avoids interpolated PostgREST or filters', () => {
@@ -62,13 +65,13 @@ test('team access lookup avoids interpolated PostgREST or filters', () => {
 
 test('CEO account cannot be demoted or disabled', () => {
   assert.match(actions, /isCeoUserId\(authUser\.id\) && accessLevel !== 'global_admin'/);
-  assert.match(actions, /isCeoUserId\(grant\.invited_user_id\)/);
-  assert.match(actions, /status !== 'active'.*CEO access cannot be disabled/);
-  assert.match(actions, /grant\.access_level !== 'global_admin'.*CEO access cannot be reduced/);
+  assert.match(migration, /v_grant\.invited_user_id=v_actor/);
+  assert.match(migration, /p_status<>'active' OR v_grant\.access_level<>'global_admin'/);
+  assert.match(migration, /TEAM_ACCESS_CEO_PROTECTED/);
 });
 
 test('deactivation fails closed and inactive admin profiles lose canonical admin authority', () => {
-  assert.match(actions, /if \(!grant\) throw new Error\('Team access grant not found'\)/);
+  assert.match(actions, /TEAM_ACCESS_NOT_FOUND.*Team access grant not found/);
   assert.match(identity, /select\('role, status'\)/);
   assert.match(identity, /profileData\.status === 'active'/);
 });

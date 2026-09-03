@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import ts from 'typescript';
+import { postgresTeamActions } from './helpers/team-access-postgres';
 
 const loaderExports = {};
 const loaderSource = readFileSync(new URL('../lib/admin/team-access-data.ts', import.meta.url), 'utf8');
@@ -53,7 +54,8 @@ test('CEO identity migration: PostgreSQL 17, immutable authority and team RLS', 
       CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$
         SELECT COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
       $$;
-      CREATE TABLE public.profiles (id uuid PRIMARY KEY, email text UNIQUE NOT NULL, role text NOT NULL, status text NOT NULL DEFAULT 'active');
+      CREATE TABLE auth.users (id uuid PRIMARY KEY, email text, raw_user_meta_data jsonb DEFAULT '{}');
+      CREATE TABLE public.profiles (id uuid PRIMARY KEY, email text UNIQUE NOT NULL, full_name text, role text NOT NULL, status text NOT NULL DEFAULT 'active');
       ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
       GRANT SELECT, UPDATE(email) ON public.profiles TO authenticated;
       CREATE POLICY profiles_self ON public.profiles FOR ALL TO authenticated
@@ -65,6 +67,7 @@ test('CEO identity migration: PostgreSQL 17, immutable authority and team RLS', 
         ('${staffQa}', 'qa@example.invalid', 'staff'),
         ('${partner}', 'partner@example.invalid', 'partner'),
         ('${customer}', 'customer@example.invalid', 'customer');
+      INSERT INTO auth.users(id,email) SELECT id,email FROM public.profiles;
     `);
     // Real PostgreSQL IO behind the production loader, never a hosted fixture.
     async function result(sql: string) {
@@ -80,6 +83,27 @@ test('CEO identity migration: PostgreSQL 17, immutable authority and team RLS', 
       assert.equal((await loadTeamAccess(adapter)).status, 'not_activated');
     });
     await client.query(migration);
+    await t.test('legacy same-email unattached row is attached by actual action without changing identity/history', async () => {
+      await client.query('BEGIN');
+      try {
+        await client.query("SELECT set_config('request.jwt.claim.sub', $1, true)", [ceo]);
+        const before=(await client.query(`INSERT INTO public.team_access_grants(email,job_title,country_scope,permissions,created_by,created_at)
+          VALUES ('eg@example.invalid','Egypt manager','{EG}','{customers:read}',$1,'2026-01-01') RETURNING *`,[otherAdmin])).rows[0];
+        const f=postgresTeamActions(client,ceo);
+        const form=new FormData();
+        for(const [key,value] of Object.entries({email:'eg@example.invalid',jobTitle:'Egypt manager',accessLevel:'scoped_staff',countryScope:'EG',permissions:'customers:read'})) form.set(key,value);
+        try { await f.actions.upsertTeamAccessGrantAction(form); }
+        catch(error) { console.log('LEGACY_ATTACHMENT_REPRO',f.errors.map(({code,constraint})=>({code,constraint}))); throw error; }
+        const after=(await client.query('SELECT * FROM public.team_access_grants')).rows;
+        assert.equal(after.length,1);
+        assert.equal(after[0].id,before.id);
+        assert.equal(after[0].invited_user_id,staff);
+        assert.equal(after[0].created_by,before.created_by);
+        assert.deepEqual(after[0].created_at,before.created_at);
+        assert.deepEqual(after[0].country_scope,before.country_scope);
+        assert.deepEqual(after[0].permissions,before.permissions);
+      } finally { await client.query('ROLLBACK'); }
+    });
     await t.test('migrated zero grants is ready, not an unavailable or fabricated result', async () => {
       const state = await loadTeamAccess(adapter);
       assert.equal(state.status, 'ready');
@@ -91,6 +115,16 @@ test('CEO identity migration: PostgreSQL 17, immutable authority and team RLS', 
         await client.query('DROP FUNCTION public.is_ceo_actor() CASCADE');
         assert.equal((await loadTeamAccess(adapter)).status, 'not_activated');
       } finally { await client.query('ROLLBACK'); }
+    });
+    await t.test('legacy non-unique same-name index is replaced; migration replays twice without row loss', async () => {
+      await client.query('DROP INDEX public.team_access_grants_user_idx; CREATE INDEX team_access_grants_user_idx ON public.team_access_grants(invited_user_id)');
+      const index=()=>client.query("SELECT indisunique,indisvalid,indpred IS NULL AS nonpartial,pg_get_indexdef(indexrelid) AS definition FROM pg_index WHERE indexrelid='public.team_access_grants_user_idx'::regclass");
+      assert.equal((await index()).rows[0].indisunique,false);
+      await client.query(migration); await client.query(migration);
+      const current=(await index()).rows[0];
+      assert.equal(current.indisunique,true); assert.equal(current.indisvalid,true); assert.equal(current.nonpartial,true);
+      assert.match(current.definition,/\(invited_user_id\)/);
+      assert.equal((await client.query('SELECT count(*)::int AS count FROM public.team_access_grants')).rows[0].count,0);
     });
     await client.query(`INSERT INTO public.team_access_grants (email, job_title, country_scope, permissions, invited_user_id, created_by) VALUES
       ('eg@example.invalid', 'Egypt manager', '{EG}', '{customers:read}', '${staff}', '${ceo}'),
@@ -222,6 +256,128 @@ test('CEO identity migration: PostgreSQL 17, immutable authority and team RLS', 
         for (const operation of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) assert.equal((await client.query("SELECT has_table_privilege($1, 'public.team_access_grants', $2) AS allowed", [role, operation])).rows[0].allowed, true);
         assert.equal((await client.query("SELECT has_table_privilege($1, 'public.team_access_grants', 'TRUNCATE') AS allowed", [role])).rows[0].allowed, false);
       }
+    });
+
+    const saveSql='SELECT public.save_team_access_grant($1,$2,$3,$4,$5,$6) AS id';
+    const saveArgs=[staff,'eg@example.invalid','Egypt manager','scoped_staff',['EG'],['customers:read']];
+    const snapshot=async()=>({grants:(await client.query('SELECT * FROM public.team_access_grants ORDER BY id')).rows,profiles:(await client.query('SELECT * FROM public.profiles ORDER BY id')).rows});
+    async function isolated(run:()=>Promise<void>) {
+      await client.query('BEGIN');
+      try { await client.query("SELECT set_config('request.jwt.claim.sub',$1,true)",[ceo]); await run(); }
+      finally {await client.query('ROLLBACK');}
+    }
+    async function denied(sql:string,args:unknown[],pattern:RegExp) {
+      const before=await snapshot();
+      await client.query('SAVEPOINT denied');
+      await assert.rejects(client.query(sql,args),pattern);
+      await client.query('ROLLBACK TO SAVEPOINT denied');
+      assert.deepEqual(await snapshot(),before);
+    }
+    for(const email of ['eg@example.invalid','  EG@EXAMPLE.INVALID  ','\tEG@EXAMPLE.INVALID\u00a0']) {
+      await t.test(`actual action legacy attachment normalizes ${JSON.stringify(email)} and preserves history`,async()=>isolated(async()=>{
+        await client.query('UPDATE public.team_access_grants SET email=$1,invited_user_id=NULL,created_by=$2 WHERE invited_user_id=$3',[email,otherAdmin,staff]);
+        const before=(await client.query('SELECT * FROM public.team_access_grants WHERE email=$1',[email])).rows[0];
+        const f=postgresTeamActions(client,ceo); const form=new FormData();
+        for(const [key,value] of Object.entries({email,jobTitle:before.job_title,accessLevel:before.access_level,countryScope:'EG',permissions:'customers:read'})) form.set(key,value);
+        await f.actions.upsertTeamAccessGrantAction(form);
+        const after=(await client.query('SELECT * FROM public.team_access_grants WHERE id=$1',[before.id])).rows[0];
+        assert.equal(after.invited_user_id,staff); assert.equal(after.email,'eg@example.invalid');
+        for(const key of ['id','job_title','country_scope','permissions','created_by','created_at']) assert.deepEqual(after[key],before[key]);
+        assert.equal((await client.query('SELECT count(*)::int AS count FROM public.team_access_grants')).rows[0].count,3);
+      }));
+    }
+    await t.test('fresh UUID grant and later Auth email change keep one grant',async()=>isolated(async()=>{
+      await client.query('DELETE FROM public.team_access_grants WHERE invited_user_id=$1',[staff]);
+      await client.query('SET LOCAL ROLE authenticated');
+      const first=(await client.query(saveSql,saveArgs)).rows[0].id;
+      await client.query('RESET ROLE');
+      await client.query("UPDATE auth.users SET email='renamed@example.invalid' WHERE id=$1",[staff]);
+      await client.query('SET LOCAL ROLE authenticated');
+      const second=(await client.query(saveSql,[staff,'renamed@example.invalid',...saveArgs.slice(2)])).rows[0].id;
+      assert.equal(first,second);
+      assert.equal((await client.query('SELECT count(*)::int AS count FROM public.team_access_grants WHERE invited_user_id=$1',[staff])).rows[0].count,1);
+    }));
+    for(const scenario of ['email attached elsewhere','UUID plus separate legacy email','ambiguous normalized legacy rows','Auth UUID/email mismatch'] as const) {
+      await t.test(`${scenario}: fail closed with no grant/profile side effects`,async()=>isolated(async()=>{
+        if(scenario==='email attached elsewhere') await client.query('UPDATE public.team_access_grants SET invited_user_id=$1 WHERE invited_user_id=$2',[customer,staff]);
+        if(scenario==='UUID plus separate legacy email') {
+          await client.query("UPDATE public.team_access_grants SET email='old@example.invalid' WHERE invited_user_id=$1",[staff]);
+          await client.query("INSERT INTO public.team_access_grants(email,job_title,created_by) VALUES('eg@example.invalid','Legacy',$1)",[ceo]);
+        }
+        if(scenario==='ambiguous normalized legacy rows') {
+          await client.query('UPDATE public.team_access_grants SET invited_user_id=NULL WHERE invited_user_id=$1',[staff]);
+          await client.query("INSERT INTO public.team_access_grants(email,job_title,created_by) VALUES(' EG@EXAMPLE.INVALID ','Ambiguous',$1)",[ceo]);
+        }
+        if(scenario==='Auth UUID/email mismatch') await client.query("UPDATE auth.users SET email='different@example.invalid' WHERE id=$1",[staff]);
+        await denied(saveSql,saveArgs,/TEAM_ACCESS_IDENTITY_CONFLICT/);
+      }));
+    }
+    await t.test('normalized email shared by two Auth UUIDs fails closed at the database boundary',async()=>isolated(async()=>{
+      await client.query("UPDATE auth.users SET email=' EG@EXAMPLE.INVALID ' WHERE id=$1",[customer]);
+      await denied(saveSql,saveArgs,/TEAM_ACCESS_IDENTITY_CONFLICT/);
+    }));
+    await t.test('profile constraint failure rolls back the earlier grant attachment',async()=>isolated(async()=>{
+      await client.query('UPDATE public.team_access_grants SET invited_user_id=NULL WHERE invited_user_id=$1',[staff]);
+      await client.query("ALTER TABLE public.profiles ADD CONSTRAINT test_no_promotion CHECK(id<>'22222222-2222-4222-8222-222222222222'::uuid OR role<>'admin')");
+      await denied(saveSql,[staff,'eg@example.invalid','Promoted','global_admin',[],['admin:full']],/test_no_promotion/);
+    }));
+    for(const [label,id,profileStatus,role] of [
+      ['forged admin',otherAdmin,'active','admin'],['staff',staff,'active','staff'],['partner',partner,'active','partner'],
+      ['customer',customer,'active','customer'],['inactive CEO',ceo,'inactive','admin'],['non-admin CEO',ceo,'active','staff'],
+    ]) {
+      await t.test(`${label}: cannot invoke either privileged RPC`,async()=>isolated(async()=>{
+        await client.query('UPDATE public.profiles SET status=$1,role=$2 WHERE id=$3',[profileStatus,role,id]);
+        await client.query("SELECT set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)",[id,JSON.stringify({email:'diamondidea.co@gmail.com',actor_id:ceo})]);
+        await client.query('SET LOCAL ROLE authenticated');
+        await denied(saveSql,saveArgs,/TEAM_ACCESS_FORBIDDEN/);
+        await denied('SELECT public.set_team_access_status($1,$2)',['eg@example.invalid','active'],/TEAM_ACCESS_FORBIDDEN/);
+      }));
+    }
+    for(const role of ['anon','service_role']) {
+      await t.test(`${role}: no management RPC execute permission even with forged actor claims`,async()=>isolated(async()=>{
+        await client.query("SELECT set_config('request.jwt.claim.sub',$1,true)",[ceo]);
+        await client.query(`SET LOCAL ROLE ${role}`);
+        // anon cannot snapshot table either; assert privilege directly.
+        assert.equal((await client.query("SELECT has_function_privilege(current_user,'public.save_team_access_grant(uuid,text,text,text,text[],text[])','EXECUTE') AS allowed")).rows[0].allowed,false);
+        await client.query('SAVEPOINT forbidden_rpc');
+        await assert.rejects(client.query(saveSql,saveArgs),/permission denied/);
+        await client.query('ROLLBACK TO SAVEPOINT forbidden_rpc');
+      }));
+    }
+    await t.test('authenticated without Auth UUID cannot claim CEO through email',async()=>isolated(async()=>{
+      await client.query("SELECT set_config('request.jwt.claim.sub','',true),set_config('request.jwt.claims',$1,true)",[JSON.stringify({email:'diamondidea.co@gmail.com',actor_id:ceo})]);
+      await client.query('SET LOCAL ROLE authenticated');
+      await denied(saveSql,saveArgs,/TEAM_ACCESS_FORBIDDEN/);
+    }));
+    await t.test('direct RPC cannot downgrade or disable canonical CEO',async()=>isolated(async()=>{
+      await client.query('SET LOCAL ROLE authenticated');
+      await denied(saveSql,[ceo,'diamondidea.co@gmail.com','CEO','scoped_staff',['EG'],[]],/TEAM_ACCESS_CEO_PROTECTED/);
+      await client.query(saveSql,[ceo,'diamondidea.co@gmail.com','CEO','global_admin',[],['admin:full']]);
+      await denied('SELECT public.set_team_access_status($1,$2)',['diamondidea.co@gmail.com','inactive'],/TEAM_ACCESS_CEO_PROTECTED/);
+    }));
+    await t.test('email remains unique while multiple unattached UUIDs remain allowed',async()=>isolated(async()=>{
+      await client.query("INSERT INTO public.team_access_grants(email,job_title,created_by) VALUES('another-pending@example.invalid','Unattached',$1)",[ceo]);
+      assert.equal((await client.query('SELECT count(*)::int AS count FROM public.team_access_grants WHERE invited_user_id IS NULL')).rows[0].count,2);
+      await denied("INSERT INTO public.team_access_grants(email,job_title,created_by) VALUES('pending@example.invalid','Duplicate',$1)",[ceo],/team_access_grants_email_key/);
+    }));
+    await t.test('status action follows attached UUID and atomically deactivates profile',async()=>isolated(async()=>{
+      const f=postgresTeamActions(client,ceo); const form=new FormData(); form.set('email','  EG@EXAMPLE.INVALID ');form.set('status','inactive');form.set('invited_user_id',customer);
+      await f.actions.setTeamAccessStatusAction(form);
+      assert.equal((await client.query('SELECT status FROM public.team_access_grants WHERE invited_user_id=$1',[staff])).rows[0].status,'inactive');
+      assert.equal((await client.query('SELECT status FROM public.profiles WHERE id=$1',[staff])).rows[0].status,'inactive');
+      assert.equal((await client.query('SELECT status FROM public.profiles WHERE id=$1',[customer])).rows[0].status,'active');
+    }));
+    await t.test('duplicate legacy UUID upgrade fails transactionally without deleting rows/index',async()=>{
+      await client.query('DROP INDEX public.team_access_grants_user_idx; CREATE INDEX team_access_grants_user_idx ON public.team_access_grants(invited_user_id)');
+      await client.query("INSERT INTO public.team_access_grants(email,job_title,invited_user_id,created_by) VALUES('duplicate@example.invalid','Preserve me',$1,$2)",[staff,ceo]);
+      const before=await snapshot();
+      await assert.rejects(client.query(migration),/could not create unique index/);
+      await client.query('ROLLBACK');
+      assert.deepEqual(await snapshot(),before);
+      assert.equal((await client.query("SELECT indisunique FROM pg_index WHERE indexrelid='public.team_access_grants_user_idx'::regclass")).rows[0].indisunique,false);
+      // Remove only this disposable test's explicit duplicate, then reconcile.
+      await client.query("DELETE FROM public.team_access_grants WHERE email='duplicate@example.invalid'");
+      await client.query(migration);
     });
   } finally {
     await db?.end();
