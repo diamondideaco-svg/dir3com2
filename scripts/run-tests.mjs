@@ -2,6 +2,7 @@ import { readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const serverOnlyTests = new Set([
+  'ceo-identity-runtime.test.ts',
   'ticketmaster-discovery.test.ts',
   'marketplace-provider-activation.test.ts',
   'marketplace-provider-checkout.test.ts',
@@ -10,6 +11,7 @@ const serverOnlyTests = new Set([
   'marketplace-truth-contract.test.ts',
 ]);
 const databaseTests = new Set([
+  'ceo-identity-postgres.integration.test.ts',
   'assignment-schema-postgres.integration.test.ts',
   'customer-activity-postgres.integration.test.ts',
   'customer-documents-postgres.integration.test.ts',

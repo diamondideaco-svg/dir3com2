@@ -3,6 +3,9 @@ import 'server-only';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 
 export const CEO_EMAIL = 'diamondidea.co@gmail.com';
+// Pinned auth.users.id verified read-only against the canonical project.
+// Email is contact/display data, never an authorization identifier.
+export const CEO_USER_ID = '0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16';
 
 export const TEAM_PERMISSIONS = [
   'admin:full',
@@ -39,30 +42,32 @@ export function normalizeEmail(value: unknown) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
-export function isCeoEmail(value: unknown) {
-  return normalizeEmail(value) === CEO_EMAIL;
+export function isCeoUserId(value: unknown) {
+  return value === CEO_USER_ID;
+}
+
+// Call only with the user returned by the server's verified auth.getUser().
+export async function isCeoActor(supabase: SupabaseClient, user: Pick<User, 'id'>) {
+  if (!isCeoUserId(user.id)) return false;
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('id, role, status')
+    .eq('id', user.id)
+    .maybeSingle();
+  return !error && profile?.id === user.id && profile.role === 'admin' && profile.status === 'active';
 }
 
 export async function getTeamAccessGrant(supabase: SupabaseClient, user: User): Promise<TeamAccessGrant | null> {
-  const email = normalizeEmail(user.email);
-  if (!email) return null;
-
   const { data: byUserId, error: byUserIdError } = await supabase
     .from('team_access_grants')
     .select(TEAM_ACCESS_SELECT)
     .eq('invited_user_id', user.id)
     .maybeSingle();
 
-  if (!byUserIdError && byUserId) return byUserId as TeamAccessGrant;
-
-  const { data: byEmail, error: byEmailError } = await supabase
-    .from('team_access_grants')
-    .select(TEAM_ACCESS_SELECT)
-    .eq('email', email)
-    .maybeSingle();
-
-  if (byEmailError || !byEmail) return null;
-  return byEmail as TeamAccessGrant;
+  // Invitations are attached by the CEO action to the Auth-returned user ID.
+  // Missing/ambiguous/error results cannot fall back to another identity's email.
+  if (byUserIdError || !byUserId || byUserId.invited_user_id !== user.id) return null;
+  return byUserId as TeamAccessGrant;
 }
 
 export function hasPermission(grant: TeamAccessGrant | null, permission: TeamPermission) {

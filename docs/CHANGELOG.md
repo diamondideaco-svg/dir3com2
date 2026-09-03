@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-09-03 — Legacy team grant attachment compatibility
+
+- Attach a single normalized-email legacy invitation to its uniquely resolved Auth UUID in place, preserving grant ID and creation history; reject conflicting or normalized-email-ambiguous Auth/grant identities without partially changing access.
+- Save grant/profile access and status changes atomically through authenticated CEO-only database functions. Actor authority comes from the canonical active CEO UUID, never caller-supplied identity or email; existing RLS, country scope, and service-role table access remain intact.
+- Reconcile a same-name non-unique legacy UUID index transactionally in the pending migration. Duplicate UUID data blocks migration without deleting rows. Added actual-action PostgreSQL 17 attachment, conflict, rollback, authorization, and replay coverage. No Production migration or business-data changes.
+
+## 2026-09-03 — Team & Access pre-migration runtime safety
+
+- Render a localized not-activated state when the pending team table or CEO database function is absent, and distinguish other read failures from a genuinely empty team list.
+- Probe schema readiness only after existing canonical CEO authorization; block team actions before invitations/profile writes when that schema is unavailable. The service-role function result is an activation check, never human authority.
+- Preserve the pending migration and UUID/country-scope authorization, localize the existing team controls, and add route/state and action safety regression coverage. No Production migration or business data changes.
+
+## 2026-09-03 — Immutable CEO authority before team-access activation
+
+- Pinned CEO authorization to the canonical Auth user UUID and its matching active `admin` profile in both database RLS and the existing server-side Team & Access paths. Contact/profile/JWT email no longer grants CEO authority.
+- Bound employee grant reads to the attached Auth UUID; invitation provisioning must resolve an Auth identity before granting access. Preserved country-scoped staff guards and service-role provisioning.
+- Keyed grant saves and uniqueness to the attached UUID so an employee email change updates the same grant instead of creating ambiguous duplicate grants.
+- Bound CEO demotion/deactivation protection to the resolved target UUID, including activation of an incorrectly scoped CEO-linked grant.
+- Corrected the pending, unapplied team-access migration without applying Production schema or changing inventory. Added real PostgreSQL 17 replay, identity-spoofing, self-read, CRUD-denial and legitimate-access regression coverage.
+
 ## 2026-09-02 — Customer activity schema reconciliation
 
 - Added a forward-only PostgreSQL 17 reconciliation for the canonical `customer_activity` relation, including its customer foreign key, actual read-path index, row-level security, and least-privilege Admin/service access.
