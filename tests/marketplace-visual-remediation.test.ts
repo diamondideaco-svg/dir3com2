@@ -20,6 +20,13 @@ test('Marketplace option counts use locale-aware singular and plural labels', ()
   assert.equal(marketplaceOptionCountLabel(2, 'en'), '2 options');
 });
 
+test('Service cards do not render an Arabic inventory metric over the active locale', () => {
+  const card = read('components/shared/ServiceCard.tsx');
+  assert.match(card, /const metricLabel = service\.productCount[\s\S]*marketplaceOptionCountLabel\(service\.productCount, language\)[\s\S]*: service\.metric/);
+  assert.match(card, /\{metricLabel\}/);
+  assert.doesNotMatch(card, /\{service\.metric\}/);
+});
+
 test('Marketplace and PDP bind their local direction to the canonical locale', () => {
   assert.equal(languageDirection('ar'), 'rtl');
   assert.equal(languageDirection('en'), 'ltr');

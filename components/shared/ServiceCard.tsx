@@ -71,6 +71,9 @@ export default function ServiceCard({ service }: ServiceCardProps) {
   const serviceDescription = en ? (service.description_en ?? service.description_ar) : service.description_ar;
   const categoryEnglish: Record<string, string> = { السيارات: 'Cars', الفنادق: 'Hotels', الشقق: 'Apartments', 'النقل من وإلى المطار': 'Airport transfers', الكونسيرج: 'Concierge', التجارب: 'Experiences', العروض: 'Offers' };
   const categoryLabel = en ? (categoryEnglish[service.categoryLabel ?? ''] ?? service.categoryLabel) : service.categoryLabel;
+  const metricLabel = service.productCount
+    ? marketplaceOptionCountLabel(service.productCount, language)
+    : service.metric;
 
   const navigateToService = () => {
     router.push(href || '/services');
@@ -128,16 +131,16 @@ export default function ServiceCard({ service }: ServiceCardProps) {
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-1 items-start gap-4">
           <div className="flex-1">
-            {(categoryLabel || service.metric) && (
+            {(categoryLabel || metricLabel) && (
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 {categoryLabel && (
                   <Chip className="font-medium text-[var(--color-muted)]">
                     {categoryLabel}
                   </Chip>
                 )}
-                {service.metric && (
+                {metricLabel && (
                   <Chip className="bg-[var(--color-surface)] font-medium text-[var(--color-navy)]">
-                    {service.metric}
+                    {metricLabel}
                   </Chip>
                 )}
               </div>

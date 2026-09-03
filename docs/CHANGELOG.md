@@ -341,3 +341,4 @@
 - Replaced legacy seed/phase-zero customer URLs with stable service aliases while preserving existing deep links and underlying product ownership.
 - Presented signed-out DABRA as public discovery, separated conversational personas from canonical server roles, and retained human approval for sensitive actions.
 - Isolated Arabic and English floating-assistant sessions and cancelled stale in-flight responses during locale changes.
+- Localized Marketplace inventory metrics through the active locale so English cards cannot expose Arabic option-count labels.
