@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminActionAccess } from '@/lib/auth/admin';
-import { CEO_EMAIL, TEAM_PERMISSIONS, isCeoEmail, normalizeEmail } from '@/lib/auth/team-access';
+import { TEAM_PERMISSIONS, isCeoActor, isCeoUserId, normalizeEmail } from '@/lib/auth/team-access';
 import { supabaseAdmin } from '@/lib/supabase/server';
 
 function csvValues(value: FormDataEntryValue | null) {
@@ -17,7 +17,7 @@ function selectedPermissions(formData: FormData) {
 
 async function requireCeo() {
   const context = await requireAdminActionAccess();
-  if (!isCeoEmail(context.user.email)) throw new Error('CEO access required');
+  if (!await isCeoActor(context.supabase, context.user)) throw new Error('CEO access required');
   if (!supabaseAdmin) throw new Error('ADMIN_DATA_ACCESS_UNAVAILABLE');
   return { ...context, admin: supabaseAdmin };
 }
@@ -32,7 +32,6 @@ export async function upsertTeamAccessGrantAction(formData: FormData) {
 
   if (!email || !email.includes('@')) throw new Error('Valid email is required');
   if (!jobTitle) throw new Error('Job title is required');
-  if (email === CEO_EMAIL && accessLevel !== 'global_admin') throw new Error('CEO access cannot be reduced');
 
   const { data: existingUsers, error: listError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
   if (listError) throw listError;
@@ -46,17 +45,18 @@ export async function upsertTeamAccessGrantAction(formData: FormData) {
     authUser = invited.user;
   }
 
-  if (authUser?.id) {
-    const profileRole = accessLevel === 'global_admin' ? 'admin' : 'staff';
-    const { error: profileError } = await admin.from('profiles').upsert({
-      id: authUser.id,
-      email,
-      full_name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || email.split('@')[0],
-      role: profileRole,
-      status: 'active',
-    }, { onConflict: 'id' });
-    if (profileError) throw profileError;
-  }
+  if (!authUser?.id) throw new Error('Authenticated team identity is required');
+  if (isCeoUserId(authUser.id) && accessLevel !== 'global_admin') throw new Error('CEO access cannot be reduced');
+
+  const profileRole = accessLevel === 'global_admin' ? 'admin' : 'staff';
+  const { error: profileError } = await admin.from('profiles').upsert({
+    id: authUser.id,
+    email,
+    full_name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || email.split('@')[0],
+    role: profileRole,
+    status: 'active',
+  }, { onConflict: 'id' });
+  if (profileError) throw profileError;
 
   const { error: grantError } = await admin.from('team_access_grants').upsert({
     email,
@@ -65,10 +65,10 @@ export async function upsertTeamAccessGrantAction(formData: FormData) {
     country_scope: countryScope,
     permissions,
     status: 'active',
-    invited_user_id: authUser?.id ?? null,
+    invited_user_id: authUser.id,
     created_by: user.id,
     updated_at: new Date().toISOString(),
-  }, { onConflict: 'email' });
+  }, { onConflict: 'invited_user_id' });
   if (grantError) throw grantError;
 
   revalidatePath('/admin/team');
@@ -79,7 +79,6 @@ export async function setTeamAccessStatusAction(formData: FormData) {
   const email = normalizeEmail(formData.get('email'));
   const status = formData.get('status') === 'active' ? 'active' : 'inactive';
   if (!email) throw new Error('Email is required');
-  if (email === CEO_EMAIL && status !== 'active') throw new Error('CEO access cannot be disabled');
 
   const { data: grant, error: readError } = await admin
     .from('team_access_grants')
@@ -88,6 +87,10 @@ export async function setTeamAccessStatusAction(formData: FormData) {
     .maybeSingle();
   if (readError) throw readError;
   if (!grant) throw new Error('Team access grant not found');
+  if (isCeoUserId(grant.invited_user_id)) {
+    if (status !== 'active') throw new Error('CEO access cannot be disabled');
+    if (grant.access_level !== 'global_admin') throw new Error('CEO access cannot be reduced');
+  }
 
   const { error: updateError } = await admin
     .from('team_access_grants')

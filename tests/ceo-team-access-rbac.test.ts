@@ -22,9 +22,14 @@ const partnerDetail = read('app/admin/partners/[id]/page.tsx');
 const adminLanding = read('app/admin/page.tsx');
 const productForm = read('components/products/ProductForm.tsx');
 
-test('official CEO account is pinned to Diamond Idea Gmail', () => {
+test('official CEO authority is pinned to immutable Auth UUID, not contact email', () => {
   assert.match(model, /CEO_EMAIL = 'diamondidea\.co@gmail\.com'/);
-  assert.match(migration, /lower\(p\.email\) = 'diamondidea\.co@gmail\.com'/);
+  assert.match(model, /CEO_USER_ID = '0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'/);
+  assert.match(migration, /auth\.uid\(\) = '0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'::uuid/);
+  assert.doesNotMatch(migration, /p\.email|auth\.jwt\(/);
+  assert.doesNotMatch(model, /isCeoEmail/);
+  assert.match(actions, /isCeoActor\(context\.supabase, context\.user\)/);
+  assert.match(page, /isCeoActor\(supabase, user\)/);
 });
 
 test('team access grants are protected by CEO/self RLS and service role', () => {
@@ -35,7 +40,8 @@ test('team access grants are protected by CEO/self RLS and service role', () => 
   assert.match(migration, /CREATE POLICY team_access_self_read/i);
   assert.match(migration, /CREATE POLICY team_access_service_role_all/i);
   assert.doesNotMatch(migration, /DISABLE ROW LEVEL SECURITY/i);
-  assert.match(actions, /onConflict: 'email'/);
+  assert.match(actions, /onConflict: 'invited_user_id'/);
+  assert.match(migration, /CREATE UNIQUE INDEX IF NOT EXISTS team_access_grants_user_idx/);
 });
 
 test('CEO can invite or attach an auth user and safely provision a profile', () => {
@@ -50,12 +56,15 @@ test('CEO can invite or attach an auth user and safely provision a profile', () 
 test('team access lookup avoids interpolated PostgREST or filters', () => {
   assert.doesNotMatch(model, /\.or\(/);
   assert.match(model, /\.eq\('invited_user_id', user\.id\)/);
-  assert.match(model, /\.eq\('email', email\)/);
+  assert.doesNotMatch(model, /\.eq\('email',/);
+  assert.match(model, /byUserId\.invited_user_id !== user\.id/);
 });
 
 test('CEO account cannot be demoted or disabled', () => {
-  assert.match(actions, /email === CEO_EMAIL && accessLevel !== 'global_admin'/);
-  assert.match(actions, /email === CEO_EMAIL && status !== 'active'/);
+  assert.match(actions, /isCeoUserId\(authUser\.id\) && accessLevel !== 'global_admin'/);
+  assert.match(actions, /isCeoUserId\(grant\.invited_user_id\)/);
+  assert.match(actions, /status !== 'active'.*CEO access cannot be disabled/);
+  assert.match(actions, /grant\.access_level !== 'global_admin'.*CEO access cannot be reduced/);
 });
 
 test('deactivation fails closed and inactive admin profiles lose canonical admin authority', () => {
@@ -74,7 +83,7 @@ test('team console supports email, title, access level, country scope and permis
 });
 
 test('team console is only surfaced to the official CEO in the Admin shell', () => {
-  assert.match(layout, /isCeo=\{isCeoEmail\(user\.email\)\}/);
+  assert.match(layout, /isCeo=\{await isCeoActor\(supabase, user\)\}/);
   assert.match(shell, /isCeo \? \(/);
   assert.match(shell, /href="\/admin\/team"/);
 });

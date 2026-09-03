@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS public.team_access_grants (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS team_access_grants_user_idx
+-- One grant per attached Auth identity, even when its contact email changes.
+CREATE UNIQUE INDEX IF NOT EXISTS team_access_grants_user_idx
   ON public.team_access_grants (invited_user_id);
 
 CREATE OR REPLACE FUNCTION public.is_ceo_actor()
@@ -28,9 +29,9 @@ AS $$
     SELECT 1
     FROM public.profiles p
     WHERE p.id = auth.uid()
+      AND auth.uid() = '0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'::uuid
       AND p.role = 'admin'
       AND p.status = 'active'
-      AND lower(p.email) = 'diamondidea.co@gmail.com'
   );
 $$;
 
@@ -54,10 +55,9 @@ CREATE POLICY team_access_self_read
   ON public.team_access_grants
   FOR SELECT
   TO authenticated
-  USING (
-    email = lower(COALESCE(auth.jwt() ->> 'email', ''))
-    OR invited_user_id = auth.uid()
-  );
+  -- Email is contact data, not ownership. Invitations are attached by the
+  -- trusted server action before a grant can authorize an employee.
+  USING (invited_user_id = auth.uid());
 
 CREATE POLICY team_access_service_role_all
   ON public.team_access_grants

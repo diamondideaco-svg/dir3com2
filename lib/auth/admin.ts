@@ -96,7 +96,7 @@ export async function requireAdminShellAccess(destination = '/admin') {
   const context = await resolveAdministrativeAccess();
   if (!context.user) redirect(buildLoginTarget(destination));
   if (!context.role || !context.scope) notFound();
-  return { user: context.user, role: context.role, scope: context.scope };
+  return { supabase: context.supabase, user: context.user, role: context.role, scope: context.scope };
 }
 
 export async function requireAdminPageAccess(destination = '/admin') {

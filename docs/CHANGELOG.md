@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-03 — Immutable CEO authority before team-access activation
+
+- Pinned CEO authorization to the canonical Auth user UUID and its matching active `admin` profile in both database RLS and the existing server-side Team & Access paths. Contact/profile/JWT email no longer grants CEO authority.
+- Bound employee grant reads to the attached Auth UUID; invitation provisioning must resolve an Auth identity before granting access. Preserved country-scoped staff guards and service-role provisioning.
+- Keyed grant saves and uniqueness to the attached UUID so an employee email change updates the same grant instead of creating ambiguous duplicate grants.
+- Bound CEO demotion/deactivation protection to the resolved target UUID, including activation of an incorrectly scoped CEO-linked grant.
+- Corrected the pending, unapplied team-access migration without applying Production schema or changing inventory. Added real PostgreSQL 17 replay, identity-spoofing, self-read, CRUD-denial and legitimate-access regression coverage.
+
 ## 2026-09-02 — Customer activity schema reconciliation
 
 - Added a forward-only PostgreSQL 17 reconciliation for the canonical `customer_activity` relation, including its customer foreign key, actual read-path index, row-level security, and least-privilege Admin/service access.

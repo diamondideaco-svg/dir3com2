@@ -1,10 +1,10 @@
 import { requireAdminReadAccess } from '@/lib/auth/admin';
-import { CEO_EMAIL, TEAM_PERMISSIONS, isCeoEmail } from '@/lib/auth/team-access';
+import { CEO_EMAIL, TEAM_PERMISSIONS, isCeoActor, isCeoUserId } from '@/lib/auth/team-access';
 import { setTeamAccessStatusAction, upsertTeamAccessGrantAction } from '@/lib/actions/team-access-actions';
 
 export default async function TeamAccessPage() {
   const { supabase, user } = await requireAdminReadAccess();
-  if (!isCeoEmail(user.email)) {
+  if (!await isCeoActor(supabase, user)) {
     return (
       <main className="mx-auto max-w-4xl px-4 py-10 lg:px-8">
         <div className="rounded-3xl border border-red-400/30 bg-red-500/10 p-6 text-red-100">
@@ -82,7 +82,7 @@ export default async function TeamAccessPage() {
               <form action={setTeamAccessStatusAction}>
                 <input type="hidden" name="email" value={grant.email} />
                 <input type="hidden" name="status" value={grant.status === 'active' ? 'inactive' : 'active'} />
-                <button disabled={grant.email.toLowerCase() === CEO_EMAIL} className="rounded-full border border-white/15 px-4 py-2 text-sm disabled:opacity-40">
+                <button disabled={isCeoUserId(grant.invited_user_id)} className="rounded-full border border-white/15 px-4 py-2 text-sm disabled:opacity-40">
                   {grant.status === 'active' ? 'Deactivate' : 'Activate'}
                 </button>
               </form>
