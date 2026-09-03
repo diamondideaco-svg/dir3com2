@@ -153,8 +153,8 @@ export default function PartnerRequestsClient() {
 
                   <div className="flex min-w-52 flex-col justify-end gap-2">
                     <div className="rounded-2xl bg-[#FAF8F4] p-3 text-xs text-[#64748B]">
-                      <div>{ar ? 'طريقة التنفيذ' : 'Fulfilment'}: <strong>{request.fulfilment_method || 'request_to_confirm'}</strong></div>
-                      <div className="mt-1">{ar ? 'التسليم' : 'Handoff'}: <strong>{request.handoff_type || 'none'}</strong></div>
+                      <div>{ar ? 'طريقة التنفيذ' : 'Fulfilment'}: <strong>{request.fulfilment_method || (ar ? 'غير محدد' : 'Unknown')}</strong></div>
+                      <div className="mt-1">{ar ? 'التسليم' : 'Handoff'}: <strong>{request.handoff_type || (ar ? 'غير محدد' : 'None recorded')}</strong></div>
                       {request.handoff_reference ? <div className="mt-1 break-all">{request.handoff_reference}</div> : null}
                     </div>
                     <button
