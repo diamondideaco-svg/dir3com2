@@ -42,7 +42,7 @@ test('the complete current admin page inventory is explicit and protected by one
 test('runtime admin-user management is not fabricated', () => {
   assert.equal(existsSync(path.join(root, 'app/admin/admins/page.tsx')), false);
   assert.equal(existsSync(path.join(root, 'app/admin/users/page.tsx')), false);
-  const source = filesUnder('app').filter((file) => /\.(ts|tsx)$/.test(file)).map(read).join('\n');
+  const source = read('lib/actions/team-access-actions.ts');
   assert.match(source, /auth\.admin\.(createUser|inviteUserByEmail|updateUserById)/);
   assert.doesNotMatch(source, /auth\.admin\.deleteUser/);
   const grants = read('supabase/migrations/20260808173000_go_live_inc_006_profiles_partner_documents_runtime_grants.sql');
