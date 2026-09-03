@@ -43,28 +43,43 @@ export async function GET() {
     if (requestError) throw requestError;
 
     const requestIds = (requests || []).map((request) => request.id);
-    let audits: Array<Record<string, unknown>> = [];
+    let statusAudits: Array<Record<string, unknown>> = [];
+    let handoffEvents: Array<Record<string, unknown>> = [];
     if (requestIds.length) {
-      const { data: auditRows, error: auditError } = await supabaseAdmin
-        .from('marketplace_request_audit_logs')
-        .select('request_id, previous_status, new_status, metadata, created_at')
-        .in('request_id', requestIds)
-        .order('created_at', { ascending: true });
+      const [{ data: auditRows, error: auditError }, { data: handoffRows, error: handoffError }] = await Promise.all([
+        supabaseAdmin
+          .from('marketplace_request_audit_logs')
+          .select('request_id, previous_status, new_status, created_at')
+          .in('request_id', requestIds)
+          .order('created_at', { ascending: true }),
+        supabaseAdmin
+          .from('marketplace_request_handoff_events')
+          .select('request_id, handoff_type, handoff_reference, request_status_at_handoff, created_at')
+          .in('request_id', requestIds)
+          .order('created_at', { ascending: true }),
+      ]);
       if (auditError) throw auditError;
-      audits = (auditRows || []) as Array<Record<string, unknown>>;
+      if (handoffError) throw handoffError;
+      statusAudits = (auditRows || []) as Array<Record<string, unknown>>;
+      handoffEvents = (handoffRows || []) as Array<Record<string, unknown>>;
     }
 
     const data = (requests || []).map((request) => ({
       ...request,
       timeline: [
         { type: 'request_submitted', at: request.created_at, status: request.status },
-        ...audits.filter((audit) => audit.request_id === request.id).map((audit) => ({
-          type: typeof audit.metadata === 'object' && audit.metadata && 'operation' in audit.metadata ? String((audit.metadata as Record<string, unknown>).operation) : 'status_updated',
+        ...statusAudits.filter((audit) => audit.request_id === request.id).map((audit) => ({
+          type: 'status_updated',
           at: audit.created_at,
           previousStatus: audit.previous_status,
           status: audit.new_status,
         })),
-      ],
+        ...handoffEvents.filter((event) => event.request_id === request.id).map((event) => ({
+          type: `${String(event.handoff_type || 'handoff')}_handoff_started`,
+          at: event.created_at,
+          status: event.request_status_at_handoff,
+        })),
+      ].sort((a, b) => String(a.at || '').localeCompare(String(b.at || ''))),
     }));
 
     return NextResponse.json({ data, whatsappConfigured: Boolean(bookingWhatsappNumber()) }, { headers: privateHeaders() });
