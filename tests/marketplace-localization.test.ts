@@ -17,9 +17,10 @@ test('marketplace customer surfaces use the canonical language context and conta
     assert.match(read(file), /useLanguage/);
   }
   const explorer = read('components/public/MarketplaceExplorer.tsx');
-  for (const label of ['Marketplace', 'All destinations', 'All services', 'Search now', 'Reset filters', 'No verified inventory']) {
+  for (const label of ['Marketplace', 'All destinations', 'All services', 'Search now', 'Reset filters', 'No published marketplace listings']) {
     assert.ok(explorer.includes(label), `${label} must have an English rendering`);
   }
+  assert.doesNotMatch(explorer, /No verified inventory/);
   const detail = read('components/public/PublicServiceDetailClient.tsx');
   for (const label of ['Request confirmation', 'Request a quote', 'Booking and payment', 'Ask DABRA', 'Back to marketplace']) {
     assert.ok(detail.includes(label), `${label} must have an English rendering`);

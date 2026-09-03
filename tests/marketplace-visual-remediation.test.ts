@@ -20,6 +20,13 @@ test('Marketplace option counts use locale-aware singular and plural labels', ()
   assert.equal(marketplaceOptionCountLabel(2, 'en'), '2 options');
 });
 
+test('Service cards do not render an Arabic inventory metric over the active locale', () => {
+  const card = read('components/shared/ServiceCard.tsx');
+  assert.match(card, /const metricLabel = service\.productCount[\s\S]*marketplaceOptionCountLabel\(service\.productCount, language\)[\s\S]*: service\.metric/);
+  assert.match(card, /\{metricLabel\}/);
+  assert.doesNotMatch(card, /\{service\.metric\}/);
+});
+
 test('Marketplace and PDP bind their local direction to the canonical locale', () => {
   assert.equal(languageDirection('ar'), 'rtl');
   assert.equal(languageDirection('en'), 'ltr');
@@ -32,8 +39,8 @@ test('mobile request form exposes a safe zone and DABRA uses a context-aware avo
   const dabra = read('components/layout/FloatingDibrah.tsx');
   assert.match(detail, /data-marketplace-request-form/);
   assert.match(detail, /pb-24[\s\S]*sm:pb-0/);
-  assert.match(dabra, /pathname\.startsWith\('\/services\/'\)/);
-  assert.match(dabra, /querySelector\('\[data-marketplace-request-form\]'\)/);
-  assert.match(dabra, /setPosition\(clampPosition\(Number\.POSITIVE_INFINITY, 96\)\)/);
-  assert.match(dabra, /if \(marketplaceRequestMobile\)[\s\S]*setPosition\(clampPosition\(Number\.POSITIVE_INFINITY, 96\)\)/);
+  assert.match(dabra, /data-marketplace-critical-action/);
+  assert.match(dabra, /getBoundingClientRect\(\)/);
+  assert.match(dabra, /placeDabraLauncher\(\{ language, viewport/);
+  assert.match(dabra, /\[language, pathname, positionStorageKey\]/);
 });
