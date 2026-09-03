@@ -12,6 +12,8 @@ export type RawMarketplaceServiceRecord = {
   base_price?: number | null;
   currency?: string | null;
   status?: string | null;
+  synthetic?: boolean | null;
+  verified?: boolean | null;
   featured?: boolean | null;
   marketplace_category?: string | null;
   marketplace_family?: 'drive' | 'stay' | 'fly' | 'concierge' | 'vip' | null;
@@ -35,6 +37,7 @@ export type RawMarketplaceServiceRecord = {
 };
 
 type RawMarketplaceProductRecord = {
+  synthetic?: boolean | null;
   id: string;
   slug?: string | null;
   name_ar?: string | null;
@@ -109,7 +112,7 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
       applyPublicProductFilters(
         supabaseAdmin
           .from('products')
-          .select('id,slug,name_ar,name_en,description_ar,description_en,base_price,currency,status,featured,verified,category_id,marketplace_family,created_at,updated_at,fulfilment_state,transaction_method,marketplace_environment,supply_type,supplier_name,supplier_verified')
+          .select('id,slug,name_ar,name_en,description_ar,description_en,base_price,currency,status,synthetic,featured,verified,category_id,marketplace_family,created_at,updated_at,fulfilment_state,transaction_method,marketplace_environment,supply_type,supplier_name,supplier_verified')
       ).order('created_at', { ascending: true }),
       applyPublicCategoryFilters(supabaseAdmin.from('product_categories').select('id,slug,name_en,name_ar')),
     ]);
@@ -165,6 +168,8 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
           base_price: product.base_price,
           currency: product.currency,
           status: product.status,
+          synthetic: product.synthetic,
+          verified: product.verified,
           featured: Boolean(product.featured) || product.status === 'featured',
           marketplace_category: category?.slug ?? category?.name_en ?? category?.name_ar ?? null,
           marketplace_family: product.marketplace_family,

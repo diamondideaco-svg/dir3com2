@@ -39,14 +39,14 @@ const DEFAULT_DIBRAH_POSITION = { x: 12, y: 120 };
 
 const floatingCopy = {
   ar: {
-    unavailable: 'لا تتوفر حاليًا بيانات سوق موثقة كافية.', live: 'البيانات الحالية موثقة ضمن السوق الحي.', pilot: 'البيانات الحالية تجريبية أو ضمن نطاق الاختبار، وليست إثباتًا للتوفر الحي.',
+    unavailable: 'لا تتوفر حاليًا قوائم سوق منشورة كافية.', live: 'تتوفر قوائم سوق منشورة للاستكشاف، ويظل التأكيد حسب المسار الموضح لكل خدمة.', pilot: 'البيانات الحالية تجريبية أو ضمن نطاق الاختبار، وليست إثباتًا للتوفر الحي.',
     welcome: 'ياهلا، أنا الدبرة.', help: 'أقدر أساعدك باقتراح الخدمات المناسبة حسب الوجهة ونوع الرحلة.', fallback: 'لا تتوفر إجابة موثوقة حاليًا. جرّب إضافة الوجهة أو نوع الخدمة المطلوبة.',
     invalid: 'الرسالة غير صالحة، حاول صياغتها بشكل مختلف.', session: 'تعذر التحقق من الجلسة. حدّث الصفحة وحاول مرة أخرى.', unavailableChat: 'تعذر الاتصال بالدبرة حاليًا. حاول مرة أخرى لاحقًا.', network: 'تعذر الاتصال بالدبرة حاليًا. تحقّق من الاتصال بالإنترنت وحاول مرة أخرى.',
     drag: 'اسحب للتحريك - اسأل الدبرة', close: 'إغلاق لوحة الدبرة', assistant: 'مساعد السفر', status: 'مساعدة اختيارية', placeholder: 'ابدأ الكتابة', send: 'إرسال', micLanguage: 'لغة الميكروفون', stopMic: 'إيقاف الإدخال الصوتي', startMic: 'الإدخال الصوتي', stopListening: 'إيقاف الاستماع', tap: 'اضغط للتحدث', listening: 'جاري الاستماع...', denied: 'تعذر الوصول إلى الميكروفون. اسمح للمتصفح باستخدام الميكروفون ثم حاول مرة أخرى.', unsupported: 'الإدخال الصوتي غير مدعوم في هذا المتصفح. استخدم الكتابة أو متصفحًا يدعم Web Speech.',
     policyTitle: 'إخلاء مسؤولية وحدود الدبرة', policyOne: 'الدبرة مساعد سفر اختياري للتخطيط والمقارنة والوصول إلى بيانات سوق dir3com الموثقة. لا تُعد الردود تأكيدًا للتوفر أو السعر أو الحجز.', policyTwo: 'لا تنفّذ الدبرة الحجز أو الدفع أو الإلغاء أو الاسترداد أو أي إجراء غير قابل للعكس من تلقاء نفسها. موافقتك الصريحة والمتابعة عبر المسار الرسمي مطلوبة.', policyAgree: 'قرأت الشروط والأحكام وسياسة الخصوصية، وأفهم أن الدبرة لا تنفّذ المعاملات تلقائيًا.', continue: 'متابعة', friendly: 'مساعد السفر الودود', ask: 'اسأل الدبرة', title: 'الدبرة',
   },
   en: {
-    unavailable: 'There is not enough verified marketplace data right now.', live: 'Current data is verified in the live marketplace.', pilot: 'Current data is test or pilot data and is not proof of live availability.',
+    unavailable: 'There are not enough published marketplace listings right now.', live: 'Published marketplace listings are available to explore; confirmation follows the flow shown for each service.', pilot: 'Current data is test or pilot data and is not proof of live availability.',
     welcome: 'Hello, I’m DABRA.', help: 'I can help you explore services by destination and trip type.', fallback: 'A reliable answer is not available right now. Try adding a destination or service type.',
     invalid: 'That message is invalid. Please phrase it differently.', session: 'Your session could not be verified. Refresh and try again.', unavailableChat: 'DABRA is temporarily unavailable. Please try again later.', network: 'DABRA could not be reached. Check your connection and try again.',
     drag: 'Drag to move — ask DABRA', close: 'Close DABRA panel', assistant: 'Travel assistant', status: 'Optional assistance', placeholder: 'Start typing', send: 'Send', micLanguage: 'Microphone language', stopMic: 'Stop voice input', startMic: 'Voice input', stopListening: 'Stop listening', tap: 'Tap to speak', listening: 'Listening...', denied: 'Microphone access was denied. Allow microphone access and try again.', unsupported: 'Voice input is not supported in this browser. Use typing or a browser with Web Speech support.',
@@ -95,6 +95,12 @@ function detectConversationLanguage(text: string, fallback: 'ar' | 'en' = 'ar'):
 
 export default function FloatingDibrah() {
   const { language } = useLanguage();
+  // A locale is a conversation boundary. Remount atomically, including history,
+  // drafts, speech callbacks, errors and request refs, even for AR -> EN -> AR.
+  return <FloatingDibrahSession key={language} language={language} />;
+}
+
+function FloatingDibrahSession({ language }: { language: 'ar' | 'en' }) {
   const t = floatingCopy[language];
   const positionStorageKey = `${DIBRAH_POSITION_STORAGE_KEY}:${language}`;
   const pathname = usePathname();
@@ -124,6 +130,12 @@ export default function FloatingDibrah() {
   const stickToBottomRef = useRef(true);
   const sendInFlightRef = useRef(false);
   const activeRequestIdRef = useRef<string | null>(null);
+  const chatAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => {
+    activeRequestIdRef.current = null;
+    chatAbortRef.current?.abort();
+  }, []);
 
   const clampPosition = useCallback((x: number, y: number) => {
     const width = controlRef.current?.offsetWidth ?? 220;
@@ -191,14 +203,6 @@ export default function FloatingDibrah() {
   }, [language, pathname, positionStorageKey]);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      setMicLanguage(language);
-      setMessages((previous) => previous.length === 1 && previous[0]?.id === 'assistant-welcome' ? buildSeedMessages(null, language) : previous);
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [language]);
-
-  useEffect(() => {
     if (!panelOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setPanelOpen(false);
@@ -227,14 +231,16 @@ export default function FloatingDibrah() {
   }, [messages, sending, panelOpen]);
 
   useEffect(() => {
+    const controller = new AbortController();
     async function loadAssistantContext() {
       try {
-        const response = await fetch('/api/services?view=assistant', { cache: 'no-store' });
+        const response = await fetch('/api/services?view=assistant', { cache: 'no-store', signal: controller.signal });
         if (!response.ok) {
           return;
         }
 
         const payload = (await response.json()) as DibrahAssistantContext;
+        if (controller.signal.aborted) return;
         setAssistantContext(payload);
         setMessages((previous) => (
           previous.length === 1 && previous[0]?.id === 'assistant-welcome'
@@ -242,11 +248,12 @@ export default function FloatingDibrah() {
             : previous
         ));
       } catch {
-        setAssistantContext(null);
+        if (!controller.signal.aborted) setAssistantContext(null);
       }
     }
 
     loadAssistantContext();
+    return () => controller.abort();
   }, [language]);
 
   useEffect(() => {
@@ -394,12 +401,16 @@ export default function FloatingDibrah() {
     // Sending is an explicit action, so always return the viewport to the newest message.
     stickToBottomRef.current = true;
     try {
+      const controller = new AbortController();
+      chatAbortRef.current = controller;
       const response = await fetch('/api/ai2/chat', {
         method: 'POST',
+        signal: controller.signal,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ message: trimmed, history: historyForRequest, locale: micLanguage }),
       });
       const payload = (await response.json().catch(() => ({}))) as { answer?: string; error?: string };
+      if (controller.signal.aborted || activeRequestIdRef.current !== requestId) return;
       if (!response.ok) {
         if (response.status === 400) {
           setSendError(t.invalid);
@@ -417,7 +428,7 @@ export default function FloatingDibrah() {
           : [...previous, { id: assistantMessageId, role: 'assistant', content: presentAssistantAnswer(payload.answer, micLanguage) }]
       ));
     } catch {
-      setSendError(t.network);
+      if (activeRequestIdRef.current === requestId && !chatAbortRef.current?.signal.aborted) setSendError(t.network);
     } finally {
       if (activeRequestIdRef.current === requestId) {
         activeRequestIdRef.current = null;

@@ -6,6 +6,7 @@ import {
     sanitizeServiceProductsForCompatibility,
 } from '@/lib/marketplace/synthetic-compat';
 import { getCanonicalService, resolveCanonicalServiceSlug } from '@/lib/services/canonical';
+import { customerProductAliasId, customerProductSlug } from '@/lib/marketplace/customer-identifiers';
 
 type ServiceApiErrorCode = 'invalid_slug' | 'not_found' | 'internal_error';
 
@@ -116,7 +117,7 @@ export async function GET(
                 client
                     .from('products')
                     .select('*')
-                    .eq('slug', normalizedSlug)
+                    .eq(customerProductAliasId(normalizedSlug) ? 'id' : 'slug', customerProductAliasId(normalizedSlug) ?? normalizedSlug)
             ).maybeSingle();
 
             if (productError) {
@@ -164,7 +165,7 @@ export async function GET(
 
                 return NextResponse.json({
                     id: product.id,
-                    slug: product.slug,
+                    slug: customerProductSlug(product.id, product.slug),
                     name_ar: product.name_ar,
                     name_en: product.name_en,
                     description_ar: product.description_ar,
@@ -174,6 +175,8 @@ export async function GET(
                     currency: product.currency,
                     featured: product.featured,
                     status: product.status,
+                    synthetic: product.synthetic,
+                    verified: product.verified,
                     marketplace_family: product.marketplace_family,
                     fulfilment_state: product.fulfilment_state,
                     transaction_method: product.transaction_method,
@@ -194,7 +197,7 @@ export async function GET(
                             description_ar: product.description_ar,
                             price_per_unit: product.base_price,
                             unit_type: null,
-                            slug: product.slug,
+                            slug: customerProductSlug(product.id, product.slug),
                             partner: null,
                             region: null,
                             images: safeImages.filter((image) => Boolean(image.image_url)),

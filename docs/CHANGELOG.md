@@ -314,3 +314,10 @@
 - Added safe, visible LiteAPI and Ticketmaster activation diagnostics without exposing credential values or inventing provider inventory.
 - Added explicit route-level loading and error states that never present unresolved or failed provider requests as authoritative inventory.
 - Corrected LiteAPI preview access truth so configured credentials are not reported as authorized when the provider rejects access, with localized fail-closed diagnostics for missing, rejected, and temporarily unavailable states.
+
+## 2026-09-03 — DABRA Round 3 truth and locale isolation
+
+- Classified DABRA-visible inventory from authoritative production, verification, supplier, fulfilment, and synthetic fields instead of internal-looking names or slugs.
+- Replaced legacy seed/phase-zero customer URLs with stable service aliases while preserving existing deep links and underlying product ownership.
+- Presented signed-out DABRA as public discovery, separated conversational personas from canonical server roles, and retained human approval for sensitive actions.
+- Isolated Arabic and English floating-assistant sessions and cancelled stale in-flight responses during locale changes.

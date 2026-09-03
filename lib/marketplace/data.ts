@@ -1,3 +1,5 @@
+import { customerProductSlug } from './customer-identifiers';
+
 export type MarketplaceFamilyKey =
   | 'dir3-drive'
   | 'dir3-stay'
@@ -84,6 +86,8 @@ type RawServiceApiItem = {
   base_price?: number | null;
   currency?: string | null;
   status?: string | null;
+  synthetic?: boolean | null;
+  verified?: boolean | null;
   featured?: boolean | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -110,6 +114,8 @@ type RawServiceApiItem = {
 };
 
 export type MarketplaceService = {
+  synthetic?: boolean | null;
+  verified?: boolean | null;
   id: string | number;
   slug: string;
   name_ar: string;
@@ -442,7 +448,7 @@ function findCatalogEntry(category: MarketplacePageCategory) {
 }
 
 function resolveServiceHref(item: RawServiceApiItem, catalogEntry: MarketplaceCatalogEntry, fallbackSlug: string) {
-  const normalizedSlug = normalizeText(item.slug);
+  const normalizedSlug = customerProductSlug(item.id, normalizeText(item.slug));
 
   if (normalizedSlug) {
     return `/services/${normalizedSlug}`;
@@ -529,7 +535,9 @@ export function normalizeMarketplaceServices(
 
     return {
       id: item.id ?? index + 1,
-      slug: item.slug ?? fallbackSlug,
+      synthetic: item.synthetic,
+      verified: item.verified,
+      slug: customerProductSlug(item.id, item.slug ?? fallbackSlug),
       name_ar: item.name_ar ?? item.name_en ?? catalogEntry.title,
       name_en: item.name_en ?? item.name_ar ?? catalogEntry.title,
       description_ar: sanitizeMarketplaceCustomerCopy(item.description_ar ?? item.description_en, catalogEntry.description),
@@ -555,6 +563,8 @@ export function normalizeMarketplaceServices(
       source: sourceLabel,
       provenance: sourceLabel === 'fallback'
         ? 'FALLBACK'
+        : item.synthetic === true ? 'SYNTHETIC_TEST'
+        : item.marketplace_environment === 'sandbox' || item.marketplace_environment === 'test' || item.fulfilment_state === 'test_sandbox' ? 'PROVIDER_SANDBOX'
         : item.supplier_verified === true
           ? 'PARTNER_VERIFIED'
           : 'PROVIDER_LIVE',

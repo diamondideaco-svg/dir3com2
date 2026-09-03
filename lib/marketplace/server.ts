@@ -50,27 +50,28 @@ export function summarizeMarketplacePageProvenance(items: MarketplaceService[]) 
 
 export type MarketplaceAssistantDataQuality = 'live-verified' | 'pilot-test' | 'unavailable';
 
-function containsPilotMarker(value: unknown) {
-  return /(?:phase[- ]?\d+|test|synthetic|staging|seed|provisional|review)/i.test(String(value ?? ''));
+type AssistantInventoryTruth = Pick<MarketplaceService, 'source' | 'provenance' | 'marketplaceEnvironment' | 'fulfilmentState' | 'supplierVerified' | 'synthetic' | 'verified'>;
+
+function isVerifiedAssistantInventory(service: AssistantInventoryTruth) {
+  return service.source !== 'fallback' && service.synthetic !== true && service.verified === true &&
+    service.provenance === 'PARTNER_VERIFIED' && service.supplierVerified === true &&
+    service.marketplaceEnvironment === 'production' && service.fulfilmentState !== 'test_sandbox';
 }
 
 export function classifyMarketplaceAssistantDataQuality(
-  services: Array<Pick<MarketplaceService, 'slug' | 'name_ar' | 'name_en' | 'description_ar' | 'description_en' | 'badge' | 'supplierVerified'>>,
+  services: AssistantInventoryTruth[],
   hasRealData: boolean,
 ): MarketplaceAssistantDataQuality {
   if (services.length === 0) return 'unavailable';
-  const hasPilotMarkers = services.some((service) =>
-    [service.slug, service.name_ar, service.name_en, service.description_ar, service.description_en, service.badge]
-      .some(containsPilotMarker),
-  );
-  const allSuppliersVerified = services.every((service) => service.supplierVerified === true);
-  return hasPilotMarkers || !hasRealData || !allSuppliersVerified ? 'pilot-test' : 'live-verified';
+  const hasTestData = services.some((service) => service.synthetic === true ||
+    service.provenance === 'SYNTHETIC_TEST' || service.provenance === 'PROVIDER_SANDBOX' ||
+    ['test', 'sandbox', 'synthetic'].includes(service.marketplaceEnvironment ?? '') || service.fulfilmentState === 'test_sandbox');
+  if (hasTestData) return 'pilot-test';
+  return hasRealData && services.every(isVerifiedAssistantInventory) ? 'live-verified' : 'unavailable';
 }
 
-export function filterAssistantServices<T extends Pick<MarketplaceService, 'source' | 'slug' | 'name_ar' | 'name_en' | 'description_ar' | 'description_en' | 'badge' | 'supplierVerified'>>(services: T[]) {
-  return services.filter((service) => service.source !== 'fallback')
-    .filter((service) => service.supplierVerified === true)
-    .filter((service) => ![service.slug, service.name_ar, service.name_en, service.description_ar, service.description_en, service.badge].some(containsPilotMarker));
+export function filterAssistantServices<T extends AssistantInventoryTruth>(services: T[]) {
+  return services.filter(isVerifiedAssistantInventory);
 }
 
 export function filterCustomerMarketplaceServices<T extends Pick<MarketplaceService, 'source' | 'provenance' | 'marketplaceEnvironment' | 'fulfilmentState'>>(services: T[]) {

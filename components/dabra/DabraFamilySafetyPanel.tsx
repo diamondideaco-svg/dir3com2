@@ -4,10 +4,11 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { FiArrowUpLeft, FiCheckCircle, FiShield, FiUsers } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { localizeDabraPersona } from '@/lib/dabra/persona-copy';
 
 type FamilyIdentity = {
   optional: true;
-  activeRole: string;
+  activeRole: string | null;
   authenticated: boolean;
   autonomousTransactions: false;
 };
@@ -16,8 +17,9 @@ const copy = {
   ar: {
     optional: 'الدبرة اختيارية',
     title: 'خطّط وقارن، والقرار الأخير لك.',
-    description: 'تستخدم الدبرة نفس بيانات السوق الموثقة. لا تنفّذ حجزًا أو دفعًا أو إلغاءً أو استردادًا من تلقاء نفسها.',
-    role: 'هوية المساعدة الحالية',
+    description: 'تستخدم الدبرة نفس قوائم السوق المنشورة. لا تنفّذ حجزًا أو دفعًا أو إلغاءً أو استردادًا من تلقاء نفسها.',
+    role: 'نمط المساعدة',
+    authenticated: 'مساعدة الدبرة',
     signedOut: 'وضع الاستكشاف العام',
     flow: ['اكتشف', 'اسأل', 'قارن', 'خطّط', 'افتح السوق', 'راجع التفاصيل', 'وافق بنفسك'],
     approval: 'موافقتك الصريحة مطلوبة قبل أي خطوة مالية أو غير قابلة للعكس.',
@@ -27,8 +29,9 @@ const copy = {
   en: {
     optional: 'DABRA is optional',
     title: 'Plan and compare. You make the final decision.',
-    description: 'DABRA uses the same verified marketplace data. It never books, pays, cancels, or refunds on its own.',
-    role: 'Current assistant identity',
+    description: 'DABRA uses the same published marketplace listings. It never books, pays, cancels, or refunds on its own.',
+    role: 'Assistance mode',
+    authenticated: 'DABRA assistance',
     signedOut: 'Public discovery mode',
     flow: ['Discover', 'Ask', 'Compare', 'Plan', 'Open marketplace', 'Review details', 'Approve yourself'],
     approval: 'Your explicit approval is required before any financial or irreversible step.',
@@ -61,7 +64,7 @@ export default function DabraFamilySafetyPanel() {
         </div>
         <div className="min-w-64 rounded-2xl border border-[#dfcfaa] bg-white px-4 py-3">
           <span className="flex items-center gap-2 text-xs font-semibold text-[#7c6533]"><FiUsers /> {t.role}</span>
-          <strong className="mt-1 block text-sm">{identity?.activeRole ?? t.signedOut}</strong>
+          <strong className="mt-1 block text-sm">{identity?.authenticated ? (localizeDabraPersona(identity.activeRole, language) ?? t.authenticated) : t.signedOut}</strong>
         </div>
       </div>
       <ol className="mt-4 flex gap-2 overflow-x-auto pb-2" aria-label={language === 'ar' ? 'مسار الدبرة الاختياري' : 'Optional DABRA journey'}>

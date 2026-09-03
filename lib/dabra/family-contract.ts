@@ -4,7 +4,8 @@ import {
   type MarketplaceTruth,
 } from '@/lib/marketplace/truth';
 
-export const DABRA_FAMILY_ROLES = [
+// Presentation personas, NOT values of profiles.role or authorization grants.
+export const DABRA_FAMILY_PERSONAS = [
   'DABRA Concierge',
   'DABRA Partner',
   'DABRA Admin',
@@ -14,7 +15,10 @@ export const DABRA_FAMILY_ROLES = [
   'DABRA Travel Agent',
 ] as const;
 
-export type DabraFamilyRole = (typeof DABRA_FAMILY_ROLES)[number];
+export type DabraFamilyPersona = (typeof DABRA_FAMILY_PERSONAS)[number];
+/** @deprecated Presentation-only alias retained for existing consumers. */
+export const DABRA_FAMILY_ROLES = DABRA_FAMILY_PERSONAS;
+export type DabraFamilyRole = DabraFamilyPersona;
 export type DabraPlatformRole = 'anonymous' | 'customer' | 'partner' | 'staff' | 'admin';
 export type DabraActionClass =
   | 'READ_ONLY'
@@ -83,7 +87,7 @@ export type TrustedDabraResource = {
 export type DabraActionDecision = {
   action: DabraAction;
   actionClass: DabraActionClass;
-  familyRole: DabraFamilyRole;
+  familyRole: DabraFamilyPersona | null;
   allowed: boolean;
   autonomousExecution: false;
   requiresHumanApproval: boolean;
@@ -182,15 +186,19 @@ export function normalizeDabraActionRequest(value: unknown): {
   };
 }
 
-export function resolveDabraFamilyRole(actor: TrustedDabraActor): DabraFamilyRole {
-  const rawRole = actor.rawRole?.trim().toLowerCase() ?? '';
-  if (actor.platformRole === 'admin' && (rawRole === 'super_admin' || rawRole === 'ceo')) return 'DABRA CEO';
-  if ((actor.platformRole === 'staff' || actor.platformRole === 'admin') && rawRole === 'mall_center') return 'DABRA Mall Center';
-  if ((actor.platformRole === 'staff' || actor.platformRole === 'admin') && rawRole === 'travel_agent') return 'DABRA Travel Agent';
-  if ((actor.platformRole === 'staff' || actor.platformRole === 'admin') && ['customer_service', 'support'].includes(rawRole)) return 'DABRA Customer Service';
+export function hasDabraExecutiveAccess(actor: TrustedDabraActor): boolean {
+  // Preserve the existing reachable policy; a display persona cannot grant it.
+  return actor.authenticated && !!actor.userId && actor.platformRole === 'admin' && actor.rawRole?.trim().toLowerCase() === 'super_admin';
+}
+
+export function resolveDabraFamilyRole(actor: TrustedDabraActor): DabraFamilyPersona | null {
+  if (!actor.authenticated || !actor.userId || actor.platformRole === 'anonymous') return null;
+  if (hasDabraExecutiveAccess(actor)) return 'DABRA CEO';
   if (actor.platformRole === 'admin') return 'DABRA Admin';
   if (actor.platformRole === 'partner') return 'DABRA Partner';
-  return 'DABRA Concierge';
+  if (actor.platformRole === 'customer') return 'DABRA Concierge';
+  // Specialist personas need a real server-resolved assignment before activation.
+  return null;
 }
 
 function message(reason: DabraActionDecision['reason'], language: 'ar' | 'en') {
@@ -249,7 +257,7 @@ export function evaluateDabraAction(input: {
   if (rule.roles && !rule.roles.includes(actor.platformRole)) {
     return decision(actor, action, language, 'ROLE_NOT_ALLOWED', false);
   }
-  if (action === 'view_executive_workspace' && resolveDabraFamilyRole(actor) !== 'DABRA CEO') {
+  if (action === 'view_executive_workspace' && !hasDabraExecutiveAccess(actor)) {
     return decision(actor, action, language, 'ROLE_NOT_ALLOWED', false);
   }
   if (rule.scopedResource) {

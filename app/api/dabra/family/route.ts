@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { normalizeRole } from '@/lib/auth/identity';
 import {
   DABRA_ACTION_RULES,
-  DABRA_FAMILY_ROLES,
+  DABRA_FAMILY_PERSONAS,
   evaluateDabraAction,
   normalizeDabraActionRequest,
   resolveDabraFamilyRole,
@@ -161,7 +161,9 @@ export async function GET(request: NextRequest) {
     optional: true,
     activeRole: resolveDabraFamilyRole(actor),
     authenticated: actor.authenticated,
-    roles: DABRA_FAMILY_ROLES,
+    canonicalRole: actor.platformRole,
+    identityModel: 'capability_persona',
+    personas: DABRA_FAMILY_PERSONAS,
     actionClasses: [...new Set(Object.values(DABRA_ACTION_RULES).map((rule) => rule.actionClass))],
     autonomousTransactions: false,
   }, { headers: { 'Cache-Control': 'private, no-store' } });

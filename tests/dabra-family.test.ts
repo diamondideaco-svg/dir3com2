@@ -4,6 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import {
   DABRA_ACTION_RULES,
+  DABRA_FAMILY_PERSONAS,
   DABRA_FAMILY_ROLES,
   evaluateDabraAction,
   normalizeDabraActionRequest,
@@ -27,15 +28,17 @@ function owned(kind: TrustedDabraResource['kind'], marketplaceTruth?: Marketplac
   return { kind, id: 'resource-1', ownerId: customer.userId ?? undefined, tenantId: customer.tenantId ?? undefined, truth: marketplaceTruth };
 }
 
-test('DABRA Family exposes the seven approved coordinated identities', () => {
+test('DABRA Family exposes seven presentation personas without treating them as database roles', () => {
+  assert.equal(DABRA_FAMILY_ROLES, DABRA_FAMILY_PERSONAS);
   assert.deepEqual(DABRA_FAMILY_ROLES, ['DABRA Concierge', 'DABRA Partner', 'DABRA Admin', 'DABRA CEO', 'DABRA Mall Center', 'DABRA Customer Service', 'DABRA Travel Agent']);
   assert.equal(resolveDabraFamilyRole(customer), 'DABRA Concierge');
   assert.equal(resolveDabraFamilyRole(partner), 'DABRA Partner');
   assert.equal(resolveDabraFamilyRole(admin), 'DABRA Admin');
   assert.equal(resolveDabraFamilyRole(ceo), 'DABRA CEO');
-  assert.equal(resolveDabraFamilyRole({ ...admin, platformRole: 'staff', rawRole: 'mall_center' }), 'DABRA Mall Center');
-  assert.equal(resolveDabraFamilyRole({ ...admin, platformRole: 'staff', rawRole: 'customer_service' }), 'DABRA Customer Service');
-  assert.equal(resolveDabraFamilyRole({ ...admin, platformRole: 'staff', rawRole: 'travel_agent' }), 'DABRA Travel Agent');
+  assert.equal(resolveDabraFamilyRole(anonymous), null);
+  assert.equal(resolveDabraFamilyRole({ ...admin, platformRole: 'staff', rawRole: 'mall_center' }), null);
+  assert.equal(resolveDabraFamilyRole({ ...admin, platformRole: 'staff', rawRole: 'customer_service' }), null);
+  assert.equal(resolveDabraFamilyRole({ ...admin, platformRole: 'staff', rawRole: 'travel_agent' }), null);
 });
 
 test('public DABRA is optional and read-only discovery works without authentication', () => {
@@ -112,6 +115,7 @@ test('roles remain separated and only trusted CEO identity can reach executive s
   assert.equal(evaluateDabraAction({ actor: partner, action: 'view_admin_workspace', resource: { kind: 'admin_workspace' } }).reason, 'ROLE_NOT_ALLOWED');
   assert.equal(evaluateDabraAction({ actor: admin, action: 'view_executive_workspace', resource: { kind: 'executive_workspace' } }).reason, 'ROLE_NOT_ALLOWED');
   assert.equal(evaluateDabraAction({ actor: ceo, action: 'view_executive_workspace', resource: { kind: 'executive_workspace' } }).allowed, true);
+  assert.equal(evaluateDabraAction({ actor: { ...customer, rawRole: 'super_admin' }, action: 'view_executive_workspace', resource: { kind: 'executive_workspace' } }).reason, 'ROLE_NOT_ALLOWED');
 });
 
 test('prohibited autonomous actions fail closed for every role', () => {
@@ -150,6 +154,9 @@ test('DABRA UI uses five marketplace families and exposes an optional human-appr
   for (const family of ['dir3-fly', 'dir3-stay', 'dir3-drive', 'dir3-concierge', 'dir3-vip']) assert.match(commerce, new RegExp(family));
   assert.match(panel, /الدبرة اختيارية/);
   assert.match(panel, /DABRA is optional/);
+  assert.match(panel, /Public discovery mode/);
+  assert.match(panel, /وضع الاستكشاف العام/);
+  assert.doesNotMatch(panel, /Current assistant identity|هوية المساعدة الحالية/);
   assert.match(panel, /explicit approval/);
   assert.match(panel, /href="\/marketplace"/);
   assert.match(panel, /href="\/support"/);
@@ -162,6 +169,10 @@ test('floating DABRA defaults AR left and EN right and avoids critical mobile PD
   assert.match(floating, /window\.visualViewport/);
   assert.match(floating, /language === 'ar' \? 'sm:left-5' : 'sm:right-5'/);
   assert.match(floating, /data-marketplace-critical-action/);
+  assert.match(floating, /<FloatingDibrahSession key=\{language\} language=\{language\}/);
+  assert.match(floating, /chatAbortRef\.current\?\.abort\(\)/);
+  assert.match(floating, /signal: controller\.signal/);
+  assert.match(floating, /activeRequestIdRef\.current !== requestId/);
   assert.match(pdp, /data-marketplace-critical-action/);
   assert.equal(DABRA_ACTION_RULES.request_human_support.handoff, 'support');
 });

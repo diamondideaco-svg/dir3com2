@@ -150,7 +150,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
 
       {service.supplierName ? (
         <p className="mt-4 text-xs text-[var(--color-muted)]">
-          {en ? 'Supplier' : 'مقدم الخدمة'}: {service.supplierName}{service.supplierVerified ? (en ? ' — verified in dir3com records' : ' — موثّق وفق سجل dir3com') : ''}
+          {en ? 'Supplier' : 'مقدم الخدمة'}: {service.supplierName}{service.supplierVerified ? (en ? ' — verified local partner' : ' — شريك محلي موثّق') : ''}
         </p>
       ) : null}
 

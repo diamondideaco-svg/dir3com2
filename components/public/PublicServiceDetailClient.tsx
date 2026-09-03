@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { FiArrowLeft, FiMapPin } from 'react-icons/fi';
 import {
@@ -24,6 +25,7 @@ import { marketplacePrimaryAction } from '@/lib/marketplace/truth';
 import { getCanonicalService } from '@/lib/services/canonical';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { buildMarketplaceLoginHandoff, buildMarketplaceRequestReturnPath } from '@/lib/auth/marketplace-request-handoff';
+import { customerProductAliasId, hasLegacyCustomerIdentifier } from '@/lib/marketplace/customer-identifiers';
 
 type ServiceProduct = {
   id: string;
@@ -71,6 +73,7 @@ function unitLabel(unitType: string | null | undefined, en: boolean) {
 }
 
 export default function PublicServiceDetailClient({ slug }: { slug: string }) {
+  const router = useRouter();
   const { language, direction } = useLanguage();
   const en = language === 'en';
   const canonical = getCanonicalService(slug);
@@ -93,6 +96,10 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
         }
 
         const data = (await response.json()) as ServiceDetail;
+        if (hasLegacyCustomerIdentifier(slug) && data.slug && customerProductAliasId(data.slug) === data.id) {
+          // Keep existing request/search context while canonicalizing old links.
+          router.replace(`/services/${data.slug}${window.location.search}${window.location.hash}`, { scroll: false });
+        }
         const initialImage =
           data.products
             ?.flatMap((product) => product.images ?? [])
@@ -108,7 +115,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
     }
 
     loadService();
-  }, [slug, en]);
+  }, [slug, en, router]);
 
   const canonicalShell: ServiceDetail | null = canonical
     ? {
@@ -278,7 +285,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
                   </label>
                 </div>
               ) : null}
-              {service_.supplier_name ? <p className="mt-4 text-sm text-[var(--color-muted)]">{en ? 'Supplier' : 'المورد'}: {service_.supplier_name}{service_.supplier_verified ? (en ? ' — verified' : ' — موثّق') : ''}</p> : null}
+              {service_.supplier_name ? <p className="mt-4 text-sm text-[var(--color-muted)]">{en ? 'Supplier' : 'المورد'}: {service_.supplier_name}{service_.supplier_verified ? (en ? ' — verified local partner' : ' — شريك محلي موثّق') : ''}</p> : null}
               {service_.cancellation_summary ? <p className="mt-2 text-sm text-[var(--color-muted)]">{en ? 'Cancellation' : 'الإلغاء'}: {service_.cancellation_summary}</p> : null}
               {marketplaceService ? (
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -373,7 +380,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
               <SectionTitle>{en ? 'Booking and payment' : 'الحجز والدفع'}</SectionTitle>
               <SectionDescription>{en ? 'Final price, taxes, fees, and payment timing appear in the booking flow before any transaction.' : 'تظهر تفاصيل السعر والدفع النهائية في مسار الحجز قبل تنفيذ أي عملية.'}</SectionDescription>
               <div className="mt-5">
-                <PartnerComponent name={service_.supplier_name ?? (en ? products[0]?.partner?.name_en : products[0]?.partner?.name_ar) ?? (en ? 'Service provider' : 'مقدم الخدمة')} detail={service_.supplier_verified ? (en ? 'Supplier verified in dir3com records.' : 'مورد موثّق وفق سجل dir3com.') : (en ? 'Supplier status is shown exactly as recorded, without a verification claim.' : 'تظهر حالة المورد كما هي مسجلة دون ادعاء توثيق.')} />
+                <PartnerComponent name={service_.supplier_name ?? (en ? products[0]?.partner?.name_en : products[0]?.partner?.name_ar) ?? (en ? 'Service provider' : 'مقدم الخدمة')} detail={service_.supplier_verified ? (en ? 'Verified local partner. Final availability follows the displayed confirmation flow.' : 'شريك محلي موثّق. يخضع التوفر النهائي لمسار التأكيد الموضح.') : (en ? 'Supplier status is shown exactly as recorded, without a verification claim.' : 'تظهر حالة المورد كما هي مسجلة دون ادعاء توثيق.')} />
               </div>
             </SectionSurface>
           </ContentContainer>
