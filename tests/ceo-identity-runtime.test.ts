@@ -7,6 +7,7 @@ import ts from 'typescript';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import * as team from '../lib/auth/team-access';
 import * as identity from '../lib/auth/identity';
+import { loadTeamAccess } from '../lib/admin/team-access-data';
 
 const ceo = team.CEO_USER_ID;
 const employee = '22222222-2222-4222-8222-222222222222';
@@ -31,8 +32,9 @@ function fixture(id: string | null = ceo, role = 'admin', status = 'active', ema
   const users: Row[] = [];
   const writes: { table: string; values: Row }[] = [];
   const filters: [string, string, unknown][] = [];
-  const options = { queryError: false, inviteUser: { id: employee, email: 'invite@example.invalid' } as Row | null, invitations: 0 };
+  const options = { queryError: false, tableError: null as { code: string } | null, functionError: null as { code: string } | null, inviteUser: { id: employee, email: 'invite@example.invalid' } as Row | null, invitations: 0 };
   const client = {
+    rpc: async () => ({ data: false, error: options.functionError }),
     auth: {
       getUser: async () => ({ data: { user: actor }, error: null }),
       admin: {
@@ -44,6 +46,9 @@ function fixture(id: string | null = ceo, role = 'admin', status = 'active', ema
       const conditions: [string, unknown][] = [];
       const chain = {
         select: () => chain,
+        order: () => chain,
+        limit: () => chain,
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: options.tableError ? null : grants, error: options.tableError }).then(resolve),
         eq: (column: string, value: unknown) => { filters.push([table, column, value]); conditions.push([column, value]); return chain; },
         maybeSingle: async () => {
           if (options.queryError) return { data: null, error: new Error('query unavailable') };
@@ -75,6 +80,7 @@ function fixture(id: string | null = ceo, role = 'admin', status = 'active', ema
     'next/navigation': { notFound: () => { throw new Error('NOT_FOUND'); }, redirect: () => { throw new Error('LOGIN_REQUIRED'); } },
   });
   const actions = load<typeof import('../lib/actions/team-access-actions')>('lib/actions/team-access-actions.ts', {
+    '@/lib/admin/team-access-data': { loadTeamAccess },
     '@/lib/auth/admin': admin,
     '@/lib/auth/team-access': team,
     '@/lib/supabase/server': { supabaseAdmin: supabase },
@@ -108,6 +114,18 @@ test('runtime CEO authority uses verified ID plus exact active matching profile,
     assert.equal(await team.isCeoActor(forged.supabase, forged.actor!), false);
   }
 });
+
+for (const missing of ['table', 'function', 'query'] as const) {
+  test(`inactive team schema (${missing}) denies actions before any invitation or profile write`, async () => {
+    const f = fixture();
+    if (missing === 'function') f.options.functionError = { code: 'PGRST202' };
+    else f.options.tableError = { code: missing === 'table' ? 'PGRST205' : '42501' };
+    await assert.rejects(f.actions.upsertTeamAccessGrantAction(form({})), /TEAM_ACCESS_UNAVAILABLE/);
+    await assert.rejects(f.actions.setTeamAccessStatusAction(form({ status: 'active' })), /TEAM_ACCESS_UNAVAILABLE/);
+    assert.equal(f.writes.length, 0);
+    assert.equal(f.options.invitations, 0);
+  });
+}
 
 for (const [name, id, role, status] of [
   ['non-CEO admin with CEO email', other, 'admin', 'active'],

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-03 — Team & Access pre-migration runtime safety
+
+- Render a localized not-activated state when the pending team table or CEO database function is absent, and distinguish other read failures from a genuinely empty team list.
+- Probe schema readiness only after existing canonical CEO authorization; block team actions before invitations/profile writes when that schema is unavailable. The service-role function result is an activation check, never human authority.
+- Preserve the pending migration and UUID/country-scope authorization, localize the existing team controls, and add route/state and action safety regression coverage. No Production migration or business data changes.
+
 ## 2026-09-03 — Immutable CEO authority before team-access activation
 
 - Pinned CEO authorization to the canonical Auth user UUID and its matching active `admin` profile in both database RLS and the existing server-side Team & Access paths. Contact/profile/JWT email no longer grants CEO authority.

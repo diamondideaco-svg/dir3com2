@@ -3,6 +3,18 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { Client } from 'pg';
+import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import ts from 'typescript';
+
+const loaderExports = {};
+const loaderSource = readFileSync(new URL('../lib/admin/team-access-data.ts', import.meta.url), 'utf8');
+runInNewContext(ts.transpileModule(loaderSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
+  exports: loaderExports,
+  require: (id: string) => id === 'server-only' ? {} : id === '@/lib/security/safe-logger' ? { logServerEvent: () => undefined } : createRequire(import.meta.url)(id),
+});
+const { loadTeamAccess } = loaderExports as typeof import('../lib/admin/team-access-data');
 
 const migration = readFileSync(new URL('../supabase/migrations/20260903233000_ceo_team_access_rbac.sql', import.meta.url), 'utf8');
 const ceo = '0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16';
@@ -54,12 +66,49 @@ test('CEO identity migration: PostgreSQL 17, immutable authority and team RLS', 
         ('${partner}', 'partner@example.invalid', 'partner'),
         ('${customer}', 'customer@example.invalid', 'customer');
     `);
+    // Real PostgreSQL IO behind the production loader, never a hosted fixture.
+    async function result(sql: string) {
+      try { return { data: (await client.query(sql)).rows, error: null }; }
+      catch (error) { return { data: null, error }; }
+    }
+    const query = { select: () => query, order: () => query, then: (resolve: (value: unknown) => unknown) => result('SELECT id, email, job_title, access_level, country_scope, permissions, status, invited_user_id, created_at, updated_at FROM public.team_access_grants ORDER BY created_at DESC').then(resolve) };
+    const adapter = {
+      from: () => query,
+      rpc: async () => { const r = await result('SELECT public.is_ceo_actor() AS allowed'); return { data: r.data?.[0]?.allowed ?? null, error: r.error }; },
+    } as unknown as SupabaseClient;
+    await t.test('pre-migration real missing relation returns not activated', async () => {
+      assert.equal((await loadTeamAccess(adapter)).status, 'not_activated');
+    });
     await client.query(migration);
+    await t.test('migrated zero grants is ready, not an unavailable or fabricated result', async () => {
+      const state = await loadTeamAccess(adapter);
+      assert.equal(state.status, 'ready');
+      if (state.status === 'ready') assert.equal(state.grants.length, 0);
+    });
+    await t.test('present table with missing function stays unavailable until activation', async () => {
+      await client.query('BEGIN');
+      try {
+        await client.query('DROP FUNCTION public.is_ceo_actor() CASCADE');
+        assert.equal((await loadTeamAccess(adapter)).status, 'not_activated');
+      } finally { await client.query('ROLLBACK'); }
+    });
     await client.query(`INSERT INTO public.team_access_grants (email, job_title, country_scope, permissions, invited_user_id, created_by) VALUES
       ('eg@example.invalid', 'Egypt manager', '{EG}', '{customers:read}', '${staff}', '${ceo}'),
       ('qa@example.invalid', 'Qatar manager', '{QA}', '{products:read}', '${staffQa}', '${ceo}'),
       ('pending@example.invalid', 'Unattached invitation', '{QA}', '{admin:full}', NULL, '${ceo}')`);
     await client.query(migration);
+
+    await t.test('migrated real grants preserve country, permission, status and Auth identity data', async () => {
+      const state = await loadTeamAccess(adapter);
+      assert.equal(state.status, 'ready');
+      if (state.status === 'ready') {
+        assert.equal(state.grants.length, 3);
+        const egypt = state.grants.find(row => row.invited_user_id === staff);
+        assert.deepEqual(egypt?.country_scope, ['EG']);
+        assert.deepEqual(egypt?.permissions, ['customers:read']);
+        assert.equal(egypt?.status, 'active');
+      }
+    });
 
     async function asActor(role: 'anon' | 'authenticated' | 'service_role', id: string | null, claims: object, run: () => Promise<void>, setup?: () => Promise<void>) {
       await client.query('BEGIN');

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAdminActionAccess } from '@/lib/auth/admin';
 import { TEAM_PERMISSIONS, isCeoActor, isCeoUserId, normalizeEmail } from '@/lib/auth/team-access';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { loadTeamAccess } from '@/lib/admin/team-access-data';
 
 function csvValues(value: FormDataEntryValue | null) {
   if (typeof value !== 'string') return [];
@@ -19,6 +20,8 @@ async function requireCeo() {
   const context = await requireAdminActionAccess();
   if (!await isCeoActor(context.supabase, context.user)) throw new Error('CEO access required');
   if (!supabaseAdmin) throw new Error('ADMIN_DATA_ACCESS_UNAVAILABLE');
+  const activation = await loadTeamAccess(supabaseAdmin, true);
+  if (activation.status !== 'ready') throw new Error('TEAM_ACCESS_UNAVAILABLE');
   return { ...context, admin: supabaseAdmin };
 }
 
