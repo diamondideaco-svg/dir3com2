@@ -63,7 +63,8 @@ test('admin partner reads stay server-authoritative and country-scoped after par
     assert.doesNotMatch(source, /createSupabaseServerClient/);
   }
   assert.match(listPage, /filterRowsByCountryScope/);
-  assert.match(detailPage, /assertCountryAllowed/);
+  assert.match(detailPage, /isCountryAllowed\(scope, data\.country\)/);
+  assert.match(detailPage, /notFound\(\)/);
 });
 
 test('private document lifecycle is owner-scoped, signed, sanitized, and complete', () => {
