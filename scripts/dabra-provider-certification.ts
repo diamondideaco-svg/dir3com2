@@ -554,6 +554,11 @@ export function createIsolatedCanonicalProbe(
   // Node 20 does not consistently hand a .ts Worker entrypoint to --import tsx.
   // This static bootstrap registers the repository's existing TS loader inside
   // the isolated thread before importing the fixed module URL from workerData.
+  // Strip loader query/hash metadata so a Node 20 tsx namespace is never nested
+  // inside the worker's independently registered tsx namespace.
+  const probeModuleUrl = new URL(import.meta.url);
+  probeModuleUrl.search = '';
+  probeModuleUrl.hash = '';
   const worker = new Worker(`
     const { workerData } = require('node:worker_threads');
     void import('tsx/esm/api')
@@ -563,7 +568,7 @@ export function createIsolatedCanonicalProbe(
     eval: true,
     execArgv: [],
     workerData: {
-      kind: 'dabra-provider-certification-probe', provider, language, message, moduleUrl: import.meta.url,
+      kind: 'dabra-provider-certification-probe', provider, language, message, moduleUrl: probeModuleUrl.href,
     } satisfies ProbeWorkerBootstrapData,
   });
   let httpCalls = 0;
