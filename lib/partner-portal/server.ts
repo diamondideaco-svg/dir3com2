@@ -47,7 +47,7 @@ export async function requirePortalActor(): Promise<PortalActor | null> {
     return null;
   }
 
-  if (normalizeText(profile?.status).toLowerCase() === 'banned' || profile?.deleted_at) {
+  if (normalizeText(profile?.status).toLowerCase() !== 'active' || profile?.deleted_at) {
     return null;
   }
 
