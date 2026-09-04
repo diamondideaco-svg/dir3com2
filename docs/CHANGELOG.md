@@ -13,7 +13,10 @@
 - Added a provider-neutral, authenticated and rate-limited DABRA voice route pinned to the approved Voice Design V1 fingerprint.
 - Added cancellable client playback for response, locale, navigation, replacement and unmount boundaries, with no browser or stock-voice fallback.
 - Recorded the local XTTS v2 AR/EN proof as development-only and implemented the provider-neutral Mistral Voxtral TTS API contract without exposing provider details to DABRA UI/chat logic.
-- Production voice remains fail-closed until an authorized Mistral credential and `dabra-production` voice ID exist, commercial/account terms are confirmed, and AR/EN speaker identity is independently approved.
+- Production voice remains fail-closed until the authorized Mistral credential and approved saved voice ID exist, commercial/account terms are confirmed, and AR/EN speaker identity is independently approved.
+- Bound the server-only adapter to the approved saved voice ID and normalized only a standalone spoken `dir3com` token to `درعكم`; visible and persisted text, URLs, email addresses, paths, handles, code, and identifiers remain unchanged.
+- Added canonical pre-flight and in-flight cancellation so an abandoned request neither consumes a rate-limit slot nor invokes/retries Mistral, and returns a bounded cancellation response when still deliverable.
+- Added sequential sentence/whitespace-aware playback planning at 800 UTF-16 units per request, at most four segments and 3,200 planned units, with explicit Arabic/English partial-playback truth and one active request/audio resource at a time.
 
 ## 2026-09-04 — DABRA voice truth and contextual WhatsApp handoff
 

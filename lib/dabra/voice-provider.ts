@@ -38,14 +38,19 @@ export const DABRA_VOICE_PROFILE: DabraVoiceProfile = Object.freeze({
 export const DABRA_VOICE_TEXT_MAX_LENGTH = 800;
 export const DABRA_VOICE_AUDIO_MAX_BYTES = 8 * 1024 * 1024;
 export const DABRA_VOICE_RATE_LIMIT = Object.freeze({ requests: 6, windowMs: 60_000 });
+export const DABRA_VOICE_REQUEST_CANCELLED = 'VOICE_REQUEST_CANCELLED' as const;
 
 export class DabraVoiceProviderError extends Error {
   constructor(
-    public readonly code: 'VOICE_PROVIDER_UNAVAILABLE' | 'VOICE_PROVIDER_FAILED' | 'VOICE_PROVIDER_RESPONSE_INVALID',
+    public readonly code: 'VOICE_REQUEST_CANCELLED' | 'VOICE_REQUEST_INVALID' | 'VOICE_PROVIDER_UNAVAILABLE' | 'VOICE_PROVIDER_FAILED' | 'VOICE_PROVIDER_RESPONSE_INVALID',
   ) {
     super(code);
     this.name = 'DabraVoiceProviderError';
   }
+}
+
+export function throwIfDabraVoiceCancelled(signal?: AbortSignal) {
+  if (signal?.aborted) throw new DabraVoiceProviderError(DABRA_VOICE_REQUEST_CANCELLED);
 }
 
 export function parseDabraVoiceInput(value: unknown): { locale: DabraVoiceLocale; text: string } | null {

@@ -94,6 +94,9 @@ test('voice input shares the text transcript without substituting browser speech
   assert.doesNotMatch(component, /speechSynthesis|SpeechSynthesisUtterance/);
   assert.match(component, /approvedVoiceAvailable === false/);
   assert.match(component, /playApprovedVoice/);
+  assert.match(component, /planDabraVoicePlayback\(latestAssistantText\)/);
+  assert.match(component, /runDabraVoicePlayback/);
+  assert.match(component, /approvedPlaybackCopy\.partial/);
   assert.match(component, /fetch\('\/api\/dabra\/voice'/);
   assert.match(component, /recognition\.onresult/);
   assert.match(component, /void sendMessage\(transcript\)/);

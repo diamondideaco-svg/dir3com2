@@ -2,9 +2,13 @@ import { Buffer } from 'node:buffer';
 import {
   DABRA_VOICE_AUDIO_MAX_BYTES,
   DabraVoiceProviderError,
+  parseDabraVoiceInput,
+  throwIfDabraVoiceCancelled,
   type DabraVoiceSynthesisInput,
   type VoiceProvider,
 } from '@/lib/dabra/voice-provider';
+import { DABRA_APPROVED_VOICE } from '@/lib/dabra/approved-voice';
+import { normalizeDabraTtsText } from '@/lib/dabra/speech-pronunciation';
 
 export const MISTRAL_VOXTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
 const MISTRAL_SPEECH_ENDPOINT = 'https://api.mistral.ai/v1/audio/speech';
@@ -23,7 +27,7 @@ export function getMistralVoiceConfig(env: MistralVoiceEnv = process.env): Mistr
   const voiceId = env.DABRA_MISTRAL_VOICE_ID?.trim() ?? '';
   const configuredTimeout = Number(env.DABRA_VOICE_TIMEOUT_MS ?? '20000');
   const requestTimeoutMs = Number.isFinite(configuredTimeout) ? Math.min(30_000, Math.max(3_000, configuredTimeout)) : 20_000;
-  if (apiKey.length < 16 || !/^[A-Za-z0-9._-]{3,160}$/.test(voiceId)) return null;
+  if (apiKey.length < 16 || voiceId !== DABRA_APPROVED_VOICE.voiceId) return null;
   return Object.freeze({ apiKey, voiceId, requestTimeoutMs });
 }
 
@@ -59,11 +63,19 @@ export function createMistralVoiceProvider(
   return {
     id: 'mistral-voxtral-tts',
     async synthesize(input: DabraVoiceSynthesisInput) {
+      throwIfDabraVoiceCancelled(input.signal);
+      const normalized = parseDabraVoiceInput({
+        locale: input.locale,
+        text: normalizeDabraTtsText(input.text),
+      });
+      if (!normalized) throw new DabraVoiceProviderError('VOICE_REQUEST_INVALID');
+      throwIfDabraVoiceCancelled(input.signal);
       const timeoutController = new AbortController();
       const timeout = setTimeout(() => timeoutController.abort(), config.requestTimeoutMs);
       const relayAbort = () => timeoutController.abort();
       input.signal?.addEventListener('abort', relayAbort, { once: true });
       try {
+        throwIfDabraVoiceCancelled(input.signal);
         const response = await fetchImpl(MISTRAL_SPEECH_ENDPOINT, {
           method: 'POST',
           headers: {
@@ -73,7 +85,7 @@ export function createMistralVoiceProvider(
           },
           body: JSON.stringify({
             model: MISTRAL_VOXTRAL_TTS_MODEL,
-            input: input.text,
+            input: normalized.text,
             voice_id: config.voiceId,
             response_format: 'mp3',
             stream: false,
@@ -86,18 +98,22 @@ export function createMistralVoiceProvider(
           cache: 'no-store',
           signal: timeoutController.signal,
         });
+        throwIfDabraVoiceCancelled(input.signal);
         if (!response.ok) throw new DabraVoiceProviderError('VOICE_PROVIDER_FAILED');
         const declaredLength = Number(response.headers.get('content-length') ?? '0');
         if (declaredLength > MAX_JSON_RESPONSE_BYTES) {
           throw new DabraVoiceProviderError('VOICE_PROVIDER_RESPONSE_INVALID');
         }
-        const audio = decodeMistralAudioResponse(await response.arrayBuffer());
+        const rawAudio = await response.arrayBuffer();
+        throwIfDabraVoiceCancelled(input.signal);
+        const audio = decodeMistralAudioResponse(rawAudio);
         return {
           audio,
           contentType: 'audio/mpeg',
           metadata: { provider: 'mistral', model: MISTRAL_VOXTRAL_TTS_MODEL, requestId: input.requestId },
         };
       } catch (error) {
+        if (input.signal?.aborted) throw new DabraVoiceProviderError('VOICE_REQUEST_CANCELLED');
         if (error instanceof DabraVoiceProviderError) throw error;
         throw new DabraVoiceProviderError('VOICE_PROVIDER_UNAVAILABLE');
       } finally {

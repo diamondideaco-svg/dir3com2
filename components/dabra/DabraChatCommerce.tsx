@@ -10,6 +10,7 @@ import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { DABRA_LOCALE_ERROR } from '@/lib/dabra/locale-contract';
 import { DABRA_APPROVED_VOICE, getApprovedDabraPlaybackCopy, getApprovedDabraVoiceCopy } from '@/lib/dabra/approved-voice';
 import { buildDabraWhatsAppHandoff, openDabraWhatsAppHandoff } from '@/lib/dabra/whatsapp-handoff';
+import { planDabraVoicePlayback, runDabraVoicePlayback } from '@/lib/dabra/voice-segmentation';
 import DabraFamilySafetyPanel from '@/components/dabra/DabraFamilySafetyPanel';
 import {
   DABRA_ANONYMOUS_SESSION_KEY,
@@ -82,6 +83,7 @@ export default function DabraChatCommerce() {
   const [input, setInput] = useState('');
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle');
   const [voicePlaybackStatus, setVoicePlaybackStatus] = useState<VoicePlaybackStatus>('idle');
+  const [voicePlaybackPartial, setVoicePlaybackPartial] = useState(false);
   const [approvedVoiceAvailable, setApprovedVoiceAvailable] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<string | undefined>();
   const [services, setServices] = useState<MarketplaceService[]>([]);
@@ -132,6 +134,7 @@ export default function DabraChatCommerce() {
     setAttachments([]);
     setAttachmentError('');
     setVoiceStatus('idle');
+    setVoicePlaybackPartial(false);
   // The locale boundary intentionally starts a fresh visible/chat history so an old-locale turn cannot leak into the next answer.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language]);
@@ -150,10 +153,7 @@ export default function DabraChatCommerce() {
     stopVoicePlayback();
   }
 
-  function stopVoicePlayback() {
-    playbackGenerationRef.current += 1;
-    playbackAbortRef.current?.abort();
-    playbackAbortRef.current = null;
+  function releaseVoiceAudio() {
     const audio = playbackRef.current;
     playbackRef.current = null;
     if (audio) {
@@ -165,6 +165,13 @@ export default function DabraChatCommerce() {
     }
     if (playbackUrlRef.current) URL.revokeObjectURL(playbackUrlRef.current);
     playbackUrlRef.current = null;
+  }
+
+  function stopVoicePlayback() {
+    playbackGenerationRef.current += 1;
+    playbackAbortRef.current?.abort();
+    playbackAbortRef.current = null;
+    releaseVoiceAudio();
     setVoicePlaybackStatus('idle');
   }
 
@@ -194,6 +201,7 @@ export default function DabraChatCommerce() {
       setInput('');
       setAttachments([]);
       setAttachmentError('');
+      setVoicePlaybackPartial(false);
       if (attachmentRef.current) attachmentRef.current.value = '';
     }
     async function resolveValidatedIdentity() {
@@ -345,6 +353,7 @@ export default function DabraChatCommerce() {
     const message = text.trim() || (attachments.length ? t.attachmentPrompt : '');
     if (!message || chatInFlightRef.current || !identityResolved) return;
     stopVoicePlayback();
+    setVoicePlaybackPartial(false);
     chatInFlightRef.current = true;
     setChatInFlight(true);
     const lifecycle = lifecycleRef.current;
@@ -404,31 +413,68 @@ export default function DabraChatCommerce() {
     const generation = playbackGenerationRef.current;
     const controller = new AbortController();
     playbackAbortRef.current = controller;
-    setVoicePlaybackStatus('loading');
+    const plan = planDabraVoicePlayback(latestAssistantText);
+    setVoicePlaybackPartial(plan.hasRemainder);
+    if (!plan.segments.length) {
+      playbackAbortRef.current = null;
+      setVoicePlaybackStatus('error');
+      return;
+    }
     try {
-      const response = await fetch('/api/dabra/voice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'audio/mpeg, audio/wav' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ text: latestAssistantText, locale: language }),
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        if (response.status === 503) setApprovedVoiceAvailable(false);
-        throw new Error('voice');
-      }
-      const contentType = response.headers.get('content-type')?.split(';', 1)[0] ?? '';
-      if (!['audio/mpeg', 'audio/wav', 'audio/x-wav'].includes(contentType)) throw new Error('voice');
-      const audioBlob = await response.blob();
-      if (controller.signal.aborted || generation !== playbackGenerationRef.current || language !== languageRef.current) return;
-      const audioUrl = URL.createObjectURL(audioBlob);
-      playbackUrlRef.current = audioUrl;
-      const audio = new Audio(audioUrl);
-      playbackRef.current = audio;
-      audio.onended = () => { if (generation === playbackGenerationRef.current) stopVoicePlayback(); };
-      audio.onerror = () => { if (generation === playbackGenerationRef.current) { stopVoicePlayback(); setVoicePlaybackStatus('error'); } };
-      setVoicePlaybackStatus('playing');
-      await audio.play();
+      await runDabraVoicePlayback(
+        plan.segments,
+        controller.signal,
+        async (segment, signal) => {
+          if (generation !== playbackGenerationRef.current || language !== languageRef.current) controller.abort();
+          signal.throwIfAborted();
+          setVoicePlaybackStatus('loading');
+          const response = await fetch('/api/dabra/voice', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'audio/mpeg, audio/wav' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ text: segment, locale: language }),
+            signal,
+          });
+          if (!response.ok) {
+            if (response.status === 503) setApprovedVoiceAvailable(false);
+            throw new Error('voice');
+          }
+          const contentType = response.headers.get('content-type')?.split(';', 1)[0] ?? '';
+          if (!['audio/mpeg', 'audio/wav', 'audio/x-wav'].includes(contentType)) throw new Error('voice');
+          const audioBlob = await response.blob();
+          if (generation !== playbackGenerationRef.current || language !== languageRef.current) controller.abort();
+          signal.throwIfAborted();
+          return audioBlob;
+        },
+        async (audioBlob, signal) => {
+          signal.throwIfAborted();
+          const audioUrl = URL.createObjectURL(audioBlob);
+          playbackUrlRef.current = audioUrl;
+          const audio = new Audio(audioUrl);
+          playbackRef.current = audio;
+          setVoicePlaybackStatus('playing');
+          try {
+            await new Promise<void>((resolve, reject) => {
+              let settled = false;
+              const settle = (callback: () => void) => {
+                if (settled) return;
+                settled = true;
+                signal.removeEventListener('abort', onAbort);
+                callback();
+              };
+              const onAbort = () => settle(() => reject(new DOMException('Voice playback cancelled', 'AbortError')));
+              signal.addEventListener('abort', onAbort, { once: true });
+              audio.onended = () => settle(resolve);
+              audio.onerror = () => settle(() => reject(new Error('voice')));
+              void audio.play().catch((error) => settle(() => reject(error)));
+              if (signal.aborted) onAbort();
+            });
+          } finally {
+            releaseVoiceAudio();
+          }
+        },
+      );
+      if (generation === playbackGenerationRef.current) stopVoicePlayback();
     } catch {
       if (!controller.signal.aborted && generation === playbackGenerationRef.current) { stopVoicePlayback(); setVoicePlaybackStatus('error'); }
     } finally {
@@ -573,6 +619,7 @@ export default function DabraChatCommerce() {
             </div>
             {approvedVoiceAvailable === false && <div className="dabra-approved-voice-unavailable" role="status" data-approved-voice-sha={DABRA_APPROVED_VOICE.sha256}><strong>{approvedVoiceCopy.title}</strong><span>{approvedVoiceCopy.detail}</span></div>}
             {voicePlaybackStatus === 'error' && <div className="dabra-approved-voice-unavailable" role="alert"><span>{approvedPlaybackCopy.error}</span></div>}
+            {voicePlaybackPartial && <div className="dabra-approved-voice-unavailable" role="status"><span>{approvedPlaybackCopy.partial}</span></div>}
           </div>
 
           <div className="dabra-composer">

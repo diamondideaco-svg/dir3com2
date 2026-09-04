@@ -9,8 +9,9 @@ const chat = fs.readFileSync(path.join(root, 'components', 'dabra', 'DabraChatCo
 
 test('approved DABRA voice identity is pinned to the human-approved master fingerprint', () => {
   assert.equal(DABRA_APPROVED_VOICE.design, 'DABRA Voice Design V1');
-  assert.equal(DABRA_APPROVED_VOICE.sourceFile, 'DABRA_VOICE_MASTER_V1.mp3');
+  assert.equal(DABRA_APPROVED_VOICE.sourceFile, 'R0_APPROVED_MASTER.mp3');
   assert.equal(DABRA_APPROVED_VOICE.sha256, '4AA9AFA4EDDF369FE79E8F597946766C6FBDD8C789DE199DE9A5253EBFE044FB');
+  assert.equal(DABRA_APPROVED_VOICE.voiceId, 'ae29537c-c796-4fb5-9f5b-da1e02176a5d');
 });
 
 test('dynamic output uses only the server adapter and remains fail-closed until infrastructure is configured', () => {

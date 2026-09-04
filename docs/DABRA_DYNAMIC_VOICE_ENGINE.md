@@ -3,10 +3,11 @@
 ## Locked identity
 
 - Voice design: `DABRA Voice Design V1`
-- Approved master: `DABRA_VOICE_MASTER_V1.mp3`
+- Approved master: `R0_APPROVED_MASTER.mp3`
 - SHA-256: `4AA9AFA4EDDF369FE79E8F597946766C6FBDD8C789DE199DE9A5253EBFE044FB`
 
 The approved master remains outside the web repository. The browser cannot provide a speaker reference, model path, profile override, or provider credential. The server adapter pins the fingerprint above and a server-owned profile identifier.
+The approved saved voice identifier is fixed to `ae29537c-c796-4fb5-9f5b-da1e02176a5d`; another configured identifier fails closed rather than selecting a different speaker.
 
 ## Candidate decision
 
@@ -41,9 +42,11 @@ DIR3COM calls one provider-neutral `VoiceProvider` abstraction. The concrete Mis
 - `DABRA_MISTRAL_VOICE_ID`
 - optional `DABRA_VOICE_TIMEOUT_MS` (bounded to 3–30 seconds)
 
-The request contains bounded `text`, the fixed model `voxtral-mini-tts-2603`, the server-owned voice ID, output format, a server request ID, locale, and the pinned approved fingerprint in metadata. The route decodes the official API's bounded base64 audio response and returns `audio/mpeg`, at most 8 MiB. Neither provider, voice ID, reference audio, nor model can be supplied by the browser.
+The request contains bounded `text`, the fixed model `voxtral-mini-tts-2603`, the server-owned voice ID, output format, a server request ID, locale, and the pinned approved fingerprint in metadata. Immediately before the upstream JSON is created, an exact standalone visible token `dir3com` is normalized for speech to `درعكم` in both languages. URLs, email addresses, paths, code, handles, hashtags, and identifier-like near matches are not rewritten. The route decodes the official API's bounded base64 audio response and returns `audio/mpeg`, at most 8 MiB. Neither provider, voice ID, reference audio, nor model can be supplied by the browser.
 
 POST synthesis requires an authenticated DIR3COM session and is burst-limited. If configuration, authentication, the engine, or the returned audio is invalid, the route fails closed. There is no browser/OS/stock-voice fallback.
+
+An already-aborted request is rejected before authentication quota is consumed or Mistral is called. Mid-flight cancellation is relayed to the upstream request and is never retried or reclassified as a provider failure. Long visible answers remain complete in the conversation; optional playback plans a maximum of four sequential segments of at most 800 UTF-16 units each (3,200 planned spoken units total), preferring sentence boundaries and then whitespace without splitting a word, URL, identifier, or surrogate pair. Only one synthesis request and one audio element may be active, and a locale, response, identity, navigation, or user cancellation stops the current resource and all remaining segments.
 
 ## Commercial activation status
 

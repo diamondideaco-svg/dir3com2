@@ -25,7 +25,7 @@ const mistralAdapter = fs.readFileSync(path.join(root, 'lib', 'dabra', 'mistral-
 
 const validEnv = {
   MISTRAL_API_KEY: 'server-secret-token',
-  DABRA_MISTRAL_VOICE_ID: 'dabra-production',
+  DABRA_MISTRAL_VOICE_ID: DABRA_APPROVED_VOICE.voiceId,
   DABRA_VOICE_TIMEOUT_MS: '12000',
 };
 
@@ -41,6 +41,7 @@ test('Mistral configuration fails closed unless both server secret and approved 
   assert.equal(getMistralVoiceConfig({}), null);
   assert.equal(getMistralVoiceConfig({ MISTRAL_API_KEY: validEnv.MISTRAL_API_KEY }), null);
   assert.equal(getMistralVoiceConfig({ DABRA_MISTRAL_VOICE_ID: validEnv.DABRA_MISTRAL_VOICE_ID }), null);
+  assert.equal(getMistralVoiceConfig({ ...validEnv, DABRA_MISTRAL_VOICE_ID: 'wrong-speaker' }), null);
   assert.equal(getMistralVoiceConfig(validEnv)?.requestTimeoutMs, 12_000);
 });
 
@@ -57,21 +58,82 @@ test('Mistral adapter binds the official model, server voice ID, approved finger
       headers: { 'Content-Type': 'application/json' },
     });
   });
-  const result = await provider.synthesize({
-    text: 'أهلًا',
+  const synthesisInput = {
+    text: 'أهلًا بك في DIR3COM.',
     locale: 'ar',
     voiceProfile: DABRA_VOICE_PROFILE,
     requestId: 'request-1',
-  });
+  } as const;
+  const result = await provider.synthesize(synthesisInput);
   assert.equal(sentUrl, 'https://api.mistral.ai/v1/audio/speech');
   assert.equal(result.contentType, 'audio/mpeg');
   assert.equal(result.metadata.model, MISTRAL_VOXTRAL_TTS_MODEL);
   assert.equal(sentBody.model, 'voxtral-mini-tts-2603');
-  assert.equal(sentBody.voice_id, 'dabra-production');
+  assert.equal(sentBody.voice_id, DABRA_APPROVED_VOICE.voiceId);
+  assert.equal(sentBody.input, 'أهلًا بك في درعكم.');
+  assert.equal(synthesisInput.text, 'أهلًا بك في DIR3COM.');
   assert.equal(sentBody.response_format, 'mp3');
   assert.equal((sentBody.metadata as Record<string, unknown>).reference_sha256, DABRA_APPROVED_VOICE.sha256);
   assert.equal((sentBody.metadata as Record<string, unknown>).request_id, 'request-1');
   assert.equal('ref_audio' in sentBody, false);
+});
+
+test('English synthesis also sends the canonical Arabic spoken brand in actual upstream JSON', async () => {
+  const config = getMistralVoiceConfig(validEnv);
+  assert.ok(config);
+  let sentBody: Record<string, unknown> = {};
+  const provider = createMistralVoiceProvider(config, async (_input, init) => {
+    sentBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(JSON.stringify({ audio_data: Buffer.from([7]).toString('base64') }));
+  });
+  await provider.synthesize({
+    text: 'Welcome to dir3com.',
+    locale: 'en',
+    voiceProfile: DABRA_VOICE_PROFILE,
+    requestId: 'request-en-brand',
+  });
+  assert.equal(sentBody.input, 'Welcome to درعكم.');
+});
+
+test('pre-aborted synthesis makes zero Mistral calls and returns the canonical cancellation', async () => {
+  const config = getMistralVoiceConfig(validEnv);
+  assert.ok(config);
+  const controller = new AbortController();
+  controller.abort();
+  let calls = 0;
+  await assert.rejects(
+    createMistralVoiceProvider(config, async () => {
+      calls += 1;
+      return new Response('{}');
+    }).synthesize({ text: 'hello', locale: 'en', voiceProfile: DABRA_VOICE_PROFILE, requestId: 'cancelled-1', signal: controller.signal }),
+    /VOICE_REQUEST_CANCELLED/,
+  );
+  assert.equal(calls, 0);
+});
+
+test('mid-flight cancellation reaches upstream fetch once without retry or provider-failure conversion', async () => {
+  const config = getMistralVoiceConfig(validEnv);
+  assert.ok(config);
+  const controller = new AbortController();
+  let calls = 0;
+  let entered!: () => void;
+  const enteredFetch = new Promise<void>((resolve) => { entered = resolve; });
+  const provider = createMistralVoiceProvider(config, async (_input, init) => {
+    calls += 1;
+    entered();
+    return await new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      assert.ok(signal);
+      const onAbort = () => reject(new DOMException('aborted', 'AbortError'));
+      signal.addEventListener('abort', onAbort, { once: true });
+      if (signal.aborted) onAbort();
+    });
+  });
+  const pending = provider.synthesize({ text: 'hello', locale: 'en', voiceProfile: DABRA_VOICE_PROFILE, requestId: 'cancelled-2', signal: controller.signal });
+  await enteredFetch;
+  controller.abort();
+  await assert.rejects(pending, /VOICE_REQUEST_CANCELLED/);
+  assert.equal(calls, 1);
 });
 
 test('Mistral adapter rejects malformed and oversized API responses', async () => {
@@ -125,6 +187,10 @@ test('route requires trusted session context and never exposes or accepts voice 
   assert.match(route, /supabase\.auth\.getUser\(\)/);
   assert.match(route, /VOICE_AUTH_REQUIRED/);
   assert.match(route, /consumeDabraVoiceRateLimit\(user\.id\)/);
+  assert.match(route, /DABRA_VOICE_REQUEST_CANCELLED/);
+  assert.match(route, /status: 499/);
+  const rateLimitOffset = route.indexOf('consumeDabraVoiceRateLimit(user.id)');
+  assert.ok(route.lastIndexOf('if (request.signal.aborted) return cancelledResponse();', rateLimitOffset) > -1);
   assert.match(route, /DABRA_VOICE_PROFILE/);
   assert.match(route, /crypto\.randomUUID\(\)/);
   assert.match(route, /'Cache-Control': 'private, no-store, max-age=0'/);
@@ -140,6 +206,6 @@ test('client playback cancels fetch and audio across response, locale, navigatio
   assert.match(client, /URL\.revokeObjectURL/);
   assert.match(client, /window\.addEventListener\('pagehide', cancelForNavigation\)/);
   assert.match(client, /language !== languageRef\.current/);
-  assert.match(client, /stopVoicePlayback\(\);\s*chatInFlightRef\.current = true/);
+  assert.match(client, /stopVoicePlayback\(\);[\s\S]{0,120}chatInFlightRef\.current = true/);
   assert.doesNotMatch(client, /speechSynthesis|SpeechSynthesisUtterance/);
 });
