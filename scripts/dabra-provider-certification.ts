@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { closeSync, constants, fchmodSync, fstatSync, lstatSync, openSync, realpathSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, isAbsolute, relative, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isMainThread, parentPort, Worker, workerData } from 'node:worker_threads';
 
 import { callAnthropicMessagesWeb } from '@/lib/ai2/runtime/anthropic-web';
@@ -91,7 +91,7 @@ type ProbeWorkerData = {
   message: string;
 };
 
-type ProbeWorkerBootstrapData = ProbeWorkerData & { moduleUrl: string };
+type ProbeWorkerBootstrapData = ProbeWorkerData & { moduleUrl: string; tsconfigPath: string };
 
 type ProbeWorkerMessage =
   | { type: 'http_call'; httpCalls: number }
@@ -553,22 +553,26 @@ export function createIsolatedCanonicalProbe(
 ): ProbeExecution {
   // Node 20 does not consistently hand a .ts Worker entrypoint to --import tsx.
   // This static bootstrap registers the repository's existing TS loader inside
-  // the isolated thread before importing the fixed module URL from workerData.
-  // Strip loader query/hash metadata so a Node 20 tsx namespace is never nested
-  // inside the worker's independently registered tsx namespace.
+  // the isolated thread before importing the fixed module URL. Node 20 needs a
+  // clean URL and an explicit tsconfig path so @/ aliases resolve in the worker.
   const probeModuleUrl = new URL(import.meta.url);
   probeModuleUrl.search = '';
   probeModuleUrl.hash = '';
+  const probeTsconfigPath = resolve(dirname(fileURLToPath(probeModuleUrl)), '..', 'tsconfig.json');
   const worker = new Worker(`
     const { workerData } = require('node:worker_threads');
     void import('tsx/esm/api')
-      .then(({ tsImport }) => tsImport(workerData.moduleUrl, { parentURL: workerData.moduleUrl }))
+      .then(({ tsImport }) => tsImport(workerData.moduleUrl, {
+        parentURL: workerData.moduleUrl,
+        tsconfig: workerData.tsconfigPath,
+      }))
       .catch(() => { throw new Error('provider_worker_bootstrap_failed'); });
   `, {
     eval: true,
     execArgv: [],
     workerData: {
-      kind: 'dabra-provider-certification-probe', provider, language, message, moduleUrl: probeModuleUrl.href,
+      kind: 'dabra-provider-certification-probe', provider, language, message,
+      moduleUrl: probeModuleUrl.href, tsconfigPath: probeTsconfigPath,
     } satisfies ProbeWorkerBootstrapData,
   });
   let httpCalls = 0;
