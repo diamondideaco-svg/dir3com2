@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-04 — DABRA seven-provider production observability
+
+- Added content-free, append-only attempt telemetry for OpenAI, Gemini, Anthropic, xAI, DeepSeek, Qwen, and Mistral without changing provider order, timeouts, fallback policy, prompts, or voice behavior.
+- Added correlation, latency, canonical error/fallback classification, token counts, conservative versioned cost estimates, and grounding status; prompts, answers, customer identity, secrets, headers, and provider bodies are excluded by construction.
+- Added a service-role-only aggregate read model for provider/model success, fallback frequency, latency percentiles, token usage, cost, and error categories, with RLS and explicit least-privilege grants.
+
 ## 2026-09-02 — Production-safe DABRA Family
 
 - Added one shared DABRA Family contract for Concierge, Partner, Admin, CEO, Mall Center, Customer Service, and Travel Agent identities derived from trusted session roles.

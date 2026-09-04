@@ -27,6 +27,8 @@ export type AnthropicWebCallResult = {
   errorCategory?: AnthropicErrorCategory;
   status?: number;
   model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
 };
 
 type AnthropicModelsPayload = {
@@ -248,6 +250,15 @@ async function callAnthropicOnce(
     }
 
     const answer = extractAnswer(payload);
+    const usageRoot = payload && typeof payload === 'object'
+      ? (payload as Record<string, unknown>).usage as Record<string, unknown> | undefined
+      : undefined;
+    const inputTokens = usageRoot?.input_tokens;
+    const outputTokens = usageRoot?.output_tokens;
+    const usage = {
+      ...(typeof inputTokens === 'number' && Number.isSafeInteger(inputTokens) && inputTokens >= 0 ? { inputTokens } : {}),
+      ...(typeof outputTokens === 'number' && Number.isSafeInteger(outputTokens) && outputTokens >= 0 ? { outputTokens } : {}),
+    };
     if (!answer) {
       return {
         ok: false,
@@ -256,6 +267,7 @@ async function callAnthropicOnce(
         errorCategory: 'malformed_response',
         status: response.status,
         model,
+        ...usage,
       };
     }
 
@@ -265,6 +277,7 @@ async function callAnthropicOnce(
       citations: extractCitations(answer),
       status: response.status,
       model,
+      ...usage,
     };
   } catch (error) {
     const timedOut = error instanceof Error && /abort|timed out/i.test(error.message);

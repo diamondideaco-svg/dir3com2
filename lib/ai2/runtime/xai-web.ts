@@ -20,6 +20,8 @@ export type XAIWebCallResult = {
   errorCategory?: XAIWebErrorCategory;
   status?: number;
   model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
 };
 
 type XAIWebCallParams = {

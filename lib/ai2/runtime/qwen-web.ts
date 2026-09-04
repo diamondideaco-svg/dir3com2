@@ -20,6 +20,8 @@ export type QwenWebCallResult = {
   errorCategory?: QwenWebErrorCategory;
   status?: number;
   model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
 };
 
 type QwenWebCallParams = {

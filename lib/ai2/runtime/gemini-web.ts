@@ -32,6 +32,8 @@ export type GeminiWebCallResult = {
   errorCategory?: GeminiWebErrorCategory;
   status?: number;
   model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
 };
 
 type GeminiWebCallParams = {
@@ -76,6 +78,13 @@ function classifyError(status: number, payload: GeminiErrorPayload): GeminiWebEr
 function parseResponse(payload: unknown, status: number, model: string): GeminiWebCallResult {
   if (!payload || typeof payload !== 'object') return { ok: false, answer: '', citations: [], errorCategory: 'malformed_response', status, model };
   const root = payload as Record<string, unknown>;
+  const usageMetadata = root.usageMetadata as Record<string, unknown> | undefined;
+  const inputTokens = usageMetadata?.promptTokenCount;
+  const outputTokens = usageMetadata?.candidatesTokenCount;
+  const usage = {
+    ...(typeof inputTokens === 'number' && Number.isSafeInteger(inputTokens) && inputTokens >= 0 ? { inputTokens } : {}),
+    ...(typeof outputTokens === 'number' && Number.isSafeInteger(outputTokens) && outputTokens >= 0 ? { outputTokens } : {}),
+  };
   const candidates = Array.isArray(root.candidates) ? root.candidates : [];
   const candidate = candidates[0] as Record<string, unknown> | undefined;
   const finishReason = String(candidate?.finishReason ?? '').toUpperCase();
@@ -97,8 +106,8 @@ function parseResponse(payload: unknown, status: number, model: string): GeminiW
     const uri = typeof web?.uri === 'string' ? sanitizeCitationUrl(web.uri) : null;
     return uri ? [uri] : [];
   }))];
-  if (!answer) return { ok: false, answer: '', citations, errorCategory: 'malformed_response', status, model };
-  return { ok: true, answer, citations, status, model };
+  if (!answer) return { ok: false, answer: '', citations, errorCategory: 'malformed_response', status, model, ...usage };
+  return { ok: true, answer, citations, status, model, ...usage };
 }
 
 function pruneExpiredCacheEntries(now = Date.now()): void {

@@ -20,6 +20,8 @@ export type DeepSeekWebCallResult = {
   errorCategory?: DeepSeekWebErrorCategory;
   status?: number;
   model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
 };
 
 type DeepSeekWebCallParams = {

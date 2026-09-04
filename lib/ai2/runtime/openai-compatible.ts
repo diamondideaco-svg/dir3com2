@@ -20,6 +20,8 @@ export type OpenAICompatibleResult = {
   errorCategory?: OpenAICompatibleErrorCategory;
   status?: number;
   model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
 };
 
 export type OpenAICompatibleParams = {
@@ -331,6 +333,15 @@ async function callChatCompletions(
 
     const answer = extractText(payload);
     const citations = extractCitations(answer);
+    const usageRoot = payload && typeof payload === 'object'
+      ? (payload as Record<string, unknown>).usage as Record<string, unknown> | undefined
+      : undefined;
+    const inputTokens = usageRoot?.prompt_tokens;
+    const outputTokens = usageRoot?.completion_tokens;
+    const usage = {
+      ...(typeof inputTokens === 'number' && Number.isSafeInteger(inputTokens) && inputTokens >= 0 ? { inputTokens } : {}),
+      ...(typeof outputTokens === 'number' && Number.isSafeInteger(outputTokens) && outputTokens >= 0 ? { outputTokens } : {}),
+    };
     if (!answer) {
       return {
         ok: false,
@@ -339,6 +350,7 @@ async function callChatCompletions(
         errorCategory: 'malformed_response',
         status: response.status,
         model,
+        ...usage,
       };
     }
 
@@ -348,6 +360,7 @@ async function callChatCompletions(
       citations,
       status: response.status,
       model,
+      ...usage,
     };
   } catch (error) {
     const timedOut = error instanceof Error && /abort|timed out/i.test(error.message);
