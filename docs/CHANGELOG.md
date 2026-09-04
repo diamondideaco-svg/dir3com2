@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-05 — DABRA observability least privilege and direct-provider certification
+
+- Added a forward-only PostgreSQL 17 reconciliation that removes inherited default table and column grants from DABRA provider telemetry, restores only `SELECT`/`INSERT` for `service_role`, and fails closed on ownership, role-membership, column-contract, identity-index, primary-key, or ACL drift while preserving RLS, FORCE RLS, append-only identity, and aggregation.
+- Added a private server/CLI certification harness for direct OpenAI, Gemini, Anthropic, xAI, DeepSeek, Qwen, and Mistral Chat adapter probes. Dry-run is the default and performs no provider call or database write; live mode requires explicit intent, exact Supabase target identity, bounded execution, independent telemetry read-back, and an append-only allowlisted JSONL manifest outside the repository.
+- Added focused dry-run, target-lock, provider-count, HTTP/watchdog-bound, persistence-proof, manifest-privacy, router-isolation, PostgreSQL ACL replay, concurrency, aggregation, and NULL-semantics coverage. No Production migration or live certification was executed.
+
 ## 2026-09-04 — DABRA seven-provider production observability
 
 - Added content-free, append-only attempt telemetry for OpenAI, Gemini, Anthropic, xAI, DeepSeek, Qwen, and Mistral without changing provider order, timeouts, fallback policy, prompts, or voice behavior.
