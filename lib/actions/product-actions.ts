@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { assertCountryAllowed, requireScopedAdminActionAccess } from '@/lib/auth/admin';
 import { sanitizeBoolean, sanitizeNumber, sanitizeText } from '@/lib/security/validation';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 const PRODUCT_FAMILIES = ['drive', 'stay', 'fly', 'concierge', 'vip'] as const;
 const FULFILMENT_STATES = ['verified_requestable', 'verified_quote', 'live_bookable', 'unavailable', 'availability_unknown'] as const;
@@ -35,6 +36,10 @@ async function requireProductInScope(id: string, permission: 'products:read' | '
   if (!data) throw new Error('PRODUCT_NOT_FOUND');
   assertCountryAllowed(context.scope, data.country);
   return { ...context, product: data };
+}
+
+async function authenticatedLifecycleClient() {
+  return createSupabaseServerClient();
 }
 
 function parseVersion(value: FormDataEntryValue | null) {
@@ -76,13 +81,12 @@ function refreshProductSurfaces() {
 }
 
 export async function createProductAction(formData: FormData) {
-  const { supabase, scope, user, role } = await requireScopedAdminActionAccess('products:write');
+  const { scope } = await requireScopedAdminActionAccess('products:write');
   const fields = readLifecycleFields(formData);
   assertCountryAllowed(scope, fields.country);
+  const supabase = await authenticatedLifecycleClient();
 
   const { error } = await supabase.rpc('create_product_draft_lifecycle', {
-    p_actor_user_id: user.id,
-    p_actor_role: role,
     p_name_ar: fields.nameAr,
     p_name_en: fields.nameEn,
     p_slug: fields.slug,
@@ -108,13 +112,12 @@ export async function updateProductAction(formData: FormData) {
   const id = formData.get('id')?.toString();
   if (!id) throw new Error('PRODUCT_ID_REQUIRED');
   const expectedVersion = parseVersion(formData.get('expectedVersion'));
-  const { supabase, scope, user, role } = await requireProductInScope(id, 'products:write');
+  const { scope } = await requireProductInScope(id, 'products:write');
   const fields = readLifecycleFields(formData);
   assertCountryAllowed(scope, fields.country);
+  const supabase = await authenticatedLifecycleClient();
 
   const { error } = await supabase.rpc('update_product_draft_lifecycle', {
-    p_actor_user_id: user.id,
-    p_actor_role: role,
     p_product_id: id,
     p_expected_version: expectedVersion,
     p_name_ar: fields.nameAr,
@@ -142,12 +145,11 @@ export async function publishProductAction(formData: FormData) {
   const id = formData.get('id')?.toString();
   if (!id) throw new Error('PRODUCT_ID_REQUIRED');
   const expectedVersion = parseVersion(formData.get('expectedVersion'));
-  const { supabase, user, role } = await requireProductInScope(id, 'products:write');
+  await requireProductInScope(id, 'products:write');
   const reason = sanitizeText(formData.get('reason')?.toString(), 'Admin publish').slice(0, 300);
+  const supabase = await authenticatedLifecycleClient();
 
   const { error } = await supabase.rpc('publish_product_lifecycle', {
-    p_actor_user_id: user.id,
-    p_actor_role: role,
     p_product_id: id,
     p_expected_version: expectedVersion,
     p_reason: reason,
@@ -162,12 +164,11 @@ export async function unpublishProductAction(formData: FormData) {
   const id = formData.get('id')?.toString();
   if (!id) throw new Error('PRODUCT_ID_REQUIRED');
   const expectedVersion = parseVersion(formData.get('expectedVersion'));
-  const { supabase, user, role } = await requireProductInScope(id, 'products:write');
+  await requireProductInScope(id, 'products:write');
   const reason = sanitizeText(formData.get('reason')?.toString(), 'Admin unpublish').slice(0, 300);
+  const supabase = await authenticatedLifecycleClient();
 
   const { error } = await supabase.rpc('unpublish_product_lifecycle', {
-    p_actor_user_id: user.id,
-    p_actor_role: role,
     p_product_id: id,
     p_expected_version: expectedVersion,
     p_reason: reason,
@@ -182,12 +183,11 @@ export async function archiveProductAction(formData: FormData) {
   const id = formData.get('id')?.toString();
   if (!id) throw new Error('PRODUCT_ID_REQUIRED');
   const expectedVersion = parseVersion(formData.get('expectedVersion'));
-  const { supabase, user, role } = await requireProductInScope(id, 'products:write');
+  await requireProductInScope(id, 'products:write');
   const reason = sanitizeText(formData.get('reason')?.toString(), 'Admin archive').slice(0, 300);
+  const supabase = await authenticatedLifecycleClient();
 
   const { error } = await supabase.rpc('archive_product_lifecycle', {
-    p_actor_user_id: user.id,
-    p_actor_role: role,
     p_product_id: id,
     p_expected_version: expectedVersion,
     p_reason: reason,
