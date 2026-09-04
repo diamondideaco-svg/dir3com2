@@ -363,3 +363,9 @@
 - Presented signed-out DABRA as public discovery, separated conversational personas from canonical server roles, and retained human approval for sensitive actions.
 - Isolated Arabic and English floating-assistant sessions and cancelled stale in-flight responses during locale changes.
 - Localized Marketplace inventory metrics through the active locale so English cards cannot expose Arabic option-count labels.
+
+## 2026-09-04 — DABRA commercial voice Preview activation
+
+- Activated the approved fingerprint-locked DABRA voice through Mistral's paid saved-voice API on the PR Preview only.
+- Generated five Arabic and five English saved-voice validation samples and verified authenticated Preview playback without browser or operating-system speech fallback.
+- Kept the provider credential server-only and left Production voice configuration and deployment explicitly disabled pending independent review.

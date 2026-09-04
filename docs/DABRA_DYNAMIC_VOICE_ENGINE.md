@@ -13,7 +13,7 @@ The approved master remains outside the web repository. The browser cannot provi
 | Engine | License | Arabic + English | Reference cloning | Local result | Production decision |
 | --- | --- | --- | --- | --- | --- |
 | Coqui XTTS v2 | Coqui Public Model License | Yes | Yes | Generated both proof clips on CPU from the approved MP3 | Development/evaluation only: the model and outputs are non-commercial-only; measured CPU generation was 26.502s AR and 45.154s EN |
-| Mistral Voxtral TTS API | Official commercial service terms | Officially documented as 9-language, cross-lingual voice cloning | Saved `voice_id` or one-off `ref_audio` | Not called: `MISTRAL_API_KEY` and an approved `voice_id` are absent | Primary production path, blocked until current-account terms/access and a human voice-match review are proven |
+| Mistral Voxtral TTS API | Official commercial service terms | Officially documented as 9-language, cross-lingual voice cloning | Saved `voice_id` or one-off `ref_audio` | Paid API access active; saved `dabra-production` voice created; five Arabic and five English saved-voice samples generated successfully | Primary commercial path; enabled on the PR Preview only, with Production configuration intentionally deferred |
 | Chatterbox Multilingual | MIT | Yes | Yes | Not installed or identity-qualified in the current environment | Not selected after the Mistral official API correction |
 | OpenVoice v2 | MIT | English plus five other native languages | Yes | Not installed | Not selected: Arabic is not a native V2 language |
 
@@ -45,15 +45,15 @@ The request contains bounded `text`, the fixed model `voxtral-mini-tts-2603`, th
 
 POST synthesis requires an authenticated DIR3COM session and is burst-limited. If configuration, authentication, the engine, or the returned audio is invalid, the route fails closed. There is no browser/OS/stock-voice fallback.
 
-## Production commercial and account requirement
+## Commercial activation status
 
-Before enabling the official Mistral path, DIR3COM still requires:
+The official Mistral path was activated for the PR Preview on 2026-09-04 with the following controls:
 
-1. CEO-authorized access to a Mistral commercial API account with Voxtral TTS and custom voices enabled in the intended region;
-2. review and acceptance of the current Commercial Terms, data controls, voice-cloning policy, retention, and any account/plan requirements;
-3. explicit rights and consent for uploading and cloning the approved DABRA master;
-4. creation of one reusable voice named `dabra-production`, followed by storing only its safe ID as `DABRA_MISTRAL_VOICE_ID`;
-5. server-only API-key storage and production rate/cost controls;
-6. five Arabic and five English dynamic samples plus independent human identity, pronunciation, pacing, and naturalness approval.
+1. the CEO-authorized Mistral account is on the active pay-as-you-go plan with custom voices enabled;
+2. one reusable voice named `dabra-production` was created from the fingerprint-locked approved master;
+3. only the safe voice ID is configured as branch-scoped `DABRA_MISTRAL_VOICE_ID` on the PR Preview;
+4. `MISTRAL_API_KEY` remains server-only and is never returned to the browser or committed;
+5. five Arabic and five English dynamic samples were generated through the saved voice ID;
+6. the PR Preview returned successful authenticated speech responses in Arabic and English with no browser or OS speech fallback.
 
-The official API adapter is compatible with Vercel's Node.js runtime, but Production remains disabled until both credential and approved voice ID exist and every commercial/voice-match gate above passes. The downloaded Voxtral weights, if evaluated later, remain development/evaluation-only and are not a commercial Production path. xAI is not used while the Mistral official path remains viable.
+The safe saved voice identifier is `ae29537c-c796-4fb5-9f5b-da1e02176a5d`. Production remains disabled until the PR is independently reviewed and the Production environment is explicitly authorized and configured. The downloaded Voxtral weights, if evaluated later, remain development/evaluation-only and are not a commercial Production path. xAI is not used while the Mistral official path remains viable.
