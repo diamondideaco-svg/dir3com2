@@ -6,6 +6,7 @@
 - Added correlation, latency, canonical error/fallback classification, token counts, conservative versioned cost estimates, and grounding status; prompts, answers, customer identity, secrets, headers, and provider bodies are excluded by construction.
 - Added a service-role-only aggregate read model for provider/model success, fallback frequency, latency percentiles, token usage, cost, and error categories, with RLS and explicit least-privilege grants.
 - Moved telemetry persistence to Next/Vercel's supported after-response lifecycle, made unknown and partial token/cost coverage explicit, enforced one row per request/fallback hop under concurrency, and bounded official pricing snapshots with verified effective and expiry timestamps.
+- Bounded each after-response telemetry insert to one second, aborting the Supabase request when the bound expires and emitting one safe `telemetry_persist_failed` timeout signal without delaying provider routing, fallback, or the customer response.
 
 ## 2026-09-02 — Production-safe DABRA Family
 

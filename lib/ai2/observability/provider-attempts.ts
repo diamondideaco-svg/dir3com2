@@ -60,9 +60,11 @@ export type DabraProviderAttemptInput = {
   groundingStatus: DabraProviderAttemptRecord['grounding_status'];
 };
 
-type AttemptWriter = (record: DabraProviderAttemptRecord) => Promise<void>;
+type AttemptWriter = (record: DabraProviderAttemptRecord, signal: AbortSignal) => Promise<void>;
 let testWriter: AttemptWriter | null = null;
 let warnedAdminUnavailable = false;
+
+export const DABRA_TELEMETRY_PERSIST_TIMEOUT_MS = 1_000;
 
 function safeTokenCount(value: number | undefined): number | null {
   return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : null;
@@ -125,7 +127,7 @@ export function buildDabraProviderAttempt(input: DabraProviderAttemptInput): Dab
   };
 }
 
-async function defaultWriter(record: DabraProviderAttemptRecord): Promise<void> {
+async function defaultWriter(record: DabraProviderAttemptRecord, signal: AbortSignal): Promise<void> {
   if (!supabaseAdmin) {
     if (!warnedAdminUnavailable) {
       warnedAdminUnavailable = true;
@@ -133,7 +135,10 @@ async function defaultWriter(record: DabraProviderAttemptRecord): Promise<void> 
     }
     return;
   }
-  const { error } = await supabaseAdmin.from('dabra_provider_attempts').insert(record);
+  const { error } = await supabaseAdmin
+    .from('dabra_provider_attempts')
+    .insert(record)
+    .abortSignal(signal);
   if (error?.code === '23505') {
     console.warn('DABRA_PROVIDER_ATTEMPT_DUPLICATE_SUPPRESSED', JSON.stringify({
       requestId: record.request_id,
@@ -144,18 +149,54 @@ async function defaultWriter(record: DabraProviderAttemptRecord): Promise<void> 
   if (error) throw new Error(`provider_attempt_insert_failed:${error.code ?? 'unknown'}`);
 }
 
-export async function recordDabraProviderAttempt(input: DabraProviderAttemptInput): Promise<DabraProviderAttemptRecord> {
+function safePersistenceError(error: unknown): string {
+  return error instanceof Error ? error.message.slice(0, 120) : 'unknown';
+}
+
+function logPersistenceFailure(
+  record: DabraProviderAttemptRecord,
+  failureCategory: 'insert_failure' | 'timeout',
+  error: string,
+): void {
+  console.error('DABRA_TELEMETRY_PERSIST_FAILED', JSON.stringify({
+    classification: 'telemetry_persist_failed',
+    failureCategory,
+    attemptId: record.attempt_id,
+    requestId: record.request_id,
+    provider: record.provider,
+    error,
+  }));
+}
+
+export async function recordDabraProviderAttempt(
+  input: DabraProviderAttemptInput,
+  persistenceTimeoutMs = DABRA_TELEMETRY_PERSIST_TIMEOUT_MS,
+): Promise<DabraProviderAttemptRecord> {
   const record = buildDabraProviderAttempt(input);
-  try {
-    await (testWriter ?? defaultWriter)(record);
-  } catch (error) {
-    console.error('DABRA_TELEMETRY_PERSIST_FAILED', JSON.stringify({
-      classification: 'telemetry_persist_failed',
-      attemptId: record.attempt_id,
-      requestId: record.request_id,
-      provider: record.provider,
-      error: error instanceof Error ? error.message.slice(0, 120) : 'unknown',
-    }));
+  const abortController = new AbortController();
+  const timeoutMs = Number.isFinite(persistenceTimeoutMs) && persistenceTimeoutMs > 0
+    ? Math.max(1, Math.trunc(persistenceTimeoutMs))
+    : DABRA_TELEMETRY_PERSIST_TIMEOUT_MS;
+  const writeOutcome = Promise.resolve()
+    .then(() => (testWriter ?? defaultWriter)(record, abortController.signal))
+    .then(
+      () => ({ status: 'success' as const }),
+      (error: unknown) => ({ status: 'failure' as const, error }),
+    );
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutOutcome = new Promise<{ status: 'timeout' }>((resolve) => {
+    timeoutHandle = setTimeout(() => {
+      resolve({ status: 'timeout' });
+      abortController.abort();
+    }, timeoutMs);
+  });
+  const outcome = await Promise.race([writeOutcome, timeoutOutcome]);
+  if (timeoutHandle) clearTimeout(timeoutHandle);
+
+  if (outcome.status === 'timeout') {
+    logPersistenceFailure(record, 'timeout', 'telemetry_persist_timeout');
+  } else if (outcome.status === 'failure') {
+    logPersistenceFailure(record, 'insert_failure', safePersistenceError(outcome.error));
   }
   return record;
 }
@@ -165,10 +206,11 @@ export type DabraAfterResponseRegistrar = (task: () => void | Promise<void>) => 
 
 export function createDabraProviderAttemptAfterResponseScheduler(
   registerAfterResponse: DabraAfterResponseRegistrar,
+  persistenceTimeoutMs = DABRA_TELEMETRY_PERSIST_TIMEOUT_MS,
 ): DabraProviderAttemptScheduler {
   return (input) => {
     try {
-      registerAfterResponse(async () => { await recordDabraProviderAttempt(input); });
+      registerAfterResponse(async () => { await recordDabraProviderAttempt(input, persistenceTimeoutMs); });
     } catch (error) {
       console.error('DABRA_TELEMETRY_SCHEDULE_FAILED', JSON.stringify({
         classification: 'telemetry_schedule_failed',

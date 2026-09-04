@@ -49,11 +49,14 @@ function configureProvider(provider: string, key: (typeof providerEnv)[number], 
   process.env[modelKey] = `${provider}-test-model`;
 }
 
-function createTestAfterQueue() {
+function createTestAfterQueue(persistenceTimeoutMs?: number) {
   const tasks: Array<() => void | Promise<void>> = [];
   return {
     pending: tasks,
-    scheduler: createDabraProviderAttemptAfterResponseScheduler((task) => { tasks.push(task); }),
+    scheduler: createDabraProviderAttemptAfterResponseScheduler(
+      (task) => { tasks.push(task); },
+      persistenceTimeoutMs,
+    ),
     async flush() {
       while (tasks.length > 0) await tasks.shift()?.();
     },
@@ -180,7 +183,70 @@ test('fallback attempts share correlation and preserve the prior failure reason'
   assert.equal(attempts[1]?.fallback_hop, 1);
 });
 
-test('slow or hung telemetry persistence cannot consume fallback or customer-response budget', async () => {
+test('a slow telemetry insert within the timeout persists once without a failure event', async () => {
+  configureProvider('openai', 'OPENAI_API_KEY', 'DABRA_OPENAI_MODEL');
+  const attempts: DabraProviderAttemptRecord[] = [];
+  const errors: string[] = [];
+  const originalError = console.error;
+  const afterQueue = createTestAfterQueue(100);
+  setDabraProviderAttemptWriterForTests(async (record) => {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    attempts.push(record);
+  });
+  globalThis.fetch = (async () => providerResponse('openai')) as typeof fetch;
+  console.error = (...values: unknown[]) => { errors.push(values.map(String).join(' ')); };
+  try {
+    const response = await buildObservedResponse('external answer with slow telemetry', afterQueue.scheduler);
+    assert.equal(response.provider, 'openai');
+    assert.equal(attempts.length, 0);
+    await afterQueue.flush();
+    assert.equal(attempts.length, 1);
+    assert.equal(errors.some((entry) => entry.includes('telemetry_persist_failed')), false);
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('never-settling telemetry times out once, aborts persistence and leaves routing non-blocking', async () => {
+  configureProvider('openai', 'OPENAI_API_KEY', 'DABRA_OPENAI_MODEL');
+  const errors: string[] = [];
+  const originalError = console.error;
+  const afterQueue = createTestAfterQueue(25);
+  let writerCalls = 0;
+  let aborts = 0;
+  setDabraProviderAttemptWriterForTests((_record, signal) => {
+    writerCalls += 1;
+    return new Promise<void>((_resolve, reject) => {
+      signal.addEventListener('abort', () => {
+        aborts += 1;
+        reject(new Error('aborted test telemetry insert'));
+      }, { once: true });
+    });
+  });
+  globalThis.fetch = (async () => providerResponse('openai')) as typeof fetch;
+  console.error = (...values: unknown[]) => { errors.push(values.map(String).join(' ')); };
+  try {
+    const response = await Promise.race([
+      buildObservedResponse('external answer with hung telemetry', afterQueue.scheduler),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('customer response waited for telemetry')), 250)),
+    ]);
+    assert.equal(response.provider, 'openai');
+    assert.equal(writerCalls, 0);
+    assert.equal(afterQueue.pending.length, 1);
+    await afterQueue.flush();
+    const persistenceFailures = errors.filter((entry) => entry.includes('DABRA_TELEMETRY_PERSIST_FAILED'));
+    assert.equal(writerCalls, 1);
+    assert.equal(aborts, 1);
+    assert.equal(persistenceFailures.length, 1);
+    assert.match(persistenceFailures[0] ?? '', /"classification":"telemetry_persist_failed"/);
+    assert.match(persistenceFailures[0] ?? '', /"failureCategory":"timeout"/);
+    assert.match(persistenceFailures[0] ?? '', /"error":"telemetry_persist_timeout"/);
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('telemetry timeout cannot consume fallback or customer-response budget', async () => {
   process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
   process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
   process.env.DABRA_AI_MAX_FALLBACK_HOPS = '1';
@@ -190,8 +256,15 @@ test('slow or hung telemetry persistence cannot consume fallback or customer-res
   process.env.DABRA_GEMINI_MODEL = 'gemini-3.6-flash';
   process.env.DABRA_OPENAI_MODEL = 'gpt-4.1-mini';
   let providerCalls = 0;
-  const afterQueue = createTestAfterQueue();
-  setDabraProviderAttemptWriterForTests(() => new Promise<void>(() => undefined));
+  const afterQueue = createTestAfterQueue(25);
+  const originalError = console.error;
+  let writerCalls = 0;
+  setDabraProviderAttemptWriterForTests((_record, signal) => {
+    writerCalls += 1;
+    return new Promise<void>((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(new Error('aborted test telemetry insert')), { once: true });
+    });
+  });
   globalThis.fetch = (async (input) => {
     providerCalls += 1;
     return String(input).includes('generativelanguage')
@@ -199,13 +272,21 @@ test('slow or hung telemetry persistence cannot consume fallback or customer-res
       : providerResponse('openai');
   }) as typeof fetch;
 
-  const response = await Promise.race([
-    buildObservedResponse('external fallback with hung telemetry', afterQueue.scheduler),
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('customer response waited for telemetry')), 750)),
-  ]);
-  assert.equal(response.provider, 'openai');
-  assert.equal(providerCalls, 3);
-  assert.equal(afterQueue.pending.length, 2);
+  console.error = () => undefined;
+  try {
+    const response = await Promise.race([
+      buildObservedResponse('external fallback with hung telemetry', afterQueue.scheduler),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('customer response waited for telemetry')), 250)),
+    ]);
+    assert.equal(response.provider, 'openai');
+    assert.equal(providerCalls, 3);
+    assert.equal(writerCalls, 0);
+    assert.equal(afterQueue.pending.length, 2);
+    await afterQueue.flush();
+    assert.equal(writerCalls, 2);
+  } finally {
+    console.error = originalError;
+  }
 });
 
 test('telemetry insert failure is observable and cannot alter provider success or duplicate execution', async () => {
@@ -227,7 +308,10 @@ test('telemetry insert failure is observable and cannot alter provider success o
     assert.equal(providerCalls, 1);
     await afterQueue.flush();
     assert.equal(providerCalls, 1);
-    assert.ok(errors.some((entry) => entry.includes('telemetry_persist_failed')));
+    const persistenceFailures = errors.filter((entry) => entry.includes('DABRA_TELEMETRY_PERSIST_FAILED'));
+    assert.equal(persistenceFailures.length, 1);
+    assert.match(persistenceFailures[0] ?? '', /"classification":"telemetry_persist_failed"/);
+    assert.match(persistenceFailures[0] ?? '', /"failureCategory":"insert_failure"/);
   } finally {
     console.error = originalError;
   }
