@@ -20,6 +20,8 @@ export type MistralWebCallResult = {
   errorCategory?: MistralWebErrorCategory;
   status?: number;
   model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
 };
 
 type MistralWebCallParams = {

@@ -13,6 +13,13 @@ import { callMistralWebSearch, type MistralWebErrorCategory } from '@/lib/ai2/ru
 import { callOpenAIResponsesWebSearch, type OpenAIWebErrorCategory } from '@/lib/ai2/runtime/openai-web';
 import { callQwenWebSearch, type QwenWebErrorCategory } from '@/lib/ai2/runtime/qwen-web';
 import { callXAIWebSearch, type XAIWebErrorCategory } from '@/lib/ai2/runtime/xai-web';
+import {
+  createDabraProviderRequestId,
+  mapProviderErrorCategory,
+  type DabraProviderAttemptScheduler,
+  type DabraProviderErrorCategory,
+  type DabraProviderIntentClass,
+} from '@/lib/ai2/observability/provider-attempts';
 import { getMarketplaceSnapshot } from '@/lib/marketplace/server';
 
 export type AI2ChatLanguage = 'ar' | 'en';
@@ -88,6 +95,9 @@ type ProviderResult = {
   retrievalMode: AI2RetrievalMode;
   errorCategory?: AI2ProviderErrorCategory;
   model?: string;
+  status?: number;
+  inputTokens?: number;
+  outputTokens?: number;
 };
 
 const INFORMATIONAL_INTENT_PATTERNS = [
@@ -370,6 +380,7 @@ export async function buildAI2ChatResponse(
   history: AI2ChatTurn[] = [],
   account?: AI2ChatAccountContext,
   preferredLanguage?: AI2ChatLanguage,
+  scheduleProviderAttempt?: DabraProviderAttemptScheduler,
 ): Promise<AI2ChatResponse> {
   const requestStartedAt = Date.now();
   const language = preferredLanguage ?? detectLanguage(message);
@@ -443,10 +454,13 @@ export async function buildAI2ChatResponse(
     ].filter(Boolean);
     const outgoingMessage = `${contextSections.join('\n\n')}\n\n${message}`;
     if (globalWebEnabled && configuredProviders.length > 0) {
+      const providerRequestId = createDabraProviderRequestId();
+      const telemetryIntent: DabraProviderIntentClass = isTripPlanningIntent(message) ? 'travel-plan' : intent;
       const globalDeadlineMs = normalizeBoundedInteger(process.env.DABRA_AI_GLOBAL_DEADLINE_MS, DEFAULT_GLOBAL_DEADLINE_MS, MIN_GLOBAL_DEADLINE_MS, MAX_GLOBAL_DEADLINE_MS);
       const attemptedProviders: RemoteProvider[] = [];
       let primaryError: AI2ProviderErrorCategory | undefined;
       let finalError: AI2ProviderErrorCategory | undefined;
+      let previousTelemetryError: DabraProviderErrorCategory | undefined;
 
       for (const provider of configuredProviders) {
         const remainingMs = globalDeadlineMs - (Date.now() - requestStartedAt);
@@ -464,7 +478,29 @@ export async function buildAI2ChatResponse(
         const attemptMs = Date.now() - attemptStartedAt;
         const hasCitations = result.citations.length > 0;
         const isGroundedResult = hasCitations || providerAcceptsNoCitations(result.provider);
-        if (result.ok && (isGroundedResult || intent === 'general')) {
+        const accepted = result.ok && (isGroundedResult || intent === 'general');
+        const telemetryError = accepted ? undefined : mapProviderErrorCategory(result.errorCategory, result.status);
+        scheduleProviderAttempt?.({
+          requestId: providerRequestId,
+          provider: result.provider,
+          model: result.model,
+          intentClass: telemetryIntent,
+          language,
+          route: latencyRoute,
+          startedAtMs: attemptStartedAt,
+          completedAtMs: attemptStartedAt + attemptMs,
+          success: accepted,
+          errorCategory: telemetryError,
+          fallbackFrom: attemptedProviders.length > 1 ? attemptedProviders.at(-2) : undefined,
+          fallbackReason: attemptedProviders.length > 1 ? previousTelemetryError : undefined,
+          fallbackHop: attemptedProviders.length - 1,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+          groundingStatus: accepted
+            ? (isGroundedResult ? 'grounded-global-web' : 'answered-general')
+            : 'fallback-provider-unavailable',
+        });
+        if (accepted) {
           logDabraLatency({
             totalMs: Date.now() - requestStartedAt,
             route: latencyRoute,
@@ -496,6 +532,7 @@ export async function buildAI2ChatResponse(
 
         finalError = result.errorCategory ?? 'upstream_error';
         primaryError ??= finalError;
+        previousTelemetryError = telemetryError;
         if (!isTransientFallbackError(finalError)) break;
       }
 
@@ -631,6 +668,9 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       retrievalMode: 'gemini-google-search',
       errorCategory: result.errorCategory,
       model: result.model,
+      status: result.status,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
     };
   }
 
@@ -652,6 +692,9 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       retrievalMode: 'openai-web-search',
       errorCategory: result.errorCategory,
       model: result.model,
+      status: result.status,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
     };
   }
 
@@ -673,6 +716,9 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       retrievalMode: 'anthropic-messages',
       errorCategory: result.errorCategory,
       model: result.model,
+      status: result.status,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
     };
   }
 
@@ -694,6 +740,9 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       retrievalMode: 'xai-chat-completions',
       errorCategory: result.errorCategory,
       model: result.model,
+      status: result.status,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
     };
   }
 
@@ -715,6 +764,9 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       retrievalMode: 'deepseek-chat-completions',
       errorCategory: result.errorCategory,
       model: result.model,
+      status: result.status,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
     };
   }
 
@@ -736,6 +788,9 @@ async function callProvider(provider: RemoteProvider, message: string, language:
       retrievalMode: 'qwen-chat-completions',
       errorCategory: result.errorCategory,
       model: result.model,
+      status: result.status,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
     };
   }
 
@@ -756,6 +811,9 @@ async function callProvider(provider: RemoteProvider, message: string, language:
     retrievalMode: 'mistral-chat-completions',
     errorCategory: result.errorCategory,
     model: result.model,
+    status: result.status,
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
   };
 }
 

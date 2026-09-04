@@ -37,6 +37,8 @@ type OpenAIWebCallResult = {
   status?: number;
   requestId?: string | null;
   model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
 };
 
 type OpenAIErrorPayload = {
@@ -119,6 +121,19 @@ function extractOutputText(payload: unknown): string {
   }
 
   return fragments.join('\n').trim();
+}
+
+function extractTokenUsage(payload: unknown): Pick<OpenAIWebCallResult, 'inputTokens' | 'outputTokens'> {
+  if (!payload || typeof payload !== 'object') return {};
+  const usage = (payload as Record<string, unknown>).usage;
+  if (!usage || typeof usage !== 'object') return {};
+  const record = usage as Record<string, unknown>;
+  const inputTokens = record.input_tokens;
+  const outputTokens = record.output_tokens;
+  return {
+    ...(typeof inputTokens === 'number' && Number.isSafeInteger(inputTokens) && inputTokens >= 0 ? { inputTokens } : {}),
+    ...(typeof outputTokens === 'number' && Number.isSafeInteger(outputTokens) && outputTokens >= 0 ? { outputTokens } : {}),
+  };
 }
 
 function walkForCitationUrls(value: unknown, urls: string[]) {
@@ -289,6 +304,7 @@ async function executeResponsesWebRequest(
   }
   const answer = extractOutputText(payload);
   const citations = extractValidWebCitations(payload);
+  const usage = extractTokenUsage(payload);
 
   if (!answer) {
     return {
@@ -299,6 +315,7 @@ async function executeResponsesWebRequest(
       status: response.status,
       requestId,
       model,
+      ...usage,
     };
   }
 
@@ -309,6 +326,7 @@ async function executeResponsesWebRequest(
     status: response.status,
     requestId,
     model,
+    ...usage,
   };
   } catch (error) {
     const timedOut = error instanceof Error && /aborted|abort/i.test(error.message);
