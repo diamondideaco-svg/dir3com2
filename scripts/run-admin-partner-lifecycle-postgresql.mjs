@@ -184,6 +184,15 @@ try {
   await expectError(testClient, `SELECT public.unpublish_product_lifecycle($1,1,'stale version')`, [productId], 'PRODUCT_VERSION_STALE');
   await testClient.query(`SELECT public.unpublish_product_lifecycle($1,2,'postgres unpublish')`, [productId]);
   await testClient.query(`SELECT public.archive_product_lifecycle($1,3,'postgres archive')`, [productId]);
+
+  const qatarCreated = await testClient.query(
+    `SELECT public.create_product_draft_lifecycle(
+      'سيارة قطر إدارية','Admin Qatar Car','admin-qatar-car',100,'Qatar','Doha',
+      'drive','verified_requestable','request_to_confirm','verified_local_partner',true,false,false,'admin qatar audit isolation'
+    ) AS id`,
+  );
+  const qatarProductId = qatarCreated.rows[0]?.id;
+  if (!qatarProductId) throw new Error('Admin Qatar seed did not return product id.');
   await resetActor(testClient);
 
   const audit = await testClient.query('SELECT action FROM public.product_audit_events WHERE product_id=$1 ORDER BY created_at,id', [productId]);
@@ -211,8 +220,12 @@ try {
   );
 
   const visibleAudit = await testClient.query('SELECT count(*)::int AS count FROM public.product_audit_events');
-  if (visibleAudit.rows[0]?.count !== 1) {
-    throw new Error(`Scoped staff audit visibility leaked cross-country events: ${visibleAudit.rows[0]?.count}`);
+  if (visibleAudit.rows[0]?.count !== 5) {
+    throw new Error(`Scoped staff audit visibility expected 5 Egypt events and no Qatar event; saw ${visibleAudit.rows[0]?.count}`);
+  }
+  const qatarLeak = await testClient.query('SELECT count(*)::int AS count FROM public.product_audit_events WHERE product_id=$1', [qatarProductId]);
+  if (qatarLeak.rows[0]?.count !== 0) {
+    throw new Error('Scoped staff could read a Qatar product audit event.');
   }
   await resetActor(testClient);
 
