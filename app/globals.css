@@ -112,7 +112,8 @@ body {
 .dabra-waveform i:nth-child(2n) { animation-delay: .2s; }.dabra-waveform i:nth-child(3n) { animation-delay: .4s; }
 @keyframes dabra-wave { from { transform: scaleY(.45); opacity: .4; } to { transform: scaleY(1); opacity: 1; } }
 .dabra-voice-copy { display: flex; flex-direction: column; gap: .1rem; text-align: center; }.dabra-voice-copy strong { color: #fffaf0; }.dabra-voice-copy span { color: rgba(247,243,232,.54); font-size: .72rem; }
-.dabra-voice-toggle { display: inline-flex; align-items: center; justify-content: center; gap: .45rem; min-height: 2.8rem; border: 0; border-radius: .8rem; background: #d4af37; color: #0d1b2a; cursor: pointer; font-weight: 700; }
+.dabra-voice-toggle { display: inline-flex; align-items: center; justify-content: center; gap: .45rem; min-height: 2.8rem; border: 0; border-radius: .8rem; background: #d4af37; color: #0d1b2a; cursor: pointer; font-weight: 700; padding: .55rem .8rem; }
+.dabra-voice-toggle:disabled { cursor: not-allowed; opacity: .48; }
 .dabra-voice-actions { display: flex; align-items: center; justify-content: center; gap: .45rem; }.dabra-voice-mute { display: grid; place-items: center; width: 2.8rem; height: 2.8rem; border: 1px solid rgba(212,175,55,.35); border-radius: .8rem; background: rgba(0,0,0,.16); color: #f0d986; cursor: pointer; }
 .dabra-voice-listening .dabra-voice-toggle { background: #f0d986; box-shadow: 0 0 0 5px rgba(212,175,55,.12); }.dabra-voice-error .dabra-voice-toggle { background: #bb6969; color: #fff; }
 .dabra-approved-voice-unavailable { display: flex; flex-direction: column; gap: .15rem; max-width: 24rem; color: rgba(247,243,232,.72); font-size: .68rem; line-height: 1.5; }.dabra-approved-voice-unavailable strong { color: #f0d986; font-size: .72rem; }

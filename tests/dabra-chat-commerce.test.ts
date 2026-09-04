@@ -92,7 +92,9 @@ test('quick actions mutate the current result or trip state without creating a c
 
 test('voice input shares the text transcript without substituting browser speech for approved DABRA output', () => {
   assert.doesNotMatch(component, /speechSynthesis|SpeechSynthesisUtterance/);
-  assert.match(component, /DABRA_APPROVED_VOICE\.dynamicEngine === 'missing'/);
+  assert.match(component, /approvedVoiceAvailable === false/);
+  assert.match(component, /playApprovedVoice/);
+  assert.match(component, /fetch\('\/api\/dabra\/voice'/);
   assert.match(component, /recognition\.onresult/);
   assert.match(component, /void sendMessage\(transcript\)/);
   assert.match(component, /approvedVoiceCopy\.title/);

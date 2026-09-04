@@ -8,6 +8,13 @@
 - Moved telemetry persistence to Next/Vercel's supported after-response lifecycle, made unknown and partial token/cost coverage explicit, enforced one row per request/fallback hop under concurrency, and bounded official pricing snapshots with verified effective and expiry timestamps.
 - Bounded each after-response telemetry insert to one second, aborting the Supabase request when the bound expires and emitting one safe `telemetry_persist_failed` timeout signal without delaying provider routing, fallback, or the customer response.
 
+## 2026-09-04 — DABRA approved dynamic voice adapter (credential pending)
+
+- Added a provider-neutral, authenticated and rate-limited DABRA voice route pinned to the approved Voice Design V1 fingerprint.
+- Added cancellable client playback for response, locale, navigation, replacement and unmount boundaries, with no browser or stock-voice fallback.
+- Recorded the local XTTS v2 AR/EN proof as development-only and implemented the provider-neutral Mistral Voxtral TTS API contract without exposing provider details to DABRA UI/chat logic.
+- Production voice remains fail-closed until an authorized Mistral credential and `dabra-production` voice ID exist, commercial/account terms are confirmed, and AR/EN speaker identity is independently approved.
+
 ## 2026-09-04 — DABRA voice truth and contextual WhatsApp handoff
 
 - Pinned the human-approved DABRA Voice Design V1 fingerprint and removed browser speech synthesis as an unapproved output substitute. Until an authorized multilingual dynamic engine is bound to that fingerprint, DABRA exposes a bilingual unavailable state while retaining microphone input.

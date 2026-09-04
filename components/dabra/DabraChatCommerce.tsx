@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FiArrowLeft, FiCheck, FiChevronDown, FiClock, FiHeart, FiMapPin, FiMessageCircle, FiMic, FiMicOff, FiPaperclip, FiSearch, FiSend, FiShoppingBag, FiSliders, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiCheck, FiChevronDown, FiClock, FiHeart, FiMapPin, FiMessageCircle, FiMic, FiMicOff, FiPaperclip, FiSearch, FiSend, FiShoppingBag, FiSliders, FiStopCircle, FiVolume2, FiX } from 'react-icons/fi';
 import { cn } from '@/lib/utils';
 import type { MarketplaceService } from '@/lib/marketplace/data';
 import { supabase } from '@/lib/supabase/client';
 import { consumeDabraChatResponse } from '@/lib/dabra/chat-response-contract';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { DABRA_LOCALE_ERROR } from '@/lib/dabra/locale-contract';
-import { DABRA_APPROVED_VOICE, getApprovedDabraVoiceCopy } from '@/lib/dabra/approved-voice';
+import { DABRA_APPROVED_VOICE, getApprovedDabraPlaybackCopy, getApprovedDabraVoiceCopy } from '@/lib/dabra/approved-voice';
 import { buildDabraWhatsAppHandoff, openDabraWhatsAppHandoff } from '@/lib/dabra/whatsapp-handoff';
 import DabraFamilySafetyPanel from '@/components/dabra/DabraFamilySafetyPanel';
 import {
@@ -33,6 +33,7 @@ import {
 } from '@/lib/dabra/travel-commerce-state';
 
 type VoiceStatus = 'idle' | 'listening' | 'processing' | 'error';
+type VoicePlaybackStatus = 'idle' | 'loading' | 'playing' | 'error';
 type Message = { id: string; role: 'user' | 'assistant'; text: string };
 type DabraAttachment = { id: string; file: File; safeName: string; status: 'selected' | 'uploading' | 'error'; error?: string };
 type CartItem = DabraCartItem;
@@ -76,9 +77,12 @@ export default function DabraChatCommerce() {
   const { language, direction } = useLanguage();
   const t = dabraCopy[language];
   const approvedVoiceCopy = getApprovedDabraVoiceCopy(language);
+  const approvedPlaybackCopy = getApprovedDabraPlaybackCopy(language);
   const [messages, setMessages] = useState<Message[]>([welcomeMessage(language)]);
   const [input, setInput] = useState('');
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle');
+  const [voicePlaybackStatus, setVoicePlaybackStatus] = useState<VoicePlaybackStatus>('idle');
+  const [approvedVoiceAvailable, setApprovedVoiceAvailable] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<string | undefined>();
   const [services, setServices] = useState<MarketplaceService[]>([]);
   const [marketplaceQuery, setMarketplaceQuery] = useState('');
@@ -102,6 +106,10 @@ export default function DabraChatCommerce() {
   const [identityResolved, setIdentityResolved] = useState(false);
   const [storageHydrated, setStorageHydrated] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const playbackRef = useRef<HTMLAudioElement | null>(null);
+  const playbackAbortRef = useRef<AbortController | null>(null);
+  const playbackUrlRef = useRef<string | null>(null);
+  const playbackGenerationRef = useRef(0);
   const attachmentRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
   const identityRequestRef = useRef(0);
@@ -139,6 +147,25 @@ export default function DabraChatCommerce() {
       recognition.onresult = null;
       try { recognition.abort?.(); } catch { try { recognition.stop(); } catch { /* already stopped */ } }
     }
+    stopVoicePlayback();
+  }
+
+  function stopVoicePlayback() {
+    playbackGenerationRef.current += 1;
+    playbackAbortRef.current?.abort();
+    playbackAbortRef.current = null;
+    const audio = playbackRef.current;
+    playbackRef.current = null;
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+    }
+    if (playbackUrlRef.current) URL.revokeObjectURL(playbackUrlRef.current);
+    playbackUrlRef.current = null;
+    setVoicePlaybackStatus('idle');
   }
 
   function invalidateActiveRequests() {
@@ -207,6 +234,21 @@ export default function DabraChatCommerce() {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/dabra/voice', { cache: 'no-store', credentials: 'same-origin', signal: controller.signal })
+      .then(async (response) => response.ok ? response.json() as Promise<{ available?: boolean }> : { available: false })
+      .then((status) => { if (!controller.signal.aborted) setApprovedVoiceAvailable(status.available === true); })
+      .catch(() => { if (!controller.signal.aborted) setApprovedVoiceAvailable(false); });
+    const cancelForNavigation = () => stopVoicePlayback();
+    window.addEventListener('pagehide', cancelForNavigation);
+    return () => {
+      controller.abort();
+      window.removeEventListener('pagehide', cancelForNavigation);
+      stopVoicePlayback();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!identityResolved) return;
     if (!persistenceContext) {
       const reset = window.setTimeout(() => {
@@ -259,6 +301,7 @@ export default function DabraChatCommerce() {
   }, [recommendations, visibleServices]);
   const cartTotals = useMemo(() => calculateCartTotals(cart), [cart]);
   const missingComponents = useMemo(() => missingTripComponents(cart), [cart]);
+  const latestAssistantText = useMemo(() => [...messages].reverse().find((message) => message.role === 'assistant' && message.text.trim())?.text ?? '', [messages]);
 
   useEffect(() => {
     if (lastMarketplaceQuery) void searchMarketplace(lastMarketplaceQuery);
@@ -301,6 +344,7 @@ export default function DabraChatCommerce() {
   async function sendMessage(text = input) {
     const message = text.trim() || (attachments.length ? t.attachmentPrompt : '');
     if (!message || chatInFlightRef.current || !identityResolved) return;
+    stopVoicePlayback();
     chatInFlightRef.current = true;
     setChatInFlight(true);
     const lifecycle = lifecycleRef.current;
@@ -347,6 +391,48 @@ export default function DabraChatCommerce() {
         setVoiceStatus('idle');
         if (!controller.signal.aborted && marketplaceGeneration === marketplaceRequestRef.current) void searchMarketplace(message);
       }
+    }
+  }
+
+  async function playApprovedVoice() {
+    if (voicePlaybackStatus === 'loading' || voicePlaybackStatus === 'playing') {
+      stopVoicePlayback();
+      return;
+    }
+    if (!approvedVoiceAvailable || !latestAssistantText) return;
+    stopVoicePlayback();
+    const generation = playbackGenerationRef.current;
+    const controller = new AbortController();
+    playbackAbortRef.current = controller;
+    setVoicePlaybackStatus('loading');
+    try {
+      const response = await fetch('/api/dabra/voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'audio/mpeg, audio/wav' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ text: latestAssistantText, locale: language }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        if (response.status === 503) setApprovedVoiceAvailable(false);
+        throw new Error('voice');
+      }
+      const contentType = response.headers.get('content-type')?.split(';', 1)[0] ?? '';
+      if (!['audio/mpeg', 'audio/wav', 'audio/x-wav'].includes(contentType)) throw new Error('voice');
+      const audioBlob = await response.blob();
+      if (controller.signal.aborted || generation !== playbackGenerationRef.current || language !== languageRef.current) return;
+      const audioUrl = URL.createObjectURL(audioBlob);
+      playbackUrlRef.current = audioUrl;
+      const audio = new Audio(audioUrl);
+      playbackRef.current = audio;
+      audio.onended = () => { if (generation === playbackGenerationRef.current) stopVoicePlayback(); };
+      audio.onerror = () => { if (generation === playbackGenerationRef.current) { stopVoicePlayback(); setVoicePlaybackStatus('error'); } };
+      setVoicePlaybackStatus('playing');
+      await audio.play();
+    } catch {
+      if (!controller.signal.aborted && generation === playbackGenerationRef.current) { stopVoicePlayback(); setVoicePlaybackStatus('error'); }
+    } finally {
+      if (generation === playbackGenerationRef.current) playbackAbortRef.current = null;
     }
   }
 
@@ -481,8 +567,12 @@ export default function DabraChatCommerce() {
           <div className={cn('dabra-voice-panel', `dabra-voice-${voiceStatus}`)}>
             <div className="dabra-waveform" aria-hidden="true">{Array.from({ length: 19 }, (_, index) => <i key={index} style={{ height: `${18 + ((index * 17) % 38)}%` }} />)}</div>
             <div className="dabra-voice-copy"><strong>{t.status[voiceStatus]}</strong><span>{voiceStatus === 'idle' ? t.voiceHint.idle : voiceStatus === 'error' ? t.voiceHint.error : t.voiceHint.active}</span></div>
-            <div className="dabra-voice-actions"><button type="button" className="dabra-voice-toggle" disabled={chatInFlight} onClick={toggleVoice} aria-label={voiceStatus === 'listening' ? t.stopListening : t.talk}>{voiceStatus === 'listening' ? <FiMicOff /> : <FiMic />}<span>{t.talk}</span></button></div>
-            {DABRA_APPROVED_VOICE.dynamicEngine === 'missing' && <div className="dabra-approved-voice-unavailable" role="status" data-approved-voice-sha={DABRA_APPROVED_VOICE.sha256}><strong>{approvedVoiceCopy.title}</strong><span>{approvedVoiceCopy.detail}</span></div>}
+            <div className="dabra-voice-actions">
+              <button type="button" className="dabra-voice-toggle" disabled={chatInFlight} onClick={toggleVoice} aria-label={voiceStatus === 'listening' ? t.stopListening : t.talk}>{voiceStatus === 'listening' ? <FiMicOff /> : <FiMic />}<span>{t.talk}</span></button>
+              <button type="button" className="dabra-voice-toggle" disabled={chatInFlight || !approvedVoiceAvailable || !latestAssistantText} onClick={() => void playApprovedVoice()} aria-label={voicePlaybackStatus === 'loading' ? approvedPlaybackCopy.loading : voicePlaybackStatus === 'playing' ? approvedPlaybackCopy.stop : approvedPlaybackCopy.play}>{voicePlaybackStatus === 'playing' ? <FiStopCircle /> : <FiVolume2 />}<span>{voicePlaybackStatus === 'loading' ? approvedPlaybackCopy.loading : voicePlaybackStatus === 'playing' ? approvedPlaybackCopy.stop : approvedPlaybackCopy.play}</span></button>
+            </div>
+            {approvedVoiceAvailable === false && <div className="dabra-approved-voice-unavailable" role="status" data-approved-voice-sha={DABRA_APPROVED_VOICE.sha256}><strong>{approvedVoiceCopy.title}</strong><span>{approvedVoiceCopy.detail}</span></div>}
+            {voicePlaybackStatus === 'error' && <div className="dabra-approved-voice-unavailable" role="alert"><span>{approvedPlaybackCopy.error}</span></div>}
           </div>
 
           <div className="dabra-composer">

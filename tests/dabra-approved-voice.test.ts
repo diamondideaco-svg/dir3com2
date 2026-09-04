@@ -13,11 +13,13 @@ test('approved DABRA voice identity is pinned to the human-approved master finge
   assert.equal(DABRA_APPROVED_VOICE.sha256, '4AA9AFA4EDDF369FE79E8F597946766C6FBDD8C789DE199DE9A5253EBFE044FB');
 });
 
-test('dynamic output fails closed while the approved engine is missing', () => {
-  assert.equal(DABRA_APPROVED_VOICE.dynamicEngine, 'missing');
+test('dynamic output uses only the server adapter and remains fail-closed until infrastructure is configured', () => {
+  assert.equal(DABRA_APPROVED_VOICE.dynamicEngine, 'mistral-voxtral-tts');
+  assert.equal(DABRA_APPROVED_VOICE.productionStatus, 'credential-and-voice-id-required');
   assert.equal(DABRA_APPROVED_VOICE.browserSpeechAllowed, false);
   assert.doesNotMatch(chat, /speechSynthesis|SpeechSynthesisUtterance/);
-  assert.match(chat, /DABRA_APPROVED_VOICE\.dynamicEngine === 'missing'/);
+  assert.match(chat, /approvedVoiceAvailable === false/);
+  assert.match(chat, /fetch\('\/api\/dabra\/voice'/);
 });
 
 test('Arabic and English state the truthful approved-voice boundary', () => {
