@@ -15,8 +15,8 @@ type ProductTableProps = {
 
 export default function ProductTable({ products }: ProductTableProps) {
   return (
-    <div className="overflow-x-auto rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)]">
-      <table className="min-w-[900px] w-full text-start">
+    <div className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)]">
+      <table className="w-[900px] min-w-[900px] text-start">
         <thead className="bg-white text-sm text-[var(--color-muted)]">
           <tr>
             <th className="px-5 py-3"><AdminText ar="المنتج" en="Product" /></th>
