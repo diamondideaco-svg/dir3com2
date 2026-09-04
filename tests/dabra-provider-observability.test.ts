@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   buildDabraProviderAttempt,
+  createDabraProviderAttemptAfterResponseScheduler,
   mapProviderErrorCategory,
   setDabraProviderAttemptWriterForTests,
   type DabraProviderAttemptRecord,
@@ -48,6 +49,21 @@ function configureProvider(provider: string, key: (typeof providerEnv)[number], 
   process.env[modelKey] = `${provider}-test-model`;
 }
 
+function createTestAfterQueue() {
+  const tasks: Array<() => void | Promise<void>> = [];
+  return {
+    pending: tasks,
+    scheduler: createDabraProviderAttemptAfterResponseScheduler((task) => { tasks.push(task); }),
+    async flush() {
+      while (tasks.length > 0) await tasks.shift()?.();
+    },
+  };
+}
+
+function buildObservedResponse(message: string, scheduler: ReturnType<typeof createTestAfterQueue>['scheduler']) {
+  return buildAI2ChatResponse(message, [], undefined, undefined, scheduler);
+}
+
 function providerResponse(provider: string, status = 200): Response {
   if (status !== 200) return new Response(JSON.stringify({ error: { message: 'upstream unavailable' } }), { status });
   if (provider === 'openai') {
@@ -83,10 +99,12 @@ for (const [provider, key, modelKey] of [
   test(`${provider} success emits one content-free attempt with token usage`, async () => {
     configureProvider(provider, key, modelKey);
     const attempts: DabraProviderAttemptRecord[] = [];
+    const afterQueue = createTestAfterQueue();
     setDabraProviderAttemptWriterForTests(async (record) => { attempts.push(record); });
     globalThis.fetch = (async () => providerResponse(provider)) as typeof fetch;
 
-    const response = await buildAI2ChatResponse(`external observability topic ${provider}`);
+    const response = await buildObservedResponse(`external observability topic ${provider}`, afterQueue.scheduler);
+    await afterQueue.flush();
     assert.equal(response.provider, provider);
     assert.equal(attempts.length, 1);
     assert.equal(attempts[0]?.provider, provider);
@@ -100,10 +118,12 @@ for (const [provider, key, modelKey] of [
   test(`${provider} authentication failure is classified without content`, async () => {
     configureProvider(provider, key, modelKey);
     const attempts: DabraProviderAttemptRecord[] = [];
+    const afterQueue = createTestAfterQueue();
     setDabraProviderAttemptWriterForTests(async (record) => { attempts.push(record); });
     globalThis.fetch = (async () => new Response(JSON.stringify({ error: { message: 'invalid api key' } }), { status: 401 })) as typeof fetch;
 
-    await buildAI2ChatResponse(`external observability failure ${provider}`);
+    await buildObservedResponse(`external observability failure ${provider}`, afterQueue.scheduler);
+    await afterQueue.flush();
     assert.equal(attempts.length, 1);
     assert.equal(attempts[0]?.success, false);
     assert.equal(attempts[0]?.error_category, 'authentication');
@@ -120,10 +140,12 @@ test('Gemini timeout and 503 receive distinct canonical categories', () => {
 test('Gemini runtime timeout emits one timeout-classified logical provider attempt', async () => {
   configureProvider('gemini', 'GOOGLE_GENERATIVE_AI_API_KEY', 'DABRA_GEMINI_MODEL');
   const attempts: DabraProviderAttemptRecord[] = [];
+  const afterQueue = createTestAfterQueue();
   setDabraProviderAttemptWriterForTests(async (record) => { attempts.push(record); });
   globalThis.fetch = (async () => { throw new Error('The operation was aborted.'); }) as typeof fetch;
 
-  const response = await buildAI2ChatResponse('external Gemini timeout observability topic');
+  const response = await buildObservedResponse('external Gemini timeout observability topic', afterQueue.scheduler);
+  await afterQueue.flush();
   assert.equal(response.provider, 'local');
   assert.equal(attempts.length, 1);
   assert.equal(attempts[0]?.provider, 'gemini');
@@ -141,12 +163,14 @@ test('fallback attempts share correlation and preserve the prior failure reason'
   process.env.DABRA_GEMINI_MODEL = 'gemini-3.6-flash';
   process.env.DABRA_OPENAI_MODEL = 'gpt-4.1-mini';
   const attempts: DabraProviderAttemptRecord[] = [];
+  const afterQueue = createTestAfterQueue();
   setDabraProviderAttemptWriterForTests(async (record) => { attempts.push(record); });
   globalThis.fetch = (async (input) => String(input).includes('generativelanguage')
     ? providerResponse('gemini', 503)
     : providerResponse('openai')) as typeof fetch;
 
-  const response = await buildAI2ChatResponse('external fallback observability topic');
+  const response = await buildObservedResponse('external fallback observability topic', afterQueue.scheduler);
+  await afterQueue.flush();
   assert.equal(response.provider, 'openai');
   assert.equal(attempts.length, 2);
   assert.equal(attempts[0]?.error_category, 'upstream_503');
@@ -154,6 +178,92 @@ test('fallback attempts share correlation and preserve the prior failure reason'
   assert.equal(attempts[1]?.fallback_from, 'gemini');
   assert.equal(attempts[1]?.fallback_reason, 'upstream_503');
   assert.equal(attempts[1]?.fallback_hop, 1);
+});
+
+test('slow or hung telemetry persistence cannot consume fallback or customer-response budget', async () => {
+  process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  process.env.DABRA_AI_MAX_FALLBACK_HOPS = '1';
+  process.env.DABRA_AI_PROVIDER = 'gemini';
+  process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'test-key';
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.DABRA_GEMINI_MODEL = 'gemini-3.6-flash';
+  process.env.DABRA_OPENAI_MODEL = 'gpt-4.1-mini';
+  let providerCalls = 0;
+  const afterQueue = createTestAfterQueue();
+  setDabraProviderAttemptWriterForTests(() => new Promise<void>(() => undefined));
+  globalThis.fetch = (async (input) => {
+    providerCalls += 1;
+    return String(input).includes('generativelanguage')
+      ? providerResponse('gemini', 503)
+      : providerResponse('openai');
+  }) as typeof fetch;
+
+  const response = await Promise.race([
+    buildObservedResponse('external fallback with hung telemetry', afterQueue.scheduler),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('customer response waited for telemetry')), 750)),
+  ]);
+  assert.equal(response.provider, 'openai');
+  assert.equal(providerCalls, 3);
+  assert.equal(afterQueue.pending.length, 2);
+});
+
+test('telemetry insert failure is observable and cannot alter provider success or duplicate execution', async () => {
+  configureProvider('openai', 'OPENAI_API_KEY', 'DABRA_OPENAI_MODEL');
+  process.env.DABRA_OPENAI_MODEL = 'gpt-4.1-mini';
+  const afterQueue = createTestAfterQueue();
+  const errors: string[] = [];
+  const originalError = console.error;
+  let providerCalls = 0;
+  setDabraProviderAttemptWriterForTests(async () => { throw new Error('simulated telemetry insert failure'); });
+  globalThis.fetch = (async () => {
+    providerCalls += 1;
+    return providerResponse('openai');
+  }) as typeof fetch;
+  console.error = (...values: unknown[]) => { errors.push(values.map(String).join(' ')); };
+  try {
+    const response = await buildObservedResponse('external successful answer with failed telemetry', afterQueue.scheduler);
+    assert.equal(response.provider, 'openai');
+    assert.equal(providerCalls, 1);
+    await afterQueue.flush();
+    assert.equal(providerCalls, 1);
+    assert.ok(errors.some((entry) => entry.includes('telemetry_persist_failed')));
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('telemetry insert failure cannot suppress a provider fallback', async () => {
+  process.env.DABRA_GLOBAL_WEB_ENABLED = 'true';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  process.env.DABRA_AI_MAX_FALLBACK_HOPS = '1';
+  process.env.DABRA_AI_PROVIDER = 'gemini';
+  process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'test-key';
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.DABRA_GEMINI_MODEL = 'gemini-3.6-flash';
+  process.env.DABRA_OPENAI_MODEL = 'gpt-4.1-mini';
+  const afterQueue = createTestAfterQueue();
+  const originalError = console.error;
+  setDabraProviderAttemptWriterForTests(async () => { throw new Error('simulated telemetry insert failure'); });
+  globalThis.fetch = (async (input) => String(input).includes('generativelanguage')
+    ? providerResponse('gemini', 503)
+    : providerResponse('openai')) as typeof fetch;
+  console.error = () => undefined;
+  try {
+    const response = await buildObservedResponse('external fallback despite telemetry failure', afterQueue.scheduler);
+    assert.equal(response.provider, 'openai');
+    assert.equal(afterQueue.pending.length, 2);
+    await afterQueue.flush();
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('production route registers telemetry through the supported Next after-response primitive', () => {
+  const route = readFileSync(new URL('../app/api/ai2/chat/route.ts', import.meta.url), 'utf8');
+  assert.match(route, /import \{ after, NextRequest, NextResponse \} from 'next\/server'/);
+  assert.match(route, /createDabraProviderAttemptAfterResponseScheduler\(after\)/);
+  assert.doesNotMatch(route, /void\s+recordDabraProviderAttempt|\.then\([\s\S]*recordDabraProviderAttempt/);
 });
 
 test('attempt allow-list rejects prompt, answer, PII, secret and provider body fields', () => {
@@ -183,19 +293,33 @@ test('attempt allow-list rejects prompt, answer, PII, secret and provider body f
   }
 });
 
-test('cost is estimated only for exact officially priced models with complete token usage', () => {
-  const priced = estimateProviderCostUsd({ provider: 'openai', model: 'gpt-4.1-mini', inputTokens: 1_000_000, outputTokens: 1_000_000 });
+test('cost is estimated only for an exact model and a current pricing snapshot', () => {
+  const current = Date.parse('2026-09-04T12:00:00.000Z');
+  const price = (overrides: Partial<Parameters<typeof estimateProviderCostUsd>[0]> = {}) => estimateProviderCostUsd({
+    provider: 'openai',
+    model: 'gpt-4.1-mini',
+    inputTokens: 1_000_000,
+    outputTokens: 1_000_000,
+    attemptedAtMs: current,
+    pricingCheckedAtMs: current,
+    ...overrides,
+  });
+  const priced = price();
   assert.equal(priced.estimatedCostUsd, 2);
   assert.match(priced.pricingVersion ?? '', /^2026-09-04:/);
-  assert.deepEqual(
-    estimateProviderCostUsd({ provider: 'mistral', model: 'mistral-small-latest', inputTokens: 10, outputTokens: 5 }),
-    { estimatedCostUsd: null, pricingVersion: null },
-  );
-  assert.deepEqual(
-    estimateProviderCostUsd({ provider: 'gemini', model: 'gemini-3.6-flash', inputTokens: null, outputTokens: 5 }),
-    { estimatedCostUsd: null, pricingVersion: null },
-  );
-  assert.ok(getOfficialProviderPricing().every((entry) => entry.source.startsWith('https://')));
+  const unknown = { estimatedCostUsd: null, pricingVersion: null };
+  assert.deepEqual(price({ provider: 'mistral', model: 'mistral-small-latest' }), unknown);
+  assert.deepEqual(price({ inputTokens: null }), unknown);
+  assert.deepEqual(price({ outputTokens: null }), unknown);
+  assert.deepEqual(price({ attemptedAtMs: Date.parse('2025-04-13T23:59:59.999Z') }), unknown);
+  assert.deepEqual(price({ attemptedAtMs: Date.parse('2026-10-04T00:00:00.000Z') }), unknown);
+  assert.deepEqual(price({ pricingCheckedAtMs: Date.parse('2026-10-04T00:00:00.000Z') }), unknown);
+  assert.equal(price({ attemptedAtMs: Date.parse('2025-04-14T00:00:00.000Z') }).estimatedCostUsd, 2);
+  assert.ok(getOfficialProviderPricing().every((entry) =>
+    entry.source.startsWith('https://')
+    && Date.parse(entry.effectiveFrom) < Date.parse(entry.effectiveTo)
+    && Date.parse(entry.verifiedAt) < Date.parse(entry.expiresAt),
+  ));
 });
 
 test('migration is append-only, least privilege and exposes only aggregate service-role metrics', () => {
@@ -216,6 +340,13 @@ test('migration is append-only, least privilege and exposes only aggregate servi
   assert.match(migration, /timeout_count bigint/i);
   assert.match(migration, /last_used timestamptz/i);
   assert.match(migration, /last_success timestamptz/i);
+  assert.match(migration, /input_tokens_known_sum bigint/i);
+  assert.match(migration, /input_tokens_unknown_count bigint/i);
+  assert.match(migration, /token_coverage_complete boolean/i);
+  assert.match(migration, /estimated_cost_known_sum numeric/i);
+  assert.match(migration, /estimated_cost_unknown_count bigint/i);
+  assert.match(migration, /cost_coverage_complete boolean/i);
+  assert.match(migration, /CREATE UNIQUE INDEX IF NOT EXISTS dabra_provider_attempts_request_hop_unique_idx/i);
   assert.match(migration, /error_categories jsonb/i);
   assert.doesNotMatch(migration, /\b(?:prompt|answer|email|phone|authorization|headers?|response_body)\b\s+(?:text|jsonb)/i);
 });

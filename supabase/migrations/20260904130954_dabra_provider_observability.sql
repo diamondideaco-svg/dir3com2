@@ -30,7 +30,8 @@ COMMENT ON TABLE public.dabra_provider_attempts IS
 
 CREATE INDEX IF NOT EXISTS dabra_provider_attempts_created_at_idx ON public.dabra_provider_attempts (created_at DESC);
 CREATE INDEX IF NOT EXISTS dabra_provider_attempts_provider_created_idx ON public.dabra_provider_attempts (provider, created_at DESC);
-CREATE INDEX IF NOT EXISTS dabra_provider_attempts_request_idx ON public.dabra_provider_attempts (request_id, fallback_hop);
+CREATE UNIQUE INDEX IF NOT EXISTS dabra_provider_attempts_request_hop_unique_idx
+  ON public.dabra_provider_attempts (request_id, fallback_hop);
 CREATE INDEX IF NOT EXISTS dabra_provider_attempts_success_created_idx ON public.dabra_provider_attempts (success, created_at DESC);
 CREATE INDEX IF NOT EXISTS dabra_provider_attempts_model_created_idx ON public.dabra_provider_attempts (model, created_at DESC) WHERE model IS NOT NULL;
 
@@ -39,6 +40,8 @@ ALTER TABLE public.dabra_provider_attempts FORCE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE public.dabra_provider_attempts FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT ON TABLE public.dabra_provider_attempts TO service_role;
+
+DROP FUNCTION IF EXISTS public.get_dabra_provider_metrics(timestamptz);
 
 CREATE OR REPLACE FUNCTION public.get_dabra_provider_metrics(
   p_since timestamptz DEFAULT (now() - interval '24 hours')
@@ -58,8 +61,16 @@ RETURNS TABLE (
   timeout_count bigint,
   last_used timestamptz,
   last_success timestamptz,
+  input_tokens_known_sum bigint,
+  output_tokens_known_sum bigint,
+  input_tokens_unknown_count bigint,
+  output_tokens_unknown_count bigint,
+  token_coverage_complete boolean,
   total_input_tokens bigint,
   total_output_tokens bigint,
+  estimated_cost_known_sum numeric,
+  estimated_cost_unknown_count bigint,
+  cost_coverage_complete boolean,
   estimated_cost_usd numeric,
   error_categories jsonb
 )
@@ -88,9 +99,19 @@ AS $function$
       count(*) FILTER (WHERE f.error_category IN ('timeout', 'deadline_exceeded'))::bigint AS timeout_count,
       max(f.completed_at) AS last_used,
       max(f.completed_at) FILTER (WHERE f.success) AS last_success,
-      coalesce(sum(f.input_tokens), 0)::bigint AS total_input_tokens,
-      coalesce(sum(f.output_tokens), 0)::bigint AS total_output_tokens,
-      round(sum(f.estimated_cost_usd), 12) AS estimated_cost_usd
+      sum(f.input_tokens)::bigint AS input_tokens_known_sum,
+      sum(f.output_tokens)::bigint AS output_tokens_known_sum,
+      count(*) FILTER (WHERE f.input_tokens IS NULL)::bigint AS input_tokens_unknown_count,
+      count(*) FILTER (WHERE f.output_tokens IS NULL)::bigint AS output_tokens_unknown_count,
+      bool_and(f.input_tokens IS NOT NULL AND f.output_tokens IS NOT NULL) AS token_coverage_complete,
+      CASE WHEN bool_and(f.input_tokens IS NOT NULL) THEN sum(f.input_tokens)::bigint END AS total_input_tokens,
+      CASE WHEN bool_and(f.output_tokens IS NOT NULL) THEN sum(f.output_tokens)::bigint END AS total_output_tokens,
+      round(sum(f.estimated_cost_usd), 12) AS estimated_cost_known_sum,
+      count(*) FILTER (WHERE f.estimated_cost_usd IS NULL)::bigint AS estimated_cost_unknown_count,
+      bool_and(f.estimated_cost_usd IS NOT NULL) AS cost_coverage_complete,
+      CASE
+        WHEN bool_and(f.estimated_cost_usd IS NOT NULL) THEN round(sum(f.estimated_cost_usd), 12)
+      END AS estimated_cost_usd
     FROM filtered f
     GROUP BY f.provider, f.model
   ), errors AS (
@@ -118,8 +139,16 @@ AS $function$
     g.timeout_count,
     g.last_used,
     g.last_success,
+    g.input_tokens_known_sum,
+    g.output_tokens_known_sum,
+    g.input_tokens_unknown_count,
+    g.output_tokens_unknown_count,
+    g.token_coverage_complete,
     g.total_input_tokens,
     g.total_output_tokens,
+    g.estimated_cost_known_sum,
+    g.estimated_cost_unknown_count,
+    g.cost_coverage_complete,
     g.estimated_cost_usd,
     coalesce(e.error_categories, '{}'::jsonb)
   FROM grouped g

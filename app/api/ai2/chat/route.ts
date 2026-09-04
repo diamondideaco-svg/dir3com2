@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { buildAI2ChatResponse, type AI2ChatAccountContext, type AI2ChatTurn } from '@/lib/ai2/runtime/chat';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DabraTravelOrchestrator } from '@/lib/ai2/orchestration';
@@ -7,6 +7,9 @@ import { createDabraAssistantTextResponse } from '@/lib/dabra/chat-response-cont
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 import { DABRA_LOCALE_ERROR, parseDabraLocale, type DabraLocale } from '@/lib/dabra/locale-contract';
 import { ensureDabraResponseLocale } from '@/lib/dabra/response-language';
+import {
+  createDabraProviderAttemptAfterResponseScheduler,
+} from '@/lib/ai2/observability/provider-attempts';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +31,7 @@ type AI2RequestIdentity = {
 const MAX_HISTORY_TURNS = 8;
 const MAX_TURN_LENGTH = 500;
 const MAX_ATTACHMENTS = 3;
+const scheduleProviderAttempt = createDabraProviderAttemptAfterResponseScheduler(after);
 
 async function buildLocaleSafeResponse(
   message: string,
@@ -35,12 +39,12 @@ async function buildLocaleSafeResponse(
   account: AI2ChatAccountContext | undefined,
   locale: DabraLocale,
 ) {
-  const response = await buildAI2ChatResponse(message, history, account, locale);
+  const response = await buildAI2ChatResponse(message, history, account, locale, scheduleProviderAttempt);
   return ensureDabraResponseLocale(response, locale, async (invalidAnswer) => {
     const repairInstruction = locale === 'ar'
       ? `أعد صياغة النص التالي بالعربية فقط مع إبقاء أسماء المدن والمطارات والعلامات التجارية كما هي. لا تضف معلومات جديدة:\n\n${invalidAnswer.slice(0, 1500)}`
       : `Rewrite the following text in English only, preserving city, airport, and brand names. Do not add new information:\n\n${invalidAnswer.slice(0, 1500)}`;
-    return buildAI2ChatResponse(repairInstruction, [], account, locale);
+    return buildAI2ChatResponse(repairInstruction, [], account, locale, scheduleProviderAttempt);
   });
 }
 

@@ -89,13 +89,15 @@ export function mapProviderErrorCategory(error: string | undefined, status?: num
 export function buildDabraProviderAttempt(input: DabraProviderAttemptInput): DabraProviderAttemptRecord {
   const inputTokens = safeTokenCount(input.inputTokens);
   const outputTokens = safeTokenCount(input.outputTokens);
+  const completedAtMs = Math.max(input.startedAtMs, input.completedAtMs);
   const cost = estimateProviderCostUsd({
     provider: input.provider,
     model: input.model ?? null,
     inputTokens,
     outputTokens,
+    attemptedAtMs: completedAtMs,
+    pricingCheckedAtMs: completedAtMs,
   });
-  const completedAtMs = Math.max(input.startedAtMs, input.completedAtMs);
 
   // Explicit allow-list: prompts, answers, names, emails, headers and provider bodies cannot be persisted.
   return {
@@ -132,6 +134,13 @@ async function defaultWriter(record: DabraProviderAttemptRecord): Promise<void> 
     return;
   }
   const { error } = await supabaseAdmin.from('dabra_provider_attempts').insert(record);
+  if (error?.code === '23505') {
+    console.warn('DABRA_PROVIDER_ATTEMPT_DUPLICATE_SUPPRESSED', JSON.stringify({
+      requestId: record.request_id,
+      fallbackHop: record.fallback_hop,
+    }));
+    return;
+  }
   if (error) throw new Error(`provider_attempt_insert_failed:${error.code ?? 'unknown'}`);
 }
 
@@ -140,7 +149,8 @@ export async function recordDabraProviderAttempt(input: DabraProviderAttemptInpu
   try {
     await (testWriter ?? defaultWriter)(record);
   } catch (error) {
-    console.error('DABRA_PROVIDER_ATTEMPT_WRITE_FAILED', JSON.stringify({
+    console.error('DABRA_TELEMETRY_PERSIST_FAILED', JSON.stringify({
+      classification: 'telemetry_persist_failed',
       attemptId: record.attempt_id,
       requestId: record.request_id,
       provider: record.provider,
@@ -148,6 +158,27 @@ export async function recordDabraProviderAttempt(input: DabraProviderAttemptInpu
     }));
   }
   return record;
+}
+
+export type DabraProviderAttemptScheduler = (input: DabraProviderAttemptInput) => void;
+export type DabraAfterResponseRegistrar = (task: () => void | Promise<void>) => void;
+
+export function createDabraProviderAttemptAfterResponseScheduler(
+  registerAfterResponse: DabraAfterResponseRegistrar,
+): DabraProviderAttemptScheduler {
+  return (input) => {
+    try {
+      registerAfterResponse(async () => { await recordDabraProviderAttempt(input); });
+    } catch (error) {
+      console.error('DABRA_TELEMETRY_SCHEDULE_FAILED', JSON.stringify({
+        classification: 'telemetry_schedule_failed',
+        requestId: input.requestId,
+        provider: input.provider,
+        fallbackHop: input.fallbackHop,
+        error: error instanceof Error ? error.message.slice(0, 120) : 'unknown',
+      }));
+    }
+  };
 }
 
 export function setDabraProviderAttemptWriterForTests(writer: AttemptWriter | null): void {

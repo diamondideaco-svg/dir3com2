@@ -16,7 +16,7 @@ import { callXAIWebSearch, type XAIWebErrorCategory } from '@/lib/ai2/runtime/xa
 import {
   createDabraProviderRequestId,
   mapProviderErrorCategory,
-  recordDabraProviderAttempt,
+  type DabraProviderAttemptScheduler,
   type DabraProviderErrorCategory,
   type DabraProviderIntentClass,
 } from '@/lib/ai2/observability/provider-attempts';
@@ -380,6 +380,7 @@ export async function buildAI2ChatResponse(
   history: AI2ChatTurn[] = [],
   account?: AI2ChatAccountContext,
   preferredLanguage?: AI2ChatLanguage,
+  scheduleProviderAttempt?: DabraProviderAttemptScheduler,
 ): Promise<AI2ChatResponse> {
   const requestStartedAt = Date.now();
   const language = preferredLanguage ?? detectLanguage(message);
@@ -479,7 +480,7 @@ export async function buildAI2ChatResponse(
         const isGroundedResult = hasCitations || providerAcceptsNoCitations(result.provider);
         const accepted = result.ok && (isGroundedResult || intent === 'general');
         const telemetryError = accepted ? undefined : mapProviderErrorCategory(result.errorCategory, result.status);
-        await recordDabraProviderAttempt({
+        scheduleProviderAttempt?.({
           requestId: providerRequestId,
           provider: result.provider,
           model: result.model,
