@@ -336,7 +336,9 @@ test('harness source uses canonical adapters and does not import or mutate the c
     'callOpenAIResponsesWebSearch', 'callGeminiGoogleSearch', 'callAnthropicMessagesWeb',
     'callXAIWebSearch', 'callDeepSeekWebSearch', 'callQwenWebSearch', 'callMistralWebSearch',
   ]) assert.match(source, new RegExp(name));
-  assert.match(source, /new Worker\(new URL\(import\.meta\.url\)/);
+  assert.match(source, /new Worker\(`/);
+  assert.match(source, /tsx\/esm\/api/);
+  assert.match(source, /worker\.terminate\(\)/);
   assert.match(source, /get_dabra_provider_observability_hardening_status/);
   assert.doesNotMatch(source, /runtime\/chat|buildAI2ChatResponse/);
   assert.doesNotMatch(source, /process\.env\.(?:DABRA_AI_PROVIDER|DABRA_PROVIDER_FALLBACK_ENABLED|DABRA_GLOBAL_WEB_TIMEOUT_MS)\s*=/);

@@ -91,6 +91,8 @@ type ProbeWorkerData = {
   message: string;
 };
 
+type ProbeWorkerBootstrapData = ProbeWorkerData & { moduleUrl: string };
+
 type ProbeWorkerMessage =
   | { type: 'http_call'; httpCalls: number }
   | { type: 'result'; result: ProviderResult; httpCalls: number }
@@ -549,9 +551,20 @@ export function createIsolatedCanonicalProbe(
   language: Language,
   message: string,
 ): ProbeExecution {
-  const worker = new Worker(new URL(import.meta.url), {
-    execArgv: workerLoaderArgs(process.execArgv),
-    workerData: { kind: 'dabra-provider-certification-probe', provider, language, message } satisfies ProbeWorkerData,
+  // Node 20 does not consistently hand a .ts Worker entrypoint to --import tsx.
+  // This static bootstrap registers the repository's existing TS loader inside
+  // the isolated thread before importing the fixed module URL from workerData.
+  const worker = new Worker(`
+    const { workerData } = require('node:worker_threads');
+    void import('tsx/esm/api')
+      .then(({ tsImport }) => tsImport(workerData.moduleUrl, { parentURL: workerData.moduleUrl }))
+      .catch(() => { throw new Error('provider_worker_bootstrap_failed'); });
+  `, {
+    eval: true,
+    execArgv: [],
+    workerData: {
+      kind: 'dabra-provider-certification-probe', provider, language, message, moduleUrl: import.meta.url,
+    } satisfies ProbeWorkerBootstrapData,
   });
   let httpCalls = 0;
   let settled = false;
@@ -589,23 +602,6 @@ export function createIsolatedCanonicalProbe(
     },
     httpCalls: () => httpCalls,
   };
-}
-
-function workerLoaderArgs(execArgv: readonly string[]): string[] {
-  const allowed: string[] = [];
-  for (let index = 0; index < execArgv.length; index += 1) {
-    const argument = execArgv[index];
-    if (argument === '--import' || argument === '--require') {
-      const value = execArgv[index + 1];
-      if (value) {
-        allowed.push(argument, value);
-        index += 1;
-      }
-    } else if (argument.startsWith('--import=') || argument.startsWith('--require=')) {
-      allowed.push(argument);
-    }
-  }
-  return allowed;
 }
 
 async function createLiveDependencies(): Promise<CertificationDependencies> {
