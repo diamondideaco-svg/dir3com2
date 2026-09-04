@@ -7,6 +7,7 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 const lifecycleMigration = read('supabase/migrations/20260903234500_admin_product_lifecycle_and_request_handoff.sql');
 const partnerMigration = read('supabase/migrations/20260903234600_partner_request_handoff.sql');
 const cleanupMigration = read('supabase/migrations/20260903234700_drop_legacy_admin_handoff_rpc.sql');
+const hardeningMigration = read('supabase/migrations/20260904004000_harden_admin_partner_authorization.sql');
 const productActions = read('lib/actions/product-actions.ts');
 const productForm = read('components/products/ProductForm.tsx');
 const productTable = read('components/products/ProductTable.tsx');
@@ -18,6 +19,7 @@ const partnerRequestsApi = read('app/api/partner-portal/requests/route.ts');
 const partnerRequestsClient = read('components/portal/PartnerRequestsClient.tsx');
 const partnerRequestsPage = read('app/partner-portal/requests/page.tsx');
 const partnerPortalPage = read('app/partner-portal/page.tsx');
+const partnerPortalServer = read('lib/partner-portal/server.ts');
 
 test('admin product lifecycle is explicit, atomic and audited', () => {
   assert.match(lifecycleMigration, /create table if not exists public\.product_audit_events/i);
@@ -41,13 +43,24 @@ test('publication never silently grants verification and fails closed on non-pro
   assert.match(lifecycleMigration, /PRODUCT_TRANSACTION_METHOD_REQUIRED/);
 });
 
-test('lifecycle RPCs are service-role only and actor identity is revalidated', () => {
-  assert.match(lifecycleMigration, /assert_product_lifecycle_actor/);
-  assert.match(lifecycleMigration, /from public\.profiles/);
-  assert.match(lifecycleMigration, /revoke all on function public\.publish_product_lifecycle[^;]+from public, anon, authenticated/i);
-  assert.match(lifecycleMigration, /grant execute on function public\.publish_product_lifecycle[^;]+to service_role/i);
-  assert.match(productActions, /p_actor_user_id: user\.id/);
-  assert.match(productActions, /p_actor_role: role/);
+test('lifecycle authorization is bound to authenticated session and country scope', () => {
+  assert.match(hardeningMigration, /v_actor uuid := auth\.uid\(\)/);
+  assert.match(hardeningMigration, /team_access_grants/);
+  assert.match(hardeningMigration, /COUNTRY_SCOPE_FORBIDDEN/);
+  assert.match(hardeningMigration, /GRANT EXECUTE ON FUNCTION public\.publish_product_lifecycle\(uuid,integer,text\) TO authenticated/i);
+  assert.match(hardeningMigration, /REVOKE ALL ON FUNCTION public\.publish_product_lifecycle\(uuid,integer,text\) FROM PUBLIC, anon, service_role/i);
+  assert.match(hardeningMigration, /DROP FUNCTION IF EXISTS public\.publish_product_lifecycle\(uuid,text,uuid,integer,text\)/i);
+  assert.match(productActions, /createSupabaseServerClient/);
+  assert.doesNotMatch(productActions, /p_actor_user_id/);
+  assert.doesNotMatch(productActions, /p_actor_role/);
+});
+
+test('product audit reads use canonical country-scoped team access', () => {
+  assert.match(hardeningMigration, /create or replace function public\.can_read_product_audit/i);
+  assert.match(hardeningMigration, /invited_user_id = v_actor/);
+  assert.match(hardeningMigration, /country_scope/);
+  assert.match(hardeningMigration, /create policy product_audit_admin_read/i);
+  assert.match(hardeningMigration, /using \(public\.can_read_product_audit\(country\)\)/i);
 });
 
 test('admin UI exposes clear draft, preview, publish, unpublish and archive actions', () => {
@@ -79,6 +92,12 @@ test('edit and preview routes preserve country scope and preview does not mutate
   assert.match(previewPage, /requireScopedAdminPageDataAccess/);
   assert.match(previewPage, /assertCountryAllowed/);
   assert.doesNotMatch(previewPage, /update\(|insert\(|delete\(|\.rpc\(/);
+});
+
+test('partner portal requires active profile before service-role request access', () => {
+  assert.match(partnerPortalServer, /normalizeText\(profile\?\.status\)\.toLowerCase\(\) !== 'active'/);
+  assert.match(partnerPortalServer, /profile\?\.deleted_at/);
+  assert.doesNotMatch(partnerPortalServer, /=== 'banned' \|\| profile\?\.deleted_at/);
 });
 
 test('partner request handoff is scoped to owned products and recorded before WhatsApp opens', () => {
@@ -113,6 +132,6 @@ test('partner Requests workspace is visible and truthful without DABRA coupling'
   assert.match(partnerRequestsClient, /Unknown/);
   assert.doesNotMatch(partnerRequestsClient, /fulfilment_method \|\| 'request_to_confirm'/);
 
-  const changedScope = [lifecycleMigration, partnerMigration, cleanupMigration, productActions, productForm, productTable, lifecycleControls, productList, editPage, previewPage, partnerRequestsApi, partnerRequestsClient, partnerRequestsPage, partnerPortalPage].join('\n');
+  const changedScope = [lifecycleMigration, partnerMigration, cleanupMigration, hardeningMigration, productActions, productForm, productTable, lifecycleControls, productList, editPage, previewPage, partnerRequestsApi, partnerRequestsClient, partnerRequestsPage, partnerPortalPage, partnerPortalServer].join('\n');
   assert.doesNotMatch(changedScope, /components\/dabra|lib\/dabra|api\/dabra/i);
 });
