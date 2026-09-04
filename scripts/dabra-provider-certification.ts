@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { closeSync, constants, fchmodSync, fstatSync, lstatSync, openSync, realpathSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, isAbsolute, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isMainThread, parentPort, Worker, workerData } from 'node:worker_threads';
 
 import { callAnthropicMessagesWeb } from '@/lib/ai2/runtime/anthropic-web';
 import { callDeepSeekWebSearch } from '@/lib/ai2/runtime/deepseek-web';
@@ -23,6 +24,7 @@ export const LIVE_RUNTIME_LIMIT_MS = 55 * 60_000;
 export const READBACK_LIMIT_MS = 5_000;
 export const READBACK_MAX_ATTEMPTS = 3;
 export const LIVE_CONFIRMATION = 'DABRA_PROVIDER_CERTIFICATION_LIVE';
+export const HARDENING_MIGRATION_IDENTITY = '20260904210623_harden_dabra_provider_attempt_acl';
 
 const TELEMETRY_COLUMNS = [
   'attempt_id', 'request_id', 'provider', 'model', 'intent_class', 'language', 'route',
@@ -52,6 +54,71 @@ type ProviderResult = {
   inputTokens?: number;
   outputTokens?: number;
 };
+
+export type HardeningEvidence = {
+  target_table?: unknown;
+  migration_identity?: unknown;
+  migration_applied?: unknown;
+  service_role_select?: unknown;
+  service_role_insert?: unknown;
+  service_role_update?: unknown;
+  service_role_delete?: unknown;
+  service_role_truncate?: unknown;
+  service_role_references?: unknown;
+  service_role_trigger?: unknown;
+  service_role_maintain?: unknown;
+  service_role_column_mutation_absent?: unknown;
+  service_role_set_role_safe?: unknown;
+  service_role_role_membership_safe?: unknown;
+  anonymous_authenticated_set_role_safe?: unknown;
+  anonymous_authenticated_role_membership_safe?: unknown;
+  table_acl_exact?: unknown;
+  column_acl_absent?: unknown;
+  rls_enabled?: unknown;
+  force_rls_enabled?: unknown;
+};
+
+export type ProbeExecution = {
+  result: Promise<ProviderResult>;
+  terminate: () => Promise<void>;
+  httpCalls: () => number;
+};
+
+type ProbeWorkerData = {
+  kind: 'dabra-provider-certification-probe';
+  provider: CertificationProvider;
+  language: Language;
+  message: string;
+};
+
+type ProbeWorkerMessage =
+  | { type: 'http_call'; httpCalls: number }
+  | { type: 'result'; result: ProviderResult; httpCalls: number }
+  | { type: 'failure'; code: string; httpCalls: number };
+
+const SAFE_TERMINAL_ERRORS = new Set([
+  'unsupported_argument',
+  'unsupported_provider',
+  'logical_probe_limit_exceeded',
+  'live_intent_missing',
+  'live_confirmation_missing',
+  'target_project_ref_mismatch',
+  'service_role_key_missing',
+  'private_manifest_path_required',
+  'manifest_must_be_absolute_jsonl',
+  'manifest_parent_symlink_forbidden',
+  'manifest_must_be_outside_repository',
+  'manifest_symlink_forbidden',
+  'manifest_must_be_private_regular_file',
+  'manifest_allowlist_violation',
+  'live_certification_runtime_limit_exceeded',
+  'production_hardening_evidence_unavailable',
+  'production_hardening_evidence_invalid',
+  'persistence_verification_failed',
+  'provider_http_call_limit_exceeded',
+  'probe_watchdog_timeout',
+  'provider_worker_failed',
+]);
 
 class BoundedProbeError extends Error {
   constructor(message: string, readonly httpCalls: number) {
@@ -92,7 +159,8 @@ export type ManifestRecord = {
 type PersistedRow = Record<string, unknown> & { attempt_id?: string };
 
 export type CertificationDependencies = {
-  invokeAdapter: (provider: CertificationProvider, language: Language, message: string) => Promise<ProviderResult>;
+  readHardeningEvidence: () => Promise<HardeningEvidence>;
+  startProbe: (provider: CertificationProvider, language: Language, message: string) => ProbeExecution;
   persistAttempt: (input: Record<string, unknown>) => Promise<Record<string, unknown>>;
   readBack: (requestId: string, fallbackHop: number, timeoutMs: number) => Promise<PersistedRow[]>;
   appendManifest: (path: string, record: ManifestRecord) => void;
@@ -111,7 +179,7 @@ export function parseCertificationArgs(argv: readonly string[]): CertificationOp
       continue;
     }
     const match = /^--([^=]+)=(.*)$/.exec(argument);
-    if (!match) throw new Error(`unsupported_argument:${argument}`);
+    if (!match) throw new Error('unsupported_argument');
     values.set(match[1], match[2]);
   }
   const provider = values.get('provider') ?? 'all';
@@ -169,6 +237,45 @@ export function validateLiveExecution(
   };
 }
 
+export function assertHardeningEvidence(evidence: HardeningEvidence): void {
+  const required = {
+    target_table: 'public.dabra_provider_attempts',
+    migration_identity: HARDENING_MIGRATION_IDENTITY,
+    migration_applied: true,
+    service_role_select: true,
+    service_role_insert: true,
+    service_role_update: false,
+    service_role_delete: false,
+    service_role_truncate: false,
+    service_role_references: false,
+    service_role_trigger: false,
+    service_role_maintain: false,
+    service_role_column_mutation_absent: true,
+    service_role_set_role_safe: true,
+    service_role_role_membership_safe: true,
+    anonymous_authenticated_set_role_safe: true,
+    anonymous_authenticated_role_membership_safe: true,
+    table_acl_exact: true,
+    column_acl_absent: true,
+    rls_enabled: true,
+    force_rls_enabled: true,
+  } as const;
+  for (const [key, expected] of Object.entries(required)) {
+    if (evidence[key as keyof HardeningEvidence] !== expected) {
+      throw new Error('production_hardening_evidence_invalid');
+    }
+  }
+}
+
+export function sanitizeCertificationError(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  if (SAFE_TERMINAL_ERRORS.has(message)) return message;
+  if (/^provider_configuration_missing:(?:openai|gemini|anthropic|xai|deepseek|qwen|mistral)$/.test(message)) {
+    return message;
+  }
+  return 'certification_failed';
+}
+
 export function validatePrivateManifestPath(value: string, repositoryRoot: string): string {
   if (!isAbsolute(value) || extname(value).toLowerCase() !== '.jsonl') {
     throw new Error('manifest_must_be_absolute_jsonl');
@@ -205,7 +312,7 @@ export function appendPrivateManifest(path: string, record: ManifestRecord): voi
   try {
     const status = fstatSync(descriptor);
     if (!status.isFile() || status.nlink !== 1) throw new Error('manifest_must_be_private_regular_file');
-    try { fchmodSync(descriptor, 0o600); } catch { /* Windows privacy is owned by the pre-provisioned private directory ACL. */ }
+    try { fchmodSync(descriptor, 0o600); } catch { /* Filesystem ACL enforcement is operational and is not claimed here. */ }
     writeFileSync(descriptor, `${JSON.stringify(record)}\n`, { encoding: 'utf8' });
   } finally {
     closeSync(descriptor);
@@ -213,29 +320,26 @@ export function appendPrivateManifest(path: string, record: ManifestRecord): voi
 }
 
 export async function invokeWithProbeBounds(
-  invocation: () => Promise<ProviderResult>,
+  execution: ProbeExecution,
   watchdogMs = PROBE_WATCHDOG_MS,
 ): Promise<{ result: ProviderResult; httpCalls: number }> {
-  const originalFetch = globalThis.fetch;
-  let httpCalls = 0;
-  globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
-    if (httpCalls >= MAX_HTTP_CALLS_PER_PROBE) throw new Error('provider_http_call_limit_exceeded');
-    httpCalls += 1;
-    return originalFetch(...args);
-  }) as typeof fetch;
   let watchdog: ReturnType<typeof setTimeout> | undefined;
   try {
     const timeout = new Promise<never>((_, reject) => {
       watchdog = setTimeout(() => reject(new Error('probe_watchdog_timeout')), watchdogMs);
     });
     try {
-      return { result: await Promise.race([invocation(), timeout]), httpCalls };
+      const result = await Promise.race([execution.result, timeout]);
+      return { result, httpCalls: execution.httpCalls() };
     } catch (error) {
-      throw new BoundedProbeError(error instanceof Error ? error.message : 'provider_invocation_failed', httpCalls);
+      const code = error instanceof Error && SAFE_TERMINAL_ERRORS.has(error.message)
+        ? error.message
+        : 'provider_worker_failed';
+      throw new BoundedProbeError(code, execution.httpCalls());
     }
   } finally {
     if (watchdog) clearTimeout(watchdog);
-    globalThis.fetch = originalFetch;
+    await execution.terminate();
   }
 }
 
@@ -286,6 +390,7 @@ export async function runLiveCertification(
   dependencies: CertificationDependencies,
   manifestPath: string,
 ): Promise<{ passed: boolean; probes: ManifestRecord[] }> {
+  assertHardeningEvidence(await dependencies.readHardeningEvidence());
   const plan = buildProbePlan(options.provider);
   const certificationStartedAt = dependencies.now();
   const manifestRecords: ManifestRecord[] = [];
@@ -301,7 +406,7 @@ export async function runLiveCertification(
     let httpCalls = 0;
     try {
       const bounded = await invokeWithProbeBounds(
-        () => dependencies.invokeAdapter(probe.provider, probe.language, probe.message),
+        dependencies.startProbe(probe.provider, probe.language, probe.message),
       );
       result = bounded.result;
       httpCalls = bounded.httpCalls;
@@ -314,23 +419,44 @@ export async function runLiveCertification(
       result.errorCategory === 'probe_watchdog_timeout' ? 'timeout' : result.errorCategory,
       result.status,
     );
-    const persisted = await dependencies.persistAttempt({
-      requestId,
-      provider: probe.provider,
-      model: result.model,
-      intentClass: 'internal',
-      language: probe.language,
-      route: 'web',
-      startedAtMs,
-      completedAtMs,
-      success: result.ok,
-      errorCategory: errorCategory ?? undefined,
-      fallbackHop: 0,
-      inputTokens: result.inputTokens,
-      outputTokens: result.outputTokens,
-      groundingStatus: result.ok ? 'grounded-global-web' : 'fallback-provider-unavailable',
-    });
-    const rows = await readBackWithBound(dependencies, requestId, 0);
+    let persisted: Record<string, unknown>;
+    let rows: PersistedRow[];
+    try {
+      persisted = await dependencies.persistAttempt({
+        requestId,
+        provider: probe.provider,
+        model: result.model,
+        intentClass: 'internal',
+        language: probe.language,
+        route: 'web',
+        startedAtMs,
+        completedAtMs,
+        success: result.ok,
+        errorCategory: errorCategory ?? undefined,
+        fallbackHop: 0,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        groundingStatus: result.ok ? 'grounded-global-web' : 'fallback-provider-unavailable',
+      });
+      rows = await readBackWithBound(dependencies, requestId, 0);
+    } catch {
+      const failureManifest: ManifestRecord = {
+        provider: probe.provider,
+        request_id: requestId,
+        language: probe.language,
+        timestamp: new Date(completedAtMs).toISOString(),
+        actual_model: typeof result.model === 'string' ? result.model : null,
+        http_invocation_confirmed: httpCalls > 0,
+        status_category: 'persistence_verification_failed',
+        latency_ms: Math.max(0, completedAtMs - startedAtMs),
+        persistence_confirmed: false,
+        observability_row_id: null,
+        classification: 'DIRECT',
+      };
+      dependencies.appendManifest(manifestPath, failureManifest);
+      manifestRecords.push(failureManifest);
+      throw new Error('persistence_verification_failed');
+    }
     const persistenceConfirmed = rowsMatch(persisted, rows);
     const manifest: ManifestRecord = {
       provider: probe.provider,
@@ -373,6 +499,115 @@ async function callCanonicalAdapter(provider: CertificationProvider, language: L
   return callMistralWebSearch(params);
 }
 
+function isProbeWorkerData(value: unknown): value is ProbeWorkerData {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<ProbeWorkerData>;
+  return candidate.kind === 'dabra-provider-certification-probe'
+    && typeof candidate.provider === 'string'
+    && CERTIFICATION_PROVIDERS.includes(candidate.provider as CertificationProvider)
+    && (candidate.language === 'ar' || candidate.language === 'en')
+    && typeof candidate.message === 'string';
+}
+
+async function runProbeWorker(data: ProbeWorkerData): Promise<void> {
+  const port = parentPort;
+  if (!port) return;
+  const originalFetch = globalThis.fetch;
+  let httpCalls = 0;
+  globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+    if (httpCalls >= MAX_HTTP_CALLS_PER_PROBE) throw new Error('provider_http_call_limit_exceeded');
+    httpCalls += 1;
+    port.postMessage({ type: 'http_call', httpCalls } satisfies ProbeWorkerMessage);
+    return originalFetch(...args);
+  }) as typeof fetch;
+  try {
+    const result = normalizeProviderResult(await callCanonicalAdapter(data.provider, data.language, data.message));
+    port.postMessage({ type: 'result', result, httpCalls } satisfies ProbeWorkerMessage);
+  } catch (error) {
+    const message = error instanceof Error && error.message === 'provider_http_call_limit_exceeded'
+      ? error.message
+      : 'provider_worker_failed';
+    port.postMessage({ type: 'failure', code: message, httpCalls } satisfies ProbeWorkerMessage);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+function normalizeProviderResult(result: ProviderResult): ProviderResult {
+  return {
+    ok: result.ok === true,
+    ...(typeof result.model === 'string' ? { model: result.model } : {}),
+    ...(typeof result.status === 'number' ? { status: result.status } : {}),
+    ...(typeof result.errorCategory === 'string' ? { errorCategory: result.errorCategory } : {}),
+    ...(typeof result.inputTokens === 'number' ? { inputTokens: result.inputTokens } : {}),
+    ...(typeof result.outputTokens === 'number' ? { outputTokens: result.outputTokens } : {}),
+  };
+}
+
+export function createIsolatedCanonicalProbe(
+  provider: CertificationProvider,
+  language: Language,
+  message: string,
+): ProbeExecution {
+  const worker = new Worker(new URL(import.meta.url), {
+    execArgv: workerLoaderArgs(process.execArgv),
+    workerData: { kind: 'dabra-provider-certification-probe', provider, language, message } satisfies ProbeWorkerData,
+  });
+  let httpCalls = 0;
+  let settled = false;
+  let terminated = false;
+  const result = new Promise<ProviderResult>((resolveResult, rejectResult) => {
+    worker.on('message', (message: ProbeWorkerMessage) => {
+      httpCalls = Math.max(httpCalls, message.httpCalls);
+      if (message.type === 'result') {
+        settled = true;
+        resolveResult(message.result);
+      } else if (message.type === 'failure') {
+        settled = true;
+        rejectResult(new Error(message.code));
+      }
+    });
+    worker.once('error', () => {
+      if (!settled) {
+        settled = true;
+        rejectResult(new Error('provider_worker_failed'));
+      }
+    });
+    worker.once('exit', () => {
+      if (!settled && !terminated) {
+        settled = true;
+        rejectResult(new Error('provider_worker_failed'));
+      }
+    });
+  });
+  return {
+    result,
+    terminate: async () => {
+      if (terminated) return;
+      terminated = true;
+      await worker.terminate();
+    },
+    httpCalls: () => httpCalls,
+  };
+}
+
+function workerLoaderArgs(execArgv: readonly string[]): string[] {
+  const allowed: string[] = [];
+  for (let index = 0; index < execArgv.length; index += 1) {
+    const argument = execArgv[index];
+    if (argument === '--import' || argument === '--require') {
+      const value = execArgv[index + 1];
+      if (value) {
+        allowed.push(argument, value);
+        index += 1;
+      }
+    } else if (argument.startsWith('--import=') || argument.startsWith('--require=')) {
+      allowed.push(argument);
+    }
+  }
+  return allowed;
+}
+
 async function createLiveDependencies(): Promise<CertificationDependencies> {
   const [{ mapProviderErrorCategory, recordDabraProviderAttempt }, { supabaseAdmin }] = await Promise.all([
     import('@/lib/ai2/observability/provider-attempts'),
@@ -380,7 +615,16 @@ async function createLiveDependencies(): Promise<CertificationDependencies> {
   ]);
   if (!supabaseAdmin) throw new Error('admin_client_unavailable');
   return {
-    invokeAdapter: callCanonicalAdapter,
+    readHardeningEvidence: async () => {
+      const { data, error } = await supabaseAdmin
+        .rpc('get_dabra_provider_observability_hardening_status')
+        .abortSignal(AbortSignal.timeout(READBACK_LIMIT_MS));
+      if (error || !data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new Error('production_hardening_evidence_unavailable');
+      }
+      return data as HardeningEvidence;
+    },
+    startProbe: createIsolatedCanonicalProbe,
     persistAttempt: (input) => recordDabraProviderAttempt(input as Parameters<typeof recordDabraProviderAttempt>[0]),
     readBack: async (requestId, fallbackHop, timeoutMs) => {
       const { data, error } = await supabaseAdmin
@@ -421,9 +665,11 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
   return result.passed ? 0 : 1;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (!isMainThread && isProbeWorkerData(workerData)) {
+  void runProbeWorker(workerData);
+} else if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().then((code) => { process.exitCode = code; }).catch((error) => {
-    process.stderr.write(`${JSON.stringify({ error: error instanceof Error ? error.message : 'unknown' })}\n`);
+    process.stderr.write(`${JSON.stringify({ error: sanitizeCertificationError(error) })}\n`);
     process.exitCode = 1;
   });
 }

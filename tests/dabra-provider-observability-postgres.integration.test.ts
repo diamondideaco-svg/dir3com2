@@ -20,6 +20,10 @@ test('DABRA provider observability is append-only and isolated on PostgreSQL 17'
   assert.ok(['127.0.0.1', 'localhost'].includes(parsedUrl.hostname), 'Test requires isolated local PostgreSQL');
   assert.equal(parsedUrl.pathname, '/dir3com_test', 'Test requires the disposable dir3com_test database');
   const databaseName = `dir3com_dabra_observability_${randomBytes(8).toString('hex')}`;
+  const roleSuffix = randomBytes(6).toString('hex');
+  const unsafeSetRole = `dabra_unsafe_${roleSuffix}`;
+  const bridgeSetRole = `dabra_bridge_${roleSuffix}`;
+  const harmlessSetRole = `dabra_harmless_${roleSuffix}`;
   const root = new Client({ connectionString: databaseUrl });
   let client: Client | null = null;
   await root.connect();
@@ -35,9 +39,15 @@ test('DABRA provider observability is append-only and isolated on PostgreSQL 17'
       DO $$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
       DO $$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
       DO $$ BEGIN CREATE ROLE service_role NOLOGIN BYPASSRLS; EXCEPTION WHEN duplicate_object THEN ALTER ROLE service_role BYPASSRLS; END $$;
+      CREATE SCHEMA supabase_migrations;
+      CREATE TABLE supabase_migrations.schema_migrations (version text PRIMARY KEY);
+      INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('20260904210623');
       GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
       ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO service_role;
     `);
+    await db.query(`CREATE ROLE ${unsafeSetRole} NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT`);
+    await db.query(`CREATE ROLE ${bridgeSetRole} NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT`);
+    await db.query(`CREATE ROLE ${harmlessSetRole} NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT`);
     await db.query(migration);
     await db.query('GRANT UPDATE (model), REFERENCES (request_id) ON public.dabra_provider_attempts TO service_role');
 
@@ -61,6 +71,64 @@ test('DABRA provider observability is append-only and isolated on PostgreSQL 17'
     assert.equal(await hasPrivilege(db, 'service_role', 'REFERENCES'), true, 'fixture must reproduce default REFERENCES');
     assert.equal(await hasPrivilege(db, 'service_role', 'TRIGGER'), true, 'fixture must reproduce default TRIGGER');
     assert.equal(await hasPrivilege(db, 'service_role', 'MAINTAIN'), true, 'fixture must reproduce PostgreSQL 17 MAINTAIN');
+
+    await db.query('begin');
+    try {
+      await db.query(`GRANT UPDATE ON public.dabra_provider_attempts TO ${unsafeSetRole}`);
+      await db.query(`GRANT ${unsafeSetRole} TO service_role WITH INHERIT FALSE, SET TRUE`);
+      await assert.rejects(db.query(hardeningMigration), /role-membership path to a privileged role/i);
+    } finally {
+      await db.query('rollback');
+    }
+
+    await db.query('begin');
+    try {
+      await db.query(`GRANT UPDATE (model) ON public.dabra_provider_attempts TO ${unsafeSetRole}`);
+      await db.query(`GRANT ${unsafeSetRole} TO ${bridgeSetRole} WITH INHERIT FALSE, SET TRUE`);
+      await db.query(`GRANT ${bridgeSetRole} TO service_role WITH INHERIT FALSE, SET TRUE`);
+      await assert.rejects(db.query(hardeningMigration), /role-membership path to a privileged role/i);
+    } finally {
+      await db.query('rollback');
+    }
+
+    await db.query('begin');
+    try {
+      await db.query(`GRANT ${harmlessSetRole} TO service_role WITH INHERIT FALSE, SET TRUE`);
+      await db.query(hardeningMigration);
+    } finally {
+      await db.query('rollback');
+    }
+
+    await db.query('begin');
+    try {
+      await db.query(`GRANT UPDATE ON public.dabra_provider_attempts TO ${unsafeSetRole}`);
+      await db.query(`GRANT ${unsafeSetRole} TO service_role WITH ADMIN TRUE, INHERIT FALSE, SET FALSE`);
+      assert.equal(await hasRoleRelation(db, 'service_role', unsafeSetRole, 'MEMBER'), true);
+      assert.equal(await hasRoleRelation(db, 'service_role', unsafeSetRole, 'SET'), false);
+      await assert.rejects(db.query(hardeningMigration), /role-membership path to a privileged role/i);
+    } finally {
+      await db.query('rollback');
+    }
+
+    await db.query('begin');
+    try {
+      await db.query(`GRANT UPDATE (model) ON public.dabra_provider_attempts TO ${unsafeSetRole}`);
+      await db.query(`GRANT ${unsafeSetRole} TO ${bridgeSetRole} WITH ADMIN TRUE, INHERIT FALSE, SET FALSE`);
+      await db.query(`GRANT ${bridgeSetRole} TO service_role WITH ADMIN TRUE, INHERIT FALSE, SET FALSE`);
+      assert.equal(await hasRoleRelation(db, 'service_role', unsafeSetRole, 'MEMBER'), true);
+      assert.equal(await hasRoleRelation(db, 'service_role', unsafeSetRole, 'SET'), false);
+      await assert.rejects(db.query(hardeningMigration), /role-membership path to a privileged role/i);
+    } finally {
+      await db.query('rollback');
+    }
+
+    await db.query('begin');
+    try {
+      await db.query(`GRANT ${harmlessSetRole} TO service_role WITH ADMIN TRUE, INHERIT FALSE, SET FALSE`);
+      await db.query(hardeningMigration);
+    } finally {
+      await db.query('rollback');
+    }
 
     await db.query(hardeningMigration);
     await db.query(hardeningMigration);
@@ -115,6 +183,38 @@ test('DABRA provider observability is append-only and isolated on PostgreSQL 17'
       { privilege_type: 'SELECT', is_grantable: false },
     ]);
 
+    await db.query('begin');
+    try {
+      await db.query('set local role service_role');
+      const hardeningStatus = (await db.query(
+        'SELECT public.get_dabra_provider_observability_hardening_status() AS status',
+      )).rows[0].status;
+      assert.deepEqual(hardeningStatus, {
+        target_table: 'public.dabra_provider_attempts',
+        migration_identity: '20260904210623_harden_dabra_provider_attempt_acl',
+        migration_applied: true,
+        service_role_select: true,
+        service_role_insert: true,
+        service_role_update: false,
+        service_role_delete: false,
+        service_role_truncate: false,
+        service_role_references: false,
+        service_role_trigger: false,
+        service_role_maintain: false,
+        service_role_column_mutation_absent: true,
+        service_role_set_role_safe: true,
+        service_role_role_membership_safe: true,
+        anonymous_authenticated_set_role_safe: true,
+        anonymous_authenticated_role_membership_safe: true,
+        table_acl_exact: true,
+        column_acl_absent: true,
+        rls_enabled: true,
+        force_rls_enabled: true,
+      });
+    } finally {
+      await db.query('rollback');
+    }
+
     const columns = await db.query<{ column_name: string }>(`
       SELECT column_name FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = 'dabra_provider_attempts'
@@ -144,6 +244,7 @@ test('DABRA provider observability is append-only and isolated on PostgreSQL 17'
         latency_ms, success, fallback_hop, grounding_status
       ) VALUES ('00000000-0000-4000-8000-000000000001', 'openai', 'internal', 'en', 'web', now(), now(), 0, true, 0, 'answered-general')`);
       await assertDenied(role, "SELECT * FROM public.get_dabra_provider_metrics(now() - interval '1 hour')");
+      await assertDenied(role, 'SELECT public.get_dabra_provider_observability_hardening_status()');
     }
 
     const uniqueIndex = await db.query(`
@@ -267,8 +368,28 @@ test('DABRA provider observability is append-only and isolated on PostgreSQL 17'
     for (const role of ['anon', 'authenticated', 'service_role'] as const) {
       await db.query('begin');
       try {
-        await db.query(`DO $$ BEGIN EXECUTE format('GRANT %I TO ${role}', current_user); END $$`);
-        await assert.rejects(db.query(hardeningMigration), new RegExp(`${role} can inherit or assume`, 'i'));
+        await db.query(`DO $$ BEGIN EXECUTE format('GRANT %I TO ${role} WITH INHERIT FALSE, SET TRUE', current_user); END $$`);
+        await assert.rejects(db.query(hardeningMigration), new RegExp(`${role} has a role-membership path`, 'i'));
+      } finally {
+        await db.query('rollback');
+      }
+    }
+    for (const role of ['anon', 'authenticated'] as const) {
+      await db.query('begin');
+      try {
+        await db.query(`GRANT SELECT ON public.dabra_provider_attempts TO ${unsafeSetRole}`);
+        await db.query(`GRANT ${unsafeSetRole} TO ${role} WITH INHERIT FALSE, SET TRUE`);
+        await assert.rejects(db.query(hardeningMigration), /role-membership path to telemetry access/i);
+      } finally {
+        await db.query('rollback');
+      }
+    }
+    for (const role of ['anon', 'authenticated'] as const) {
+      await db.query('begin');
+      try {
+        await db.query(`GRANT SELECT ON public.dabra_provider_attempts TO ${unsafeSetRole}`);
+        await db.query(`GRANT ${unsafeSetRole} TO ${role} WITH ADMIN TRUE, INHERIT FALSE, SET FALSE`);
+        await assert.rejects(db.query(hardeningMigration), /role-membership path to telemetry access/i);
       } finally {
         await db.query('rollback');
       }
@@ -277,6 +398,7 @@ test('DABRA provider observability is append-only and isolated on PostgreSQL 17'
     await client?.end().catch(() => undefined);
     await root.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1', [databaseName]).catch(() => undefined);
     await root.query(`DROP DATABASE IF EXISTS ${databaseName}`).catch(() => undefined);
+    await root.query(`DROP ROLE IF EXISTS ${unsafeSetRole}, ${bridgeSetRole}, ${harmlessSetRole}`).catch(() => undefined);
     await root.end();
   }
 });
@@ -285,6 +407,19 @@ async function hasPrivilege(db: Client, role: string, privilege: string): Promis
   const result = await db.query<{ allowed: boolean }>(
     `SELECT has_table_privilege($1, 'public.dabra_provider_attempts', $2) AS allowed`,
     [role, privilege],
+  );
+  return result.rows[0].allowed;
+}
+
+async function hasRoleRelation(
+  db: Client,
+  member: string,
+  role: string,
+  relation: 'MEMBER' | 'SET',
+): Promise<boolean> {
+  const result = await db.query<{ allowed: boolean }>(
+    'SELECT pg_has_role($1, $2, $3) AS allowed',
+    [member, role, relation],
   );
   return result.rows[0].allowed;
 }
