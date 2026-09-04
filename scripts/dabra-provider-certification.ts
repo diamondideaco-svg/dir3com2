@@ -91,7 +91,7 @@ type ProbeWorkerData = {
   message: string;
 };
 
-type ProbeWorkerBootstrapData = ProbeWorkerData & { moduleUrl: string; tsconfigPath: string };
+type ProbeWorkerBootstrapData = ProbeWorkerData & { modulePath: string; tsconfigPath: string };
 
 type ProbeWorkerMessage =
   | { type: 'http_call'; httpCalls: number }
@@ -552,27 +552,29 @@ export function createIsolatedCanonicalProbe(
   message: string,
 ): ProbeExecution {
   // Node 20 does not consistently hand a .ts Worker entrypoint to --import tsx.
-  // This static bootstrap registers the repository's existing TS loader inside
-  // the isolated thread before importing the fixed module URL. Node 20 needs a
-  // clean URL and an explicit tsconfig path so @/ aliases resolve in the worker.
+  // This static bootstrap registers the repository's existing CJS TS loader
+  // inside the isolated thread. Node 20 transforms this package as CJS, so its
+  // CJS loader must own nested @/ alias resolution too.
   const probeModuleUrl = new URL(import.meta.url);
   probeModuleUrl.search = '';
   probeModuleUrl.hash = '';
-  const probeTsconfigPath = resolve(dirname(fileURLToPath(probeModuleUrl)), '..', 'tsconfig.json');
+  const probeModulePath = fileURLToPath(probeModuleUrl);
+  const probeTsconfigPath = resolve(dirname(probeModulePath), '..', 'tsconfig.json');
   const worker = new Worker(`
     const { workerData } = require('node:worker_threads');
-    void import('tsx/esm/api')
-      .then(({ tsImport }) => tsImport(workerData.moduleUrl, {
-        parentURL: workerData.moduleUrl,
-        tsconfig: workerData.tsconfigPath,
-      }))
-      .catch(() => { throw new Error('provider_worker_bootstrap_failed'); });
+    process.env.TSX_TSCONFIG_PATH = workerData.tsconfigPath;
+    try {
+      require('tsx/cjs/api').register();
+      require(workerData.modulePath);
+    } catch {
+      throw new Error('provider_worker_bootstrap_failed');
+    }
   `, {
     eval: true,
     execArgv: [],
     workerData: {
       kind: 'dabra-provider-certification-probe', provider, language, message,
-      moduleUrl: probeModuleUrl.href, tsconfigPath: probeTsconfigPath,
+      modulePath: probeModulePath, tsconfigPath: probeTsconfigPath,
     } satisfies ProbeWorkerBootstrapData,
   });
   let httpCalls = 0;

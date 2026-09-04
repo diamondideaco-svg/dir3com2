@@ -337,10 +337,10 @@ test('harness source uses canonical adapters and does not import or mutate the c
     'callXAIWebSearch', 'callDeepSeekWebSearch', 'callQwenWebSearch', 'callMistralWebSearch',
   ]) assert.match(source, new RegExp(name));
   assert.match(source, /new Worker\(`/);
-  assert.match(source, /tsx\/esm\/api/);
+  assert.match(source, /tsx\/cjs\/api/);
   assert.match(source, /probeModuleUrl\.search = ''/);
   assert.match(source, /probeModuleUrl\.hash = ''/);
-  assert.match(source, /tsconfig: workerData\.tsconfigPath/);
+  assert.match(source, /TSX_TSCONFIG_PATH = workerData\.tsconfigPath/);
   assert.match(source, /worker\.terminate\(\)/);
   assert.match(source, /get_dabra_provider_observability_hardening_status/);
   assert.doesNotMatch(source, /runtime\/chat|buildAI2ChatResponse/);
