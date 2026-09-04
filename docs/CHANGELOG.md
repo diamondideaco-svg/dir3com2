@@ -14,6 +14,22 @@
 - Moved telemetry persistence to Next/Vercel's supported after-response lifecycle, made unknown and partial token/cost coverage explicit, enforced one row per request/fallback hop under concurrency, and bounded official pricing snapshots with verified effective and expiry timestamps.
 - Bounded each after-response telemetry insert to one second, aborting the Supabase request when the bound expires and emitting one safe `telemetry_persist_failed` timeout signal without delaying provider routing, fallback, or the customer response.
 
+## 2026-09-04 — DABRA approved dynamic voice adapter (credential pending)
+
+- Added a provider-neutral, authenticated and rate-limited DABRA voice route pinned to the approved Voice Design V1 fingerprint.
+- Added cancellable client playback for response, locale, navigation, replacement and unmount boundaries, with no browser or stock-voice fallback.
+- Recorded the local XTTS v2 AR/EN proof as development-only and implemented the provider-neutral Mistral Voxtral TTS API contract without exposing provider details to DABRA UI/chat logic.
+- Production voice remains fail-closed until the authorized Mistral credential and approved saved voice ID exist, commercial/account terms are confirmed, and AR/EN speaker identity is independently approved.
+- Bound the server-only adapter to the approved saved voice ID and normalized only a standalone spoken `dir3com` token to `درعكم`; visible and persisted text, URLs, email addresses, paths, handles, code, and identifiers remain unchanged.
+- Added canonical pre-flight and in-flight cancellation so an abandoned request neither consumes a rate-limit slot nor invokes/retries Mistral, and returns a bounded cancellation response when still deliverable.
+- Added sequential sentence/whitespace-aware playback planning at 800 UTF-16 units per request, at most four segments and 3,200 planned units, with explicit Arabic/English partial-playback truth and one active request/audio resource at a time.
+
+## 2026-09-04 — DABRA voice truth and contextual WhatsApp handoff
+
+- Pinned the human-approved DABRA Voice Design V1 fingerprint and removed browser speech synthesis as an unapproved output substitute. Until an authorized multilingual dynamic engine is bound to that fingerprint, DABRA exposes a bilingual unavailable state while retaining microphone input.
+- Added a DABRA-only contextual WhatsApp handoff through the canonical Saudi directory configuration. It carries customer-safe family, public service, destination, request, and transaction context where available, excludes internal identity fields, and never treats opening WhatsApp as proof of delivery, booking, or payment.
+- Preserved Marketplace transaction truth and existing details/request routes without adding a database migration or Production mutation.
+
 ## 2026-09-02 — Production-safe DABRA Family
 
 - Added one shared DABRA Family contract for Concierge, Partner, Admin, CEO, Mall Center, Customer Service, and Travel Agent identities derived from trusted session roles.
@@ -356,3 +372,9 @@
 - Presented signed-out DABRA as public discovery, separated conversational personas from canonical server roles, and retained human approval for sensitive actions.
 - Isolated Arabic and English floating-assistant sessions and cancelled stale in-flight responses during locale changes.
 - Localized Marketplace inventory metrics through the active locale so English cards cannot expose Arabic option-count labels.
+
+## 2026-09-04 — DABRA commercial voice Preview activation
+
+- Activated the approved fingerprint-locked DABRA voice through Mistral's paid saved-voice API on the PR Preview only.
+- Generated five Arabic and five English saved-voice validation samples and verified authenticated Preview playback without browser or operating-system speech fallback.
+- Kept the provider credential server-only and left Production voice configuration and deployment explicitly disabled pending independent review.
