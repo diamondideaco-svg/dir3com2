@@ -17,11 +17,11 @@ test('DABRA page exposes the Arabic-first chat commerce surface', () => {
   assert.match(proxy, /'\/dabra'/);
   assert.match(component, /الدبرة/);
   assert.match(component, /مساعد السفر الذكي والحارس السياحي/);
-  assert.match(component, /تحدث مع الدبرة/);
+  assert.match(component, /استخدم الميكروفون/);
 });
 
-test('voice mode models every required state and preserves shared conversation flow', () => {
-  for (const state of ['idle', 'listening', 'processing', 'speaking', 'muted', 'error']) {
+test('voice input models its states and preserves shared conversation flow', () => {
+  for (const state of ['idle', 'listening', 'processing', 'error']) {
     assert.match(component, new RegExp(`\\b${state}\\b`));
   }
   assert.match(component, /SpeechRecognition/);
@@ -80,7 +80,7 @@ test('attachment, marketplace search, filters and sorting are functional control
 
 test('quick actions mutate the current result or trip state without creating a chat turn', () => {
   const start = component.indexOf('function applyQuickAction');
-  const end = component.indexOf('function toggleMute', start);
+  const end = component.indexOf('function toggleVoice', start);
   const implementation = component.slice(start, end);
   assert.match(implementation, /setCompareMode/);
   assert.match(implementation, /setResultSort/);
@@ -90,12 +90,17 @@ test('quick actions mutate the current result or trip state without creating a c
   assert.doesNotMatch(implementation, /sendMessage/);
 });
 
-test('voice supports mute and speech interruption while sharing the text transcript', () => {
-  assert.match(component, /window\.speechSynthesis\?\.cancel\(\)/);
-  assert.match(component, /voiceStatus === 'speaking'/);
+test('voice input shares the text transcript without substituting browser speech for approved DABRA output', () => {
+  assert.doesNotMatch(component, /speechSynthesis|SpeechSynthesisUtterance/);
+  assert.match(component, /approvedVoiceAvailable === false/);
+  assert.match(component, /playApprovedVoice/);
+  assert.match(component, /planDabraVoicePlayback\(latestAssistantText\)/);
+  assert.match(component, /runDabraVoicePlayback/);
+  assert.match(component, /approvedPlaybackCopy\.partial/);
+  assert.match(component, /fetch\('\/api\/dabra\/voice'/);
   assert.match(component, /recognition\.onresult/);
   assert.match(component, /void sendMessage\(transcript\)/);
-  assert.match(component, /aria-pressed=\{voiceMuted\}/);
+  assert.match(component, /approvedVoiceCopy\.title/);
 });
 
 test('voice lifecycle, chat serialization and stale marketplace updates are guarded', () => {

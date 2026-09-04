@@ -1,14 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FiArrowLeft, FiCheck, FiChevronDown, FiClock, FiHeart, FiMapPin, FiMic, FiMicOff, FiPaperclip, FiSearch, FiSend, FiShoppingBag, FiSliders, FiVolume2, FiVolumeX, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiCheck, FiChevronDown, FiClock, FiHeart, FiMapPin, FiMessageCircle, FiMic, FiMicOff, FiPaperclip, FiSearch, FiSend, FiShoppingBag, FiSliders, FiStopCircle, FiVolume2, FiX } from 'react-icons/fi';
 import { cn } from '@/lib/utils';
 import type { MarketplaceService } from '@/lib/marketplace/data';
 import { supabase } from '@/lib/supabase/client';
 import { consumeDabraChatResponse } from '@/lib/dabra/chat-response-contract';
-import { normalizeDabraSpeechText } from '@/lib/dabra/speech-pronunciation';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { DABRA_LOCALE_ERROR } from '@/lib/dabra/locale-contract';
+import { DABRA_APPROVED_VOICE, getApprovedDabraPlaybackCopy, getApprovedDabraVoiceCopy } from '@/lib/dabra/approved-voice';
+import { buildDabraWhatsAppHandoff, openDabraWhatsAppHandoff } from '@/lib/dabra/whatsapp-handoff';
+import { planDabraVoicePlayback, runDabraVoicePlayback } from '@/lib/dabra/voice-segmentation';
 import DabraFamilySafetyPanel from '@/components/dabra/DabraFamilySafetyPanel';
 import {
   DABRA_ANONYMOUS_SESSION_KEY,
@@ -31,7 +33,8 @@ import {
   type DabraResultSort,
 } from '@/lib/dabra/travel-commerce-state';
 
-type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking' | 'muted' | 'error';
+type VoiceStatus = 'idle' | 'listening' | 'processing' | 'error';
+type VoicePlaybackStatus = 'idle' | 'loading' | 'playing' | 'error';
 type Message = { id: string; role: 'user' | 'assistant'; text: string };
 type DabraAttachment = { id: string; file: File; safeName: string; status: 'selected' | 'uploading' | 'error'; error?: string };
 type CartItem = DabraCartItem;
@@ -52,15 +55,15 @@ const dabraCopy = {
   ar: {
     name: 'الدبرة', subtitle: 'مساعد السفر الذكي والحارس السياحي', online: 'متاحة الآن', settings: 'الإعدادات', conversation: 'محادثة الدبرة', kicker: 'رحلتك، على رواق', heading: 'خلنا نرتبها سوا.', session: 'جلسة جديدة',
     welcome: 'هلا بك. أنا الدبرة، أساعدك ترتب الرحلة بهدوء ووضوح. وش أهم شيء عندك اليوم؟', attachmentPrompt: 'راجع المرفقات المضافة وساعدني في تخطيط الرحلة.', attachmentSendError: 'تعذر الإرسال. حاول مرة أخرى.', attachmentLimit: `يمكن إضافة ${MAX_ATTACHMENTS} مرفقات كحد أقصى.`, attachmentUnsupported: 'المرفق غير مدعوم. استخدم PDF أو JPEG أو PNG أو WebP بحجم لا يتجاوز 8 MB.',
-    status: { idle: 'جاهز أسمعك', listening: 'أسمعك الآن', processing: 'أرتب طلبك...', speaking: 'الدبرة يتحدث', muted: 'الصوت مكتوم', error: 'تعذر تشغيل الصوت' },
-    voiceHint: { idle: 'الميكروفون يعمل فقط عندما تبدأ وضع الصوت', error: 'جرّب الكتابة بدلًا من الصوت', active: 'تقدر توقفني أو تقاطعني بأي وقت' }, voiceOn: 'تشغيل صوت الدبرة', voiceOff: 'كتم صوت الدبرة', stopListening: 'إيقاف الاستماع', talk: 'تحدث مع الدبرة', attach: 'إرفاق صورة أو ملف PDF', enableVoice: 'تفعيل الصوت', placeholder: 'قل للدبرة وش تحتاج...', securePlaceholder: 'نجهز جلستك الآمنة...', messageLabel: 'رسالة للدبرة', send: 'إرسال الرسالة', selectedAttachments: 'المرفقات المحددة', uploading: 'جارٍ الإرسال', ready: 'جاهز', remove: 'إزالة', quick: 'إجراءات سريعة',
+    status: { idle: 'جاهز لاستقبال صوتك', listening: 'أسمعك الآن', processing: 'أرتب طلبك...', error: 'تعذر استخدام الميكروفون' },
+    voiceHint: { idle: 'الميكروفون يعمل فقط عندما تبدأ الإدخال الصوتي', error: 'جرّب الكتابة بدلًا من الميكروفون', active: 'تقدر توقف الإدخال بأي وقت' }, stopListening: 'إيقاف الاستماع', talk: 'استخدم الميكروفون', attach: 'إرفاق صورة أو ملف PDF', enableVoice: 'استخدام الميكروفون', placeholder: 'قل للدبرة وش تحتاج...', securePlaceholder: 'نجهز جلستك الآمنة...', messageLabel: 'رسالة للدبرة', send: 'إرسال الرسالة', selectedAttachments: 'المرفقات المحددة', uploading: 'جارٍ الإرسال', ready: 'جاهز', remove: 'إزالة', quick: 'إجراءات سريعة',
     quickActions: ['قارن', 'أرخص', 'أريح', 'بدون توقف', 'أقرب', 'الأعلى سعرًا', 'غير التاريخ', 'شوف بدائل', 'اختصرها لي', 'اختاره لي'], tabs: ['الكل', 'طيران', 'فنادق وشقق', 'سيارات', 'كونسيرج وباكدجات', 'VIP'], market: 'سوق الدبرة', options: 'خيارات تناسبك', results: 'نتائج السفر', openBag: 'فتح حقيبة الرحلة', marketSections: 'عائلات السوق', searchMarket: 'ابحث في السوق', searchPlaceholder: 'ابحث في سوق الدبرة', search: 'بحث', availableOnly: 'المتاح فقط', saved: 'المحفوظات', sort: 'ترتيب النتائج', sortOptions: ['الأفضل لك', 'السعر: الأقل', 'السعر: الأعلى', 'الأريح', 'الأقرب'], endCompare: 'إنهاء المقارنة', compare: 'قارن', loading: 'أبحث لك عن الخيارات المناسبة...', empty: 'ما لقيت خيارًا مطابقًا الآن. جرّب تغيير الوجهة أو التاريخ.', marketError: 'السوق غير متاح مؤقتًا. نقدر نكمل المحادثة بدون ما نفقد طلبك.', marketWelcome: 'اكتب وجهتك أو أولويتك، وأنا أجيب لك الخيارات الواضحة.', recommendation: 'ترشيح الدبرة', alternatives: 'بدائل ومحتوى استكشافي',
   },
   en: {
     name: 'DABRA', subtitle: 'Your intelligent travel assistant and trip guardian', online: 'Available now', settings: 'Settings', conversation: 'DABRA conversation', kicker: 'Your trip, at your pace', heading: 'Let’s arrange it together.', session: 'New session',
     welcome: 'Welcome. I’m DABRA, here to arrange your trip calmly and clearly. What matters most to you today?', attachmentPrompt: 'Review the attached files and help me plan my trip.', attachmentSendError: 'Unable to send. Please try again.', attachmentLimit: `You can add up to ${MAX_ATTACHMENTS} attachments.`, attachmentUnsupported: 'Unsupported attachment. Use PDF, JPEG, PNG, or WebP up to 8 MB.',
-    status: { idle: 'Ready to listen', listening: 'Listening now', processing: 'Arranging your request...', speaking: 'DABRA is speaking', muted: 'Voice muted', error: 'Voice unavailable' },
-    voiceHint: { idle: 'The microphone activates only when you start voice mode', error: 'Try typing instead', active: 'You can stop or interrupt me at any time' }, voiceOn: 'Turn on DABRA voice', voiceOff: 'Mute DABRA voice', stopListening: 'Stop listening', talk: 'Talk to DABRA', attach: 'Attach an image or PDF', enableVoice: 'Enable voice', placeholder: 'Tell DABRA what you need...', securePlaceholder: 'Preparing your secure session...', messageLabel: 'Message DABRA', send: 'Send message', selectedAttachments: 'Selected attachments', uploading: 'Sending', ready: 'Ready', remove: 'Remove', quick: 'Quick actions',
+    status: { idle: 'Ready for voice input', listening: 'Listening now', processing: 'Arranging your request...', error: 'Microphone unavailable' },
+    voiceHint: { idle: 'The microphone activates only when you start voice input', error: 'Try typing instead of the microphone', active: 'You can stop voice input at any time' }, stopListening: 'Stop listening', talk: 'Use microphone', attach: 'Attach an image or PDF', enableVoice: 'Use microphone', placeholder: 'Tell DABRA what you need...', securePlaceholder: 'Preparing your secure session...', messageLabel: 'Message DABRA', send: 'Send message', selectedAttachments: 'Selected attachments', uploading: 'Sending', ready: 'Ready', remove: 'Remove', quick: 'Quick actions',
     quickActions: ['Compare', 'Cheapest', 'Most comfortable', 'Nonstop', 'Closest', 'Highest price', 'Change date', 'Show alternatives', 'Shortlist', 'Choose for me'], tabs: ['All', 'Fly', 'Stay', 'Drive', 'Concierge', 'VIP'], market: 'DABRA marketplace', options: 'Options for you', results: 'Travel results', openBag: 'Open trip bag', marketSections: 'Marketplace families', searchMarket: 'Search marketplace', searchPlaceholder: 'Search DABRA marketplace', search: 'Search', availableOnly: 'Available only', saved: 'Saved', sort: 'Sort results', sortOptions: ['Recommended', 'Price: low to high', 'Price: high to low', 'Most comfortable', 'Closest'], endCompare: 'End comparison', compare: 'Compare', loading: 'Finding suitable options...', empty: 'No matching option is available right now. Try another destination or date.', marketError: 'The marketplace is temporarily unavailable. We can continue without losing your request.', marketWelcome: 'Enter your destination or priority and I’ll bring you clear options.', recommendation: 'DABRA recommendation', alternatives: 'Alternatives and discovery content',
   },
 } as const;
@@ -74,9 +77,14 @@ function makeId() {
 export default function DabraChatCommerce() {
   const { language, direction } = useLanguage();
   const t = dabraCopy[language];
+  const approvedVoiceCopy = getApprovedDabraVoiceCopy(language);
+  const approvedPlaybackCopy = getApprovedDabraPlaybackCopy(language);
   const [messages, setMessages] = useState<Message[]>([welcomeMessage(language)]);
   const [input, setInput] = useState('');
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle');
+  const [voicePlaybackStatus, setVoicePlaybackStatus] = useState<VoicePlaybackStatus>('idle');
+  const [voicePlaybackPartial, setVoicePlaybackPartial] = useState(false);
+  const [approvedVoiceAvailable, setApprovedVoiceAvailable] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<string | undefined>();
   const [services, setServices] = useState<MarketplaceService[]>([]);
   const [marketplaceQuery, setMarketplaceQuery] = useState('');
@@ -96,11 +104,14 @@ export default function DabraChatCommerce() {
   const [showCart, setShowCart] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
-  const [voiceMuted, setVoiceMuted] = useState(false);
   const [persistenceContext, setPersistenceContext] = useState<PersistenceContext | null>(null);
   const [identityResolved, setIdentityResolved] = useState(false);
   const [storageHydrated, setStorageHydrated] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const playbackRef = useRef<HTMLAudioElement | null>(null);
+  const playbackAbortRef = useRef<AbortController | null>(null);
+  const playbackUrlRef = useRef<string | null>(null);
+  const playbackGenerationRef = useRef(0);
   const attachmentRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
   const identityRequestRef = useRef(0);
@@ -110,7 +121,6 @@ export default function DabraChatCommerce() {
   const marketplaceRequestRef = useRef(0);
   const marketplaceAbortRef = useRef<AbortController | null>(null);
   const voiceGenerationRef = useRef(0);
-  const voiceMutedRef = useRef(false);
   const languageRef = useRef(language);
   const previousLanguageRef = useRef(language);
   languageRef.current = language;
@@ -123,12 +133,13 @@ export default function DabraChatCommerce() {
     setInput('');
     setAttachments([]);
     setAttachmentError('');
-    setVoiceStatus(voiceMutedRef.current ? 'muted' : 'idle');
+    setVoiceStatus('idle');
+    setVoicePlaybackPartial(false);
   // The locale boundary intentionally starts a fresh visible/chat history so an old-locale turn cannot leak into the next answer.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language]);
 
-  function stopVoiceResources(cancelSpeech = true) {
+  function stopVoiceResources() {
     voiceGenerationRef.current += 1;
     const recognition = recognitionRef.current;
     recognitionRef.current = null;
@@ -139,7 +150,29 @@ export default function DabraChatCommerce() {
       recognition.onresult = null;
       try { recognition.abort?.(); } catch { try { recognition.stop(); } catch { /* already stopped */ } }
     }
-    if (cancelSpeech) window.speechSynthesis?.cancel();
+    stopVoicePlayback();
+  }
+
+  function releaseVoiceAudio() {
+    const audio = playbackRef.current;
+    playbackRef.current = null;
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+    }
+    if (playbackUrlRef.current) URL.revokeObjectURL(playbackUrlRef.current);
+    playbackUrlRef.current = null;
+  }
+
+  function stopVoicePlayback() {
+    playbackGenerationRef.current += 1;
+    playbackAbortRef.current?.abort();
+    playbackAbortRef.current = null;
+    releaseVoiceAudio();
+    setVoicePlaybackStatus('idle');
   }
 
   function invalidateActiveRequests() {
@@ -168,6 +201,7 @@ export default function DabraChatCommerce() {
       setInput('');
       setAttachments([]);
       setAttachmentError('');
+      setVoicePlaybackPartial(false);
       if (attachmentRef.current) attachmentRef.current.value = '';
     }
     async function resolveValidatedIdentity() {
@@ -205,6 +239,21 @@ export default function DabraChatCommerce() {
     return () => { active = false; identityRequestRef.current += 1; invalidateActiveRequests(); subscription.unsubscribe(); };
   // Identity resolution subscribes exactly once; request/resource invalidation is ref-based and always observes current resources.
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/dabra/voice', { cache: 'no-store', credentials: 'same-origin', signal: controller.signal })
+      .then(async (response) => response.ok ? response.json() as Promise<{ available?: boolean }> : { available: false })
+      .then((status) => { if (!controller.signal.aborted) setApprovedVoiceAvailable(status.available === true); })
+      .catch(() => { if (!controller.signal.aborted) setApprovedVoiceAvailable(false); });
+    const cancelForNavigation = () => stopVoicePlayback();
+    window.addEventListener('pagehide', cancelForNavigation);
+    return () => {
+      controller.abort();
+      window.removeEventListener('pagehide', cancelForNavigation);
+      stopVoicePlayback();
+    };
   }, []);
 
   useEffect(() => {
@@ -260,6 +309,7 @@ export default function DabraChatCommerce() {
   }, [recommendations, visibleServices]);
   const cartTotals = useMemo(() => calculateCartTotals(cart), [cart]);
   const missingComponents = useMemo(() => missingTripComponents(cart), [cart]);
+  const latestAssistantText = useMemo(() => [...messages].reverse().find((message) => message.role === 'assistant' && message.text.trim())?.text ?? '', [messages]);
 
   useEffect(() => {
     if (lastMarketplaceQuery) void searchMarketplace(lastMarketplaceQuery);
@@ -302,6 +352,8 @@ export default function DabraChatCommerce() {
   async function sendMessage(text = input) {
     const message = text.trim() || (attachments.length ? t.attachmentPrompt : '');
     if (!message || chatInFlightRef.current || !identityResolved) return;
+    stopVoicePlayback();
+    setVoicePlaybackPartial(false);
     chatInFlightRef.current = true;
     setChatInFlight(true);
     const lifecycle = lifecycleRef.current;
@@ -329,23 +381,13 @@ export default function DabraChatCommerce() {
         body: form,
         signal: controller.signal,
       });
-      const answer = await consumeDabraChatResponse(response, (visibleAnswer) => {
+      await consumeDabraChatResponse(response, (visibleAnswer) => {
         if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
         setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));
       }, DABRA_LOCALE_ERROR[language]);
       if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
       setAttachments([]);
       if (attachmentRef.current) attachmentRef.current.value = '';
-      if (!voiceMutedRef.current && 'speechSynthesis' in window) {
-        const voiceGeneration = ++voiceGenerationRef.current;
-        const speechLocale = language === 'ar' ? 'ar-SA' : 'en-US';
-        const utterance = new SpeechSynthesisUtterance(normalizeDabraSpeechText(answer, speechLocale));
-        utterance.lang = speechLocale;
-        utterance.onstart = () => { if (voiceGeneration === voiceGenerationRef.current && lifecycle === lifecycleRef.current && !voiceMutedRef.current) setVoiceStatus('speaking'); };
-        utterance.onend = () => { if (voiceGeneration === voiceGenerationRef.current && lifecycle === lifecycleRef.current) setVoiceStatus('idle'); };
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
-      }
     } catch {
       if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
       setAttachments((current) => current.map((item) => ({ ...item, status: 'error', error: t.attachmentSendError })));
@@ -355,9 +397,88 @@ export default function DabraChatCommerce() {
         chatAbortRef.current = null;
         chatInFlightRef.current = false;
         setChatInFlight(false);
-        setVoiceStatus((current) => current === 'speaking' ? current : voiceMutedRef.current ? 'muted' : 'idle');
+        setVoiceStatus('idle');
         if (!controller.signal.aborted && marketplaceGeneration === marketplaceRequestRef.current) void searchMarketplace(message);
       }
+    }
+  }
+
+  async function playApprovedVoice() {
+    if (voicePlaybackStatus === 'loading' || voicePlaybackStatus === 'playing') {
+      stopVoicePlayback();
+      return;
+    }
+    if (!approvedVoiceAvailable || !latestAssistantText) return;
+    stopVoicePlayback();
+    const generation = playbackGenerationRef.current;
+    const controller = new AbortController();
+    playbackAbortRef.current = controller;
+    const plan = planDabraVoicePlayback(latestAssistantText);
+    setVoicePlaybackPartial(plan.hasRemainder);
+    if (!plan.segments.length) {
+      playbackAbortRef.current = null;
+      setVoicePlaybackStatus('error');
+      return;
+    }
+    try {
+      await runDabraVoicePlayback(
+        plan.segments,
+        controller.signal,
+        async (segment, signal) => {
+          if (generation !== playbackGenerationRef.current || language !== languageRef.current) controller.abort();
+          signal.throwIfAborted();
+          setVoicePlaybackStatus('loading');
+          const response = await fetch('/api/dabra/voice', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'audio/mpeg, audio/wav' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ text: segment, locale: language }),
+            signal,
+          });
+          if (!response.ok) {
+            if (response.status === 503) setApprovedVoiceAvailable(false);
+            throw new Error('voice');
+          }
+          const contentType = response.headers.get('content-type')?.split(';', 1)[0] ?? '';
+          if (!['audio/mpeg', 'audio/wav', 'audio/x-wav'].includes(contentType)) throw new Error('voice');
+          const audioBlob = await response.blob();
+          if (generation !== playbackGenerationRef.current || language !== languageRef.current) controller.abort();
+          signal.throwIfAborted();
+          return audioBlob;
+        },
+        async (audioBlob, signal) => {
+          signal.throwIfAborted();
+          const audioUrl = URL.createObjectURL(audioBlob);
+          playbackUrlRef.current = audioUrl;
+          const audio = new Audio(audioUrl);
+          playbackRef.current = audio;
+          setVoicePlaybackStatus('playing');
+          try {
+            await new Promise<void>((resolve, reject) => {
+              let settled = false;
+              const settle = (callback: () => void) => {
+                if (settled) return;
+                settled = true;
+                signal.removeEventListener('abort', onAbort);
+                callback();
+              };
+              const onAbort = () => settle(() => reject(new DOMException('Voice playback cancelled', 'AbortError')));
+              signal.addEventListener('abort', onAbort, { once: true });
+              audio.onended = () => settle(resolve);
+              audio.onerror = () => settle(() => reject(new Error('voice')));
+              void audio.play().catch((error) => settle(() => reject(error)));
+              if (signal.aborted) onAbort();
+            });
+          } finally {
+            releaseVoiceAudio();
+          }
+        },
+      );
+      if (generation === playbackGenerationRef.current) stopVoicePlayback();
+    } catch {
+      if (!controller.signal.aborted && generation === playbackGenerationRef.current) { stopVoicePlayback(); setVoicePlaybackStatus('error'); }
+    } finally {
+      if (generation === playbackGenerationRef.current) playbackAbortRef.current = null;
     }
   }
 
@@ -417,21 +538,9 @@ export default function DabraChatCommerce() {
     }
   }
 
-  function toggleMute() {
-    const nextMuted = !voiceMuted;
-    voiceMutedRef.current = nextMuted;
-    setVoiceMuted(nextMuted);
-    stopVoiceResources();
-    setVoiceStatus(nextMuted ? 'muted' : 'idle');
-  }
-
   function toggleVoice() {
-    if (voiceStatus === 'speaking') {
-      window.speechSynthesis?.cancel();
-      setVoiceStatus('idle');
-    }
     if (voiceStatus === 'listening') {
-      stopVoiceResources(false);
+      stopVoiceResources();
       setVoiceStatus('idle');
       return;
     }
@@ -446,7 +555,7 @@ export default function DabraChatCommerce() {
     recognition.lang = language === 'ar' ? 'ar-SA' : 'en-US';
     recognition.interimResults = false;
     recognition.onstart = () => { if (voiceGeneration === voiceGenerationRef.current && lifecycle === lifecycleRef.current) setVoiceStatus('listening'); };
-    recognition.onerror = () => { if (voiceGeneration === voiceGenerationRef.current && lifecycle === lifecycleRef.current) { stopVoiceResources(false); setVoiceStatus('error'); } };
+    recognition.onerror = () => { if (voiceGeneration === voiceGenerationRef.current && lifecycle === lifecycleRef.current) { stopVoiceResources(); setVoiceStatus('error'); } };
     recognition.onend = () => { if (voiceGeneration === voiceGenerationRef.current && lifecycle === lifecycleRef.current) { recognitionRef.current = null; setVoiceStatus((current) => current === 'listening' ? 'idle' : current); } };
     recognition.onresult = (event) => {
       if (voiceGeneration !== voiceGenerationRef.current || lifecycle !== lifecycleRef.current || chatInFlightRef.current) return;
@@ -504,13 +613,19 @@ export default function DabraChatCommerce() {
           <div className={cn('dabra-voice-panel', `dabra-voice-${voiceStatus}`)}>
             <div className="dabra-waveform" aria-hidden="true">{Array.from({ length: 19 }, (_, index) => <i key={index} style={{ height: `${18 + ((index * 17) % 38)}%` }} />)}</div>
             <div className="dabra-voice-copy"><strong>{t.status[voiceStatus]}</strong><span>{voiceStatus === 'idle' ? t.voiceHint.idle : voiceStatus === 'error' ? t.voiceHint.error : t.voiceHint.active}</span></div>
-            <div className="dabra-voice-actions"><button type="button" className="dabra-voice-mute" onClick={toggleMute} aria-pressed={voiceMuted} aria-label={voiceMuted ? t.voiceOn : t.voiceOff}>{voiceMuted ? <FiVolumeX /> : <FiVolume2 />}</button><button type="button" className="dabra-voice-toggle" disabled={chatInFlight} onClick={toggleVoice} aria-label={voiceStatus === 'listening' ? t.stopListening : t.talk}>{voiceStatus === 'listening' ? <FiMicOff /> : <FiMic />}<span>{t.talk}</span></button></div>
+            <div className="dabra-voice-actions">
+              <button type="button" className="dabra-voice-toggle" disabled={chatInFlight} onClick={toggleVoice} aria-label={voiceStatus === 'listening' ? t.stopListening : t.talk}>{voiceStatus === 'listening' ? <FiMicOff /> : <FiMic />}<span>{t.talk}</span></button>
+              <button type="button" className="dabra-voice-toggle" disabled={chatInFlight || !approvedVoiceAvailable || !latestAssistantText} onClick={() => void playApprovedVoice()} aria-label={voicePlaybackStatus === 'loading' ? approvedPlaybackCopy.loading : voicePlaybackStatus === 'playing' ? approvedPlaybackCopy.stop : approvedPlaybackCopy.play}>{voicePlaybackStatus === 'playing' ? <FiStopCircle /> : <FiVolume2 />}<span>{voicePlaybackStatus === 'loading' ? approvedPlaybackCopy.loading : voicePlaybackStatus === 'playing' ? approvedPlaybackCopy.stop : approvedPlaybackCopy.play}</span></button>
+            </div>
+            {approvedVoiceAvailable === false && <div className="dabra-approved-voice-unavailable" role="status" data-approved-voice-sha={DABRA_APPROVED_VOICE.sha256}><strong>{approvedVoiceCopy.title}</strong><span>{approvedVoiceCopy.detail}</span></div>}
+            {voicePlaybackStatus === 'error' && <div className="dabra-approved-voice-unavailable" role="alert"><span>{approvedPlaybackCopy.error}</span></div>}
+            {voicePlaybackPartial && <div className="dabra-approved-voice-unavailable" role="status"><span>{approvedPlaybackCopy.partial}</span></div>}
           </div>
 
           <div className="dabra-composer">
             <input ref={attachmentRef} type="file" hidden multiple accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => handleAttachments(event.target.files)} />
             <button type="button" className="dabra-composer-icon" aria-label={t.attach} disabled={!identityResolved} onClick={() => attachmentRef.current?.click()}><FiPaperclip /></button>
-            <button type="button" className="dabra-composer-icon" aria-label={t.enableVoice} disabled={!identityResolved || chatInFlight} onClick={toggleVoice}><FiVolume2 /></button>
+            <button type="button" className="dabra-composer-icon" aria-label={t.enableVoice} disabled={!identityResolved || chatInFlight} onClick={toggleVoice}><FiMic /></button>
             <input value={input} disabled={!identityResolved} maxLength={500} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void sendMessage(); }} placeholder={identityResolved ? t.placeholder : t.securePlaceholder} aria-label={t.messageLabel} />
             <button type="button" className="dabra-send" aria-label={t.send} onClick={() => void sendMessage()} disabled={!identityResolved || (!input.trim() && !attachments.length) || chatInFlight}><FiSend /></button>
           </div>
@@ -554,6 +669,26 @@ function ComparisonTable({ recommendations, language }: { recommendations: Retur
 }
 
 function ProductCard({ service, badge, why, catalogOnly = false, inCart, favorite, onCart, onFavorite, compare, language }: { service: MarketplaceService; badge?: string; why?: string; catalogOnly?: boolean; inCart: boolean; favorite: boolean; onCart: () => void; onFavorite: () => void; compare: boolean; language: 'ar' | 'en' }) {
+  const [whatsAppBlocked, setWhatsAppBlocked] = useState(false);
+  const publicTitle = language === 'en' ? service.name_en ?? service.name_ar : service.name_ar;
+  const whatsApp = buildDabraWhatsAppHandoff({
+    language,
+    family: service.family,
+    publicTitle,
+    city: service.destination,
+    transactionState: service.transactionMethod === 'none'
+      ? 'unavailable'
+      : service.transactionMethod ?? (catalogOnly ? 'unavailable' : undefined),
+  });
+
+  function openWhatsApp() {
+    if (!whatsApp.href) {
+      setWhatsAppBlocked(true);
+      return;
+    }
+    setWhatsAppBlocked(openDabraWhatsAppHandoff(whatsApp.href) === 'blocked');
+  }
+
   return <article className={cn('dabra-product-card', compare && 'dabra-product-card-compare', catalogOnly && 'dabra-product-card-catalog')}>
     <div className="dabra-product-top"><span className="dabra-product-family">{service.categoryLabel}</span><button type="button" className={cn('dabra-favorite', favorite && 'selected')} onClick={onFavorite} aria-label={favorite ? (language === 'ar' ? 'إزالة من المحفوظات' : 'Remove from saved') : (language === 'ar' ? 'حفظ الخيار' : 'Save option')}><FiHeart /></button></div>
     {catalogOnly && <span className="dabra-catalog-notice">{language === 'ar' ? 'محتوى استكشافي — التوفر غير موثّق' : 'Discovery content — availability is not verified'}</span>}
@@ -561,7 +696,8 @@ function ProductCard({ service, badge, why, catalogOnly = false, inCart, favorit
     <h3>{language === 'en' ? service.name_en ?? service.name_ar : service.name_ar}</h3><p className="dabra-product-description">{language === 'en' ? service.description_en ?? service.description_ar : service.description_ar}</p>
     {why && <p className="dabra-why"><span>{language === 'ar' ? 'رأي الدبرة' : 'DABRA’s view'}</span>{localizedWhy(why, language)}</p>}
     <div className="dabra-product-facts"><span><FiMapPin /> {service.destination}</span><span><FiClock /> {service.productCount === 0 ? (language === 'ar' ? '0 خيار — التوفر غير مؤكد' : '0 options — availability unverified') : `${service.productCount} ${language === 'ar' ? 'خيار' : 'options'}`}</span></div>
-    <div className="dabra-product-bottom"><div><small>{language === 'ar' ? 'الإجمالي المعروف من' : 'Known total from'}</small><strong>{service.basePrice || (language === 'ar' ? 'حسب الطلب' : 'On request')} {service.currency}</strong></div><div className="dabra-product-actions">{!catalogOnly && <button type="button" onClick={onCart} className={cn('dabra-add-button', inCart && 'added')} aria-label={inCart ? (language === 'ar' ? 'إزالة من حقيبة الرحلة' : 'Remove from trip bag') : (language === 'ar' ? 'إضافة إلى حقيبة الرحلة' : 'Add to trip bag')}>{inCart ? <FiCheck /> : <FiShoppingBag />}</button>}<a href={service.href}>{language === 'ar' ? 'التفاصيل' : 'Details'} <FiArrowLeft /></a></div></div>
+    <div className="dabra-product-bottom"><div><small>{language === 'ar' ? 'الإجمالي المعروف من' : 'Known total from'}</small><strong>{service.basePrice || (language === 'ar' ? 'حسب الطلب' : 'On request')} {service.currency}</strong></div><div className="dabra-product-actions">{!catalogOnly && <button type="button" onClick={onCart} className={cn('dabra-add-button', inCart && 'added')} aria-label={inCart ? (language === 'ar' ? 'إزالة من حقيبة الرحلة' : 'Remove from trip bag') : (language === 'ar' ? 'إضافة إلى حقيبة الرحلة' : 'Add to trip bag')}>{inCart ? <FiCheck /> : <FiShoppingBag />}</button>}<button type="button" className="dabra-whatsapp-button" onClick={openWhatsApp} aria-label={language === 'ar' ? `متابعة ${publicTitle} عبر واتساب` : `Continue ${publicTitle} on WhatsApp`}><FiMessageCircle /> {language === 'ar' ? 'واتساب' : 'WhatsApp'}</button><a href={service.href}>{language === 'ar' ? 'التفاصيل' : 'Details'} <FiArrowLeft /></a></div></div>
+    {whatsAppBlocked && <p className="dabra-whatsapp-error" role="alert">{language === 'ar' ? 'تعذر فتح واتساب. لم تُرسل أي رسالة.' : 'WhatsApp could not be opened. No message was sent.'}</p>}
   </article>;
 }
 
