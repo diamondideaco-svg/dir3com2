@@ -8,6 +8,12 @@
 - Moved telemetry persistence to Next/Vercel's supported after-response lifecycle, made unknown and partial token/cost coverage explicit, enforced one row per request/fallback hop under concurrency, and bounded official pricing snapshots with verified effective and expiry timestamps.
 - Bounded each after-response telemetry insert to one second, aborting the Supabase request when the bound expires and emitting one safe `telemetry_persist_failed` timeout signal without delaying provider routing, fallback, or the customer response.
 
+## 2026-09-04 — DABRA voice truth and contextual WhatsApp handoff
+
+- Pinned the human-approved DABRA Voice Design V1 fingerprint and removed browser speech synthesis as an unapproved output substitute. Until an authorized multilingual dynamic engine is bound to that fingerprint, DABRA exposes a bilingual unavailable state while retaining microphone input.
+- Added a DABRA-only contextual WhatsApp handoff through the canonical Saudi directory configuration. It carries customer-safe family, public service, destination, request, and transaction context where available, excludes internal identity fields, and never treats opening WhatsApp as proof of delivery, booking, or payment.
+- Preserved Marketplace transaction truth and existing details/request routes without adding a database migration or Production mutation.
+
 ## 2026-09-02 — Production-safe DABRA Family
 
 - Added one shared DABRA Family contract for Concierge, Partner, Admin, CEO, Mall Center, Customer Service, and Travel Agent identities derived from trusted session roles.
