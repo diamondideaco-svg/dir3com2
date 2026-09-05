@@ -5,13 +5,7 @@ import ProductForm from '@/components/products/ProductForm';
 import type { ProductRecord } from '@/lib/supabase/types';
 import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
 
-const resultMessages: Record<string, string> = {
-  created: 'تم إنشاء المنتج كمسودة بنجاح.',
-  updated: 'تم حفظ المسودة بنجاح.',
-  published: 'تم نشر المنتج بنجاح.',
-  unpublished: 'تم إلغاء نشر المنتج وإعادته لمسودة.',
-  archived: 'تمت أرشفة المنتج مع الحفاظ على السجل التاريخي.',
-};
+import { productConflictMessage, productResultMessages } from '@/lib/products/lifecycle-feedback';
 
 type ProductRow = ProductRecord & {
   country?: string | null;
@@ -28,6 +22,7 @@ type Filters = {
   city?: string;
   partner?: string;
   result?: string;
+  conflict?: string;
 };
 
 async function getProducts() {
@@ -71,7 +66,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
   const { products, error, isGlobal } = await getProducts();
   const params = await searchParams;
   const filteredProducts = applyFilters(products, params);
-  const resultMessage = params?.result ? resultMessages[params.result] : null;
+  const resultMessage = params?.result && Object.hasOwn(productResultMessages, params.result) ? productResultMessages[params.result] : null;
   const cities = [...new Set(products.map((product) => product.city).filter((value): value is string => Boolean(value)))].sort();
 
   return (
@@ -91,7 +86,8 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
           ) : null}
         </div>
 
-        {resultMessage ? <div role="status" aria-live="polite" className="mb-5 rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700">{resultMessage}</div> : null}
+        {resultMessage ? <div role="status" aria-live="polite" className="mb-5 rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700"><AdminText {...resultMessage} /></div> : null}
+        {params.conflict === 'version' ? <div role="alert" className="mb-5 rounded-2xl border border-amber-400 bg-amber-50 p-4 text-sm text-amber-900"><AdminText {...productConflictMessage} /><AdminRetryButton /></div> : null}
 
         {error ? (
           <div className="mb-5 rounded-2xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm text-red-700"><AdminText ar={error} en="Product data could not be loaded. No fallback empty state is shown." /><AdminRetryButton /></div>

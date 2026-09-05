@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useRef, useState, useTransition } from 'react';
 import { updateProductAction } from '@/lib/actions/product-actions';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { productConflictMessage } from '@/lib/products/lifecycle-feedback';
 
 const fieldClass = 'w-full rounded-xl border border-[color:var(--color-border)] bg-white px-4 py-3 text-[#334155] outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20';
 
@@ -28,6 +30,9 @@ type ProductDraft = {
 export default function ProductEditorForm({ product }: { product: ProductDraft }) {
   const { language } = useLanguage();
   const ar = language === 'ar';
+  const [conflict, setConflict] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const submitting = useRef(false);
   const editable = product.status === 'draft' && Number(product.lifecycle_version) > 0;
 
   if (!editable) {
@@ -45,7 +50,26 @@ export default function ProductEditorForm({ product }: { product: ProductDraft }
   }
 
   return (
-    <form action={updateProductAction} className="space-y-5 rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
+    <form onSubmit={(event) => {
+      event.preventDefault();
+      if (submitting.current || conflict) return;
+      submitting.current = true;
+      const data = new FormData(event.currentTarget);
+      // Keep uncontrolled inputs and the rendered version after a rejected write.
+      startTransition(async () => {
+        try {
+          const result = await updateProductAction(data);
+          if (result?.conflict) setConflict(true);
+        } finally {
+          submitting.current = false;
+        }
+      });
+    }} aria-busy={pending} className="space-y-5 rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
+      {conflict ? <div role="alert" className="rounded-xl border border-amber-400 bg-amber-50 p-4 text-sm text-amber-900">
+        <p>{ar ? productConflictMessage.ar : productConflictMessage.en}</p>
+        <p className="mt-2">{ar ? 'مدخلاتك باقية هنا. افتح النسخة الحالية في تبويب جديد للمقارنة.' : 'Your input remains here. Open the current version in a new tab to compare.'}</p>
+        <Link href={`/admin/products/${encodeURIComponent(product.id)}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 items-center underline">{ar ? 'مراجعة النسخة الحالية' : 'Review current version'}</Link>
+      </div> : null}
       <input type="hidden" name="id" value={product.id} />
       <input type="hidden" name="expectedVersion" value={product.lifecycle_version ?? ''} />
 
@@ -101,7 +125,7 @@ export default function ProductEditorForm({ product }: { product: ProductDraft }
       <label className="grid gap-2 text-sm font-medium text-[var(--color-navy)]">{ar ? 'ملاحظة التدقيق' : 'Audit note'}<input name="reason" maxLength={300} className={fieldClass} /></label>
 
       <div className="flex flex-wrap gap-3">
-        <button type="submit" className="min-h-11 rounded-full bg-[#D4AF37] px-6 py-3 text-sm font-bold text-[#0D1B2A]">{ar ? 'حفظ المسودة' : 'Save draft'}</button>
+        <button type="submit" disabled={pending || conflict} className="min-h-11 rounded-full bg-[#D4AF37] px-6 py-3 text-sm font-bold text-[#0D1B2A] disabled:opacity-50">{ar ? 'حفظ المسودة' : 'Save draft'}</button>
         <Link href="/admin/products" className="min-h-11 rounded-full border border-[color:var(--color-border)] px-6 py-3 text-sm font-semibold text-[var(--color-navy)]">{ar ? 'إلغاء' : 'Cancel'}</Link>
       </div>
     </form>

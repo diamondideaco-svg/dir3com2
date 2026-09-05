@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { assertCountryAllowed, requireScopedAdminActionAccess } from '@/lib/auth/admin';
 import { sanitizeBoolean, sanitizeNumber, sanitizeText } from '@/lib/security/validation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { isProductVersionConflict } from '@/lib/products/lifecycle-feedback';
 
 const PRODUCT_FAMILIES = ['drive', 'stay', 'fly', 'concierge', 'vip'] as const;
 const FULFILMENT_STATES = ['verified_requestable', 'verified_quote', 'live_bookable', 'unavailable', 'availability_unknown'] as const;
@@ -135,7 +136,8 @@ export async function updateProductAction(formData: FormData) {
     p_shield_certified: fields.shieldCertified,
     p_reason: fields.reason || 'Admin draft updated',
   });
-  if (error) throw new Error(error.message || 'PRODUCT_UPDATE_FAILED');
+  if (isProductVersionConflict(error)) return { conflict: true } as const;
+  if (error) throw new Error('PRODUCT_UPDATE_FAILED');
 
   refreshProductSurfaces();
   redirect('/admin/products?result=updated');
@@ -154,7 +156,8 @@ export async function publishProductAction(formData: FormData) {
     p_expected_version: expectedVersion,
     p_reason: reason,
   });
-  if (error) throw new Error(error.message || 'PRODUCT_PUBLISH_FAILED');
+  if (isProductVersionConflict(error)) redirect('/admin/products?conflict=version');
+  if (error) throw new Error('PRODUCT_PUBLISH_FAILED');
 
   refreshProductSurfaces();
   redirect('/admin/products?result=published');
@@ -173,7 +176,8 @@ export async function unpublishProductAction(formData: FormData) {
     p_expected_version: expectedVersion,
     p_reason: reason,
   });
-  if (error) throw new Error(error.message || 'PRODUCT_UNPUBLISH_FAILED');
+  if (isProductVersionConflict(error)) redirect('/admin/products?conflict=version');
+  if (error) throw new Error('PRODUCT_UNPUBLISH_FAILED');
 
   refreshProductSurfaces();
   redirect('/admin/products?result=unpublished');
@@ -192,7 +196,8 @@ export async function archiveProductAction(formData: FormData) {
     p_expected_version: expectedVersion,
     p_reason: reason,
   });
-  if (error) throw new Error(error.message || 'PRODUCT_ARCHIVE_FAILED');
+  if (isProductVersionConflict(error)) redirect('/admin/products?conflict=version');
+  if (error) throw new Error('PRODUCT_ARCHIVE_FAILED');
 
   refreshProductSurfaces();
   redirect('/admin/products?result=archived');
