@@ -25,9 +25,9 @@ function load<T>(path: string, dependencies: Record<string, unknown>): T {
   return exports as T;
 }
 
-function fixture(id: string | null = ceo, role = 'admin', status = 'active', email = 'renamed@example.invalid') {
+function fixture(id: string | null = ceo, role = 'admin', status = 'active', email = 'renamed@example.invalid', deletedAt: string | null = null) {
   const actor = id ? { id, email, user_metadata: { role: 'admin', country_scope: ['EG', 'QA'] } } as unknown as User : null;
-  const profiles: Row[] = id ? [{ id, role, status, email }] : [];
+  const profiles: Row[] = id ? [{ id, role, status, email, deleted_at: deletedAt, full_name: 'Test User' }] : [];
   const grants: Row[] = [];
   const users: Row[] = [];
   const writes: { table: string; values: Row }[] = [];
@@ -72,6 +72,7 @@ function fixture(id: string | null = ceo, role = 'admin', status = 'active', ema
         limit: () => chain,
         then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: options.tableError ? null : grants, error: options.tableError }).then(resolve),
         eq: (column: string, value: unknown) => { filters.push([table, column, value]); conditions.push([column, value]); return chain; },
+        is: (column: string, value: unknown) => { filters.push([table, column, value]); conditions.push([column, value]); return chain; },
         maybeSingle: async () => {
           if (options.queryError) return { data: null, error: new Error('query unavailable') };
           const rows = (table === 'profiles' ? profiles : grants).filter(row => conditions.every(([key, value]) => row[key] === value));
@@ -129,6 +130,7 @@ test('runtime CEO authority uses verified ID plus exact active matching profile,
     const denied = fixture(ceo, role, status);
     assert.equal(await team.isCeoActor(denied.supabase, denied.actor!), false);
   }
+  assert.equal(await team.isCeoActor(fixture(ceo, 'admin', 'active', team.CEO_EMAIL, '2026-09-05T00:00:00Z').supabase, f.actor!), false);
   f.options.queryError = true;
   assert.equal(await team.isCeoActor(f.supabase, f.actor!), false);
   for (const email of [team.CEO_EMAIL, team.CEO_EMAIL.toUpperCase()]) {

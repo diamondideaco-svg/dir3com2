@@ -46,6 +46,8 @@ export default function PartnerRequestsClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [workingId, setWorkingId] = useState<string | null>(null);
+  const [handoffUrls, setHandoffUrls] = useState<Record<string, string>>({});
+  const [unrecoverableHandoffs, setUnrecoverableHandoffs] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -78,7 +80,10 @@ export default function PartnerRequestsClient() {
   }
 
   async function startWhatsapp(requestId: string) {
-    if (!window.confirm(ar ? 'بدء تسليم هذا الطلب عبر واتساب؟ سيتم تسجيل التسليم داخل dir3com أولاً.' : 'Start this WhatsApp handoff? DIR3COM will record the handoff before WhatsApp opens.')) return;
+    const existing = requests.find((request) => request.id === requestId)?.handoff_started_at;
+    if (!window.confirm(existing
+      ? (ar ? 'فتح رابط واتساب المسجل لهذا الطلب؟' : 'Open the recorded WhatsApp handoff for this request?')
+      : (ar ? 'بدء تسليم هذا الطلب عبر واتساب؟ سيتم تسجيل التسليم داخل dir3com أولاً.' : 'Start this WhatsApp handoff? DIR3COM will record the handoff before WhatsApp opens.'))) return;
     setWorkingId(requestId);
     setError(null);
     try {
@@ -89,10 +94,35 @@ export default function PartnerRequestsClient() {
       });
       const payload = await response.json();
       if (!response.ok || !payload?.data?.url) throw new Error(payload?.error?.code || 'HANDOFF_FAILED');
-      await refreshRequests();
-      window.open(payload.data.url, '_blank', 'noopener,noreferrer');
-    } catch {
-      setError(ar ? 'تعذر بدء تسليم واتساب. لم يتم فتح رابط غير مسجل.' : 'WhatsApp handoff could not be started. No unrecorded link was opened.');
+      const handoffUrl = String(payload.data.url);
+      setHandoffUrls((current) => ({ ...current, [requestId]: handoffUrl }));
+      const opened = window.open('', '_blank');
+      if (opened) {
+        opened.opener = null;
+        opened.location.href = handoffUrl;
+      }
+      if (!opened) {
+        setError(ar ? 'تم تسجيل التسليم، لكن المتصفح منع النافذة. استخدم رابط المتابعة الظاهر.' : 'The handoff was recorded, but the browser blocked the window. Use the visible continue link.');
+      }
+      try {
+        await refreshRequests();
+      } catch {
+        setError(ar ? 'تم تسجيل التسليم، لكن تعذر تحديث القائمة. استخدم رابط المتابعة الظاهر أو أعد تحميل الصفحة.' : 'The handoff was recorded, but the list could not refresh. Use the visible continue link or reload the page.');
+      }
+    } catch (cause) {
+      const errorCode = cause instanceof Error ? cause.message : '';
+      try {
+        await refreshRequests();
+      } catch {
+        // A response can be lost after a successful commit. A later retry is
+        // safe because the server returns the same canonical handoff event.
+      }
+      if (errorCode === 'REQUEST_HANDOFF_REPLAY_UNAVAILABLE') {
+        setUnrecoverableHandoffs((current) => ({ ...current, [requestId]: true }));
+        setError(ar ? 'سجل التسليم موجود، لكن لا يمكن إعادة إنشاء رابط واتساب القديم بأمان. تواصل مع فريق العمليات.' : 'The handoff record exists, but its legacy WhatsApp link cannot be reconstructed safely. Contact operations.');
+      } else {
+        setError(ar ? 'تعذر فتح واتساب تلقائياً. إذا ظهر الطلب كمسجل، اختر فتح التسليم مرة أخرى بأمان.' : 'WhatsApp could not open automatically. If the request now appears recorded, safely select open handoff again.');
+      }
     } finally {
       setWorkingId(null);
     }
@@ -159,12 +189,23 @@ export default function PartnerRequestsClient() {
                     </div>
                     <button
                       type="button"
-                      disabled={!whatsappConfigured || workingId === request.id || Boolean(request.handoff_started_at)}
+                      disabled={Boolean(unrecoverableHandoffs[request.id]) || (!whatsappConfigured && !request.handoff_started_at) || workingId === request.id}
                       onClick={() => void startWhatsapp(request.id)}
                       className="min-h-11 rounded-full bg-[#D4AF37] px-4 py-2 text-sm font-bold text-[#0D1B2A] disabled:cursor-not-allowed disabled:opacity-45"
                     >
-                      {request.handoff_started_at ? (ar ? 'تم بدء التسليم' : 'Handoff started') : workingId === request.id ? (ar ? 'جاري التسجيل…' : 'Recording…') : (ar ? 'بدء تسليم واتساب' : 'Start WhatsApp handoff')}
+                      {unrecoverableHandoffs[request.id]
+                        ? (ar ? 'رابط التسليم غير قابل للاستعادة' : 'Handoff link unavailable')
+                        : workingId === request.id
+                          ? (ar ? 'جاري التسجيل…' : 'Recording…')
+                          : request.handoff_started_at
+                            ? (ar ? 'فتح تسليم واتساب' : 'Open WhatsApp handoff')
+                            : (ar ? 'بدء تسليم واتساب' : 'Start WhatsApp handoff')}
                     </button>
+                    {handoffUrls[request.id] ? (
+                      <a href={handoffUrls[request.id]} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[#D4AF37]/40 bg-white px-4 py-2 text-center text-sm font-semibold text-[#0D1B2A]">
+                        {ar ? 'متابعة إلى واتساب' : 'Continue to WhatsApp'}
+                      </a>
+                    ) : null}
                   </div>
                 </div>
               </article>

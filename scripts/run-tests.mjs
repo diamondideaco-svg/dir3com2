@@ -2,6 +2,8 @@ import { readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const serverOnlyTests = new Set([
+  'admin-partner-authorization-runtime.test.ts',
+  'ceo-identity-postgres.integration.test.ts',
   'ceo-identity-runtime.test.ts',
   'ticketmaster-discovery.test.ts',
   'marketplace-provider-activation.test.ts',
@@ -38,6 +40,6 @@ function run(files, conditions = []) {
 
 run(testFiles.filter((file) => !serverOnlyTests.has(file) && !databaseTests.has(file)));
 for (const file of testFiles.filter((candidate) => databaseTests.has(candidate))) {
-  run([file]);
+  run([file], serverOnlyTests.has(file) ? ['--conditions=react-server'] : []);
 }
-run(testFiles.filter((file) => serverOnlyTests.has(file)), ['--conditions=react-server']);
+run(testFiles.filter((file) => serverOnlyTests.has(file) && !databaseTests.has(file)), ['--conditions=react-server']);

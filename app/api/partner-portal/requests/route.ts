@@ -13,6 +13,31 @@ function bookingWhatsappNumber() {
   return digits.length >= 8 && digits.length <= 15 ? digits : null;
 }
 
+type ScopedPartnerRequest = {
+  id: string;
+  request_reference: string;
+  product_id: string;
+  service_name?: string | null;
+  requested_for?: string | null;
+  traveller_count?: number | null;
+  status?: string | null;
+};
+
+async function readScopedPartnerRequests(actorUserId: string, requestId: string | null = null) {
+  if (!supabaseAdmin) return { data: null, error: { message: 'PORTAL_UNAVAILABLE' } };
+  const { data, error } = await supabaseAdmin.rpc('get_partner_marketplace_requests', {
+    // This value is derived exclusively from auth.getUser() by requirePortalActor.
+    p_actor_user_id: actorUserId,
+    p_request_id: requestId,
+  });
+  return { data: Array.isArray(data) ? data as ScopedPartnerRequest[] : [], error };
+}
+
+function firstRpcRow<T>(data: unknown): T | null {
+  if (Array.isArray(data)) return (data[0] as T | undefined) ?? null;
+  return data && typeof data === 'object' ? data as T : null;
+}
+
 export async function GET() {
   const actor = await requirePortalActor();
   if (!actor || actor.authRole !== 'partner') {
@@ -24,65 +49,9 @@ export async function GET() {
 
   try {
     await ensurePartnerRecord(actor);
-    const { data: availabilityRows, error: ownershipError } = await supabaseAdmin
-      .from('product_availability')
-      .select('product_id')
-      .eq('partner_id', actor.userId);
-    if (ownershipError) throw ownershipError;
-
-    const productIds = [...new Set((availabilityRows || []).map((row) => row.product_id).filter(Boolean))];
-    if (productIds.length === 0) {
-      return NextResponse.json({ data: [], whatsappConfigured: Boolean(bookingWhatsappNumber()) }, { headers: privateHeaders() });
-    }
-
-    const { data: requests, error: requestError } = await supabaseAdmin
-      .from('marketplace_requests')
-      .select('id, request_reference, product_id, request_type, status, requested_for, traveller_count, marketplace_family, supplier_name, service_name, fulfilment_method, transaction_method, handoff_type, handoff_reference, handoff_started_at, next_action, created_at, updated_at, products(name_ar,name_en,slug,city,country)')
-      .in('product_id', productIds)
-      .order('created_at', { ascending: false });
+    const { data: requests, error: requestError } = await readScopedPartnerRequests(actor.userId);
     if (requestError) throw requestError;
-
-    const requestIds = (requests || []).map((request) => request.id);
-    let statusAudits: Array<Record<string, unknown>> = [];
-    let handoffEvents: Array<Record<string, unknown>> = [];
-    if (requestIds.length) {
-      const [{ data: auditRows, error: auditError }, { data: handoffRows, error: handoffError }] = await Promise.all([
-        supabaseAdmin
-          .from('marketplace_request_audit_logs')
-          .select('request_id, previous_status, new_status, created_at')
-          .in('request_id', requestIds)
-          .order('created_at', { ascending: true }),
-        supabaseAdmin
-          .from('marketplace_request_handoff_events')
-          .select('request_id, handoff_type, handoff_reference, request_status_at_handoff, created_at')
-          .in('request_id', requestIds)
-          .order('created_at', { ascending: true }),
-      ]);
-      if (auditError) throw auditError;
-      if (handoffError) throw handoffError;
-      statusAudits = (auditRows || []) as Array<Record<string, unknown>>;
-      handoffEvents = (handoffRows || []) as Array<Record<string, unknown>>;
-    }
-
-    const data = (requests || []).map((request) => ({
-      ...request,
-      timeline: [
-        { type: 'request_submitted', at: request.created_at, status: request.status },
-        ...statusAudits.filter((audit) => audit.request_id === request.id).map((audit) => ({
-          type: 'status_updated',
-          at: audit.created_at,
-          previousStatus: audit.previous_status,
-          status: audit.new_status,
-        })),
-        ...handoffEvents.filter((event) => event.request_id === request.id).map((event) => ({
-          type: `${String(event.handoff_type || 'handoff')}_handoff_started`,
-          at: event.created_at,
-          status: event.request_status_at_handoff,
-        })),
-      ].sort((a, b) => String(a.at || '').localeCompare(String(b.at || ''))),
-    }));
-
-    return NextResponse.json({ data, whatsappConfigured: Boolean(bookingWhatsappNumber()) }, { headers: privateHeaders() });
+    return NextResponse.json({ data: requests || [], whatsappConfigured: Boolean(bookingWhatsappNumber()) }, { headers: privateHeaders() });
   } catch (error) {
     logServerError('api.partner_portal.requests.get_failed', error, { actorId: actor.userId });
     return NextResponse.json({ error: { code: 'PARTNER_REQUESTS_READ_FAILED' } }, { status: 500, headers: privateHeaders() });
@@ -106,52 +75,44 @@ export async function POST(request: Request) {
   }
 
   const whatsapp = bookingWhatsappNumber();
-  if (!whatsapp) {
-    return NextResponse.json({ error: { code: 'WHATSAPP_HANDOFF_NOT_CONFIGURED' } }, { status: 409, headers: privateHeaders() });
-  }
 
   try {
     await ensurePartnerRecord(actor);
-    const { data: requestRow, error: requestError } = await supabaseAdmin
-      .from('marketplace_requests')
-      .select('id, request_reference, product_id, service_name, requested_for, traveller_count, status')
-      .eq('id', requestId)
-      .maybeSingle();
-    if (requestError) throw requestError;
-    if (!requestRow) {
-      return NextResponse.json({ error: { code: 'REQUEST_NOT_FOUND' } }, { status: 404, headers: privateHeaders() });
-    }
-
-    const { data: owned, error: ownedError } = await supabaseAdmin
-      .from('product_availability')
-      .select('id')
-      .eq('product_id', requestRow.product_id)
-      .eq('partner_id', actor.userId)
-      .limit(1);
-    if (ownedError) throw ownedError;
-    if (!owned?.length) {
-      return NextResponse.json({ error: { code: 'REQUEST_PARTNER_SCOPE_DENIED' } }, { status: 404, headers: privateHeaders() });
-    }
-
-    const handoffReference = `WA:${requestRow.request_reference}`;
-    const { error: handoffError } = await supabaseAdmin.rpc('start_partner_marketplace_request_handoff', {
+    const { data: handoffData, error: handoffError } = await supabaseAdmin.rpc('start_partner_marketplace_request_handoff', {
       p_actor_user_id: actor.userId,
       p_request_id: requestId,
-      p_handoff_reference: handoffReference,
+      // The RPC locks the request and persists the delivery destination and
+      // message snapshot before returning them. Replays therefore cannot be
+      // changed by later request edits or environment configuration changes.
+      p_whatsapp_destination: whatsapp || '',
     });
-    if (handoffError) throw handoffError;
+    if (handoffError) {
+      if (handoffError.message?.includes('REQUEST_HANDOFF_CONFLICT') || handoffError.message?.includes('REQUEST_HANDOFF_REPLAY_UNAVAILABLE')) {
+        return NextResponse.json({ error: { code: handoffError.message.includes('REPLAY_UNAVAILABLE') ? 'REQUEST_HANDOFF_REPLAY_UNAVAILABLE' : 'REQUEST_HANDOFF_CONFLICT' } }, { status: 409, headers: privateHeaders() });
+      }
+      if (handoffError.message?.includes('WHATSAPP_DESTINATION_INVALID')) {
+        return NextResponse.json({ error: { code: 'WHATSAPP_HANDOFF_NOT_CONFIGURED' } }, { status: 409, headers: privateHeaders() });
+      }
+      if (handoffError.message?.includes('REQUEST_NOT_FOUND') || handoffError.message?.includes('REQUEST_PARTNER_SCOPE_DENIED')) {
+        return NextResponse.json({ error: { code: 'REQUEST_NOT_FOUND' } }, { status: 404, headers: privateHeaders() });
+      }
+      throw handoffError;
+    }
+    const committed = firstRpcRow<{
+      request_id: string;
+      request_reference: string;
+      handoff_reference: string;
+      whatsapp_destination: string;
+      message_snapshot: string;
+    }>(handoffData);
+    if (!committed?.request_id || !committed.request_reference || !committed.handoff_reference
+      || !/^[0-9]{8,15}$/.test(committed.whatsapp_destination || '') || !committed.message_snapshot) {
+      throw new Error('PARTNER_HANDOFF_RESULT_INVALID');
+    }
 
-    const text = [
-      `DIR3COM ${requestRow.request_reference}`,
-      requestRow.service_name ? `Service: ${requestRow.service_name}` : '',
-      requestRow.requested_for ? `Requested for: ${requestRow.requested_for}` : '',
-      `Travellers: ${requestRow.traveller_count || 1}`,
-      `Current status: ${requestRow.status}`,
-    ].filter(Boolean).join('\n');
-
-    const url = `https://wa.me/${whatsapp}?text=${encodeURIComponent(text)}`;
-    logServerEvent('api.partner_portal.requests.whatsapp_handoff_started', { actorId: actor.userId, requestId, requestReference: requestRow.request_reference });
-    return NextResponse.json({ data: { requestId, requestReference: requestRow.request_reference, handoffReference, url } }, { headers: privateHeaders() });
+    const url = `https://wa.me/${committed.whatsapp_destination}?text=${encodeURIComponent(committed.message_snapshot)}`;
+    logServerEvent('api.partner_portal.requests.whatsapp_handoff_ready', { actorId: actor.userId, requestId, requestReference: committed.request_reference });
+    return NextResponse.json({ data: { requestId: committed.request_id, requestReference: committed.request_reference, handoffReference: committed.handoff_reference, url } }, { headers: privateHeaders() });
   } catch (error) {
     logServerError('api.partner_portal.requests.handoff_failed', error, { actorId: actor.userId, requestId });
     return NextResponse.json({ error: { code: 'PARTNER_REQUEST_HANDOFF_FAILED' } }, { status: 500, headers: privateHeaders() });

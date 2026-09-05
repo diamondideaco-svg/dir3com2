@@ -16,10 +16,12 @@ const lifecycleMigration = readFileSync(new URL('../supabase/migrations/20260903
 const partnerHandoffMigration = readFileSync(new URL('../supabase/migrations/20260903234600_partner_request_handoff.sql', import.meta.url), 'utf8');
 const cleanupMigration = readFileSync(new URL('../supabase/migrations/20260903234700_drop_legacy_admin_handoff_rpc.sql', import.meta.url), 'utf8');
 const hardeningMigration = readFileSync(new URL('../supabase/migrations/20260904004000_harden_admin_partner_authorization.sql', import.meta.url), 'utf8');
+const remediationMigration = readFileSync(new URL('../supabase/migrations/20260905160435_reconcile_admin_partner_lifecycle_safety.sql', import.meta.url), 'utf8');
 const temporaryDatabase = `admin_partner_${randomBytes(8).toString('hex')}`;
 const admin = new Client({ connectionString: baseConnection });
 let testClient;
 let adminConnected = false;
+let testUrl;
 
 const bootstrap = `
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -31,19 +33,38 @@ CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
   SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;
 
+CREATE TABLE auth.users (
+  id uuid PRIMARY KEY,
+  email text,
+  raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
 CREATE TABLE public.profiles (
   id uuid PRIMARY KEY,
   role text NOT NULL,
   status text NOT NULL DEFAULT 'active',
-  deleted_at timestamptz
+  deleted_at timestamptz,
+  full_name text NOT NULL DEFAULT '',
+  email text
 );
 
 CREATE TABLE public.team_access_grants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   invited_user_id uuid UNIQUE,
+  email text NOT NULL DEFAULT '',
+  job_title text NOT NULL DEFAULT '',
   access_level text NOT NULL DEFAULT 'scoped_staff',
   country_scope text[] NOT NULL DEFAULT '{}',
   permissions text[] NOT NULL DEFAULT '{}',
+  status text NOT NULL DEFAULT 'active',
+  invited_by uuid,
+  created_by uuid,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.partners (
+  id uuid PRIMARY KEY REFERENCES public.profiles(id),
   status text NOT NULL DEFAULT 'active'
 );
 
@@ -80,13 +101,29 @@ CREATE TABLE public.marketplace_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   request_reference text NOT NULL UNIQUE,
   product_id uuid NOT NULL REFERENCES public.products(id),
+  request_type text NOT NULL DEFAULT 'request_to_confirm',
   status text NOT NULL DEFAULT 'request_submitted',
+  requested_for timestamptz,
+  traveller_count integer NOT NULL DEFAULT 1,
+  marketplace_family text,
+  supplier_name text,
+  service_name text,
+  transaction_method text,
   handoff_type text,
   fulfilment_method text,
   handoff_reference text,
   handoff_started_at timestamptz,
   next_action text,
+  created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.marketplace_request_audit_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL REFERENCES public.marketplace_requests(id),
+  previous_status text NOT NULL,
+  new_status text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE public.product_availability (
@@ -98,9 +135,11 @@ CREATE TABLE public.product_availability (
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT SELECT ON public.profiles TO authenticated, service_role;
 GRANT SELECT ON public.team_access_grants TO authenticated, service_role;
+GRANT SELECT ON public.partners TO authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.products TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.bookings TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.marketplace_requests TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.marketplace_request_audit_logs TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_availability TO service_role;
 `;
 
@@ -125,12 +164,30 @@ async function resetActor(client) {
   await client.query("SELECT set_config('request.jwt.claim.sub', '', false)");
 }
 
+async function connectTestClient(applicationName) {
+  const client = new Client({ connectionString: testUrl.toString(), application_name: applicationName });
+  await client.connect();
+  return client;
+}
+
+async function waitForDatabaseLock(observer, backendPid, label) {
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    const state = await observer.query(
+      `SELECT wait_event_type,wait_event FROM pg_stat_activity WHERE pid=$1`,
+      [backendPid],
+    );
+    if (state.rows[0]?.wait_event_type === 'Lock') return;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  throw new Error(`${label} did not reach a deterministic database lock wait.`);
+}
+
 try {
   await admin.connect();
   adminConnected = true;
   await admin.query(`CREATE DATABASE "${temporaryDatabase}"`);
 
-  const testUrl = new URL(baseConnection);
+  testUrl = new URL(baseConnection);
   testUrl.pathname = `/${temporaryDatabase}`;
   testClient = new Client({ connectionString: testUrl.toString() });
   await testClient.connect();
@@ -140,6 +197,8 @@ try {
   await testClient.query(partnerHandoffMigration);
   await testClient.query(cleanupMigration);
   await testClient.query(hardeningMigration);
+  await testClient.query(remediationMigration);
+  await testClient.query(remediationMigration);
 
   const adminId = randomUUID();
   const staffId = randomUUID();
@@ -149,6 +208,10 @@ try {
     `INSERT INTO public.profiles(id, role, status) VALUES
       ($1,'admin','active'),($2,'staff','active'),($3,'partner','active'),($4,'partner','active')`,
     [adminId, staffId, partnerId, foreignPartnerId],
+  );
+  await testClient.query(
+    `INSERT INTO public.partners(id,status) VALUES($1,'active'),($2,'active')`,
+    [partnerId, foreignPartnerId],
   );
   await testClient.query(
     `INSERT INTO public.team_access_grants(invited_user_id,access_level,country_scope,permissions,status)
@@ -229,6 +292,122 @@ try {
   }
   await resetActor(testClient);
 
+  // Lifecycle version input is mandatory and positive on every state-changing
+  // path; null must never exploit SQL three-valued comparison semantics.
+  await setAuthenticatedActor(testClient, adminId);
+  for (const invalidVersion of [null, 0, -1]) {
+    await expectError(testClient, `SELECT public.publish_product_lifecycle($1,$2,'invalid version')`, [staffProductId, invalidVersion], 'PRODUCT_VERSION_REQUIRED');
+    await expectError(testClient, `SELECT public.unpublish_product_lifecycle($1,$2,'invalid version')`, [staffProductId, invalidVersion], 'PRODUCT_VERSION_REQUIRED');
+    await expectError(testClient, `SELECT public.archive_product_lifecycle($1,$2,'invalid version')`, [staffProductId, invalidVersion], 'PRODUCT_VERSION_REQUIRED');
+  }
+  await resetActor(testClient);
+
+  // A stale route-level admission cannot survive profile/grant deactivation.
+  await testClient.query(`UPDATE public.profiles SET status='inactive' WHERE id=$1`, [adminId]);
+  await setAuthenticatedActor(testClient, adminId);
+  await expectError(testClient, `SELECT public.publish_product_lifecycle($1,1,'inactive admin')`, [staffProductId], 'PRODUCT_LIFECYCLE_DENIED');
+  await resetActor(testClient);
+  await testClient.query(`UPDATE public.profiles SET status='active',deleted_at=now() WHERE id=$1`, [adminId]);
+  await setAuthenticatedActor(testClient, adminId);
+  await expectError(testClient, `SELECT public.publish_product_lifecycle($1,1,'deleted admin')`, [staffProductId], 'PRODUCT_LIFECYCLE_DENIED');
+  await resetActor(testClient);
+  await testClient.query(`UPDATE public.profiles SET deleted_at=null WHERE id=$1`, [adminId]);
+  await testClient.query(`UPDATE public.team_access_grants SET status='inactive' WHERE invited_user_id=$1`, [staffId]);
+  await setAuthenticatedActor(testClient, staffId);
+  await expectError(testClient, `SELECT public.publish_product_lifecycle($1,1,'inactive grant')`, [staffProductId], 'PRODUCT_LIFECYCLE_PERMISSION_DENIED');
+  await resetActor(testClient);
+  await testClient.query(`UPDATE public.team_access_grants SET status='active' WHERE invited_user_id=$1`, [staffId]);
+
+  async function insertDraftTruth(overrides = {}) {
+    const values = {
+      id: randomUUID(),
+      slug: `truth-${randomBytes(6).toString('hex')}`,
+      supply: 'verified_local_partner',
+      supplierVerified: true,
+      fulfilment: 'verified_requestable',
+      transaction: 'request_to_confirm',
+      ...overrides,
+    };
+    await testClient.query(
+      `INSERT INTO public.products(
+        id,name_ar,name_en,slug,country,city,marketplace_family,fulfilment_state,
+        transaction_method,supply_type,supplier_verified,marketplace_environment,
+        synthetic,status,verified
+      ) VALUES($1,'منتج حقيقي','Truth Product',$2,'Egypt','Cairo','drive',$3,$4,$5,$6,'production',false,'draft',false)`,
+      [values.id, values.slug, values.fulfilment, values.transaction, values.supply, values.supplierVerified],
+    );
+    return values.id;
+  }
+
+  const quoteProductId = await insertDraftTruth({ fulfilment: 'verified_quote', transaction: 'request_quote' });
+  const unavailableProductId = await insertDraftTruth({ fulfilment: 'unavailable', transaction: 'none' });
+  const unknownAvailabilityId = await insertDraftTruth({ fulfilment: 'availability_unknown', transaction: 'none' });
+  const unknownSupplyId = await insertDraftTruth({ supply: 'unknown' });
+  const nullFamilyId = await insertDraftTruth({});
+  const nullSupplyId = await insertDraftTruth({ supply: null });
+  const nullFulfilmentId = await insertDraftTruth({ fulfilment: null });
+  const nullTransactionId = await insertDraftTruth({ transaction: null });
+  await testClient.query(`UPDATE public.products SET marketplace_family=null WHERE id=$1`, [nullFamilyId]);
+  const unverifiedSupplierId = await insertDraftTruth({ supplierVerified: false });
+  const instantProductId = await insertDraftTruth({ fulfilment: 'live_bookable', transaction: 'instant_booking' });
+  await setAuthenticatedActor(testClient, adminId);
+  await testClient.query(`SELECT public.publish_product_lifecycle($1,1,'verified quote')`, [quoteProductId]);
+  await testClient.query(`SELECT public.publish_product_lifecycle($1,1,'truthful unavailable')`, [unavailableProductId]);
+  await testClient.query(`SELECT public.publish_product_lifecycle($1,1,'truthful unknown availability')`, [unknownAvailabilityId]);
+  await expectError(testClient, `SELECT public.publish_product_lifecycle($1,1,'unknown supply')`, [unknownSupplyId], 'PRODUCT_SUPPLY_NOT_AUTHORITATIVE');
+  await expectError(testClient, `SELECT public.publish_product_lifecycle($1,1,'null family')`, [nullFamilyId], 'PRODUCT_FAMILY_REQUIRED');
+  await expectError(testClient, `SELECT public.publish_product_lifecycle($1,1,'null supply')`, [nullSupplyId], 'PRODUCT_SUPPLY_NOT_AUTHORITATIVE');
+  await expectError(testClient, `SELECT public.publish_product_lifecycle($1,1,'null fulfilment')`, [nullFulfilmentId], 'PRODUCT_TRANSACTION_PATH_UNSUPPORTED');
+  await expectError(testClient, `SELECT public.publish_product_lifecycle($1,1,'null transaction')`, [nullTransactionId], 'PRODUCT_TRANSACTION_PATH_UNSUPPORTED');
+  await expectError(testClient, `SELECT public.publish_product_lifecycle($1,1,'supplier unverified')`, [unverifiedSupplierId], 'PRODUCT_SUPPLIER_NOT_VERIFIED');
+  await expectError(testClient, `SELECT public.publish_product_lifecycle($1,1,'instant without binding')`, [instantProductId], 'PRODUCT_INSTANT_SUPPLY_UNPROVEN');
+  await resetActor(testClient);
+  const quoteTruth = await testClient.query(`SELECT status,verified FROM public.products WHERE id=$1`, [quoteProductId]);
+  if (quoteTruth.rows[0]?.status !== 'published' || quoteTruth.rows[0]?.verified !== false) {
+    throw new Error('Verified quote publication changed verification truth.');
+  }
+
+  // Audit insertion failure must roll back the product state mutation.
+  const rollbackProductId = await insertDraftTruth();
+  await testClient.query(`CREATE FUNCTION public.pr93_fail_selected_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.product_id=current_setting('pr93.fail_product')::uuid THEN RAISE EXCEPTION 'PR93_AUDIT_FAILURE'; END IF; RETURN NEW; END $$`);
+  await testClient.query(`CREATE TRIGGER pr93_fail_selected_audit BEFORE INSERT ON public.product_audit_events FOR EACH ROW EXECUTE FUNCTION public.pr93_fail_selected_audit()`);
+  await testClient.query(`SELECT set_config('pr93.fail_product',$1,false)`, [rollbackProductId]);
+  await setAuthenticatedActor(testClient, adminId);
+  await expectError(testClient, `SELECT public.publish_product_lifecycle($1,1,'rollback proof')`, [rollbackProductId], 'PR93_AUDIT_FAILURE');
+  await resetActor(testClient);
+  const rolledBack = await testClient.query(`SELECT status,lifecycle_version FROM public.products WHERE id=$1`, [rollbackProductId]);
+  if (rolledBack.rows[0]?.status !== 'draft' || rolledBack.rows[0]?.lifecycle_version !== 1) {
+    throw new Error('Audit insertion failure did not roll back lifecycle state.');
+  }
+  await testClient.query(`DROP TRIGGER pr93_fail_selected_audit ON public.product_audit_events`);
+  await testClient.query(`DROP FUNCTION public.pr93_fail_selected_audit()`);
+
+  // Lock-order proof: country authorization is evaluated only after the latest
+  // persisted product row has been acquired.
+  const countryRaceProductId = await insertDraftTruth();
+  const countryLocker = await connectTestClient('pr93_country_locker');
+  const countryWaiter = await connectTestClient('pr93_country_waiter');
+  try {
+    await countryLocker.query('BEGIN');
+    await countryLocker.query(`UPDATE public.products SET country='Qatar' WHERE id=$1`, [countryRaceProductId]);
+    await setAuthenticatedActor(countryWaiter, staffId);
+    const waiterPid = (await countryWaiter.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+    const pendingPublish = countryWaiter.query(`SELECT public.publish_product_lifecycle($1,1,'country race')`, [countryRaceProductId]);
+    await waitForDatabaseLock(testClient, waiterPid, 'country authorization race');
+    await countryLocker.query('COMMIT');
+    try {
+      await pendingPublish;
+      throw new Error('Country race unexpectedly authorized stale Egypt scope.');
+    } catch (error) {
+      if (String(error?.message || '').includes('unexpectedly authorized')) throw error;
+      if (!String(error?.message || '').includes('COUNTRY_SCOPE_FORBIDDEN')) throw error;
+    }
+  } finally {
+    await countryLocker.query('ROLLBACK').catch(() => {});
+    await countryLocker.end();
+    await countryWaiter.end();
+  }
+
   await testClient.query('SET ROLE service_role');
   await expectError(
     testClient,
@@ -246,33 +425,169 @@ try {
   );
   await testClient.query('INSERT INTO public.product_availability(product_id,partner_id) VALUES($1,$2)', [handoffProduct, partnerId]);
   const requestId = randomUUID();
+  const requestReference = `REQ-${randomBytes(5).toString('hex')}`;
+  await testClient.query(
+    `INSERT INTO public.marketplace_requests(id,request_reference,product_id,status,service_name,requested_for,traveller_count)
+     VALUES($1,$2,$3,'request_submitted','Original partner car','2026-10-01T12:30:00Z',3)`,
+    [requestId, requestReference, handoffProduct],
+  );
+
+  // The protected read scopes rows before projecting request fields.
+  await testClient.query('SET ROLE service_role');
+  const ownedRead = await testClient.query(`SELECT * FROM public.get_partner_marketplace_requests($1,$2)`, [partnerId, requestId]);
+  const foreignRead = await testClient.query(`SELECT * FROM public.get_partner_marketplace_requests($1,$2)`, [foreignPartnerId, requestId]);
+  await resetActor(testClient);
+  if (ownedRead.rowCount !== 1 || foreignRead.rowCount !== 0) throw new Error('Partner protected read leaked or hid an owned request.');
+  const submissionTimeline = ownedRead.rows[0]?.get_partner_marketplace_requests?.timeline?.[0];
+  if (submissionTimeline?.type !== 'request_submitted' || Object.hasOwn(submissionTimeline, 'status')) {
+    throw new Error('Request submission timeline fabricated a current status.');
+  }
+
+  // A partner deactivated after route admission is rejected by the RPC after
+  // the partner row lock resolves; no handoff mutation may occur.
+  const deactivationRequestId = randomUUID();
   await testClient.query(
     `INSERT INTO public.marketplace_requests(id,request_reference,product_id,status) VALUES($1,$2,$3,'request_submitted')`,
-    [requestId, `REQ-${randomBytes(5).toString('hex')}`, handoffProduct],
+    [deactivationRequestId, `REQ-${randomBytes(5).toString('hex')}`, handoffProduct],
   );
+  const partnerLocker = await connectTestClient('pr93_partner_locker');
+  const partnerWaiter = await connectTestClient('pr93_partner_waiter');
+  try {
+    await partnerLocker.query('BEGIN');
+    await partnerLocker.query(`UPDATE public.partners SET status='inactive' WHERE id=$1`, [partnerId]);
+    await partnerWaiter.query('SET ROLE service_role');
+    const waiterPid = (await partnerWaiter.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+    const pendingHandoff = partnerWaiter.query(`SELECT * FROM public.start_partner_marketplace_request_handoff($1,$2,$3)`, [partnerId, deactivationRequestId, '966532867009']);
+    await waitForDatabaseLock(testClient, waiterPid, 'partner deactivation race');
+    await partnerLocker.query('COMMIT');
+    try {
+      await pendingHandoff;
+      throw new Error('Deactivated partner unexpectedly started a handoff.');
+    } catch (error) {
+      if (String(error?.message || '').includes('unexpectedly started')) throw error;
+      if (!String(error?.message || '').includes('PARTNER_HANDOFF_ACTOR_DENIED')) throw error;
+    }
+  } finally {
+    await partnerLocker.query('ROLLBACK').catch(() => {});
+    await partnerLocker.end();
+    await partnerWaiter.end();
+  }
+  await testClient.query(`UPDATE public.partners SET status='active' WHERE id=$1`, [partnerId]);
+
+  // Compatible concurrent retries serialize on the request row, produce one
+  // ledger event, and return the same persisted delivery snapshot even when
+  // callers observe different current destination configuration.
+  const handoffLocker = await connectTestClient('pr93_handoff_locker');
+  const compatibleA = await connectTestClient('pr93_handoff_compatible_a');
+  const compatibleB = await connectTestClient('pr93_handoff_compatible_b');
+  let concurrentResults;
+  try {
+    await handoffLocker.query('BEGIN');
+    await handoffLocker.query(`SELECT id FROM public.marketplace_requests WHERE id=$1 FOR UPDATE`, [requestId]);
+    await compatibleA.query('SET ROLE service_role');
+    await compatibleB.query('SET ROLE service_role');
+    const pidA = (await compatibleA.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+    const pidB = (await compatibleB.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+    const callA = compatibleA.query(`SELECT * FROM public.start_partner_marketplace_request_handoff($1,$2,$3)`, [partnerId, requestId, '966532867009']);
+    const callB = compatibleB.query(`SELECT * FROM public.start_partner_marketplace_request_handoff($1,$2,$3)`, [partnerId, requestId, '201011676418']);
+    await Promise.all([
+      waitForDatabaseLock(testClient, pidA, 'compatible handoff A'),
+      waitForDatabaseLock(testClient, pidB, 'compatible handoff B'),
+    ]);
+    await handoffLocker.query('COMMIT');
+    concurrentResults = await Promise.all([callA, callB]);
+  } finally {
+    await handoffLocker.query('ROLLBACK').catch(() => {});
+    await handoffLocker.end();
+    await compatibleA.end();
+    await compatibleB.end();
+  }
+  const replayFlags = concurrentResults.map((result) => result.rows[0]?.replayed).sort();
+  if (replayFlags[0] !== false || replayFlags[1] !== true) throw new Error('Compatible concurrent handoff did not return one commit and one replay.');
+  const concurrentSnapshots = concurrentResults.map((result) => ({
+    destination: result.rows[0]?.whatsapp_destination,
+    message: result.rows[0]?.message_snapshot,
+    reference: result.rows[0]?.handoff_reference,
+  }));
+  if (JSON.stringify(concurrentSnapshots[0]) !== JSON.stringify(concurrentSnapshots[1])) {
+    throw new Error('Concurrent handoff retry returned a non-canonical delivery snapshot.');
+  }
 
   await testClient.query(
     `SELECT public.start_partner_marketplace_request_handoff($1,$2,$3)`,
-    [partnerId, requestId, 'WA:POSTGRES-TEST'],
+    [partnerId, requestId, '966532867009'],
   );
 
   const handoff = await testClient.query(
     `SELECT r.handoff_type,r.fulfilment_method,r.handoff_reference,r.next_action,
-      (SELECT count(*)::int FROM public.marketplace_request_handoff_events e WHERE e.request_id=r.id) AS event_count
+      (SELECT count(*)::int FROM public.marketplace_request_handoff_events e WHERE e.request_id=r.id) AS event_count,
+      (SELECT whatsapp_destination FROM public.marketplace_request_handoff_events e WHERE e.request_id=r.id) AS whatsapp_destination,
+      (SELECT message_snapshot FROM public.marketplace_request_handoff_events e WHERE e.request_id=r.id) AS message_snapshot
      FROM public.marketplace_requests r WHERE r.id=$1`,
     [requestId],
   );
   const row = handoff.rows[0];
-  if (row?.handoff_type !== 'whatsapp' || row?.fulfilment_method !== 'whatsapp_handoff' || row?.handoff_reference !== 'WA:POSTGRES-TEST' || row?.next_action !== 'await_partner_response' || row?.event_count !== 1) {
+  if (row?.handoff_type !== 'whatsapp' || row?.fulfilment_method !== 'whatsapp_handoff' || row?.handoff_reference !== `WA:${requestReference}` || row?.next_action !== 'await_partner_response' || row?.event_count !== 1
+      || !['966532867009','201011676418'].includes(row?.whatsapp_destination)
+      || !String(row?.message_snapshot || '').includes(`DIR3COM ${requestReference}`)
+      || !String(row?.message_snapshot || '').includes('Service: Original partner car')
+      || !String(row?.message_snapshot || '').includes('Travellers: 3')) {
     throw new Error('Partner handoff was not atomically persisted with one event.');
   }
 
+  await testClient.query(
+    `UPDATE public.marketplace_requests SET service_name='Changed after handoff',traveller_count=9,status='under_review' WHERE id=$1`,
+    [requestId],
+  );
+  const replay = await testClient.query(
+    `SELECT * FROM public.start_partner_marketplace_request_handoff($1,$2,$3)`,
+    [partnerId, requestId, ''],
+  );
+  if (replay.rows[0]?.replayed !== true
+      || replay.rows[0]?.whatsapp_destination !== row.whatsapp_destination
+      || replay.rows[0]?.message_snapshot !== row.message_snapshot) {
+    throw new Error('Compatible handoff retry did not return the immutable canonical delivery snapshot.');
+  }
+
+  const missingDestinationRequestId = randomUUID();
+  await testClient.query(
+    `INSERT INTO public.marketplace_requests(id,request_reference,product_id,status) VALUES($1,$2,$3,'request_submitted')`,
+    [missingDestinationRequestId, `REQ-${randomBytes(5).toString('hex')}`, handoffProduct],
+  );
   await expectError(
     testClient,
-    `SELECT public.start_partner_marketplace_request_handoff($1,$2,$3)`,
-    [partnerId, requestId, 'WA:DUPLICATE'],
-    'REQUEST_HANDOFF_ALREADY_STARTED',
+    `SELECT * FROM public.start_partner_marketplace_request_handoff($1,$2,$3)`,
+    [partnerId, missingDestinationRequestId, ''],
+    'WHATSAPP_DESTINATION_INVALID',
   );
+
+  const incompatibleRequestId = randomUUID();
+  await testClient.query(
+    `INSERT INTO public.marketplace_requests(id,request_reference,product_id,status) VALUES($1,$2,$3,'request_submitted')`,
+    [incompatibleRequestId, `REQ-${randomBytes(5).toString('hex')}`, handoffProduct],
+  );
+  await testClient.query('INSERT INTO public.product_availability(product_id,partner_id) VALUES($1,$2)', [handoffProduct, foreignPartnerId]);
+  const incompatibleA = await connectTestClient('pr93_handoff_incompatible_a');
+  const incompatibleB = await connectTestClient('pr93_handoff_incompatible_b');
+  try {
+    await incompatibleA.query('SET ROLE service_role');
+    await incompatibleB.query('SET ROLE service_role');
+    const outcomes = await Promise.allSettled([
+      incompatibleA.query(`SELECT * FROM public.start_partner_marketplace_request_handoff($1,$2,$3)`, [partnerId, incompatibleRequestId, '966532867009']),
+      incompatibleB.query(`SELECT * FROM public.start_partner_marketplace_request_handoff($1,$2,$3)`, [foreignPartnerId, incompatibleRequestId, '201011676418']),
+    ]);
+    const fulfilled = outcomes.filter((outcome) => outcome.status === 'fulfilled');
+    const rejected = outcomes.filter((outcome) => outcome.status === 'rejected');
+    if (fulfilled.length !== 1 || rejected.length !== 1 || !String(rejected[0].reason?.message || '').includes('REQUEST_HANDOFF_CONFLICT')) {
+      throw new Error('Incompatible concurrent handoff did not produce one canonical event and one conflict.');
+    }
+  } finally {
+    await incompatibleA.end();
+    await incompatibleB.end();
+  }
+  const incompatibleEvents = await testClient.query(`SELECT count(*)::int AS count FROM public.marketplace_request_handoff_events WHERE request_id=$1`, [incompatibleRequestId]);
+  if (incompatibleEvents.rows[0]?.count !== 1) throw new Error('Incompatible concurrent handoff produced duplicate events.');
+  await testClient.query('DELETE FROM public.product_availability WHERE product_id=$1 AND partner_id=$2', [handoffProduct, foreignPartnerId]);
 
   const foreignRequestId = randomUUID();
   await testClient.query(
@@ -282,12 +597,16 @@ try {
   await expectError(
     testClient,
     `SELECT public.start_partner_marketplace_request_handoff($1,$2,$3)`,
-    [foreignPartnerId, foreignRequestId, 'WA:FOREIGN'],
+    [foreignPartnerId, foreignRequestId, '966532867009'],
     'REQUEST_PARTNER_SCOPE_DENIED',
   );
 
+  await testClient.query('SET ROLE service_role');
+  await expectError(testClient, 'UPDATE public.marketplace_request_handoff_events SET handoff_reference=handoff_reference', [], 'permission denied');
+  await expectError(testClient, 'DELETE FROM public.marketplace_request_handoff_events', [], 'permission denied');
+  await resetActor(testClient);
   await expectError(testClient, 'UPDATE public.marketplace_request_handoff_events SET handoff_reference=handoff_reference', [], 'MARKETPLACE_REQUEST_HANDOFF_APPEND_ONLY');
-  await expectError(testClient, 'DELETE FROM public.marketplace_request_handoff_events', [], 'MARKETPLACE_REQUEST_HANDOFF_APPEND_ONLY');
+  await expectError(testClient, 'TRUNCATE public.marketplace_request_handoff_events', [], 'MARKETPLACE_REQUEST_HANDOFF_APPEND_ONLY');
 
   const obsolete = await testClient.query("SELECT to_regprocedure('public.start_marketplace_request_handoff(uuid,text,uuid,text)') AS proc");
   if (obsolete.rows[0]?.proc !== null) throw new Error('Obsolete admin handoff RPC still exists after cleanup migration.');

@@ -82,7 +82,7 @@ export default function ProductEditorForm({ product }: { product: ProductDraft }
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="grid gap-2 text-sm font-medium text-[var(--color-navy)]">{ar ? 'طريقة المعاملة' : 'Transaction method'}
           <select name="transactionMethod" defaultValue={product.transaction_method || 'request_to_confirm'} className={fieldClass}>
-            <option value="request_to_confirm">{ar ? 'طلب للتأكيد' : 'Request to confirm'}</option><option value="request_quote">{ar ? 'طلب عرض سعر' : 'Request quote'}</option><option value="instant_booking">{ar ? 'حجز فوري' : 'Instant booking'}</option>
+            <option value="request_to_confirm">{ar ? 'طلب للتأكيد' : 'Request to confirm'}</option><option value="request_quote">{ar ? 'طلب عرض سعر' : 'Request quote'}</option><option value="instant_booking">{ar ? 'حجز فوري' : 'Instant booking'}</option><option value="none">{ar ? 'لا توجد معاملة' : 'No transaction'}</option>
           </select>
         </label>
         <label className="grid gap-2 text-sm font-medium text-[var(--color-navy)]">{ar ? 'نوع التوريد' : 'Supply type'}

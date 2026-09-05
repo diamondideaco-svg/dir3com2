@@ -8,6 +8,9 @@ const lifecycleMigration = read('supabase/migrations/20260903234500_admin_produc
 const partnerMigration = read('supabase/migrations/20260903234600_partner_request_handoff.sql');
 const cleanupMigration = read('supabase/migrations/20260903234700_drop_legacy_admin_handoff_rpc.sql');
 const hardeningMigration = read('supabase/migrations/20260904004000_harden_admin_partner_authorization.sql');
+const remediationMigration = read('supabase/migrations/20260905160435_reconcile_admin_partner_lifecycle_safety.sql');
+const identity = read('lib/auth/identity.ts');
+const teamAccess = read('lib/auth/team-access.ts');
 const productActions = read('lib/actions/product-actions.ts');
 const productForm = read('components/products/ProductForm.tsx');
 const productTable = read('components/products/ProductTable.tsx');
@@ -95,9 +98,11 @@ test('edit and preview routes preserve country scope and preview does not mutate
 });
 
 test('partner portal requires active profile before service-role request access', () => {
-  assert.match(partnerPortalServer, /normalizeText\(profile\?\.status\)\.toLowerCase\(\) !== 'active'/);
-  assert.match(partnerPortalServer, /profile\?\.deleted_at/);
-  assert.doesNotMatch(partnerPortalServer, /=== 'banned' \|\| profile\?\.deleted_at/);
+  assert.match(partnerPortalServer, /resolveCanonicalActiveProfile\(supabase, user\.id\)/);
+  assert.match(identity, /\.eq\('status', 'active'\)/);
+  assert.match(identity, /\.is\('deleted_at', null\)/);
+  assert.match(identity, /profile\.id !== userId/);
+  assert.match(teamAccess, /resolveCanonicalActiveProfile\(supabase, user\.id\)/);
 });
 
 test('partner request handoff is scoped to owned products and recorded before WhatsApp opens', () => {
@@ -115,23 +120,77 @@ test('partner request handoff is scoped to owned products and recorded before Wh
 
   assert.match(partnerRequestsApi, /requirePortalActor/);
   assert.match(partnerRequestsApi, /actor\.authRole !== 'partner'/);
-  assert.match(partnerRequestsApi, /\.eq\('partner_id', actor\.userId\)/);
+  assert.match(partnerRequestsApi, /get_partner_marketplace_requests/);
+  assert.doesNotMatch(partnerRequestsApi, /\.from\('marketplace_requests'\)/);
   assert.match(partnerRequestsApi, /DIR3COM_BOOKING_WHATSAPP_E164/);
   assert.match(partnerRequestsApi, /start_partner_marketplace_request_handoff/);
-  assert.match(partnerRequestsApi, /marketplace_request_handoff_events/);
+  assert.match(partnerRequestsApi, /committed\.handoff_reference/);
+  assert.match(partnerRequestsApi, /committed\.whatsapp_destination/);
+  assert.match(partnerRequestsApi, /committed\.message_snapshot/);
+  assert.doesNotMatch(partnerRequestsApi, /requestRow\.service_name|requestRow\.requested_for|requestRow\.traveller_count/);
   assert.match(partnerRequestsApi, /const url = `https:\/\/wa\.me\//);
+  assert.match(partnerRequestsApi, /REQUEST_HANDOFF_CONFLICT/);
+  assert.match(partnerRequestsApi, /p_whatsapp_destination: whatsapp \|\| ''/);
+  assert.match(partnerRequestsClient, /!whatsappConfigured && !request\.handoff_started_at/);
+  assert.match(partnerRequestsClient, /REQUEST_HANDOFF_REPLAY_UNAVAILABLE/);
+  assert.match(partnerRequestsClient, /legacy WhatsApp link cannot be reconstructed safely/);
+});
+
+test('forward remediation locks before country authorization and rejects unsafe versions', () => {
+  assert.match(remediationMigration, /product_lifecycle_session_role\('products:write'\)[\s\S]*p_expected_version IS NULL OR p_expected_version < 1/i);
+  assert.match(remediationMigration, /FOR UPDATE[\s\S]*product_lifecycle_actor_role\(v_current_country/i);
+  assert.match(remediationMigration, /v_version IS DISTINCT FROM p_expected_version/i);
+  assert.match(remediationMigration, /PRODUCT_VERSION_REQUIRED/);
+});
+
+test('forward remediation enforces publication truth without granting verification', () => {
+  assert.match(remediationMigration, /PRODUCT_SUPPLY_NOT_AUTHORITATIVE/);
+  assert.match(remediationMigration, /PRODUCT_SUPPLIER_NOT_VERIFIED/);
+  assert.match(remediationMigration, /PRODUCT_INSTANT_SUPPLY_UNPROVEN/);
+  assert.match(remediationMigration, /v_family IS NULL OR v_family NOT IN/);
+  assert.match(remediationMigration, /v_supply IS NULL OR v_supply NOT IN/);
+  assert.match(remediationMigration, /v_fulfilment IS NULL OR v_transaction IS NULL/);
+  assert.match(remediationMigration, /verified_requestable'[\s\S]*request_to_confirm/);
+  assert.match(remediationMigration, /verified_quote'[\s\S]*request_quote/);
+  assert.match(remediationMigration, /unavailable','availability_unknown'[\s\S]*v_transaction = 'none'/);
+  assert.doesNotMatch(remediationMigration, /verified\s*=\s*true/i);
+  assert.match(productActions, /TRANSACTION_METHODS = \[[^\]]*'none'/);
+  assert.match(productForm, /option value="none"/);
+});
+
+test('forward remediation makes audit and handoff ledgers append-only and replay-safe', () => {
+  assert.match(remediationMigration, /REVOKE ALL PRIVILEGES ON TABLE public\.product_audit_events FROM PUBLIC, anon, authenticated, service_role/i);
+  assert.match(remediationMigration, /PRODUCT_AUDIT_APPEND_ONLY/);
+  assert.match(remediationMigration, /marketplace_request_handoff_whatsapp_unique/);
+  assert.match(remediationMigration, /MARKETPLACE_HANDOFF_DUPLICATE_HISTORY/);
+  assert.match(remediationMigration, /MARKETPLACE_HANDOFF_INCONSISTENT_HISTORY/);
+  assert.match(remediationMigration, /REVOKE ALL PRIVILEGES ON TABLE public\.marketplace_request_handoff_events FROM PUBLIC, anon, authenticated, service_role/i);
+  assert.match(remediationMigration, /marketplace_request_handoff_events_reject_truncate/);
+  assert.match(remediationMigration, /REQUEST_HANDOFF_CONFLICT/);
+  assert.match(remediationMigration, /whatsapp_destination/);
+  assert.match(remediationMigration, /message_snapshot/);
+  assert.match(remediationMigration, /REQUEST_HANDOFF_REPLAY_UNAVAILABLE/);
+  assert.match(remediationMigration, /v_event\.created_at,true/);
+});
+
+test('partner reads and timelines are scoped before protected fields are projected', () => {
+  assert.match(remediationMigration, /get_partner_marketplace_requests/);
+  assert.match(remediationMigration, /EXISTS \([\s\S]*product_availability[\s\S]*pa\.partner_id=p_actor_user_id/i);
+  assert.match(remediationMigration, /'request_submitted','at',r\.created_at/);
+  assert.doesNotMatch(remediationMigration, /'request_submitted','at',r\.created_at,'status'/);
 });
 
 test('partner Requests workspace is visible and truthful without DABRA coupling', () => {
   assert.match(partnerPortalPage, /\/partner-portal\/requests/);
   assert.match(partnerRequestsPage, /PartnerRequestsClient/);
   assert.match(partnerRequestsClient, /Start WhatsApp handoff/);
-  assert.match(partnerRequestsClient, /Handoff started/);
+  assert.match(partnerRequestsClient, /Open WhatsApp handoff/);
+  assert.match(partnerRequestsClient, /safely select open handoff again/);
   assert.match(partnerRequestsClient, /Timeline/);
   assert.match(partnerRequestsClient, /WhatsApp handoff is not configured/);
   assert.match(partnerRequestsClient, /Unknown/);
   assert.doesNotMatch(partnerRequestsClient, /fulfilment_method \|\| 'request_to_confirm'/);
 
-  const changedScope = [lifecycleMigration, partnerMigration, cleanupMigration, hardeningMigration, productActions, productForm, productTable, lifecycleControls, productList, editPage, previewPage, partnerRequestsApi, partnerRequestsClient, partnerRequestsPage, partnerPortalPage, partnerPortalServer].join('\n');
+  const changedScope = [lifecycleMigration, partnerMigration, cleanupMigration, hardeningMigration, remediationMigration, productActions, productForm, productTable, lifecycleControls, productList, editPage, previewPage, partnerRequestsApi, partnerRequestsClient, partnerRequestsPage, partnerPortalPage, partnerPortalServer].join('\n');
   assert.doesNotMatch(changedScope, /components\/dabra|lib\/dabra|api\/dabra/i);
 });

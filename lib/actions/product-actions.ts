@@ -8,7 +8,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 const PRODUCT_FAMILIES = ['drive', 'stay', 'fly', 'concierge', 'vip'] as const;
 const FULFILMENT_STATES = ['verified_requestable', 'verified_quote', 'live_bookable', 'unavailable', 'availability_unknown'] as const;
-const TRANSACTION_METHODS = ['instant_booking', 'request_to_confirm', 'request_quote'] as const;
+const TRANSACTION_METHODS = ['instant_booking', 'request_to_confirm', 'request_quote', 'none'] as const;
 const SUPPLY_TYPES = ['verified_local_partner', 'global_travel_partner', 'dir3com_managed', 'unknown'] as const;
 
 function enumValue<T extends readonly string[]>(value: FormDataEntryValue | null, allowed: T, fallback: T[number]): T[number] {
