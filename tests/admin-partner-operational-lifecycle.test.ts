@@ -20,6 +20,7 @@ const editPage = read('app/admin/products/[id]/page.tsx');
 const previewPage = read('app/admin/products/[id]/preview/page.tsx');
 const partnerRequestsApi = read('app/api/partner-portal/requests/route.ts');
 const partnerRequestsClient = read('components/portal/PartnerRequestsClient.tsx');
+const partnerRequestListState = read('components/portal/partner-request-list-state.ts');
 const partnerRequestsPage = read('app/partner-portal/requests/page.tsx');
 const partnerPortalPage = read('app/partner-portal/page.tsx');
 const partnerPortalServer = read('lib/partner-portal/server.ts');
@@ -133,7 +134,7 @@ test('partner request handoff is scoped to owned products and recorded before Wh
   assert.match(partnerRequestsApi, /p_whatsapp_destination: whatsapp \|\| ''/);
   assert.match(partnerRequestsClient, /!whatsappConfigured && !request\.handoff_started_at/);
   assert.match(partnerRequestsClient, /REQUEST_HANDOFF_REPLAY_UNAVAILABLE/);
-  assert.match(partnerRequestsClient, /legacy WhatsApp link cannot be reconstructed safely/);
+  assert.match(partnerRequestListState, /legacy WhatsApp link cannot be reconstructed safely/);
 });
 
 test('forward remediation locks before country authorization and rejects unsafe versions', () => {
@@ -185,12 +186,16 @@ test('partner Requests workspace is visible and truthful without DABRA coupling'
   assert.match(partnerRequestsPage, /PartnerRequestsClient/);
   assert.match(partnerRequestsClient, /Start WhatsApp handoff/);
   assert.match(partnerRequestsClient, /Open WhatsApp handoff/);
-  assert.match(partnerRequestsClient, /safely select open handoff again/);
+  assert.match(partnerRequestListState, /safely select open handoff again/);
   assert.match(partnerRequestsClient, /Timeline/);
-  assert.match(partnerRequestsClient, /WhatsApp handoff is not configured/);
+  assert.match(partnerRequestListState, /WhatsApp handoff is not configured/);
+  assert.match(partnerRequestListState, /status: 'failure'/);
+  assert.match(partnerRequestsClient, /presentation\.loadError/);
+  assert.match(partnerRequestsClient, /presentation\.retry/);
+  assert.match(partnerRequestsClient, /createPartnerRequestListRetry<PartnerRequestListRow>\(reloadVersion\)/);
   assert.match(partnerRequestsClient, /Unknown/);
   assert.doesNotMatch(partnerRequestsClient, /fulfilment_method \|\| 'request_to_confirm'/);
 
-  const changedScope = [lifecycleMigration, partnerMigration, cleanupMigration, hardeningMigration, remediationMigration, productActions, productForm, productTable, lifecycleControls, productList, editPage, previewPage, partnerRequestsApi, partnerRequestsClient, partnerRequestsPage, partnerPortalPage, partnerPortalServer].join('\n');
+  const changedScope = [lifecycleMigration, partnerMigration, cleanupMigration, hardeningMigration, remediationMigration, productActions, productForm, productTable, lifecycleControls, productList, editPage, previewPage, partnerRequestsApi, partnerRequestsClient, partnerRequestListState, partnerRequestsPage, partnerPortalPage, partnerPortalServer].join('\n');
   assert.doesNotMatch(changedScope, /components\/dabra|lib\/dabra|api\/dabra/i);
 });

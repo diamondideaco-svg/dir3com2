@@ -3,80 +3,49 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
-
-type TimelineEvent = {
-  type: string;
-  at?: string | null;
-  previousStatus?: string | null;
-  status?: string | null;
-};
-
-type PartnerRequest = {
-  id: string;
-  request_reference: string;
-  request_type: string;
-  status: string;
-  requested_for?: string | null;
-  traveller_count: number;
-  marketplace_family?: string | null;
-  supplier_name?: string | null;
-  service_name?: string | null;
-  fulfilment_method?: string | null;
-  transaction_method?: string | null;
-  handoff_type?: string | null;
-  handoff_reference?: string | null;
-  handoff_started_at?: string | null;
-  next_action?: string | null;
-  created_at: string;
-  products?: { name_ar?: string; name_en?: string; slug?: string; city?: string; country?: string } | null;
-  timeline?: TimelineEvent[];
-};
-
-type RequestsPayload = {
-  data?: PartnerRequest[];
-  whatsappConfigured?: boolean;
-  error?: { code?: string };
-};
+import {
+  createPartnerRequestListLoadingState,
+  createPartnerRequestListRetry,
+  getPartnerRequestActionErrorMessage,
+  getPartnerRequestListPresentation,
+  loadPartnerRequestList,
+  type PartnerRequestActionError,
+  type PartnerRequestListRow,
+  type PartnerRequestListState,
+} from '@/components/portal/partner-request-list-state';
 
 export default function PartnerRequestsClient() {
   const { language } = useLanguage();
   const ar = language === 'ar';
-  const [requests, setRequests] = useState<PartnerRequest[]>([]);
-  const [whatsappConfigured, setWhatsappConfigured] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [requestList, setRequestList] = useState<PartnerRequestListState<PartnerRequestListRow>>(
+    createPartnerRequestListLoadingState,
+  );
+  const [reloadVersion, setReloadVersion] = useState(0);
+  const [actionError, setActionError] = useState<PartnerRequestActionError | null>(null);
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [handoffUrls, setHandoffUrls] = useState<Record<string, string>>({});
   const [unrecoverableHandoffs, setUnrecoverableHandoffs] = useState<Record<string, boolean>>({});
 
+  const locale = ar ? 'ar' : 'en';
+  const presentation = getPartnerRequestListPresentation(requestList, locale);
+  const requests = presentation.requests;
+  const whatsappConfigured = presentation.whatsappConfigured;
+  const actionErrorMessage = actionError ? getPartnerRequestActionErrorMessage(actionError, locale) : null;
+
   useEffect(() => {
     let cancelled = false;
 
-    void fetch('/api/partner-portal/requests', { cache: 'no-store' })
-      .then(async (response) => {
-        const payload = (await response.json()) as RequestsPayload;
-        if (!response.ok) throw new Error(payload?.error?.code || 'REQUESTS_LOAD_FAILED');
-        if (cancelled) return;
-        setRequests(Array.isArray(payload.data) ? payload.data : []);
-        setWhatsappConfigured(Boolean(payload.whatsappConfigured));
-        setError(null);
-      })
-      .catch(() => {
-        if (!cancelled) setError(ar ? 'تعذر تحميل الطلبات حالياً.' : 'Requests could not be loaded right now.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    void loadPartnerRequestList().then((result) => {
+      if (!cancelled) setRequestList(result);
+    });
 
     return () => { cancelled = true; };
-  }, [ar]);
+  }, [reloadVersion]);
 
   async function refreshRequests() {
-    const response = await fetch('/api/partner-portal/requests', { cache: 'no-store' });
-    const payload = (await response.json()) as RequestsPayload;
-    if (!response.ok) throw new Error(payload?.error?.code || 'REQUESTS_LOAD_FAILED');
-    setRequests(Array.isArray(payload.data) ? payload.data : []);
-    setWhatsappConfigured(Boolean(payload.whatsappConfigured));
+    const result = await loadPartnerRequestList();
+    if (result.status !== 'success') throw new Error('REQUESTS_LOAD_FAILED');
+    setRequestList(result);
   }
 
   async function startWhatsapp(requestId: string) {
@@ -85,7 +54,7 @@ export default function PartnerRequestsClient() {
       ? (ar ? 'فتح رابط واتساب المسجل لهذا الطلب؟' : 'Open the recorded WhatsApp handoff for this request?')
       : (ar ? 'بدء تسليم هذا الطلب عبر واتساب؟ سيتم تسجيل التسليم داخل dir3com أولاً.' : 'Start this WhatsApp handoff? DIR3COM will record the handoff before WhatsApp opens.'))) return;
     setWorkingId(requestId);
-    setError(null);
+    setActionError(null);
     try {
       const response = await fetch('/api/partner-portal/requests', {
         method: 'POST',
@@ -102,12 +71,12 @@ export default function PartnerRequestsClient() {
         opened.location.href = handoffUrl;
       }
       if (!opened) {
-        setError(ar ? 'تم تسجيل التسليم، لكن المتصفح منع النافذة. استخدم رابط المتابعة الظاهر.' : 'The handoff was recorded, but the browser blocked the window. Use the visible continue link.');
+        setActionError('popup_blocked');
       }
       try {
         await refreshRequests();
       } catch {
-        setError(ar ? 'تم تسجيل التسليم، لكن تعذر تحديث القائمة. استخدم رابط المتابعة الظاهر أو أعد تحميل الصفحة.' : 'The handoff was recorded, but the list could not refresh. Use the visible continue link or reload the page.');
+        setActionError('refresh_failed');
       }
     } catch (cause) {
       const errorCode = cause instanceof Error ? cause.message : '';
@@ -119,9 +88,9 @@ export default function PartnerRequestsClient() {
       }
       if (errorCode === 'REQUEST_HANDOFF_REPLAY_UNAVAILABLE') {
         setUnrecoverableHandoffs((current) => ({ ...current, [requestId]: true }));
-        setError(ar ? 'سجل التسليم موجود، لكن لا يمكن إعادة إنشاء رابط واتساب القديم بأمان. تواصل مع فريق العمليات.' : 'The handoff record exists, but its legacy WhatsApp link cannot be reconstructed safely. Contact operations.');
+        setActionError('replay_unavailable');
       } else {
-        setError(ar ? 'تعذر فتح واتساب تلقائياً. إذا ظهر الطلب كمسجل، اختر فتح التسليم مرة أخرى بأمان.' : 'WhatsApp could not open automatically. If the request now appears recorded, safely select open handoff again.');
+        setActionError('handoff_failed');
       }
     } finally {
       setWorkingId(null);
@@ -140,14 +109,30 @@ export default function PartnerRequestsClient() {
           <Link href="/partner-portal" className="rounded-full border border-[#D4AF37]/30 bg-white px-4 py-2 text-sm font-semibold text-[#0D1B2A]">{ar ? 'العودة للبوابة' : 'Back to portal'}</Link>
         </div>
 
-        {error ? <div role="alert" className="mb-4 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
-        {!whatsappConfigured && !loading ? <div role="status" className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">{ar ? 'تسليم واتساب غير مفعّل في هذه البيئة. تبقى الطلبات ظاهرة بدون ادعاء تنفيذ.' : 'WhatsApp handoff is not configured in this environment. Requests remain visible without claiming execution.'}</div> : null}
+        {presentation.loadError ? (
+          <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
+            <span>{presentation.loadError}</span>
+            <button
+              type="button"
+              onClick={() => {
+                const retry = createPartnerRequestListRetry<PartnerRequestListRow>(reloadVersion);
+                setRequestList(retry.requestList);
+                setReloadVersion(retry.reloadVersion);
+              }}
+              className="min-h-11 rounded-full border border-red-300 bg-white px-4 py-2 font-semibold text-red-700"
+            >
+              {presentation.retry}
+            </button>
+          </div>
+        ) : null}
+        {actionErrorMessage ? <div role="alert" className="mb-4 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">{actionErrorMessage}</div> : null}
+        {presentation.whatsappNotConfigured ? <div role="status" className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">{presentation.whatsappNotConfigured}</div> : null}
 
-        {loading ? (
-          <div className="rounded-3xl border border-[#D4AF37]/20 bg-white p-8 text-center text-sm text-[#64748B]">{ar ? 'جاري تحميل الطلبات…' : 'Loading requests…'}</div>
-        ) : requests.length === 0 ? (
-          <div className="rounded-3xl border border-[#D4AF37]/20 bg-white p-8 text-center text-sm text-[#64748B]">{ar ? 'لا توجد طلبات مرتبطة بمنتجاتك حالياً.' : 'There are no requests tied to your products right now.'}</div>
-        ) : (
+        {presentation.loading ? (
+          <div className="rounded-3xl border border-[#D4AF37]/20 bg-white p-8 text-center text-sm text-[#64748B]">{presentation.loading}</div>
+        ) : presentation.empty ? (
+          <div className="rounded-3xl border border-[#D4AF37]/20 bg-white p-8 text-center text-sm text-[#64748B]">{presentation.empty}</div>
+        ) : requestList.status === 'success' ? (
           <div className="space-y-4">
             {requests.map((request) => (
               <article key={request.id} className="rounded-3xl border border-[#D4AF37]/20 bg-white p-5 shadow-sm sm:p-6">
@@ -211,7 +196,7 @@ export default function PartnerRequestsClient() {
               </article>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
     </main>
   );
