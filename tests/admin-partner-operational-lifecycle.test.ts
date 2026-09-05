@@ -16,6 +16,7 @@ const productActions = read('lib/actions/product-actions.ts');
 const productForm = read('components/products/ProductForm.tsx');
 const productTable = read('components/products/ProductTable.tsx');
 const lifecycleControls = read('components/products/ProductLifecycleControls.tsx');
+const adminPlatformShell = read('components/admin/AdminPlatformShell.tsx');
 const productList = read('app/admin/products/page.tsx');
 const editPage = read('app/admin/products/[id]/page.tsx');
 const previewPage = read('app/admin/products/[id]/preview/page.tsx');
@@ -79,6 +80,22 @@ test('admin UI exposes clear draft, preview, publish, unpublish and archive acti
   assert.match(lifecycleControls, /Unpublish/);
   assert.match(lifecycleControls, /Archive/);
   assert.match(lifecycleControls, /window\.confirm/);
+});
+
+test('admin lifecycle controls serialize sibling mutations against one rendered version', () => {
+  assert.match(lifecycleControls, /const submittingRef = useRef\(false\)/);
+  assert.match(lifecycleControls, /submittingRef\.current \|\| !window\.confirm/);
+  assert.match(lifecycleControls, /submittingRef\.current = true/);
+  assert.match(lifecycleControls, /aria-busy=\{submitting\}/);
+  assert.equal((lifecycleControls.match(/disabled=\{!active \|\| submitting\}/g) || []).length, 3);
+  assert.doesNotMatch(productActions, /PRODUCT_VERSION_STALE[\s\S]*retry|retry[\s\S]*PRODUCT_VERSION_STALE/i);
+});
+
+test('admin mobile navigation and product table own their horizontal overflow', () => {
+  assert.match(adminPlatformShell, /<nav[^>]+className="[^"]*w-full[^"]*min-w-0[^"]*max-w-full[^"]*overflow-x-auto[^"]*overscroll-x-contain/);
+  assert.match(productTable, /className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain/);
+  assert.doesNotMatch(adminPlatformShell, /<nav[^>]+hidden/);
+  assert.doesNotMatch(productTable, /<table[^>]+hidden/);
 });
 
 test('admin product search and filters remain limited to the agreed four filters', () => {

@@ -345,6 +345,19 @@ try {
     throw new Error('Draft truth or lifecycle version is incorrect.');
   }
 
+  await setAuthenticatedActor(testClient, adminId);
+  const updated = await testClient.query(
+    `SELECT public.update_product_draft_lifecycle(
+      $1,1,'سيارة اختبار معدلة','Lifecycle Car Edited','lifecycle-car',100,'Egypt','Cairo',
+      'drive','verified_requestable','request_to_confirm','verified_local_partner',true,false,false,'postgres edit'
+    ) AS lifecycle_version`,
+    [productId],
+  );
+  if (updated.rows[0]?.lifecycle_version !== 2) {
+    throw new Error('Draft edit did not advance lifecycle version from v1 to v2.');
+  }
+  await resetActor(testClient);
+
   async function directProductInsert(slug) {
     return testClient.query(
       `INSERT INTO public.products(
@@ -431,17 +444,41 @@ try {
   await resetActor(testClient);
 
   await setAuthenticatedActor(testClient, adminId);
-  await testClient.query(`SELECT public.publish_product_lifecycle($1,1,'postgres publish')`, [productId]);
+  await testClient.query(`SELECT public.publish_product_lifecycle($1,2,'postgres publish')`, [productId]);
   await resetActor(testClient);
   const published = await testClient.query('SELECT status, verified, lifecycle_version FROM public.products WHERE id=$1', [productId]);
-  if (published.rows[0]?.status !== 'published' || published.rows[0]?.verified !== false || published.rows[0]?.lifecycle_version !== 2) {
+  if (published.rows[0]?.status !== 'published' || published.rows[0]?.verified !== false || published.rows[0]?.lifecycle_version !== 3) {
     throw new Error('Publish must change status/version without silently granting verification.');
   }
 
   await setAuthenticatedActor(testClient, adminId);
-  await expectError(testClient, `SELECT public.unpublish_product_lifecycle($1,1,'stale version')`, [productId], 'PRODUCT_VERSION_STALE');
-  await testClient.query(`SELECT public.unpublish_product_lifecycle($1,2,'postgres unpublish')`, [productId]);
-  await testClient.query(`SELECT public.archive_product_lifecycle($1,3,'postgres archive')`, [productId]);
+  await expectError(testClient, `SELECT public.unpublish_product_lifecycle($1,2,'stale version')`, [productId], 'PRODUCT_VERSION_STALE');
+  await testClient.query(`SELECT public.unpublish_product_lifecycle($1,3,'postgres unpublish')`, [productId]);
+  await expectError(testClient, `SELECT public.archive_product_lifecycle($1,3,'stale archive version')`, [productId], 'PRODUCT_VERSION_STALE');
+  await testClient.query(`SELECT public.archive_product_lifecycle($1,4,'postgres archive')`, [productId]);
+  await resetActor(testClient);
+
+  const archived = await testClient.query(
+    `SELECT status,lifecycle_version,deleted_at,archived_at
+     FROM public.products WHERE id=$1`,
+    [productId],
+  );
+  if (archived.rowCount !== 1
+      || archived.rows[0]?.status !== 'draft'
+      || archived.rows[0]?.lifecycle_version !== 5
+      || !archived.rows[0]?.deleted_at
+      || !archived.rows[0]?.archived_at) {
+    throw new Error('Sequential v1 edit -> v2 publish -> v3 unpublish -> v4 archive did not preserve the archived v5 row.');
+  }
+  const activeListing = await testClient.query(
+    `SELECT count(*)::int AS count FROM public.products WHERE id=$1 AND deleted_at IS NULL`,
+    [productId],
+  );
+  if (activeListing.rows[0]?.count !== 0) {
+    throw new Error('Archived product remained in the normal non-deleted product listing.');
+  }
+
+  await setAuthenticatedActor(testClient, adminId);
 
   const qatarCreated = await testClient.query(
     `SELECT public.create_product_draft_lifecycle(
@@ -455,8 +492,11 @@ try {
 
   const audit = await testClient.query('SELECT action FROM public.product_audit_events WHERE product_id=$1 ORDER BY created_at,id', [productId]);
   const actions = audit.rows.map((row) => row.action);
-  for (const required of ['create_draft','publish','unpublish','archive']) {
+  for (const required of ['create_draft','update_draft','publish','unpublish','archive']) {
     if (!actions.includes(required)) throw new Error(`Missing product audit event: ${required}`);
+  }
+  if (actions.filter((action) => action === 'archive').length !== 1) {
+    throw new Error('Archive must create exactly one audit event.');
   }
 
   await setAuthenticatedActor(testClient, staffId);
@@ -478,8 +518,8 @@ try {
   );
 
   const visibleAudit = await testClient.query('SELECT count(*)::int AS count FROM public.product_audit_events');
-  if (visibleAudit.rows[0]?.count !== 6) {
-    throw new Error(`Scoped staff audit visibility expected 6 Egypt events and no Qatar event; saw ${visibleAudit.rows[0]?.count}`);
+  if (visibleAudit.rows[0]?.count !== 7) {
+    throw new Error(`Scoped staff audit visibility expected 7 Egypt events and no Qatar event; saw ${visibleAudit.rows[0]?.count}`);
   }
   const qatarLeak = await testClient.query('SELECT count(*)::int AS count FROM public.product_audit_events WHERE product_id=$1', [qatarProductId]);
   if (qatarLeak.rows[0]?.count !== 0) {

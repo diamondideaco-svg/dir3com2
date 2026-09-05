@@ -73,7 +73,7 @@ export default function AdminPlatformShell({
             <LogoutButton label={t.logout} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-4 text-sm font-semibold text-[#D4AF37] transition hover:bg-[#D4AF37]/20 disabled:cursor-wait disabled:opacity-60" />
           </div>
 
-          <nav aria-label={t.navigation} className="flex max-w-full flex-nowrap gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
+          <nav aria-label={t.navigation} className="flex w-full min-w-0 max-w-full flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-1 sm:flex-wrap sm:overflow-visible">
             {visibleNavItems.map((item) => (
               <Link
                 key={item.href}
