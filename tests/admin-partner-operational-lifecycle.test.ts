@@ -91,11 +91,33 @@ test('admin lifecycle controls serialize sibling mutations against one rendered 
   assert.doesNotMatch(productActions, /PRODUCT_VERSION_STALE[\s\S]*retry|retry[\s\S]*PRODUCT_VERSION_STALE/i);
 });
 
-test('admin mobile navigation and product table own their horizontal overflow', () => {
+test('admin mobile cards and desktop table preserve responsive overflow and lifecycle controls', () => {
   assert.match(adminPlatformShell, /<nav[^>]+className="[^"]*w-full[^"]*min-w-0[^"]*max-w-full[^"]*overflow-x-auto[^"]*overscroll-x-contain/);
-  assert.match(productTable, /className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain/);
   assert.doesNotMatch(adminPlatformShell, /<nav[^>]+hidden/);
   assert.doesNotMatch(productTable, /<table[^>]+hidden/);
+
+  const mobile = productTable.match(/<div className="([^"]*\bmd:hidden\b[^"]*)">([\s\S]*?)<\/article>/);
+  assert.ok(mobile, 'mobile must render product cards below the desktop breakpoint');
+  const desktop = productTable.match(/<div className="([^"]*\bmd:block\b[^"]*)">([\s\S]*?)<\/table>/);
+  assert.ok(desktop, 'desktop must retain the product table');
+  for (const token of ['grid', 'min-w-0', 'md:hidden']) {
+    assert.ok(mobile[1].split(/\s+/).includes(token), `mobile wrapper requires ${token}`);
+  }
+  assert.ok(!mobile[1].split(/\s+/).includes('hidden'), 'cards must remain visible on mobile');
+  for (const token of ['hidden', 'w-full', 'min-w-0', 'max-w-full', 'overflow-x-auto', 'overscroll-x-contain', 'md:block']) {
+    assert.ok(desktop[1].split(/\s+/).includes(token), `desktop wrapper requires ${token}`);
+  }
+  assert.match(mobile[2], /<article key=\{product\.id\}[^>]+min-w-0[^>]+overflow-hidden/);
+  assert.match(mobile[2], /break-all[^>]*>\{product\.slug\}/);
+  assert.doesNotMatch(mobile[2], /<table/);
+  assert.match(desktop[2], /<table[^>]+className="[^"]*min-w-\[900px\]/);
+  assert.match(desktop[2], /<thead>[\s\S]*<tbody>|<thead\s[^>]*>[\s\S]*<tbody>/);
+  for (const layout of [mobile[2], desktop[2]]) {
+    assert.match(layout, /products\.map\(\(product\)/);
+    assert.match(layout, /<AdminStatusText value=\{product\.status\}/);
+    assert.match(layout, /<ProductImages product=\{product\}/);
+    assert.match(layout, /<ProductLifecycleControls\s+id=\{product\.id\}\s+slug=\{product\.slug\}\s+status=\{product\.status\}\s+lifecycleVersion=\{product\.lifecycle_version\}/);
+  }
 });
 
 test('admin product search and filters remain limited to the agreed four filters', () => {
