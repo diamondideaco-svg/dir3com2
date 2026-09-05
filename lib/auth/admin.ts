@@ -63,9 +63,10 @@ async function resolveAdministrativeAccess(permission?: TeamPermission) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
 
-  if (!user) return { supabase, user: null, role: null, scope: null };
+  if (authError || !user) return { supabase, user: null, role: null, scope: null };
 
   const role = await resolveCanonicalUserRole(supabase, user.id);
   if (!role) return { supabase, user, role: null, scope: null };

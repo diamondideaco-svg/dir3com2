@@ -51,6 +51,7 @@
     "smoke:providers-matrix": "node --import tsx scripts/provider-matrix-live.ts",
     "test:schema-compat": "node --import tsx --test tests/schema-compatibility.integration.test.ts",
     "test:dir120-postgresql": "node scripts/run-dir120-postgresql.mjs",
+    "test:admin-partner-lifecycle-postgresql": "node scripts/run-admin-partner-lifecycle-postgresql.mjs",
     "test:customer-documents-postgresql": "node --import tsx --test tests/customer-documents-postgres.integration.test.ts",
     "test:customer-activity-postgresql": "node --import tsx --test tests/customer-activity-postgres.integration.test.ts",
     "test:liteapi": "node --import tsx --test tests/liteapi-provider.test.ts",

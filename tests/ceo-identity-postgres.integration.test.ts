@@ -55,7 +55,7 @@ test('CEO identity migration: PostgreSQL 17, immutable authority and team RLS', 
         SELECT COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
       $$;
       CREATE TABLE auth.users (id uuid PRIMARY KEY, email text, raw_user_meta_data jsonb DEFAULT '{}');
-      CREATE TABLE public.profiles (id uuid PRIMARY KEY, email text UNIQUE NOT NULL, full_name text, role text NOT NULL, status text NOT NULL DEFAULT 'active');
+      CREATE TABLE public.profiles (id uuid PRIMARY KEY, email text UNIQUE NOT NULL, full_name text, role text NOT NULL, status text NOT NULL DEFAULT 'active', deleted_at timestamptz);
       ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
       GRANT SELECT, UPDATE(email) ON public.profiles TO authenticated;
       CREATE POLICY profiles_self ON public.profiles FOR ALL TO authenticated

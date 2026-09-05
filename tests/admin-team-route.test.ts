@@ -21,7 +21,11 @@ const events: unknown[] = [];
 const loader = load<typeof import('../lib/admin/team-access-data')>('lib/admin/team-access-data.ts', {
   'server-only': {}, '@/lib/security/safe-logger': { logServerEvent: (...args: unknown[]) => events.push(args) },
 });
-const team = load<typeof import('../lib/auth/team-access')>('lib/auth/team-access.ts', { 'server-only': {} });
+const identity = load<typeof import('../lib/auth/identity')>('lib/auth/identity.ts', { 'server-only': {} });
+const team = load<typeof import('../lib/auth/team-access')>('lib/auth/team-access.ts', {
+  'server-only': {},
+  '@/lib/auth/identity': identity,
+});
 const valid = { id: 'grant', email: 'employee@example.invalid', job_title: 'Manager', access_level: 'scoped_staff', country_scope: ['EG', 'QA'], permissions: ['customers:read'], status: 'active', invited_user_id: 'employee' };
 
 function fixture({ tableError = null, functionError = null, data = [] as unknown, rpcData = false as unknown, throws = false, actor = true } = {} as {
