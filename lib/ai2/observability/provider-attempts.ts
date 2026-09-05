@@ -66,6 +66,16 @@ let warnedAdminUnavailable = false;
 
 export const DABRA_TELEMETRY_PERSIST_TIMEOUT_MS = 1_000;
 
+function safeTelemetryProvider(value: unknown): DabraObservedProvider | 'unknown' {
+  return DABRA_OBSERVED_PROVIDERS.includes(value as DabraObservedProvider)
+    ? value as DabraObservedProvider
+    : 'unknown';
+}
+
+function safeTelemetryFallbackHop(value: number): number {
+  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
 function safeTokenCount(value: number | undefined): number | null {
   return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : null;
 }
@@ -141,30 +151,28 @@ async function defaultWriter(record: DabraProviderAttemptRecord, signal: AbortSi
     .abortSignal(signal);
   if (error?.code === '23505') {
     console.warn('DABRA_PROVIDER_ATTEMPT_DUPLICATE_SUPPRESSED', JSON.stringify({
-      requestId: record.request_id,
-      fallbackHop: record.fallback_hop,
+      attemptId: record.attempt_id,
+      provider: safeTelemetryProvider(record.provider),
+      fallbackHop: safeTelemetryFallbackHop(record.fallback_hop),
     }));
     return;
   }
-  if (error) throw new Error(`provider_attempt_insert_failed:${error.code ?? 'unknown'}`);
-}
-
-function safePersistenceError(error: unknown): string {
-  return error instanceof Error ? error.message.slice(0, 120) : 'unknown';
+  if (error) throw new Error('telemetry_persist_insert_failed');
 }
 
 function logPersistenceFailure(
   record: DabraProviderAttemptRecord,
   failureCategory: 'insert_failure' | 'timeout',
-  error: string,
 ): void {
   console.error('DABRA_TELEMETRY_PERSIST_FAILED', JSON.stringify({
     classification: 'telemetry_persist_failed',
     failureCategory,
     attemptId: record.attempt_id,
-    requestId: record.request_id,
-    provider: record.provider,
-    error,
+    provider: safeTelemetryProvider(record.provider),
+    fallbackHop: safeTelemetryFallbackHop(record.fallback_hop),
+    operation: 'insert',
+    errorCategory: failureCategory === 'timeout' ? 'timeout' : 'persistence_failed',
+    error: failureCategory === 'timeout' ? 'telemetry_persist_timeout' : 'telemetry_persist_failure',
   }));
 }
 
@@ -181,7 +189,7 @@ export async function recordDabraProviderAttempt(
     .then(() => (testWriter ?? defaultWriter)(record, abortController.signal))
     .then(
       () => ({ status: 'success' as const }),
-      (error: unknown) => ({ status: 'failure' as const, error }),
+      () => ({ status: 'failure' as const }),
     );
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   const timeoutOutcome = new Promise<{ status: 'timeout' }>((resolve) => {
@@ -194,9 +202,9 @@ export async function recordDabraProviderAttempt(
   if (timeoutHandle) clearTimeout(timeoutHandle);
 
   if (outcome.status === 'timeout') {
-    logPersistenceFailure(record, 'timeout', 'telemetry_persist_timeout');
+    logPersistenceFailure(record, 'timeout');
   } else if (outcome.status === 'failure') {
-    logPersistenceFailure(record, 'insert_failure', safePersistenceError(outcome.error));
+    logPersistenceFailure(record, 'insert_failure');
   }
   return record;
 }
@@ -211,13 +219,13 @@ export function createDabraProviderAttemptAfterResponseScheduler(
   return (input) => {
     try {
       registerAfterResponse(async () => { await recordDabraProviderAttempt(input, persistenceTimeoutMs); });
-    } catch (error) {
+    } catch {
       console.error('DABRA_TELEMETRY_SCHEDULE_FAILED', JSON.stringify({
         classification: 'telemetry_schedule_failed',
-        requestId: input.requestId,
-        provider: input.provider,
-        fallbackHop: input.fallbackHop,
-        error: error instanceof Error ? error.message.slice(0, 120) : 'unknown',
+        provider: safeTelemetryProvider(input.provider),
+        fallbackHop: safeTelemetryFallbackHop(input.fallbackHop),
+        operation: 'schedule',
+        errorCategory: 'schedule_failed',
       }));
     }
   };
