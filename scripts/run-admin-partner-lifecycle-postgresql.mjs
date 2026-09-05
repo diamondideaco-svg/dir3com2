@@ -17,6 +17,7 @@ const partnerHandoffMigration = readFileSync(new URL('../supabase/migrations/202
 const cleanupMigration = readFileSync(new URL('../supabase/migrations/20260903234700_drop_legacy_admin_handoff_rpc.sql', import.meta.url), 'utf8');
 const hardeningMigration = readFileSync(new URL('../supabase/migrations/20260904004000_harden_admin_partner_authorization.sql', import.meta.url), 'utf8');
 const remediationMigration = readFileSync(new URL('../supabase/migrations/20260905160435_reconcile_admin_partner_lifecycle_safety.sql', import.meta.url), 'utf8');
+const phase0LifecycleReconciliationMigration = readFileSync(new URL('../supabase/migrations/20260905161554_reconcile_phase0_lifecycle_insert.sql', import.meta.url), 'utf8');
 const temporaryDatabase = `admin_partner_${randomBytes(8).toString('hex')}`;
 const admin = new Client({ connectionString: baseConnection });
 let testClient;
@@ -83,6 +84,7 @@ CREATE TABLE public.products (
   supplier_verified boolean NOT NULL DEFAULT false,
   marketplace_environment text,
   synthetic boolean NOT NULL DEFAULT false,
+  environment text,
   status text NOT NULL DEFAULT 'draft',
   featured boolean NOT NULL DEFAULT false,
   verified boolean NOT NULL DEFAULT false,
@@ -141,6 +143,49 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.bookings TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.marketplace_requests TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.marketplace_request_audit_logs TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.product_availability TO service_role;
+GRANT SELECT, INSERT, UPDATE ON public.products TO authenticated;
+`;
+
+// Exact definitions read from DIR3COM Production on 2026-09-05. The
+// reconciliation migration is always applied after this parity fixture.
+const productionPhase0Triggers = `
+CREATE OR REPLACE FUNCTION public.phase0_force_new_product_draft_staging()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+begin
+  new.status := 'draft';
+  new.verified := false;
+  new.shield_certified := false;
+  new.featured := false;
+  new.synthetic := true;
+  new.environment := 'staging';
+  return new;
+end;
+$$;
+
+CREATE TRIGGER trg_phase0_force_new_product_draft_staging
+BEFORE INSERT ON public.products
+FOR EACH ROW EXECUTE FUNCTION public.phase0_force_new_product_draft_staging();
+
+CREATE OR REPLACE FUNCTION public.phase0_lock_staging_synthetic_products()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+begin
+  if coalesce(new.synthetic,false) = true and new.environment = 'staging' then
+    new.status := 'draft';
+    new.featured := false;
+    new.verified := false;
+    new.shield_certified := false;
+  end if;
+  return new;
+end;
+$$;
+
+CREATE TRIGGER trg_phase0_lock_staging_synthetic_products
+BEFORE INSERT OR UPDATE ON public.products
+FOR EACH ROW EXECUTE FUNCTION public.phase0_lock_staging_synthetic_products();
 `;
 
 async function expectError(client, sql, params, expected) {
@@ -192,6 +237,7 @@ try {
   testClient = new Client({ connectionString: testUrl.toString() });
   await testClient.connect();
   await testClient.query(bootstrap);
+  await testClient.query(productionPhase0Triggers);
 
   await testClient.query(lifecycleMigration);
   await testClient.query(partnerHandoffMigration);
@@ -219,6 +265,58 @@ try {
     [staffId],
   );
 
+  const productionTriggerParity = await testClient.query(`
+    SELECT t.tgname, pg_get_triggerdef(t.oid, true) AS trigger_def,
+      pg_get_functiondef(t.tgfoid) AS function_def
+    FROM pg_trigger t
+    WHERE t.tgrelid='public.products'::regclass
+      AND NOT t.tgisinternal
+      AND t.tgname IN (
+        'trg_phase0_force_new_product_draft_staging',
+        'trg_phase0_lock_staging_synthetic_products'
+      )
+    ORDER BY t.tgname
+  `);
+  if (productionTriggerParity.rowCount !== 2
+      || !productionTriggerParity.rows.some((row) => row.tgname === 'trg_phase0_force_new_product_draft_staging'
+        && /new\.synthetic := true/i.test(row.function_def)
+        && /new\.environment := 'staging'/i.test(row.function_def))
+      || !productionTriggerParity.rows.some((row) => row.tgname === 'trg_phase0_lock_staging_synthetic_products'
+        && /before insert or update/i.test(row.trigger_def)
+        && /coalesce\(new\.synthetic,false\) = true and new\.environment = 'staging'/i.test(row.function_def))) {
+    throw new Error('Disposable fixture does not match the current Production Phase0 trigger definitions.');
+  }
+
+  // Reproduce the Production conflict before applying the forward fix: the
+  // authorized lifecycle RPC is valid, but the Phase0 trigger rewrites its
+  // intended non-synthetic production draft.
+  await setAuthenticatedActor(testClient, adminId);
+  const phase0BlockedCreate = await testClient.query(
+    `SELECT public.create_product_draft_lifecycle(
+      'مرحلة صفر','Phase0 blocked create','phase0-blocked-create',100,'Egypt','Cairo',
+      'drive','verified_requestable','request_to_confirm','verified_local_partner',true,true,true,'phase0 parity proof'
+    ) AS id`,
+  );
+  const phase0BlockedProductId = phase0BlockedCreate.rows[0]?.id;
+  await resetActor(testClient);
+  const phase0BlockedTruth = await testClient.query(
+    `SELECT status,verified,shield_certified,featured,synthetic,environment,marketplace_environment
+     FROM public.products WHERE id=$1`,
+    [phase0BlockedProductId],
+  );
+  if (phase0BlockedTruth.rows[0]?.status !== 'draft'
+      || phase0BlockedTruth.rows[0]?.verified !== false
+      || phase0BlockedTruth.rows[0]?.shield_certified !== false
+      || phase0BlockedTruth.rows[0]?.featured !== false
+      || phase0BlockedTruth.rows[0]?.synthetic !== true
+      || phase0BlockedTruth.rows[0]?.environment !== 'staging'
+      || phase0BlockedTruth.rows[0]?.marketplace_environment !== 'production') {
+    throw new Error('Production Phase0 trigger conflict was not reproduced faithfully.');
+  }
+
+  await testClient.query(phase0LifecycleReconciliationMigration);
+  await testClient.query(phase0LifecycleReconciliationMigration);
+
   await setAuthenticatedActor(testClient, adminId);
   const created = await testClient.query(
     `SELECT public.create_product_draft_lifecycle(
@@ -230,10 +328,107 @@ try {
   if (!productId) throw new Error('Lifecycle draft RPC did not return product id.');
 
   await resetActor(testClient);
-  const initial = await testClient.query('SELECT status, verified, lifecycle_version FROM public.products WHERE id=$1', [productId]);
-  if (initial.rows[0]?.status !== 'draft' || initial.rows[0]?.verified !== false || initial.rows[0]?.lifecycle_version !== 1) {
+  const initial = await testClient.query(
+    `SELECT status,verified,shield_certified,featured,synthetic,environment,
+      marketplace_environment,lifecycle_version
+     FROM public.products WHERE id=$1`,
+    [productId],
+  );
+  if (initial.rows[0]?.status !== 'draft'
+      || initial.rows[0]?.verified !== false
+      || initial.rows[0]?.shield_certified !== false
+      || initial.rows[0]?.featured !== false
+      || initial.rows[0]?.synthetic !== false
+      || initial.rows[0]?.environment !== 'staging'
+      || initial.rows[0]?.marketplace_environment !== 'production'
+      || initial.rows[0]?.lifecycle_version !== 1) {
     throw new Error('Draft truth or lifecycle version is incorrect.');
   }
+
+  async function directProductInsert(slug) {
+    return testClient.query(
+      `INSERT INTO public.products(
+        name_ar,name_en,slug,country,marketplace_family,fulfilment_state,
+        transaction_method,supply_type,supplier_verified,marketplace_environment,
+        synthetic,status,featured,verified,shield_certified
+      ) VALUES(
+        'إدخال مباشر','Direct insert',$1,'Egypt','drive','verified_requestable',
+        'request_to_confirm','verified_local_partner',true,'production',
+        false,'published',true,true,true
+      ) RETURNING id,status,verified,shield_certified,featured,synthetic,environment,marketplace_environment`,
+      [slug],
+    );
+  }
+
+  function assertPhase0DirectSafety(row, label) {
+    if (row?.status !== 'draft'
+        || row?.verified !== false
+        || row?.shield_certified !== false
+        || row?.featured !== false
+        || row?.synthetic !== true
+        || row?.environment !== 'staging') {
+      throw new Error(`${label} escaped Phase0 staging/synthetic safety.`);
+    }
+  }
+
+  // A caller can forge the transaction marker text, but cannot acquire the
+  // lifecycle function owner's effective SECURITY DEFINER context.
+  await setAuthenticatedActor(testClient, adminId);
+  await testClient.query(
+    `SELECT set_config('dir3com.lifecycle_create_path','create_product_draft_lifecycle:v1',false)`,
+  );
+  const authenticatedForged = await directProductInsert('authenticated-forged-marker');
+  assertPhase0DirectSafety(authenticatedForged.rows[0], 'Authenticated forged-marker insert');
+  await resetActor(testClient);
+  await testClient.query(`SELECT set_config('dir3com.lifecycle_create_path','',false)`);
+
+  await testClient.query('SET ROLE service_role');
+  await testClient.query(
+    `SELECT set_config('dir3com.lifecycle_create_path','create_product_draft_lifecycle:v1',false)`,
+  );
+  const serviceRoleForged = await directProductInsert('service-role-forged-marker');
+  assertPhase0DirectSafety(serviceRoleForged.rows[0], 'Service-role forged-marker insert');
+  await expectError(
+    testClient,
+    `SELECT public.create_product_draft_lifecycle(
+      'مرفوض','Denied service role lifecycle','service-role-lifecycle',100,'Egypt','Cairo',
+      'drive','verified_requestable','request_to_confirm','verified_local_partner',true,false,false,'denied'
+    )`,
+    [],
+    'permission denied',
+  );
+  await resetActor(testClient);
+  await testClient.query(`SELECT set_config('dir3com.lifecycle_create_path','',false)`);
+
+  const ordinaryDirect = await directProductInsert('ordinary-direct-insert');
+  assertPhase0DirectSafety(ordinaryDirect.rows[0], 'Ordinary direct insert');
+
+  await testClient.query(
+    `UPDATE public.products
+     SET status='published',featured=true,verified=true,shield_certified=true
+     WHERE id=$1`,
+    [ordinaryDirect.rows[0]?.id],
+  );
+  const stagingLock = await testClient.query(
+    `SELECT status,featured,verified,shield_certified
+     FROM public.products WHERE id=$1`,
+    [ordinaryDirect.rows[0]?.id],
+  );
+  if (stagingLock.rows[0]?.status !== 'draft'
+      || stagingLock.rows[0]?.featured !== false
+      || stagingLock.rows[0]?.verified !== false
+      || stagingLock.rows[0]?.shield_certified !== false) {
+    throw new Error('Phase0 staging/synthetic update lock was weakened.');
+  }
+
+  await setAuthenticatedActor(testClient, adminId);
+  await expectError(
+    testClient,
+    `SELECT public.publish_product_lifecycle($1,1,'synthetic publish blocked')`,
+    [ordinaryDirect.rows[0]?.id],
+    'PRODUCT_SYNTHETIC_BLOCKED',
+  );
+  await resetActor(testClient);
 
   await setAuthenticatedActor(testClient, adminId);
   await testClient.query(`SELECT public.publish_product_lifecycle($1,1,'postgres publish')`, [productId]);
@@ -283,8 +478,8 @@ try {
   );
 
   const visibleAudit = await testClient.query('SELECT count(*)::int AS count FROM public.product_audit_events');
-  if (visibleAudit.rows[0]?.count !== 5) {
-    throw new Error(`Scoped staff audit visibility expected 5 Egypt events and no Qatar event; saw ${visibleAudit.rows[0]?.count}`);
+  if (visibleAudit.rows[0]?.count !== 6) {
+    throw new Error(`Scoped staff audit visibility expected 6 Egypt events and no Qatar event; saw ${visibleAudit.rows[0]?.count}`);
   }
   const qatarLeak = await testClient.query('SELECT count(*)::int AS count FROM public.product_audit_events WHERE product_id=$1', [qatarProductId]);
   if (qatarLeak.rows[0]?.count !== 0) {
@@ -320,7 +515,6 @@ try {
 
   async function insertDraftTruth(overrides = {}) {
     const values = {
-      id: randomUUID(),
       slug: `truth-${randomBytes(6).toString('hex')}`,
       supply: 'verified_local_partner',
       supplierVerified: true,
@@ -328,15 +522,15 @@ try {
       transaction: 'request_to_confirm',
       ...overrides,
     };
-    await testClient.query(
-      `INSERT INTO public.products(
-        id,name_ar,name_en,slug,country,city,marketplace_family,fulfilment_state,
-        transaction_method,supply_type,supplier_verified,marketplace_environment,
-        synthetic,status,verified
-      ) VALUES($1,'منتج حقيقي','Truth Product',$2,'Egypt','Cairo','drive',$3,$4,$5,$6,'production',false,'draft',false)`,
-      [values.id, values.slug, values.fulfilment, values.transaction, values.supply, values.supplierVerified],
+    await setAuthenticatedActor(testClient, adminId);
+    const createdTruth = await testClient.query(
+      `SELECT public.create_product_draft_lifecycle(
+        'منتج حقيقي','Truth Product',$1,100,'Egypt','Cairo','drive',$2,$3,$4,$5,false,false,'publication truth fixture'
+      ) AS id`,
+      [values.slug, values.fulfilment, values.transaction, values.supply, values.supplierVerified],
     );
-    return values.id;
+    await resetActor(testClient);
+    return createdTruth.rows[0]?.id;
   }
 
   const quoteProductId = await insertDraftTruth({ fulfilment: 'verified_quote', transaction: 'request_quote' });
@@ -417,12 +611,19 @@ try {
   );
   await resetActor(testClient);
 
-  const handoffProduct = randomUUID();
+  await setAuthenticatedActor(testClient, adminId);
+  const handoffProductResult = await testClient.query(
+    `SELECT public.create_product_draft_lifecycle(
+      'سيارة شريك','Partner Car','partner-car',100,'Egypt','Cairo',
+      'drive','verified_requestable','request_to_confirm','verified_local_partner',true,false,false,'handoff fixture'
+    ) AS id`,
+  );
+  const handoffProduct = handoffProductResult.rows[0]?.id;
   await testClient.query(
-    `INSERT INTO public.products(id,name_ar,name_en,slug,country,marketplace_family,fulfilment_state,transaction_method,supply_type,supplier_verified,marketplace_environment,synthetic,status)
-     VALUES($1,'سيارة شريك','Partner Car','partner-car','Egypt','drive','verified_requestable','request_to_confirm','verified_local_partner',true,'production',false,'published')`,
+    `SELECT public.publish_product_lifecycle($1,1,'handoff fixture publish')`,
     [handoffProduct],
   );
+  await resetActor(testClient);
   await testClient.query('INSERT INTO public.product_availability(product_id,partner_id) VALUES($1,$2)', [handoffProduct, partnerId]);
   const requestId = randomUUID();
   const requestReference = `REQ-${randomBytes(5).toString('hex')}`;
@@ -611,7 +812,7 @@ try {
   const obsolete = await testClient.query("SELECT to_regprocedure('public.start_marketplace_request_handoff(uuid,text,uuid,text)') AS proc");
   if (obsolete.rows[0]?.proc !== null) throw new Error('Obsolete admin handoff RPC still exists after cleanup migration.');
 
-  console.log('ADMIN_PARTNER_LIFECYCLE_POSTGRESQL=PASS lifecycle=PASS audit_scope=PASS session_actor=PASS handoff=PASS ownership=PASS append_only=PASS');
+  console.log('ADMIN_PARTNER_LIFECYCLE_POSTGRESQL=PASS phase0_parity=PASS lifecycle_create=PASS direct_insert_safety=PASS forged_marker=PASS staging_lock=PASS synthetic_publish_block=PASS instant_booking_block=PASS audit_scope=PASS session_actor=PASS handoff=PASS ownership=PASS append_only=PASS');
 } finally {
   if (testClient) await testClient.end().catch(() => {});
   if (adminConnected) {

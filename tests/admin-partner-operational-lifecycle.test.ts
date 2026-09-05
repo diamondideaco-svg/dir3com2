@@ -9,6 +9,7 @@ const partnerMigration = read('supabase/migrations/20260903234600_partner_reques
 const cleanupMigration = read('supabase/migrations/20260903234700_drop_legacy_admin_handoff_rpc.sql');
 const hardeningMigration = read('supabase/migrations/20260904004000_harden_admin_partner_authorization.sql');
 const remediationMigration = read('supabase/migrations/20260905160435_reconcile_admin_partner_lifecycle_safety.sql');
+const phase0LifecycleMigration = read('supabase/migrations/20260905161554_reconcile_phase0_lifecycle_insert.sql');
 const identity = read('lib/auth/identity.ts');
 const teamAccess = read('lib/auth/team-access.ts');
 const productActions = read('lib/actions/product-actions.ts');
@@ -157,6 +158,25 @@ test('forward remediation enforces publication truth without granting verificati
   assert.doesNotMatch(remediationMigration, /verified\s*=\s*true/i);
   assert.match(productActions, /TRANSACTION_METHODS = \[[^\]]*'none'/);
   assert.match(productForm, /option value="none"/);
+});
+
+test('Phase0 reconciliation admits only the authenticated lifecycle definer path', () => {
+  assert.match(phase0LifecycleMigration, /create or replace function public\.phase0_force_new_product_draft_staging/i);
+  assert.match(phase0LifecycleMigration, /current_setting\('dir3com\.lifecycle_create_path', true\)/i);
+  assert.match(phase0LifecycleMigration, /current_user = pg_catalog\.pg_get_userbyid\(v_lifecycle_owner\)/i);
+  assert.match(phase0LifecycleMigration, /NEW\.synthetic := false[\s\S]*NEW\.marketplace_environment := 'production'/i);
+  assert.match(phase0LifecycleMigration, /ELSE[\s\S]*NEW\.synthetic := true/i);
+  assert.match(phase0LifecycleMigration, /NEW\.status := 'draft'/i);
+  assert.match(phase0LifecycleMigration, /NEW\.verified := false/i);
+  assert.match(phase0LifecycleMigration, /NEW\.shield_certified := false/i);
+  assert.match(phase0LifecycleMigration, /NEW\.featured := false/i);
+  assert.match(phase0LifecycleMigration, /NEW\.environment := 'staging'/i);
+  assert.match(phase0LifecycleMigration, /set_config\([\s\S]*dir3com\.lifecycle_create_path[\s\S]*create_product_draft_lifecycle:v1[\s\S]*true/i);
+  assert.match(phase0LifecycleMigration, /PRODUCT_LIFECYCLE_CREATE_TRUTH_FAILED/i);
+  assert.match(phase0LifecycleMigration, /REVOKE ALL ON FUNCTION public\.create_product_draft_lifecycle[\s\S]*FROM PUBLIC, anon, service_role/i);
+  assert.match(phase0LifecycleMigration, /GRANT EXECUTE ON FUNCTION public\.create_product_draft_lifecycle[\s\S]*TO authenticated/i);
+  assert.doesNotMatch(phase0LifecycleMigration, /drop trigger|disable trigger|alter table[\s\S]*disable/i);
+  assert.doesNotMatch(phase0LifecycleMigration, /verified\s*:=?\s*true/i);
 });
 
 test('forward remediation makes audit and handoff ledgers append-only and replay-safe', () => {
