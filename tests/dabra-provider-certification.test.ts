@@ -27,6 +27,12 @@ import {
   type ManifestRecord,
   type ProbeExecution,
 } from '@/scripts/dabra-provider-certification';
+import {
+  createDabraProviderAttemptAfterResponseScheduler,
+  recordDabraProviderAttempt,
+  setDabraProviderAttemptWriterForTests,
+  type DabraProviderAttemptInput,
+} from '@/lib/ai2/observability/provider-attempts';
 
 const repositoryRoot = resolve(new URL('..', import.meta.url).pathname.replace(/^\/(?:[A-Za-z]:)/, (value) => value.slice(1)));
 
@@ -301,6 +307,110 @@ test('terminal error sanitizer exposes only stable certification codes', () => {
     sanitizeCertificationError(new Error('401 https://provider.invalid?api_key=secret raw-response-body')),
     'certification_failed',
   );
+});
+
+test('certification persistence path never logs hostile upstream error fields', { concurrency: false }, async () => {
+  const originalError = console.error;
+  const logs: string[] = [];
+  const hostileError = Object.assign(
+    new Error('https://user:password@example.com/path?token=SECRET123'),
+    {
+      code: 'https://example.com/?api_key=SECRET456',
+      details: 'Authorization: Bearer SECRET789',
+      hint: 'credential-bearing URL must never be logged',
+      stack: 'contains SECRET_STACK',
+    },
+  );
+  const fixture = successfulDependencies({
+    persistAttempt: (input) => recordDabraProviderAttempt(input as DabraProviderAttemptInput, 50),
+    readBack: async () => [],
+  });
+  setDabraProviderAttemptWriterForTests(async () => { throw hostileError; });
+  console.error = (...values: unknown[]) => { logs.push(values.map(String).join(' ')); };
+  try {
+    const result = await runLiveCertification(
+      parseCertificationArgs(['--live', '--provider=openai']),
+      fixture.dependencies,
+      'private.jsonl',
+    );
+    assert.equal(result.passed, false);
+  } finally {
+    console.error = originalError;
+    setDabraProviderAttemptWriterForTests(null);
+  }
+
+  const output = logs.join('\n');
+  assert.equal(logs.filter((entry) => entry.includes('DABRA_TELEMETRY_PERSIST_FAILED')).length, 4);
+  assert.match(output, /"errorCategory":"persistence_failed"/);
+  assert.match(output, /"operation":"insert"/);
+  for (const forbidden of [
+    'password', 'SECRET123', 'SECRET456', 'SECRET789', 'SECRET_STACK',
+    'Authorization', 'Bearer', 'https://user:', 'https://example.com',
+  ]) assert.equal(output.includes(forbidden), false, `terminal output leaked ${forbidden}`);
+});
+
+test('shared terminal boundary rejects hostile values and caller-controlled UUIDs while retaining safe diagnostics', { concurrency: false }, async () => {
+  const hostileValues = [
+    new Error('https://user:password@example.com/path?token=SECRET123'),
+    'Authorization: Bearer SECRET789',
+    { code: 'https://example.com/?api_key=SECRET456', details: 'SECRET_DETAILS', stack: 'SECRET_STACK' },
+  ];
+  const callerControlledUuid = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const originalError = console.error;
+  const logs: string[] = [];
+  console.error = (...values: unknown[]) => { logs.push(values.map(String).join(' ')); };
+  try {
+    for (const hostileValue of hostileValues) {
+      setDabraProviderAttemptWriterForTests(async () => { throw hostileValue; });
+      await recordDabraProviderAttempt({
+        requestId: callerControlledUuid,
+        provider: 'openai',
+        intentClass: 'general',
+        language: 'en',
+        route: 'fast-chat',
+        startedAtMs: 1_000,
+        completedAtMs: 1_010,
+        success: false,
+        errorCategory: 'provider_error',
+        fallbackHop: 0,
+        groundingStatus: 'fallback-provider-unavailable',
+      });
+    }
+    const schedule = createDabraProviderAttemptAfterResponseScheduler(() => {
+      throw Object.assign(new Error('SECRET_SCHEDULE'), { code: 'https://example.com/?token=SECRET_CODE' });
+    });
+    schedule({
+      requestId: callerControlledUuid,
+      provider: 'openai',
+      intentClass: 'general',
+      language: 'en',
+      route: 'fast-chat',
+      startedAtMs: 1_000,
+      completedAtMs: 1_010,
+      success: false,
+      errorCategory: 'provider_error',
+      fallbackHop: Number.NaN,
+      groundingStatus: 'fallback-provider-unavailable',
+    });
+  } finally {
+    console.error = originalError;
+    setDabraProviderAttemptWriterForTests(null);
+  }
+
+  const output = logs.join('\n');
+  assert.equal(logs.filter((entry) => entry.includes('DABRA_TELEMETRY_PERSIST_FAILED')).length, 3);
+  assert.equal(logs.filter((entry) => entry.includes('DABRA_TELEMETRY_SCHEDULE_FAILED')).length, 1);
+  assert.doesNotMatch(output, /"requestId":/);
+  assert.match(output, /"errorCategory":"persistence_failed"/);
+  assert.match(output, /"error":"telemetry_persist_failure"/);
+  assert.match(output, /"operation":"insert"/);
+  assert.match(output, /"provider":"openai"/);
+  assert.match(output, /"fallbackHop":0/);
+  assert.match(output, /"errorCategory":"schedule_failed"/);
+  for (const forbidden of [
+    'password', 'SECRET123', 'SECRET456', 'SECRET789', 'SECRET_DETAILS', 'SECRET_STACK',
+    'SECRET_SCHEDULE', 'SECRET_CODE', 'Authorization', 'Bearer', 'https://', callerControlledUuid,
+  ]) assert.equal(output.includes(forbidden), false, `safe telemetry log leaked ${forbidden}`);
 });
 
 test('private JSONL manifest is append-only and contains only the approved allowlist', () => {
