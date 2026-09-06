@@ -1,15 +1,67 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
 
 import {
   buildMarketplaceLoginHandoff,
   buildMarketplaceRequestReturnPath,
 } from '../lib/auth/marketplace-request-handoff';
+import * as routing from '../lib/auth/redirect';
 import { getPostLoginDestination } from '../lib/auth/redirect';
 import { buildOAuthCallbackUrl, getOAuthCallbackOrigin, getTrustedVercelPreviewOrigin } from '../lib/auth/oauth-callback';
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+
+function load<T>(path: string, dependencies: Record<string, unknown>): T {
+  const compiled = ts.transpileModule(read(path), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const exports = {};
+  runInNewContext(compiled, {
+    exports, URL,
+    require: (id: string) => {
+      assert.ok(id in dependencies, `Unexpected callback dependency: ${id}`);
+      return dependencies[id];
+    },
+  }, { filename: path });
+  return exports as T;
+}
+
+const identity = load<typeof import('../lib/auth/identity')>('lib/auth/identity.ts', { 'server-only': {} });
+
+async function callbackDestination(role: string | null, parameters: Record<string, string> = {}) {
+  const actorId = '11111111-1111-4111-8111-111111111111';
+  let exchanges = 0;
+  const profile = {
+    select: () => profile,
+    eq: (column: string, value: string) => {
+      assert.equal(column, 'id');
+      assert.equal(value, actorId);
+      return profile;
+    },
+    maybeSingle: async () => ({ data: { role }, error: null }),
+  };
+  const supabase = {
+    auth: { exchangeCodeForSession: async () => {
+      exchanges++;
+      return { data: { user: { id: actorId } }, error: null };
+    } },
+    from: (table: string) => { assert.equal(table, 'profiles'); return profile; },
+  };
+  const route = load<{ GET(request: Request): Promise<{ url: string }> }>('app/auth/callback/route.ts', {
+    'next/server': { NextResponse: { redirect: (url: string) => ({ url }) } },
+    '@/lib/supabase/server': { createSupabaseServerClient: async () => supabase, supabaseAdmin: null },
+    '@/lib/auth/redirect': routing,
+    '@/lib/auth/identity': { ...identity, ensureCanonicalProfileFromAuthUser: async () => undefined },
+    '@/lib/security/safe-logger': { logServerError() {}, logServerEvent() {} },
+  });
+  const query = new URLSearchParams({ code: 'test', ...parameters });
+  const result = await route.GET(new Request(`https://example.invalid/auth/callback?${query}`));
+  assert.equal(exchanges, 1);
+  return result.url;
+}
 
 test('request-to-confirm login handoff preserves product, PDP, family, and intent', () => {
   const returnPath = buildMarketplaceRequestReturnPath({
@@ -39,13 +91,28 @@ test('PDP checks trusted session identity before the durable request mutation', 
   assert.match(source, /identity\?\.authenticated !== true[\s\S]*return;[\s\S]*setRequestState\('sending'\)[\s\S]*fetch\('\/api\/marketplace\/requests'/);
 });
 
-test('login and OAuth callback honor the existing safe return mechanism', () => {
+test('login and OAuth callback preserve safe returns alongside the staff default', async () => {
   const login = read('app/(auth)/login/page.tsx');
-  const callback = read('app/auth/callback/route.ts');
-
   assert.match(login, /resolvePostLoginDestination\(requestedDestination, redirectTo\)/);
-  assert.match(callback, /getPostLoginDestination\(requestedDestination, origin\)/);
-  assert.match(callback, /requestedDestination\s*\?\s*safeRequestedDestination/);
+
+  const returnPath = buildMarketplaceRequestReturnPath({
+    slug: 'hyundai-elantra', productId: 'product-123', family: 'drive', intent: 'request_to_confirm',
+  });
+  for (const [role, defaultPath] of [['staff', '/admin'], ['customer', '/my-account'], ['admin', '/admin'], ['partner', '/partner-portal'], [null, '/my-account']] as const) {
+    assert.equal(await callbackDestination(role), `https://example.invalid${defaultPath}`);
+    assert.equal(await callbackDestination(role, { redirect: '/', next: '/' }), `https://example.invalid${role === 'staff' ? '/admin' : '/'}`);
+    for (const parameter of ['redirect', 'next']) {
+      for (const path of ['/', '/my-account', returnPath]) {
+        assert.equal(await callbackDestination(role, { [parameter]: path }), `https://example.invalid${path}`);
+      }
+      for (const path of ['https://outside.invalid/', '//outside.invalid/', 'javascript:alert(1)']) {
+        assert.equal(await callbackDestination(role, { [parameter]: path }), 'https://example.invalid/');
+      }
+    }
+    assert.equal(await callbackDestination(role, { redirect: returnPath, next: returnPath }), `https://example.invalid${returnPath}`);
+    assert.equal(await callbackDestination(role, { redirect: returnPath, next: '/my-account' }), `https://example.invalid${returnPath}`);
+    assert.equal(await callbackDestination(role, { redirect: 'https://outside.invalid/', next: returnPath }), 'https://example.invalid/');
+  }
 });
 
 test('preview OAuth uses the current trusted dir3com Preview origin and preserves request state', () => {

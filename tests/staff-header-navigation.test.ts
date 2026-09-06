@@ -12,7 +12,8 @@ const require = createRequire(import.meta.url);
 
 async function renderHeader(role: string | null, language: 'ar' | 'en', mobileOpen: boolean) {
   const values: unknown[] = [];
-  const effects: Array<() => void> = [];
+  const effects: Array<() => void | (() => void)> = [];
+  const identityRequests: Array<{ url: string; cache: string }> = [];
   let index = 0;
   const source = readFileSync(new URL('../components/layout/Header.tsx', import.meta.url), 'utf8');
   const compiled = ts.transpileModule(source, {
@@ -26,7 +27,7 @@ async function renderHeader(role: string | null, language: 'ar' | 'en', mobileOp
         if (!(position in values)) values[position] = position === 0 ? mobileOpen : initial;
         return [values[position], (value: unknown) => { values[position] = value; }];
       },
-      useEffect(effect: () => void) { effects.push(effect); },
+      useEffect(effect: () => void | (() => void)) { effects.push(effect); },
     },
     'next/navigation': { usePathname: () => '/my-account' },
     'next/image': { default: () => null },
@@ -37,20 +38,27 @@ async function renderHeader(role: string | null, language: 'ar' | 'en', mobileOp
   };
   runInNewContext(compiled, {
     exports,
+    queueMicrotask,
+    window: { localStorage: { getItem: () => null } },
+    document: { documentElement: { dataset: {} }, body: { dataset: {} } },
     require: (id: string) => id in dependencies ? dependencies[id] : require(id),
     fetch: async (url: string, options: { cache: string }) => {
-      assert.equal(url, '/api/auth/session-identity');
-      assert.equal(options.cache, 'no-store');
+      identityRequests.push({ url, cache: options.cache });
       return { json: async () => ({ authenticated: true, role, roleRaw: role }) };
     },
   });
   assert.ok(exports.default);
   renderToStaticMarkup(createElement(exports.default));
-  // Only run the identity effect; browser theme preferences are unrelated.
-  effects[1]();
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  index = 0;
-  return renderToStaticMarkup(createElement(exports.default));
+  // Execute every mount effect with isolated browser stubs, regardless of order.
+  const cleanups = effects.map((effect) => effect());
+  try {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.deepEqual(identityRequests, [{ url: '/api/auth/session-identity', cache: 'no-store' }]);
+    index = 0;
+    return renderToStaticMarkup(createElement(exports.default));
+  } finally {
+    for (const cleanup of cleanups.reverse()) if (typeof cleanup === 'function') cleanup();
+  }
 }
 
 test('staff sees the operational entry in Arabic/English desktop and mobile navigation', async () => {
