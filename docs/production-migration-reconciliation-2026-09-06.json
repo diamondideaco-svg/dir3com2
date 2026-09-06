@@ -1303,8 +1303,11 @@
           },
           {
             "name": "team_access_grants_user_idx",
-            "kind": "unresolved_reference",
-            "present": false
+            "kind": "index",
+            "present": null,
+            "state": "UNKNOWN",
+            "expected_contract": "UNIQUE on public.team_access_grants(invited_user_id)",
+            "evidence": "Local 20260903233000 and preserved remote 20260903181947 SQL drop/recreate this index. Preserved catalog covers tables/functions/policies, not pg_index. Recorded CREATE is not current presence/validity proof. No Production query performed in v15.5."
           },
           {
             "name": "is_ceo_actor",
@@ -2221,6 +2224,7 @@
     },
     {
       "record_id": "local:supabase/migrations/20260808120000_dgr055_canonical_profile_provisioning.sql",
+      "severity": "P2",
       "remote_version": null,
       "remote_name": null,
       "local_version": "20260808120000",
@@ -2253,6 +2257,7 @@
     },
     {
       "record_id": "local:supabase/migrations/20260808120000_dgr059_partner_documents_runtime_grants_and_owner_policies.sql",
+      "severity": "P2",
       "remote_version": null,
       "remote_name": null,
       "local_version": "20260808120000",
@@ -2818,6 +2823,7 @@
     },
     {
       "record_id": "local:supabase/migrations/20260903220000_reconcile_customer_documents_postgres17.sql",
+      "severity": "P0",
       "remote_version": null,
       "remote_name": null,
       "local_version": "20260903220000",
@@ -2871,8 +2877,11 @@
           },
           {
             "name": "team_access_grants_user_idx",
-            "kind": "unresolved_reference",
-            "present": false
+            "kind": "index",
+            "present": null,
+            "state": "UNKNOWN",
+            "expected_contract": "UNIQUE on public.team_access_grants(invited_user_id)",
+            "evidence": "Local 20260903233000 and preserved remote 20260903181947 SQL drop/recreate this index. Preserved catalog covers tables/functions/policies, not pg_index. Recorded CREATE is not current presence/validity proof. No Production query performed in v15.5."
           },
           {
             "name": "is_ceo_actor",
@@ -3209,6 +3218,7 @@
     },
     {
       "record_id": "local:supabase/migrations/20260904210623_harden_dabra_provider_attempt_acl.sql",
+      "severity": "P1",
       "remote_version": null,
       "remote_name": null,
       "local_version": "20260904210623",
@@ -3226,8 +3236,11 @@
           },
           {
             "name": "dabra_provider_attempts_request_hop_unique_idx",
-            "kind": "unresolved_reference",
-            "present": false
+            "kind": "index",
+            "present": null,
+            "state": "UNKNOWN",
+            "expected_contract": "Valid ready UNIQUE on public.dabra_provider_attempts(request_id, fallback_hop), without predicate or expressions",
+            "evidence": "Local 20260904130954 and preserved remote 20260904195812 SQL contain CREATE UNIQUE INDEX IF NOT EXISTS. Local 20260904210623 requires pg_index verification. Preserved catalog omitted indexes, so current existence/validity is UNKNOWN, not false. No Production query performed in v15.5."
           },
           {
             "name": "get_dabra_provider_metrics",

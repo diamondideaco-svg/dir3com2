@@ -7,6 +7,36 @@ import { duplicateVersions, validateManifest } from '../scripts/check-migration-
 
 const manifest = JSON.parse(readFileSync(new URL('../docs/production-migration-reconciliation-2026-09-06.json', import.meta.url), 'utf8'));
 const files = readdirSync(new URL('../supabase/migrations', import.meta.url)).filter(f => f.endsWith('.sql'));
+test('index evidence does not infer absence or presence from an index-free snapshot', () => {
+  for (const [name, count] of [['team_access_grants_user_idx', 2], ['dabra_provider_attempts_request_hop_unique_idx', 1]]) {
+    const objects = manifest.records.flatMap(r => r.production_object_evidence.objects ?? []).filter(o => o.name === name);
+    assert.equal(objects.length, count);
+    for (const object of objects) {
+      assert.equal(object.kind, 'index');
+      assert.equal(object.state, 'UNKNOWN');
+      assert.equal(object.present, null);
+      assert.match(object.expected_contract, /UNIQUE/);
+      assert.match(object.evidence, /preserved remote/);
+      assert.match(object.evidence, /No Production query/);
+    }
+  }
+});
+test('only evidenced open findings carry severity and PR100 remains pending schema', () => {
+  const expected = {
+    '20260808120000_dgr055_canonical_profile_provisioning.sql': 'P2',
+    '20260808120000_dgr059_partner_documents_runtime_grants_and_owner_policies.sql': 'P2',
+    '20260903220000_reconcile_customer_documents_postgres17.sql': 'P0',
+    '20260904210623_harden_dabra_provider_attempt_acl.sql': 'P1',
+  };
+  assert.deepEqual(Object.fromEntries(manifest.records.filter(r => r.severity).map(r => [r.local_filename.replace('supabase/migrations/', ''), r.severity])), expected);
+  const activation = manifest.records.find(r => r.local_version === '20260906034500');
+  assert.equal(activation.classification, 'PENDING');
+  assert.equal(activation.safe_history_action, 'PENDING_SCHEMA');
+  const doc = readFileSync(new URL('../docs/PRODUCTION_MIGRATION_RECONCILIATION_2026-09-06.md', import.meta.url), 'utf8');
+  for (const text of ['CURRENT PRODUCTION OPEN FINDINGS', '### P0', '### P1', '### P2', 'PENDING_SCHEMA', ...Object.keys(expected)]) {
+    assert.ok(doc.includes(text), `Missing documented finding: ${text}`);
+  }
+});
 test('manifest covers all local migrations and all 47 remote snapshot records', () => {
   assert.equal(validateManifest(manifest, files), true);
   assert.deepEqual(manifest.inventory_counts, {remote_only_versions:42,local_only_files:40,local_only_distinct_versions:39});

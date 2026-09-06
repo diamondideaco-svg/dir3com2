@@ -19,6 +19,56 @@ one per local-only file. Mapped pairs intentionally appear on both sides; do not
 these as two proposed repairs. SQL comparison changes CRLF to LF and trims only outer
 whitespace; it does not remove comments or whitespace inside SQL/string literals.
 
+## CURRENT PRODUCTION OPEN FINDINGS
+
+Severity below records the existing Control Tower v15.5 findings against the preserved
+snapshot, not a new live Production assessment. This remediation does not close them.
+
+### P0 — customer documents schema gap
+
+`public.customer_documents` is absent in Production. The canonical pending migration
+is `20260903220000_reconcile_customer_documents_postgres17.sql`. Production closure
+remains blocked until it is applied and verified; history repair is not schema application.
+
+### P1 — DABRA provider observability ACL hardening
+
+`20260904210623_harden_dabra_provider_attempt_acl.sql` remains pending. Current
+`service_role` excessive privileges remain an open Production security finding until
+reconciled and verified. No DABRA runtime or Production permissions are changed here.
+
+### P2 — duplicate local migration version
+
+`20260808120000` belongs to both genuine, distinct DGR055 and DGR059 migrations.
+Exact files: `20260808120000_dgr055_canonical_profile_provisioning.sql` and
+`20260808120000_dgr059_partner_documents_runtime_grants_and_owner_policies.sql`.
+No safe rename is proven. Absence from the current Production history does not prove
+either migration was never applied. This remains an explicit blocker for normal
+migration delivery. The duplicate guard must fail, without an allowlist or exemption.
+
+### PR100 — pending trusted activation schema
+
+`20260906034500_partner_trusted_activation.sql` remains **PENDING_SCHEMA** and is
+required for trusted activation Production parity. It must not be marked applied
+before actual schema application and verification. No additional severity is inferred.
+
+### Index evidence correction (v15.5)
+
+- `team_access_grants_user_idx`: **UNKNOWN**, not verified absent. Local migration
+  `20260903233000_ceo_team_access_rbac.sql` and preserved remote record
+  `20260903181947` drop/recreate a unique index on `team_access_grants(invited_user_id)`.
+  Both mapped manifest representations now carry the same qualified evidence.
+- `dabra_provider_attempts_request_hop_unique_idx`: **UNKNOWN**, not verified absent.
+  Local `20260904130954_dabra_provider_observability.sql` and preserved remote
+  `20260904195812` contain its conditional creation. Pending `20260904210623` requires
+  a valid, ready unique index on `(request_id, fallback_hop)`, without predicates or
+  expressions.
+
+The preserved catalog includes tables/functions/policies, not index definitions.
+Repository and recorded SQL establish intended contracts, not present index state.
+Accordingly these entries use `kind: index`, `state: UNKNOWN`, `present: null` instead
+of false absence. A future authorized index-catalog check is needed to resolve them;
+no Production query was performed for this documentation remediation.
+
 ## Evidence and limitations
 
 Production history was saved before this task in a private local backup:
