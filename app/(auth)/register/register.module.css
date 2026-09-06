@@ -1,0 +1,11 @@
+.register {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.register input:focus-visible,
+.register button:focus-visible,
+.register a:focus-visible {
+  outline: 3px solid #0d1b2a;
+  outline-offset: 3px;
+}

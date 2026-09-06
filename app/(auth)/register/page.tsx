@@ -5,8 +5,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
+import styles from './register.module.css';
 
 export default function RegisterPage() {
+    const { language, direction } = useLanguage();
+    const isArabic = language === 'ar';
     const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -26,7 +30,7 @@ export default function RegisterPage() {
         setError(null);
 
         if (password.length < 6) {
-            setError('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+            setError(isArabic ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' : 'Password must be at least 6 characters');
             setLoading(false);
             return;
         }
@@ -45,12 +49,12 @@ export default function RegisterPage() {
             return;
         }
 
-        alert('✅ تم إنشاء الحساب! رجاء تأكيد بريدك الإلكتروني.');
+        alert(isArabic ? '✅ تم إنشاء الحساب! رجاء تأكيد بريدك الإلكتروني.' : '✅ Account created! Please confirm your email.');
         router.push('/login');
     };
 
     return (
-        <div style={{
+        <div className={styles.register} lang={language} dir={direction} style={{
             // Approved background asset used as a layer only; all content below is real HTML.
             backgroundColor: '#FAF8F4',
             backgroundImage: 'linear-gradient(rgba(255,255,255,0.12), rgba(255,255,255,0.18)), url("/brand/runtime/dir3com-login-background-approved.png")',
@@ -62,8 +66,7 @@ export default function RegisterPage() {
             alignItems: 'center',
             justifyContent: 'center',
             padding: '40px 20px',
-            fontFamily: 'var(--font-arabic)',
-            direction: 'rtl'
+            fontFamily: language === 'ar' ? 'var(--font-arabic)' : 'var(--font-latin)'
         }}>
             <div style={{
                 maxWidth: '420px',
@@ -75,16 +78,16 @@ export default function RegisterPage() {
                 padding: '40px 30px'
             }}>
                 <h1 style={{
-                    fontFamily: 'var(--font-display)',
+                    fontFamily: 'inherit',
                     fontSize: '2rem',
                     color: '#D4AF37',
                     textAlign: 'center',
                     marginBottom: '5px'
                 }}>
-                    إنشاء حساب
+                    {isArabic ? 'إنشاء حساب' : 'Create account'}
                 </h1>
                 <p style={{ color: '#6B7280', textAlign: 'center', marginBottom: '30px' }}>
-                    انضم إلى DIR3COM واستمتع بتجربة سفر مخصصة
+                    {isArabic ? 'انضم إلى DIR3COM واستمتع بتجربة سفر مخصصة' : 'Join DIR3COM and enjoy a personalized travel experience'}
                 </p>
 
                 {error && (
@@ -103,12 +106,13 @@ export default function RegisterPage() {
 
                 <form onSubmit={handleRegister}>
                     <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>الاسم الكامل</label>
+                        <label htmlFor="register-name" style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>{isArabic ? 'الاسم الكامل' : 'Full name'}</label>
                         <input
+                            id="register-name"
                             type="text"
                             value={fullName}
                             onChange={(e) => setFullName(e.target.value)}
-                            placeholder="أدخل اسمك الكامل"
+                            placeholder={isArabic ? 'أدخل اسمك الكامل' : 'Enter your full name'}
                             required
                             style={{
                                 width: '100%',
@@ -118,14 +122,15 @@ export default function RegisterPage() {
                                 background: '#FFFFFF',
                                 color: '#334155',
                                 fontSize: '1rem',
-                                outline: 'none'
+                                fontFamily: 'inherit'
                             }}
                         />
                     </div>
 
                     <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>البريد الإلكتروني</label>
+                        <label htmlFor="register-email" style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>{isArabic ? 'البريد الإلكتروني' : 'Email'}</label>
                         <input
+                            id="register-email"
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
@@ -139,18 +144,19 @@ export default function RegisterPage() {
                                 background: '#FFFFFF',
                                 color: '#334155',
                                 fontSize: '1rem',
-                                outline: 'none'
+                                fontFamily: 'inherit'
                             }}
                         />
                     </div>
 
                     <div style={{ marginBottom: '20px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>كلمة المرور</label>
+                        <label htmlFor="register-password" style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>{isArabic ? 'كلمة المرور' : 'Password'}</label>
                         <input
+                            id="register-password"
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            placeholder="•••••••• (6 أحرف على الأقل)"
+                            placeholder={isArabic ? '•••••••• (6 أحرف على الأقل)' : '•••••••• (at least 6 characters)'}
                             required
                             style={{
                                 width: '100%',
@@ -160,7 +166,7 @@ export default function RegisterPage() {
                                 background: '#FFFFFF',
                                 color: '#334155',
                                 fontSize: '1rem',
-                                outline: 'none'
+                                fontFamily: 'inherit'
                             }}
                         />
                     </div>
@@ -180,14 +186,14 @@ export default function RegisterPage() {
                             cursor: 'pointer'
                         }}
                     >
-                        {loading ? 'جاري إنشاء الحساب...' : 'إنشاء حساب'}
+                        {loading ? (isArabic ? 'جاري إنشاء الحساب...' : 'Creating account...') : (isArabic ? 'إنشاء حساب' : 'Create account')}
                     </button>
                 </form>
 
                 <p style={{ textAlign: 'center', color: '#6B7280', marginTop: '20px' }}>
-                    لديك حساب بالفعل؟{' '}
+                    {isArabic ? 'لديك حساب بالفعل؟' : 'Already have an account?'}{' '}
                     <Link href="/login" style={{ color: '#D4AF37', textDecoration: 'none' }}>
-                        تسجيل الدخول
+                        {isArabic ? 'تسجيل الدخول' : 'Log in'}
                     </Link>
                 </p>
             </div>
