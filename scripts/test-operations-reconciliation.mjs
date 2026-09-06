@@ -5,6 +5,49 @@ import { readFileSync } from 'node:fs';
 // Invoked only by the localhost/disposable-database guarded PR93 runner.
 const migration = readFileSync(new URL('../supabase/migrations/20260906013832_reconcile_pr93_operations_notifications.sql', import.meta.url), 'utf8');
 const tables = ['audit_logs', 'activity_timeline', 'system_events'];
+const reviewedTables = migration.slice(migration.indexOf('CREATE TABLE IF NOT EXISTS'), migration.indexOf('-- IF NOT EXISTS is not'));
+
+async function operationsStructure(db) {
+  return (await db.query(`SELECT jsonb_agg(jsonb_build_object(
+    'name',c.relname,'acl',c.relacl,'rls',c.relrowsecurity,'force',c.relforcerowsecurity,
+    'columns',(SELECT jsonb_agg(jsonb_build_object('name',a.attname,'required',a.attnotnull,'default',pg_get_expr(d.adbin,d.adrelid)) ORDER BY a.attnum)
+      FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped),
+    'constraints',(SELECT jsonb_agg(pg_get_constraintdef(k.oid) ORDER BY k.conname) FROM pg_constraint k WHERE k.conrelid=c.oid),
+    'indexes',(SELECT jsonb_agg(indexdef ORDER BY indexname) FROM pg_indexes WHERE schemaname='public' AND tablename=c.relname)
+  ) ORDER BY c.relname) AS snapshot FROM pg_class c
+  WHERE c.oid IN ('public.audit_logs'::regclass,'public.activity_timeline'::regclass,'public.system_events'::regclass)`)).rows[0].snapshot;
+}
+
+async function verifyStructuralConflicts(db, notificationBaseline) {
+  for (const table of tables) {
+    const otherKey = table === 'system_events' ? 'event_name' : 'entity_id';
+    const timeColumn = table === 'audit_logs' ? 'timestamp' : 'created_at';
+    const jsonColumn = table === 'audit_logs' ? 'old_values' : table === 'activity_timeline' ? 'metadata' : 'payload';
+    const cases = [
+      ['missing_pk', `ALTER TABLE public.${table} DROP CONSTRAINT ${table}_pkey`, 'PK'],
+      ['wrong_pk', `ALTER TABLE public.${table} DROP CONSTRAINT ${table}_pkey, ADD PRIMARY KEY (${otherKey})`, 'PK'],
+      ['composite_pk', `ALTER TABLE public.${table} DROP CONSTRAINT ${table}_pkey, ADD PRIMARY KEY (id,${otherKey})`, 'PK'],
+      ['missing_id_default', `ALTER TABLE public.${table} ALTER COLUMN id DROP DEFAULT`, 'DEFAULT'],
+      ['fixed_id_default', `ALTER TABLE public.${table} ALTER COLUMN id SET DEFAULT '11111111-1111-4111-8111-111111111111'::uuid`, 'DEFAULT'],
+      ['missing_time_default', `ALTER TABLE public.${table} ALTER COLUMN ${timeColumn} DROP DEFAULT`, 'DEFAULT'],
+      ['missing_json_default', `ALTER TABLE public.${table} ALTER COLUMN ${jsonColumn} DROP DEFAULT`, 'DEFAULT'],
+      ['blocking_check', `ALTER TABLE public.${table} ADD CONSTRAINT incompatible_insert CHECK(false) NOT VALID`, 'CONSTRAINT'],
+      ['unexpected_unique', `CREATE UNIQUE INDEX incompatible_insert ON public.${table}(${otherKey})`, 'CONSTRAINT'],
+    ];
+    for (const [label, alteration, conflict] of cases) {
+      await db.query(reviewedTables);
+      await db.query(alteration);
+      const before = await operationsStructure(db);
+      await assert.rejects(db.query(migration), new RegExp(`PR93_OPERATIONS_${conflict}_CONFLICT: ${table}`), `${table}/${label}`);
+      await db.query('ROLLBACK');
+      assert.deepEqual(await operationsStructure(db), before, `${table}/${label}: partial schema or privilege mutation`);
+      assert.deepEqual(await notificationsSnapshot(db), notificationBaseline);
+      assert.equal((await db.query("SELECT to_regprocedure('public.reject_operations_record_mutation()') AS proc")).rows[0].proc, null);
+      await db.query('DROP TABLE public.audit_logs,public.activity_timeline,public.system_events'); // disposable test fixtures only
+      console.log(`OPERATIONS_PREFLIGHT_${table}_${label}=PASS rollback=PASS`);
+    }
+  }
+}
 
 async function notificationsSnapshot(db) {
   return (await db.query(`SELECT jsonb_build_object(
@@ -50,7 +93,11 @@ export async function prepareOperationsReconciliation(db) {
   assert.equal((await db.query("SELECT to_regclass('public.activity_timeline') AS relation")).rows[0].relation, null);
   assert.deepEqual(await notificationsSnapshot(db), snapshot);
   await db.query('DROP TABLE public.audit_logs'); // disposable test fixture only
+  await verifyStructuralConflicts(db, snapshot);
+  // The reviewed pre-existing contract, not just newly created tables, passes.
+  await db.query(reviewedTables);
   await db.query(migration);
+  console.log('OPERATIONS_VALID_EXISTING_CONTRACT=PASS');
   assert.deepEqual(await notificationsSnapshot(db), snapshot);
   assert.equal((await db.query("SELECT to_regclass('public.notification_templates') AS templates,to_regclass('public.notification_logs') AS logs")).rows[0].templates, null);
   assert.equal((await db.query("SELECT to_regclass('public.notification_logs') AS logs")).rows[0].logs, null);
