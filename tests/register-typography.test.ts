@@ -60,3 +60,10 @@ test('Google control uses the existing provider and callback contract, with safe
   assert.match(page, /if \(oauthError \|\| !data\?\.url\)/);
   assert.match(page, /window.location.assign\(data.url\)/);
 });
+
+test('Google cannot bypass the shared Register-local terms and privacy gate', () => {
+  const handler = page.slice(page.indexOf('const handleGoogle ='), page.indexOf('    return ('));
+  assert.match(page, /checked=\{consent\} onChange=\{e => setConsent\(e.target.checked\)\}/);
+  assert.match(handler, /if \(!consent\) \{[\s\S]*?consentInput.current\?\.focus\(\);\s*return;\s*\}/);
+  assert.ok(handler.indexOf('if (!consent)') < handler.indexOf('supabase.auth.signInWithOAuth'));
+});

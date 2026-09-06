@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -29,6 +29,8 @@ export default function RegisterPage() {
     const [visible, setVisible] = useState(false);
     const [largeText, setLargeText] = useState(false);
     const [warmSurface, setWarmSurface] = useState(false);
+    const [consent, setConsent] = useState(false);
+    const consentInput = useRef<HTMLInputElement>(null);
     const socials = getOfficialSocialLinks(language);
 
     useEffect(() => {
@@ -65,6 +67,11 @@ export default function RegisterPage() {
 
     // Same Google provider and trusted callback builder used by Login.
     const handleGoogle = async () => {
+        if (!consent) {
+            setError(ar ? 'يرجى الموافقة على الشروط وسياسة الخصوصية للمتابعة.' : 'Please accept the terms and privacy policy to continue.');
+            consentInput.current?.focus();
+            return;
+        }
         setLoading(true);
         setError(null);
         try {
@@ -113,7 +120,7 @@ export default function RegisterPage() {
                             {/* Phone omitted: existing signup has no phone persistence/verification contract. */}
                             <div className={styles.field}><label htmlFor="register-password">{ar ? 'كلمة المرور' : 'Password'}</label><div className={styles.input}><FiLock aria-hidden="true" /><input id="register-password" type={visible ? 'text' : 'password'} autoComplete="new-password" required value={password} onChange={e => setPassword(e.target.value)} placeholder={ar ? 'أدخل كلمة المرور' : 'Enter password'} /><button type="button" onClick={() => setVisible(!visible)} aria-label={ar ? (visible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور') : (visible ? 'Hide password' : 'Show password')} aria-pressed={visible}>{visible ? <FiEyeOff /> : <FiEye />}</button></div></div>
                             <div className={styles.field}><label htmlFor="register-confirmation">{ar ? 'تأكيد كلمة المرور' : 'Confirm password'}</label><div className={styles.input}><FiLock aria-hidden="true" /><input id="register-confirmation" type={visible ? 'text' : 'password'} autoComplete="new-password" required value={confirmation} onChange={e => setConfirmation(e.target.value)} placeholder={ar ? 'أعد إدخال كلمة المرور' : 'Re-enter password'} /></div></div>
-                            <div className={styles.consent}><input id="register-consent" type="checkbox" required /><label htmlFor="register-consent">{ar ? 'أوافق على ' : 'I agree to the '}<Link href="/terms">{ar ? 'الشروط والأحكام' : 'terms'}</Link>{ar ? ' و' : ' and '}<Link href="/privacy">{ar ? 'سياسة الخصوصية' : 'privacy policy'}</Link></label></div>
+                            <div className={styles.consent}><input id="register-consent" type="checkbox" required ref={consentInput} checked={consent} onChange={e => setConsent(e.target.checked)} /><label htmlFor="register-consent">{ar ? 'أوافق على ' : 'I agree to the '}<Link href="/terms">{ar ? 'الشروط والأحكام' : 'terms'}</Link>{ar ? ' و' : ' and '}<Link href="/privacy">{ar ? 'سياسة الخصوصية' : 'privacy policy'}</Link></label></div>
                             <button className={styles.submit} type="submit" disabled={loading}>{loading ? (ar ? 'جاري إنشاء الحساب...' : 'Creating account...') : (ar ? 'إنشاء حساب' : 'Create account')}</button>
                         </form>
                         <div className={styles.separator}>{ar ? 'أو تابع باستخدام' : 'Or continue with'}</div>
