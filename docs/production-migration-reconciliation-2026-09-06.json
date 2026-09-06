@@ -1304,10 +1304,10 @@
           {
             "name": "team_access_grants_user_idx",
             "kind": "index",
-            "present": null,
-            "state": "UNKNOWN",
+            "present": true,
+            "state": "VERIFIED_PRESENT",
             "expected_contract": "UNIQUE on public.team_access_grants(invited_user_id)",
-            "evidence": "Local 20260903233000 and preserved remote 20260903181947 SQL drop/recreate this index. Preserved catalog covers tables/functions/policies, not pg_index. Recorded CREATE is not current presence/validity proof. No Production query performed in v15.5."
+            "evidence": "Control Tower authorized direct read-only Production pg_catalog capture v16.0; pg_get_indexdef and pg_index verify presence, uniqueness, validity and readiness. See docs/production-schema-capture-2026-09-06.json. Not inferred from migration intent."
           },
           {
             "name": "is_ceo_actor",
@@ -2878,10 +2878,10 @@
           {
             "name": "team_access_grants_user_idx",
             "kind": "index",
-            "present": null,
-            "state": "UNKNOWN",
+            "present": true,
+            "state": "VERIFIED_PRESENT",
             "expected_contract": "UNIQUE on public.team_access_grants(invited_user_id)",
-            "evidence": "Local 20260903233000 and preserved remote 20260903181947 SQL drop/recreate this index. Preserved catalog covers tables/functions/policies, not pg_index. Recorded CREATE is not current presence/validity proof. No Production query performed in v15.5."
+            "evidence": "Control Tower authorized direct read-only Production pg_catalog capture v16.0; pg_get_indexdef and pg_index verify presence, uniqueness, validity and readiness. See docs/production-schema-capture-2026-09-06.json. Not inferred from migration intent."
           },
           {
             "name": "is_ceo_actor",
@@ -3237,10 +3237,10 @@
           {
             "name": "dabra_provider_attempts_request_hop_unique_idx",
             "kind": "index",
-            "present": null,
-            "state": "UNKNOWN",
+            "present": true,
+            "state": "VERIFIED_PRESENT",
             "expected_contract": "Valid ready UNIQUE on public.dabra_provider_attempts(request_id, fallback_hop), without predicate or expressions",
-            "evidence": "Local 20260904130954 and preserved remote 20260904195812 SQL contain CREATE UNIQUE INDEX IF NOT EXISTS. Local 20260904210623 requires pg_index verification. Preserved catalog omitted indexes, so current existence/validity is UNKNOWN, not false. No Production query performed in v15.5."
+            "evidence": "Control Tower authorized direct read-only Production pg_catalog capture v16.0; pg_get_indexdef and pg_index verify presence, uniqueness, validity and readiness. See docs/production-schema-capture-2026-09-06.json. Not inferred from migration intent."
           },
           {
             "name": "get_dabra_provider_metrics",

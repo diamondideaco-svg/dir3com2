@@ -53,6 +53,11 @@ before actual schema application and verification. No additional severity is inf
 
 ### Index evidence correction (v15.5)
 
+**Superseded by v16.0 direct read-only Production capture:** both indexes below are
+now VERIFIED_PRESENT, valid and ready, with their stated unique key definitions.
+The manifest and production-schema-capture-2026-09-06.json carry current evidence.
+The following UNKNOWN assessment records the limitation of the earlier snapshot only.
+
 - `team_access_grants_user_idx`: **UNKNOWN**, not verified absent. Local migration
   `20260903233000_ceo_team_access_rbac.sql` and preserved remote record
   `20260903181947` drop/recreate a unique index on `team_access_grants(invited_user_id)`.

@@ -7,17 +7,19 @@ import { duplicateVersions, validateManifest } from '../scripts/check-migration-
 
 const manifest = JSON.parse(readFileSync(new URL('../docs/production-migration-reconciliation-2026-09-06.json', import.meta.url), 'utf8'));
 const files = readdirSync(new URL('../supabase/migrations', import.meta.url)).filter(f => f.endsWith('.sql'));
-test('index evidence does not infer absence or presence from an index-free snapshot', () => {
+test('index evidence is backed by the direct Production catalog capture', () => {
+  const capture = JSON.parse(readFileSync(new URL('../docs/production-schema-capture-2026-09-06.json', import.meta.url), 'utf8'));
   for (const [name, count] of [['team_access_grants_user_idx', 2], ['dabra_provider_attempts_request_hop_unique_idx', 1]]) {
     const objects = manifest.records.flatMap(r => r.production_object_evidence.objects ?? []).filter(o => o.name === name);
     assert.equal(objects.length, count);
     for (const object of objects) {
       assert.equal(object.kind, 'index');
-      assert.equal(object.state, 'UNKNOWN');
-      assert.equal(object.present, null);
+      assert.equal(object.state, 'VERIFIED_PRESENT');
+      assert.equal(object.present, true);
       assert.match(object.expected_contract, /UNIQUE/);
-      assert.match(object.evidence, /preserved remote/);
-      assert.match(object.evidence, /No Production query/);
+      assert.match(object.evidence, /direct read-only Production/);
+      const index = capture.indexes.find(i => i.schema === 'public' && i.name === name);
+      assert.ok(index && index.unique && index.valid && index.ready);
     }
   }
 });

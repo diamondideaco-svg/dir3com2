@@ -1,0 +1,241 @@
+{
+  "project_ref": "ynupwivgvwcyrsdhtkcc",
+  "captured_at": "2026-09-06T06:14:43.315Z",
+  "records": [
+    {
+      "name": "dgr023_partner_documents_reconciliation",
+      "version": "20260804153000",
+      "statement_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "name": "dgr038_booking_schema_reconciliation",
+      "version": "20260804171000",
+      "statement_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "name": "dgr038_booking_security_rls",
+      "version": "20260804173000",
+      "statement_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "name": "dgr047_booking_customer_immutability",
+      "version": "20260804194000",
+      "statement_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "name": "fix_partner_documents_service_role_grants_go_live_inc_002",
+      "version": "20260808142431",
+      "statement_md5": "1d84b9be995262806c1c64e46a1db78e"
+    },
+    {
+      "name": "whatsapp_idempotency_lifecycle",
+      "version": "20260809030506",
+      "statement_md5": "3c24c14f27e71ec3dea1657f5e465369"
+    },
+    {
+      "name": "whatsapp_send_started_fencing",
+      "version": "20260809030521",
+      "statement_md5": "e2c9fa25b899ba1667b30f577daaf350"
+    },
+    {
+      "name": "whatsapp_idempotency_state_constraints",
+      "version": "20260809030752",
+      "statement_md5": "1f2cfbde2d42174aee61284938044c6b"
+    },
+    {
+      "name": "dgr072_services_synthetic_and_authenticated_booking_read",
+      "version": "20260810073822",
+      "statement_md5": "3229823cf430cfe843a862f31edcf4cb"
+    },
+    {
+      "name": "phase0_lock_product_image_uploads",
+      "version": "20260811022650",
+      "statement_md5": "07a7aea81b22546674841597e2e74241"
+    },
+    {
+      "name": "phase0_alhana_force_draft_and_unverified",
+      "version": "20260811022934",
+      "statement_md5": "047c1fb9bf6ad762e2fdfe077867c6d0"
+    },
+    {
+      "name": "phase0_alhana_force_new_products_staging",
+      "version": "20260811023537",
+      "statement_md5": "935993cdb25a9f9207a96c6f7128e556"
+    },
+    {
+      "name": "phase0_staging_force_new_products_draft",
+      "version": "20260811023725",
+      "statement_md5": "3e17966dc9595b6590304d5d4f5ca87d"
+    },
+    {
+      "name": "phase0_lock_all_staging_synthetic_products",
+      "version": "20260811024122",
+      "statement_md5": "9a8022d9cba8a59a93fc7ef6bc5bd68e"
+    },
+    {
+      "name": "allow_phase0_system_seed_remote_images_only",
+      "version": "20260811024802",
+      "statement_md5": "63a177e3fa7a922eaead036d74ecd43d"
+    },
+    {
+      "name": "create_social_media_public_bucket",
+      "version": "20260816074013",
+      "statement_md5": "63de4c0cd63acc87fbbfe21b6ee4b3ea"
+    },
+    {
+      "name": "enable_pg_net_for_social_import",
+      "version": "20260816074052",
+      "statement_md5": "b575d941e06b05a77f5f50d32b2a5c31"
+    },
+    {
+      "name": "add_tiktok_connections",
+      "version": "20260817164153",
+      "statement_md5": "95d1d4f1e6623d3781afdfa8cc5d387b"
+    },
+    {
+      "name": "fix_tiktok_connections_service_role_grants",
+      "version": "20260817204344",
+      "statement_md5": "88cdeb64232beb11aa7cb77838e6b23b"
+    },
+    {
+      "name": "revoke_phase0_trigger_rpc_execution",
+      "version": "20260819203457",
+      "statement_md5": "9c5ae54b53c45ef4e857e7a14e0edbaf"
+    },
+    {
+      "name": "dir_74_reconcile_customers_partner_assignments",
+      "version": "20260823135041",
+      "statement_md5": "84d3eff770b3e0f36241b03090196f98"
+    },
+    {
+      "name": "dir_81_admin_partners_select_policy",
+      "version": "20260823150541",
+      "statement_md5": "ef5235740d60eb866a959a2c8c18383c"
+    },
+    {
+      "name": "uat_enable_owned_partner_media_persistence",
+      "version": "20260825024609",
+      "statement_md5": "8db68c1e334ae635c840d407f3a8591a"
+    },
+    {
+      "name": "partner_portal_durable_state_and_documents",
+      "version": "20260827152245",
+      "statement_md5": "df33e5dd36631e58f09010b0986d5cce"
+    },
+    {
+      "name": "partner_document_review_boundary_and_image_cleanup",
+      "version": "20260827155608",
+      "statement_md5": "c57da22ead2621fa30d882f5c336f5b6"
+    },
+    {
+      "name": "partner_table_least_privilege_grants",
+      "version": "20260827155935",
+      "statement_md5": "9e721eb3a4e52128321d8cd706db0d3d"
+    },
+    {
+      "name": "partner_sensitive_data_and_optional_table_hardening",
+      "version": "20260827160824",
+      "statement_md5": "64b1eb2bac5c6b24ee9ac55c7a2c4b8c"
+    },
+    {
+      "name": "partner_users_service_role_only",
+      "version": "20260827161608",
+      "statement_md5": "16c7b7047f72fa4f69daa58ec36922af"
+    },
+    {
+      "name": "customer_marketplace_truth_and_requests",
+      "version": "20260828023945",
+      "statement_md5": "8e9c7ccc70eff2cd004f9e02793f4691"
+    },
+    {
+      "name": "allow_approved_alhana_marketplace_promotion",
+      "version": "20260829110735",
+      "statement_md5": "22c479e0b99bb85ed42a1bfe42028381"
+    },
+    {
+      "name": "dir118_revenue_launch_requests",
+      "version": "20260829220304",
+      "statement_md5": "73abc611e93a4e6aaee819702cda3e74"
+    },
+    {
+      "name": "dir120_revenue_request_transition_safety_20260829234937",
+      "version": "20260830055517",
+      "statement_md5": "286a3163e87e8bc0ed3017375f499151"
+    },
+    {
+      "name": "dir120_marketplace_request_audit_logs_20260830033103",
+      "version": "20260830055522",
+      "statement_md5": "0342d4e49c2767f42f5b7763b111899d"
+    },
+    {
+      "name": "reconcile_verification_documents_postgres17",
+      "version": "20260831182649",
+      "statement_md5": "490314bb69f8acfefff215bb8e960416"
+    },
+    {
+      "name": "reconcile_assignment_engine_tables",
+      "version": "20260902155650",
+      "statement_md5": "96fe7ec25b32ff4ec3e7b34da973b49d"
+    },
+    {
+      "name": "bookings_owner_write_boundary",
+      "version": "20260902184216",
+      "statement_md5": "2faec417da014c579532f3b8088c3a29"
+    },
+    {
+      "name": "reconcile_customer_activity_postgres17",
+      "version": "20260902184314",
+      "statement_md5": "2cdcb47c66b4cd911939c306cac144ee"
+    },
+    {
+      "name": "ceo_team_access_rbac",
+      "version": "20260903181947",
+      "statement_md5": "30c0631a6e31550bf159ed9d00228458"
+    },
+    {
+      "name": "dabra_provider_observability",
+      "version": "20260904195812",
+      "statement_md5": "db10db8562bab974de80dfff1fa09aac"
+    },
+    {
+      "name": "notifications_production_grants",
+      "version": "20260906032145",
+      "statement_md5": "7e98e8f33e67071f30ece2e0243dcf3a"
+    },
+    {
+      "name": "reconcile_pr93_operations_notifications",
+      "version": "20260906032204",
+      "statement_md5": "ff20aaa83595bf085074c260ba91f88d"
+    },
+    {
+      "name": "admin_product_lifecycle_and_request_handoff",
+      "version": "20260906032210",
+      "statement_md5": "5597c7c3d4fa8c296f9eaae39a5acfc7"
+    },
+    {
+      "name": "partner_request_handoff",
+      "version": "20260906032222",
+      "statement_md5": "88fcd356b27e52626cc3b3c8122dc203"
+    },
+    {
+      "name": "drop_legacy_admin_handoff_rpc",
+      "version": "20260906032228",
+      "statement_md5": "2887d19c4c025790368e2c4ee7e8404f"
+    },
+    {
+      "name": "harden_admin_partner_authorization",
+      "version": "20260906032234",
+      "statement_md5": "7f1f6181434568d64d35786c7feef4c8"
+    },
+    {
+      "name": "reconcile_admin_partner_lifecycle_safety",
+      "version": "20260906032241",
+      "statement_md5": "2553933ca74f2943f1d4028b1648aa25"
+    },
+    {
+      "name": "reconcile_phase0_lifecycle_insert",
+      "version": "20260906032249",
+      "statement_md5": "57e9d016af2e64168eb91fd0ee106a4a"
+    }
+  ]
+}
