@@ -63,11 +63,21 @@ export async function ensurePartnerRecord(actor: PortalActor) {
     throw new Error('PARTNER_PORTAL_ADMIN_UNAVAILABLE');
   }
 
-  const { data: existing } = await adminClient
-    .from('partners')
-    .select('id, company_name, email, status, shield_level')
-    .eq('id', actor.userId)
-    .maybeSingle();
+  const readPartner = async () => {
+    try {
+      const { data, error } = await adminClient
+        .from('partners')
+        .select('id, company_name, email, status, shield_level')
+        .eq('id', actor.userId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    } catch {
+      // A failed lookup is not evidence of an absent partner.
+      throw new Error('PARTNER_PORTAL_PARTNER_READ_FAILED');
+    }
+  };
+  const existing = await readPartner();
 
   if (existing?.id) {
     return existing;
@@ -89,12 +99,19 @@ export async function ensurePartnerRecord(actor: PortalActor) {
 
   const { data, error } = await adminClient
     .from('partners')
-    .upsert(payload, { onConflict: 'id' })
+    .insert(payload)
     .select('id, company_name, email, status, shield_level')
     .single();
 
-  if (error) {
-    throw error;
+  if (error?.code === '23505') {
+    // Another request may have created/activated the partner after our read.
+    // Never overwrite its lifecycle state, and never retry the write.
+    const concurrent = await readPartner();
+    if (concurrent?.id) return concurrent;
+  }
+
+  if (error || !data?.id) {
+    throw new Error('PARTNER_PORTAL_PARTNER_CREATE_FAILED');
   }
 
   return data;

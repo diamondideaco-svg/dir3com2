@@ -14,15 +14,6 @@ function safeText(value: unknown, max = 180) {
   return value.trim().slice(0, max);
 }
 
-function mapReviewStatusToPartnerStatus(reviewStatus: string) {
-  const normalized = reviewStatus.trim().toLowerCase();
-  if (normalized === 'submitted') return 'under_review';
-  if (normalized === 'needs_changes') return 'rejected';
-  if (normalized === 'approved') return 'approved';
-  if (normalized === 'suspended') return 'suspended';
-  return 'pending';
-}
-
 function mapPartnerStatusToReviewStatus(partnerStatus: string | null | undefined) {
   const normalized = String(partnerStatus || '').trim().toLowerCase();
   if (normalized === 'under_review') return 'Submitted';
@@ -92,7 +83,8 @@ export async function PUT(request: Request) {
   try {
     await ensurePartnerRecord(actor);
 
-    const reviewStatus = safeText(payload.reviewStatus, 40);
+    // Lifecycle fields (including legacy reviewStatus) are deliberately ignored.
+    // Do not read then write status back: that could undo a concurrent activation.
     const updatePayload = {
       company_name: safeText(payload.legalName || payload.companyName, 140),
       contact_person: safeText(payload.contactPerson, 140),
@@ -103,7 +95,6 @@ export async function PUT(request: Request) {
       commercial_registration: safeText(payload.commercialRegistration, 120),
       tax_number: safeText(payload.taxNumber, 120),
       iban: safeText(payload.iban, 100),
-      status: mapReviewStatusToPartnerStatus(reviewStatus),
     };
 
     const { data, error } = await supabaseAdmin

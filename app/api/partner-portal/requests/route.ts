@@ -50,6 +50,9 @@ export async function GET() {
   try {
     await ensurePartnerRecord(actor);
     const { data: requests, error: requestError } = await readScopedPartnerRequests(actor.userId);
+    if (requestError?.message === 'PARTNER_REQUEST_ACTOR_DENIED') {
+      return NextResponse.json({ error: { code: 'PARTNER_NOT_ACTIVE' } }, { status: 403, headers: privateHeaders() });
+    }
     if (requestError) throw requestError;
     return NextResponse.json({ data: requests || [], whatsappConfigured: Boolean(bookingWhatsappNumber()) }, { headers: privateHeaders() });
   } catch (error) {
@@ -87,6 +90,9 @@ export async function POST(request: Request) {
       p_whatsapp_destination: whatsapp || '',
     });
     if (handoffError) {
+      if (handoffError.message === 'PARTNER_HANDOFF_ACTOR_DENIED') {
+        return NextResponse.json({ error: { code: 'PARTNER_NOT_ACTIVE' } }, { status: 403, headers: privateHeaders() });
+      }
       if (handoffError.message?.includes('REQUEST_HANDOFF_CONFLICT') || handoffError.message?.includes('REQUEST_HANDOFF_REPLAY_UNAVAILABLE')) {
         return NextResponse.json({ error: { code: handoffError.message.includes('REPLAY_UNAVAILABLE') ? 'REQUEST_HANDOFF_REPLAY_UNAVAILABLE' : 'REQUEST_HANDOFF_CONFLICT' } }, { status: 409, headers: privateHeaders() });
       }

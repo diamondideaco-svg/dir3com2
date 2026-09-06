@@ -109,6 +109,7 @@ export default function PartnerRequestsClient() {
           <Link href="/partner-portal" className="rounded-full border border-[#D4AF37]/30 bg-white px-4 py-2 text-sm font-semibold text-[#0D1B2A]">{ar ? 'العودة للبوابة' : 'Back to portal'}</Link>
         </div>
 
+        {presentation.lifecycleNotice ? <div role="status" className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">{presentation.lifecycleNotice}</div> : null}
         {presentation.loadError ? (
           <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
             <span>{presentation.loadError}</span>
