@@ -4,14 +4,14 @@ import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { FiArrowRight, FiEye, FiEyeOff, FiGlobe, FiLock, FiMail, FiSun, FiUser } from 'react-icons/fi';
+import { FiArrowRight, FiEye, FiEyeOff, FiGlobe, FiLock, FiMail, FiPhone, FiSun, FiUser } from 'react-icons/fi';
 import { FaFacebookF, FaInstagram, FaLinkedinIn, FaTiktok, FaWhatsapp, FaXTwitter, FaUniversalAccess } from 'react-icons/fa6';
 import { FcGoogle } from 'react-icons/fc';
 import { supabase } from '@/lib/supabase/client';
 import { buildOAuthCallbackUrl } from '@/lib/auth/oauth-callback';
 import { getPostLoginDestination } from '@/lib/auth/redirect';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
-import { getOfficialSocialLinks } from '@/lib/config/social';
+import { normalizeRegisterContact, registerCountries, getCountryCallingCode, registerSocialLinks, type CountryCode } from '@/lib/auth/register-contact';
 import styles from './register.module.css';
 
 const socialIcons = { facebook: FaFacebookF, instagram: FaInstagram, linkedin: FaLinkedinIn, tiktok: FaTiktok, x: FaXTwitter, whatsapp: FaWhatsapp };
@@ -24,6 +24,9 @@ export default function RegisterPage() {
     const [password, setPassword] = useState('');
     const [confirmation, setConfirmation] = useState('');
     const [fullName, setFullName] = useState('');
+    const [country, setCountry] = useState<CountryCode>('SA');
+    const [phone, setPhone] = useState('');
+    const phoneInput = useRef<HTMLInputElement>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [visible, setVisible] = useState(false);
@@ -31,7 +34,14 @@ export default function RegisterPage() {
     const [warmSurface, setWarmSurface] = useState(false);
     const [consent, setConsent] = useState(false);
     const consentInput = useRef<HTMLInputElement>(null);
-    const socials = getOfficialSocialLinks(language);
+    const socials = registerSocialLinks;
+    // Node/browser ICU versions differ: localize only after the identical SSR snapshot hydrates.
+    const [countries, setCountries] = useState(() => registerCountries.map(code => ({ code, name: String(code) })));
+    useEffect(() => {
+        const names = new Intl.DisplayNames([language], { type: 'region' });
+        setCountries(registerCountries.map(code => ({ code, name: names.of(code) || code }))
+            .sort((a, b) => a.name.localeCompare(b.name, language)));
+    }, [language]);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data }: { data: { session: unknown } }) => {
@@ -50,11 +60,18 @@ export default function RegisterPage() {
             setError(ar ? 'كلمتا المرور غير متطابقتين' : 'Passwords do not match');
             return;
         }
+        const contact = normalizeRegisterContact(country, phone);
+        if (!contact) {
+            setError(ar ? 'أدخل رقم هاتف صالحًا للدولة المختارة.' : 'Enter a valid phone number for the selected country.');
+            phoneInput.current?.focus();
+            return;
+        }
         setLoading(true);
+        try {
         const { error } = await supabase.auth.signUp({
             email,
             password,
-            options: { data: { full_name: fullName } },
+            options: { data: { full_name: fullName, registration_contact: contact } },
         });
         if (error) {
             setError(error.message);
@@ -63,6 +80,10 @@ export default function RegisterPage() {
         }
         alert(ar ? '✅ تم إنشاء الحساب! رجاء تأكيد بريدك الإلكتروني.' : '✅ Account created! Please confirm your email.');
         router.push('/login');
+        } catch {
+            setError(ar ? 'تعذّر إنشاء الحساب. حاول مرة أخرى.' : 'Unable to create account. Please try again.');
+            setLoading(false);
+        }
     };
 
     // Same Google provider and trusted callback builder used by Login.
@@ -117,7 +138,7 @@ export default function RegisterPage() {
                         <form id="register-form" onSubmit={handleRegister}>
                             <div className={styles.field}><label htmlFor="register-name">{ar ? 'الاسم الكامل' : 'Full name'}</label><div className={styles.input}><FiUser aria-hidden="true" /><input id="register-name" type="text" autoComplete="name" required value={fullName} onChange={e => setFullName(e.target.value)} placeholder={ar ? 'أدخل اسمك الكامل' : 'Enter your full name'} /></div></div>
                             <div className={styles.field}><label htmlFor="register-email">{ar ? 'البريد الإلكتروني' : 'Email'}</label><div className={styles.input}><FiMail aria-hidden="true" /><input id="register-email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder={ar ? 'أدخل بريدك الإلكتروني' : 'Enter your email'} /></div></div>
-                            {/* Phone omitted: existing signup has no phone persistence/verification contract. */}
+                            <div className={styles.field}><label htmlFor="register-phone">{ar ? 'رقم الجوال' : 'Phone number'}</label><div className={`${styles.input} ${styles.phone}`}><FiPhone aria-hidden="true" /><input id="register-phone" ref={phoneInput} type="tel" inputMode="tel" autoComplete="tel-national" required maxLength={40} value={phone} onChange={e => setPhone(e.target.value)} placeholder={ar ? 'أدخل رقم الجوال' : 'Enter phone number'} aria-describedby="register-contact-note" /><div className={styles.country}><span dir="ltr" aria-hidden="true">+{getCountryCallingCode(country)}⌄</span><select id="register-country" aria-label={ar ? 'الدولة ورمز الاتصال' : 'Country and calling code'} autoComplete="country" required value={country} onChange={e => setCountry(e.target.value as CountryCode)}>{countries.map(c => <option key={c.code} value={c.code}>{c.name} (+{getCountryCallingCode(c.code)})</option>)}</select></div></div></div>
                             <div className={styles.field}><label htmlFor="register-password">{ar ? 'كلمة المرور' : 'Password'}</label><div className={styles.input}><FiLock aria-hidden="true" /><input id="register-password" type={visible ? 'text' : 'password'} autoComplete="new-password" required value={password} onChange={e => setPassword(e.target.value)} placeholder={ar ? 'أدخل كلمة المرور' : 'Enter password'} /><button type="button" onClick={() => setVisible(!visible)} aria-label={ar ? (visible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور') : (visible ? 'Hide password' : 'Show password')} aria-pressed={visible}>{visible ? <FiEyeOff /> : <FiEye />}</button></div></div>
                             <div className={styles.field}><label htmlFor="register-confirmation">{ar ? 'تأكيد كلمة المرور' : 'Confirm password'}</label><div className={styles.input}><FiLock aria-hidden="true" /><input id="register-confirmation" type={visible ? 'text' : 'password'} autoComplete="new-password" required value={confirmation} onChange={e => setConfirmation(e.target.value)} placeholder={ar ? 'أعد إدخال كلمة المرور' : 'Re-enter password'} /></div></div>
                             <div className={styles.consent}><input id="register-consent" type="checkbox" required ref={consentInput} checked={consent} onChange={e => setConsent(e.target.checked)} /><label htmlFor="register-consent">{ar ? 'أوافق على ' : 'I agree to the '}<Link href="/terms">{ar ? 'الشروط والأحكام' : 'terms'}</Link>{ar ? ' و' : ' and '}<Link href="/privacy">{ar ? 'سياسة الخصوصية' : 'privacy policy'}</Link></label></div>
@@ -125,13 +146,14 @@ export default function RegisterPage() {
                         </form>
                         <div className={styles.separator}>{ar ? 'أو تابع باستخدام' : 'Or continue with'}</div>
                         <button className={styles.google} type="button" disabled={loading} onClick={handleGoogle}><FcGoogle aria-hidden="true" />{ar ? 'المتابعة باستخدام Google' : 'Continue with Google'}</button>
+                        <p id="register-contact-note" className={styles.contactNote}>{ar ? 'يُحفظ الهاتف مع التسجيل بالبريد دون تحقق SMS. Google مسار دخول منفصل.' : 'Phone is saved with email registration, without SMS verification. Google is a separate sign-in flow.'}</p>
                         <p className={styles.login}>{ar ? 'لديك حساب بالفعل؟ ' : 'Already have an account? '}<Link href="/login">{ar ? 'تسجيل الدخول' : 'Log in'}</Link></p>
                     </section>
                     <section className={styles.hero} aria-labelledby="register-hero"><h2 id="register-hero">{ar ? <>من فكرة السفرة إلى<br />سلامة الرجعة</> : <>From your first travel idea<br />to your safe return</>}</h2><p>{ar ? <>أنشئ حسابك الآن وابدأ رحلتك مع<br /><span dir="ltr">dir3com</span> لتجربة سفر فاخرة وآمنة.</> : <>Create your account and begin your journey with <span>dir3com</span> for a luxurious, safe travel experience.</>}</p></section>
                     <footer className={styles.footer}>
                         <section><h2>{ar ? 'عن الشركة' : 'Company'}</h2><Link href="/about">{ar ? 'من نحن' : 'About us'}</Link><Link href="/terms">{ar ? 'الشروط والأحكام' : 'Terms and conditions'}</Link><Link href="/privacy">{ar ? 'سياسة الخصوصية' : 'Privacy policy'}</Link><Link href="/support">{ar ? 'مركز المساعدة' : 'Help center'}</Link></section>
                         <section><h2>{ar ? 'خدماتنا' : 'Services'}</h2>{['Drive', 'Stay', 'Concierge', 'VIP', 'Fly'].map(family => <Link key={family} href={`/services/${family.toLowerCase()}`}>dir3 {family}</Link>)}</section>
-                        <section><h2>{ar ? 'تواصل معنا' : 'Contact us'}</h2><a href="https://wa.me/966532867009"><FaWhatsapp />{ar ? 'السعودية: ' : 'Saudi Arabia: '}<bdi>+966 53 286 7009</bdi></a><a href="https://wa.me/201011676418"><FaWhatsapp />{ar ? 'مصر: ' : 'Egypt: '}<bdi>+20 101 167 6418</bdi></a><a href="mailto:info@dir3com.com"><FiMail />info@dir3com.com</a><a href="https://www.dir3com.com"><FiGlobe />www.dir3com.com</a><a href="https://www.dir3com.net"><FiGlobe />www.dir3com.net</a><div className={styles.socials}>{socials.filter(s => s.channel !== 'whatsapp').map(s => { const Icon = socialIcons[s.channel]; return <a key={s.channel} href={s.href} aria-label={s.label} rel="noopener noreferrer" target="_blank"><Icon /></a>; })}</div></section>
+<section><h2>{ar ? 'تواصل معنا' : 'Contact us'}</h2><a href="https://wa.me/966532867009"><FaWhatsapp />{ar ? 'السعودية: ' : 'Saudi Arabia: '}<bdi>+966 53 286 7009</bdi></a><a href="https://wa.me/201011676418"><FaWhatsapp />{ar ? 'مصر: ' : 'Egypt: '}<bdi>+20 101 167 6418</bdi></a><a href="mailto:info@dir3com.com"><FiMail />info@dir3com.com</a><a href="https://www.dir3com.com"><FiGlobe />www.dir3com.com</a><a href="https://www.dir3com.net"><FiGlobe />www.dir3com.net</a><div className={styles.socials}>{socials.map(s => { const Icon = socialIcons[s.channel]; return <a key={s.channel} href={s.href} aria-label={s.label} rel="noopener noreferrer" target="_blank"><Icon /></a>; })}</div></section>
                     </footer>
                     <p className={styles.copyright}>{ar ? 'جميع الحقوق محفوظة © 2026 dir3com' : '© 2026 dir3com. All rights reserved.'}</p>
                 </div>

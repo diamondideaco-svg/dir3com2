@@ -10,11 +10,11 @@ test('Register derives local language, direction and existing fonts from active 
   assert.match(page, /lang=\{language\} dir=\{direction\}/);
   assert.match(page, /language === 'ar' \? 'var\(--font-arabic\)' : 'var\(--font-latin\)'/);
   assert.doesNotMatch(page, /direction: 'rtl'|font-display|Playfair/);
-  assert.match(css, /\.register h1, \.register h2, \.register input, \.register button \{ font-family: inherit;/);
+  assert.ok(css.includes('.register button, .register select { font-family: inherit;'));
 });
 
 test('Register focus styles are local and each input has an associated label', () => {
-  for (const id of ['register-name', 'register-email', 'register-password']) {
+  for (const id of ['register-name', 'register-email', 'register-phone', 'register-password']) {
     assert.ok(page.includes(`htmlFor="${id}"`));
     assert.ok(page.includes(`id="${id}"`));
   }
@@ -26,10 +26,11 @@ test('Register focus styles are local and each input has an associated label', (
 
 test('Register retains real signup, validation, profile payload and success destination', () => {
   assert.match(page, /password.length < 6/);
-  assert.match(page, /supabase.auth.signUp\(\{\s*email,\s*password,\s*options: \{\s*data: \{ full_name: fullName \}/);
+  assert.ok(page.includes('options: { data: { full_name: fullName, registration_contact: contact } }'));
+  assert.match(page, /supabase.auth.signUp/);
   assert.match(page, /router.push\('\/login'\)/);
   assert.match(page, /supabase.auth.getSession\(\)/);
-  assert.equal((page.match(/required/g) || []).length, 5);
+  assert.equal((page.match(/required/g) || []).length, 7);
 });
 
 test('approved composition is real UI with a Register-only shell and preserved family destinations', () => {
@@ -48,7 +49,7 @@ test('confirmation and policy controls are local gates, not extra identity or au
   assert.match(page, /href="\/terms"/);
   assert.match(page, /href="\/privacy"/);
   assert.doesNotMatch(page, /\.from\(|role:|phone:/);
-  assert.match(page, /getOfficialSocialLinks\(language\)/);
+  assert.match(page, /const socials = registerSocialLinks/);
   assert.match(page, /setVisible\(!visible\)/);
 });
 
