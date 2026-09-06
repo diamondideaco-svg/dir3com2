@@ -1,0 +1,3557 @@
+{
+  "format_version": 1,
+  "base_sha": "8a4a17a1e8ce3bf8899f93a78595ce3d060f8afe",
+  "production_project": "ynupwivgvwcyrsdhtkcc",
+  "production_write_authorized": false,
+  "remote_snapshot_count": 47,
+  "inventory_counts": {
+    "remote_only_versions": 42,
+    "local_only_files": 40,
+    "local_only_distinct_versions": 39
+  },
+  "classification_legend": {
+    "E": "Same version and normalized SQL",
+    "V": "Exact normalized SQL under a different version; candidate paired repair only",
+    "H": "Recorded remote historical SQL without a proven current local counterpart",
+    "M": "Mapped name/version but modified SQL; not equivalent",
+    "U": "Unresolved provenance; preserve",
+    "PENDING": "Missing canonical application/hardening; not a history repair"
+  },
+  "duplicate_version": {
+    "version": "20260808120000",
+    "remote_record_present": false,
+    "files": [
+      {
+        "filename": "supabase/migrations/20260808120000_dgr055_canonical_profile_provisioning.sql",
+        "provenance": [
+          "b32cc8278612135907a8df8255ee56e18aea688b",
+          "9e539b10b28627d700fd11c5c123f307352d70cc"
+        ]
+      },
+      {
+        "filename": "supabase/migrations/20260808120000_dgr059_partner_documents_runtime_grants_and_owner_policies.sql",
+        "provenance": [
+          "b32cc8278612135907a8df8255ee56e18aea688b",
+          "a4e66b83d2f565e92637cd4f4d6079ed28d36721"
+        ]
+      }
+    ],
+    "decision": "PRESERVE_BOTH_PENDING_PROVENANCE_REVIEW",
+    "reason": "Absence in the current history snapshot does not prove this version was never applied then repaired/removed. No historical timestamp rename is authorized by inferred absence alone."
+  },
+  "unknown_four": [
+    "20260804153000",
+    "20260804171000",
+    "20260804173000",
+    "20260804194000"
+  ],
+  "records": [
+    {
+      "record_id": "remote:20260804153000",
+      "remote_version": "20260804153000",
+      "remote_name": "dgr023_partner_documents_reconciliation",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "U",
+      "sql_equivalence": "UNAVAILABLE_RECORDED_SQL",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Recorded statements null/empty. No exact filename or migration-name recovery in available Git refs/deleted paths/docs. Preserve history; do not infer SQL from current objects.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260804171000",
+      "remote_version": "20260804171000",
+      "remote_name": "dgr038_booking_schema_reconciliation",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "U",
+      "sql_equivalence": "UNAVAILABLE_RECORDED_SQL",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Recorded statements null/empty. No exact filename or migration-name recovery in available Git refs/deleted paths/docs. Preserve history; do not infer SQL from current objects.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260804173000",
+      "remote_version": "20260804173000",
+      "remote_name": "dgr038_booking_security_rls",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "U",
+      "sql_equivalence": "UNAVAILABLE_RECORDED_SQL",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Recorded statements null/empty. No exact filename or migration-name recovery in available Git refs/deleted paths/docs. Preserve history; do not infer SQL from current objects.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260804194000",
+      "remote_version": "20260804194000",
+      "remote_name": "dgr047_booking_customer_immutability",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "U",
+      "sql_equivalence": "UNAVAILABLE_RECORDED_SQL",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Recorded statements null/empty. No exact filename or migration-name recovery in available Git refs/deleted paths/docs. Preserve history; do not infer SQL from current objects.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260808142431",
+      "remote_version": "20260808142431",
+      "remote_name": "fix_partner_documents_service_role_grants_go_live_inc_002",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "partner_documents",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260809030506",
+      "remote_version": "20260809030506",
+      "remote_name": "whatsapp_idempotency_lifecycle",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "webhook_idempotency_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "acquire_whatsapp_event_lease",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "complete_whatsapp_event_lease",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "fail_whatsapp_event_lease",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260809030521",
+      "remote_version": "20260809030521",
+      "remote_name": "whatsapp_send_started_fencing",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "webhook_idempotency_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "acquire_whatsapp_event_lease",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "begin_whatsapp_event_send",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "complete_whatsapp_event_lease",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "fail_whatsapp_event_lease",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260809030752",
+      "remote_version": "20260809030752",
+      "remote_name": "whatsapp_idempotency_state_constraints",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "webhook_idempotency_events",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260810073822",
+      "remote_version": "20260810073822",
+      "remote_name": "dgr072_services_synthetic_and_authenticated_booking_read",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "services",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260811022650",
+      "remote_version": "20260811022650",
+      "remote_name": "phase0_lock_product_image_uploads",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "phase0_block_product_image_insert",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "product_images",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260811022934",
+      "remote_version": "20260811022934",
+      "remote_name": "phase0_alhana_force_draft_and_unverified",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "phase0_enforce_alhana_product_state",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "product_availability",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partners",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "phase0_normalize_alhana_linked_product",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260811023537",
+      "remote_version": "20260811023537",
+      "remote_name": "phase0_alhana_force_new_products_staging",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "phase0_force_alhana_product_state_on_link",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_availability",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260811023725",
+      "remote_version": "20260811023725",
+      "remote_name": "phase0_staging_force_new_products_draft",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "phase0_force_new_product_draft_staging",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260811024122",
+      "remote_version": "20260811024122",
+      "remote_name": "phase0_lock_all_staging_synthetic_products",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "phase0_lock_staging_synthetic_products",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260811024802",
+      "remote_version": "20260811024802",
+      "remote_name": "allow_phase0_system_seed_remote_images_only",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "phase0_block_product_image_insert",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260816074013",
+      "remote_version": "20260816074013",
+      "remote_name": "create_social_media_public_bucket",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260816074052",
+      "remote_version": "20260816074052",
+      "remote_name": "enable_pg_net_for_social_import",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260817164153",
+      "remote_version": "20260817164153",
+      "remote_name": "add_tiktok_connections",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "tiktok_connections",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260817204344",
+      "remote_version": "20260817204344",
+      "remote_name": "fix_tiktok_connections_service_role_grants",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "tiktok_connections",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260819203457",
+      "remote_version": "20260819203457",
+      "remote_name": "revoke_phase0_trigger_rpc_execution",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "phase0_enforce_alhana_product_state",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "phase0_force_alhana_product_state_on_link",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "phase0_normalize_alhana_linked_product",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260823135041",
+      "remote_version": "20260823135041",
+      "remote_name": "dir_74_reconcile_customers_partner_assignments",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "bookings",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partners",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "customers",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_assignments",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260823150541",
+      "remote_version": "20260823150541",
+      "remote_name": "dir_81_admin_partners_select_policy",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partners",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260825024609",
+      "remote_version": "20260825024609",
+      "remote_name": "uat_enable_owned_partner_media_persistence",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "phase0_block_product_image_insert",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_availability",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260827152245",
+      "remote_version": "20260827152245",
+      "remote_name": "partner_portal_durable_state_and_documents",
+      "local_version": "20260827152245",
+      "local_filename": "supabase/migrations/20260827152245_partner_portal_durable_state_and_documents.sql",
+      "classification": "M",
+      "sql_equivalence": "DIFFERENT_SQL_NOT_EQUIVALENT",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "partner_portal_assets",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partners",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_portal_asset_media",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_portal_review_queue",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_portal_contracts",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_storage_cleanup_queue",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "persist_partner_portal_state",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "partner_documents",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "DO_NOT_REPAIR",
+      "reason": "Local/remote naming correspondence exists but SQL differs; do not erase the divergence with history repair.",
+      "provenance_commit_or_pr": [
+        "aaff9169f6f0d7533d14f12d2281c213fb2dd5c8"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260827155608",
+      "remote_version": "20260827155608",
+      "remote_name": "partner_document_review_boundary_and_image_cleanup",
+      "local_version": "20260827155608",
+      "local_filename": "supabase/migrations/20260827155608_partner_document_review_boundary_and_image_cleanup.sql",
+      "classification": "M",
+      "sql_equivalence": "DIFFERENT_SQL_NOT_EQUIVALENT",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "partner_documents",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_image_cleanup_queue",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partners",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "DO_NOT_REPAIR",
+      "reason": "Local/remote naming correspondence exists but SQL differs; do not erase the divergence with history repair.",
+      "provenance_commit_or_pr": [
+        "fa4c2f4676d0078080375e52a6466b8a587e3945"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260827155935",
+      "remote_version": "20260827155935",
+      "remote_name": "partner_table_least_privilege_grants",
+      "local_version": "20260827155935",
+      "local_filename": "supabase/migrations/20260827155935_partner_table_least_privilege_grants.sql",
+      "classification": "M",
+      "sql_equivalence": "DIFFERENT_SQL_NOT_EQUIVALENT",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "partners",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_users",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_documents",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_services",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_coverage",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "DO_NOT_REPAIR",
+      "reason": "Local/remote naming correspondence exists but SQL differs; do not erase the divergence with history repair.",
+      "provenance_commit_or_pr": [
+        "fa4c2f4676d0078080375e52a6466b8a587e3945"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260827160824",
+      "remote_version": "20260827160824",
+      "remote_name": "partner_sensitive_data_and_optional_table_hardening",
+      "local_version": "20260827160824",
+      "local_filename": "supabase/migrations/20260827160824_partner_sensitive_data_and_optional_table_hardening.sql",
+      "classification": "M",
+      "sql_equivalence": "DIFFERENT_SQL_NOT_EQUIVALENT",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "partners",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_documents",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_users",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_services",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_coverage",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "DO_NOT_REPAIR",
+      "reason": "Local/remote naming correspondence exists but SQL differs; do not erase the divergence with history repair.",
+      "provenance_commit_or_pr": [
+        "e76135f94383ca82756e83a5adc42bd6982b5ad1"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260827161608",
+      "remote_version": "20260827161608",
+      "remote_name": "partner_users_service_role_only",
+      "local_version": "20260827161608",
+      "local_filename": "supabase/migrations/20260827161608_partner_users_service_role_only.sql",
+      "classification": "E",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "partner_users",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Version and normalized SQL match; preserve.",
+      "provenance_commit_or_pr": [
+        "3d38069eb4a12f5b136f6ab968d5ab310820731d"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260828023945",
+      "remote_version": "20260828023945",
+      "remote_name": "customer_marketplace_truth_and_requests",
+      "local_version": "20260827232309",
+      "local_filename": "supabase/migrations/20260827232309_customer_marketplace_truth_and_requests.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "db6229e3e2a25d7cdb67223af2d59972c298e5fa"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260829110735",
+      "remote_version": "20260829110735",
+      "remote_name": "allow_approved_alhana_marketplace_promotion",
+      "local_version": null,
+      "local_filename": null,
+      "classification": "H",
+      "sql_equivalence": "NO_LOCAL_EQUIVALENT_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "phase0_enforce_alhana_product_state",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "product_availability",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partners",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "phase0_force_alhana_product_state_on_link",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "phase0_normalize_alhana_linked_product",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Remote historical execution is recorded; no exact current local counterpart proven. Preserve, do not replay or mark a different file applied.",
+      "provenance_commit_or_pr": [],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260829220304",
+      "remote_version": "20260829220304",
+      "remote_name": "dir118_revenue_launch_requests",
+      "local_version": "20260829223000",
+      "local_filename": "supabase/migrations/20260829223000_dir118_revenue_launch_requests.sql",
+      "classification": "M",
+      "sql_equivalence": "DIFFERENT_SQL_NOT_EQUIVALENT",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "DO_NOT_REPAIR",
+      "reason": "Local/remote naming correspondence exists but SQL differs; do not erase the divergence with history repair.",
+      "provenance_commit_or_pr": [
+        "951c346f5a2a6081d302b833a5345e2f4b53d891"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260830055517",
+      "remote_version": "20260830055517",
+      "remote_name": "dir120_revenue_request_transition_safety_20260829234937",
+      "local_version": "20260829234937",
+      "local_filename": "supabase/migrations/20260829234937_dir120_revenue_request_transition_safety.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_request_evidence",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "resolve_marketplace_request_confirmation_evidence",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "assert_marketplace_request_confirmation_integrity",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "transition_marketplace_request",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "audit_logs",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "bc636ab0bb5308e876fabc5c08d2900d9b5f328f"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260830055522",
+      "remote_version": "20260830055522",
+      "remote_name": "dir120_marketplace_request_audit_logs_20260830033103",
+      "local_version": "20260830033103",
+      "local_filename": "supabase/migrations/20260830033103_dir120_marketplace_request_audit_logs.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "audit_logs",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_request_audit_logs",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "reject_marketplace_request_audit_mutation",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "transition_marketplace_request",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "resolve_marketplace_request_confirmation_evidence",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "assert_marketplace_request_confirmation_integrity",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "a3e5666fe708fabc102ba93dbce46e4c2a626bb0"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260831182649",
+      "remote_version": "20260831182649",
+      "remote_name": "reconcile_verification_documents_postgres17",
+      "local_version": "20260831171448",
+      "local_filename": "supabase/migrations/20260831171448_reconcile_verification_documents_postgres17.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "verification_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "verification_documents",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "verification_reviews",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "verification_status_history",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "c1ca5666a1d43004bdfa5fdc1632e4c3dfeeb1d8"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260902155650",
+      "remote_version": "20260902155650",
+      "remote_name": "reconcile_assignment_engine_tables",
+      "local_version": "20260902125155",
+      "local_filename": "supabase/migrations/20260902125155_reconcile_assignment_engine_tables.sql",
+      "classification": "M",
+      "sql_equivalence": "DIFFERENT_SQL_NOT_EQUIVALENT",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "assignment_rules",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "assignment_logs",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "is_admin_actor",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "DO_NOT_REPAIR",
+      "reason": "Local/remote naming correspondence exists but SQL differs; do not erase the divergence with history repair.",
+      "provenance_commit_or_pr": [
+        "23914b4fb30d16f992776937f620f355df572524"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260902184216",
+      "remote_version": "20260902184216",
+      "remote_name": "bookings_owner_write_boundary",
+      "local_version": "20260901013000",
+      "local_filename": "supabase/migrations/20260901013000_bookings_owner_write_boundary.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "bookings",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "158790cd10dab407cad0acef08277a16b891c226"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260902184314",
+      "remote_version": "20260902184314",
+      "remote_name": "reconcile_customer_activity_postgres17",
+      "local_version": "20260902163712",
+      "local_filename": "supabase/migrations/20260902163712_reconcile_customer_activity_postgres17.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "customers",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "customer_activity",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "is_admin_actor",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "a550ae22ab63b89c945fda149307220bd09d816b"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260903181947",
+      "remote_version": "20260903181947",
+      "remote_name": "ceo_team_access_rbac",
+      "local_version": "20260903233000",
+      "local_filename": "supabase/migrations/20260903233000_ceo_team_access_rbac.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "team_access_grants",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "team_access_grants_user_idx",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "is_ceo_actor",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "normalize_team_email",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "save_team_access_grant",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "set_team_access_status",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "12aa0b3e5e0327f1f96befbaaaf8f40981e75461"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260904195812",
+      "remote_version": "20260904195812",
+      "remote_name": "dabra_provider_observability",
+      "local_version": "20260904130954",
+      "local_filename": "supabase/migrations/20260904130954_dabra_provider_observability.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "dabra_provider_attempts",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "get_dabra_provider_metrics",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "bac65c5d619cf35e5ab64b6df12f12656738180d"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260906032145",
+      "remote_version": "20260906032145",
+      "remote_name": "notifications_production_grants",
+      "local_version": "20260906025749",
+      "local_filename": "supabase/migrations/20260906025749_notifications_production_grants.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "notifications",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "4cf7c80c4db62c4fc215c41536e4ef21d5b25309"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260906032204",
+      "remote_version": "20260906032204",
+      "remote_name": "reconcile_pr93_operations_notifications",
+      "local_version": "20260906013832",
+      "local_filename": "supabase/migrations/20260906013832_reconcile_pr93_operations_notifications.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "audit_logs",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "activity_timeline",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "system_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "reject_operations_record_mutation",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "99505a78a63a1402918053d71b7ec93dfe57f39b"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260906032210",
+      "remote_version": "20260906032210",
+      "remote_name": "admin_product_lifecycle_and_request_handoff",
+      "local_version": "20260903234500",
+      "local_filename": "supabase/migrations/20260903234500_admin_product_lifecycle_and_request_handoff.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_audit_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "assert_product_lifecycle_actor",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "create_product_draft_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "update_product_draft_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "publish_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "unpublish_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "archive_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "bookings",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "start_marketplace_request_handoff",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "marketplace_request_audit_logs",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "7e4d547b96f1694614c75b2a1fa628ba18eb868e",
+        "050689253dfe551a1ec37d4ce6a966c2e67c126b"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260906032222",
+      "remote_version": "20260906032222",
+      "remote_name": "partner_request_handoff",
+      "local_version": "20260903234600",
+      "local_filename": "supabase/migrations/20260903234600_partner_request_handoff.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "marketplace_request_handoff_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "reject_marketplace_request_handoff_event_mutation",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "start_partner_marketplace_request_handoff",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "product_availability",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "fd04f7dd814cb1df7734d52d1a24638beb8213a8",
+        "aa4212f4a750590b02237ee98784b06333874956"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260906032228",
+      "remote_version": "20260906032228",
+      "remote_name": "drop_legacy_admin_handoff_rpc",
+      "local_version": "20260903234700",
+      "local_filename": "supabase/migrations/20260903234700_drop_legacy_admin_handoff_rpc.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "start_marketplace_request_handoff",
+            "kind": "unresolved_reference",
+            "present": false
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "03633a9089b72b9c5f530328740f352f9b82fcb7",
+        "ef64f5d6caf781cc9c7deac3c86df2eab9bc8f4b"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260906032234",
+      "remote_version": "20260906032234",
+      "remote_name": "harden_admin_partner_authorization",
+      "local_version": "20260904004000",
+      "local_filename": "supabase/migrations/20260904004000_harden_admin_partner_authorization.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "normalize_admin_country_key",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "product_lifecycle_actor_role",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "team_access_grants",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "can_read_product_audit",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "product_audit_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "assert_product_lifecycle_actor",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "create_product_draft_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "update_product_draft_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "publish_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "unpublish_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "archive_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "bookings",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "8b53248fdc76514714c09ba1fbd0f2492c08e61d",
+        "a56964a11992510807bfd76efc1a249aaf94fb01"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260906032241",
+      "remote_version": "20260906032241",
+      "remote_name": "reconcile_admin_partner_lifecycle_safety",
+      "local_version": "20260905160435",
+      "local_filename": "supabase/migrations/20260905160435_reconcile_admin_partner_lifecycle_safety.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "product_lifecycle_session_role",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "team_access_grants",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_lifecycle_actor_role",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "normalize_admin_country_key",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "update_product_draft_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_audit_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "publish_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "unpublish_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "archive_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "bookings",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "reject_product_audit_event_mutation",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "marketplace_request_handoff_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "reject_marketplace_request_handoff_event_mutation",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "get_partner_marketplace_requests",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "partners",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_request_audit_logs",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_availability",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "start_partner_marketplace_request_handoff",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "is_ceo_actor",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "save_team_access_grant",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "normalize_team_email",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "set_team_access_status",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "3fdaf70234c59d670a6e1b9fdf59225102dd6e35"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "remote:20260906032249",
+      "remote_version": "20260906032249",
+      "remote_name": "reconcile_phase0_lifecycle_insert",
+      "local_version": "20260905161554",
+      "local_filename": "supabase/migrations/20260905161554_reconcile_phase0_lifecycle_insert.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "phase0_force_new_product_draft_staging",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "create_product_draft_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "product_lifecycle_actor_role",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_audit_events",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "f5c220ab00d63fe1ae4cf34df5e647454724e9d6"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260730120000_create_core_schema.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260730120000",
+      "local_filename": "supabase/migrations/20260730120000_create_core_schema.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "db2d30305db4156a74261cb38be140312098ddb3"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260730150000_create_partner_management.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260730150000",
+      "local_filename": "supabase/migrations/20260730150000_create_partner_management.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "db2d30305db4156a74261cb38be140312098ddb3"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260730170000_create_booking_engine.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260730170000",
+      "local_filename": "supabase/migrations/20260730170000_create_booking_engine.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "db2d30305db4156a74261cb38be140312098ddb3"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260730180000_create_assignment_engine.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260730180000",
+      "local_filename": "supabase/migrations/20260730180000_create_assignment_engine.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "db2d30305db4156a74261cb38be140312098ddb3"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260730190000_create_product_management.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260730190000",
+      "local_filename": "supabase/migrations/20260730190000_create_product_management.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "db2d30305db4156a74261cb38be140312098ddb3"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260730195000_create_customer_management.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260730195000",
+      "local_filename": "supabase/migrations/20260730195000_create_customer_management.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "db2d30305db4156a74261cb38be140312098ddb3"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260730200000_create_finance_engine.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260730200000",
+      "local_filename": "supabase/migrations/20260730200000_create_finance_engine.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "db2d30305db4156a74261cb38be140312098ddb3"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260730210000_create_operations_engine.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260730210000",
+      "local_filename": "supabase/migrations/20260730210000_create_operations_engine.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "db2d30305db4156a74261cb38be140312098ddb3"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260730220000_create_verification_engine.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260730220000",
+      "local_filename": "supabase/migrations/20260730220000_create_verification_engine.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": []
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "db2d30305db4156a74261cb38be140312098ddb3"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260801103000_add_rls_for_engine_domains.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260801103000",
+      "local_filename": "supabase/migrations/20260801103000_add_rls_for_engine_domains.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "is_admin_actor",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "booking_status_history",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "bookings",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_assignments",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_settlements",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "booking_reviews",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_categories",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_images",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_prices",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_features",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_availability",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "wallets",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "wallet_transactions",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "payment_transactions",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "invoices",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "payment_methods",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "verification_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "verification_documents",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "identity_profiles",
+            "kind": "unresolved_reference",
+            "present": false
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "8f70fde1b9625d8bf92f827ab55e8925df81284f"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260808120000_dgr055_canonical_profile_provisioning.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260808120000",
+      "local_filename": "supabase/migrations/20260808120000_dgr055_canonical_profile_provisioning.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "provision_profile_for_auth_user",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "9e539b10b28627d700fd11c5c123f307352d70cc"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260808120000_dgr059_partner_documents_runtime_grants_and_owner_policies.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260808120000",
+      "local_filename": "supabase/migrations/20260808120000_dgr059_partner_documents_runtime_grants_and_owner_policies.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "partner_documents",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "a4e66b83d2f565e92637cd4f4d6079ed28d36721"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260808123000_dgr056_profiles_authenticated_select_grant.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260808123000",
+      "local_filename": "supabase/migrations/20260808123000_dgr056_profiles_authenticated_select_grant.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "ac08d2b15b612c5e68487fa7205951926c06f720"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260808124500_dgr062_partner_coverage_service_role_grants.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260808124500",
+      "local_filename": "supabase/migrations/20260808124500_dgr062_partner_coverage_service_role_grants.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "partner_coverage",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "4defbed63248d1023fa21207900251f9a97d592c"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260808173000_go_live_inc_006_profiles_partner_documents_runtime_grants.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260808173000",
+      "local_filename": "supabase/migrations/20260808173000_go_live_inc_006_profiles_partner_documents_runtime_grants.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partner_documents",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "5d494deb7b18f53506cd6274a42bb7ebbe36bfc8"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260810102000_dgr071_core_synthetic_compatibility.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260810102000",
+      "local_filename": "supabase/migrations/20260810102000_dgr071_core_synthetic_compatibility.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_categories",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_images",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_features",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "6f75ed9cc9b50f4a44978b839b1ff003c99df9b4"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260810113000_dgr072_services_synthetic_compatibility.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260810113000",
+      "local_filename": "supabase/migrations/20260810113000_dgr072_services_synthetic_compatibility.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "services",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "9ff0415094f59f141a1cb136609f5b4e80c94947",
+        "a516371fbebbed846262edc2877a2ad06fa2a7bc"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260825130000_create_vip_local_test_config.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260825130000",
+      "local_filename": "supabase/migrations/20260825130000_create_vip_local_test_config.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "vip_partner_configs",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "vip_partner_audit",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "is_admin_actor",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "78647748a27dee6bfc15ed673344356cb8473dba"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260825153000_create_travel_provider_webhook_events.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260825153000",
+      "local_filename": "supabase/migrations/20260825153000_create_travel_provider_webhook_events.sql",
+      "classification": "U",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "travel_provider_webhook_events",
+            "kind": "unresolved_reference",
+            "present": false
+          }
+        ]
+      },
+      "safe_history_action": "PRESERVE",
+      "reason": "Local-only file. Existing referenced objects do not establish that this migration executed; preserve and review. No automatic replay.",
+      "provenance_commit_or_pr": [
+        "b32cc8278612135907a8df8255ee56e18aea688b",
+        "4bd461c1b06352ddfde00b5911fafc06fbd655e1"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260827232309_customer_marketplace_truth_and_requests.sql",
+      "remote_version": "20260828023945",
+      "remote_name": "customer_marketplace_truth_and_requests",
+      "local_version": "20260827232309",
+      "local_filename": "supabase/migrations/20260827232309_customer_marketplace_truth_and_requests.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "db6229e3e2a25d7cdb67223af2d59972c298e5fa"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260829223000_dir118_revenue_launch_requests.sql",
+      "remote_version": "20260829220304",
+      "remote_name": "dir118_revenue_launch_requests",
+      "local_version": "20260829223000",
+      "local_filename": "supabase/migrations/20260829223000_dir118_revenue_launch_requests.sql",
+      "classification": "M",
+      "sql_equivalence": "DIFFERENT_SQL_NOT_EQUIVALENT",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "DO_NOT_REPAIR",
+      "reason": "Local/remote naming correspondence exists but SQL differs; do not erase the divergence with history repair.",
+      "provenance_commit_or_pr": [
+        "951c346f5a2a6081d302b833a5345e2f4b53d891"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260829234937_dir120_revenue_request_transition_safety.sql",
+      "remote_version": "20260830055517",
+      "remote_name": "dir120_revenue_request_transition_safety_20260829234937",
+      "local_version": "20260829234937",
+      "local_filename": "supabase/migrations/20260829234937_dir120_revenue_request_transition_safety.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_request_evidence",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "resolve_marketplace_request_confirmation_evidence",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "assert_marketplace_request_confirmation_integrity",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "transition_marketplace_request",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "audit_logs",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "bc636ab0bb5308e876fabc5c08d2900d9b5f328f"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260830033103_dir120_marketplace_request_audit_logs.sql",
+      "remote_version": "20260830055522",
+      "remote_name": "dir120_marketplace_request_audit_logs_20260830033103",
+      "local_version": "20260830033103",
+      "local_filename": "supabase/migrations/20260830033103_dir120_marketplace_request_audit_logs.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "audit_logs",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_request_audit_logs",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "reject_marketplace_request_audit_mutation",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "transition_marketplace_request",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "resolve_marketplace_request_confirmation_evidence",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "assert_marketplace_request_confirmation_integrity",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "a3e5666fe708fabc102ba93dbce46e4c2a626bb0"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260831171448_reconcile_verification_documents_postgres17.sql",
+      "remote_version": "20260831182649",
+      "remote_name": "reconcile_verification_documents_postgres17",
+      "local_version": "20260831171448",
+      "local_filename": "supabase/migrations/20260831171448_reconcile_verification_documents_postgres17.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "verification_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "verification_documents",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "verification_reviews",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "verification_status_history",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "c1ca5666a1d43004bdfa5fdc1632e4c3dfeeb1d8"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260901013000_bookings_owner_write_boundary.sql",
+      "remote_version": "20260902184216",
+      "remote_name": "bookings_owner_write_boundary",
+      "local_version": "20260901013000",
+      "local_filename": "supabase/migrations/20260901013000_bookings_owner_write_boundary.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "bookings",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "158790cd10dab407cad0acef08277a16b891c226"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260902125155_reconcile_assignment_engine_tables.sql",
+      "remote_version": "20260902155650",
+      "remote_name": "reconcile_assignment_engine_tables",
+      "local_version": "20260902125155",
+      "local_filename": "supabase/migrations/20260902125155_reconcile_assignment_engine_tables.sql",
+      "classification": "M",
+      "sql_equivalence": "DIFFERENT_SQL_NOT_EQUIVALENT",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "assignment_rules",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "assignment_logs",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "is_admin_actor",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "DO_NOT_REPAIR",
+      "reason": "Local/remote naming correspondence exists but SQL differs; do not erase the divergence with history repair.",
+      "provenance_commit_or_pr": [
+        "23914b4fb30d16f992776937f620f355df572524"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260902163712_reconcile_customer_activity_postgres17.sql",
+      "remote_version": "20260902184314",
+      "remote_name": "reconcile_customer_activity_postgres17",
+      "local_version": "20260902163712",
+      "local_filename": "supabase/migrations/20260902163712_reconcile_customer_activity_postgres17.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "customers",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "customer_activity",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "is_admin_actor",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "a550ae22ab63b89c945fda149307220bd09d816b"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260903220000_reconcile_customer_documents_postgres17.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260903220000",
+      "local_filename": "supabase/migrations/20260903220000_reconcile_customer_documents_postgres17.sql",
+      "classification": "PENDING",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "customers",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "customer_documents",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "is_admin_actor",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PENDING_SCHEMA",
+      "reason": "Canonical migration absent from history; target table/function or hardening evidence missing. Requires future separately authorized schema deployment, never history-only marking.",
+      "provenance_commit_or_pr": [
+        "319ea270c422164b9fe7ad0f369e1a87cf94603c"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260903233000_ceo_team_access_rbac.sql",
+      "remote_version": "20260903181947",
+      "remote_name": "ceo_team_access_rbac",
+      "local_version": "20260903233000",
+      "local_filename": "supabase/migrations/20260903233000_ceo_team_access_rbac.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "team_access_grants",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "team_access_grants_user_idx",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "is_ceo_actor",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "normalize_team_email",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "save_team_access_grant",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "set_team_access_status",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "12aa0b3e5e0327f1f96befbaaaf8f40981e75461"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260903234500_admin_product_lifecycle_and_request_handoff.sql",
+      "remote_version": "20260906032210",
+      "remote_name": "admin_product_lifecycle_and_request_handoff",
+      "local_version": "20260903234500",
+      "local_filename": "supabase/migrations/20260903234500_admin_product_lifecycle_and_request_handoff.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_audit_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "assert_product_lifecycle_actor",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "create_product_draft_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "update_product_draft_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "publish_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "unpublish_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "archive_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "bookings",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "start_marketplace_request_handoff",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "marketplace_request_audit_logs",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "7e4d547b96f1694614c75b2a1fa628ba18eb868e",
+        "050689253dfe551a1ec37d4ce6a966c2e67c126b"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260903234600_partner_request_handoff.sql",
+      "remote_version": "20260906032222",
+      "remote_name": "partner_request_handoff",
+      "local_version": "20260903234600",
+      "local_filename": "supabase/migrations/20260903234600_partner_request_handoff.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "marketplace_request_handoff_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "reject_marketplace_request_handoff_event_mutation",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "start_partner_marketplace_request_handoff",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "product_availability",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "fd04f7dd814cb1df7734d52d1a24638beb8213a8",
+        "aa4212f4a750590b02237ee98784b06333874956"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260903234700_drop_legacy_admin_handoff_rpc.sql",
+      "remote_version": "20260906032228",
+      "remote_name": "drop_legacy_admin_handoff_rpc",
+      "local_version": "20260903234700",
+      "local_filename": "supabase/migrations/20260903234700_drop_legacy_admin_handoff_rpc.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "start_marketplace_request_handoff",
+            "kind": "unresolved_reference",
+            "present": false
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "03633a9089b72b9c5f530328740f352f9b82fcb7",
+        "ef64f5d6caf781cc9c7deac3c86df2eab9bc8f4b"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260904004000_harden_admin_partner_authorization.sql",
+      "remote_version": "20260906032234",
+      "remote_name": "harden_admin_partner_authorization",
+      "local_version": "20260904004000",
+      "local_filename": "supabase/migrations/20260904004000_harden_admin_partner_authorization.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "normalize_admin_country_key",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "product_lifecycle_actor_role",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "team_access_grants",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "can_read_product_audit",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "product_audit_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "assert_product_lifecycle_actor",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "create_product_draft_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "update_product_draft_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "publish_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "unpublish_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "archive_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "bookings",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "8b53248fdc76514714c09ba1fbd0f2492c08e61d",
+        "a56964a11992510807bfd76efc1a249aaf94fb01"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260904130954_dabra_provider_observability.sql",
+      "remote_version": "20260904195812",
+      "remote_name": "dabra_provider_observability",
+      "local_version": "20260904130954",
+      "local_filename": "supabase/migrations/20260904130954_dabra_provider_observability.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "dabra_provider_attempts",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "get_dabra_provider_metrics",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "bac65c5d619cf35e5ab64b6df12f12656738180d"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260904210623_harden_dabra_provider_attempt_acl.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260904210623",
+      "local_filename": "supabase/migrations/20260904210623_harden_dabra_provider_attempt_acl.sql",
+      "classification": "PENDING",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "dabra_provider_attempts",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "dabra_provider_attempts_request_hop_unique_idx",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "get_dabra_provider_metrics",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "get_dabra_provider_observability_hardening_status",
+            "kind": "unresolved_reference",
+            "present": false
+          }
+        ]
+      },
+      "safe_history_action": "PENDING_SCHEMA",
+      "reason": "Canonical migration absent from history; target table/function or hardening evidence missing. Requires future separately authorized schema deployment, never history-only marking.",
+      "provenance_commit_or_pr": [
+        "88fd701e48b49b015a40b5e7cef0d746f385c75c"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260905160435_reconcile_admin_partner_lifecycle_safety.sql",
+      "remote_version": "20260906032241",
+      "remote_name": "reconcile_admin_partner_lifecycle_safety",
+      "local_version": "20260905160435",
+      "local_filename": "supabase/migrations/20260905160435_reconcile_admin_partner_lifecycle_safety.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "product_lifecycle_session_role",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "team_access_grants",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_lifecycle_actor_role",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "normalize_admin_country_key",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "update_product_draft_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_audit_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "publish_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "unpublish_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "archive_product_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "marketplace_requests",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "bookings",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "reject_product_audit_event_mutation",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "marketplace_request_handoff_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "reject_marketplace_request_handoff_event_mutation",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "get_partner_marketplace_requests",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "partners",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "marketplace_request_audit_logs",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_availability",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "start_partner_marketplace_request_handoff",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "is_ceo_actor",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "save_team_access_grant",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "normalize_team_email",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "set_team_access_status",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "3fdaf70234c59d670a6e1b9fdf59225102dd6e35"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260905161554_reconcile_phase0_lifecycle_insert.sql",
+      "remote_version": "20260906032249",
+      "remote_name": "reconcile_phase0_lifecycle_insert",
+      "local_version": "20260905161554",
+      "local_filename": "supabase/migrations/20260905161554_reconcile_phase0_lifecycle_insert.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "phase0_force_new_product_draft_staging",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "create_product_draft_lifecycle",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "product_lifecycle_actor_role",
+            "kind": "function",
+            "present": true
+          },
+          {
+            "name": "products",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "product_audit_events",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "f5c220ab00d63fe1ae4cf34df5e647454724e9d6"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260906013832_reconcile_pr93_operations_notifications.sql",
+      "remote_version": "20260906032204",
+      "remote_name": "reconcile_pr93_operations_notifications",
+      "local_version": "20260906013832",
+      "local_filename": "supabase/migrations/20260906013832_reconcile_pr93_operations_notifications.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "audit_logs",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "activity_timeline",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "system_events",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "reject_operations_record_mutation",
+            "kind": "function",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "99505a78a63a1402918053d71b7ec93dfe57f39b"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260906025749_notifications_production_grants.sql",
+      "remote_version": "20260906032145",
+      "remote_name": "notifications_production_grants",
+      "local_version": "20260906025749",
+      "local_filename": "supabase/migrations/20260906025749_notifications_production_grants.sql",
+      "classification": "V",
+      "sql_equivalence": "EXACT_AFTER_LINE_ENDING_AND_EDGE_WHITESPACE_NORMALIZATION",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "notifications",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PAIRED_REPAIR",
+      "reason": "Recorded SQL matches local SQL after CRLF/LF and edge-whitespace normalization only. Candidate paired repair requires independent approval and fresh live contract verification; this manifest executes nothing.",
+      "provenance_commit_or_pr": [
+        "4cf7c80c4db62c4fc215c41536e4ef21d5b25309"
+      ],
+      "reviewer_required": true
+    },
+    {
+      "record_id": "local:supabase/migrations/20260906034500_partner_trusted_activation.sql",
+      "remote_version": null,
+      "remote_name": null,
+      "local_version": "20260906034500",
+      "local_filename": "supabase/migrations/20260906034500_partner_trusted_activation.sql",
+      "classification": "PENDING",
+      "sql_equivalence": "NO_RECORDED_EQUIVALENCE_PROVEN",
+      "production_object_evidence": {
+        "observed_at": "2026-09-06T05:16:55.495361+00:00",
+        "scope": "Catalog presence only; not proof of historical execution or complete semantic equivalence",
+        "objects": [
+          {
+            "name": "audit_logs",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "activate_partner_with_attestation",
+            "kind": "unresolved_reference",
+            "present": false
+          },
+          {
+            "name": "profiles",
+            "kind": "table",
+            "present": true
+          },
+          {
+            "name": "partners",
+            "kind": "table",
+            "present": true
+          }
+        ]
+      },
+      "safe_history_action": "PENDING_SCHEMA",
+      "reason": "Canonical migration absent from history; target table/function or hardening evidence missing. Requires future separately authorized schema deployment, never history-only marking.",
+      "provenance_commit_or_pr": [
+        "bfbf3cc961afd59f6adc8794ef8b2a94e655cb84"
+      ],
+      "reviewer_required": true
+    }
+  ]
+}
