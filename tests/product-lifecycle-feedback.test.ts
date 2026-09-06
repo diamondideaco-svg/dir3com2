@@ -98,3 +98,9 @@ test('editor preserves unsaved inputs and disables resubmission until explicit r
   assert.ok(editor.includes('name="expectedVersion" value={product.lifecycle_version'));
   assert.doesNotMatch(editor, /\.reset\(|router\.refresh\(/);
 });
+
+test('partner requests own the active locale direction instead of inheriting the public body RTL', () => {
+  const component = readFileSync(new URL('../components/portal/PartnerRequestsClient.tsx', import.meta.url), 'utf8');
+  assert.ok(component.includes("const locale = ar ? 'ar' : 'en'"));
+  assert.ok(component.includes("<main lang={locale} dir={ar ? 'rtl' : 'ltr'}"));
+});

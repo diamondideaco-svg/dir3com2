@@ -98,7 +98,7 @@ export default function PartnerRequestsClient() {
   }
 
   return (
-    <main className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]">
+    <main lang={locale} dir={ar ? 'rtl' : 'ltr'} className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]">
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
