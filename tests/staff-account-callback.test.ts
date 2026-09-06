@@ -10,6 +10,7 @@ import * as routing from '../lib/auth/redirect';
 import { buildOAuthCallbackUrl } from '../lib/auth/oauth-callback';
 import type { SessionRole } from '../lib/auth/identity-contract';
 import * as copy from '../lib/i18n/customer-hub';
+import * as bookingStatus from '../lib/booking/workflow-status';
 
 const require = createRequire(import.meta.url);
 
@@ -98,6 +99,8 @@ test('rendered account headings and badges reflect each canonical role in Arabic
       '@/components/account/MarketplaceRequestsPanel': { default: () => null },
       '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language, direction: language === 'ar' ? 'rtl' : 'ltr' }) },
       '@/lib/i18n/customer-hub': copy,
+      '@/lib/booking/workflow-status': bookingStatus,
+      '@/components/v6/v6.module.css': { default: {} },
     });
     for (const [role, english, arabic, englishBadge, arabicBadge] of cases) {
       const html = renderToStaticMarkup(createElement(Account, {

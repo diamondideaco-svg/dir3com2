@@ -1,13 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync,readdirSync} from 'node:fs';
-import {validateCutover} from '../scripts/check-migration-baseline.mjs';
+import {validateCutover as validate} from '../scripts/check-migration-baseline.mjs';
 const root=new URL('../',import.meta.url);
 const read=p=>readFileSync(new URL(p,root));
 const plan=JSON.parse(read('docs/production-baseline-cutover-plan-2026-09-06.json'));
 const active=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql'));
 const archive=readdirSync(new URL('supabase/migrations-archive/',root)).filter(f=>f.endsWith('.sql'));
-test('approved four-file chain and all 45 immutable archive blobs pass',()=>assert.equal(validateCutover(plan,active,archive,read),true));
+const forwards=JSON.parse(read('docs/post-cutover-migrations.json'));
+const validateCutover=(plan,active,archive,read)=>validate(plan,active,archive,read,forwards);
+test('frozen cutover plus explicitly registered forwards and 45 immutable archive blobs pass',()=>assert.equal(validateCutover(plan,active,archive,read),true));
+test('forward registration fails closed for absent, duplicate, old, escaped or changed SQL',()=>{
+ assert.throws(()=>validate(plan,active,archive,read),/active migration chain/);
+ assert.throws(()=>validate(plan,active,archive,read,[...forwards,...forwards]),/Duplicate forward/);
+ for(const path of ['../escaped.sql','supabase/migrations/20260808120000_old.sql'])
+  assert.throws(()=>validate(plan,active,archive,read,[{...forwards[0],path}]),/Invalid forward/);
+ assert.throws(()=>validate(plan,active,archive,p=>p===forwards[0].path?Buffer.from('changed'):read(p),forwards),/Forward SQL hash/);
+ assert.equal(validate(plan,plan.active_files.map(f=>f.path.split('/').at(-1)),archive,read),true);
+});
 test('active duplicate rejected, including future duplicate names',()=>assert.throws(()=>validateCutover(plan,[...active,'20260906034500_future.sql'],archive,read),/Duplicate active/));
 test('malformed, legacy or unapproved active files fail closed',()=>{
  for(const f of ['bad.sql','20260808120000_dgr055_canonical_profile_provisioning.sql','20990101000000_future.sql'])assert.throws(()=>validateCutover(plan,[...active,f],archive,read));

@@ -4,12 +4,23 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { BASELINE, PENDING } from './production-baseline-contract.mjs';
 
-export function validateCutover(plan, active, archived, readBytes) {
+export function validateCutover(plan, active, archived, readBytes, forwards = []) {
   if (JSON.stringify(plan.proposed_active_versions) !== JSON.stringify([BASELINE,...PENDING])) throw new Error('Invalid active ordering/approved versions');
   if (duplicateVersions(active).length) throw new Error('Duplicate active version');
-  const expected = plan.active_files.map(f => f.path.replace('supabase/migrations/', '')).sort();
+  const frozen = plan.active_files.map(f => f.path.replace('supabase/migrations/', '')).sort();
+  // The historical adoption contract stays immutable. Post-cutover migrations
+  // require separate exact path/hash registration; no wildcard or bypass.
+  if (!Array.isArray(forwards)) throw new Error('Invalid forward migration registry');
+  for (const f of forwards) {
+    if (!/^supabase\/migrations\/\d{14}_[a-z0-9_]+\.sql$/.test(f.path)
+      || f.path.split('/').at(-1).slice(0,14) <= PENDING.at(-1)
+      || !/^[a-f0-9]{64}$/.test(f.sha256)) throw new Error('Invalid forward migration registration');
+    if (createHash('sha256').update(readBytes(f.path)).digest('hex') !== f.sha256) throw new Error('Forward SQL hash mismatch');
+  }
+  const expected = [...frozen, ...forwards.map(f => f.path.replace('supabase/migrations/', ''))].sort();
+  if (new Set(expected).size !== expected.length || duplicateVersions(expected).length) throw new Error('Duplicate forward registration');
   if (JSON.stringify([...active].sort()) !== JSON.stringify(expected)) throw new Error('Unexpected active migration chain');
-  if (JSON.stringify(plan.proposed_active_versions) !== JSON.stringify(expected.map(f => f.slice(0,14)))) throw new Error('Invalid active ordering');
+  if (JSON.stringify(plan.proposed_active_versions) !== JSON.stringify(frozen.map(f => f.slice(0,14)))) throw new Error('Invalid active ordering');
   if (plan.archive_files.length !== 45) throw new Error('Archive inventory mismatch');
   const archiveNames = plan.archive_files.map(f => f.archive.replace('supabase/migrations-archive/', '')).sort();
   if (new Set(archiveNames).size !== 45 || JSON.stringify([...archived].sort()) !== JSON.stringify(archiveNames)) throw new Error('Missing or unexpected archived evidence');
@@ -70,7 +81,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const plan = JSON.parse(readFileSync(resolve(root, 'docs/production-baseline-cutover-plan-2026-09-06.json'), 'utf8'));
   const archived = readdirSync(resolve(root, 'supabase/migrations-archive')).filter(f => f.endsWith('.sql'));
   validateManifest(manifest, archived);
-  validateCutover(plan, files, archived, p => readFileSync(resolve(root, p)));
+  const forwards = JSON.parse(readFileSync(resolve(root, 'docs/post-cutover-migrations.json'), 'utf8'));
+  validateCutover(plan, files, archived, p => readFileSync(resolve(root, p)), forwards);
   for (const row of manifest.records.filter(r => r.local_filename)) {
     const entry = plan.archive_files.find(f => f.source === row.local_filename);
     if (!entry || row.archive_filename !== entry.archive || row.archive_sha256 !== entry.sha256 || row.archive_git_blob !== entry.git_blob) throw new Error('Manifest archive mapping mismatch');

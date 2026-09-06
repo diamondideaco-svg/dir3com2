@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import MyDocumentsContent, { type VerificationDocumentRow } from '@/components/account/MyDocumentsContent';
 import { resolveDocumentQuery } from '@/lib/customer/document-query';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import AccountFrame from '@/components/v6/AccountFrame';
 
 function buildLoginTarget(destination: string) {
   const encoded = encodeURIComponent(destination);
@@ -20,7 +21,7 @@ async function getDocs() {
 
   const { data, error } = await supabase
     .from('verification_documents')
-    .select('id, document_type, file_url, verification_status, verification_request_id, expiry_date, created_at, verification_requests(status)')
+    .select('id, document_type, verification_status, verification_request_id, issue_date, expiry_date, created_at, storage_bucket, verification_requests(status)')
     .eq('owner_type', 'customer')
     .eq('owner_id', user.id)
     .order('created_at', { ascending: false });
@@ -34,5 +35,5 @@ async function getDocs() {
 
 export default async function MyDocumentsPage() {
   const documentsState = await getDocs();
-  return <MyDocumentsContent documentsState={documentsState} />;
+  return <AccountFrame path="/my-documents" navy><MyDocumentsContent documentsState={documentsState} /></AccountFrame>;
 }

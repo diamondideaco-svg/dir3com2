@@ -22,14 +22,14 @@ test('Register focus styles are local and each input has an associated label', (
   assert.match(css, /\.register input:focus-visible/);
   assert.match(css, /outline: 3px solid var\(--register-ink\)/);
   assert.doesNotMatch(css, /:global|\bbody\b|\bhtml\b/);
-  assert.ok(css.includes('.contactNote { font-size: 14px;'));
+  assert.doesNotMatch(page, /register-contact-note|styles\.contactNote/);
 });
 
 test('Register retains real signup, validation, profile payload and success destination', () => {
   assert.match(page, /password.length < 6/);
   assert.ok(page.includes('options: { data: { full_name: fullName, registration_contact: contact } }'));
   assert.match(page, /supabase.auth.signUp/);
-  assert.match(page, /router.push\('\/login'\)/);
+  assert.ok(page.includes("router.push('/auth/verify-email')"));
   assert.match(page, /supabase.auth.getSession\(\)/);
   assert.equal((page.match(/required/g) || []).length, 7);
 });
