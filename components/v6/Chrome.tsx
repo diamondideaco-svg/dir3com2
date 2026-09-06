@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { FiArrowLeft, FiCalendar, FiFileText, FiHeart, FiHome, FiHelpCircle, FiLogOut, FiMenu, FiSettings, FiShield, FiSun, FiX, FiCreditCard } from 'react-icons/fi';
 import { FaUniversalAccess } from 'react-icons/fa6';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
@@ -11,6 +12,9 @@ import { getCustomerRoleLabel } from '@/lib/i18n/customer-hub';
 import type { SessionRole } from '@/lib/auth/identity-contract';
 import { supabase } from '@/lib/supabase/client';
 import styles from './v6.module.css';
+import { DabraCompact } from './DabraIdentity';
+
+const FloatingDibrah = dynamic(() => import('@/components/layout/FloatingDibrah'), { ssr: false });
 
 export type Viewer = { id: string; name: string; role: SessionRole | null; roleRaw: string | null; avatar: string | null; joined: string | null };
 export function Logo() { return <Link href="/" aria-label="dir3com"><Image src="/brand/runtime/dir3com-logo-approved-cropped.png" alt="dir3com" width={180} height={71} unoptimized /></Link>; }
@@ -48,6 +52,7 @@ export function Chrome({ children, viewer, variant = 'light' }: { children: Reac
         <Link href="/" className={styles.homeLink}><FiArrowLeft />{ar ? 'العودة إلى الرئيسية' : 'Back to home'}</Link>
       </nav>
     </header>
+    {viewer && <Link href="/my-profile" className={styles.mobileIdentity}><span className={styles.initials} aria-hidden="true">{viewer.name.slice(0, 2)}</span><span><strong>{viewer.name}</strong><small>{getCustomerRoleLabel(viewer.role, viewer.roleRaw, language)}</small></span></Link>}
     <div className={viewer ? styles.portal : undefined}>
       {viewer && <aside id="account-navigation" className={styles.sidebar} data-open={menu}>
         <div className={styles.identity}>
@@ -59,7 +64,7 @@ export function Chrome({ children, viewer, variant = 'light' }: { children: Reac
           <button type="button" onClick={logout}><FiLogOut />{ar ? 'تسجيل الخروج' : 'Log out'}</button>
         </nav>
         {logoutError && <p role="alert">{ar ? 'تعذّر تسجيل الخروج. حاول مرة أخرى.' : 'Could not sign out. Try again.'}</p>}
-        <section className={styles.assistant}><strong>DABRA · الدبرة</strong><p>{ar ? 'كيف أقدر أساعدك اليوم؟' : 'How can I help you today?'}</p><Link href="/dabra">{ar ? 'اسأل الدبرة' : 'Ask DABRA'} →</Link></section>
+        <section className={styles.assistant}><DabraCompact artwork={path === '/my-documents' ? 'mall-center' : 'customer-service'} /><strong>DABRA · الدبرة</strong><p>{ar ? 'كيف أقدر أساعدك اليوم؟' : 'How can I help you today?'}</p><Link href="/dabra">{ar ? 'اسأل الدبرة' : 'Ask DABRA'} →</Link></section>
       </aside>}
       <main id="v6-content" className={viewer ? styles.content : undefined}>{children}</main>
     </div>
@@ -70,6 +75,7 @@ export function Chrome({ children, viewer, variant = 'light' }: { children: Reac
       <section><h2>{ar ? 'مساعدة ودعم' : 'Help and support'}</h2><Link href="/support">{ar ? 'مركز المساعدة' : 'Help center'}</Link><Link href="/contact">{ar ? 'تواصل معنا' : 'Contact us'}</Link></section>
       <section><h2>{ar ? 'تواصل معنا' : 'Contact'}</h2><a href="tel:+966532867009"><bdi>+966 53 286 7009</bdi></a><a href="tel:+201011676418"><bdi>+20 101 167 6418</bdi></a><a href="mailto:info@dir3com.com">info@dir3com.com</a><small>© 2026 dir3com</small></section>
     </footer> : <footer className={styles.footer}><Logo /><nav aria-label={ar ? 'روابط المساعدة والسياسات' : 'Help and policy links'}><Link href="/privacy"><FiShield />{ar ? 'الخصوصية' : 'Privacy'}</Link><Link href="/terms">{ar ? 'الشروط والأحكام' : 'Terms'}</Link><Link href="/support">{ar ? 'المساعدة والدعم' : 'Help and support'}</Link><a href="mailto:info@dir3com.com">info@dir3com.com</a></nav><small>© 2026 dir3com</small></footer>}
+    {viewer && <div className={styles.customerLauncher}><FloatingDibrah launcherIdentity={<DabraCompact artwork={path === '/my-documents' ? 'mall-center' : 'customer-service'} />} /></div>}
   </div>;
 }
 

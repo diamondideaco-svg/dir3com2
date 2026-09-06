@@ -46,14 +46,12 @@
 .footer img { width:130px; height:auto; }
 .footer nav { display:flex; flex-wrap:wrap; gap:24px; align-items:center; }
 .footer a { display:inline-flex; align-items:center; gap:8px; }
-.root[data-theme=navy] .sidebar { background:#0d1b2a; color:#fff; }
-.root[data-theme=navy] .header { background:#0d1b2a; color:#fff; }
-.root[data-theme=navy] .header > a { background:white; border-radius:8px; padding:6px; }
-.root[data-theme=navy] .tools button { color:inherit; }
-.root[data-theme=navy] .sidebar [aria-current=page] { color:#0d1b2a; background:#d4af37; }
-.root[data-theme=navy] .identity span:last-child { color:#e1c46e; }
-.root[data-theme=navy] .footer { background:#0d1b2a; color:#fff; }
-.root[data-theme=navy] .footer > a { background:white; border-radius:8px; padding:8px; }
+/* Customer chrome is light in both variants. Navy belongs to focal panels only. */
+.sidebar { background:#fffdf8; }
+.sidebar [aria-current=page] { background:#f6e7ba; color:#0d1b2a; }
+.content { background:#fcfaf6; }
+.footer { background:#fbf7ef; }
+.card { box-shadow:0 4px 18px #0d1b2a06; }
 .toolbar,.tabs { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-block-end:24px; }
 .toolbar input,.toolbar select,.field input { min-width:0; border:1px solid #d4d5d8; border-radius:8px; min-height:44px; padding:10px 16px; background:#fff; color:#0d1b2a; }
 .toolbar label { display:grid; gap:4px; }
@@ -143,16 +141,19 @@
 .authPanel .primary,.authPanel .secondary { width:100%; margin-block:8px; }
 .textButton { color:#6a4b12; border:0; background:transparent; padding:8px; }
 .error { color:#9b2525 !important; padding:12px; background:#fff0ef; border-radius:8px; }
-.welcome { position:relative; min-height:560px; padding:64px; display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:center; background:url('/brand/runtime/dir3com-login-background-approved.png') center/cover; overflow:hidden; }
-.welcome h1 { font-size:56px; }
-.welcome h2 { color:#846023; font-size:36px; margin-block:24px; }
-.welcome p { font-size:24px; margin-block:16px; }
-.welcomeActions { display:flex; gap:16px; flex-wrap:wrap; margin-block-start:32px; }
-.welcomeArt { position:relative; aspect-ratio:832/606; overflow:hidden; }
+.welcome { position:relative; min-height:560px; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:1fr auto; gap:0; align-items:center; background:#fcf4e9; overflow:hidden; }
+.welcomeCopy { padding:48px 40px 0; text-align:center; align-self:end; }
+.welcome h1 { font-size:clamp(36px,3.5vw,56px); }
+.welcome h2 { color:#846023; font-size:clamp(28px,2.5vw,38px); margin-block:20px; }
+.welcome p { font-size:20px; margin-block:12px; }
+.welcome .welcomeSignature { color:#846023; font-size:28px; }
+.welcomeActions { grid-column:2; display:flex; justify-content:center; gap:16px; flex-wrap:wrap; padding:16px 32px 48px; }
+.welcomeArt { grid-row:1/3; position:relative; width:100%; aspect-ratio:832/606; align-self:end; overflow:hidden; mask-image:linear-gradient(to right,transparent,#000 12%); }
+.root[dir=ltr] .welcomeArt { mask-image:linear-gradient(to left,transparent,#000 12%); }
 .welcomeArt img { position:absolute; height:155.3%; width:200.96%; max-width:none; top:-15.51%; right:0; }
 .menuButton { display:none !important; }
 .documentsHeading { display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:center; margin-bottom:32px; }
-.securityBanner { padding:24px; min-height:170px; border-radius:14px; color:white; background:linear-gradient(100deg,#07152ddc,#07152d),url('/brand/runtime/dir3com-login-background-approved.png') center/cover; display:flex; align-items:center; gap:24px; }
+.securityBanner { padding:16px 24px; min-height:120px; border:1px solid #e5d9bd; border-radius:14px; color:#0d1b2a; background:#fffaf0; display:flex; align-items:center; gap:24px; }
 .securityBanner svg { font-size:68px; color:#e1b840; flex-shrink:0; }
 .documentActions { display:flex; gap:12px; }
 .documentActions a,.closeDialog { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; border:1px solid #dbd3c2; border-radius:8px; background:white; }
@@ -168,6 +169,59 @@
 .favorite p { margin-block:12px; }
 .favoriteImage { min-height:190px; background:#f8f3e8; display:grid; place-items:center; font-size:48px; color:#b88620; }
 .removeFavorite { min-width:44px; min-height:44px; margin-inline-start:8px; border:1px solid #d5c4b0; border-radius:8px; color:#a52f2f; background:#fff; }
+.dabraCompact { display:inline-block; position:relative; flex-shrink:0; width:64px; height:64px; overflow:hidden; border-radius:22%; direction:ltr; }
+.dabraCompact img { position:absolute; width:400%; height:200%; max-width:none; top:-100%; object-fit:fill; }
+.assistant > .dabraCompact { display:block; margin:0 auto 12px; }
+.assistant p { font-size:14px; margin:12px 0; }
+.securityBanner .dabraCompact { width:88px; height:88px; }
+.dabraIntroduction { display:grid; grid-template-columns:220px minmax(0,1fr); align-items:center; gap:32px; padding:24px; border:1px solid #e5d9bd; border-radius:18px; background:linear-gradient(110deg,#fff,#fbf3df); }
+.dabraIntroduction > img { width:100%; height:auto; border-radius:16px; }
+.dabraIntroduction p { margin:16px 0 24px; max-width:54ch; }
+.customerLauncher .dabraCompact { width:56px; height:56px; }
+.customerLauncher :global(#dibrah) > button { border-radius:22px; padding:8px; gap:12px; background:#fffdf8; color:#0d1b2a; box-shadow:0 8px 24px #0d1b2a20; text-align:start; }
+.customerLauncher :global(#dibrah) > button > span:last-child { padding-inline-end:8px; }
+.customerLauncher :global(#dibrah) > button > span:last-child > span { color:#715315; font-size:14px; }
+.customerLauncher :global(#dibrah) > button > span:last-child > span:nth-child(2) { color:#0d1b2a; }
+.documentTable { min-width:0; }
+.mobileIdentity { display:none; }
+.root .welcome { padding:0; }
+.root .welcomeArt { order:0; }
+@media(max-width:720px) {
+  .root .welcome { grid-template-columns:1fr; min-height:0; gap:0; }
+  .welcomeCopy { grid-row:1; padding:28px 20px 12px; }
+  .root .welcome h1 { font-size:34px; }
+  .root .welcome h2 { font-size:26px; margin-block:12px; }
+  .root .welcome p { font-size:16px; margin-block:8px; }
+  .root .welcome .welcomeSignature { font-size:23px; }
+  .root .welcomeArt,.root[dir=ltr] .welcomeArt { grid-row:2; height:auto; max-height:300px; mask-image:linear-gradient(to bottom,transparent,#000 12%); }
+  .mobileIdentity { display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid #e5dfd3; background:#fffdf8; }
+  .mobileIdentity .initials { width:40px; height:40px; font-size:16px; flex-shrink:0; }
+  .mobileIdentity strong,.mobileIdentity small { display:block; }
+  .mobileIdentity small { color:var(--muted); }
+  .root .welcomeActions { grid-column:1; grid-row:3; padding:20px 16px 28px; gap:12px; }
+  .welcomeActions > a { width:100%; }
+  .root .authPanel { padding:28px 20px; }
+  .root .authStage { min-height:0; gap:28px; padding:32px 16px; }
+  .root .authHero h2 { font-size:26px; }
+  .root .walletArt { aspect-ratio:440/440; min-height:0; max-height:360px; }
+  .root .content > * { min-width:0; }
+  .root .footer { padding-bottom:100px; }
+  .root .tools button { min-height:44px; min-width:36px; }
+  .root .card { padding:20px 16px; }
+  .root .accountIdentity { overflow-wrap:anywhere; }
+  .root .dabraIntroduction { grid-template-columns:1fr; gap:20px; padding:20px; text-align:center; }
+  .dabraIntroduction > img { width:200px; max-width:100%; justify-self:center; }
+  .dabraIntroduction h2 { font-size:22px; }
+  .root .securityBanner { gap:16px; padding:16px; min-height:100px; }
+  .securityBanner .dabraCompact { width:64px; height:64px; }
+  .root .documentTable { min-width:0; display:block; }
+  .documentTable thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .documentTable tbody { display:grid; gap:16px; }
+  .documentTable tr { display:grid; padding:12px; border-bottom:1px solid #e3e0da; }
+  .documentTable td { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 4px; border:0; font-size:14px; }
+  .documentTable td::before { content:attr(data-label); color:var(--muted); flex-shrink:0; }
+  .documentTable td:first-child { font-weight:700; font-size:16px; }
+}
 @media(max-width:1000px) { .favoritesGrid {grid-template-columns:repeat(2,minmax(0,1fr));} }
 @media(max-width:720px) { .favoritesGrid {grid-template-columns:1fr;} }
 @media(max-width:720px) { .documentsHeading { grid-template-columns:1fr; } .uploadDialog { padding:24px 16px; } }

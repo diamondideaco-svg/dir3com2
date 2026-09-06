@@ -8,6 +8,7 @@ import { customerHubCopy, formatCustomerHubDate, getVerificationStatusLabel } fr
 import { normalizeVerificationStatus } from '@/lib/verification/status';
 import { PageHeading, LoadError } from '@/components/v6/Chrome';
 import styles from '@/components/v6/v6.module.css';
+import { DabraCompact } from '@/components/v6/DabraIdentity';
 
 export type VerificationDocumentRow = {
   id: string; document_type: string; verification_status: string;
@@ -54,13 +55,19 @@ export default function MyDocumentsContent({ documentsState }: { documentsState:
     finally { busy.current = false; setUploading(false); }
   }
   return <div dir={direction}>
-    <div className={styles.documentsHeading}><PageHeading title={ar ? 'مستنداتي' : 'My documents'} subtitle={ar ? 'إدارة وتنظيم مستنداتك المهمة وسهولة الوصول إليها' : 'Organize your important documents and access them easily'} icon={<FiFileText />} /><div className={styles.securityBanner}><FiShield /><strong>{ar ? 'مستنداتك الخاصة، في مكان واحد' : 'Your private documents, in one place'}</strong></div></div>
+    <div className={styles.documentsHeading}><PageHeading title={ar ? 'مستنداتي' : 'My documents'} subtitle={ar ? 'إدارة وتنظيم مستنداتك المهمة وسهولة الوصول إليها' : 'Organize your important documents and access them easily'} icon={<FiFileText />} /><div className={styles.securityBanner}><DabraCompact artwork="mall-center" /><strong>{ar ? 'مستنداتك الخاصة، في مكان واحد' : 'Your private documents, in one place'}</strong></div></div>
     <div className={styles.categoryGrid}>{categories.map(([key,arabic,english,Icon]) => <button key={key} type="button" aria-pressed={category === key} onClick={() => {setCategory(key);setPage(1);}}><Icon />{ar ? arabic : english}<strong>{documentsState.status === 'ready' ? documents.filter(d => d.document_type === key).length : '—'}</strong></button>)}</div>
     <section className={styles.card}>
       <div className={styles.toolbar}><button type="button" aria-pressed={category === 'all'} onClick={() => {setCategory('all');setPage(1);}} className={styles.secondary}>{ar ? 'الكل' : 'All'}</button><label>{ar ? 'البحث في المستندات' : 'Search documents'}<input type="search" value={search} onChange={e => {setSearch(e.target.value);setPage(1);}} /></label><button ref={launcher} type="button" className={styles.primary} onClick={() => {setError('');setSuccess(false);dialog.current?.showModal();}}><FiPlus />{ar ? 'رفع مستند جديد' : 'Upload New Document'}</button></div>
       {success && <p role="status">{ar ? 'تم حفظ المستند.' : 'Document saved.'}</p>}
       {documentsState.status === 'error' ? <LoadError /> : !filtered.length ? <div className={styles.empty}>{t.empty}</div> : <>
-        <div className={styles.tableWrap}><table className={styles.table}><thead><tr>{(ar ? ['المستند','تاريخ الإضافة','تاريخ الانتهاء','الحالة','الإجراءات'] : ['Document','Added','Expiry date','Status','Actions']).map(text => <th scope="col" key={text}>{text}</th>)}</tr></thead><tbody>{filtered.slice((current-1)*10,current*10).map(document => <tr key={document.id}><td><FiFileText /> {label(document.document_type)}</td><td>{formatCustomerHubDate(document.created_at,language)}</td><td>{document.expiry_date ? formatCustomerHubDate(document.expiry_date,language) : t.notSpecified}</td><td><span className={styles.badge}>{getVerificationStatusLabel(normalizeVerificationStatus(document.verification_requests?.status ?? document.verification_status),language)}</span></td><td>{document.storage_bucket === 'customer-documents' && <div className={styles.documentActions}><a href={'/api/customer/documents?documentId='+document.id} target="_blank" rel="noopener noreferrer" aria-label={ar ? 'عرض المستند' : 'View document'}><FiEye /></a><a href={'/api/customer/documents?documentId='+document.id+'&download=1'} aria-label={ar ? 'تنزيل المستند' : 'Download document'}><FiDownload /></a></div>}</td></tr>)}</tbody></table></div>
+        <div className={styles.tableWrap}><table className={`${styles.table} ${styles.documentTable}`}><thead><tr>{(ar ? ['المستند','تاريخ الإضافة','تاريخ الانتهاء','الحالة','الإجراءات'] : ['Document','Added','Expiry date','Status','Actions']).map(text => <th scope="col" key={text}>{text}</th>)}</tr></thead><tbody>{filtered.slice((current-1)*10,current*10).map(document => <tr key={document.id}>
+          <td><FiFileText /> {label(document.document_type)}</td>
+          <td data-label={ar ? 'تاريخ الإضافة' : 'Added'}>{formatCustomerHubDate(document.created_at,language)}</td>
+          <td data-label={ar ? 'تاريخ الانتهاء' : 'Expiry date'}>{document.expiry_date ? formatCustomerHubDate(document.expiry_date,language) : t.notSpecified}</td>
+          <td data-label={ar ? 'الحالة' : 'Status'}><span className={styles.badge}>{getVerificationStatusLabel(normalizeVerificationStatus(document.verification_requests?.status ?? document.verification_status),language)}</span></td>
+          <td data-label={ar ? 'الإجراءات' : 'Actions'}>{document.storage_bucket === 'customer-documents' && <div className={styles.documentActions}><a href={'/api/customer/documents?documentId='+document.id} target="_blank" rel="noopener noreferrer" aria-label={ar ? 'عرض المستند' : 'View document'}><FiEye /></a><a href={'/api/customer/documents?documentId='+document.id+'&download=1'} aria-label={ar ? 'تنزيل المستند' : 'Download document'}><FiDownload /></a></div>}</td>
+        </tr>)}</tbody></table></div>
         <nav className={styles.toolbar} aria-label={ar ? 'صفحات المستندات' : 'Document pages'}><button className={styles.secondary} type="button" disabled={current===1} onClick={() => setPage(current-1)}>{ar ? 'السابق' : 'Previous'}</button><span>{current} / {pages}</span><button className={styles.secondary} type="button" disabled={current===pages} onClick={() => setPage(current+1)}>{ar ? 'التالي' : 'Next'}</button></nav>
       </>}
     </section>

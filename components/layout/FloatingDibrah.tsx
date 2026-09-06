@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { FiMessageCircle, FiMic, FiMicOff, FiSend, FiX } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
 import { useDibrahSpeech } from '@/components/layout/useDibrahSpeech';
@@ -93,14 +93,14 @@ function detectConversationLanguage(text: string, fallback: 'ar' | 'en' = 'ar'):
   return fallback;
 }
 
-export default function FloatingDibrah() {
+export default function FloatingDibrah({ launcherIdentity }: { launcherIdentity?: ReactNode } = {}) {
   const { language } = useLanguage();
   // A locale is a conversation boundary. Remount atomically, including history,
   // drafts, speech callbacks, errors and request refs, even for AR -> EN -> AR.
-  return <FloatingDibrahSession key={language} language={language} />;
+  return <FloatingDibrahSession key={language} language={language} launcherIdentity={launcherIdentity} />;
 }
 
-function FloatingDibrahSession({ language }: { language: 'ar' | 'en' }) {
+function FloatingDibrahSession({ language, launcherIdentity }: { language: 'ar' | 'en'; launcherIdentity?: ReactNode }) {
   const t = floatingCopy[language];
   const positionStorageKey = `${DIBRAH_POSITION_STORAGE_KEY}:${language}`;
   const pathname = usePathname();
@@ -607,9 +607,9 @@ function FloatingDibrahSession({ language }: { language: 'ar' | 'en' }) {
         className="group relative flex min-h-14 items-center gap-3 overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-[linear-gradient(150deg,#334155_0%,#163149_100%)] px-3 py-3 text-right text-[var(--color-light)] shadow-[0_26px_56px_rgba(13,27,42,0.3)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45"
       >
         <span className="pointer-events-none absolute -right-4 top-1/2 h-12 w-12 -translate-y-1/2 rounded-full bg-[var(--color-gold)]/20 blur-2xl" />
-        <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-white/60">
+        {launcherIdentity ?? <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-white/60">
           <Image src="/brand/runtime/DABRA emoji.png" alt="DABRA avatar" fill sizes="48px" unoptimized className="object-cover" />
-        </span>
+        </span>}
         <span className="hidden flex-col sm:flex">
           <span className="inline-flex items-center gap-2 text-xs text-[var(--color-gold)]">
             <HiSparkles /> {t.friendly}

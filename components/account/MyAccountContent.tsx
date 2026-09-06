@@ -9,6 +9,7 @@ import { customerHubCopy, formatCustomerHubDate, getAccountHeading, getCustomerR
 import { normalizeBookingStatus } from '@/lib/booking/workflow-status';
 import type { CustomerMarketplaceRequest } from '@/lib/marketplace/customer-requests';
 import styles from '@/components/v6/v6.module.css';
+import { DabraIntroduction } from '@/components/v6/DabraIdentity';
 
 type MyAccountContentProps = {
   displayName: string | null; displayEmail: string; role: SessionRole | null; roleRaw: string | null;
@@ -38,6 +39,7 @@ export default function MyAccountContent({ displayName, displayEmail, role, role
     <section className={styles.card}><h2><FiHeart /> {ar ? 'المفضلة' : 'Favorites'}</h2><div className={styles.familyGrid}>{[
       ['stay', 'Stay', FiHome], ['drive', 'Drive', FiTruck], ['concierge', 'Concierge', FiBriefcase], ['vip', 'VIP', FiStar], ['fly', 'Fly', FiSend],
     ].map(([key, label, Icon]) => { const Symbol = Icon as typeof FiHome; return <Link key={String(key)} href={'/favorites?family=' + key}><Symbol />dir3 {String(label)}</Link>; })}</div></section>
+    <DabraIntroduction ar={ar} />
     <div className={styles.requestSummary}><MarketplaceRequestsPanel requests={requests} /></div>
     <section className={styles.card}><h2>{ar ? 'رحلتك القادمة تبدأ هنا' : 'Your next journey starts here'}</h2><p>{ar ? 'اكتشف خدمات السفر واختر ما يناسبك.' : 'Explore travel services and find what suits you.'}</p><Link href="/marketplace" className={styles.primary}>{ar ? 'استكشف الخدمات' : 'Explore services'}</Link></section>
   </div>;
