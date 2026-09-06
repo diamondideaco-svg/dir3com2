@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { walletSpending } from '../lib/customer/wallet-spending';
+import { computeWalletLedgerTotals, extractTransactionStatus } from '../lib/finance/wallet-ledger';
 import { storageKey, readPersisted, createPersisted, validatePersistedFavorites } from '../lib/dabra/travel-commerce-state';
 const read = (path: string) => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 
@@ -14,6 +15,21 @@ test('spending never fabricates balance, travel category or mixed-currency total
   assert.equal(walletSpending(rows, 'SAR', null), 50);
   assert.equal(walletSpending([...rows, { ...rows[0], currency: 'USD' }], 'SAR', null), null);
   assert.equal(walletSpending([{ ...rows[0], amount: NaN }], 'SAR', null), null);
+});
+
+test('spending preserves canonical status eligibility and does not count failed, declined or reversed charges', () => {
+  const sourceRows = ['failed', 'declined', 'reversed', 'cancelled', 'void'].map(status => ({
+    transaction_type: 'debit', amount: 70, currency: 'SAR', metadata: { status },
+  }));
+  const posted = { transaction_type: 'debit', amount: 30, currency: 'SAR', metadata: { status: 'posted' } };
+  const rows = [...sourceRows, posted];
+  const view = rows.map(tx => ({ type: tx.transaction_type, amount: tx.amount, currency: tx.currency, date: '2026-09-06', status: extractTransactionStatus(tx) }));
+  assert.equal(walletSpending(view, 'SAR', '2026-09'), 30);
+  assert.equal(walletSpending(view, 'SAR', null), -computeWalletLedgerTotals(rows, 'SAR').balance);
+  assert.equal(extractTransactionStatus({ status: 'failed', metadata: { status: 'posted' } }), 'failed');
+  assert.equal(walletSpending([{ ...view[0], status: 'settled', amount: 0.105 }], 'SAR', null), 0.11);
+  assert.ok(read('app/my-wallet/page.tsx').includes('status: extractTransactionStatus(tx)'));
+  assert.doesNotMatch(read('app/my-wallet/page.tsx'), /metadata: tx\.metadata/);
 });
 
 test('account data cards remain owner scoped and requests are never promoted to bookings', () => {

@@ -7,7 +7,7 @@ import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { formatCustomerHubDate } from '@/lib/i18n/customer-hub';
 import { PageHeading, LoadError } from './Chrome';
 import styles from './v6.module.css';
-export type WalletView = { currency: string | null; balance: number; available: number; held: number; transactions: { id: string; type: string; amount: number; date: string; currency: string | null }[] };
+export type WalletView = { currency: string | null; balance: number; available: number; held: number; transactions: { id: string; type: string; amount: number; date: string; currency: string | null; status: string }[] };
 export default function Wallet({ wallet, failed, currentMonth }: { wallet: WalletView | null; failed: boolean; currentMonth: string }) {
   const { language } = useLanguage();
   const ar = language === 'ar';

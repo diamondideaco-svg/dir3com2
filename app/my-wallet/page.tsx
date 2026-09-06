@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { reconcileWalletAgainstLedger } from '@/lib/finance/wallet-ledger';
+import { extractTransactionStatus, reconcileWalletAgainstLedger } from '@/lib/finance/wallet-ledger';
 import type { WalletRecord, WalletTransactionRecord } from '@/lib/supabase/types';
 import AccountFrame from '@/components/v6/AccountFrame';
 import Wallet, { type WalletView } from '@/components/v6/Wallet';
@@ -20,7 +20,7 @@ export default async function MyWalletPage() {
       const transactions = (result.data || []) as WalletTransactionRecord[];
       const { ledger } = reconcileWalletAgainstLedger(wallet, transactions);
       view = { currency: wallet.currency, balance: ledger.balance, available: ledger.availableBalance, held: ledger.heldBalance,
-        transactions: transactions.map(tx => ({ id: tx.id, type: tx.transaction_type, amount: Number(tx.amount), date: tx.created_at, currency: tx.currency })) };
+        transactions: transactions.map(tx => ({ id: tx.id, type: tx.transaction_type, amount: Number(tx.amount), date: tx.created_at, currency: tx.currency, status: extractTransactionStatus(tx) })) };
     }
   }
   return <AccountFrame path="/my-wallet" navy><Wallet wallet={view} failed={failed} currentMonth={new Date().toISOString().slice(0, 7)} /></AccountFrame>;

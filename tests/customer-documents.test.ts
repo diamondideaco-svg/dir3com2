@@ -38,14 +38,20 @@ test('a database failure cannot be represented as an empty document list', () =>
 test('My Documents keeps auth protection and renders a customer-safe error state', () => {
   const source = fs.readFileSync(pagePath, 'utf8');
   const content = fs.readFileSync(contentPath, 'utf8');
+  const chrome = fs.readFileSync(path.resolve('components/v6/Chrome.tsx'), 'utf8');
+  const loadError = chrome.slice(chrome.indexOf('export function LoadError()'));
 
   assert.match(source, /redirect\(buildLoginTarget\('\/my-documents'\)\)/);
   assert.match(source, /\.eq\('owner_type', 'customer'\)/);
   assert.match(source, /\.eq\('owner_id', user\.id\)/);
   assert.match(content, /documentsState\.status === 'error'/);
-  assert.match(content, /role="alert"/);
-  assert.match(content, /t\.error/);
-  assert.doesNotMatch(source + content, /error\.message/);
+  assert.match(content, /documentsState\.status === 'error'.*<LoadError\s*\/>/);
+  assert.match(content, /import.*LoadError.*from.*v6\/Chrome/);
+  assert.match(loadError, /role="alert"/);
+  assert.match(loadError, /تعذّر تحميل البيانات\. حاول مرة أخرى\./);
+  assert.match(loadError, /Could not load your data\. Please try again\./);
+  assert.match(loadError, /window\.location\.reload\(\)/);
+  assert.doesNotMatch(source + content + loadError, /error\.message/);
 });
 
 test('the PostgreSQL 17 reconciliation migration defines only the current verification contract', () => {

@@ -31,7 +31,9 @@ async function getAccountProfile() {
 
   const [documentsResult, bookingsResult] = await Promise.all([
     supabase.from('verification_documents').select('id, document_type, verification_status, expiry_date').eq('owner_type', 'customer').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(3),
-    supabase.from('bookings').select('id, booking_reference, status, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
+    supabase.from('bookings').select('id, booking_reference, status, created_at').eq('user_id', user.id)
+      .or('status.is.null,and(status.not.ilike.completed,status.not.ilike.cancelled,status.not.ilike.canceled)')
+      .order('created_at', { ascending: false }).limit(1),
   ]);
   const upcoming = (bookingsResult.data || []).find(row => !['Completed', 'Cancelled'].includes(normalizeBookingStatus(row.status)));
   return { user, profile: data, requests, documents: documentsResult.error ? null : documentsResult.data || [],

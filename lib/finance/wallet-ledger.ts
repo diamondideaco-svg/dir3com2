@@ -59,7 +59,7 @@ function normalizeStatus(value: unknown) {
   return value.trim().toLowerCase();
 }
 
-function extractTransactionStatus(transaction: LedgerTransactionLike) {
+export function extractTransactionStatus(transaction: LedgerTransactionLike) {
   const metadata = transaction.metadata ?? {};
   const metadataStatus = normalizeStatus(metadata.status);
   const status = normalizeStatus(transaction.status);
