@@ -29,7 +29,7 @@
 .separator { display: flex; align-items: center; gap: 14px; margin: 20px 0; font-size: 14px; }.separator::before, .separator::after { content: ''; height: 1px; background: #b8bbbd; flex: 1; }
 .google { display: flex; justify-content: center; align-items: center; gap: 14px; width: 100%; padding: 10px; min-height: 48px; border: 1px solid #9a938a; border-radius: 11px; background: transparent; color: var(--register-ink); font-size: 14px; font-weight: 600; cursor: pointer; }.google svg { width: 24px; height: 24px; }.google:disabled { opacity: .65; cursor: wait; }
 .login { text-align: center; font-size: 14px; margin: 16px 0 0; }
-.contactNote { font-size: 12px; margin: 10px 0 0; text-align: center; }
+.contactNote { font-size: 14px; margin: 10px 0 0; text-align: center; }
 .tabs { margin-bottom: 8px; }
 .footer { max-width: 700px; width: 100%; justify-self: end; grid-template-columns: 1fr 1fr 1.05fr; }
 .socials { direction: ltr; }

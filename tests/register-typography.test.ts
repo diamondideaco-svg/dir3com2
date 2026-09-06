@@ -22,6 +22,7 @@ test('Register focus styles are local and each input has an associated label', (
   assert.match(css, /\.register input:focus-visible/);
   assert.match(css, /outline: 3px solid var\(--register-ink\)/);
   assert.doesNotMatch(css, /:global|\bbody\b|\bhtml\b/);
+  assert.ok(css.includes('.contactNote { font-size: 14px;'));
 });
 
 test('Register retains real signup, validation, profile payload and success destination', () => {
