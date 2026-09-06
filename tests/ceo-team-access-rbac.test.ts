@@ -72,8 +72,10 @@ test('CEO account cannot be demoted or disabled', () => {
 
 test('deactivation fails closed and inactive admin profiles lose canonical admin authority', () => {
   assert.match(actions, /TEAM_ACCESS_NOT_FOUND.*Team access grant not found/);
-  assert.match(identity, /select\('role, status'\)/);
-  assert.match(identity, /profileData\.status === 'active'/);
+  assert.match(identity, /select\('id, role, status, deleted_at, full_name'\)/);
+  assert.match(identity, /\.eq\('status', 'active'\)/);
+  assert.match(identity, /\.is\('deleted_at', null\)/);
+  assert.match(identity, /profile\.id !== userId/);
 });
 
 test('team console supports email, title, access level, country scope and permissions', () => {

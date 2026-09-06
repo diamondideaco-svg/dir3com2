@@ -1,5 +1,6 @@
 import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
-import { normalizeAuthRole, resolvePartnerDomainType, type CanonicalAuthRole, type PartnerDomainType } from '@/lib/partner-portal/domain';
+import { resolveCanonicalActiveProfile } from '@/lib/auth/identity';
+import { resolvePartnerDomainType, type CanonicalAuthRole, type PartnerDomainType } from '@/lib/partner-portal/domain';
 
 export type PortalActor = {
   userId: string;
@@ -29,25 +30,19 @@ export async function requirePortalActor(): Promise<PortalActor | null> {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (authError || !user) {
     return null;
   }
 
-  const adminClient = supabaseAdmin ?? supabase;
-  const { data: profile } = await adminClient
-    .from('profiles')
-    .select('role, full_name, status, deleted_at')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  const authRole = normalizeAuthRole(profile?.role);
+  // Profile authority is read through the caller's authenticated client. The
+  // service role is not allowed to turn a missing/RLS-hidden profile into an
+  // authenticated portal actor.
+  const profile = await resolveCanonicalActiveProfile(supabase, user.id);
+  const authRole = profile?.role ?? 'customer';
   if (!PORTAL_ALLOWED_AUTH_ROLES.has(authRole)) {
-    return null;
-  }
-
-  if (normalizeText(profile?.status).toLowerCase() === 'banned' || profile?.deleted_at) {
     return null;
   }
 
@@ -58,7 +53,7 @@ export async function requirePortalActor(): Promise<PortalActor | null> {
     email: normalizeText(user.email),
     authRole,
     partnerDomainType,
-    fullName: normalizeText(profile?.full_name) || normalizeText((user.user_metadata as Record<string, unknown> | null)?.full_name) || normalizeText(user.email).split('@')[0] || 'Partner Account',
+    fullName: profile?.fullName || normalizeText((user.user_metadata as Record<string, unknown> | null)?.full_name) || normalizeText(user.email).split('@')[0] || 'Partner Account',
   };
 }
 

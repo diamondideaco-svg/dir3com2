@@ -50,6 +50,9 @@ jobs:
       - name: DIR-120 PostgreSQL Safety
         run: npm run test:dir120-postgresql
 
+      - name: Admin + Partner Lifecycle PostgreSQL Replay
+        run: npm run test:admin-partner-lifecycle-postgresql
+
       - name: Verification Documents Reconciliation (PostgreSQL 17)
         run: npm run test:customer-documents-postgresql
 

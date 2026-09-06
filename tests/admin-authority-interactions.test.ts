@@ -99,18 +99,28 @@ test('unsafe non-atomic admin mutations are disabled truthfully in UI and fail c
     'components/admin/VerificationTable.tsx',
     'components/assignment/AssignmentCard.tsx',
     'components/customers/CustomerTable.tsx',
-    'components/products/ProductTable.tsx',
     'components/customers/CustomerForm.tsx',
-    'components/products/ProductForm.tsx',
   ]) {
     const source = read(file);
     assert.match(source, /AdminUnavailableControl/);
-    assert.doesNotMatch(source, /action=\{(?:completeBookingLifecycleAction|cancelBookingLifecycleAction|submitVerificationDecisionAction|approveAssignmentAction|rejectAssignmentAction|updateShieldLevelAction|deactivateCustomerAction|publishProductAction|deleteProductAction|createCustomerAction|createProductAction)\}/);
+    assert.doesNotMatch(source, /action=\{(?:completeBookingLifecycleAction|cancelBookingLifecycleAction|submitVerificationDecisionAction|approveAssignmentAction|rejectAssignmentAction|updateShieldLevelAction|deactivateCustomerAction|createCustomerAction)\}/);
   }
 
   assert.match(read('lib/actions/operations-actions.ts'), /ADMIN_BOOKING_LIFECYCLE_MUTATION_UNAVAILABLE/);
   assert.match(read('lib/actions/assignment-actions.ts'), /ADMIN_ASSIGNMENT_MUTATION_UNAVAILABLE/);
   assert.match(read('lib/actions/verification-actions.ts'), /ADMIN_VERIFICATION_MUTATION_UNAVAILABLE/);
+});
+
+test('product mutations use the dedicated audited lifecycle instead of the old unavailable controls', () => {
+  const table = read('components/products/ProductTable.tsx');
+  const form = read('components/products/ProductForm.tsx');
+  const actions = read('lib/actions/product-actions.ts');
+  assert.match(table, /ProductLifecycleControls/);
+  assert.match(form, /createProductAction/);
+  assert.match(actions, /rpc\('create_product_draft_lifecycle'/);
+  assert.match(actions, /rpc\('publish_product_lifecycle'/);
+  assert.match(actions, /requireScopedAdminActionAccess\('products:write'\)/);
+  assert.doesNotMatch(actions, /update\(\{ status: 'published', verified: true \}\)/);
 });
 
 test('admin reads are server-authorized and booking owners cannot forge authoritative lifecycle fields', () => {

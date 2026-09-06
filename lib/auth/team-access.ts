@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { resolveCanonicalActiveProfile } from '@/lib/auth/identity';
 
 export const CEO_EMAIL = 'diamondidea.co@gmail.com';
 // Pinned auth.users.id verified read-only against the canonical project.
@@ -49,12 +50,8 @@ export function isCeoUserId(value: unknown) {
 // Call only with the user returned by the server's verified auth.getUser().
 export async function isCeoActor(supabase: SupabaseClient, user: Pick<User, 'id'>) {
   if (!isCeoUserId(user.id)) return false;
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('id, role, status')
-    .eq('id', user.id)
-    .maybeSingle();
-  return !error && profile?.id === user.id && profile.role === 'admin' && profile.status === 'active';
+  const profile = await resolveCanonicalActiveProfile(supabase, user.id);
+  return profile?.id === user.id && profile.sourceRole === 'admin';
 }
 
 export async function getTeamAccessGrant(supabase: SupabaseClient, user: User): Promise<TeamAccessGrant | null> {

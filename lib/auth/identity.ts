@@ -4,6 +4,13 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 
 export type CanonicalRole = 'customer' | 'admin' | 'partner' | 'staff';
 
+export type CanonicalActiveProfile = {
+  id: string;
+  sourceRole: string;
+  role: CanonicalRole;
+  fullName: string;
+};
+
 const ROLE_ALIASES: Record<string, CanonicalRole> = {
   client: 'customer',
   customer: 'customer',
@@ -27,6 +34,34 @@ export function isAdminRole(value: unknown) {
   return normalizeRole(value) === 'admin';
 }
 
+export async function resolveCanonicalActiveProfile(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<CanonicalActiveProfile | null> {
+  if (!userId) return null;
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('id, role, status, deleted_at, full_name')
+    .eq('id', userId)
+    .eq('status', 'active')
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  const sourceRole = toSafeString(profile?.role).toLowerCase();
+  const role = normalizeRole(sourceRole);
+  if (error || !profile || profile.id !== userId || profile.status !== 'active' || profile.deleted_at !== null || !role) {
+    return null;
+  }
+
+  return {
+    id: profile.id,
+    sourceRole,
+    role,
+    fullName: toSafeString(profile.full_name),
+  };
+}
+
 function getAuthUserDisplayName(user: User) {
   const metadata = user.user_metadata || {};
   const directName = toSafeString(metadata.full_name_ar) || toSafeString(metadata.full_name) || toSafeString(metadata.name);
@@ -39,17 +74,7 @@ function getAuthUserDisplayName(user: User) {
 }
 
 export async function resolveCanonicalUserRole(supabase: SupabaseClient, userId: string): Promise<CanonicalRole | null> {
-  const { data: profileData, error: profileError } = await supabase
-    .from('profiles')
-    .select('role, status')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (!profileError && profileData?.role && profileData.status === 'active') {
-    return normalizeRole(profileData.role);
-  }
-
-  return null;
+  return (await resolveCanonicalActiveProfile(supabase, userId))?.role ?? null;
 }
 
 export async function ensureCanonicalProfileFromAuthUser(supabase: SupabaseClient, user: User) {
