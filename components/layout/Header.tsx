@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { FiCloud, FiDollarSign, FiGlobe, FiGrid, FiMenu, FiMoon, FiSearch, FiSun, FiType, FiX } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import LogoutButton from '@/components/auth/LogoutButton';
+import { getRolePostLoginDestination } from '@/lib/auth/redirect';
 
 const copy = {
   ar: {
@@ -28,6 +29,7 @@ const copy = {
     theme: 'تبديل المظهر',
     accessibility: 'تكبير النص',
     adminDashboard: 'لوحة التحكم',
+    staffDashboard: 'لوحة العمل',
     partnerDashboard: 'لوحة الشريك',
     providerDashboard: 'لوحة مقدم الخدمة',
     logout: 'تسجيل الخروج',
@@ -51,6 +53,7 @@ const copy = {
     theme: 'Toggle theme',
     accessibility: 'Increase text size',
     adminDashboard: 'Dashboard',
+    staffDashboard: 'Staff workspace',
     partnerDashboard: 'Partner Dashboard',
     providerDashboard: 'Provider Dashboard',
     logout: 'Logout',
@@ -69,7 +72,7 @@ export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dark, setDark] = useState(false);
   const [largeText, setLargeText] = useState(false);
-  const [dashboard, setDashboard] = useState<{ href: string; kind: 'admin' | 'partner' | 'provider' } | null>(null);
+  const [dashboard, setDashboard] = useState<{ href: string; kind: 'admin' | 'staff' | 'partner' | 'provider' } | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
@@ -93,6 +96,7 @@ export default function Header() {
         if (!identity.authenticated) return;
         const raw = identity.roleRaw?.trim().toLowerCase();
         if (identity.role === 'admin') setDashboard({ href: '/admin', kind: 'admin' });
+        else if (identity.role === 'staff') setDashboard({ href: getRolePostLoginDestination(identity), kind: 'staff' });
         else if (identity.role === 'partner') setDashboard({ href: '/partner-portal', kind: 'partner' });
         else if (raw === 'provider' || raw === 'service_provider' || raw === 'supplier') setDashboard({ href: '/provider-portal', kind: 'provider' });
       })
@@ -116,7 +120,7 @@ export default function Header() {
   }
 
   const utilityClass = 'inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-[#d4af37]/25 bg-white px-2 text-sm font-semibold text-[#2a2118] transition hover:border-[#d4af37] hover:text-[#a66d10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/40';
-  const dashboardLabel = dashboard?.kind === 'admin' ? t.adminDashboard : dashboard?.kind === 'partner' ? t.partnerDashboard : t.providerDashboard;
+  const dashboardLabel = dashboard?.kind === 'admin' ? t.adminDashboard : dashboard?.kind === 'staff' ? t.staffDashboard : dashboard?.kind === 'partner' ? t.partnerDashboard : t.providerDashboard;
 
   return (
     <header dir={direction} className="site-header sticky top-0 z-40 border-b border-[#d4af37]/20 bg-[#fffdf9]/95 shadow-[0_8px_28px_rgba(76,53,18,0.07)] backdrop-blur-xl">

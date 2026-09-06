@@ -6,6 +6,10 @@ export const customerHubCopy = {
     account: {
       eyebrow: 'حسابي',
       title: 'لوحة العميل',
+      staffTitle: 'لوحة الموظف',
+      adminTitle: 'لوحة الإدارة',
+      partnerTitle: 'بوابة الشريك',
+      neutralTitle: 'حسابي',
       bookings: 'حجوزاتي',
       wallet: 'محفظتي',
       documents: 'مستنداتي',
@@ -46,6 +50,10 @@ export const customerHubCopy = {
     account: {
       eyebrow: 'My account',
       title: 'Customer dashboard',
+      staffTitle: 'Staff workspace',
+      adminTitle: 'Admin workspace',
+      partnerTitle: 'Partner workspace',
+      neutralTitle: 'My account',
       bookings: 'My bookings',
       wallet: 'My wallet',
       documents: 'My documents',
@@ -83,6 +91,17 @@ export const customerHubCopy = {
     unknownStatus: 'Unknown status',
   },
 } as const;
+
+export function getAccountHeading(role: SessionRole | null, language: AppLanguage) {
+  const copy = customerHubCopy[language].account;
+  switch (role) {
+    case 'customer': return copy.title;
+    case 'staff': return copy.staffTitle;
+    case 'admin': return copy.adminTitle;
+    case 'partner': return copy.partnerTitle;
+    default: return copy.neutralTitle;
+  }
+}
 
 const roleLabels: Record<AppLanguage, Record<SessionRole | 'unassigned', string>> = {
   ar: { customer: 'عميل', admin: 'مسؤول', partner: 'شريك', staff: 'موظف', unassigned: 'غير معيّن' },
