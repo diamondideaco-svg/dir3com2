@@ -20,9 +20,9 @@ export async function NotificationTable() {
         <p className="mt-4 text-sm text-[var(--color-muted)]"><AdminText ar="لا توجد إشعارات حالياً." en="There are no notifications." /></p>
       ) : (
         <div className="mt-4 space-y-2">
-          {summary.notifications.map((item: { id: string; subject?: string | null; body?: string | null; status?: string | null }) => (
+          {summary.notifications.map((item: { id: string; title: string; body?: string | null; status?: string | null }) => (
             <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-800 px-3 py-2 text-sm text-[var(--color-muted)]">
-              <span>{item.subject ?? item.body}</span>
+              <span>{item.title}</span>
               <span className="text-[var(--color-muted)]"><AdminStatusText value={item.status} /></span>
             </div>
           ))}

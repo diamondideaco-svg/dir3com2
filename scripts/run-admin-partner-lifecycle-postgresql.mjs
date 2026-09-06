@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { Client } from 'pg';
+import { prepareOperationsReconciliation, verifyOperationsReconciliation } from './test-operations-reconciliation.mjs';
 
 const baseConnection = process.env.TEST_DATABASE_URL;
 if (!baseConnection) throw new Error('TEST_DATABASE_URL is required.');
@@ -238,6 +239,7 @@ try {
   await testClient.connect();
   await testClient.query(bootstrap);
   await testClient.query(productionPhase0Triggers);
+  const notificationsSnapshot = await prepareOperationsReconciliation(testClient);
 
   await testClient.query(lifecycleMigration);
   await testClient.query(partnerHandoffMigration);
@@ -852,6 +854,7 @@ try {
   const obsolete = await testClient.query("SELECT to_regprocedure('public.start_marketplace_request_handoff(uuid,text,uuid,text)') AS proc");
   if (obsolete.rows[0]?.proc !== null) throw new Error('Obsolete admin handoff RPC still exists after cleanup migration.');
 
+  await verifyOperationsReconciliation(testClient, notificationsSnapshot);
   console.log('ADMIN_PARTNER_LIFECYCLE_POSTGRESQL=PASS phase0_parity=PASS lifecycle_create=PASS direct_insert_safety=PASS forged_marker=PASS staging_lock=PASS synthetic_publish_block=PASS instant_booking_block=PASS audit_scope=PASS session_actor=PASS handoff=PASS ownership=PASS append_only=PASS');
 } finally {
   if (testClient) await testClient.end().catch(() => {});

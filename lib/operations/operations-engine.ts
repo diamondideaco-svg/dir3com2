@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { NotificationPayload, NotificationStatus } from '@/lib/operations/notification-provider';
-import { notificationProviderRegistry } from '@/lib/operations/notification-provider';
+import type { NotificationItem } from '@/lib/supabase/types';
 
 export interface EventDispatcherSubscription {
   eventName: string;
@@ -87,51 +86,35 @@ export async function publishEvent(supabase: SupabaseClient, eventName: string, 
   return { success: true, event: data };
 }
 
-export async function createNotificationRecord(supabase: SupabaseClient, input: {
-  recipientType: string;
-  recipientId?: string;
-  channel: string;
-  subject?: string;
-  body: string;
-  provider?: string;
-  status?: NotificationStatus;
-  metadata?: Record<string, unknown>;
-}) {
-  const { data, error } = await supabase.from('notifications').insert({
-    recipient_type: input.recipientType,
-    recipient_id: input.recipientId,
-    channel: input.channel,
-    subject: input.subject,
-    body: input.body,
-    provider: input.provider ?? 'internal',
-    status: input.status ?? 'Pending',
-    metadata: input.metadata ?? {},
-  }).select().single();
-
-  if (error) return { success: false, error: error.message };
-  return { success: true, notification: data };
+export interface InAppNotificationInput {
+  profileId: string;
+  title: string;
+  body?: string;
+  kind?: NotificationItem['kind'];
 }
 
-export async function sendNotificationRecord(supabase: SupabaseClient, notificationId: string, providerName = 'internal') {
-  const { data: notification, error: fetchError } = await supabase.from('notifications').select('*').eq('id', notificationId).single();
-  if (fetchError || !notification) return { success: false, error: fetchError?.message ?? 'Notification not found' };
+// The caller must authorize an administrator before passing its server client.
+// Recipient identity is resolved against profiles, never a delivery address.
+export async function createNotificationRecord(supabase: SupabaseClient, input: InAppNotificationInput) {
+  if (!input || typeof input.profileId !== 'string'
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.profileId)
+      || typeof input.title !== 'string' || !input.title.trim()
+      || (input.body !== undefined && typeof input.body !== 'string')
+      || (input.kind !== undefined && !['info', 'booking', 'promotion', 'system'].includes(input.kind))) {
+    return { success: false, error: 'INVALID_NOTIFICATION_INPUT' };
+  }
+  const { data: recipient, error: recipientError } = await supabase.from('profiles')
+    .select('id').eq('id', input.profileId).eq('status', 'active').is('deleted_at', null).maybeSingle();
+  if (recipientError || !recipient) return { success: false, error: 'NOTIFICATION_RECIPIENT_UNAVAILABLE' };
 
-  const adapter = notificationProviderRegistry.get(notification.channel, providerName);
-  const payload: NotificationPayload = {
-    recipientType: notification.recipient_type,
-    recipientId: notification.recipient_id,
-    channel: notification.channel,
-    subject: notification.subject ?? undefined,
-    body: notification.body,
-    metadata: notification.metadata ?? {},
-  };
+  const { data, error } = await supabase.from('notifications').insert({
+    profile_id: recipient.id,
+    title: input.title.trim(),
+    body: input.body ?? null,
+    kind: input.kind ?? 'info',
+    status: 'active',
+  }).select('id, profile_id, title, body, kind, status, created_at').single();
 
-  const result = adapter
-    ? await adapter.send(payload)
-    : { success: true, status: 'Queued' as NotificationStatus };
-
-  const nextStatus = result.success ? (result.status ?? 'Sent') : 'Failed';
-  await supabase.from('notifications').update({ status: nextStatus }).eq('id', notificationId);
-  await supabase.from('notification_logs').insert({ notification_id: notificationId, provider: providerName, status: nextStatus, response: result.error ?? 'ok' });
-  return { success: result.success, status: nextStatus };
+  if (error || !data) return { success: false, error: 'NOTIFICATION_CREATE_FAILED' };
+  return { success: true, notification: data };
 }

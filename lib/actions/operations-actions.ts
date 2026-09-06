@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminActionAccess, requireAdminReadAccess } from '@/lib/auth/admin';
-import { appendTimelineRecord, createAuditRecord as createAuditEntry, createNotificationRecord, publishEvent, sendNotificationRecord } from '@/lib/operations/operations-engine';
+import { appendTimelineRecord, createAuditRecord as createAuditEntry, createNotificationRecord, publishEvent, type InAppNotificationInput } from '@/lib/operations/operations-engine';
 import type { CanonicalAssignmentStatus, CanonicalLifecycleOutcome } from '@/lib/booking/workflow-status';
 
 const marketplaceRequestTransitions = {
@@ -57,23 +57,18 @@ export async function updateMarketplaceRequestStatus(formData: FormData) {
   revalidatePath('/my-bookings');
 }
 
-export async function createNotification(input: {
-  recipientType: string;
-  recipientId?: string;
-  channel: string;
-  subject?: string;
-  body: string;
-  provider?: string;
-  status?: 'Pending' | 'Queued' | 'Sent' | 'Delivered' | 'Failed' | 'Cancelled';
-  metadata?: Record<string, unknown>;
-}) {
-  const { supabase } = await requireAdminActionAccess();
+export async function createNotification(input: InAppNotificationInput) {
+  // Existing notifications RLS is recipient-only. This helper authenticates
+  // and authorizes a canonical admin before returning the server client.
+  const { supabase } = await requireAdminReadAccess();
   return createNotificationRecord(supabase, input);
 }
 
-export async function sendNotification(notificationId: string, providerName = 'internal') {
-  const { supabase } = await requireAdminActionAccess();
-  return sendNotificationRecord(supabase, notificationId, providerName);
+export async function sendNotification() {
+  await requireAdminActionAccess();
+  // In-app availability is not external delivery. No configured delivery
+  // contract exists here, so do not mutate status or manufacture success.
+  return { success: false, error: 'NOTIFICATION_DELIVERY_UNAVAILABLE' };
 }
 
 export async function createAuditLog(input: {

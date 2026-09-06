@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-06 — PR #93 Production schema / notifications reconciliation
+
+- Align in-app notification writes and admin titles with the existing profile/title/active-read-archived contract; remove unused delivery adapters, fail closed on external sending, and mark the unsupported failed-delivery KPI unavailable.
+- Add a forward-only operations prerequisite for audit logs, activity timeline and system events with active-admin RLS, session-bound audit actor, server read-only grants and append-only protections, without touching the existing notifications schema or data.
+- Extend isolated PostgreSQL PR #93 replay with nonempty notifications preservation and operations permission proofs. No Production migration, data mutation or DABRA change.
+
 ## 2026-09-05 — DABRA observability least privilege and direct-provider certification
 
 - Added a forward-only PostgreSQL 17 reconciliation that removes inherited default table and column grants from DABRA provider telemetry, restores only `SELECT`/`INSERT` for `service_role`, and fails closed on ownership, role-membership, column-contract, identity-index, primary-key, or ACL drift while preserving RLS, FORCE RLS, append-only identity, and aggregation.
