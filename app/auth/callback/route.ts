@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
 import { getPostLoginDestination, getRolePostLoginDestination } from '@/lib/auth/redirect';
-import { ensureCanonicalProfileFromAuthUser } from '@/lib/auth/identity';
+import { ensureCanonicalProfileFromAuthUser, normalizeRole } from '@/lib/auth/identity';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 
 function getSafeCallbackErrorCode(message: string | undefined) {
@@ -63,7 +63,13 @@ export async function GET(request: Request) {
             ? await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
             : { data: null };
         const roleRaw = typeof profile?.role === 'string' ? profile.role : null;
-        const next = requestedDestination
+        // The Google login builder sends the generic landing path even when
+        // there is no requested destination. Staff should use their canonical
+        // operational entry in that case; specific return paths stay intact.
+        const staffDefaultLanding = normalizeRole(roleRaw) === 'staff'
+            && searchParams.get('redirect') === getPostLoginDestination(null)
+            && searchParams.get('next') === getPostLoginDestination(null);
+        const next = requestedDestination && !staffDefaultLanding
             ? safeRequestedDestination
             : getRolePostLoginDestination({ role: roleRaw, roleRaw });
 

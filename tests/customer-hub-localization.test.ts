@@ -31,6 +31,9 @@ test('Profile and My Account expose complete Arabic and English system copy', ()
 });
 
 test('role and status values are localized with truthful unknown fallbacks', () => {
+  assert.equal(getCustomerRoleLabel('staff', 'staff', 'ar'), 'موظف');
+  assert.equal(getCustomerRoleLabel('staff', 'staff', 'en'), 'Staff');
+  assert.equal(getCustomerRoleLabel(null, null, 'en'), 'Unassigned');
   assert.equal(getCustomerRoleLabel('customer', 'customer', 'ar'), 'عميل');
   assert.equal(getCustomerRoleLabel('customer', 'customer', 'en'), 'Customer');
   assert.equal(getCustomerStatusLabel('active', 'ar'), 'نشط');

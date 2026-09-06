@@ -8,6 +8,7 @@ import type { SessionRole } from '@/lib/auth/identity-contract';
 import {
   customerHubCopy,
   formatCustomerHubDate,
+  getAccountHeading,
   getCustomerRoleLabel,
   getCustomerStatusLabel,
 } from '@/lib/i18n/customer-hub';
@@ -41,7 +42,7 @@ export default function MyAccountContent({
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">{t.eyebrow}</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">{t.title}</h1>
+            <h1 className="mt-2 text-3xl font-semibold text-white">{getAccountHeading(role, language)}</h1>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/my-bookings" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">{t.bookings}</Link>

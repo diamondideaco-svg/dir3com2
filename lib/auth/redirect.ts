@@ -22,6 +22,12 @@ export function getRolePostLoginDestination(identity: TrustedSessionIdentity) {
     return '/partner-portal';
   }
 
+  if (canonicalRole === 'staff' || rawRole === 'staff') {
+    // The existing admin entry resolves the active grant and selects a scoped
+    // operational page. This destination does not grant administrative access.
+    return '/admin';
+  }
+
   return '/my-account';
 }
 
