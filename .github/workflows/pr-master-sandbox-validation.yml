@@ -70,7 +70,9 @@ jobs:
             exit "$test_exit"
           fi
 
-      - name: Pre-deployment Core Schema Verification (read-only)
+      - name: Disposable fixture migration and core schema verification
+        env:
+          SANDBOX_DISPOSABLE_DATABASE: "true"
         run: |
           node scripts/sandbox/apply-core-migration-to-db.mjs
           npm run sandbox:core-schema:verify
