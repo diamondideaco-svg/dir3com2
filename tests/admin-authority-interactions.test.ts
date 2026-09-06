@@ -45,7 +45,7 @@ test('runtime admin-user management is not fabricated', () => {
   const source = read('lib/actions/team-access-actions.ts');
   assert.match(source, /auth\.admin\.(createUser|inviteUserByEmail|updateUserById)/);
   assert.doesNotMatch(source, /auth\.admin\.deleteUser/);
-  const grants = read('supabase/migrations/20260808173000_go_live_inc_006_profiles_partner_documents_runtime_grants.sql');
+  const grants = read('supabase/migrations-archive/20260808173000_go_live_inc_006_profiles_partner_documents_runtime_grants.sql');
   assert.match(grants, /GRANT UPDATE \(email, full_name, updated_at\) ON TABLE public\.profiles TO authenticated/i);
   assert.doesNotMatch(grants, /GRANT UPDATE \([^)]*role/i);
 });
@@ -125,7 +125,7 @@ test('product mutations use the dedicated audited lifecycle instead of the old u
 
 test('admin reads are server-authorized and booking owners cannot forge authoritative lifecycle fields', () => {
   const guard = read('lib/auth/admin.ts');
-  const migration = read('supabase/migrations/20260901013000_bookings_owner_write_boundary.sql');
+  const migration = read('supabase/migrations-archive/20260901013000_bookings_owner_write_boundary.sql');
   assert.match(guard, /requireAdminPageAccess\(destination\)/);
   assert.match(guard, /supabase: supabaseAdmin/);
   assert.match(migration, /DROP POLICY IF EXISTS "Users manage own bookings"/);

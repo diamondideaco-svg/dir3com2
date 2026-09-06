@@ -45,7 +45,7 @@ try {
     '20260905161554_reconcile_phase0_lifecycle_insert.sql',
     '20260906034500_partner_trusted_activation.sql',
   ];
-  for(const migration of migrations) sql(read(`supabase/migrations/${migration}`));
+  for(const migration of migrations) sql(read(`supabase/${migration.startsWith('20260906034500_') ? 'migrations' : 'migrations-archive'}/${migration}`));
   sql(`INSERT INTO public.profiles(id,role) VALUES(${literal(actor)},'admin'),(${literal(partner)},'partner'),(${literal(other)},'partner'),(${literal(staff)},'staff'),(${literal(customer)},'customer');
     INSERT INTO public.partners(id,status) VALUES(${literal(partner)},'approved'),(${literal(other)},'active');
     INSERT INTO public.team_access_grants(invited_user_id,country_scope,permissions) VALUES(${literal(staff)},ARRAY['EG'],ARRAY['partners:write','admin:full']);`);

@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const migration = read('supabase/migrations/20260903233000_ceo_team_access_rbac.sql');
+const migration = read('supabase/migrations-archive/20260903233000_ceo_team_access_rbac.sql');
 const model = read('lib/auth/team-access.ts');
 const actions = read('lib/actions/team-access-actions.ts');
 const page = read('app/admin/team/page.tsx');

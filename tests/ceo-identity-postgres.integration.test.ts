@@ -17,7 +17,7 @@ runInNewContext(ts.transpileModule(loaderSource, { compilerOptions: { module: ts
 });
 const { loadTeamAccess } = loaderExports as typeof import('../lib/admin/team-access-data');
 
-const migration = readFileSync(new URL('../supabase/migrations/20260903233000_ceo_team_access_rbac.sql', import.meta.url), 'utf8');
+const migration = readFileSync(new URL('../supabase/migrations-archive/20260903233000_ceo_team_access_rbac.sql', import.meta.url), 'utf8');
 const ceo = '0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16';
 const otherAdmin = '11111111-1111-4111-8111-111111111111';
 const staff = '22222222-2222-4222-8222-222222222222';

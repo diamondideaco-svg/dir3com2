@@ -9,13 +9,13 @@ import { resolveDocumentQuery } from '@/lib/customer/document-query';
 const pagePath = path.resolve('app/my-documents/page.tsx');
 const contentPath = path.resolve('components/account/MyDocumentsContent.tsx');
 const reconciliationMigrationPath = path.resolve(
-  'supabase/migrations/20260831171448_reconcile_verification_documents_postgres17.sql',
+  'supabase/migrations-archive/20260831171448_reconcile_verification_documents_postgres17.sql',
 );
 const historicalVerificationMigrationPath = path.resolve(
-  'supabase/migrations/20260730220000_create_verification_engine.sql',
+  'supabase/migrations-archive/20260730220000_create_verification_engine.sql',
 );
 const historicalRlsMigrationPath = path.resolve(
-  'supabase/migrations/20260801103000_add_rls_for_engine_domains.sql',
+  'supabase/migrations-archive/20260801103000_add_rls_for_engine_domains.sql',
 );
 
 test('a valid zero-row query remains a truthful empty result', () => {

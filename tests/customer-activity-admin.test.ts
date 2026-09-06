@@ -54,7 +54,7 @@ test('Admin customer details keeps sibling documents schema failures out of the 
 });
 
 test('forward reconciliation is canonical, PostgreSQL 17 compatible, and least privilege', () => {
-  const migration = read('supabase/migrations/20260902163712_reconcile_customer_activity_postgres17.sql');
+  const migration = read('supabase/migrations-archive/20260902163712_reconcile_customer_activity_postgres17.sql');
 
   assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.customer_activity/i);
   assert.match(migration, /FOREIGN KEY \(customer_id\)[\s\S]*REFERENCES public\.customers\(id\)/i);

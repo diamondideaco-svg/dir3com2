@@ -6,7 +6,7 @@ import { Client } from 'pg';
 
 const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
 const migration = readFileSync(
-  new URL('../supabase/migrations/20260902163712_reconcile_customer_activity_postgres17.sql', import.meta.url),
+  new URL('../supabase/migrations-archive/20260902163712_reconcile_customer_activity_postgres17.sql', import.meta.url),
   'utf8',
 );
 const customerA = '11111111-1111-4111-8111-111111111111';

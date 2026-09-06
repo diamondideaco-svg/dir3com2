@@ -19,11 +19,11 @@ if (!safeHost || !safeDatabase) {
 
 const temporaryDatabase = `dir120_${randomBytes(8).toString('hex')}`;
 const baseMigration = readFileSync(
-  new URL('../supabase/migrations/20260829234937_dir120_revenue_request_transition_safety.sql', import.meta.url),
+  new URL('../supabase/migrations-archive/20260829234937_dir120_revenue_request_transition_safety.sql', import.meta.url),
   'utf8',
 );
 const correctiveMigration = readFileSync(
-  new URL('../supabase/migrations/20260830033103_dir120_marketplace_request_audit_logs.sql', import.meta.url),
+  new URL('../supabase/migrations-archive/20260830033103_dir120_marketplace_request_audit_logs.sql', import.meta.url),
   'utf8',
 );
 const suiteTemplate = readFileSync(

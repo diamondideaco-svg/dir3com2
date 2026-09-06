@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const migration = fs.readFileSync(
-  path.resolve('supabase/migrations/20260827232309_customer_marketplace_truth_and_requests.sql'),
+  path.resolve('supabase/migrations-archive/20260827232309_customer_marketplace_truth_and_requests.sql'),
   'utf8',
 );
 

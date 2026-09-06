@@ -33,6 +33,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Active migration chain and immutable archive guard
+        run: |
+          node --test tests/migration-baseline.test.mjs tests/production-baseline-contract.test.mjs tests/migration-cutover.test.mjs tests/baseline-adoption.test.mjs tests/sandbox-database-target.test.mjs
+          node scripts/check-migration-baseline.mjs
+
       - name: Lint
         run: npm run lint
 

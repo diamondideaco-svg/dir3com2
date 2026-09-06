@@ -6,15 +6,15 @@ import { Client } from 'pg';
 
 const databaseUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
 const reconciliationMigration = fs.readFileSync(
-  path.resolve('supabase/migrations/20260831171448_reconcile_verification_documents_postgres17.sql'),
+  path.resolve('supabase/migrations-archive/20260831171448_reconcile_verification_documents_postgres17.sql'),
   'utf8',
 );
 const historicalEngineMigration = fs.readFileSync(
-  path.resolve('supabase/migrations/20260730220000_create_verification_engine.sql'),
+  path.resolve('supabase/migrations-archive/20260730220000_create_verification_engine.sql'),
   'utf8',
 );
 const historicalRlsMigration = fs.readFileSync(
-  path.resolve('supabase/migrations/20260801103000_add_rls_for_engine_domains.sql'),
+  path.resolve('supabase/migrations-archive/20260801103000_add_rls_for_engine_domains.sql'),
   'utf8',
 );
 

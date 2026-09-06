@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const migration = readFileSync('supabase/migrations/20260829223000_dir118_revenue_launch_requests.sql', 'utf8');
+const migration = readFileSync('supabase/migrations-archive/20260829223000_dir118_revenue_launch_requests.sql', 'utf8');
 const route = readFileSync('app/api/marketplace/requests/route.ts', 'utf8');
 const bookings = readFileSync('app/my-bookings/page.tsx', 'utf8');
 const customerRequests = readFileSync('lib/marketplace/customer-requests.ts', 'utf8');
 const operations = readFileSync('components/admin/MarketplaceRequestOperationsTable.tsx', 'utf8');
 const operationsActions = readFileSync('lib/actions/operations-actions.ts', 'utf8');
-const revenueSafetyMigration = readFileSync('supabase/migrations/20260829234937_dir120_revenue_request_transition_safety.sql', 'utf8');
+const revenueSafetyMigration = readFileSync('supabase/migrations-archive/20260829234937_dir120_revenue_request_transition_safety.sql', 'utf8');
 
 test('request snapshot persists revenue-launch truth before any handoff', () => {
   for (const field of ['marketplace_family', 'supplier_name', 'service_name', 'fulfilment_method', 'transaction_method', 'handoff_type', 'next_action']) {

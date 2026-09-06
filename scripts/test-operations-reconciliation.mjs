@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 // Invoked only by the localhost/disposable-database guarded PR93 runner.
-const migration = readFileSync(new URL('../supabase/migrations/20260906013832_reconcile_pr93_operations_notifications.sql', import.meta.url), 'utf8');
+const migration = readFileSync(new URL('../supabase/migrations-archive/20260906013832_reconcile_pr93_operations_notifications.sql', import.meta.url), 'utf8');
 const tables = ['audit_logs', 'activity_timeline', 'system_events'];
 const reviewedTables = migration.slice(migration.indexOf('CREATE TABLE IF NOT EXISTS'), migration.indexOf('-- IF NOT EXISTS is not'));
 

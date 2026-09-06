@@ -11,7 +11,7 @@ const container = 'dir3com-pr93-pg17';
 const database = `notifications_grants_test_${randomBytes(8).toString('hex')}`;
 assert.match(database, /^notifications_grants_test_[a-f0-9]{16}$/);
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
-const migration = read('supabase/migrations/20260906025749_notifications_production_grants.sql');
+const migration = read('supabase/migrations-archive/20260906025749_notifications_production_grants.sql');
 function sql(query, db = database) {
   return execFileSync('docker', ['exec', '-i', container, 'psql', '-X', '-U', 'postgres', '-d', db,
     '-v', 'ON_ERROR_STOP=1', '-v', 'VERBOSITY=verbose', '-Atq'], { input: query, encoding: 'utf8', timeout: 20000, stdio: ['pipe','pipe','pipe'] }).trim();

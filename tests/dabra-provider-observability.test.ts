@@ -408,7 +408,7 @@ test('cost is estimated only for an exact model and a current pricing snapshot',
 
 test('migration is append-only, least privilege and exposes only aggregate service-role metrics', () => {
   const migration = readFileSync(
-    new URL('../supabase/migrations/20260904130954_dabra_provider_observability.sql', import.meta.url),
+    new URL('../supabase/migrations-archive/20260904130954_dabra_provider_observability.sql', import.meta.url),
     'utf8',
   );
   assert.match(migration, /ENABLE ROW LEVEL SECURITY/i);

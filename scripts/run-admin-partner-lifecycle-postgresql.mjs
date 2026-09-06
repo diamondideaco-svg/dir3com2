@@ -13,12 +13,12 @@ if (!(host === '127.0.0.1' || host === 'localhost' || host === 'postgres') || !/
   throw new Error(`Lifecycle PostgreSQL test refuses non-disposable target: ${host}/${databaseName}`);
 }
 
-const lifecycleMigration = readFileSync(new URL('../supabase/migrations/20260903234500_admin_product_lifecycle_and_request_handoff.sql', import.meta.url), 'utf8');
-const partnerHandoffMigration = readFileSync(new URL('../supabase/migrations/20260903234600_partner_request_handoff.sql', import.meta.url), 'utf8');
-const cleanupMigration = readFileSync(new URL('../supabase/migrations/20260903234700_drop_legacy_admin_handoff_rpc.sql', import.meta.url), 'utf8');
-const hardeningMigration = readFileSync(new URL('../supabase/migrations/20260904004000_harden_admin_partner_authorization.sql', import.meta.url), 'utf8');
-const remediationMigration = readFileSync(new URL('../supabase/migrations/20260905160435_reconcile_admin_partner_lifecycle_safety.sql', import.meta.url), 'utf8');
-const phase0LifecycleReconciliationMigration = readFileSync(new URL('../supabase/migrations/20260905161554_reconcile_phase0_lifecycle_insert.sql', import.meta.url), 'utf8');
+const lifecycleMigration = readFileSync(new URL('../supabase/migrations-archive/20260903234500_admin_product_lifecycle_and_request_handoff.sql', import.meta.url), 'utf8');
+const partnerHandoffMigration = readFileSync(new URL('../supabase/migrations-archive/20260903234600_partner_request_handoff.sql', import.meta.url), 'utf8');
+const cleanupMigration = readFileSync(new URL('../supabase/migrations-archive/20260903234700_drop_legacy_admin_handoff_rpc.sql', import.meta.url), 'utf8');
+const hardeningMigration = readFileSync(new URL('../supabase/migrations-archive/20260904004000_harden_admin_partner_authorization.sql', import.meta.url), 'utf8');
+const remediationMigration = readFileSync(new URL('../supabase/migrations-archive/20260905160435_reconcile_admin_partner_lifecycle_safety.sql', import.meta.url), 'utf8');
+const phase0LifecycleReconciliationMigration = readFileSync(new URL('../supabase/migrations-archive/20260905161554_reconcile_phase0_lifecycle_insert.sql', import.meta.url), 'utf8');
 const temporaryDatabase = `admin_partner_${randomBytes(8).toString('hex')}`;
 const admin = new Client({ connectionString: baseConnection });
 let testClient;

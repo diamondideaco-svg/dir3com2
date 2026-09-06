@@ -4,12 +4,12 @@ import test from 'node:test';
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const lifecycleMigration = read('supabase/migrations/20260903234500_admin_product_lifecycle_and_request_handoff.sql');
-const partnerMigration = read('supabase/migrations/20260903234600_partner_request_handoff.sql');
-const cleanupMigration = read('supabase/migrations/20260903234700_drop_legacy_admin_handoff_rpc.sql');
-const hardeningMigration = read('supabase/migrations/20260904004000_harden_admin_partner_authorization.sql');
-const remediationMigration = read('supabase/migrations/20260905160435_reconcile_admin_partner_lifecycle_safety.sql');
-const phase0LifecycleMigration = read('supabase/migrations/20260905161554_reconcile_phase0_lifecycle_insert.sql');
+const lifecycleMigration = read('supabase/migrations-archive/20260903234500_admin_product_lifecycle_and_request_handoff.sql');
+const partnerMigration = read('supabase/migrations-archive/20260903234600_partner_request_handoff.sql');
+const cleanupMigration = read('supabase/migrations-archive/20260903234700_drop_legacy_admin_handoff_rpc.sql');
+const hardeningMigration = read('supabase/migrations-archive/20260904004000_harden_admin_partner_authorization.sql');
+const remediationMigration = read('supabase/migrations-archive/20260905160435_reconcile_admin_partner_lifecycle_safety.sql');
+const phase0LifecycleMigration = read('supabase/migrations-archive/20260905161554_reconcile_phase0_lifecycle_insert.sql');
 const identity = read('lib/auth/identity.ts');
 const teamAccess = read('lib/auth/team-access.ts');
 const productActions = read('lib/actions/product-actions.ts');
