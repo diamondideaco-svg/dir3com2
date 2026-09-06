@@ -64,8 +64,8 @@ try {
   // Exact captured version/name inventory; inert statement fixtures stand in for
   // private historical bodies. Full fixture rows are backed up byte-for-byte.
   // This tests the mechanism, NOT a claim to possess a current Production backup.
-  sql('CREATE SCHEMA supabase_migrations; CREATE TABLE supabase_migrations.schema_migrations(version text PRIMARY KEY, statements text[], name text);');
-  const fixture=ledger.map(r=>({version:r.version,name:r.name,statements:[`-- inert fixture for captured statement checksum ${r.statement_md5}`]}));
+  sql('CREATE SCHEMA supabase_migrations; CREATE TABLE supabase_migrations.schema_migrations(version text PRIMARY KEY, statements text[], name text, created_by text, idempotency_key text, rollback text[]);');
+  const fixture=ledger.map((r,i)=>({version:r.version,name:r.name,statements:[`-- inert fixture for captured statement checksum ${r.statement_md5}`],created_by:i===0?'fixture operator':null,idempotency_key:i===0?'fixture key':null,rollback:i===0?['-- inert rollback',null]:null}));
   const lit=s=>"'"+s.replaceAll("'","''")+"'";
   sql(`INSERT INTO supabase_migrations.schema_migrations SELECT * FROM jsonb_populate_recordset(NULL::supabase_migrations.schema_migrations,${lit(JSON.stringify(fixture))}::jsonb);`);
   const history=()=>sql("SELECT jsonb_agg(to_jsonb(m) ORDER BY version) FROM supabase_migrations.schema_migrations m");
@@ -76,6 +76,8 @@ try {
   const fixtureInventory=scalar(queries.ledger);
   assert.deepEqual(fixtureInventory.map(r=>[r.version,r.name]),ledger.map(r=>[r.version,r.name]));
   const schemaBefore=appState();const contract=adoptionContract(readFileSync(backupPath,'utf8'),fixtureInventory,digest(schemaBefore));
+  const dataState=()=>sql("SELECT jsonb_build_object('users',(SELECT jsonb_agg(to_jsonb(u) ORDER BY id) FROM auth.users u),'profiles',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM public.profiles p))");
+  const dataBefore=dataState();
   assert.throws(()=>adoptionContract(JSON.stringify(fixture.slice(1)),fixtureInventory,digest(schemaBefore)));
   const tampered=JSON.parse(backup);tampered[0].statements.push('-- changed');
   assert.throws(()=>adoptionContract(JSON.stringify(tampered),fixtureInventory,digest(schemaBefore)),/checksum mismatch/);
@@ -83,15 +85,36 @@ try {
     assert.throws(()=>sql(contract.adopt(fault)));
     assert.equal(history(),backup,`${fault} must restore ALL history`);
     assert.equal(appState(),schemaBefore);
+    assert.equal(dataState(),dataBefore);
   }
   sql("UPDATE supabase_migrations.schema_migrations SET name=name||'-mismatch' WHERE version=(SELECT min(version) FROM supabase_migrations.schema_migrations)");
   const mismatched=history();assert.throws(()=>sql(contract.adopt()));assert.equal(history(),mismatched);
   sql(`TRUNCATE supabase_migrations.schema_migrations; INSERT INTO supabase_migrations.schema_migrations SELECT * FROM jsonb_populate_recordset(NULL::supabase_migrations.schema_migrations,${lit(backup)}::jsonb);`);
   sql(contract.adopt());const committed=history();sql(contract.adopt());assert.equal(history(),committed);
+  assert.deepEqual(JSON.parse(committed),contract.marker,'Full six-column materialized marker must match exactly');
+  // Each corrupted marker must be rejected by BOTH adoption and recovery,
+  // preserving even the corrupt row for operator inspection (no destructive retry).
+  for(const [key,value] of Object.entries({version:'20990101000000',name:'wrong',statements:['wrong checksum'],created_by:'unexpected actor',idempotency_key:'unexpected key',rollback:['unexpected rollback']})){
+    const changed=structuredClone(contract.marker);changed[0][key]=value;
+    sql(`TRUNCATE supabase_migrations.schema_migrations; INSERT INTO supabase_migrations.schema_migrations SELECT * FROM jsonb_populate_recordset(NULL::supabase_migrations.schema_migrations,${lit(JSON.stringify(changed))}::jsonb);`);
+    const bad=history();
+    for(const statement of [contract.adopt(),contract.recover]){assert.throws(()=>sql(statement));assert.equal(history(),bad);}
+    assert.equal(dataState(),dataBefore);
+  }
+  sql(`TRUNCATE supabase_migrations.schema_migrations; INSERT INTO supabase_migrations.schema_migrations SELECT * FROM jsonb_populate_recordset(NULL::supabase_migrations.schema_migrations,${lit(committed)}::jsonb);`);
+  // Unexpected defaults/columns are not accepted even when current row JSON
+  // happens to match. The schema contract must fail BEFORE the no-op shortcut.
+  for(const [change,restore] of [["ALTER TABLE supabase_migrations.schema_migrations ALTER COLUMN created_by SET DEFAULT 'unexpected'","ALTER TABLE supabase_migrations.schema_migrations ALTER COLUMN created_by DROP DEFAULT"],["ALTER TABLE supabase_migrations.schema_migrations ADD COLUMN unexpected text","ALTER TABLE supabase_migrations.schema_migrations DROP COLUMN unexpected"]]){
+    sql(change);const bad=history();
+    for(const statement of [contract.adopt(),contract.recover]){try{sql(statement);assert.fail('Schema mismatch accepted');}catch(e){assert.match(String(e.stderr),/BASELINE_LEDGER_SCHEMA_MISMATCH/);}assert.equal(history(),bad);}
+    sql(restore);
+  }
   sql(contract.recover);assert.equal(history(),backup);sql(contract.adopt());
   assert.equal(appState(),schemaBefore,'Adoption may not change application schema');
+  assert.equal(dataState(),dataBefore,'Adoption/recovery may not change application data');
   assert.equal(readFileSync(backupPath,'utf8'),backup);
   console.log('ADOPTION_EXACT_47=PASS BACKUP=PASS TRANSACTION=PASS CRASH_AFTER_DELETE=PASS CRASH_BEFORE_COMMIT=PASS RECOVERY=PASS IDEMPOTENCY=PASS');
+  console.log('SIX_COLUMN_MARKER=PASS MUTATED_MARKER_DENIED=6/6 METADATA_RECOVERY=PASS SCHEMA_DRIFT_DENIED=PASS APP_DATA_UNCHANGED=PASS');
   const cli='C:/Users/dell/AppData/Local/Programs/Supabase/supabase.exe';
   assert.equal(execFileSync(cli,['--version'],{encoding:'utf8'}).trim(),'2.111.0');
   const login='pr101_cli_'+randomBytes(8).toString('hex'), password=randomBytes(24).toString('hex');
