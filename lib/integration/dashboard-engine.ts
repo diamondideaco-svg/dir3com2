@@ -28,7 +28,7 @@ function reportMissingCount(query: string) {
 export async function getExecutiveDashboardData(): Promise<ExecutiveDashboardData> {
   const supabase = await createSupabaseServerClient();
 
-  const [bookingsRes, settlementsRes, refundsRes, verificationsRes, notificationsRes] = await Promise.all([
+  const [bookingsRes, settlementsRes, refundsRes, verificationsRes] = await Promise.all([
     supabase
       .from('bookings')
       .select('id, booking_reference, status, payment_status, total_amount, synthetic, environment, source_channel')
@@ -47,10 +47,6 @@ export async function getExecutiveDashboardData(): Promise<ExecutiveDashboardDat
       .from('verification_requests')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'Pending'),
-    supabase
-      .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'failed'),
   ]);
 
   const queryResults = [
@@ -58,7 +54,6 @@ export async function getExecutiveDashboardData(): Promise<ExecutiveDashboardDat
     ['pending-settlements', settlementsRes],
     ['pending-refunds', refundsRes],
     ['pending-verifications', verificationsRes],
-    ['failed-notifications', notificationsRes],
   ] as const;
 
   for (const [query, result] of queryResults) {
@@ -79,6 +74,7 @@ export async function getExecutiveDashboardData(): Promise<ExecutiveDashboardDat
     pendingSettlements: resolveCountMetric(settlementsRes.count, settlementsRes.error),
     pendingRefunds: resolveCountMetric(refundsRes.count, refundsRes.error),
     pendingVerifications: resolveCountMetric(verificationsRes.count, verificationsRes.error),
-    failedNotifications: resolveCountMetric(notificationsRes.count, notificationsRes.error),
+    // In-app active/read/archived state provides no delivery-failure evidence.
+    failedNotifications: { status: 'unavailable' },
   };
 }
