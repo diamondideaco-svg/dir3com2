@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import {readFileSync,readdirSync,mkdtempSync,mkdirSync,writeFileSync} from 'node:fs';
+import {readFileSync,readdirSync,mkdtempSync,mkdirSync,writeFileSync,chmodSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
-import {BASELINE,PENDING,quote,tableSql,renderBaseline,modelAdoption,pendingVersions} from './production-baseline-contract.mjs';
+import {BASELINE,PENDING,quote,tableSql,renderBaseline} from './production-baseline-contract.mjs';
+import {adoptionContract,digest} from './baseline-adoption-contract.mjs';
 const root=new URL('../',import.meta.url);
 const read=p=>readFileSync(new URL(p,root),'utf8');
 const capture=JSON.parse(read('docs/production-schema-capture-2026-09-06.json'));
@@ -19,6 +20,7 @@ const sql=(q,db=database)=>execFileSync('docker',['exec','-i',container,'psql','
 const scalar=q=>JSON.parse(sql(q));
 let created=false;
 const createdRoles=[];
+const redactions=[];
 const canonical=x=>JSON.stringify(x,(_,v)=>typeof v==='string'?v.replaceAll('\r\n','\n'):v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v);
 const scope=(key,rows)=>rows.filter(r=>key==='triggers'?r.schema==='public'||r.name==='trg_auth_users_provision_profile':key==='policies'?r.schemaname==='public':key==='defaults'?r.schema==='public'&&r.owner==='postgres':r.schema==='public');
 function denied(query){try{sql(query);}catch(e){assert.match(String(e.stderr),/permission denied|row-level security/);return;}assert.fail('Expected denial');}
@@ -58,37 +60,77 @@ try {
   assert.equal(sql(`SET ROLE authenticated; SET request.jwt.claim.sub='${id}'; SELECT count(*) FROM public.audit_logs`),'0');
   denied('SET ROLE authenticated; INSERT INTO public.notifications(title) VALUES(\'denied\');');
   console.log('PENDING_ABSENT=PASS AUTH_PROVISIONING=PASS RUNTIME_ROLE_DENIAL=PASS NOTIFICATIONS_CONTRACT=PASS');
-  const adopted=modelAdoption(ledger,structuredClone(ledger),false);
-  assert.deepEqual(pendingVersions(adopted),PENDING);
-  assert.throws(()=>modelAdoption(ledger.slice(1),ledger,false));
-  const changed=structuredClone(ledger);changed[0].name+='-mismatch';assert.throws(()=>modelAdoption(changed,ledger,false));
-  console.log('ADOPTION_PURE_MODEL=PASS DRY_RUN_EQUIVALENT_BEFORE=20260903220000,20260904210623,20260906034500');
-  const files=readdirSync(new URL('supabase/migrations/',root));
-  for(const version of PENDING){const found=files.filter(f=>f.startsWith(version+'_'));assert.equal(found.length,1);sql(read('supabase/migrations/'+found[0]));adopted.push(version);console.log(`FORWARD_${version}=PASS`);}
+  const evidence=mkdtempSync(join(tmpdir(),'pr101-adoption-proof-'));
+  // Exact captured version/name inventory; inert statement fixtures stand in for
+  // private historical bodies. Full fixture rows are backed up byte-for-byte.
+  // This tests the mechanism, NOT a claim to possess a current Production backup.
+  sql('CREATE SCHEMA supabase_migrations; CREATE TABLE supabase_migrations.schema_migrations(version text PRIMARY KEY, statements text[], name text);');
+  const fixture=ledger.map(r=>({version:r.version,name:r.name,statements:[`-- inert fixture for captured statement checksum ${r.statement_md5}`]}));
+  const lit=s=>"'"+s.replaceAll("'","''")+"'";
+  sql(`INSERT INTO supabase_migrations.schema_migrations SELECT * FROM jsonb_populate_recordset(NULL::supabase_migrations.schema_migrations,${lit(JSON.stringify(fixture))}::jsonb);`);
+  const history=()=>sql("SELECT jsonb_agg(to_jsonb(m) ORDER BY version) FROM supabase_migrations.schema_migrations m");
+  const backup=history();const backupPath=join(evidence,'immutable-ledger-backup.json');
+  writeFileSync(backupPath,backup,{flag:'wx',mode:0o400});chmodSync(backupPath,0o400);
+  assert.throws(()=>writeFileSync(backupPath,'overwrite',{flag:'wx'}));
+  const appState=()=>canonical(Object.fromEntries(Object.keys(queries).filter(k=>['tables','constraints','indexes','functions','triggers','policies','grants','column_grants','defaults'].includes(k)).map(k=>[k,scope(k,scalar(queries[k]))])));
+  const fixtureInventory=scalar(queries.ledger);
+  assert.deepEqual(fixtureInventory.map(r=>[r.version,r.name]),ledger.map(r=>[r.version,r.name]));
+  const schemaBefore=appState();const contract=adoptionContract(readFileSync(backupPath,'utf8'),fixtureInventory,digest(schemaBefore));
+  assert.throws(()=>adoptionContract(JSON.stringify(fixture.slice(1)),fixtureInventory,digest(schemaBefore)));
+  const tampered=JSON.parse(backup);tampered[0].statements.push('-- changed');
+  assert.throws(()=>adoptionContract(JSON.stringify(tampered),fixtureInventory,digest(schemaBefore)),/checksum mismatch/);
+  for(const fault of ['after-delete','before-commit']) {
+    assert.throws(()=>sql(contract.adopt(fault)));
+    assert.equal(history(),backup,`${fault} must restore ALL history`);
+    assert.equal(appState(),schemaBefore);
+  }
+  sql("UPDATE supabase_migrations.schema_migrations SET name=name||'-mismatch' WHERE version=(SELECT min(version) FROM supabase_migrations.schema_migrations)");
+  const mismatched=history();assert.throws(()=>sql(contract.adopt()));assert.equal(history(),mismatched);
+  sql(`TRUNCATE supabase_migrations.schema_migrations; INSERT INTO supabase_migrations.schema_migrations SELECT * FROM jsonb_populate_recordset(NULL::supabase_migrations.schema_migrations,${lit(backup)}::jsonb);`);
+  sql(contract.adopt());const committed=history();sql(contract.adopt());assert.equal(history(),committed);
+  sql(contract.recover);assert.equal(history(),backup);sql(contract.adopt());
+  assert.equal(appState(),schemaBefore,'Adoption may not change application schema');
+  assert.equal(readFileSync(backupPath,'utf8'),backup);
+  console.log('ADOPTION_EXACT_47=PASS BACKUP=PASS TRANSACTION=PASS CRASH_AFTER_DELETE=PASS CRASH_BEFORE_COMMIT=PASS RECOVERY=PASS IDEMPOTENCY=PASS');
+  const cli='C:/Users/dell/AppData/Local/Programs/Supabase/supabase.exe';
+  assert.equal(execFileSync(cli,['--version'],{encoding:'utf8'}).trim(),'2.111.0');
+  const login='pr101_cli_'+randomBytes(8).toString('hex'), password=randomBytes(24).toString('hex');
+  redactions.push(password);
+  sql(`CREATE ROLE ${quote(login)} LOGIN SUPERUSER PASSWORD '${password}'; ALTER ROLE ${quote(login)} SET role=postgres;`,'postgres');createdRoles.push(login);
+  const cliFixture=join(evidence,'cli');mkdirSync(join(cliFixture,'supabase','migrations'),{recursive:true});
+  writeFileSync(join(cliFixture,'supabase','config.toml'),'project_id = "pr101-isolated-proof"\n[db]\nmajor_version = 17\n');
+  const files=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')).sort();
+  assert.deepEqual(files.map(f=>f.slice(0,14)),[BASELINE,...PENDING]);
+  for(const f of files)writeFileSync(join(cliFixture,'supabase','migrations',f),read('supabase/migrations/'+f));
+  const url=`postgresql://${login}:${password}@127.0.0.1:55493/${database}?sslmode=disable`;
+  redactions.push(url);
+  const runCli=(extra,label)=>{
+    const args=['db','push','--db-url',url,'--workdir',cliFixture,'--yes','--output-format','json',...extra];
+    let output;
+    try { output=execFileSync(cli,args,{encoding:'utf8',timeout:60000,stdio:['pipe','pipe','pipe']}); }
+    catch(error){throw new Error('ISOLATED_CLI: '+String(error.stderr||error.message).replaceAll(url,'[LOCAL_DB]').replaceAll(password,'[REDACTED]').slice(0,2000));}
+    output=output.replaceAll(url,'[LOCAL_DB]').replaceAll(password,'[REDACTED]');
+    writeFileSync(join(evidence,label+'.txt'),output);console.log(label+'='+output.trim());return output;
+  };
+  const before=runCli(['--dry-run'],'ACTUAL_CLI_BEFORE');
+  assert.deepEqual(JSON.parse(before).migrations,files.slice(1));
+  assert.deepEqual(JSON.parse(before).seeds,[]);assert.deepEqual(JSON.parse(before).roles,[]);
+  assert.equal(history(),committed,'Dry run must not apply history');
+  const applied=runCli([],'ACTUAL_CLI_APPLY');assert.deepEqual(JSON.parse(applied).migrations,files.slice(1));
+  const after=runCli(['--dry-run'],'ACTUAL_CLI_AFTER');
+  assert.deepEqual(JSON.parse(after).migrations,[]);assert.equal(JSON.parse(after).upToDate,true);
+  assert.deepEqual(JSON.parse(history()).map(r=>r.version),[BASELINE,...PENDING]);
+  assert.throws(()=>sql(contract.recover),'Recovery must refuse after forwards');
+  assert.throws(()=>sql(contract.adopt()),'Adoption must refuse after forwards');
+  console.log('CLI_DRY_RUN_BEFORE=EXACT_THREE CLI_DRY_RUN_AFTER=EMPTY PENDING_THREE_APPLIED=PASS');
+  console.log('EVIDENCE_DIRECTORY='+evidence);
   assert.equal(sql("SELECT to_regclass('public.customer_documents') IS NOT NULL"),'t');
   assert.equal(sql("SELECT relrowsecurity FROM pg_class WHERE oid='public.customer_documents'::regclass"),'t');
   assert.equal(sql("SELECT count(*) FROM pg_proc WHERE proname='activate_partner_with_attestation'"),'1');
   for(const p of ['UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN'])assert.equal(sql(`SELECT has_table_privilege('service_role','public.dabra_provider_attempts','${p}')`),'f');
   assert.equal(sql(`SET ROLE authenticated; SET request.jwt.claim.sub='${id}'; SELECT count(*) FROM public.customer_documents;`),'0');
-  const cli='C:/Users/dell/AppData/Local/Programs/Supabase/supabase.exe';
-  assert.equal(execFileSync(cli,['--version'],{encoding:'utf8'}).trim(),'2.111.0');
-  const login='pr101_cli_'+randomBytes(8).toString('hex'), password=randomBytes(24).toString('hex');
-  sql(`CREATE ROLE ${quote(login)} LOGIN PASSWORD '${password}'`,'postgres');createdRoles.push(login);
-  // Disposable parser fixtures contain comments only, never migration execution or secrets.
-  const cliFixture=mkdtempSync(join(tmpdir(),'pr101-cli-order-'));
-  mkdirSync(join(cliFixture,'supabase','migrations'),{recursive:true});
-  writeFileSync(join(cliFixture,'supabase','config.toml'),'project_id = "pr101-ordering-proof"\n[db]\nmajor_version = 17\n');
-  for(const v of [BASELINE,...PENDING])writeFileSync(join(cliFixture,'supabase','migrations',v+'_ordering_fixture.sql'),'-- Filename parser proof only; never executed.\n');
-  const url=`postgresql://${login}:${password}@127.0.0.1:55493/${database}?sslmode=disable`;
-  let listing;
-  try { listing=execFileSync(cli,['migration','list','--db-url',url,'--workdir',cliFixture,'--yes'],{encoding:'utf8',timeout:30000,stdio:['pipe','pipe','pipe']}); }
-  catch(error) { throw new Error('CLI_ORDERING_BLOCKED: '+String(error.stderr||'no stderr').replaceAll(url,'[LOCAL_DB]').replaceAll(password,'[REDACTED]').slice(0,1500)); }
-  const positions=[BASELINE,...PENDING].map(v=>listing.indexOf(v));
-  assert.ok(positions.every(p=>p>=0));assert.deepEqual([...positions].sort((a,b)=>a-b),positions);
-  console.log('CLI_2_111_0_FILENAME_ORDER=PASS');
-  assert.deepEqual(pendingVersions(adopted),[]);
-  console.log('FORWARD_CONTRACTS=PASS DRY_RUN_EQUIVALENT_AFTER=EMPTY');
-} catch(error) { console.error(String(error.stderr||error.message).slice(0,4000));process.exitCode=1; }
+  console.log('FORWARD_CONTRACTS=PASS');
+} catch(error) { let safe=String(error.stderr||error.message);for(const secret of redactions)safe=safe.replaceAll(secret,'[REDACTED]');console.error(safe.slice(0,4000));process.exitCode=1; }
 finally {
   if(created)sql(`DROP DATABASE ${quote(database)}`,'postgres');
   for(const role of createdRoles.reverse())sql(`DROP ROLE ${quote(role)}`,'postgres');

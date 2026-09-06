@@ -13,7 +13,7 @@ test('checkpoint is unique, precedes pending versions, and never claims historic
   assert.ok(BASELINE<PENDING[0]);assert.match(BASELINE,/^\d{14}$/);
   assert.ok(!ledger.some(r=>r.version===BASELINE));
   assert.ok(!plan.archive_files.some(r=>r.source.includes(BASELINE)));
-  assert.equal(plan.active_directory_unchanged,true);assert.equal(plan.production_write_authorized,false);
+  assert.equal(plan.active_directory_unchanged,false);assert.equal(plan.production_write_authorized,false);
 });
 test('archive plan preserves every immutable Git blob and both ambiguous migrations',()=>{
   assert.equal(plan.archive_files.length,45);
@@ -22,7 +22,7 @@ test('archive plan preserves every immutable Git blob and both ambiguous migrati
   for(const f of plan.archive_files){
     const bytes=execFileSync('git',['cat-file','blob',f.git_blob]);
     assert.equal(createHash('sha256').update(bytes).digest('hex'),f.sha256);
-    assert.ok(f.archive.startsWith('supabase/migrations-history/'));
+    assert.ok(f.archive.startsWith('supabase/migrations-archive/'));
   }
 });
 test('baseline is exactly generated from capture, outside delivery directory, without pending effects',()=>{

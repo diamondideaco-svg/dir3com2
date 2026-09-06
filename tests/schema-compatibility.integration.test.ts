@@ -7,8 +7,8 @@ import { Client } from 'pg';
 
 import { isSyntheticSchemaRolloutError } from '@/lib/marketplace/synthetic-compat';
 
-const coreMigrationPath = path.resolve('supabase/migrations/20260810102000_dgr071_core_synthetic_compatibility.sql');
-const servicesMigrationPath = path.resolve('supabase/migrations/20260810113000_dgr072_services_synthetic_compatibility.sql');
+const coreMigrationPath = path.resolve('supabase/migrations-archive/20260810102000_dgr071_core_synthetic_compatibility.sql');
+const servicesMigrationPath = path.resolve('supabase/migrations-archive/20260810113000_dgr072_services_synthetic_compatibility.sql');
 const stagingMigrationPath = path.resolve('supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.sql');
 const rollbackPath = path.resolve('supabase/staging-only/sandbox/20260810090000_sandbox_synthetic_training_layer.rollback.sql');
 

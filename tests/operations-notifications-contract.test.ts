@@ -101,7 +101,7 @@ test('read consumers use title and do not manufacture a failed-delivery count', 
 });
 
 test('migration preserves notifications and limits operations access', () => {
-  const sql = read('supabase/migrations/20260906013832_reconcile_pr93_operations_notifications.sql').replace(/--[^\n]*/g, '');
+  const sql = read('supabase/migrations-archive/20260906013832_reconcile_pr93_operations_notifications.sql').replace(/--[^\n]*/g, '');
   assert.doesNotMatch(sql, /\bnotifications\b|notification_templates|notification_logs|dabra/i);
   for (const table of ['audit_logs', 'activity_timeline', 'system_events']) {
     assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS public\\.${table}`));

@@ -29,7 +29,7 @@ test('production onboarding routes use the authoritative repository without tmpd
 });
 
 test('durable portal migration enforces owner-scoped RLS and client grants', () => {
-  const migration = read('supabase/migrations/20260827152245_partner_portal_durable_state_and_documents.sql');
+  const migration = read('supabase/migrations-archive/20260827152245_partner_portal_durable_state_and_documents.sql');
   for (const table of ['partner_portal_assets', 'partner_portal_asset_media', 'partner_portal_review_queue', 'partner_portal_contracts']) {
     assert.match(migration, new RegExp(`create table if not exists public\\.${table}`));
     assert.match(migration, new RegExp(`alter table public\\.${table} enable row level security`));
@@ -40,7 +40,7 @@ test('durable portal migration enforces owner-scoped RLS and client grants', () 
   assert.doesNotMatch(migration, /grant update[\s\S]{0,160}verified/);
   assert.match(migration, /revoke update, delete on table public\.partner_documents from authenticated/);
 
-  const remediation = read('supabase/migrations/20260827155608_partner_document_review_boundary_and_image_cleanup.sql');
+  const remediation = read('supabase/migrations-archive/20260827155608_partner_document_review_boundary_and_image_cleanup.sql');
   assert.match(remediation, /drop policy if exists partner_documents_owner_update/);
   assert.match(remediation, /revoke update, delete on table public\.partner_documents from authenticated/);
   assert.match(remediation, /revoke all on table public\.partners, public\.partner_documents from anon, authenticated/);

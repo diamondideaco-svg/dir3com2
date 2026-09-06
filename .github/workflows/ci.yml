@@ -33,9 +33,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Migration provenance and duplicate-version guard
+      - name: Active migration chain and immutable archive guard
         run: |
-          node --test tests/migration-baseline.test.mjs
+          node --test tests/migration-baseline.test.mjs tests/production-baseline-contract.test.mjs tests/migration-cutover.test.mjs tests/baseline-adoption.test.mjs
           node scripts/check-migration-baseline.mjs
 
       - name: Lint

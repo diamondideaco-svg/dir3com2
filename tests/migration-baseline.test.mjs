@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { duplicateVersions, validateManifest } from '../scripts/check-migration-baseline.mjs';
 
 const manifest = JSON.parse(readFileSync(new URL('../docs/production-migration-reconciliation-2026-09-06.json', import.meta.url), 'utf8'));
-const files = readdirSync(new URL('../supabase/migrations', import.meta.url)).filter(f => f.endsWith('.sql'));
+const files = readdirSync(new URL('../supabase/migrations-archive', import.meta.url)).filter(f => f.endsWith('.sql'));
 test('index evidence is backed by the direct Production catalog capture', () => {
   const capture = JSON.parse(readFileSync(new URL('../docs/production-schema-capture-2026-09-06.json', import.meta.url), 'utf8'));
   for (const [name, count] of [['team_access_grants_user_idx', 2], ['dabra_provider_attempts_request_hop_unique_idx', 1]]) {
@@ -49,11 +49,12 @@ test('duplicate detector rejects ambiguous timestamps independent of suffix or S
   assert.throws(() => duplicateVersions(['bad.sql']), /Invalid/);
   assert.deepEqual(duplicateVersions(files).map(([version]) => version), ['20260808120000']);
 });
-test('actual CI command returns nonzero on the unresolved duplicate; no baseline exception', () => {
+test('actual CI command separates immutable history from deployable active migrations', () => {
   const result = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/check-migration-baseline.mjs', import.meta.url))], { encoding:'utf8' });
-  assert.equal(result.status, 1);
+  assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /MIGRATION_MANIFEST=PASS/);
-  assert.match(result.stderr, /DUPLICATE_MIGRATION_VERSIONS=.*20260808120000/);
+  assert.match(result.stdout, /ACTIVE_PATH=PASS ARCHIVE_INTEGRITY=PASS/);
+  assert.match(result.stdout, /DUPLICATE_MIGRATION_VERSIONS=NONE/);
 });
 test('unknown history and pending schema cannot be marked applied by the manifest', () => {
   for (const classification of ['U', 'PENDING']) {

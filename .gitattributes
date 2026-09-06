@@ -1,0 +1,2 @@
+supabase/migrations-archive/*.sql -text
+supabase/migrations/*.sql text eol=lf

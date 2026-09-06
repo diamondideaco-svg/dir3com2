@@ -1,6 +1,31 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
+import { BASELINE, PENDING } from './production-baseline-contract.mjs';
+
+export function validateCutover(plan, active, archived, readBytes) {
+  if (JSON.stringify(plan.proposed_active_versions) !== JSON.stringify([BASELINE,...PENDING])) throw new Error('Invalid active ordering/approved versions');
+  if (duplicateVersions(active).length) throw new Error('Duplicate active version');
+  const expected = plan.active_files.map(f => f.path.replace('supabase/migrations/', '')).sort();
+  if (JSON.stringify([...active].sort()) !== JSON.stringify(expected)) throw new Error('Unexpected active migration chain');
+  if (JSON.stringify(plan.proposed_active_versions) !== JSON.stringify(expected.map(f => f.slice(0,14)))) throw new Error('Invalid active ordering');
+  if (plan.archive_files.length !== 45) throw new Error('Archive inventory mismatch');
+  const archiveNames = plan.archive_files.map(f => f.archive.replace('supabase/migrations-archive/', '')).sort();
+  if (new Set(archiveNames).size !== 45 || JSON.stringify([...archived].sort()) !== JSON.stringify(archiveNames)) throw new Error('Missing or unexpected archived evidence');
+  for (const f of plan.archive_files) {
+    if (f.archive !== 'supabase/migrations-archive/' + f.source.split('/').at(-1)) throw new Error('Archive path mismatch');
+    const bytes = readBytes(f.archive);
+    const hash = createHash('sha256').update(bytes).digest('hex');
+    const blob = createHash('sha1').update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest('hex');
+    if (hash !== f.sha256 || blob !== f.git_blob) throw new Error('Modified archived bytes: ' + f.archive);
+  }
+  for (const f of plan.active_files) {
+    if (!/^supabase\/migrations\/\d{14}_[a-z0-9_]+\.sql$/.test(f.path)) throw new Error('Invalid active path');
+    if (createHash('sha256').update(readBytes(f.path)).digest('hex') !== f.sha256) throw new Error('Active SQL hash mismatch');
+  }
+  return true;
+}
 
 export function duplicateVersions(files) {
   const groups = new Map();
@@ -42,8 +67,16 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const root = fileURLToPath(new URL('../', import.meta.url));
   const files = readdirSync(resolve(root, 'supabase/migrations')).filter(f => f.endsWith('.sql'));
   const manifest = JSON.parse(readFileSync(resolve(root, 'docs/production-migration-reconciliation-2026-09-06.json'), 'utf8'));
-  validateManifest(manifest, files);
+  const plan = JSON.parse(readFileSync(resolve(root, 'docs/production-baseline-cutover-plan-2026-09-06.json'), 'utf8'));
+  const archived = readdirSync(resolve(root, 'supabase/migrations-archive')).filter(f => f.endsWith('.sql'));
+  validateManifest(manifest, archived);
+  validateCutover(plan, files, archived, p => readFileSync(resolve(root, p)));
+  for (const row of manifest.records.filter(r => r.local_filename)) {
+    const entry = plan.archive_files.find(f => f.source === row.local_filename);
+    if (!entry || row.archive_filename !== entry.archive || row.archive_sha256 !== entry.sha256 || row.archive_git_blob !== entry.git_blob) throw new Error('Manifest archive mapping mismatch');
+  }
   console.log('MIGRATION_MANIFEST=PASS');
+  console.log('ACTIVE_PATH=PASS ARCHIVE_INTEGRITY=PASS');
   const duplicates = duplicateVersions(files);
   if (duplicates.length) {
     console.error(`DUPLICATE_MIGRATION_VERSIONS=${JSON.stringify(duplicates)}`);

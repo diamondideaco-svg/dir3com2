@@ -4,7 +4,7 @@ import process from 'node:process';
 import { Client } from 'pg';
 
 const databaseUrl = String(process.env.DATABASE_URL || '').trim();
-const migrationPath = path.resolve('supabase/migrations/20260810102000_dgr071_core_synthetic_compatibility.sql');
+const migrationPath = path.resolve('supabase/migrations-archive/20260810102000_dgr071_core_synthetic_compatibility.sql');
 
 if (!databaseUrl) {
   console.error('Missing DATABASE_URL.');

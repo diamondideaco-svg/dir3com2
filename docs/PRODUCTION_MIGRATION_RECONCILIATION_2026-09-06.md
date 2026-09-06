@@ -42,8 +42,10 @@ reconciled and verified. No DABRA runtime or Production permissions are changed 
 Exact files: `20260808120000_dgr055_canonical_profile_provisioning.sql` and
 `20260808120000_dgr059_partner_documents_runtime_grants_and_owner_policies.sql`.
 No safe rename is proven. Absence from the current Production history does not prove
-either migration was never applied. This remains an explicit blocker for normal
-migration delivery. The duplicate guard must fail, without an allowlist or exemption.
+either migration was never applied. v16.3 resolves the repository delivery blocker by
+SAFE_ARCHIVE_ONLY: both original blobs live outside active scanning, without renaming
+or changing SQL. The active duplicate guard remains strict. Production metadata adoption
+is still separately blocked pending explicit authorization; no Production closure is claimed.
 
 ### PR100 — pending trusted activation schema
 
@@ -113,9 +115,9 @@ DGR059 grants partner-document access and owner policies. They are not duplicate
 meaning. Existing profiles/partner_documents and later hardening do not prove either
 original transaction executed. Full replacement/supersession is not claimed.
 
-The CI guard intentionally fails on this existing duplicate. There is no allowlist,
-baseline exemption, or SQL rewrite to manufacture PASS. A later narrowly authorized,
-provenance-backed filename decision is required before this PR can be merge-ready.
+The archive-aware CI guard verifies both immutable blobs and rejects duplicates in the
+four-file active chain. There is no active allowlist or SQL rewrite. The v16.3 adoption
+runbook supersedes the earlier rename proposal and pure-model-only limitation.
 
 ## Unknown four
 
@@ -161,13 +163,12 @@ Never use include-all or mark a pending migration applied without executing it.
    evidence function is absent. History and ACL status must both be checked; function
    presence alone is not application proof. No DABRA runtime or ACL changes in this PR.
 
-The above is a proposed explicit operational order, not filename-sort replay. The third
-file sorts before PR #100; a future deployment plan must resolve that ordering explicitly
-without changing SQL or silently using blanket push. Stop on any unexpected conflict.
+The v16.3 approved order supersedes the numbering above: customer documents, DABRA ACL,
+then PR100. Actual isolated CLI replay proved that order. Production is not authorized.
 
 ## Validation
 
-`node scripts/check-migration-baseline.mjs` validates coverage and rejects duplicate
-timestamps with exit code 1. `node --test tests/migration-baseline.test.mjs` tests the
-validator and negative contracts separately. The guard's existing-duplicate failure
-must remain visible in CI. No green Production closure is claimed by these tests.
+`node scripts/check-migration-baseline.mjs` validates archival coverage/hash integrity
+and the exact active chain. Active duplicate/malformed/unknown files fail; historical
+duplicates do not become deployable. See the v16.3 runbook and execution evidence.
+No green Production closure is claimed by these tests.

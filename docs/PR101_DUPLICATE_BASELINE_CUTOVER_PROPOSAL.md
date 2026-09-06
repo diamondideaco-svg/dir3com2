@@ -1,5 +1,14 @@
 # PR101 duplicate resolution evidence / proposed baseline cutover
 
+## v16.3 current status — repository cutover implemented
+
+The approved archive-only resolution is implemented without changing historical SQL.
+All 45 Git blobs are preserved under supabase/migrations-archive; the active path has
+only B and the three pending forwards. Archive-aware guards, actual isolated CLI
+dry-run/application, and transactional adoption crash/recovery have execution evidence.
+See the current adoption runbook. Production and Production history remain untouched.
+Earlier sections below are chronological evidence, not the current implementation state.
+
 ## v16.0 current status — supersedes the v15.9 capture stop below
 
 Direct authorized read-only Production catalog capture is now stored in
