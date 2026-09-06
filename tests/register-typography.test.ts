@@ -6,11 +6,11 @@ const page = readFileSync(new URL('../app/(auth)/register/page.tsx', import.meta
 const css = readFileSync(new URL('../app/(auth)/register/register.module.css', import.meta.url), 'utf8');
 
 test('Register derives local language, direction and existing fonts from active locale', () => {
-  assert.match(page, /const \{ language, direction \} = useLanguage\(\)/);
+  assert.match(page, /const \{ language, direction, setLanguage \} = useLanguage\(\)/);
   assert.match(page, /lang=\{language\} dir=\{direction\}/);
   assert.match(page, /language === 'ar' \? 'var\(--font-arabic\)' : 'var\(--font-latin\)'/);
   assert.doesNotMatch(page, /direction: 'rtl'|font-display|Playfair/);
-  assert.match(page, /fontFamily: 'inherit'/);
+  assert.match(css, /\.register h1, \.register h2, \.register input, \.register button \{ font-family: inherit;/);
 });
 
 test('Register focus styles are local and each input has an associated label', () => {
@@ -20,7 +20,7 @@ test('Register focus styles are local and each input has an associated label', (
   }
   assert.doesNotMatch(page, /outline: 'none'/);
   assert.match(css, /\.register input:focus-visible/);
-  assert.match(css, /outline: 3px solid #0d1b2a/);
+  assert.match(css, /outline: 3px solid var\(--register-ink\)/);
   assert.doesNotMatch(css, /:global|\bbody\b|\bhtml\b/);
 });
 
@@ -29,5 +29,34 @@ test('Register retains real signup, validation, profile payload and success dest
   assert.match(page, /supabase.auth.signUp\(\{\s*email,\s*password,\s*options: \{\s*data: \{ full_name: fullName \}/);
   assert.match(page, /router.push\('\/login'\)/);
   assert.match(page, /supabase.auth.getSession\(\)/);
-  assert.equal((page.match(/required/g) || []).length, 3);
+  assert.equal((page.match(/required/g) || []).length, 5);
+});
+
+test('approved composition is real UI with a Register-only shell and preserved family destinations', () => {
+  const shell = readFileSync(new URL('../components/layout/SiteShell.tsx', import.meta.url), 'utf8');
+  assert.match(shell, /if \(pathname === '\/register'\) return <>\{children\}<\/>/);
+  for (const element of ['header', 'panel', 'hero', 'footer', 'copyright']) assert.ok(page.includes(`styles.${element}`));
+  assert.match(css, /grid-template-columns: minmax\(0,470px\) minmax\(0,1fr\)/);
+  assert.match(css, /@media \(max-width: 720px\)/);
+  assert.doesNotMatch(page + css, /dir3com-register-page-approved\.png/);
+  assert.match(page, /\['Drive', 'Stay', 'Concierge', 'VIP', 'Fly'\]/);
+});
+
+test('confirmation and policy controls are local gates, not extra identity or authority writes', () => {
+  assert.match(page, /password !== confirmation/);
+  assert.match(page, /id="register-consent" type="checkbox" required/);
+  assert.match(page, /href="\/terms"/);
+  assert.match(page, /href="\/privacy"/);
+  assert.doesNotMatch(page, /\.from\(|role:|phone:/);
+  assert.match(page, /getOfficialSocialLinks\(language\)/);
+  assert.match(page, /setVisible\(!visible\)/);
+});
+
+test('Google control uses the existing provider and callback contract, with safe failure recovery', () => {
+  assert.match(page, /onClick=\{handleGoogle\}/);
+  assert.match(page, /supabase.auth.signInWithOAuth\(\{\s*provider: 'google'/);
+  assert.match(page, /buildOAuthCallbackUrl\(window.location.origin, getPostLoginDestination\(null\)\)/);
+  assert.match(page, /skipBrowserRedirect: true/);
+  assert.match(page, /if \(oauthError \|\| !data\?\.url\)/);
+  assert.match(page, /window.location.assign\(data.url\)/);
 });

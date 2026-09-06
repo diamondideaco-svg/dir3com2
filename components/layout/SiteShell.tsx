@@ -13,6 +13,8 @@ const hiddenExactPaths = ['/auth/callback'];
 
 export default function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  // Register owns its v6 shell. Other route chrome is unchanged.
+  if (pathname === '/register') return <>{children}</>;
   const hideChrome = hiddenExactPaths.includes(pathname) || hiddenPathPrefixes.some((prefix) => pathname.startsWith(prefix));
 
   if (hideChrome) {

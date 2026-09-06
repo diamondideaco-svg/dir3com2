@@ -1,22 +1,35 @@
-// src/app/(auth)/register/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import Link from 'next/link';
+import { FiArrowRight, FiEye, FiEyeOff, FiGlobe, FiLock, FiMail, FiSun, FiUser } from 'react-icons/fi';
+import { FaFacebookF, FaInstagram, FaLinkedinIn, FaTiktok, FaWhatsapp, FaXTwitter, FaUniversalAccess } from 'react-icons/fa6';
+import { FcGoogle } from 'react-icons/fc';
 import { supabase } from '@/lib/supabase/client';
+import { buildOAuthCallbackUrl } from '@/lib/auth/oauth-callback';
+import { getPostLoginDestination } from '@/lib/auth/redirect';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { getOfficialSocialLinks } from '@/lib/config/social';
 import styles from './register.module.css';
 
+const socialIcons = { facebook: FaFacebookF, instagram: FaInstagram, linkedin: FaLinkedinIn, tiktok: FaTiktok, x: FaXTwitter, whatsapp: FaWhatsapp };
+
 export default function RegisterPage() {
-    const { language, direction } = useLanguage();
-    const isArabic = language === 'ar';
+    const { language, direction, setLanguage } = useLanguage();
+    const ar = language === 'ar';
     const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmation, setConfirmation] = useState('');
     const [fullName, setFullName] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [visible, setVisible] = useState(false);
+    const [largeText, setLargeText] = useState(false);
+    const [warmSurface, setWarmSurface] = useState(false);
+    const socials = getOfficialSocialLinks(language);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data }: { data: { session: unknown } }) => {
@@ -24,179 +37,98 @@ export default function RegisterPage() {
         });
     }, [router]);
 
-    const handleRegister = async (e: React.FormEvent) => {
+    const handleRegister = async (e: FormEvent) => {
         e.preventDefault();
-        setLoading(true);
         setError(null);
-
         if (password.length < 6) {
-            setError(isArabic ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' : 'Password must be at least 6 characters');
-            setLoading(false);
+            setError(ar ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' : 'Password must be at least 6 characters');
             return;
         }
-
+        if (password !== confirmation) {
+            setError(ar ? 'كلمتا المرور غير متطابقتين' : 'Passwords do not match');
+            return;
+        }
+        setLoading(true);
         const { error } = await supabase.auth.signUp({
             email,
             password,
-            options: {
-                data: { full_name: fullName },
-            },
+            options: { data: { full_name: fullName } },
         });
-
         if (error) {
             setError(error.message);
             setLoading(false);
             return;
         }
-
-        alert(isArabic ? '✅ تم إنشاء الحساب! رجاء تأكيد بريدك الإلكتروني.' : '✅ Account created! Please confirm your email.');
+        alert(ar ? '✅ تم إنشاء الحساب! رجاء تأكيد بريدك الإلكتروني.' : '✅ Account created! Please confirm your email.');
         router.push('/login');
     };
 
+    // Same Google provider and trusted callback builder used by Login.
+    const handleGoogle = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: buildOAuthCallbackUrl(window.location.origin, getPostLoginDestination(null)),
+                    skipBrowserRedirect: true,
+                },
+            });
+            if (oauthError || !data?.url) {
+                setError(ar ? 'تعذّر بدء تسجيل الدخول باستخدام Google. حاول مرة أخرى.' : 'Unable to start Google sign-in. Please try again.');
+                setLoading(false);
+                return;
+            }
+            window.location.assign(data.url);
+        } catch {
+            setError(ar ? 'تعذّر بدء تسجيل الدخول باستخدام Google. حاول مرة أخرى.' : 'Unable to start Google sign-in. Please try again.');
+            setLoading(false);
+        }
+    };
+
     return (
-        <div className={styles.register} lang={language} dir={direction} style={{
-            // Approved background asset used as a layer only; all content below is real HTML.
-            backgroundColor: '#FAF8F4',
-            backgroundImage: 'linear-gradient(rgba(255,255,255,0.12), rgba(255,255,255,0.18)), url("/brand/runtime/dir3com-login-background-approved.png")',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '40px 20px',
-            fontFamily: language === 'ar' ? 'var(--font-arabic)' : 'var(--font-latin)'
-        }}>
-            <div style={{
-                maxWidth: '420px',
-                width: '100%',
-                background: 'rgba(255,255,255,0.96)',
-                border: '1px solid rgba(212, 175, 55, 0.25)',
-                borderRadius: '24px',
-                boxShadow: '0 26px 70px rgba(15, 23, 42, 0.10)',
-                padding: '40px 30px'
-            }}>
-                <h1 style={{
-                    fontFamily: 'inherit',
-                    fontSize: '2rem',
-                    color: '#D4AF37',
-                    textAlign: 'center',
-                    marginBottom: '5px'
-                }}>
-                    {isArabic ? 'إنشاء حساب' : 'Create account'}
-                </h1>
-                <p style={{ color: '#6B7280', textAlign: 'center', marginBottom: '30px' }}>
-                    {isArabic ? 'انضم إلى DIR3COM واستمتع بتجربة سفر مخصصة' : 'Join DIR3COM and enjoy a personalized travel experience'}
-                </p>
-
-                {error && (
-                    <div style={{
-                        background: 'rgba(220,38,38,0.08)',
-                        border: '1px solid rgba(220,38,38,0.35)',
-                        borderRadius: '12px',
-                        padding: '10px',
-                        marginBottom: '20px',
-                        color: '#b91c1c',
-                        textAlign: 'center'
-                    }}>
-                        {error}
-                    </div>
-                )}
-
-                <form onSubmit={handleRegister}>
-                    <div style={{ marginBottom: '16px' }}>
-                        <label htmlFor="register-name" style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>{isArabic ? 'الاسم الكامل' : 'Full name'}</label>
-                        <input
-                            id="register-name"
-                            type="text"
-                            value={fullName}
-                            onChange={(e) => setFullName(e.target.value)}
-                            placeholder={isArabic ? 'أدخل اسمك الكامل' : 'Enter your full name'}
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(15,23,42,0.12)',
-                                background: '#FFFFFF',
-                                color: '#334155',
-                                fontSize: '1rem',
-                                fontFamily: 'inherit'
-                            }}
-                        />
-                    </div>
-
-                    <div style={{ marginBottom: '16px' }}>
-                        <label htmlFor="register-email" style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>{isArabic ? 'البريد الإلكتروني' : 'Email'}</label>
-                        <input
-                            id="register-email"
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="example@email.com"
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(15,23,42,0.12)',
-                                background: '#FFFFFF',
-                                color: '#334155',
-                                fontSize: '1rem',
-                                fontFamily: 'inherit'
-                            }}
-                        />
-                    </div>
-
-                    <div style={{ marginBottom: '20px' }}>
-                        <label htmlFor="register-password" style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>{isArabic ? 'كلمة المرور' : 'Password'}</label>
-                        <input
-                            id="register-password"
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder={isArabic ? '•••••••• (6 أحرف على الأقل)' : '•••••••• (at least 6 characters)'}
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(15,23,42,0.12)',
-                                background: '#FFFFFF',
-                                color: '#334155',
-                                fontSize: '1rem',
-                                fontFamily: 'inherit'
-                            }}
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        style={{
-                            width: '100%',
-                            padding: '14px',
-                            background: '#D4AF37',
-                            color: '#334155',
-                            border: 'none',
-                            borderRadius: '30px',
-                            fontWeight: 'bold',
-                            fontSize: '1rem',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        {loading ? (isArabic ? 'جاري إنشاء الحساب...' : 'Creating account...') : (isArabic ? 'إنشاء حساب' : 'Create account')}
-                    </button>
-                </form>
-
-                <p style={{ textAlign: 'center', color: '#6B7280', marginTop: '20px' }}>
-                    {isArabic ? 'لديك حساب بالفعل؟' : 'Already have an account?'}{' '}
-                    <Link href="/login" style={{ color: '#D4AF37', textDecoration: 'none' }}>
-                        {isArabic ? 'تسجيل الدخول' : 'Log in'}
-                    </Link>
-                </p>
-            </div>
+        <div className={styles.register} lang={language} dir={direction} data-large={largeText} data-warm={warmSurface}
+            style={{ fontFamily: language === 'ar' ? 'var(--font-arabic)' : 'var(--font-latin)' }}>
+            <a className={styles.skip} href="#register-form">{ar ? 'انتقل إلى إنشاء الحساب' : 'Skip to registration'}</a>
+            <header className={styles.header}>
+                <Link href="/" className={styles.logo} aria-label="dir3com"><Image src="/brand/runtime/dir3com-logo-approved-cropped.png" alt="dir3com" width={188} height={74} unoptimized preload /></Link>
+                <nav className={styles.tools} aria-label={ar ? 'أدوات العرض' : 'Display controls'}>
+                    <button type="button" aria-label={ar ? 'تكبير النص' : 'Increase text size'} aria-pressed={largeText} onClick={() => setLargeText(!largeText)}><FaUniversalAccess /></button>
+                    <button type="button" aria-label={ar ? 'تبديل المظهر' : 'Toggle appearance'} aria-pressed={warmSurface} onClick={() => setWarmSurface(!warmSurface)}><FiSun /></button>
+                    <div className={styles.languages}><button type="button" lang="ar" aria-pressed={ar} onClick={() => setLanguage('ar')}>العربية</button><button type="button" lang="en" aria-pressed={!ar} onClick={() => setLanguage('en')}>EN <FiGlobe /></button></div>
+                    <Link href="/" className={styles.home}><FiArrowRight />{ar ? 'العودة إلى الرئيسية' : 'Back to home'}</Link>
+                </nav>
+            </header>
+            <main className={styles.stage}>
+                <div className={styles.composition}>
+                    <section className={styles.panel} aria-labelledby="register-title">
+                        <h1 id="register-title">{ar ? 'إنشاء حساب' : 'Create account'}</h1>
+                        <p className={styles.intro}>{ar ? 'انضم إلى dir3com وابدأ رحلتك المميزة' : 'Join dir3com and begin your exceptional journey'}</p>
+                        <nav className={styles.tabs} aria-label={ar ? 'الحساب' : 'Account'}><a href="#register-form" aria-current="page">{ar ? 'إنشاء حساب' : 'Create account'}</a><Link href="/login">{ar ? 'تسجيل الدخول' : 'Log in'}</Link></nav>
+                        {error && <p role="alert" className={styles.error}>{error}</p>}
+                        <form id="register-form" onSubmit={handleRegister}>
+                            <div className={styles.field}><label htmlFor="register-name">{ar ? 'الاسم الكامل' : 'Full name'}</label><div className={styles.input}><FiUser aria-hidden="true" /><input id="register-name" type="text" autoComplete="name" required value={fullName} onChange={e => setFullName(e.target.value)} placeholder={ar ? 'أدخل اسمك الكامل' : 'Enter your full name'} /></div></div>
+                            <div className={styles.field}><label htmlFor="register-email">{ar ? 'البريد الإلكتروني' : 'Email'}</label><div className={styles.input}><FiMail aria-hidden="true" /><input id="register-email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder={ar ? 'أدخل بريدك الإلكتروني' : 'Enter your email'} /></div></div>
+                            {/* Phone omitted: existing signup has no phone persistence/verification contract. */}
+                            <div className={styles.field}><label htmlFor="register-password">{ar ? 'كلمة المرور' : 'Password'}</label><div className={styles.input}><FiLock aria-hidden="true" /><input id="register-password" type={visible ? 'text' : 'password'} autoComplete="new-password" required value={password} onChange={e => setPassword(e.target.value)} placeholder={ar ? 'أدخل كلمة المرور' : 'Enter password'} /><button type="button" onClick={() => setVisible(!visible)} aria-label={ar ? (visible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور') : (visible ? 'Hide password' : 'Show password')} aria-pressed={visible}>{visible ? <FiEyeOff /> : <FiEye />}</button></div></div>
+                            <div className={styles.field}><label htmlFor="register-confirmation">{ar ? 'تأكيد كلمة المرور' : 'Confirm password'}</label><div className={styles.input}><FiLock aria-hidden="true" /><input id="register-confirmation" type={visible ? 'text' : 'password'} autoComplete="new-password" required value={confirmation} onChange={e => setConfirmation(e.target.value)} placeholder={ar ? 'أعد إدخال كلمة المرور' : 'Re-enter password'} /></div></div>
+                            <div className={styles.consent}><input id="register-consent" type="checkbox" required /><label htmlFor="register-consent">{ar ? 'أوافق على ' : 'I agree to the '}<Link href="/terms">{ar ? 'الشروط والأحكام' : 'terms'}</Link>{ar ? ' و' : ' and '}<Link href="/privacy">{ar ? 'سياسة الخصوصية' : 'privacy policy'}</Link></label></div>
+                            <button className={styles.submit} type="submit" disabled={loading}>{loading ? (ar ? 'جاري إنشاء الحساب...' : 'Creating account...') : (ar ? 'إنشاء حساب' : 'Create account')}</button>
+                        </form>
+                        <div className={styles.separator}>{ar ? 'أو تابع باستخدام' : 'Or continue with'}</div>
+                        <button className={styles.google} type="button" disabled={loading} onClick={handleGoogle}><FcGoogle aria-hidden="true" />{ar ? 'المتابعة باستخدام Google' : 'Continue with Google'}</button>
+                        <p className={styles.login}>{ar ? 'لديك حساب بالفعل؟ ' : 'Already have an account? '}<Link href="/login">{ar ? 'تسجيل الدخول' : 'Log in'}</Link></p>
+                    </section>
+                    <section className={styles.hero} aria-labelledby="register-hero"><h2 id="register-hero">{ar ? <>من فكرة السفرة إلى<br />سلامة الرجعة</> : <>From your first travel idea<br />to your safe return</>}</h2><p>{ar ? <>أنشئ حسابك الآن وابدأ رحلتك مع<br /><span dir="ltr">dir3com</span> لتجربة سفر فاخرة وآمنة.</> : <>Create your account and begin your journey with <span>dir3com</span> for a luxurious, safe travel experience.</>}</p></section>
+                    <footer className={styles.footer}>
+                        <section><h2>{ar ? 'عن الشركة' : 'Company'}</h2><Link href="/about">{ar ? 'من نحن' : 'About us'}</Link><Link href="/terms">{ar ? 'الشروط والأحكام' : 'Terms and conditions'}</Link><Link href="/privacy">{ar ? 'سياسة الخصوصية' : 'Privacy policy'}</Link><Link href="/support">{ar ? 'مركز المساعدة' : 'Help center'}</Link></section>
+                        <section><h2>{ar ? 'خدماتنا' : 'Services'}</h2>{['Drive', 'Stay', 'Concierge', 'VIP', 'Fly'].map(family => <Link key={family} href={`/services/${family.toLowerCase()}`}>dir3 {family}</Link>)}</section>
+                        <section><h2>{ar ? 'تواصل معنا' : 'Contact us'}</h2><a href="https://wa.me/966532867009"><FaWhatsapp />{ar ? 'السعودية: ' : 'Saudi Arabia: '}<bdi>+966 53 286 7009</bdi></a><a href="https://wa.me/201011676418"><FaWhatsapp />{ar ? 'مصر: ' : 'Egypt: '}<bdi>+20 101 167 6418</bdi></a><a href="mailto:info@dir3com.com"><FiMail />info@dir3com.com</a><a href="https://www.dir3com.com"><FiGlobe />www.dir3com.com</a><a href="https://www.dir3com.net"><FiGlobe />www.dir3com.net</a><div className={styles.socials}>{socials.filter(s => s.channel !== 'whatsapp').map(s => { const Icon = socialIcons[s.channel]; return <a key={s.channel} href={s.href} aria-label={s.label} rel="noopener noreferrer" target="_blank"><Icon /></a>; })}</div></section>
+                    </footer>
+                    <p className={styles.copyright}>{ar ? 'جميع الحقوق محفوظة © 2026 dir3com' : '© 2026 dir3com. All rights reserved.'}</p>
+                </div>
+            </main>
         </div>
     );
 }
