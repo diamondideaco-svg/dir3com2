@@ -1,6 +1,7 @@
 export type PartnerRequestListState<T> =
   | { status: 'loading' }
   | { status: 'failure' }
+  | { status: 'not_active' }
   | { status: 'success'; requests: T[]; whatsappConfigured: boolean };
 
 export type PartnerRequestTimelineEvent = {
@@ -32,6 +33,7 @@ export type PartnerRequestListRow = {
 };
 
 type RequestsPayload<T> = {
+  error?: { code?: string };
   data?: T[];
   whatsappConfigured?: boolean;
 };
@@ -52,11 +54,13 @@ export type PartnerRequestListPresentation<T> = {
   loading: string | null;
   empty: string | null;
   whatsappNotConfigured: string | null;
+  lifecycleNotice: string | null;
 };
 
 const copy = {
   ar: {
     loadError: 'تعذر تحميل الطلبات حالياً.',
+    lifecycleNotice: 'حساب الشريك غير مفعّل تشغيليًا. إن كان معتمدًا فهو بانتظار التفعيل الإداري؛ تواصل مع فريق العمليات.',
     retry: 'إعادة المحاولة',
     loading: 'جاري تحميل الطلبات…',
     empty: 'لا توجد طلبات مرتبطة بمنتجاتك حالياً.',
@@ -64,6 +68,7 @@ const copy = {
   },
   en: {
     loadError: 'Requests could not be loaded right now.',
+    lifecycleNotice: 'Partner account is not operational. If approved, it is awaiting admin activation; contact operations.',
     retry: 'Retry',
     loading: 'Loading requests…',
     empty: 'There are no requests tied to your products right now.',
@@ -148,6 +153,7 @@ export async function loadPartnerRequestList(
   try {
     const response = await fetcher('/api/partner-portal/requests', { cache: 'no-store' });
     const payload = await response.json().catch(() => null) as RequestsPayload<unknown> | null;
+    if (response.status === 403 && payload?.error?.code === 'PARTNER_NOT_ACTIVE') return { status: 'not_active' };
 
     if (
       !response.ok
@@ -193,6 +199,7 @@ export function getPartnerRequestListPresentation<T>(
 
   return {
     requests,
+    lifecycleNotice: state.status === 'not_active' ? text.lifecycleNotice : null,
     whatsappConfigured: success ? state.whatsappConfigured : null,
     loadError: state.status === 'failure' ? text.loadError : null,
     retry: state.status === 'failure' ? text.retry : null,

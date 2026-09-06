@@ -95,7 +95,6 @@ type ComplianceData = {
   pendingReviews: number;
 };
 
-const reviewStatusOptions = ['Draft', 'Submitted', 'Needs Changes', 'Approved', 'Suspended'];
 const uploadAccept = '.pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp';
 
 const arabicPresentationValues: Record<string, string> = {
@@ -352,7 +351,6 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
           commercialRegistration: profile.commercial_registration,
           taxNumber: profile.tax_number,
           iban: profile.iban,
-          reviewStatus: profile.reviewStatus,
         }),
       });
 
@@ -652,11 +650,13 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
             <input className="rounded-xl bg-white px-4 py-3" placeholder={t.commercialReg} value={profile.commercial_registration || ''} onChange={(e) => setProfile((prev) => ({ ...prev, commercial_registration: e.target.value }))} />
             <input className="rounded-xl bg-white px-4 py-3" placeholder={t.taxNumber} value={profile.tax_number || ''} onChange={(e) => setProfile((prev) => ({ ...prev, tax_number: e.target.value }))} />
             <input className="rounded-xl bg-white px-4 py-3" placeholder={t.iban} value={profile.iban || ''} onChange={(e) => setProfile((prev) => ({ ...prev, iban: e.target.value }))} />
-            <select className="rounded-xl bg-white px-4 py-3" value={profile.reviewStatus || 'Draft'} onChange={(e) => setProfile((prev) => ({ ...prev, reviewStatus: e.target.value }))}>
-              {reviewStatusOptions.map((value) => (
-                <option key={value} value={value}>{reviewStatusDisplay[language as Lang][value as keyof (typeof reviewStatusDisplay)['en']]}</option>
-              ))}
-            </select>
+            <div className="rounded-xl bg-white px-4 py-3" role="status">
+              {t.reviewStatus}: {profile.status === 'active'
+                ? (language === 'ar' ? 'نشط — جاهز للتشغيل' : 'Active — Operational')
+                : profile.status === 'approved'
+                  ? (language === 'ar' ? 'معتمد — بانتظار التفعيل' : 'Approved — Awaiting activation')
+                  : reviewStatusDisplay[language as Lang][(profile.reviewStatus || 'Draft') as keyof (typeof reviewStatusDisplay)['en']] || (language === 'ar' ? 'غير محدد' : 'Unknown')}
+            </div>
             <div className="sm:col-span-2">
               <button type="button" disabled={busy} onClick={() => void saveProfile()} className="rounded-xl bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#334155] disabled:opacity-60">
                 {t.save}
