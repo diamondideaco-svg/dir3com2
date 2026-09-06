@@ -45,6 +45,8 @@ test('Register uses exactly the five CEO-approved social destinations, not share
 
 test('localized country names are applied after hydration, not dependent on server/browser ICU ordering', () => {
   const page = readFileSync(new URL('../app/(auth)/register/page.tsx', import.meta.url), 'utf8');
-  assert.ok(page.includes('useState(() => registerCountries.map(code => ({ code, name: String(code) })))'));
-  assert.match(page, /useEffect\(\(\) => \{\s*const names = new Intl.DisplayNames/);
+  assert.ok(page.includes('useSyncExternalStore(subscribeToBrowser, browserSnapshot, serverSnapshot)'));
+  assert.ok(page.includes('if (!browserReady) return registerCountries.map(code => ({ code, name: String(code) }))'));
+  assert.match(page, /const serverSnapshot = \(\) => false/);
+  assert.doesNotMatch(page, /setCountries/);
 });

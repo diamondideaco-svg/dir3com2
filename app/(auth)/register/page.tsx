@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useRef, useMemo, useSyncExternalStore, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -15,6 +15,9 @@ import { normalizeRegisterContact, registerCountries, getCountryCallingCode, reg
 import styles from './register.module.css';
 
 const socialIcons = { facebook: FaFacebookF, instagram: FaInstagram, linkedin: FaLinkedinIn, tiktok: FaTiktok, x: FaXTwitter, whatsapp: FaWhatsapp };
+const subscribeToBrowser = () => () => {};
+const browserSnapshot = () => true;
+const serverSnapshot = () => false;
 
 export default function RegisterPage() {
     const { language, direction, setLanguage } = useLanguage();
@@ -36,12 +39,13 @@ export default function RegisterPage() {
     const consentInput = useRef<HTMLInputElement>(null);
     const socials = registerSocialLinks;
     // Node/browser ICU versions differ: localize only after the identical SSR snapshot hydrates.
-    const [countries, setCountries] = useState(() => registerCountries.map(code => ({ code, name: String(code) })));
-    useEffect(() => {
+    const browserReady = useSyncExternalStore(subscribeToBrowser, browserSnapshot, serverSnapshot);
+    const countries = useMemo(() => {
+        if (!browserReady) return registerCountries.map(code => ({ code, name: String(code) }));
         const names = new Intl.DisplayNames([language], { type: 'region' });
-        setCountries(registerCountries.map(code => ({ code, name: names.of(code) || code }))
-            .sort((a, b) => a.name.localeCompare(b.name, language)));
-    }, [language]);
+        return registerCountries.map(code => ({ code, name: names.of(code) || code }))
+            .sort((a, b) => a.name.localeCompare(b.name, language));
+    }, [language, browserReady]);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data }: { data: { session: unknown } }) => {
