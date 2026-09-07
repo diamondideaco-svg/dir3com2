@@ -97,6 +97,7 @@ test('rendered account headings and badges reflect each canonical role in Arabic
     const { default: Account } = load<{ default: ComponentType<Record<string, unknown>> }>('components/account/MyAccountContent.tsx', {
       'next/link': { default: 'a' },
       '@/components/account/MarketplaceRequestsPanel': { default: () => null },
+      '@/components/v6/DabraIdentity': { DabraIntroduction: () => null },
       '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language, direction: language === 'ar' ? 'rtl' : 'ltr' }) },
       '@/lib/i18n/customer-hub': copy,
       '@/lib/booking/workflow-status': bookingStatus,

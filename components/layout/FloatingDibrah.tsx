@@ -171,7 +171,7 @@ function FloatingDibrahSession({ language, launcherIdentity }: { language: 'ar' 
       const viewport = { left: vv?.offsetLeft ?? 0, top: vv?.offsetTop ?? 0, width: vv?.width ?? window.innerWidth, height: vv?.height ?? window.innerHeight };
       const mobilePanel = window.innerWidth < 640 ? viewport : null;
       setPanelViewport(previous => JSON.stringify(previous) === JSON.stringify(mobilePanel) ? previous : mobilePanel);
-      const obstacles = [...document.querySelectorAll<HTMLElement>('a, button, input, select, textarea, [role="button"], [role="tab"], [role="dialog"], [role="menu"], header nav, [data-cookie-banner], [data-marketplace-critical-action]')]
+      const obstacles = [...document.querySelectorAll<HTMLElement>('a, button, input, select, textarea, [role="button"], [role="tab"], [role="dialog"], [role="menu"], header nav, [data-cookie-banner], [data-marketplace-critical-action], [data-dabra-avoid]')]
         .filter(element => !shell.contains(element) && !element.closest('nextjs-portal') && getComputedStyle(element).visibility !== 'hidden')
         .map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
       const next = placeDabraLauncher({ language, viewport, width: launcher.offsetWidth, height: launcher.offsetHeight, obstacles, preference: dockPreferenceRef.current });

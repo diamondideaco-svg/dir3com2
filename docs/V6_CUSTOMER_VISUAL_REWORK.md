@@ -28,3 +28,13 @@ Focused checks cover original asset hashes, light chrome/controlled Navy, compac
 Actual browser evidence is captured against the isolated UAT backend `rcrdjhoicbxiwgtyrift`, never Production. No upload, payment, booking, reset, fixture change or business mutation is required for this visual pass. Final exact-SHA CI/Sandbox and independent delta review must be recorded separately after the one authorized push. Final CEO visual approval is pending.
 
 The existing `/favicon.ico` 404 remains a tracked P2: no approved favicon file was found, and no replacement icon is invented.
+
+## Final closure correction from b78c1a26
+
+- The staff account VM test explicitly mocks the presentation-only DABRA introduction, as it already mocks the request panel. All canonical role, badge, redirect and scope assertions remain intact.
+- Documents marks its heading/banner as an optional launcher obstacle. A scoped 96px mobile gap reserves space for the existing 74px launcher and clearance. The asset, locale side, chat behavior, text and document actions do not change. Other routes have no new obstacle marker or spacing rule.
+- Sandbox run `34067701376` passed its socket `SELECT 1` probe but lost that socket before initial schema setup. The [official PostgreSQL image entrypoint](https://github.com/docker-library/postgres/blob/master/17/alpine3.23/docker-entrypoint.sh) starts a socket-only bootstrap server and then stops it before starting the final TCP server. The old probe could accept that temporary server. Readiness and all fixture SQL now use authenticated loopback TCP inside the same disposable container. A bounded read-only probe must pass before any schema or upload test starts; DDL/DML is never retried by the readiness helper. Password expansion stays inside the container, not in command arguments or diagnostics.
+- Focused readiness tests model bootstrap/restart/final-server phases and verify stable timeout failure with no dependent work. These tests supplement, not replace, the real disposable Auth/Storage/PostgreSQL 17 upload suite in Sandbox. No migration, runtime upload logic, Node version or database security assertion changes.
+- Local Docker was unavailable (`Docker Desktop is unable to start`); real PostgreSQL execution must be evidenced by the final exact-head Sandbox run. Existing 32-view evidence is retained; only Documents and protected-shell regression views need recapture.
+
+Final cloud and independent review results belong to the exact-head closure receipt, not this pre-push implementation note. PR stays Draft; Production and UAT business data remain untouched.

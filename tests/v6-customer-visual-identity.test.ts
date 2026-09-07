@@ -71,3 +71,20 @@ test('mobile document labels and actions retain original owner endpoint, welcome
   assert.match(welcome, /href="\/marketplace"/);
   assert.match(welcome, /login-success-reference\.png/);
 });
+
+test('Documents opts its informational heading/banner into canonical launcher avoidance', () => {
+  assert.match(read('components/account/MyDocumentsContent.tsx'), /className=\{styles.documentsHeading\} data-dabra-avoid/);
+  assert.match(read('components/layout/FloatingDibrah.tsx'), /\[data-dabra-avoid\]/);
+  // Recorded 390x844 geometry: cards fill the lower viewport. The old collector
+  // omitted the banner and parked the 74px launcher over its text at y≈385.
+  const heading={left:16,right:374,top:202,bottom:405};
+  const cards={left:16,right:374,top:501,bottom:1026};
+  assert.match(read('components/v6/v6.module.css'), /@media\(max-width:720px\) \{ \.documentsHeading \{[^}]+margin-bottom:96px/);
+  for(const language of ['ar','en'] as const) {
+    const result=placeDabraLauncher({language,viewport:{left:0,top:0,width:390,height:844},width:74,height:74,obstacles:[heading,cards,{left:0,right:390,top:0,bottom:176}]});
+    assert.equal(result.visible,true);
+    assert.equal(result.x,language==='ar'?12:304);
+    assert.ok(result.y>=heading.bottom+8);
+    assert.ok(result.y+74<=cards.top-8);
+  }
+});

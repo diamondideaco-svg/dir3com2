@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createServer } from 'node:http';
 import assert from 'node:assert/strict';
 import { createClient } from '@supabase/supabase-js';
+import { waitForPostgres } from './sandbox/wait-for-postgres';
 import { customerDocumentActor, validateCustomerUpload, persistCustomerDocument, listCustomerDocuments, ownedCustomerDocument, CUSTOMER_DOCUMENT_BUCKET } from '../lib/customer/document-upload';
 
 // Actual local Auth + PostgREST + Storage + PostgreSQL. No remote URL accepted.
@@ -13,7 +14,10 @@ const prefix='v6-docs-'+randomBytes(4).toString('hex');
 const out=mkdtempSync(join(tmpdir(),'v6-customer-documents-'));
 const password=randomBytes(24).toString('hex'),secret=randomBytes(32).toString('hex');
 const run=(args:string[],input?:string)=>execFileSync('docker',args,{input,encoding:'utf8',stdio:['pipe','pipe','pipe'],timeout:30000}).trim();
-const sql=(query:string)=>run(['exec','-i',prefix+'-db','psql','-U','postgres','-v','ON_ERROR_STOP=1','-Atq'],query);
+// Docker's init server accepts Unix sockets, then stops before the final server.
+// Use TCP for readiness AND subsequent SQL. Read the password inside the
+// disposable container; never place it in command arguments or diagnostics.
+const sql=(query:string)=>run(['exec','-i',prefix+'-db','sh','-c','PGPASSWORD="$POSTGRES_PASSWORD" PGCONNECT_TIMEOUT=2 exec psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -v ON_ERROR_STOP=1 -Atq'],query);
 const token=(role:string)=>{const a=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url');const b=Buffer.from(JSON.stringify({role,iss:'supabase',iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+14400})).toString('base64url');return a+'.'+b+'.'+createHmac('sha256',secret).update(a+'.'+b).digest('base64url');};
 const anon=token('anon'),service=token('service_role');
 const created:string[]=[];
@@ -43,7 +47,9 @@ const proxy=createServer(async(req,res)=>{
 async function main(){
   run(['network','create',prefix]);
   start('db','postgres:17-alpine',{POSTGRES_PASSWORD:password},'19034:5432');
-  for(let i=0;i<30;i++){try{sql('SELECT 1');break;}catch{if(i===29)throw new Error('LOCAL_DB_START_TIMEOUT');await new Promise(r=>setTimeout(r,500));}}
+  const readinessAttempts=await waitForPostgres(()=>sql('SELECT 1'));
+  report.postgresReadiness={status:'PASS',transport:'TCP',attempts:readinessAttempts};
+  console.log('LOCAL_POSTGRES_TCP_READY');
   sql("CREATE SCHEMA auth; CREATE SCHEMA extensions; CREATE EXTENSION pgcrypto WITH SCHEMA extensions; CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS; GRANT USAGE ON SCHEMA public,auth TO anon,authenticated,service_role;");
   start('auth','public.ecr.aws/supabase/gotrue:v2.195.0',{
     GOTRUE_DB_DATABASE_URL:'postgres://postgres:'+password+'@'+prefix+'-db:5432/postgres?search_path=auth',
