@@ -6,7 +6,7 @@ const page = readFileSync(new URL('../app/(auth)/register/page.tsx', import.meta
 const css = readFileSync(new URL('../app/(auth)/register/register.module.css', import.meta.url), 'utf8');
 
 test('Register derives local language, direction and existing fonts from active locale', () => {
-  assert.match(page, /const \{ language, direction, setLanguage \} = useLanguage\(\)/);
+  assert.match(page, /const \{ language, direction \} = useLanguage\(\)/);
   assert.match(page, /lang=\{language\} dir=\{direction\}/);
   assert.match(page, /language === 'ar' \? 'var\(--font-arabic\)' : 'var\(--font-latin\)'/);
   assert.doesNotMatch(page, /direction: 'rtl'|font-display|Playfair/);
@@ -37,11 +37,13 @@ test('Register retains real signup, validation, profile payload and success dest
 test('approved composition is real UI with a Register-only shell and preserved family destinations', () => {
   const shell = readFileSync(new URL('../components/layout/SiteShell.tsx', import.meta.url), 'utf8');
   assert.match(shell, /if \(pathname === '\/register'\) return <>\{children\}<\/>/);
-  for (const element of ['header', 'panel', 'hero', 'footer', 'copyright']) assert.ok(page.includes(`styles.${element}`));
+  for (const element of ['panel', 'hero', 'canonicalFooter']) assert.ok(page.includes(`styles.${element}`));
+  assert.match(page, /<CustomerHeader /);
+  assert.match(page, /<CustomerFooter /);
   assert.match(css, /grid-template-columns: minmax\(0,470px\) minmax\(0,1fr\)/);
   assert.match(css, /@media \(max-width: 720px\)/);
   assert.doesNotMatch(page + css, /dir3com-register-page-approved\.png/);
-  assert.match(page, /\['Drive', 'Stay', 'Concierge', 'VIP', 'Fly'\]/);
+  assert.match(readFileSync(new URL('../components/v6/CustomerChrome.tsx', import.meta.url), 'utf8'), /\['Drive', 'Stay', 'Concierge', 'VIP', 'Fly'\]/);
 });
 
 test('confirmation and policy controls are local gates, not extra identity or authority writes', () => {
@@ -50,7 +52,7 @@ test('confirmation and policy controls are local gates, not extra identity or au
   assert.match(page, /href="\/terms"/);
   assert.match(page, /href="\/privacy"/);
   assert.doesNotMatch(page, /\.from\(|role:|phone:/);
-  assert.match(page, /const socials = registerSocialLinks/);
+  assert.match(readFileSync(new URL('../components/v6/CustomerChrome.tsx', import.meta.url), 'utf8'), /registerSocialLinks.map/);
   assert.match(page, /setVisible\(!visible\)/);
 });
 

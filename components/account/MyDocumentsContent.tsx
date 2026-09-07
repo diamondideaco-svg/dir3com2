@@ -8,7 +8,6 @@ import { customerHubCopy, formatCustomerHubDate, getVerificationStatusLabel } fr
 import { normalizeVerificationStatus } from '@/lib/verification/status';
 import { PageHeading, LoadError } from '@/components/v6/Chrome';
 import styles from '@/components/v6/v6.module.css';
-import { DabraCompact } from '@/components/v6/DabraIdentity';
 
 export type VerificationDocumentRow = {
   id: string; document_type: string; verification_status: string;
@@ -55,7 +54,7 @@ export default function MyDocumentsContent({ documentsState }: { documentsState:
     finally { busy.current = false; setUploading(false); }
   }
   return <div dir={direction}>
-    <div className={styles.documentsHeading} data-dabra-avoid><PageHeading title={ar ? 'مستنداتي' : 'My documents'} subtitle={ar ? 'إدارة وتنظيم مستنداتك المهمة وسهولة الوصول إليها' : 'Organize your important documents and access them easily'} icon={<FiFileText />} /><div className={styles.securityBanner}><DabraCompact artwork="mall-center" /><strong>{ar ? 'مستنداتك الخاصة، في مكان واحد' : 'Your private documents, in one place'}</strong></div></div>
+    <div className={styles.documentsHeading} data-dabra-avoid><PageHeading title={ar ? 'مستنداتي' : 'My documents'} subtitle={ar ? 'إدارة وتنظيم مستنداتك المهمة وسهولة الوصول إليها' : 'Organize your important documents and access them easily'} icon={<FiFileText />} /><div className={styles.securityBanner}><FiFileText aria-hidden="true" /><strong>{ar ? 'مستنداتك الخاصة، في مكان واحد' : 'Your private documents, in one place'}</strong></div></div>
     <div className={styles.categoryGrid}>{categories.map(([key,arabic,english,Icon]) => <button key={key} type="button" aria-pressed={category === key} onClick={() => {setCategory(key);setPage(1);}}><Icon />{ar ? arabic : english}<strong>{documentsState.status === 'ready' ? documents.filter(d => d.document_type === key).length : '—'}</strong></button>)}</div>
     <section className={styles.card}>
       <div className={styles.toolbar}><button type="button" aria-pressed={category === 'all'} onClick={() => {setCategory('all');setPage(1);}} className={styles.secondary}>{ar ? 'الكل' : 'All'}</button><label>{ar ? 'البحث في المستندات' : 'Search documents'}<input type="search" value={search} onChange={e => {setSearch(e.target.value);setPage(1);}} /></label><button ref={launcher} type="button" className={styles.primary} onClick={() => {setError('');setSuccess(false);dialog.current?.showModal();}}><FiPlus />{ar ? 'رفع مستند جديد' : 'Upload New Document'}</button></div>

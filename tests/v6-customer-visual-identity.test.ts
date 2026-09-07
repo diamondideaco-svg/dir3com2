@@ -38,7 +38,7 @@ test('customer artwork uses approved compact cells, not full badges as tiny icon
 
 test('customer launcher reuses canonical chat including locale reset and safety policy', () => {
   const shell = read('components/v6/Chrome.tsx'), chat = read('components/layout/FloatingDibrah.tsx');
-  assert.match(shell, /viewer && <div className=\{styles.customerLauncher\}/);
+  assert.match(shell, /viewer && path !== '\/my-account' && <div className=\{styles.customerLauncher\}/);
   assert.match(shell, /FloatingDibrah launcherIdentity=\{<DabraCompact/);
   assert.match(chat, /FloatingDibrahSession key=\{language\}/);
   assert.match(chat, /launcherIdentity \?\?/);
@@ -69,7 +69,8 @@ test('mobile document labels and actions retain original owner endpoint, welcome
   const welcome = read('components/v6/LoginSuccess.tsx');
   assert.match(welcome, /href=\{destination\}/);
   assert.match(welcome, /href="\/marketplace"/);
-  assert.match(welcome, /login-success-reference\.png/);
+  assert.doesNotMatch(welcome, /welcomeArt|<Image/);
+  assert.match(read('components/v6/v6.module.css'), /\.welcome \{[^}]+dir3com-login-background-approved\.png/);
 });
 
 test('Documents opts its informational heading/banner into canonical launcher avoidance', () => {

@@ -60,7 +60,7 @@ export default function LoginPage() {
     const t = loginCopy[language];
 
     return (
-        <Suspense fallback={<div lang={language} dir={direction} style={{ backgroundColor: '#FAF8F4', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37' }}>{t.loading}</div>}>
+        <Suspense fallback={<div lang={language} dir={direction} style={{ backgroundColor: '#f8f9fa', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#88601c' }}>{t.loading}</div>}>
             <LoginContent />
         </Suspense>
     );
@@ -147,7 +147,7 @@ function LoginContent() {
     return (
         <div lang={language} dir={direction} style={{
             // Approved background asset used as a layer only; all content below is real HTML.
-            backgroundColor: '#FAF8F4',
+            backgroundColor: '#f8f9fa',
             backgroundImage: 'linear-gradient(rgba(255,255,255,0.12), rgba(255,255,255,0.18)), url("/brand/runtime/dir3com-login-background-approved.png")',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
@@ -170,15 +170,15 @@ function LoginContent() {
                 padding: '40px 30px'
             }}>
                 <h1 style={{
-                    fontFamily: 'var(--font-display)',
+                    fontFamily: 'inherit',
                     fontSize: '2rem',
-                    color: '#D4AF37',
+                    color: '#88601c',
                     textAlign: 'center',
                     marginBottom: '5px'
                 }}>
                     {t.title}
                 </h1>
-                <p style={{ color: '#6B7280', textAlign: 'center', marginBottom: '30px' }}>
+                <p style={{ color: '#0d1b2a', textAlign: 'center', marginBottom: '30px' }}>
                     {t.welcome}
                 </p>
 
@@ -249,7 +249,7 @@ function LoginContent() {
                                 background: '#FFFFFF',
                                 color: '#334155',
                                 fontSize: '1rem',
-                                outline: 'none'
+                                outlineOffset: '3px'
                             }}
                         />
                     </div>
@@ -271,7 +271,7 @@ function LoginContent() {
                                 background: '#FFFFFF',
                                 color: '#334155',
                                 fontSize: '1rem',
-                                outline: 'none'
+                                outlineOffset: '3px'
                             }}
                         />
                     </div>

@@ -8,7 +8,6 @@ import { storageKey, readPersisted, createPersisted, validatePersistedFavorites 
 import type { MarketplaceService } from '@/lib/marketplace/data';
 import { PageHeading, LoadError } from './Chrome';
 import styles from './v6.module.css';
-import { DabraCompact } from './DabraIdentity';
 const families = [['all','الكل','All',FiGrid],['dir3-stay','الإقامة','Stay',FiHome],['dir3-drive','التنقّل','Drive',FiTruck],['dir3-concierge','الكونسيرج','Concierge',FiBriefcase],['dir3-vip','VIP','VIP',FiStar],['dir3-fly','الطيران','Fly',FiSend]] as const;
 export default function Favorites({ userId }: { userId: string }) {
   const { language } = useLanguage(), ar = language === 'ar';
@@ -50,7 +49,7 @@ export default function Favorites({ userId }: { userId: string }) {
   }
   const visible=services.filter(s=>family==='all'||s.family===family).toSorted((a,b)=>sort==='name'?(ar?a.name_ar:a.name_en||a.name_ar).localeCompare(ar?b.name_ar:b.name_en||b.name_ar):ids.findIndex(id=>String(id)===String(b.id))-ids.findIndex(id=>String(id)===String(a.id)));
   return <>
-    <div className={styles.documentsHeading}><PageHeading title={ar?'المفضلة':'Favorites'} subtitle={ar?'الأماكن والخدمات التي حفظتها لسهولة العودة إليها':'Places and services you saved to return to easily'} icon={<FiHeart/>}/><div className={styles.securityBanner}><DabraCompact artwork="travel-agent"/><strong>{ar?'كل ما تحبه، في مكان واحد':'Everything you love, in one place'}</strong></div></div>
+    <div className={styles.documentsHeading} data-dabra-avoid><PageHeading title={ar?'المفضلة':'Favorites'} subtitle={ar?'الأماكن والخدمات التي حفظتها لسهولة العودة إليها':'Places and services you saved to return to easily'} icon={<FiHeart/>}/><div className={styles.securityBanner}><FiHeart aria-hidden="true"/><strong>{ar?'كل ما تحبه، في مكان واحد':'Everything you love, in one place'}</strong></div></div>
     <div className={styles.categoryGrid}>{families.map(([key,arabic,english,Icon])=><button key={key} type="button" aria-pressed={family===key} onClick={()=>setFamily(key)}><Icon/>{ar?arabic:english}</button>)}</div>
     <section className={styles.card}><div className={styles.toolbar}><h2>{ar?'قائمة المفضلة':'Saved favorites'} ({visible.length})</h2><label>{ar?'الترتيب':'Sort'}<select value={sort} onChange={e=>setSort(e.target.value)}><option value="saved">{ar?'الأحدث حفظًا':'Recently saved'}</option><option value="name">{ar?'الاسم':'Name'}</option></select></label><button type="button" className={styles.secondary} aria-pressed={manage} onClick={()=>setManage(!manage)}>{ar?'إدارة المفضلة':'Manage favorites'}</button></div>
       {loading?<p role="status">{ar?'جارٍ التحميل…':'Loading…'}</p>:failed?<LoadError/>:visible.length?<div className={styles.favoritesGrid}>{visible.map(service=><article className={styles.favorite} key={service.id}>

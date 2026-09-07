@@ -15,7 +15,7 @@ export function DabraCompact({ artwork = 'customer-service' }: { artwork?: Custo
 export function DabraIntroduction({ ar }: { ar: boolean }) {
   return <section className={styles.dabraIntroduction} aria-label={ar ? 'الدبرة، مساعد السفر الاختياري' : 'DABRA, your optional travel assistant'}>
     <Image src="/brand/v6/dabra/customer-service.png" alt={ar ? 'دبرة خدمة العملاء' : 'DABRA Customer Service'} width={1536} height={1536} unoptimized />
-    <div><h2>{ar ? 'حياك الله، كيف أقدر أساعدك؟' : 'Welcome. How can I help?'}</h2>
+    <div><h2>{ar ? 'حياك الله، أنا الدبرة' : "Hi, I'm DABRA"}</h2><strong>{ar ? 'خدمة العملاء' : 'Customer Service'}</strong>
       <p>{ar ? 'الدبرة معك من فكرة السفر إلى سلامة الرجعة. استكشف الخدمات وخطّط لرحلتك، والقرار لك.' : 'DABRA is with you from the first travel idea to your safe return. Explore services and plan your journey — the decision is yours.'}</p>
       <Link href="/dabra" className={styles.secondary}>{ar ? 'اسأل الدبرة' : 'Ask DABRA'} →</Link>
     </div>

@@ -2,25 +2,23 @@
 
 import { useState, useEffect, useRef, useMemo, useSyncExternalStore, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import Link from 'next/link';
-import { FiArrowRight, FiEye, FiEyeOff, FiGlobe, FiLock, FiMail, FiPhone, FiSun, FiUser } from 'react-icons/fi';
-import { FaFacebookF, FaInstagram, FaLinkedinIn, FaTiktok, FaWhatsapp, FaXTwitter, FaUniversalAccess } from 'react-icons/fa6';
+import { FiEye, FiEyeOff, FiLock, FiMail, FiPhone, FiUser } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import { supabase } from '@/lib/supabase/client';
 import { buildOAuthCallbackUrl } from '@/lib/auth/oauth-callback';
 import { getPostLoginDestination } from '@/lib/auth/redirect';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
-import { normalizeRegisterContact, registerCountries, getCountryCallingCode, registerSocialLinks, type CountryCode } from '@/lib/auth/register-contact';
+import { normalizeRegisterContact, registerCountries, getCountryCallingCode, type CountryCode } from '@/lib/auth/register-contact';
+import { CustomerHeader, CustomerFooter } from '@/components/v6/CustomerChrome';
 import styles from './register.module.css';
 
-const socialIcons = { facebook: FaFacebookF, instagram: FaInstagram, linkedin: FaLinkedinIn, tiktok: FaTiktok, x: FaXTwitter, whatsapp: FaWhatsapp };
 const subscribeToBrowser = () => () => {};
 const browserSnapshot = () => true;
 const serverSnapshot = () => false;
 
 export default function RegisterPage() {
-    const { language, direction, setLanguage } = useLanguage();
+    const { language, direction } = useLanguage();
     const ar = language === 'ar';
     const router = useRouter();
     const [email, setEmail] = useState('');
@@ -37,7 +35,6 @@ export default function RegisterPage() {
     const [warmSurface, setWarmSurface] = useState(false);
     const [consent, setConsent] = useState(false);
     const consentInput = useRef<HTMLInputElement>(null);
-    const socials = registerSocialLinks;
     // Node/browser ICU versions differ: localize only after the identical SSR snapshot hydrates.
     const browserReady = useSyncExternalStore(subscribeToBrowser, browserSnapshot, serverSnapshot);
     const countries = useMemo(() => {
@@ -124,15 +121,7 @@ export default function RegisterPage() {
         <div className={styles.register} lang={language} dir={direction} data-large={largeText} data-warm={warmSurface}
             style={{ fontFamily: language === 'ar' ? 'var(--font-arabic)' : 'var(--font-latin)' }}>
             <a className={styles.skip} href="#register-form">{ar ? 'انتقل إلى إنشاء الحساب' : 'Skip to registration'}</a>
-            <header className={styles.header}>
-                <Link href="/" className={styles.logo} aria-label="dir3com"><Image src="/brand/runtime/dir3com-logo-approved-cropped.png" alt="dir3com" width={188} height={74} unoptimized preload /></Link>
-                <nav className={styles.tools} aria-label={ar ? 'أدوات العرض' : 'Display controls'}>
-                    <button type="button" aria-label={ar ? 'تكبير النص' : 'Increase text size'} aria-pressed={largeText} onClick={() => setLargeText(!largeText)}><FaUniversalAccess /></button>
-                    <button type="button" aria-label={ar ? 'تبديل المظهر' : 'Toggle appearance'} aria-pressed={warmSurface} onClick={() => setWarmSurface(!warmSurface)}><FiSun /></button>
-                    <div className={styles.languages}><button type="button" lang="ar" aria-pressed={ar} onClick={() => setLanguage('ar')}>العربية</button><button type="button" lang="en" aria-pressed={!ar} onClick={() => setLanguage('en')}>EN <FiGlobe /></button></div>
-                    <Link href="/" className={styles.home}><FiArrowRight />{ar ? 'العودة إلى الرئيسية' : 'Back to home'}</Link>
-                </nav>
-            </header>
+            <CustomerHeader large={largeText} appearance={warmSurface} onLarge={() => setLargeText(!largeText)} onAppearance={() => setWarmSurface(!warmSurface)} />
             <main className={styles.stage}>
                 <div className={styles.composition}>
                     <section className={styles.panel} aria-labelledby="register-title">
@@ -154,12 +143,7 @@ export default function RegisterPage() {
                         <p className={styles.login}>{ar ? 'لديك حساب بالفعل؟ ' : 'Already have an account? '}<Link href="/login">{ar ? 'تسجيل الدخول' : 'Log in'}</Link></p>
                     </section>
                     <section className={styles.hero} aria-labelledby="register-hero"><h2 id="register-hero">{ar ? <>من فكرة السفرة إلى<br />سلامة الرجعة</> : <>From your first travel idea<br />to your safe return</>}</h2><p>{ar ? <>أنشئ حسابك الآن وابدأ رحلتك مع<br /><span dir="ltr">dir3com</span> لتجربة سفر فاخرة وآمنة.</> : <>Create your account and begin your journey with <span>dir3com</span> for a luxurious, safe travel experience.</>}</p></section>
-                    <footer className={styles.footer}>
-                        <section><h2>{ar ? 'عن الشركة' : 'Company'}</h2><Link href="/about">{ar ? 'من نحن' : 'About us'}</Link><Link href="/terms">{ar ? 'الشروط والأحكام' : 'Terms and conditions'}</Link><Link href="/privacy">{ar ? 'سياسة الخصوصية' : 'Privacy policy'}</Link><Link href="/support">{ar ? 'مركز المساعدة' : 'Help center'}</Link></section>
-                        <section><h2>{ar ? 'خدماتنا' : 'Services'}</h2>{['Drive', 'Stay', 'Concierge', 'VIP', 'Fly'].map(family => <Link key={family} href={`/services/${family.toLowerCase()}`}>dir3 {family}</Link>)}</section>
-<section><h2>{ar ? 'تواصل معنا' : 'Contact us'}</h2><a href="https://wa.me/966532867009"><FaWhatsapp />{ar ? 'السعودية: ' : 'Saudi Arabia: '}<bdi>+966 53 286 7009</bdi></a><a href="https://wa.me/201011676418"><FaWhatsapp />{ar ? 'مصر: ' : 'Egypt: '}<bdi>+20 101 167 6418</bdi></a><a href="mailto:info@dir3com.com"><FiMail />info@dir3com.com</a><a href="https://www.dir3com.com"><FiGlobe />www.dir3com.com</a><a href="https://www.dir3com.net"><FiGlobe />www.dir3com.net</a><div className={styles.socials}>{socials.map(s => { const Icon = socialIcons[s.channel]; return <a key={s.channel} href={s.href} aria-label={s.label} rel="noopener noreferrer" target="_blank"><Icon /></a>; })}</div></section>
-                    </footer>
-                    <p className={styles.copyright}>{ar ? 'جميع الحقوق محفوظة © 2026 dir3com' : '© 2026 dir3com. All rights reserved.'}</p>
+                    <CustomerFooter className={styles.canonicalFooter} />
                 </div>
             </main>
         </div>
