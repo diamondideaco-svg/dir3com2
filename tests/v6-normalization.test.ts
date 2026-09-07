@@ -6,6 +6,7 @@ import { runInNewContext } from 'node:vm';
 import { createElement, type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
+import { placeDabraLauncher } from '../lib/dabra/floating-layout';
 const read = (p: string) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const require = createRequire(import.meta.url);
 
@@ -59,4 +60,13 @@ test('scoped palette and typography remove cream and heavy repeated icon tiles',
   for (const name of ['walletDestinations', 'walletActions']) assert.doesNotMatch(css, new RegExp('\\.' + name + ' svg[^}]+background:#0d1b2a'));
   assert.match(read('app/(auth)/register/register.module.css'), /\.panel h1[^}]+color: var\(--register-link\)/);
   assert.doesNotMatch(read('app/(auth)/login/page.tsx'), /font-display/);
+});
+
+test('wallet informational balance region stays clear of the Arabic mobile launcher', () => {
+  assert.match(read('components/v6/Wallet.tsx'), /<section className=\{styles.balance\} data-dabra-avoid>/);
+  const region = { left: 16, right: 374, top: 722, bottom: 1050 };
+  const result = placeDabraLauncher({ language: 'ar', viewport: { left: 0, top: 0, width: 390, height: 844 }, width: 74, height: 74, obstacles: [region] });
+  assert.equal(result.visible, true);
+  assert.equal(result.x, 12);
+  assert.ok(result.y + 74 <= region.top - 8);
 });

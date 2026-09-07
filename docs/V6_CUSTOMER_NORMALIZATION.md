@@ -73,3 +73,19 @@ are not asserted by this pre-push implementation note. The existing missing
 favicon remains P2; no approved favicon is generated or substituted.
 
 CEO VISUAL GATE = PENDING. No merge or Production deployment is authorized.
+
+## Independent-review correction
+
+Review of `194c30a493d06c8cd0093044d987dfe567a35b75` identified a mobile Arabic
+Wallet text collision after the taller shared header shifted the hero. The
+correction only marks the existing balance section with `data-dabra-avoid`,
+using the unchanged canonical placement algorithm. No financial content,
+controls, labels, artwork or logic changes. A focused test protects this
+informational region; actual mobile screenshots must confirm the quote remains
+unobscured. The initial browser footer probe also needed to treat the existing
+hidden launcher as hidden, rather than counting its retained bounding box.
+
+The initial exact-head CI passed; Sandbox stopped on the external container
+registry rate limit, after PostgreSQL readiness and preliminary replay passed.
+Neither that infrastructure failure nor its skipped later steps is a product
+test PASS. The corrected final SHA requires its own gates and independent review.

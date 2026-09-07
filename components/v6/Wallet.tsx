@@ -19,7 +19,7 @@ export default function Wallet({ wallet, failed, currentMonth }: { wallet: Walle
   const types: Record<string, [string, string]> = { credit: ['إيداع', 'Credit'], debit: ['خصم', 'Debit'], hold: ['حجز مبلغ', 'Hold'], release: ['تحرير مبلغ', 'Release'] };
   return <>
     <PageHeading title={ar ? 'محفظة السفر' : 'Travel wallet'} icon={<FiCreditCard />} />
-    {failed ? <LoadError /> : <div className={styles.walletHero}><div className={styles.walletArt} aria-hidden="true" /><section className={styles.balance}>
+    {failed ? <LoadError /> : <div className={styles.walletHero}><div className={styles.walletArt} aria-hidden="true" /><section className={styles.balance} data-dabra-avoid>
       <p className={styles.walletQuote}>{ar ? 'محفظتك الذكية لسفر أكثر راحة' : 'Your smart wallet for a more comfortable journey'}</p>
       <h2>{ar ? 'الرصيد الإجمالي' : 'Total balance'} <button type="button" className={styles.balanceToggle} onClick={() => setHidden(!hidden)} aria-label={ar ? 'إظهار أو إخفاء الرصيد' : 'Show or hide balance'} aria-pressed={hidden}>{hidden ? <FiEyeOff /> : <FiEye />}</button></h2>
       <strong className={styles.amount}>{money(wallet?.balance)} {wallet?.currency || ''}</strong>
