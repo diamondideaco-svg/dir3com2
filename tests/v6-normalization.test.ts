@@ -61,6 +61,16 @@ test('scenic footer uses one continuous approved backdrop and preserves referenc
   assert.doesNotMatch(read('components/v6/AccountFrame.tsx'), /\bscene\b|footerInContent/);
 });
 
+test('welcome scenic footer keeps white links readable over even a white source pixel', () => {
+  const css = read('components/v6/v6.module.css');
+  assert.match(css, /\.footerScene \{ background:linear-gradient\(180deg,rgba\(13,27,42,\.24\),rgba\(13,27,42,\.66\) 30%,rgba\(13,27,42,\.78\)\)/);
+  const linear = (channel: number) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  const channels = [13, 27, 42].map(channel => linear((channel * 0.66 + 255 * 0.34) / 255));
+  const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  assert.ok(1.05 / (luminance + 0.05) >= 4.5);
+  // Actual desktop/mobile capture additionally checks the footer starts beyond this stop.
+});
+
 test('density decisions remove sidebar and banner characters without modifying approved artwork', () => {
   assert.doesNotMatch(read('components/v6/Chrome.tsx'), /styles.assistant/);
   assert.doesNotMatch(read('components/v6/Favorites.tsx') + read('components/account/MyDocumentsContent.tsx'), /DabraCompact|DabraIntroduction/);

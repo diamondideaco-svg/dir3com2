@@ -107,6 +107,12 @@ complete batch handoff. Protected live links still require a legitimate UAT
 customer session; screenshots provide immediate review without sharing secrets.
 CEO VISUAL GATE remains PENDING regardless of automated layout checks.
 
+The independent footer delta review found low-contrast white links over pale sky
+in Login Success mobile. Its continuous scene overlay now reaches 66% navy at
+30% height, before footer text begins in the reviewed viewports; the footer itself
+remains transparent. A focused worst-case white-source contrast test and actual
+responsive measurements protect this correction. No other page scene changes.
+
 ## Independent-review correction
 
 Review of `194c30a493d06c8cd0093044d987dfe567a35b75` identified a mobile Arabic

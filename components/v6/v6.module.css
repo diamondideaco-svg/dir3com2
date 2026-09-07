@@ -126,7 +126,7 @@
 .verifyFooter { display:contents; }
 .verifyFooter > [data-footer-columns] { grid-column:2; grid-row:2; align-self:end; grid-template-columns:.9fr .9fr 1.4fr; }
 .verifyFooter > [data-footer-copyright] { grid-column:1/-1; grid-row:3; margin:0; padding-top:10px; }
-.footerScene { background:linear-gradient(180deg,rgba(13,27,42,.24),rgba(13,27,42,.04) 40%,rgba(13,27,42,.78)),url('/brand/runtime/dir3com-login-background-approved.png') center/cover no-repeat; }
+.footerScene { background:linear-gradient(180deg,rgba(13,27,42,.24),rgba(13,27,42,.66) 30%,rgba(13,27,42,.78)),url('/brand/runtime/dir3com-login-background-approved.png') center/cover no-repeat; }
 .footerScene .welcome { background:none; }
 .authPanel { padding:40px 32px; border:1px solid #e1d9cb; border-radius:20px; background:rgba(255,255,255,.95); text-align:center; }
 .authPanel h1 { font-size:26px; margin-block:16px; color:#88601c; }
