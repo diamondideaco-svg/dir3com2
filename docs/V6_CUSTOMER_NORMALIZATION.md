@@ -153,3 +153,11 @@ The initial exact-head CI passed; Sandbox stopped on the external container
 registry rate limit, after PostgreSQL readiness and preliminary replay passed.
 Neither that infrastructure failure nor its skipped later steps is a product
 test PASS. The corrected final SHA requires its own gates and independent review.
+
+### Footer-only readability follow-up
+
+Independent review of the stacked mobile footer found Verification links over
+pale sky. The correction outlines scenic-footer text with a one-pixel Navy
+text shadow; the shared white variant is unaffected. It changes no page image,
+crop, gradient, geometry, or body styles and introduces no footer panel or slab.
+Actual AR/EN mobile captures are required in addition to layout assertions.

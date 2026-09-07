@@ -84,6 +84,14 @@ test('welcome scenic footer keeps white links readable over even a white source 
   // Actual desktop/mobile capture additionally checks the footer starts beyond this stop.
 });
 
+test('scenic footer outlines text locally without replacing or tinting the page background', () => {
+  const css = read('components/v6/customer-chrome.module.css');
+  assert.match(css, /\.footer\[data-footer-surface=image\] :is\(h2,p,a\) \{ color:inherit; text-shadow:-1px -1px 0 #0d1b2a,1px -1px 0 #0d1b2a,-1px 1px 0 #0d1b2a,1px 1px 0 #0d1b2a,0 1px 2px #0d1b2a;/);
+  assert.match(css, /\.footer\[data-footer-surface=image\] \{ background:transparent; border:0; color:#fff; \}/);
+  assert.doesNotMatch(css, /background-image|linear-gradient|\.footer::(?:before|after)/);
+  assert.equal((css.match(/text-shadow:/g) || []).length, 1);
+});
+
 test('footer owns its direction, contact grid, social axis and single-column mobile layout', () => {
   const css = read('components/v6/customer-chrome.module.css');
   assert.match(css, /\.columns \{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\) minmax\(260px,1\.4fr\);[^}]*align-items:start/);

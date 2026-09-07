@@ -15,7 +15,7 @@
 .header :focus-visible,.footer :focus-visible { outline:3px solid #88601c; outline-offset:3px; }
 .footer { padding:28px 32px 20px; border-top:1px solid #e5e6e8; }
 .footer[data-footer-surface=image] { background:transparent; border:0; color:#fff; }
-.footer[data-footer-surface=image] :is(h2,p,a) { color:inherit; }
+.footer[data-footer-surface=image] :is(h2,p,a) { color:inherit; text-shadow:-1px -1px 0 #0d1b2a,1px -1px 0 #0d1b2a,-1px 1px 0 #0d1b2a,1px 1px 0 #0d1b2a,0 1px 2px #0d1b2a; }
 .footer[data-footer-surface=image] svg { color:#e8c56d; }
 .footer[data-footer-surface=image] .socials a { border-color:#e8c56d; }
 .footer[data-footer-surface=image] .copyright { border-color:#ffffff59; }
