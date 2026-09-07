@@ -18,7 +18,7 @@ const FloatingDibrah = dynamic(() => import('@/components/layout/FloatingDibrah'
 
 export type Viewer = { id: string; name: string; role: SessionRole | null; roleRaw: string | null; avatar: string | null; joined: string | null };
 
-export function Chrome({ children, viewer, variant = 'light' }: { children: ReactNode; viewer?: Viewer; variant?: 'light' | 'navy' }) {
+export function Chrome({ children, viewer, variant = 'light', scene = false, footerInContent = false }: { children: ReactNode; viewer?: Viewer; variant?: 'light' | 'navy'; scene?: boolean; footerInContent?: boolean }) {
   const { language, direction } = useLanguage();
   const ar = language === 'ar';
   const path = usePathname();
@@ -43,6 +43,7 @@ export function Chrome({ children, viewer, variant = 'light' }: { children: Reac
     <CustomerHeader large={large} appearance={warm} onLarge={() => setLarge(!large)} onAppearance={() => setWarm(!warm)}
       menu={viewer && <button type="button" className={styles.menuButton} aria-expanded={menu} aria-controls="account-navigation" aria-label={ar ? 'قائمة الحساب' : 'Account menu'} onClick={() => setMenu(!menu)}>{menu ? <FiX /> : <FiMenu />}</button>} />
     {viewer && <Link href="/my-profile" className={styles.mobileIdentity}><span className={styles.initials} aria-hidden="true">{viewer.name.slice(0, 2)}</span><span><strong>{viewer.name}</strong><small>{getCustomerRoleLabel(viewer.role, viewer.roleRaw, language)}</small></span></Link>}
+    <div className={scene ? styles.footerScene : undefined} data-footer-scene={scene || undefined}>
     <div className={viewer ? styles.portal : undefined}>
       {viewer && <aside id="account-navigation" className={styles.sidebar} data-open={menu}>
         <div className={styles.identity}>
@@ -57,7 +58,8 @@ export function Chrome({ children, viewer, variant = 'light' }: { children: Reac
       </aside>}
       <main id="v6-content" className={viewer ? styles.content : undefined}>{children}</main>
     </div>
-    <CustomerFooter />
+    {!footerInContent && <CustomerFooter surface={scene ? 'image' : 'white'} />}
+    </div>
     {viewer && path !== '/my-account' && <div className={styles.customerLauncher}><FloatingDibrah launcherIdentity={<DabraCompact artwork={path === '/my-documents' ? 'mall-center' : 'customer-service'} />} /></div>}
   </div>;
 }

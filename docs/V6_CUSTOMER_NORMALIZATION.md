@@ -31,9 +31,9 @@ The CEO explicitly authorized deterministic exterior-background removal from
 
 `CustomerChrome.tsx` and `customer-chrome.module.css` own the Register-master
 header/footer family: real links, locale switches, text-size and appearance
-controls, white backgrounds and the transparent derivative. Register retains its
-form, hero and field composition; the footer stays in its original composition
-slot, using the now-approved white treatment. Protected customer chrome retains
+controls and the transparent derivative. The latest CEO footer lock below
+supersedes the earlier all-white footer interpretation. Register retains its
+form, hero and field composition. Protected customer chrome retains
 its real identity, role label, navigation, logout and mobile menu callbacks.
 Login consumes the same chrome with nonstructural Tajawal/Montserrat and gold-H1
 polish. No recovery/reset page exists in the current route tree, so no new flow
@@ -73,6 +73,39 @@ are not asserted by this pre-push implementation note. The existing missing
 favicon remains P2; no approved favicon is generated or substituted.
 
 CEO VISUAL GATE = PENDING. No merge or Production deployment is authorized.
+
+## Latest CEO footer lock and complete review access
+
+Correction starts from `5e8927ff89c1a4a8c42bdb1c896a680ec6955271`.
+Only two footer surfaces exist, with identical Company / Services / Contact
+markup, real destinations, social links inside Contact, and copyright last:
+
+| Current batch route | Footer surface |
+| --- | --- |
+| `/register` | Transparent, same continuous approved scene |
+| `/auth/verify-email` | Transparent, same continuous approved scene |
+| `/login-success` | Transparent, same continuous approved scene |
+| `/my-account` | White |
+| `/my-bookings` | White |
+| `/my-wallet` | White |
+| `/my-documents` | White |
+| `/favorites` | White |
+
+Register and Verification retain the approved desktop side-by-side composition:
+the footer columns are opposite the form and copyright spans below both. Mobile
+retains all content in flow. There is no detached white/cream footer box on a
+scene and no added footer-logo block absent from the approved reference. The
+header and approved transparent logo are unchanged. Account and Wallet contain
+localized hero/card images, not full-page scenes; their footer remains white.
+No Home, Marketplace, service, policy or operational portal layout is modified.
+
+The final CEO review entry must be a directly openable index with **32 visible
+thumbnail links**: eight routes × AR/EN × desktop/390×844. It must state the exact
+HEAD and immutable deployment, link the Preview root and all eight routes, and
+label any additional evidence separately. A `/register` URL alone is not a
+complete batch handoff. Protected live links still require a legitimate UAT
+customer session; screenshots provide immediate review without sharing secrets.
+CEO VISUAL GATE remains PENDING regardless of automated layout checks.
 
 ## Independent-review correction
 

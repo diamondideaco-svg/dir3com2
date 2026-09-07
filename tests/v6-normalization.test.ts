@@ -33,11 +33,32 @@ test('AR and EN canonical chrome renders real links, transparent logo, language 
     runInNewContext(code, { exports, require: (id: string) => id in dependencies ? dependencies[id] : require(id) });
     const header = renderToStaticMarkup(createElement(exports.CustomerHeader, { large: false, appearance: false, onLarge() {}, onAppearance() {} }));
     const footer = renderToStaticMarkup(createElement(exports.CustomerFooter));
-    assert.match(header, /dir3com-logo-transparent\.png/); assert.match(footer, /dir3com-logo-transparent\.png/);
+    const imageFooter = renderToStaticMarkup(createElement(exports.CustomerFooter, { surface: 'image' }));
+    assert.match(header, /dir3com-logo-transparent\.png/);
+    assert.doesNotMatch(footer, /<img/); // Approved reference starts with columns, not an added logo block.
+    assert.match(footer, /data-footer-surface="white"/);
+    assert.equal(imageFooter.replace('data-footer-surface="image"', 'data-footer-surface="white"'), footer);
     assert.ok(header.includes(language === 'ar' ? 'تكبير النص' : 'Increase text size'));
     assert.match(header, /lang="ar" aria-pressed="/); assert.match(header, /lang="en" aria-pressed="/);
     for (const href of ['/privacy', '/terms', '/support', '/services/drive', '/services/stay', '/services/concierge', '/services/vip', '/services/fly', 'https://wa.me/201011676418', 'https://wa.me/966532867009']) assert.ok(footer.includes(`href="${href}"`), href);
   }
+});
+
+test('scenic footer uses one continuous approved backdrop and preserves reference placement', () => {
+  assert.match(read('app/(auth)/register/page.tsx'), /<CustomerFooter surface="image" className=\{styles.canonicalFooter\}/);
+  assert.match(read('components/v6/EmailVerification.tsx'), /<Chrome footerInContent>/);
+  assert.match(read('components/v6/EmailVerification.tsx'), /<CustomerFooter surface="image" className=\{styles.verifyFooter\}/);
+  assert.match(read('components/v6/LoginSuccess.tsx'), /<Chrome scene>/);
+  const chrome = read('components/v6/Chrome.tsx');
+  assert.match(chrome, /data-footer-scene=\{scene \|\| undefined\}/);
+  assert.match(chrome, /!footerInContent && <CustomerFooter surface=\{scene \? 'image' : 'white'\}/);
+  const css = read('components/v6/customer-chrome.module.css');
+  assert.match(css, /\.footer\[data-footer-surface=image\] \{ background:transparent; border:0;/);
+  assert.match(read('components/v6/v6.module.css'), /\.footerScene \.welcome \{ background:none; \}/);
+  for (const [file, selector] of [['app/(auth)/register/register.module.css', 'canonicalFooter'], ['components/v6/v6.module.css', 'verifyFooter']]) {
+    assert.ok(read(file).includes(`.${selector} > [data-footer-copyright] { grid-column:1/-1; grid-row:3;`));
+  }
+  assert.doesNotMatch(read('components/v6/AccountFrame.tsx'), /\bscene\b|footerInContent/);
 });
 
 test('density decisions remove sidebar and banner characters without modifying approved artwork', () => {

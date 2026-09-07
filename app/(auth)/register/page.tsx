@@ -143,7 +143,7 @@ export default function RegisterPage() {
                         <p className={styles.login}>{ar ? 'لديك حساب بالفعل؟ ' : 'Already have an account? '}<Link href="/login">{ar ? 'تسجيل الدخول' : 'Log in'}</Link></p>
                     </section>
                     <section className={styles.hero} aria-labelledby="register-hero"><h2 id="register-hero">{ar ? <>من فكرة السفرة إلى<br />سلامة الرجعة</> : <>From your first travel idea<br />to your safe return</>}</h2><p>{ar ? <>أنشئ حسابك الآن وابدأ رحلتك مع<br /><span dir="ltr">dir3com</span> لتجربة سفر فاخرة وآمنة.</> : <>Create your account and begin your journey with <span>dir3com</span> for a luxurious, safe travel experience.</>}</p></section>
-                    <CustomerFooter className={styles.canonicalFooter} />
+                    <CustomerFooter surface="image" className={styles.canonicalFooter} />
                 </div>
             </main>
         </div>

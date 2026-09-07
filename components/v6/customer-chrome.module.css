@@ -14,7 +14,12 @@
 .home svg { color:#88601c; width:18px; flex-shrink:0; }
 .header :focus-visible,.footer :focus-visible { outline:3px solid #88601c; outline-offset:3px; }
 .footer { padding:28px 32px 20px; border-top:1px solid #e5e6e8; }
-.brand { margin-bottom:20px; }
+.footer[data-footer-surface=image] { background:transparent; border:0; color:#fff; }
+.footer[data-footer-surface=image] :is(h2,p,a) { color:inherit; }
+.footer[data-footer-surface=image] svg { color:#e8c56d; }
+.footer[data-footer-surface=image] .socials a { border-color:#e8c56d; }
+.footer[data-footer-surface=image] .copyright { border-color:#ffffff59; }
+.footer[data-footer-surface=image] :focus-visible { outline-color:#fff; }
 .columns { display:grid; grid-template-columns:1fr 1fr 1.3fr; gap:24px; }
 .columns section { min-width:0; }
 .columns h2 { margin:0 0 16px; color:#0d1b2a; font:inherit; font-weight:700; font-size:16px; }

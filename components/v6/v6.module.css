@@ -120,7 +120,14 @@
 .walletActions svg { width:56px; height:56px; background:#fff; padding:14px; border:1px solid #d4af37; border-radius:50%; color:#88601c; }
 .twoColumns { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
 .amount { direction:ltr; unicode-bidi:isolate; }
-.authStage { background:url('/brand/runtime/dir3com-login-background-approved.png') center/cover; padding:64px max(32px,6vw); display:grid; grid-template-columns:minmax(0,440px) minmax(0,1fr); gap:9vw; align-items:center; min-height:650px; }
+.authStage { background:linear-gradient(180deg,rgba(13,27,42,.24),rgba(13,27,42,.04) 40%,rgba(13,27,42,.78)),url('/brand/runtime/dir3com-login-background-approved.png') center/cover; padding:64px max(32px,6vw) 24px; display:grid; grid-template-columns:minmax(0,440px) minmax(0,1fr); grid-template-rows:1fr auto auto; gap:24px 9vw; align-items:center; min-height:max(900px,calc(100svh - 95px)); }
+.authStage > .authPanel { grid-column:1; grid-row:1/3; align-self:start; }
+.authStage > .authHero { grid-column:2; grid-row:1; }
+.verifyFooter { display:contents; }
+.verifyFooter > [data-footer-columns] { grid-column:2; grid-row:2; align-self:end; grid-template-columns:.9fr .9fr 1.4fr; }
+.verifyFooter > [data-footer-copyright] { grid-column:1/-1; grid-row:3; margin:0; padding-top:10px; }
+.footerScene { background:linear-gradient(180deg,rgba(13,27,42,.24),rgba(13,27,42,.04) 40%,rgba(13,27,42,.78)),url('/brand/runtime/dir3com-login-background-approved.png') center/cover no-repeat; }
+.footerScene .welcome { background:none; }
 .authPanel { padding:40px 32px; border:1px solid #e1d9cb; border-radius:20px; background:rgba(255,255,255,.95); text-align:center; }
 .authPanel h1 { font-size:26px; margin-block:16px; color:#88601c; }
 .authPanel p { margin-block:16px; }
@@ -201,6 +208,8 @@
   .welcomeActions > a { width:100%; }
   .root .authPanel { padding:28px 20px; }
   .root .authStage { min-height:0; gap:28px; padding:32px 16px; }
+  .authStage > .authPanel,.authStage > .authHero,.verifyFooter > [data-footer-columns],.verifyFooter > [data-footer-copyright] { grid-column:1; grid-row:auto; }
+  .verifyFooter > [data-footer-columns] { grid-template-columns:1fr 1fr; }
   .root .authHero h2 { font-size:26px; }
   .root .walletArt { aspect-ratio:440/440; min-height:0; max-height:360px; }
   .root .content > * { min-width:0; }

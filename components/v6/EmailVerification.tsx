@@ -6,6 +6,7 @@ import { FiMail } from 'react-icons/fi';
 import { supabase } from '@/lib/supabase/client';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { Chrome } from './Chrome';
+import { CustomerFooter } from './CustomerChrome';
 import styles from './v6.module.css';
 
 export default function EmailVerification() {
@@ -58,7 +59,7 @@ export default function EmailVerification() {
     setDigits(previous => { const next = [...previous]; next[index] = ''; [...normalized].forEach((digit, offset) => { next[index + offset] = digit; }); return next; });
     if (normalized) inputs.current[Math.min(5, index + normalized.length)]?.focus();
   }
-  return <Chrome><div className={styles.authStage}>
+  return <Chrome footerInContent><div className={styles.authStage} data-footer-scene>
     <section className={styles.authPanel} aria-labelledby="verify-heading">
       <FiMail className={styles.mailIcon} aria-hidden="true" />
       <h1 id="verify-heading">{ar ? 'تحقق من بريدك الإلكتروني' : 'Verify your email'}</h1>
@@ -76,5 +77,6 @@ export default function EmailVerification() {
       <Link href="/login">{ar ? 'العودة إلى تسجيل الدخول' : 'Back to sign in'}</Link>
     </section>
     <section className={styles.authHero}><h2>{ar ? <>من فكرة السفرة<br />إلى سلامة الرجعة</> : <>From your first travel idea<br />to your safe return</>}</h2><p>{ar ? 'أنت على بُعد خطوة واحدة من تفعيل حسابك والاستمتاع بتجربة سفر آمنة.' : 'You are one step away from activating your account and enjoying a safe travel experience.'}</p></section>
+    <CustomerFooter surface="image" className={styles.verifyFooter} />
   </div></Chrome>;
 }

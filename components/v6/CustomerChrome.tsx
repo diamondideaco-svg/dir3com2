@@ -38,17 +38,16 @@ export function CustomerHeader({ large, appearance, onLarge, onAppearance, menu 
   </header>;
 }
 
-export function CustomerFooter({ className = '' }: { className?: string }) {
+export function CustomerFooter({ className = '', surface = 'white' }: { className?: string; surface?: 'white' | 'image' }) {
   const { language } = useLanguage(); const ar = language === 'ar';
-  return <footer className={`${styles.footer} ${className}`} data-customer-footer="register-master" data-dabra-avoid>
-    <div className={styles.brand}><CustomerLogo /></div>
-    <div className={styles.columns}>
+  return <footer className={`${styles.footer} ${className}`} data-customer-footer="register-master" data-footer-surface={surface} data-dabra-avoid>
+    <div className={styles.columns} data-footer-columns data-dabra-avoid>
       <section><h2>{ar ? 'عن الشركة' : 'Company'}</h2><Link href="/about">{ar ? 'من نحن' : 'About us'}</Link><Link href="/terms">{ar ? 'الشروط والأحكام' : 'Terms and conditions'}</Link><Link href="/privacy">{ar ? 'سياسة الخصوصية' : 'Privacy policy'}</Link><Link href="/support">{ar ? 'مركز المساعدة' : 'Help center'}</Link></section>
       <section><h2>{ar ? 'خدماتنا' : 'Services'}</h2>{['Drive', 'Stay', 'Concierge', 'VIP', 'Fly'].map(family => <Link key={family} href={`/services/${family.toLowerCase()}`}>dir3 {family}</Link>)}</section>
       <section><h2>{ar ? 'تواصل معنا' : 'Contact us'}</h2><a href="https://wa.me/966532867009"><FaWhatsapp aria-hidden="true" />{ar ? 'السعودية: ' : 'Saudi Arabia: '}<bdi>+966 53 286 7009</bdi></a><a href="https://wa.me/201011676418"><FaWhatsapp aria-hidden="true" />{ar ? 'مصر: ' : 'Egypt: '}<bdi>+20 101 167 6418</bdi></a><a href="mailto:info@dir3com.com"><FiMail aria-hidden="true" />info@dir3com.com</a><a href="https://www.dir3com.com"><FiGlobe aria-hidden="true" />www.dir3com.com</a><a href="https://www.dir3com.net"><FiGlobe aria-hidden="true" />www.dir3com.net</a>
         <div className={styles.socials}>{registerSocialLinks.map(s => { const Icon = socialIcons[s.channel]; return <a key={s.channel} href={s.href} aria-label={s.label} rel="noopener noreferrer" target="_blank"><Icon aria-hidden="true" /></a>; })}</div>
       </section>
     </div>
-    <p className={styles.copyright}>{ar ? 'جميع الحقوق محفوظة © 2026 dir3com' : '© 2026 dir3com. All rights reserved.'}</p>
+    <p className={styles.copyright} data-footer-copyright data-dabra-avoid>{ar ? 'جميع الحقوق محفوظة © 2026 dir3com' : '© 2026 dir3com. All rights reserved.'}</p>
   </footer>;
 }
