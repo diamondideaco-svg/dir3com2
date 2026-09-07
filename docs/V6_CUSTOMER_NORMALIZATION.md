@@ -113,6 +113,31 @@ in Login Success mobile. Its continuous scene overlay now reaches 66% navy at
 remains transparent. A focused worst-case white-source contrast test and actual
 responsive measurements protect this correction. No other page scene changes.
 
+## Footer-only normalization and approved layout containment
+
+Start SHA: `ddb8b8465dd3581e3e1b35b8d7a9e75158d14f69`.
+The CEO explicitly authorized one Register-only desktop layout exception:
+retain the approved AR reference's physical geometry (form right, hero left)
+for both languages. A min-width721 CSS rule fixes the composition's grid direction;
+panel/hero text direction is restored from the active locale. No root reversal,
+image/background change, header edit, body markup, form handler or mobile-body
+layout change is involved. Footer internal direction is explicit and independent.
+
+The shared footer alone owns balanced desktop columns, heading baselines,
+contact icon/text grids and the social start-edge alignment. Company, Services,
+Contact stack in that order on compact/mobile widths; they no longer squeeze
+into two desktop-like columns at390px. The social row uses the existing five
+approved links in DOM order, laid out from the active language's start edge.
+Every contact icon remains inside its existing functional anchor. Footer-only
+Register/Verification rules retain their placement slots, not separate internal
+grids. The two background variants share identical structure and geometry.
+
+Validation compares actual Register panel/hero coordinates before/after a real
+language-button click, checks desktop heading baselines and contact/social axes,
+mobile section stacking, visible focus, footer interactions with external
+navigation prevented, and scene/white surfaces. Existing UAT data is read only.
+One final push follows local proof; no manual Preview, merge or Production.
+
 ## Independent-review correction
 
 Review of `194c30a493d06c8cd0093044d987dfe567a35b75` identified a mobile Arabic

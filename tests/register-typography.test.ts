@@ -13,6 +13,16 @@ test('Register derives local language, direction and existing fonts from active 
   assert.ok(css.includes('.register button, .register select { font-family: inherit;'));
 });
 
+test('Desktop Register contains geometry without mirroring hero/form or changing mobile direction', () => {
+  assert.match(css, /@media\(min-width:721px\) \{\s*\.composition \{ direction:rtl; \}/);
+  assert.match(css, /\.register\[dir='ltr'\] \.composition > :is\(\.panel,\.hero\) \{ direction:ltr; \}/);
+  assert.match(css, /\.register\[dir='rtl'\] \.composition > :is\(\.panel,\.hero\) \{ direction:rtl; \}/);
+  assert.match(css, /\.register\[dir='ltr'\] \.composition \{ padding-left:3\.9%; padding-right:5\.75%; \}/);
+  assert.doesNotMatch(css, /row-reverse|scaleX\(-1\)/);
+  assert.match(css, /\.stage \{[^}]*dir3com-login-background-approved\.png'\) center \/ cover no-repeat/);
+  assert.match(css, /\.composition, \.register\[dir='ltr'\] \.composition \{ display: flex; flex-direction: column;/);
+});
+
 test('Register focus styles are local and each input has an associated label', () => {
   for (const id of ['register-name', 'register-email', 'register-phone', 'register-password']) {
     assert.ok(page.includes(`htmlFor="${id}"`));

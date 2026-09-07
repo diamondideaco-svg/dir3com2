@@ -7,6 +7,7 @@ import { createElement, type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { placeDabraLauncher } from '../lib/dabra/floating-layout';
+import { registerSocialLinks } from '../lib/auth/register-contact';
 const read = (p: string) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const require = createRequire(import.meta.url);
 
@@ -27,7 +28,7 @@ test('AR and EN canonical chrome renders real links, transparent logo, language 
     const dependencies: Record<string, unknown> = {
       'next/image': { default: ({ unoptimized, ...props }: Record<string, unknown>) => { void unoptimized; return createElement('img', props); } }, 'next/link': { default: 'a' },
       '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language, setLanguage() {} }) },
-      '@/lib/auth/register-contact': { registerSocialLinks: [{ channel: 'instagram', label: 'Instagram', href: 'https://www.instagram.com/dir3com' }] },
+      '@/lib/auth/register-contact': { registerSocialLinks },
       './customer-chrome.module.css': { default: {} },
     };
     runInNewContext(code, { exports, require: (id: string) => id in dependencies ? dependencies[id] : require(id) });
@@ -37,7 +38,19 @@ test('AR and EN canonical chrome renders real links, transparent logo, language 
     assert.match(header, /dir3com-logo-transparent\.png/);
     assert.doesNotMatch(footer, /<img/); // Approved reference starts with columns, not an added logo block.
     assert.match(footer, /data-footer-surface="white"/);
+    assert.ok(footer.includes(`lang="${language}" dir="${language === 'ar' ? 'rtl' : 'ltr'}"`));
     assert.equal(imageFooter.replace('data-footer-surface="image"', 'data-footer-surface="white"'), footer);
+    let previousSocial = -1;
+    for (const social of registerSocialLinks) {
+      const position = footer.indexOf(`href="${social.href}"`);
+      assert.ok(position > previousSocial);
+      assert.ok(footer.includes(`aria-label="${social.label}"`));
+      previousSocial = position;
+    }
+    for (const href of ['https://wa.me/966532867009', 'https://wa.me/201011676418', 'mailto:info@dir3com.com', 'https://www.dir3com.com', 'https://www.dir3com.net']) {
+      const anchor = footer.slice(footer.indexOf(`href="${href}"`));
+      assert.match(anchor.slice(0, anchor.indexOf('</a>')), /<svg/);
+    }
     assert.ok(header.includes(language === 'ar' ? 'تكبير النص' : 'Increase text size'));
     assert.match(header, /lang="ar" aria-pressed="/); assert.match(header, /lang="en" aria-pressed="/);
     for (const href of ['/privacy', '/terms', '/support', '/services/drive', '/services/stay', '/services/concierge', '/services/vip', '/services/fly', 'https://wa.me/201011676418', 'https://wa.me/966532867009']) assert.ok(footer.includes(`href="${href}"`), href);
@@ -69,6 +82,18 @@ test('welcome scenic footer keeps white links readable over even a white source 
   const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
   assert.ok(1.05 / (luminance + 0.05) >= 4.5);
   // Actual desktop/mobile capture additionally checks the footer starts beyond this stop.
+});
+
+test('footer owns its direction, contact grid, social axis and single-column mobile layout', () => {
+  const css = read('components/v6/customer-chrome.module.css');
+  assert.match(css, /\.columns \{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\) minmax\(260px,1\.4fr\);[^}]*align-items:start/);
+  assert.match(css, /\.footer \.columns h2 \{[^}]*line-height:24px/);
+  assert.match(css, /\.contactRow \{ display:grid; grid-template-columns:18px minmax\(0,1fr\)/);
+  assert.match(css, /\.socials \{ display:flex; flex-wrap:nowrap; justify-content:flex-start; gap:10px; direction:inherit/);
+  assert.match(css, /@media\(max-width:1050px\) \{ \.columns \{ grid-template-columns:minmax\(0,1fr\); \} \}/);
+  for (const [file, selector] of [['app/(auth)/register/register.module.css', 'canonicalFooter'], ['components/v6/v6.module.css', 'verifyFooter']]) {
+    assert.doesNotMatch(read(file), new RegExp('\\.' + selector + ' > \\[data-footer-columns\\] \\{[^}]*grid-template-columns'));
+  }
 });
 
 test('density decisions remove sidebar and banner characters without modifying approved artwork', () => {
