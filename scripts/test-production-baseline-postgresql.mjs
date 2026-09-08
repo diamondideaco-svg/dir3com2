@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {readFileSync,readdirSync,mkdtempSync,mkdirSync,writeFileSync,chmodSync} from 'node:fs';
+import {readFileSync,mkdtempSync,mkdirSync,writeFileSync,chmodSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
@@ -122,7 +122,10 @@ try {
   sql(`CREATE ROLE ${quote(login)} LOGIN SUPERUSER PASSWORD '${password}'; ALTER ROLE ${quote(login)} SET role=postgres;`,'postgres');createdRoles.push(login);
   const cliFixture=join(evidence,'cli');mkdirSync(join(cliFixture,'supabase','migrations'),{recursive:true});
   writeFileSync(join(cliFixture,'supabase','config.toml'),'project_id = "pr101-isolated-proof"\n[db]\nmajor_version = 17\n');
-  const files=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')).sort();
+  // This is the historical three-pending cutover rehearsal, not future delivery.
+  // New forward migrations have independent replay and strict registry checks.
+  const frozenPlan=JSON.parse(read('docs/production-baseline-cutover-plan-2026-09-06.json'));
+  const files=frozenPlan.active_files.map(f=>f.path.split('/').at(-1)).sort();
   assert.deepEqual(files.map(f=>f.slice(0,14)),[BASELINE,...PENDING]);
   for(const f of files)writeFileSync(join(cliFixture,'supabase','migrations',f),read('supabase/migrations/'+f));
   const url=`postgresql://${login}:${password}@127.0.0.1:55493/${database}?sslmode=disable`;

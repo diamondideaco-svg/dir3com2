@@ -12,6 +12,7 @@ import { DABRA_APPROVED_VOICE, getApprovedDabraPlaybackCopy, getApprovedDabraVoi
 import { buildDabraWhatsAppHandoff, openDabraWhatsAppHandoff } from '@/lib/dabra/whatsapp-handoff';
 import { planDabraVoicePlayback, runDabraVoicePlayback } from '@/lib/dabra/voice-segmentation';
 import DabraFamilySafetyPanel from '@/components/dabra/DabraFamilySafetyPanel';
+import CollaborativeTripCapabilities from '@/components/v6/CollaborativeTripCapabilities';
 import {
   DABRA_ANONYMOUS_SESSION_KEY,
   applyScopedHotelChange,
@@ -594,6 +595,8 @@ export default function DabraChatCommerce() {
       </header>
 
       <DabraFamilySafetyPanel />
+
+      <CollaborativeTripCapabilities phase="planning" />
 
       <div className="dabra-layout">
         <section className="dabra-conversation" aria-label={t.conversation}>

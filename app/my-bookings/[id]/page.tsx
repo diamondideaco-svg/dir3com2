@@ -6,6 +6,8 @@ import BookingStatusBadge from '@/components/booking/BookingStatusBadge';
 import PartnerAssignmentCard from '@/components/booking/PartnerAssignmentCard';
 import SettlementCard from '@/components/booking/SettlementCard';
 import ReviewCard from '@/components/booking/ReviewCard';
+import CollaborativeTripCapabilities from '@/components/v6/CollaborativeTripCapabilities';
+import { normalizeBookingStatus } from '@/lib/booking/workflow-status';
 import type { BookingEngineRecord, BookingStatusHistoryRecord, PartnerAssignmentRecord, PartnerSettlementRecord, BookingReviewRecord } from '@/lib/supabase/types';
 
 function buildLoginTarget(destination: string) {
@@ -100,6 +102,8 @@ export default async function MyBookingDetailsPage({ params }: { params: Promise
             <BookingStatusBadge status={booking.status} />
           </div>
         </div>
+
+        {normalizeBookingStatus(booking.status) === 'Confirmed' && <CollaborativeTripCapabilities phase="collection" />}
 
         <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
           <div className="space-y-6">

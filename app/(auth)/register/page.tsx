@@ -1,18 +1,48 @@
-// src/app/(auth)/register/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo, useSyncExternalStore, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { FiEye, FiEyeOff, FiLock, FiMail, FiPhone, FiUser } from 'react-icons/fi';
+import { FcGoogle } from 'react-icons/fc';
 import { supabase } from '@/lib/supabase/client';
+import { buildOAuthCallbackUrl } from '@/lib/auth/oauth-callback';
+import { getPostLoginDestination } from '@/lib/auth/redirect';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { normalizeRegisterContact, registerCountries, getCountryCallingCode, type CountryCode } from '@/lib/auth/register-contact';
+import { CustomerHeader, CustomerFooter } from '@/components/v6/CustomerChrome';
+import styles from './register.module.css';
+
+const subscribeToBrowser = () => () => {};
+const browserSnapshot = () => true;
+const serverSnapshot = () => false;
 
 export default function RegisterPage() {
+    const { language, direction } = useLanguage();
+    const ar = language === 'ar';
     const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmation, setConfirmation] = useState('');
     const [fullName, setFullName] = useState('');
+    const [country, setCountry] = useState<CountryCode>('SA');
+    const [phone, setPhone] = useState('');
+    const phoneInput = useRef<HTMLInputElement>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [visible, setVisible] = useState(false);
+    const [largeText, setLargeText] = useState(false);
+    const [warmSurface, setWarmSurface] = useState(false);
+    const [consent, setConsent] = useState(false);
+    const consentInput = useRef<HTMLInputElement>(null);
+    // Node/browser ICU versions differ: localize only after the identical SSR snapshot hydrates.
+    const browserReady = useSyncExternalStore(subscribeToBrowser, browserSnapshot, serverSnapshot);
+    const countries = useMemo(() => {
+        if (!browserReady) return registerCountries.map(code => ({ code, name: String(code) }));
+        const names = new Intl.DisplayNames([language], { type: 'region' });
+        return registerCountries.map(code => ({ code, name: names.of(code) || code }))
+            .sort((a, b) => a.name.localeCompare(b.name, language));
+    }, [language, browserReady]);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data }: { data: { session: unknown } }) => {
@@ -20,177 +50,102 @@ export default function RegisterPage() {
         });
     }, [router]);
 
-    const handleRegister = async (e: React.FormEvent) => {
+    const handleRegister = async (e: FormEvent) => {
         e.preventDefault();
-        setLoading(true);
         setError(null);
-
         if (password.length < 6) {
-            setError('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
-            setLoading(false);
+            setError(ar ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' : 'Password must be at least 6 characters');
             return;
         }
-
+        if (password !== confirmation) {
+            setError(ar ? 'كلمتا المرور غير متطابقتين' : 'Passwords do not match');
+            return;
+        }
+        const contact = normalizeRegisterContact(country, phone);
+        if (!contact) {
+            setError(ar ? 'أدخل رقم هاتف صالحًا للدولة المختارة.' : 'Enter a valid phone number for the selected country.');
+            phoneInput.current?.focus();
+            return;
+        }
+        setLoading(true);
+        try {
         const { error } = await supabase.auth.signUp({
             email,
             password,
-            options: {
-                data: { full_name: fullName },
-            },
+            options: { data: { full_name: fullName, registration_contact: contact } },
         });
-
         if (error) {
             setError(error.message);
             setLoading(false);
             return;
         }
+        // Handoff context only; never verification or authorization evidence.
+        try { sessionStorage.setItem('dir3com-verification-email', email.trim()); } catch { /* The verification form accepts email input too. */ }
+        router.push('/auth/verify-email');
+        } catch {
+            setError(ar ? 'تعذّر إنشاء الحساب. حاول مرة أخرى.' : 'Unable to create account. Please try again.');
+            setLoading(false);
+        }
+    };
 
-        alert('✅ تم إنشاء الحساب! رجاء تأكيد بريدك الإلكتروني.');
-        router.push('/login');
+    // Same Google provider and trusted callback builder used by Login.
+    const handleGoogle = async () => {
+        if (!consent) {
+            setError(ar ? 'يرجى الموافقة على الشروط وسياسة الخصوصية للمتابعة.' : 'Please accept the terms and privacy policy to continue.');
+            consentInput.current?.focus();
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        try {
+            const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: buildOAuthCallbackUrl(window.location.origin, getPostLoginDestination(null)),
+                    skipBrowserRedirect: true,
+                },
+            });
+            if (oauthError || !data?.url) {
+                setError(ar ? 'تعذّر بدء تسجيل الدخول باستخدام Google. حاول مرة أخرى.' : 'Unable to start Google sign-in. Please try again.');
+                setLoading(false);
+                return;
+            }
+            window.location.assign(data.url);
+        } catch {
+            setError(ar ? 'تعذّر بدء تسجيل الدخول باستخدام Google. حاول مرة أخرى.' : 'Unable to start Google sign-in. Please try again.');
+            setLoading(false);
+        }
     };
 
     return (
-        <div style={{
-            // Approved background asset used as a layer only; all content below is real HTML.
-            backgroundColor: '#FAF8F4',
-            backgroundImage: 'linear-gradient(rgba(255,255,255,0.12), rgba(255,255,255,0.18)), url("/brand/runtime/dir3com-login-background-approved.png")',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '40px 20px',
-            fontFamily: 'var(--font-arabic)',
-            direction: 'rtl'
-        }}>
-            <div style={{
-                maxWidth: '420px',
-                width: '100%',
-                background: 'rgba(255,255,255,0.96)',
-                border: '1px solid rgba(212, 175, 55, 0.25)',
-                borderRadius: '24px',
-                boxShadow: '0 26px 70px rgba(15, 23, 42, 0.10)',
-                padding: '40px 30px'
-            }}>
-                <h1 style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: '2rem',
-                    color: '#D4AF37',
-                    textAlign: 'center',
-                    marginBottom: '5px'
-                }}>
-                    إنشاء حساب
-                </h1>
-                <p style={{ color: '#6B7280', textAlign: 'center', marginBottom: '30px' }}>
-                    انضم إلى DIR3COM واستمتع بتجربة سفر مخصصة
-                </p>
-
-                {error && (
-                    <div style={{
-                        background: 'rgba(220,38,38,0.08)',
-                        border: '1px solid rgba(220,38,38,0.35)',
-                        borderRadius: '12px',
-                        padding: '10px',
-                        marginBottom: '20px',
-                        color: '#b91c1c',
-                        textAlign: 'center'
-                    }}>
-                        {error}
-                    </div>
-                )}
-
-                <form onSubmit={handleRegister}>
-                    <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>الاسم الكامل</label>
-                        <input
-                            type="text"
-                            value={fullName}
-                            onChange={(e) => setFullName(e.target.value)}
-                            placeholder="أدخل اسمك الكامل"
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(15,23,42,0.12)',
-                                background: '#FFFFFF',
-                                color: '#334155',
-                                fontSize: '1rem',
-                                outline: 'none'
-                            }}
-                        />
-                    </div>
-
-                    <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>البريد الإلكتروني</label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="example@email.com"
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(15,23,42,0.12)',
-                                background: '#FFFFFF',
-                                color: '#334155',
-                                fontSize: '1rem',
-                                outline: 'none'
-                            }}
-                        />
-                    </div>
-
-                    <div style={{ marginBottom: '20px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>كلمة المرور</label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="•••••••• (6 أحرف على الأقل)"
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(15,23,42,0.12)',
-                                background: '#FFFFFF',
-                                color: '#334155',
-                                fontSize: '1rem',
-                                outline: 'none'
-                            }}
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        style={{
-                            width: '100%',
-                            padding: '14px',
-                            background: '#D4AF37',
-                            color: '#334155',
-                            border: 'none',
-                            borderRadius: '30px',
-                            fontWeight: 'bold',
-                            fontSize: '1rem',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        {loading ? 'جاري إنشاء الحساب...' : 'إنشاء حساب'}
-                    </button>
-                </form>
-
-                <p style={{ textAlign: 'center', color: '#6B7280', marginTop: '20px' }}>
-                    لديك حساب بالفعل؟{' '}
-                    <Link href="/login" style={{ color: '#D4AF37', textDecoration: 'none' }}>
-                        تسجيل الدخول
-                    </Link>
-                </p>
-            </div>
+        <div className={styles.register} lang={language} dir={direction} data-large={largeText} data-warm={warmSurface}
+            style={{ fontFamily: language === 'ar' ? 'var(--font-arabic)' : 'var(--font-latin)' }}>
+            <a className={styles.skip} href="#register-form">{ar ? 'انتقل إلى إنشاء الحساب' : 'Skip to registration'}</a>
+            <CustomerHeader large={largeText} appearance={warmSurface} onLarge={() => setLargeText(!largeText)} onAppearance={() => setWarmSurface(!warmSurface)} />
+            <main className={styles.stage}>
+                <div className={styles.composition}>
+                    <section className={styles.panel} aria-labelledby="register-title">
+                        <h1 id="register-title">{ar ? 'إنشاء حساب' : 'Create account'}</h1>
+                        <p className={styles.intro}>{ar ? 'انضم إلى dir3com وابدأ رحلتك المميزة' : 'Join dir3com and begin your exceptional journey'}</p>
+                        <nav className={styles.tabs} aria-label={ar ? 'الحساب' : 'Account'}><a href="#register-form" aria-current="page">{ar ? 'إنشاء حساب' : 'Create account'}</a><Link href="/login">{ar ? 'تسجيل الدخول' : 'Log in'}</Link></nav>
+                        {error && <p role="alert" className={styles.error}>{error}</p>}
+                        <form id="register-form" onSubmit={handleRegister}>
+                            <div className={styles.field}><label htmlFor="register-name">{ar ? 'الاسم الكامل' : 'Full name'}</label><div className={styles.input}><FiUser aria-hidden="true" /><input id="register-name" type="text" autoComplete="name" required value={fullName} onChange={e => setFullName(e.target.value)} placeholder={ar ? 'أدخل اسمك الكامل' : 'Enter your full name'} /></div></div>
+                            <div className={styles.field}><label htmlFor="register-email">{ar ? 'البريد الإلكتروني' : 'Email'}</label><div className={styles.input}><FiMail aria-hidden="true" /><input id="register-email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder={ar ? 'أدخل بريدك الإلكتروني' : 'Enter your email'} /></div></div>
+                            <div className={styles.field}><label htmlFor="register-phone">{ar ? 'رقم الجوال' : 'Phone number'}</label><div className={`${styles.input} ${styles.phone}`}><FiPhone aria-hidden="true" /><input id="register-phone" ref={phoneInput} type="tel" inputMode="tel" autoComplete="tel-national" required maxLength={40} value={phone} onChange={e => setPhone(e.target.value)} placeholder={ar ? 'أدخل رقم الجوال' : 'Enter phone number'} /><div className={styles.country}><span dir="ltr" aria-hidden="true">+{getCountryCallingCode(country)}⌄</span><select id="register-country" aria-label={ar ? 'الدولة ورمز الاتصال' : 'Country and calling code'} autoComplete="country" required value={country} onChange={e => setCountry(e.target.value as CountryCode)}>{countries.map(c => <option key={c.code} value={c.code}>{c.name} (+{getCountryCallingCode(c.code)})</option>)}</select></div></div></div>
+                            <div className={styles.field}><label htmlFor="register-password">{ar ? 'كلمة المرور' : 'Password'}</label><div className={styles.input}><FiLock aria-hidden="true" /><input id="register-password" type={visible ? 'text' : 'password'} autoComplete="new-password" required value={password} onChange={e => setPassword(e.target.value)} placeholder={ar ? 'أدخل كلمة المرور' : 'Enter password'} /><button type="button" onClick={() => setVisible(!visible)} aria-label={ar ? (visible ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور') : (visible ? 'Hide password' : 'Show password')} aria-pressed={visible}>{visible ? <FiEyeOff /> : <FiEye />}</button></div></div>
+                            <div className={styles.field}><label htmlFor="register-confirmation">{ar ? 'تأكيد كلمة المرور' : 'Confirm password'}</label><div className={styles.input}><FiLock aria-hidden="true" /><input id="register-confirmation" type={visible ? 'text' : 'password'} autoComplete="new-password" required value={confirmation} onChange={e => setConfirmation(e.target.value)} placeholder={ar ? 'أعد إدخال كلمة المرور' : 'Re-enter password'} /></div></div>
+                            <div className={styles.consent}><input id="register-consent" type="checkbox" required ref={consentInput} checked={consent} onChange={e => setConsent(e.target.checked)} /><label htmlFor="register-consent">{ar ? 'أوافق على ' : 'I agree to the '}<Link href="/terms">{ar ? 'الشروط والأحكام' : 'terms'}</Link>{ar ? ' و' : ' and '}<Link href="/privacy">{ar ? 'سياسة الخصوصية' : 'privacy policy'}</Link></label></div>
+                            <button className={styles.submit} type="submit" disabled={loading}>{loading ? (ar ? 'جاري إنشاء الحساب...' : 'Creating account...') : (ar ? 'إنشاء حساب' : 'Create account')}</button>
+                        </form>
+                        <div className={styles.separator}>{ar ? 'أو تابع باستخدام' : 'Or continue with'}</div>
+                        <button className={styles.google} type="button" disabled={loading} onClick={handleGoogle}><FcGoogle aria-hidden="true" />{ar ? 'المتابعة باستخدام Google' : 'Continue with Google'}</button>
+                        <p className={styles.login}>{ar ? 'لديك حساب بالفعل؟ ' : 'Already have an account? '}<Link href="/login">{ar ? 'تسجيل الدخول' : 'Log in'}</Link></p>
+                    </section>
+                    <section className={styles.hero} aria-labelledby="register-hero"><h2 id="register-hero">{ar ? <>من فكرة السفرة إلى<br />سلامة الرجعة</> : <>From your first travel idea<br />to your safe return</>}</h2><p>{ar ? <>أنشئ حسابك الآن وابدأ رحلتك مع<br /><span dir="ltr">dir3com</span> لتجربة سفر فاخرة وآمنة.</> : <>Create your account and begin your journey with <span>dir3com</span> for a luxurious, safe travel experience.</>}</p></section>
+                    <CustomerFooter surface="image" className={styles.canonicalFooter} />
+                </div>
+            </main>
         </div>
     );
 }

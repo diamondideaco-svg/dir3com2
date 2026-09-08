@@ -1,0 +1,57 @@
+.header,.footer { color:#0d1b2a; background:#fff; font-family:inherit; box-sizing:border-box; }
+.header { min-height:90px; padding:10px 24px; display:flex; align-items:center; justify-content:space-between; gap:24px; border-bottom:1px solid #e5e6e8; }
+/* Original 1536x1024 canvas retained. This window removes only empty outer
+   whitespace from layout (source x≈220..1360, y≈266..706), never artwork. */
+.logo { display:block; position:relative; width:188px; height:74px; overflow:hidden; flex-shrink:0; border:0; border-radius:0; background:none; box-shadow:none; }
+.logo img { position:absolute; width:253.3px; height:168.9px; max-width:none; left:-36.3px; top:-43.9px; }
+.tools,.languages { display:flex; align-items:center; gap:24px; }
+.tools button { display:inline-flex; justify-content:center; align-items:center; gap:10px; min-height:44px; min-width:44px; background:transparent; border:0; color:#0d1b2a; cursor:pointer; font:inherit; font-size:14px; font-weight:700; }
+.tools > button { border-inline-end:1px solid #d6d7d9; padding-inline-end:24px; }
+.tools svg { width:24px; height:24px; }
+.languages button { border-bottom:2px solid transparent; }
+.languages button[aria-pressed=true] { border-color:#b98b2b; }
+.home { display:inline-flex; align-items:center; justify-content:center; gap:12px; min-height:44px; border:1px solid #b69866; border-radius:12px; padding:10px 16px; color:#0d1b2a; font-size:14px; font-weight:700; text-decoration:none; }
+.home svg { color:#88601c; width:18px; flex-shrink:0; }
+.header :focus-visible,.footer :focus-visible { outline:3px solid #88601c; outline-offset:3px; }
+.footer { padding:28px 32px 20px; border-top:1px solid #e5e6e8; }
+.footer[data-footer-surface=image] { background:transparent; border:0; color:#fff; }
+.footer[data-footer-surface=image] :is(h2,p,a) { color:inherit; text-shadow:-1px -1px 0 #0d1b2a,1px -1px 0 #0d1b2a,-1px 1px 0 #0d1b2a,1px 1px 0 #0d1b2a,0 1px 2px #0d1b2a; }
+.footer[data-footer-surface=image] svg { color:#e8c56d; }
+.footer[data-footer-surface=image] .socials a { border-color:#e8c56d; }
+.footer[data-footer-surface=image] .copyright { border-color:#ffffff59; }
+.footer[data-footer-surface=image] :focus-visible { outline-color:#fff; }
+.columns { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(260px,1.4fr); align-items:start; gap:24px; text-align:start; }
+.columns section { min-width:0; }
+.footer .columns h2 { margin:0 0 16px; color:inherit; font:inherit; font-weight:700; font-size:16px; line-height:24px; }
+.columns section > a { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-height:32px; margin-bottom:8px; font-size:14px; color:#0d1b2a; text-decoration:none; overflow-wrap:anywhere; }
+.columns svg { color:#88601c; flex-shrink:0; }
+.columns section > .contactRow { display:grid; grid-template-columns:18px minmax(0,1fr); align-items:center; gap:8px; text-align:start; }
+.contactRow > svg { width:18px; height:18px; }
+.contactRow > :not(svg) { min-width:0; }
+.contactRow > bdi { justify-self:start; }
+.footer a:hover { text-decoration:underline; text-decoration-color:#b98b2b; }
+.socials { display:flex; flex-wrap:nowrap; justify-content:flex-start; gap:10px; direction:inherit; margin-top:12px; }
+.socials a { border:1px solid #b98b2b; border-radius:50%; display:grid; place-items:center; width:44px; height:44px; flex:0 0 44px; }
+.copyright { border-top:1px solid #e5e6e8; padding-top:16px; margin:24px 0 0; text-align:center; color:#0d1b2a; font-size:14px; }
+@media(max-width:1000px) { .tools,.languages { gap:12px; } .tools > button { padding-inline-end:12px; } }
+@media(max-width:1050px) { .columns { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:720px) {
+  /* Two intentional rows: brand/display tools, then language/home action.
+     Reserve the menu slot on Auth too; keep every control at least 44px. */
+  .header { display:grid; grid-template-columns:minmax(0,1fr) repeat(3,44px); grid-template-rows:minmax(61px,auto) minmax(44px,auto); min-height:118px; padding:4px 16px; gap:4px; align-content:start; }
+  .header:has(.languages button[lang=ar][aria-pressed=true]) { direction:rtl; }
+  .header:has(.languages button[lang=en][aria-pressed=true]) { direction:ltr; }
+  .header > .logo { grid-column:1; grid-row:1; width:154px; height:61px; justify-self:start; }
+  .header > .logo img { width:207.49px; height:138.35px; left:-29.74px; top:-35.96px; }
+  .tools { display:contents; }
+  .tools > button { grid-row:1; width:44px; height:44px; min-width:44px; padding:0; }
+  .tools > button[aria-controls] { grid-column:2; }
+  .tools > button:nth-last-of-type(2) { grid-column:3; }
+  .tools > button:last-of-type { grid-column:4; }
+  .languages { grid-column:1; grid-row:2; justify-self:start; flex-wrap:nowrap; gap:4px; white-space:nowrap; }
+  .languages button { height:44px; padding:0; gap:4px; flex-shrink:0; line-height:20px; }
+  .tools > .home { grid-column:1/-1; grid-row:2; justify-self:end; width:max-content; max-width:100%; height:44px; min-height:44px; box-sizing:border-box; flex-shrink:0; padding:8px 12px; gap:8px; font-size:14px; line-height:20px; white-space:nowrap; }
+  .footer { padding:24px 16px; }
+  .columns { gap:24px; }
+  .columns section > a { min-height:44px; }
+}

@@ -37,7 +37,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install Dependencies
@@ -58,6 +58,20 @@ jobs:
 
       - name: Verification Documents Reconciliation (PostgreSQL 17)
         run: npm run test:customer-documents-postgresql
+
+      - name: Customer private upload (real disposable Auth, Storage and PostgreSQL 17)
+        timeout-minutes: 8
+        run: |
+          docker pull postgres:17-alpine
+          docker pull public.ecr.aws/supabase/gotrue:v2.195.0
+          docker pull public.ecr.aws/supabase/postgrest:v16.1
+          docker pull public.ecr.aws/supabase/storage-api:v1.70.7
+          node --import tsx scripts/test-customer-upload-local.ts
+
+      - name: Active chain and immutable archive (including registered forwards)
+        run: |
+          node --test tests/migration-cutover.test.mjs
+          node scripts/check-migration-baseline.mjs
 
       - name: Repository Tests
         run: |

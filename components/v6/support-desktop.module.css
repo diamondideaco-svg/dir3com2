@@ -1,0 +1,39 @@
+/* Only mounted on /support at the existing Customer desktop breakpoint.
+   Do not apply the generic v6 root's heading/body resets to Support. */
+@media (min-width:1051px) {
+  .shell { --ink:#0d1b2a; --gold:#d4af37; --muted:#536174; min-height:100vh; display:flex; flex-direction:column; background:#fff; }
+  .shell > header,.footer,.launcher { font-family:var(--font-latin); font-size:16px; line-height:1.6; }
+  .shell[lang=ar] > header,.shell[lang=ar] .footer,.shell[lang=ar] .launcher { font-family:var(--font-arabic); }
+  .shell[data-warm=true] { background:#f8f9fa; }
+  /* Match the existing public text-size control's 6% enlargement locally,
+     without changing html font size on locked routes or on mobile. */
+  .shell[data-large=true] > main { zoom:1.06; }
+  /* Support's own Arabic body only; the request-detail shell and EN stay locked. */
+  .shell[lang=ar] > main[class~="page-stack-shell"] > section { padding-inline:32px; }
+  .shell[lang=ar] > main[class~="page-stack-shell"] > section > div { width:100%; max-width:48rem; margin-inline:auto; text-align:start; }
+  .shell[lang=ar] > main[class~="page-stack-shell"] > section > div > div:last-child { gap:12px; padding-block:8px; }
+  .footer { margin-top:auto; background:#fff; color:var(--ink); }
+  .footer [data-footer-columns] { grid-template-columns:minmax(260px,1.4fr) minmax(0,1fr) minmax(0,1fr); }
+  .footer [data-footer-columns] > section:nth-child(1) { grid-column:3; grid-row:1; }
+  .footer [data-footer-columns] > section:nth-child(2) { grid-column:2; grid-row:1; }
+  .footer [data-footer-columns] > section:nth-child(3) { grid-column:1; grid-row:1; }
+  .footer svg { color:var(--gold); }
+  .footer [data-footer-columns] > section:last-child > div > a { border-color:var(--gold); }
+  .launcher :focus-visible { outline:3px solid #9d741d; outline-offset:4px; }
+}
+/* Phone-only restoration using the same shell and unchanged Support body. */
+@media(max-width:720px) {
+ .shell { --ink:#0d1b2a; --gold:#d4af37; --muted:#536174; background:#fff; color:var(--ink); font-family:var(--font-latin); font-size:16px; line-height:1.6; }
+ .shell[lang=ar] { font-family:var(--font-arabic); }
+ .shell > main[class~="page-stack-shell"] { background:#fff; }
+ .shell > main[class~="page-stack-shell"] > section { padding:32px 16px; }
+ .shell > main[class~="page-stack-shell"] > section > div { width:100%; text-align:start; }
+ .shell > main[class~="page-stack-shell"] :is(h1,h2) { font-family:inherit; color:var(--ink); font-size:30px; line-height:1.35; margin-block:12px 20px; }
+ .shell > main[class~="page-stack-shell"] p { margin-block:12px; }
+ .shell > main[class~="page-stack-shell"] > section > div > div:last-child { display:flex; flex-wrap:wrap; gap:12px; margin-block-start:24px; }
+ .shell > main[class~="page-stack-shell"] a { min-height:44px; padding:10px 16px; }
+ .shell[data-large=true] > main { zoom:1.06; }
+ .shell[data-warm=true] { background:#f8f9fa; }
+ .footer { background:#fff; color:var(--ink); }
+ .launcher :focus-visible { outline:3px solid #9d741d; outline-offset:4px; }
+}

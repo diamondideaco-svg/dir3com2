@@ -3,12 +3,16 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { FiMessageCircle, FiMic, FiMicOff, FiSend, FiX } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
 import { useDibrahSpeech } from '@/components/layout/useDibrahSpeech';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { placeDabraLauncher, type DabraDockPreference, type DabraViewport } from '@/lib/dabra/floating-layout';
+import identityStyles from './FloatingDibrahIdentity.module.css';
+
+// Optional display copy only; never sent as assistant authority or request context.
+type DesktopIdentity = { greeting: string; role: string };
 
 type DibrahAssistantContext = {
   source: 'supabase' | 'api' | 'fallback';
@@ -93,14 +97,14 @@ function detectConversationLanguage(text: string, fallback: 'ar' | 'en' = 'ar'):
   return fallback;
 }
 
-export default function FloatingDibrah() {
+export default function FloatingDibrah({ launcherIdentity, desktopIdentity }: { launcherIdentity?: ReactNode; desktopIdentity?: DesktopIdentity } = {}) {
   const { language } = useLanguage();
   // A locale is a conversation boundary. Remount atomically, including history,
   // drafts, speech callbacks, errors and request refs, even for AR -> EN -> AR.
-  return <FloatingDibrahSession key={language} language={language} />;
+  return <FloatingDibrahSession key={language} language={language} launcherIdentity={launcherIdentity} desktopIdentity={desktopIdentity} />;
 }
 
-function FloatingDibrahSession({ language }: { language: 'ar' | 'en' }) {
+function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: { language: 'ar' | 'en'; launcherIdentity?: ReactNode; desktopIdentity?: DesktopIdentity }) {
   const t = floatingCopy[language];
   const positionStorageKey = `${DIBRAH_POSITION_STORAGE_KEY}:${language}`;
   const pathname = usePathname();
@@ -171,7 +175,9 @@ function FloatingDibrahSession({ language }: { language: 'ar' | 'en' }) {
       const viewport = { left: vv?.offsetLeft ?? 0, top: vv?.offsetTop ?? 0, width: vv?.width ?? window.innerWidth, height: vv?.height ?? window.innerHeight };
       const mobilePanel = window.innerWidth < 640 ? viewport : null;
       setPanelViewport(previous => JSON.stringify(previous) === JSON.stringify(mobilePanel) ? previous : mobilePanel);
-      const obstacles = [...document.querySelectorAll<HTMLElement>('a, button, input, select, textarea, [role="button"], [role="tab"], [role="dialog"], [role="menu"], header nav, [data-cookie-banner], [data-marketplace-critical-action]')]
+      // On the narrow bookings view, preserve the empty/status copy as well as controls.
+      const mobileBookingCopy = pathname === '/my-bookings' && window.innerWidth <= 720 ? ', main p' : '';
+      const obstacles = [...document.querySelectorAll<HTMLElement>('a, button, input, select, textarea, [role="button"], [role="tab"], [role="dialog"], [role="menu"], header nav, [data-cookie-banner], [data-marketplace-critical-action], [data-dabra-avoid]' + mobileBookingCopy)]
         .filter(element => !shell.contains(element) && !element.closest('nextjs-portal') && getComputedStyle(element).visibility !== 'hidden')
         .map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
       const next = placeDabraLauncher({ language, viewport, width: launcher.offsetWidth, height: launcher.offsetHeight, obstacles, preference: dockPreferenceRef.current });
@@ -455,9 +461,10 @@ function FloatingDibrahSession({ language }: { language: 'ar' | 'en' }) {
         <div style={panelViewport ? { top: panelViewport.top, left: panelViewport.left, width: panelViewport.width, height: panelViewport.height, bottom: 'auto', right: 'auto' } : undefined} className={`dabra-panel-shell fixed inset-0 z-50 sm:inset-auto sm:bottom-5 sm:h-[min(82dvh,780px)] sm:w-[min(94vw,600px)] ${language === 'ar' ? 'sm:left-5' : 'sm:right-5'}`}>
           <div className="dabra-panel flex h-full flex-col overflow-hidden border border-[#d7bd82] bg-[#fffdf8] shadow-[0_30px_80px_rgba(13,27,42,0.34)] sm:rounded-[24px]">
             <div className="flex items-center justify-between border-b border-[#dfd4bd] bg-[#fffaf0] px-4 py-3.5 sm:px-5">
-              <div>
-                <p className="text-xs font-bold tracking-[0.2em] text-[#946b1f]">{t.assistant}</p>
-                <p className="mt-1 text-base font-bold text-[#13243a]">{t.title}</p>
+              <div className={desktopIdentity ? identityStyles.context : undefined}>
+                {desktopIdentity && <div className={identityStyles.desktop}><strong>{desktopIdentity.greeting}</strong><span>{desktopIdentity.role}</span></div>}
+                <p data-default-identity={desktopIdentity ? true : undefined} className="text-xs font-bold tracking-[0.2em] text-[#946b1f]">{t.assistant}</p>
+                <p data-default-identity={desktopIdentity ? true : undefined} className="mt-1 text-base font-bold text-[#13243a]">{t.title}</p>
                 <p className="mt-0.5 text-[11px] font-medium text-[#64748b]">{t.status}</p>
               </div>
               <button
@@ -607,14 +614,15 @@ function FloatingDibrahSession({ language }: { language: 'ar' | 'en' }) {
         className="group relative flex min-h-14 items-center gap-3 overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-[linear-gradient(150deg,#334155_0%,#163149_100%)] px-3 py-3 text-right text-[var(--color-light)] shadow-[0_26px_56px_rgba(13,27,42,0.3)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/45"
       >
         <span className="pointer-events-none absolute -right-4 top-1/2 h-12 w-12 -translate-y-1/2 rounded-full bg-[var(--color-gold)]/20 blur-2xl" />
-        <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-white/60">
+        {launcherIdentity ?? <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-white/60">
           <Image src="/brand/runtime/DABRA emoji.png" alt="DABRA avatar" fill sizes="48px" unoptimized className="object-cover" />
-        </span>
-        <span className="hidden flex-col sm:flex">
-          <span className="inline-flex items-center gap-2 text-xs text-[var(--color-gold)]">
+        </span>}
+        <span className={`hidden flex-col sm:flex${desktopIdentity ? ` ${identityStyles.context}` : ''}`}>
+          {desktopIdentity && <span className={identityStyles.desktop}><strong>{desktopIdentity.greeting}</strong><span>{desktopIdentity.role}</span></span>}
+          <span data-default-identity={desktopIdentity ? true : undefined} className="inline-flex items-center gap-2 text-xs text-[var(--color-gold)]">
             <HiSparkles /> {t.friendly}
           </span>
-          <span className="text-sm font-semibold">{t.title}</span>
+          <span data-default-identity={desktopIdentity ? true : undefined} className="text-sm font-semibold">{t.title}</span>
           <span className="text-[11px] text-[var(--color-light)]/70">{t.ask}</span>
         </span>
       </button>

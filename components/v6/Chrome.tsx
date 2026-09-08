@@ -1,0 +1,74 @@
+'use client';
+
+import { useState, type ReactNode } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { FiCalendar, FiFileText, FiHeart, FiHome, FiHelpCircle, FiLogOut, FiMenu, FiSettings, FiX, FiCreditCard } from 'react-icons/fi';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { getCustomerRoleLabel } from '@/lib/i18n/customer-hub';
+import type { SessionRole } from '@/lib/auth/identity-contract';
+import { supabase } from '@/lib/supabase/client';
+import styles from './v6.module.css';
+import { DabraCompact } from './DabraIdentity';
+import { CustomerHeader, CustomerFooter } from './CustomerChrome';
+
+const FloatingDibrah = dynamic(() => import('@/components/layout/FloatingDibrah'), { ssr: false });
+
+export type Viewer = { id: string; name: string; role: SessionRole | null; roleRaw: string | null; avatar: string | null; joined: string | null };
+
+export function Chrome({ children, viewer, variant = 'light', scene = false, footerInContent = false }: { children: ReactNode; viewer?: Viewer; variant?: 'light' | 'navy'; scene?: boolean; footerInContent?: boolean }) {
+  const { language, direction } = useLanguage();
+  const ar = language === 'ar';
+  const path = usePathname();
+  const [large, setLarge] = useState(false);
+  const [warm, setWarm] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [logoutError, setLogoutError] = useState(false);
+  const links = [
+    ['/my-account', 'لوحة الحساب', 'My account', FiHome], ['/my-bookings', 'حجوزاتي', 'My bookings', FiCalendar],
+    ['/my-wallet', 'محفظة السفر', 'Travel wallet', FiCreditCard], ['/my-documents', 'مستنداتي', 'My documents', FiFileText],
+    ['/favorites', 'المفضلة', 'Favorites', FiHeart], ['/my-profile', 'إعدادات الحساب', 'Account settings', FiSettings],
+    ['/support', 'المساعدة والدعم', 'Help and support', FiHelpCircle],
+  ] as const;
+  async function logout() {
+    setLogoutError(false);
+    const { error } = await supabase.auth.signOut();
+    if (error) { setLogoutError(true); return; }
+    window.location.assign('/login');
+  }
+  return <div className={styles.root} data-theme={variant} data-large={large} data-warm={warm} lang={language} dir={direction}>
+    <a href="#v6-content" className={styles.skip}>{ar ? 'انتقل إلى المحتوى' : 'Skip to content'}</a>
+    <CustomerHeader large={large} appearance={warm} onLarge={() => setLarge(!large)} onAppearance={() => setWarm(!warm)}
+      menu={viewer && <button type="button" className={styles.menuButton} aria-expanded={menu} aria-controls="account-navigation" aria-label={ar ? 'قائمة الحساب' : 'Account menu'} onClick={() => setMenu(!menu)}>{menu ? <FiX /> : <FiMenu />}</button>} />
+    {viewer && <Link href="/my-profile" className={styles.mobileIdentity}><span className={styles.initials} aria-hidden="true">{viewer.name.slice(0, 2)}</span><span><strong>{viewer.name}</strong><small>{getCustomerRoleLabel(viewer.role, viewer.roleRaw, language)}</small></span></Link>}
+    <div className={scene ? styles.footerScene : undefined} data-footer-scene={scene || undefined}>
+    <div className={viewer ? styles.portal : undefined}>
+      {viewer && <aside id="account-navigation" className={styles.sidebar} data-open={menu}>
+        <div className={styles.identity}>
+          {viewer.avatar && /^https:\/\//.test(viewer.avatar) ? <Image src={viewer.avatar} alt="" width={64} height={64} unoptimized referrerPolicy="no-referrer" /> : <span className={styles.initials} aria-hidden="true">{viewer.name.slice(0, 2)}</span>}
+          <strong>{viewer.name}</strong>
+          <span>{getCustomerRoleLabel(viewer.role, viewer.roleRaw, language)}</span>
+        </div>
+        <nav aria-label={ar ? 'التنقل في الحساب' : 'Account navigation'}>{links.map(([href, arabic, english, Icon]) => <Link key={href} href={href} aria-current={path === href ? 'page' : undefined} onClick={() => setMenu(false)}><Icon />{ar ? arabic : english}</Link>)}
+          <button type="button" onClick={logout}><FiLogOut />{ar ? 'تسجيل الخروج' : 'Log out'}</button>
+        </nav>
+        {logoutError && <p role="alert">{ar ? 'تعذّر تسجيل الخروج. حاول مرة أخرى.' : 'Could not sign out. Try again.'}</p>}
+      </aside>}
+      <main id="v6-content" className={viewer ? styles.content : undefined}>{children}</main>
+    </div>
+    {!footerInContent && <CustomerFooter surface={scene ? 'image' : 'white'} />}
+    </div>
+    {viewer && path !== '/my-account' && <div className={styles.customerLauncher}><FloatingDibrah launcherIdentity={<DabraCompact artwork={path === '/my-documents' ? 'mall-center' : 'customer-service'} desktopArtwork={path === '/my-documents' ? 'customer-service' : undefined} />} desktopIdentity={(path === '/my-bookings' ? { greeting: ar ? 'مرحبًا، أنا الدبرة' : "Hi, I'm DABRA", role: ar ? 'الكونسيرج' : 'Concierge' } : undefined) ?? (path === '/my-wallet' ? { greeting: ar ? 'مرحبًا، أنا الدبرة' : "Hi, I'm DABRA", role: ar ? 'خدمة العملاء' : 'Customer Service' } : undefined) ?? (path === '/my-documents' ? { greeting: ar ? 'مرحبًا، أنا الدبرة' : "Hi, I'm DABRA", role: ar ? 'خدمة العملاء' : 'Customer Service' } : undefined) ?? (path === '/favorites' ? { greeting: ar ? 'مرحبًا، أنا الدبرة' : "Hi, I'm DABRA", role: ar ? 'الكونسيرج' : 'Concierge' } : undefined) ?? (path === '/my-profile' ? { greeting: ar ? 'مرحبًا، أنا الدبرة' : "Hi, I'm DABRA", role: ar ? 'خدمة العملاء' : 'Customer Service' } : undefined)} /></div>}
+  </div>;
+}
+
+export function PageHeading({ title, subtitle, icon }: { title: string; subtitle?: string; icon?: ReactNode }) {
+  return <div className={styles.pageHeading}><div><h1>{icon}{title}</h1>{subtitle && <p>{subtitle}</p>}</div></div>;
+}
+
+export function LoadError() {
+  const { language } = useLanguage();
+  return <div className={styles.empty} role="alert"><p>{language === 'ar' ? 'تعذّر تحميل البيانات. حاول مرة أخرى.' : 'Could not load your data. Please try again.'}</p><button type="button" className={styles.secondary} onClick={() => window.location.reload()}>{language === 'ar' ? 'إعادة المحاولة' : 'Retry'}</button></div>;
+}

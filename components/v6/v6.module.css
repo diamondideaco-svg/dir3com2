@@ -1,0 +1,561 @@
+.root { --ink:#0d1b2a; --gold:#d4af37; --muted:#536174; min-height:100vh; background:#fff; color:var(--ink); font-family:var(--font-latin); font-size:16px; line-height:1.6; }
+.root[lang=ar] { font-family:var(--font-arabic); }
+.root[data-warm=true] { background:#f8f9fa; }
+.root[data-large=true] { font-size:19px; }
+.root * { box-sizing:border-box; }
+.root input,.root button,.root select { font:inherit; }
+.root button,.root a { -webkit-tap-highlight-color:transparent; }
+.root button:not(:disabled),.root a { cursor:pointer; }
+.root button:disabled { cursor:default; }
+.root a,.root button { text-decoration:none; }
+.root :focus-visible { outline:3px solid #9d741d; outline-offset:4px; }
+.root h1,.root h2,.root h3,.root p { margin:0; color:inherit; font-family:inherit; }
+.root h1 { font-size:36px; font-weight:700; line-height:1.3; }
+.root h2 { font-size:23px; font-weight:700; }
+.root h3 { font-size:19px; font-weight:650; }
+.root small { font-size:14px; }
+.skip { position:fixed; inset-block-start:-100px; inset-inline-start:16px; z-index:100; padding:12px; background:#fff; }
+.skip:focus { inset-block-start:12px; }
+.header { min-height:88px; padding:12px 32px; display:flex; align-items:center; justify-content:space-between; gap:24px; border-bottom:1px solid #e4e1da; background:#fff; }
+.header img { width:172px; height:auto; }
+.tools { display:flex; align-items:center; flex-wrap:wrap; gap:16px; }
+.tools button { min-width:40px; min-height:40px; border:0; border-radius:8px; background:transparent; color:var(--ink); display:grid; place-items:center; }
+.tools button[aria-pressed=true] { border-bottom:2px solid #b88925; }
+.tools svg { font-size:23px; }
+.homeLink,.secondary,.primary { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-height:44px; padding:8px 24px; border:1px solid #b78b38; border-radius:10px; background:#fff; color:var(--ink); }
+.primary { background:#d4af37; border-color:#c29828; color:#0d1b2a; font-weight:700; }
+.portal { display:grid; grid-template-columns:250px minmax(0,1fr); }
+.sidebar { padding:24px 16px; border-inline-end:1px solid #e2dfd8; background:#fff; }
+.identity { display:flex; flex-direction:column; align-items:center; gap:8px; margin-block-end:24px; text-align:center; }
+.identity img,.initials { border-radius:50%; width:72px; height:72px; object-fit:cover; }
+.initials { display:grid; place-items:center; color:#0d1b2a; background:#f8f9fa; border:1px solid #b98b2b; font-size:24px; }
+.identity span:last-child { color:#80601a; font-size:14px; }
+.sidebar nav { display:grid; gap:8px; }
+.sidebar nav a,.sidebar nav button { min-height:48px; padding:10px 12px; display:flex; align-items:center; gap:16px; border:0; border-radius:8px; background:transparent; color:inherit; text-align:start; }
+.sidebar nav svg { flex-shrink:0; font-size:22px; }
+.sidebar [aria-current=page] { background:#f8f9fa; color:#88601c; border-inline-start:3px solid #bc8627; }
+.assistant { margin-block-start:32px; padding:24px 16px; border:1px solid #d2b878; border-radius:14px; text-align:center; background:#fff; color:#0d1b2a; }
+.assistant p { margin-block:16px; }
+.assistant a { display:inline-block; color:#6a4b12; }
+.content { min-width:0; padding:32px; }
+.pageHeading { display:flex; gap:24px; align-items:center; justify-content:space-between; margin-block-end:32px; }
+.pageHeading h1 { display:flex; align-items:center; gap:16px; }
+.pageHeading svg { color:#aa7923; }
+.pageHeading p { margin-block-start:8px; color:var(--muted); }
+.footer { padding:24px 32px; display:flex; justify-content:space-between; align-items:center; gap:24px; flex-wrap:wrap; border-top:1px solid #e4e1da; background:#fff; }
+.footer img { width:130px; height:auto; }
+.footer nav { display:flex; flex-wrap:wrap; gap:24px; align-items:center; }
+.footer a { display:inline-flex; align-items:center; gap:8px; }
+/* Customer chrome is light in both variants. Navy belongs to focal panels only. */
+.sidebar { background:#fff; }
+.content { background:#f8f9fa; }
+.footer { background:#fff; }
+.card { box-shadow:0 4px 18px #0d1b2a06; }
+.toolbar,.tabs { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-block-end:24px; }
+.toolbar input,.toolbar select,.field input { min-width:0; border:1px solid #d4d5d8; border-radius:8px; min-height:44px; padding:10px 16px; background:#fff; color:#0d1b2a; }
+.toolbar label { display:grid; gap:4px; }
+.tabs button { padding:12px 24px; border:0; border-bottom:3px solid transparent; background:transparent; }
+.tabs button[aria-pressed=true] { border-bottom-color:#b68124; font-weight:700; }
+.grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
+.card { border:1px solid #e2dfd8; border-radius:16px; padding:24px; background:#fff; min-width:0; }
+.card p { margin-block:12px; }
+.card a { display:inline-flex; align-items:center; gap:8px; }
+.cardIcon { font-size:48px; color:#b4872a; margin-block:24px; }
+.empty { padding:48px 24px; text-align:center; border:1px solid #e4e1da; border-radius:16px; background:#fff; }
+.empty p { margin-block-end:16px; }
+.list { display:grid; gap:16px; }
+.booking { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:32px; padding:24px; border:1px solid #dfdfe2; border-radius:12px; background:#fff; align-items:center; }
+.booking p { margin-block:8px; }
+.booking small { color:var(--muted); }
+.bookingActions { display:grid; gap:16px; min-width:155px; padding-inline-start:24px; border-inline-start:1px solid #e4e1da; }
+.badge { display:inline-block; padding:6px 16px; border-radius:8px; background:#f8f9fa; border:1px solid #b98b2b; color:#6a4c15; font-size:14px; }
+.badge[data-confirmed=true] { background:#e6f4e9; color:#216632; }
+.accountHero { aspect-ratio:1200/280; border-radius:12px; margin-block-end:24px; background:url('/brand/v6/account-reference.png') left 8.57%/128% auto; }
+.accountDashboard { display:grid; gap:20px; }
+.accountServiceDesktopIcon { display:none; }
+/* CEO My Account desktop round: preserve body/data and all mobile rules. */
+@media(min-width:721px) {
+  .accountDashboard .familyGrid .accountServiceMobileIcon { display:none; }
+  .accountDashboard .familyGrid .accountServiceDesktopIcon { display:block; color:var(--gold); }
+  .root:has(.accountDashboard) .sidebar [aria-current=page] { background:var(--gold); color:var(--ink); border-inline-start-color:var(--gold); font-weight:700; }
+  .accountDashboard > :is(.card,.dabraIntroduction,.requestSummary) { margin-block-start:8px; }
+  .accountDashboard .dabraIntroduction { grid-template-columns:96px minmax(0,1fr); gap:20px; padding:16px 20px; border-color:#d4af3738; background:#fff; box-shadow:none; }
+  .accountDashboard .dabraSupportPortrait { display:block; position:relative; width:96px; height:96px; overflow:hidden; border-radius:50%; }
+  .accountDashboard .dabraSupportPortrait > img { position:absolute; width:280px; height:280px; max-width:none; left:-108px; top:-12px; border-radius:0; }
+  .accountDashboard .dabraIntroduction > div { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:20px; row-gap:4px; }
+  .accountDashboard .dabraIntroduction h2 { grid-column:1; grid-row:1; font-size:22px; }
+  .accountDashboard .dabraIntroduction strong { grid-column:1; grid-row:2; color:var(--muted); font-size:14px; }
+  .accountDashboard .dabraIntroduction p { display:none; }
+  .accountDashboard .dabraIntroduction a { grid-column:2; grid-row:1/3; min-height:44px; }
+  .accountDashboard .requestSummary:not(:has(a)) > div { padding:16px 20px; }
+  .accountDashboard .requestSummary:not(:has(a)) p { margin-top:6px; }
+  .accountDashboard > .card:last-child { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:6px 24px; padding:16px 20px; }
+  .accountDashboard > .card:last-child h2 { grid-column:1; grid-row:1; }
+  .accountDashboard > .card:last-child p { grid-column:1; grid-row:2; margin:0; }
+  .accountDashboard > .card:last-child a { grid-column:2; grid-row:1/3; }
+  .accountDashboard .accountIdentity { align-items:baseline; gap:8px 0; padding-block:12px; border-top:1px solid #e4e7eb; color:var(--ink); font-size:13px; }
+  .accountDashboard .accountIdentity > * { padding-inline:16px; }
+  .accountDashboard .accountIdentity > :first-child { padding-inline-start:0; }
+  .accountDashboard .accountIdentity > * + * { border-inline-start:1px solid #d8dde3; }
+  .accountDashboard .accountIdentity small { font-size:inherit; }
+  .root:has(.accountDashboard) footer[data-footer-surface=white] { background:#fff; color:var(--ink); }
+  .root:has(.accountDashboard) footer[data-footer-surface=white] svg { color:var(--gold); }
+  .root:has(.accountDashboard) footer[data-footer-surface=white] [data-footer-columns] > section:last-child > div > a { border-color:var(--gold); }
+}
+@media(min-width:1051px) {
+  .root:has(.accountDashboard) [data-footer-columns] { grid-template-columns:minmax(260px,1.4fr) minmax(0,1fr) minmax(0,1fr); }
+  .root:has(.accountDashboard) [data-footer-columns] > section:nth-child(1) { grid-column:3; grid-row:1; }
+  .root:has(.accountDashboard) [data-footer-columns] > section:nth-child(2) { grid-column:2; grid-row:1; }
+  .root:has(.accountDashboard) [data-footer-columns] > section:nth-child(3) { grid-column:1; grid-row:1; }
+}
+.accountDashboard .accountHero { margin: -32px -32px 0; border-radius:0; }
+.accountIdentity { display:flex; flex-wrap:wrap; align-items:center; gap:8px 24px; font-size:14px; }
+.accountCards { margin-block-start:-42px; position:relative; }
+.accountCards .card { display:flex; flex-direction:column; background:#ffffffed; box-shadow:0 8px 24px #0d1b2a14; }
+.accountCards h2 { display:flex; align-items:center; gap:12px; font-size:21px; }
+.accountCards h2 svg { flex-shrink:0; }
+.accountCards .card > a { border-top:1px solid #e3ded5; padding-top:12px; justify-content:center; }
+.summaryBody { min-height:180px; flex:1; padding-block:16px; }
+.accountSummaryEmptyIcon, .accountSummarySupportingIcon { display:none; }
+.accountSummaryDesktopStatus { display:none; }
+@media(min-width:1051px) {
+  .accountCards .accountSummaryMobileStatus { display:none; }
+  .accountCards .accountSummaryDesktopStatus { display:inline; }
+  .accountCards .accountSummaryMobileIcon, .accountCards .cardIcon { display:none; }
+  .accountCards .accountSummaryEmptyIcon { display:block; width:44px; height:44px; color:var(--gold); margin-block:4px 16px; }
+  .accountCards .accountSummarySupportingIcon { display:block; width:21px; height:21px; color:var(--gold); }
+}
+.summaryRow { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding:8px 0; border-bottom:1px solid #eee; }
+.summaryRow small { flex-basis:100%; }
+.accountIdentity { order:2; }
+.requestSummary { min-width:0; }
+.requestSummary > div { padding:24px; margin:0; border:1px solid #e2dfd8; border-radius:16px; background:#fff; }
+.requestSummary h2 { font-size:21px; line-height:1.5; overflow-wrap:anywhere; }
+.requestSummary p { margin-top:12px; }
+.bookingsEmptyIcon { display:none; }
+/* CEO My Bookings desktop round: route-contained presentation only. */
+@media(min-width:1051px) {
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .bookingsEmptyIcon { display:block; width:40px; height:40px; margin:0 auto 12px; color:var(--gold); stroke-width:1.75; }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .sidebar [aria-current=page] { background:var(--gold); color:var(--ink); border-inline-start-color:var(--gold); font-weight:700; }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .pageHeading { margin-block-end:24px; }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .pageHeading svg { color:var(--gold); }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .tabs { margin-block-end:20px; }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .tabs button[aria-pressed=true] { border-bottom-color:var(--gold); }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .toolbar { margin-block-end:20px; }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .toolbar label { width:min(100%,420px); }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .content > .empty { padding:28px 24px; border-color:#e4e7eb; box-shadow:0 4px 18px #0d1b2a06; }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .requestSummary { margin-block-start:24px; }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .requestSummary > div { border-color:#e4e7eb; }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .requestSummary:not(:has(a)) > div { padding:12px 20px; }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) .requestSummary:not(:has(a)) p { margin-top:6px; }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) footer[data-footer-surface=white] { background:#fff; color:var(--ink); }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) footer[data-footer-surface=white] svg { color:var(--gold); }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) footer[data-footer-surface=white] [data-footer-columns] > section:last-child > div > a { border-color:var(--gold); }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) [data-footer-columns] { grid-template-columns:minmax(260px,1.4fr) minmax(0,1fr) minmax(0,1fr); }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) [data-footer-columns] > section:nth-child(1) { grid-column:3; grid-row:1; }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) [data-footer-columns] > section:nth-child(2) { grid-column:2; grid-row:1; }
+  .root:has(.sidebar a[href="/my-bookings"][aria-current=page]) [data-footer-columns] > section:nth-child(3) { grid-column:1; grid-row:1; }
+}
+/* End My Bookings desktop round. */
+/* CEO Travel Wallet desktop round: route-contained palette only. */
+@media(min-width:1051px) {
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .sidebar [aria-current=page] { background:var(--gold); color:var(--ink); border-color:var(--gold); font-weight:700; }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .pageHeading > svg { color:var(--gold); }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .walletHero { box-shadow:0 4px 18px #0d1b2a08; }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .balance { background:#fff; color:var(--ink); }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .walletQuote { color:var(--ink) !important; }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .balanceToggle { color:#88601c; }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .balanceRows > div { background:#f8f9fa; border-color:#e2e6eb; border-inline-start:2px solid var(--gold); }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .walletActions { background:#fff; border-color:#e2e6eb; gap:12px; }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .walletActions > button,
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .walletActions > a { padding:12px 8px; border-radius:12px; background:#f8f9fa; }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .walletActions svg { border-radius:12px; color:#88601c; stroke-width:1.75; }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .twoColumns > .card { border-color:#e2e6eb; box-shadow:0 4px 16px #0d1b2a04; }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .walletDestinations a { border-color:#e2e6eb; box-shadow:0 4px 16px #0d1b2a04; }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .walletDestinations svg { width:56px; height:56px; padding:12px; color:#88601c; stroke-width:1.75; background:#f8f9fa; border-color:#d4af37; }
+}
+/* End Travel Wallet desktop round. */
+.walletDesktopIcon { display:none; }
+/* Wallet final desktop icons and compact launcher; mobile stays unchanged. */
+@media(min-width:1051px) {
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .walletMobileIcon { display:none; }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .walletActions .walletDesktopIcon,
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) .walletDestinations .walletDesktopIcon { display:block; width:56px; height:56px; padding:14px; color:var(--gold); stroke-width:1.75; }
+}
+/* End Wallet final desktop icons and compact launcher. */
+/* Wallet desktop: reuse the approved internal white footer master. */
+@media(min-width:1051px) {
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) footer[data-footer-surface=white] { background:#fff; color:var(--ink); }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) footer[data-footer-surface=white] svg { color:var(--gold); }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) footer[data-footer-surface=white] [data-footer-columns] > section:last-child > div > a { border-color:var(--gold); }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) [data-footer-columns] { grid-template-columns:minmax(260px,1.4fr) minmax(0,1fr) minmax(0,1fr); }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) [data-footer-columns] > section:nth-child(1) { grid-column:3; grid-row:1; }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) [data-footer-columns] > section:nth-child(2) { grid-column:2; grid-row:1; }
+  .root:has(.sidebar a[href="/my-wallet"][aria-current=page]) [data-footer-columns] > section:nth-child(3) { grid-column:1; grid-row:1; }
+}
+/* End Wallet desktop footer master. */
+.walletQuote { color:#e7cd84 !important; font-size:24px; }
+.spendingSummary { display:flex; align-items:center; gap:24px; flex-wrap:wrap; }
+.spendingRing { width:160px; height:160px; border:20px solid #f0f1f2; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.spendingRing strong { max-width:100%; overflow-wrap:anywhere; }
+.walletDestinations { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:16px; margin-top:24px; }
+.walletDestinations a { display:grid; justify-items:center; gap:16px; padding:24px 12px; border:1px solid #e0d2b4; border-radius:16px; background:#fff; text-align:center; box-shadow:0 4px 16px #0d1b2a06; }
+.walletDestinations svg { width:72px; height:72px; padding:16px; color:#88601c; background:#f8f9fa; border:1px solid #e0d2b4; border-radius:12px; }
+@media(max-width:1000px) { .accountDashboard .accountHero { margin:-24px -24px 0; } .accountCards { margin-top:0; } .summaryBody { min-height:120px; } }
+@media(max-width:720px) { .accountDashboard .accountHero { margin:-24px -16px 0; height:180px; aspect-ratio:auto; min-width:0; background-size:auto 660px; background-position:left 8.57%; } .walletDestinations { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.familyGrid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:16px; margin-block:24px; }
+.familyGrid a { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; min-height:100px; border:1px solid #ddd9ce; border-radius:12px; background:#fff; }
+.familyGrid svg { font-size:28px; color:#a57523; }
+.categoryGrid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:16px; margin-block-end:32px; }
+.categoryGrid button { padding:20px 12px; border:1px solid #e1dfda; border-radius:14px; background:#fff; display:grid; justify-items:center; gap:12px; }
+.categoryGrid button[aria-pressed=true] { border-bottom:3px solid #b98729; background:#f8f9fa; }
+.categoryGrid svg { font-size:28px; color:#88601c; }
+.tableWrap { overflow-x:auto; border:1px solid #e3e0da; border-radius:12px; }
+.table { width:100%; border-collapse:collapse; text-align:start; }
+.table th,.table td { padding:16px; border-bottom:1px solid #eee; text-align:start; }
+.table th { font-weight:500; color:var(--muted); }
+.table td { overflow-wrap:anywhere; }
+.walletHero { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); min-height:350px; background:#0d1b2a; border-radius:16px; overflow:hidden; color:#fff; }
+.walletArt { min-height:350px; aspect-ratio:440/540; background:url('/brand/v6/wallet-reference.png') 35.04% 9.04%/327.05% auto; }
+.balance { padding:32px; display:grid; align-content:center; gap:20px; }
+.balance strong { font-size:36px; }
+.balanceToggle { display:inline-flex; border:0; padding:8px; background:transparent; color:#e1c46e; min-width:44px; min-height:44px; align-items:center; justify-content:center; }
+.balanceRows { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.balanceRows div { padding:16px; border:1px solid #a78a43; border-radius:12px; }
+.walletActions { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; margin-block:24px; padding:16px; border:1px solid #e0dbcf; border-radius:16px; }
+.walletActions button,.walletActions a { border:0; background:transparent; display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center; color:#0d1b2a; }
+.walletActions svg { width:56px; height:56px; background:#fff; padding:14px; border:1px solid #d4af37; border-radius:50%; color:#88601c; }
+.twoColumns { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.amount { direction:ltr; unicode-bidi:isolate; }
+.authStage { background:linear-gradient(180deg,rgba(13,27,42,.24),rgba(13,27,42,.04) 40%,rgba(13,27,42,.78)),url('/brand/runtime/dir3com-login-background-approved.png') center/cover; padding:64px max(32px,6vw) 24px; display:grid; grid-template-columns:minmax(0,440px) minmax(0,1fr); grid-template-rows:1fr auto auto; gap:24px 9vw; align-items:center; min-height:max(900px,calc(100svh - 95px)); }
+.authStage > .authPanel { grid-column:1; grid-row:1/3; align-self:start; }
+.authStage > .authHero { grid-column:2; grid-row:1; }
+.verifyFooter { display:contents; }
+.verifyFooter > [data-footer-columns] { grid-column:2; grid-row:2; align-self:end; }
+.verifyFooter > [data-footer-copyright] { grid-column:1/-1; grid-row:3; margin:0; padding-top:10px; }
+/* Local CEO desktop sample: retain the existing scene's lower terrace only.
+   No asset edit; the skyline above the bottom 29.4% is outside the crop. */
+@media(min-width:721px) {
+  .authStage { direction:rtl; background-image:linear-gradient(180deg,rgba(13,27,42,.66),rgba(13,27,42,.78)),url('/brand/runtime/dir3com-login-background-approved.png'); background-size:auto,auto 340%; background-position:center,center bottom; background-repeat:no-repeat; }
+  .root[dir=ltr] .authStage > :is(.authPanel,.authHero) { direction:ltr; }
+  .root[dir=rtl] .authStage > :is(.authPanel,.authHero) { direction:rtl; }
+  .authStage .authHero :is(h2,p) { color:#fff; text-shadow:0 2px 3px #0d1b2acc,0 0 1px #0d1b2a; }
+}
+@media(min-width:1051px) {
+  .authStage [data-footer-columns] { grid-template-columns:minmax(260px,1.4fr) minmax(0,1fr) minmax(0,1fr); }
+  .authStage [data-footer-columns] > section:nth-child(1) { grid-column:3; grid-row:1; }
+  .authStage [data-footer-columns] > section:nth-child(2) { grid-column:2; grid-row:1; }
+  .authStage [data-footer-columns] > section:nth-child(3) { grid-column:1; grid-row:1; }
+}
+.footerScene { background:linear-gradient(180deg,rgba(13,27,42,.24),rgba(13,27,42,.66) 30%,rgba(13,27,42,.78)),url('/brand/runtime/dir3com-login-background-approved.png') center/cover no-repeat; }
+.footerScene .welcome { background:none; }
+/* Next-page local sample: carry the approved desktop scene/footer treatment
+   into Login Success only; retain the welcome card and all mobile rules. */
+@media(min-width:721px) {
+  /* Extend only the approved airport floor behind the transparent footer.
+     The welcome panel retains its own unchanged, full-scene rendering. */
+  .footerScene:has(.welcome) { background-image:url('/brand/runtime/login-success-ceo-en.png'); background-size:100% 6000%; background-position:center bottom; background-repeat:no-repeat; }
+  .root[dir=rtl] .footerScene:has(.welcome) { background-image:url('/brand/runtime/login-success-ceo-ar.png'); }
+  .footerScene:has(.welcome) > footer[data-footer-surface=image] { position:relative; isolation:isolate; }
+  .footerScene:has(.welcome) > footer[data-footer-surface=image]::before { content:''; position:absolute; inset:0; z-index:-1; pointer-events:none; background:linear-gradient(180deg,transparent,rgba(13,27,42,.24) 18%,rgba(13,27,42,.32)); }
+  .footerScene:has(.welcome) > footer[data-footer-surface=image] :is(h2,p,a) { color:#fff; text-shadow:0 1px 3px rgba(13,27,42,.55); }
+  .footerScene:has(.welcome) > footer[data-footer-surface=image] svg { color:var(--gold); filter:drop-shadow(0 1px 1px rgba(13,27,42,.3)); }
+  .footerScene:has(.welcome) > footer[data-footer-surface=image] [data-footer-columns] > section:last-child > div > a { border-color:var(--gold); }
+}
+@media(min-width:1051px) {
+  /* CEO-supplied scene-only artwork: one undistorted scene through the footer. */
+  .root .footerScene:has(.welcome),
+  .root[dir=rtl] .footerScene:has(.welcome) { background:url('/brand/runtime/login-success-luxury-lounge-ceo.png') center/cover no-repeat; }
+  .footerScene:has(.welcome) > footer[data-footer-surface=image] { background:transparent; backdrop-filter:none; }
+  .footerScene:has(.welcome) > footer[data-footer-surface=image]::before,
+  .footerScene:has(.welcome) > footer[data-footer-surface=image]::after { content:none; display:none; background:none; backdrop-filter:none; }
+  .footerScene:has(.welcome) > footer[data-footer-surface=image] :is(h2,p,a) { color:var(--ink); text-shadow:none; }
+  .footerScene:has(.welcome) [data-footer-columns] { grid-template-columns:minmax(260px,1.4fr) minmax(0,1fr) minmax(0,1fr); }
+  .footerScene:has(.welcome) [data-footer-columns] > section:nth-child(1) { grid-column:3; grid-row:1; }
+  .footerScene:has(.welcome) [data-footer-columns] > section:nth-child(2) { grid-column:2; grid-row:1; }
+  .footerScene:has(.welcome) [data-footer-columns] > section:nth-child(3) { grid-column:1; grid-row:1; }
+}
+/* Login is CURRENT ONLINE BODY LOCK. Desktop-only shell presentation:
+   keep the existing form DOM/auth and the mobile scene/footer unchanged. */
+@media(min-width:1051px) {
+  .root:has(input[id=login-email]) > div:has(main) {
+    background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(13,27,42,.12) 45%,rgba(13,27,42,.68)),url('/brand/runtime/golden_hour_over_the_rugged_desert_canyon.png') center/cover no-repeat;
+    /* Preserve the approved canyon's proportions and sunset focal point in both locales. */
+    background-position:center,right center;
+  }
+  .root:has(input[id=login-email]) main > div[lang] {
+    background:transparent !important;
+    min-height:640px !important;
+    padding:48px 20px !important;
+  }
+  .root:has(input[id=login-email]) main :is(button,input) { font-family:inherit; }
+  .root:has(input[id=login-email]) main :focus-visible { outline:3px solid #88601c; outline-offset:3px; }
+  .root:has(input[id=login-email]) main a[href='/register'] { color:#88601c !important; }
+  .root:has(input[id=login-email]) footer[data-customer-footer] { background:transparent; border:0; color:#fff; }
+  .root:has(input[id=login-email]) footer[data-customer-footer] :is(h2,p,a) { color:#fff; text-shadow:0 1px 3px rgba(13,27,42,.55); }
+  .root:has(input[id=login-email]) footer[data-customer-footer] svg { color:var(--gold); }
+  .root:has(input[id=login-email]) footer[data-customer-footer] [data-footer-columns] > section:last-child > div > a { border-color:var(--gold); }
+  .root:has(input[id=login-email]) footer[data-customer-footer] [data-footer-copyright] { border-color:#ffffff59; }
+  .root:has(input[id=login-email]) footer[data-customer-footer] :focus-visible { outline-color:#fff; }
+  .root:has(input[id=login-email]) [data-footer-columns] { grid-template-columns:minmax(260px,1.4fr) minmax(0,1fr) minmax(0,1fr); }
+  .root:has(input[id=login-email]) [data-footer-columns] > section:nth-child(1) { grid-column:3; grid-row:1; }
+  .root:has(input[id=login-email]) [data-footer-columns] > section:nth-child(2) { grid-column:2; grid-row:1; }
+  .root:has(input[id=login-email]) [data-footer-columns] > section:nth-child(3) { grid-column:1; grid-row:1; }
+}
+.authPanel { padding:40px 32px; border:1px solid #e1d9cb; border-radius:20px; background:rgba(255,255,255,.95); text-align:center; }
+.authPanel h1 { font-size:26px; margin-block:16px; color:#88601c; }
+.authPanel p { margin-block:16px; }
+.mailIcon { font-size:76px; margin:auto; color:#b4872a; }
+.authHero h2 { font-size:42px; line-height:1.5; }
+.authHero p { margin-block-start:24px; font-size:20px; }
+.authFooter { display:grid; grid-template-columns:1.2fr repeat(4,1fr); gap:32px; padding:32px; background:#fff; border-top:1px solid #e2d9c7; }
+.authFooter section { display:flex; flex-direction:column; gap:12px; min-width:0; }
+.authFooter h2 { font-size:17px; }
+.authFooter img { max-width:100%; height:auto; }
+.authFooter a { overflow-wrap:anywhere; }
+@media(max-width:1000px) { .authFooter { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:720px) { .authFooter { grid-template-columns:repeat(2,minmax(0,1fr)); padding:24px 16px; gap:24px; } .authFooter > a { grid-column:1/-1; } .authFooter img { width:160px; } }
+.field { display:grid; gap:8px; text-align:start; margin-block:16px; }
+.code { display:flex; gap:8px; direction:ltr; margin-block:24px; }
+.code input { width:calc((100% - 40px)/6); min-width:0; height:48px; border:1px solid #c5c5c8; background:#fff; border-radius:8px; text-align:center; font-size:22px; }
+.authPanel .primary,.authPanel .secondary { width:100%; margin-block:8px; }
+.textButton { color:#6a4b12; border:0; background:transparent; padding:8px; }
+.error { color:#9b2525 !important; padding:12px; background:#fff0ef; border-radius:8px; }
+.welcome { position:relative; min-height:650px; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:1fr auto; gap:0; align-items:center; background:url('/brand/runtime/dir3com-login-background-approved.png') center/cover; overflow:hidden; }
+.welcomeCopy { padding:48px 32px 24px; text-align:center; width:min(680px,100%); justify-self:center; background:#ffffffed; align-self:end; }
+.welcome h1 { font-size:clamp(36px,3.5vw,56px); color:#88601c; }
+.welcome h2 { color:#0d1b2a; font-size:clamp(24px,2.5vw,32px); margin-block:20px; }
+.welcome p { font-size:20px; margin-block:12px; }
+.welcome .welcomeSignature { color:#88601c; font-size:18px; width:fit-content; margin-inline-start:auto; border-bottom:1px solid #b98b2b; padding-inline:8px; transform:rotate(-4deg); }
+.welcomeActions { grid-column:1; display:flex; justify-content:center; gap:16px; flex-wrap:wrap; padding:16px 32px 40px; width:min(680px,100%); justify-self:center; background:#ffffffed; align-self:start; margin-bottom:48px; }
+.welcomeArt { grid-row:1/3; position:relative; width:100%; aspect-ratio:832/606; align-self:end; overflow:hidden; mask-image:linear-gradient(to right,transparent,#000 12%); }
+.root[dir=ltr] .welcomeArt { mask-image:linear-gradient(to left,transparent,#000 12%); }
+.welcomeArt img { position:absolute; height:155.3%; width:200.96%; max-width:none; top:-15.51%; right:0; }
+.menuButton { display:none !important; }
+.documentsHeading { display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:center; margin-bottom:32px; }
+.securityBanner { padding:16px 24px; min-height:120px; border:1px solid #e5d9bd; border-radius:14px; color:#0d1b2a; background:#fff; display:flex; align-items:center; gap:24px; box-shadow:0 4px 18px #0d1b2a06; }
+.securityBanner svg { font-size:68px; color:#e1b840; flex-shrink:0; }
+.documentActions { display:flex; gap:12px; }
+.documentActions a,.closeDialog { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; border:1px solid #dbd3c2; border-radius:8px; background:white; }
+.uploadDialog { color:#0d1b2a; padding:32px; border:1px solid #caa249; border-radius:16px; max-width:520px; width:calc(100% - 32px); max-height:90dvh; overflow:auto; margin:auto; background:white; }
+.uploadDialog::backdrop { background:#061327aa; }
+.uploadDialog select { min-height:44px; padding:8px; border:1px solid #ccc; border-radius:8px; }
+.uploadDialog input { max-width:100%; width:100%; }
+.closeDialog { float:inline-end; }
+.favoritesGrid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.favorite { border:1px solid #dedbd5; border-radius:14px; overflow:hidden; min-width:0; }
+.favorite > img { width:100%; height:190px; object-fit:cover; }
+.favorite > div:last-child { padding:16px; }
+.favorite p { margin-block:12px; }
+.favoriteImage { min-height:190px; background:#f8f9fa; display:grid; place-items:center; font-size:48px; color:#b88620; }
+.removeFavorite { min-width:44px; min-height:44px; margin-inline-start:8px; border:1px solid #d5c4b0; border-radius:8px; color:#a52f2f; background:#fff; }
+.dabraCompact { display:inline-block; position:relative; flex-shrink:0; width:64px; height:64px; overflow:hidden; border-radius:22%; direction:ltr; }
+.dabraCompact img { position:absolute; width:400%; height:200%; max-width:none; top:-100%; object-fit:fill; }
+.assistant > .dabraCompact { display:block; margin:0 auto 12px; }
+.assistant p { font-size:14px; margin:12px 0; }
+.securityBanner .dabraCompact { width:88px; height:88px; }
+.dabraIntroduction { display:grid; grid-template-columns:220px minmax(0,1fr); align-items:center; gap:32px; padding:24px; border:1px solid #e5d9bd; border-radius:18px; background:#fff; box-shadow:0 4px 18px #0d1b2a06; }
+.dabraSupportPortrait { display:contents; }
+.dabraIntroduction > img,.dabraSupportPortrait > img { width:100%; height:auto; border-radius:16px; }
+.dabraIntroduction p { margin:16px 0 24px; max-width:54ch; }
+.customerLauncher .dabraCompact { width:56px; height:56px; }
+.customerLauncher :global(#dibrah) > button { border-radius:22px; padding:8px; gap:12px; background:#fff; color:#0d1b2a; box-shadow:0 8px 24px #0d1b2a20; text-align:start; }
+.customerLauncher :global(#dibrah) > button > span:last-child { padding-inline-end:8px; }
+.customerLauncher :global(#dibrah) > button > span:last-child > span { color:#715315; font-size:14px; }
+.customerLauncher :global(#dibrah) > button > span:last-child > span:nth-child(2) { color:#0d1b2a; }
+.documentTable { min-width:0; }
+.mobileIdentity { display:none; }
+.root .welcome { padding:0; }
+.root .welcomeArt { order:0; }
+@media(max-width:720px) {
+  .root .welcome { grid-template-columns:1fr; min-height:0; gap:0; }
+  .welcomeCopy { grid-row:1; padding:28px 20px 12px; }
+  .root .welcome h1 { font-size:34px; }
+  .root .welcome h2 { font-size:26px; margin-block:12px; }
+  .root .welcome p { font-size:16px; margin-block:8px; }
+  .root .welcome .welcomeSignature { font-size:16px; }
+  .root .welcomeArt,.root[dir=ltr] .welcomeArt { grid-row:2; height:auto; max-height:300px; mask-image:linear-gradient(to bottom,transparent,#000 12%); }
+  .mobileIdentity { display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid #e5dfd3; background:#fff; }
+  .mobileIdentity .initials { width:40px; height:40px; font-size:16px; flex-shrink:0; }
+  .mobileIdentity strong,.mobileIdentity small { display:block; }
+  .mobileIdentity small { color:var(--muted); }
+  .root .welcomeActions { grid-column:1; grid-row:2; padding:20px 16px 28px; gap:12px; margin-bottom:160px; }
+  .welcomeActions > a { width:100%; }
+  .root .authPanel { padding:28px 20px; }
+  .root .authStage { min-height:0; gap:28px; padding:32px 16px; }
+  .authStage > .authPanel,.authStage > .authHero,.verifyFooter > [data-footer-columns],.verifyFooter > [data-footer-copyright] { grid-column:1; grid-row:auto; }
+  .root .authHero h2 { font-size:26px; }
+  .root .walletArt { aspect-ratio:440/440; min-height:0; max-height:360px; }
+  .root .content > * { min-width:0; }
+  .root .footer { padding-bottom:100px; }
+  .root .tools button { min-height:44px; min-width:36px; }
+  .root .card { padding:20px 16px; }
+  .root .accountIdentity { overflow-wrap:anywhere; }
+  .root .dabraIntroduction { grid-template-columns:1fr; gap:20px; padding:20px; text-align:center; }
+  .dabraIntroduction > img,.dabraSupportPortrait > img { width:200px; max-width:100%; justify-self:center; }
+  .dabraIntroduction h2 { font-size:22px; }
+  .root .securityBanner { gap:16px; padding:16px; min-height:100px; }
+  .securityBanner .dabraCompact { width:64px; height:64px; }
+  .root .documentTable { min-width:0; display:block; }
+  .documentTable thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .documentTable tbody { display:grid; gap:16px; }
+  .documentTable tr { display:grid; padding:12px; border-bottom:1px solid #e3e0da; }
+  .documentTable td { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 4px; border:0; font-size:14px; }
+  .documentTable td::before { content:attr(data-label); color:var(--muted); flex-shrink:0; }
+  .documentTable td:first-child { font-weight:700; font-size:16px; }
+}
+@media(max-width:1000px) { .favoritesGrid {grid-template-columns:repeat(2,minmax(0,1fr));} }
+@media(max-width:720px) { .favoritesGrid {grid-template-columns:1fr;} }
+/* A 74px compact launcher plus collision clearance gets its own mobile lane;
+   the document heading/banner and category touch targets stay unobscured. */
+@media(max-width:720px) { .documentsHeading { grid-template-columns:1fr; margin-bottom:96px; } .uploadDialog { padding:24px 16px; } }
+@media(max-width:1000px) { .portal { grid-template-columns:220px minmax(0,1fr); } .content { padding:24px; } .grid { grid-template-columns:1fr; } .categoryGrid { grid-template-columns:repeat(3,minmax(0,1fr)); } .booking { grid-template-columns:1fr; gap:16px; } .bookingActions { border:0; padding:0; display:flex; flex-wrap:wrap; } .welcome { padding:32px; } }
+@media(max-width:720px) { .header { padding:12px 16px; gap:12px; align-items:flex-start; } .header img { width:116px; } .tools { gap:4px; justify-content:flex-end; } .tools button { min-width:34px; } .homeLink { padding:6px 8px; font-size:14px; } .portal { display:block; } .menuButton { display:grid !important; } .sidebar { display:none; } .sidebar[data-open=true] { display:block; max-height:70vh; overflow-y:auto; border-bottom:1px solid #ddd; } .content { padding:24px 16px; } .root h1 { font-size:30px; } .pageHeading { margin-block-end:24px; } .familyGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } .categoryGrid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; } .categoryGrid button { padding:16px 8px; } .twoColumns,.walletHero { grid-template-columns:1fr; } .walletArt { min-height:190px; } .balance { padding:24px; } .walletActions { grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px 8px; padding:16px 8px; } .footer { padding:24px 16px; } .footer nav { gap:16px; } .toolbar input { width:100%; } .toolbar label { width:100%; } .tabs { gap:8px; } .tabs button { padding:8px 12px; } .authStage { grid-template-columns:1fr; padding:24px 16px; gap:24px; } .authPanel { padding:32px 20px; } .authHero { text-align:center; } .authHero h2 { font-size:28px; } .authHero p { font-size:16px; } .welcome { padding:32px 16px; grid-template-columns:1fr; text-align:center; } .welcome h1 { font-size:36px; } .welcome h2 { font-size:28px; } .welcomeActions { justify-content:center; } .welcomeArt { height:auto; order:-1; } .welcomeArt img { right:0; } .table { min-width:640px; } }
+/* My Documents desktop-only visual round. Mobile presentation remains unchanged. */
+.documentDesktopIcon,.documentEmptyIcon { display:none; }
+@media(min-width:1051px) {
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .sidebar [aria-current=page] { background:var(--gold); color:var(--ink); border-inline-start-color:var(--gold); font-weight:700; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .documentMobileIcon { display:none; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .documentDesktopIcon { display:block; color:var(--gold); stroke-width:1.75; flex-shrink:0; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .documentsHeading { gap:24px; margin-block-end:24px; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .documentsHeading .pageHeading { margin-block-end:0; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .securityBanner { background:#f8f9fa; color:var(--ink); border-color:#e7dcba; min-height:110px; gap:20px; box-shadow:0 4px 18px #0d1b2a04; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .securityBanner .documentDesktopIcon { width:48px; height:48px; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .categoryGrid { gap:16px; margin-block-end:24px; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .categoryGrid button { border-color:#e4e7eb; gap:10px; padding:16px 12px; box-shadow:0 4px 16px #0d1b2a04; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .categoryGrid button[aria-pressed=true] { border-color:var(--gold); background:#f8f9fa; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .categoryGrid .documentDesktopIcon { width:56px; height:56px; padding:14px; border:1px solid var(--gold); border-radius:12px; background:#f8f9fa; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .card { border-color:#e4e7eb; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .toolbar { align-items:flex-end; gap:16px; margin-block-end:20px; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .toolbar label { width:min(100%,420px); }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .empty { padding:28px 24px; border-color:#e4e7eb; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .documentEmptyIcon { display:block; width:40px; height:40px; margin:0 auto 12px; color:var(--gold); stroke-width:1.75; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .documentTable td { vertical-align:middle; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .documentActions { gap:8px; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .documentActions a { color:var(--ink); border-color:var(--gold); }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) .dabraCompact[data-dabra-desktop-artwork] img { left:var(--dabra-desktop-left) !important; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) footer[data-footer-surface=white] { background:#fff; color:var(--ink); }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) footer[data-footer-surface=white] svg { color:var(--gold); }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) footer[data-footer-surface=white] [data-footer-columns] > section:last-child > div > a { border-color:var(--gold); }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) [data-footer-columns] { grid-template-columns:minmax(260px,1.4fr) minmax(0,1fr) minmax(0,1fr); }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) [data-footer-columns] > section:nth-child(1) { grid-column:3; grid-row:1; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) [data-footer-columns] > section:nth-child(2) { grid-column:2; grid-row:1; }
+  .root:has(.sidebar a[href="/my-documents"][aria-current=page]) [data-footer-columns] > section:nth-child(3) { grid-column:1; grid-row:1; }
+}
+/* End My Documents desktop-only visual round. */
+ /* Favorites desktop-only visual round. Preserve all mobile and saved-service behavior. */
+.favoritesDesktopIcon,.favoritesEmptyIcon { display:none; }
+@media(min-width:1051px) {
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .sidebar [aria-current=page] { background:var(--gold); color:var(--ink); border-inline-start-color:var(--gold); font-weight:700; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .favoritesMobileIcon { display:none; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .favoritesDesktopIcon { display:block; color:var(--gold); stroke-width:1.75; flex-shrink:0; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .documentsHeading { gap:24px; margin-block-end:24px; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .documentsHeading .pageHeading { margin-block-end:0; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .securityBanner { background:#f8f9fa; color:var(--ink); border-color:#e7dcba; min-height:110px; gap:20px; box-shadow:0 4px 18px #0d1b2a04; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .securityBanner .favoritesDesktopIcon { width:48px; height:48px; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .categoryGrid { gap:16px; margin-block-end:24px; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .categoryGrid button { border-color:#e4e7eb; gap:10px; padding:16px 12px; box-shadow:0 4px 16px #0d1b2a04; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .categoryGrid button[aria-pressed=true] { border-color:var(--gold); background:#f8f9fa; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .categoryGrid .favoritesDesktopIcon { width:56px; height:56px; padding:14px; border:1px solid var(--gold); border-radius:12px; background:#f8f9fa; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .card { border-color:#e4e7eb; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .toolbar { align-items:flex-end; gap:16px; margin-block-end:20px; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .toolbar h2 { margin-inline-end:auto; align-self:center; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .empty { padding:28px 24px; border-color:#e4e7eb; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .empty p { margin-block-end:16px; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .favoritesEmptyIcon { display:block; width:40px; height:40px; margin:0 auto 12px; color:var(--gold); stroke-width:1.75; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) .favorite { border-color:#e4e7eb; background:#fff; box-shadow:0 4px 16px #0d1b2a04; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) footer[data-footer-surface=white] { background:#fff; color:var(--ink); }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) footer[data-footer-surface=white] svg { color:var(--gold); }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) footer[data-footer-surface=white] [data-footer-columns] > section:last-child > div > a { border-color:var(--gold); }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) [data-footer-columns] { grid-template-columns:minmax(260px,1.4fr) minmax(0,1fr) minmax(0,1fr); }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) [data-footer-columns] > section:nth-child(1) { grid-column:3; grid-row:1; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) [data-footer-columns] > section:nth-child(2) { grid-column:2; grid-row:1; }
+  .root:has(.sidebar a[href="/favorites"][aria-current=page]) [data-footer-columns] > section:nth-child(3) { grid-column:1; grid-row:1; }
+}
+/* End Favorites desktop-only visual round. */
+/* Account Settings desktop-only presentation; existing profile fields stay read-only. */
+@media(min-width:1051px) {
+  /* Let the unchanged sidebar span content + footer instead of sizing the content row. */
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) { min-height:0; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) > div:has(> .portal) { display:grid; grid-template-columns:250px minmax(0,1fr); grid-template-rows:min-content auto; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) .portal { display:contents; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) .sidebar { grid-column:1; grid-row:1 / span 2; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) .content { grid-column:2; grid-row:1; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) > div:has(> .portal) > footer { grid-column:2; grid-row:2; min-width:0; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) .sidebar [aria-current=page] { background:var(--gold); color:var(--ink); border-inline-start-color:var(--gold); font-weight:700; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-account-settings] { min-height:0; padding:0; background:transparent; color:var(--ink); }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-account-settings] > div { max-width:none; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-profile-heading] { margin-block-end:20px; align-items:center; gap:24px; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-profile-heading] p { color:#715315; letter-spacing:.12em; font-size:14px; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-profile-heading] h1 { color:var(--ink); margin-block-start:0; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-profile-heading] a { display:inline-flex; align-items:center; justify-content:center; min-height:44px; border:1px solid var(--gold); border-radius:10px; padding:8px 24px; color:var(--ink); background:#fff; font-size:14px; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-profile-card] { background:#fff; border:1px solid #e4e7eb; border-radius:16px; padding:16px 20px; box-shadow:0 4px 18px #0d1b2a06; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-account-information] { margin:0 0 4px; padding-block-end:12px; border-block-end:1px solid #e4e7eb; color:var(--ink); font-size:18px; font-weight:700; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-profile-fields] { display:grid; grid-template-columns:minmax(0,1fr); gap:0; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-profile-fields] > div { display:grid; grid-template-columns:minmax(120px,1fr) minmax(0,2fr); align-items:baseline; gap:24px; padding:8px 12px; border:0; border-radius:0; background:transparent; min-width:0; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-profile-fields] > div:nth-child(even) { background:#f8f9fa; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-profile-fields] p:first-child { color:var(--muted); font-size:14px; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-profile-fields] p:last-child { color:var(--ink); font-size:15px; font-weight:600; margin-block-start:0; overflow-wrap:anywhere; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-profile-empty] { background:#fff; color:var(--muted); border-color:#e4e7eb; padding:24px; border-radius:16px; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) footer[data-footer-surface=white] { background:#fff; color:var(--ink); }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) footer[data-footer-surface=white] svg { color:var(--gold); }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) footer[data-footer-surface=white] [data-footer-columns] > section:last-child > div > a { border-color:var(--gold); }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-footer-columns] { grid-template-columns:minmax(260px,1.4fr) minmax(0,1fr) minmax(0,1fr); }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-footer-columns] > section:nth-child(1) { grid-column:3; grid-row:1; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-footer-columns] > section:nth-child(2) { grid-column:2; grid-row:1; }
+  .root:has(.sidebar a[href="/my-profile"][aria-current=page]) [data-footer-columns] > section:nth-child(3) { grid-column:1; grid-row:1; }
+}
+/* End Account Settings desktop-only presentation. */
+/* MOBILE REVIEW RESTORATION — no declarations outside the phone breakpoint. */
+@media(max-width:720px) {
+ .root:has(input[id=login-email]) > div:has(main) { background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(13,27,42,.12) 45%,rgba(13,27,42,.68)),url('/brand/runtime/golden_hour_over_the_rugged_desert_canyon.png') right center/cover no-repeat; }
+ .root:has(input[id=login-email]) main > div[lang] { background:transparent !important; min-height:0 !important; padding:32px 16px !important; }
+ .root:has(input[id=login-email]) main > div[lang] > div { padding:28px 22px !important; }
+ .root:has(input[id=login-email]) main a[href='/register'] { display:inline-flex; align-items:center; min-height:44px; color:#88601c !important; }
+ .root:has(input[id=login-email]) footer[data-customer-footer] { background:transparent; color:#fff; border:0; }
+ .root:has(input[id=login-email]) footer[data-customer-footer] :is(h2,p,a) { color:#fff; text-shadow:0 1px 3px #0d1b2a99; }
+ .root .authStage { background-image:linear-gradient(180deg,rgba(13,27,42,.66),rgba(13,27,42,.78)),url('/brand/runtime/dir3com-login-background-approved.png'); background-size:auto,auto 340%; background-position:center,center bottom; }
+ .root .authStage .authHero :is(h2,p) { color:#fff; text-shadow:0 1px 3px #0d1b2a99; }
+ .root .authStage footer :is(h2,p,a) { text-shadow:0 1px 3px #0d1b2a99; }
+ .authPanel > a,.authPanel .textButton { display:inline-flex; align-items:center; justify-content:center; min-height:44px; }
+ .root .footerScene:has(.welcome) { background:url('/brand/runtime/login-success-luxury-lounge-ceo.png') center/cover no-repeat; }
+ .root .footerScene:has(.welcome) footer { background:transparent; backdrop-filter:none; }
+ .root .footerScene:has(.welcome) footer::before,.root .footerScene:has(.welcome) footer::after { content:none; display:none; }
+ .root .footerScene:has(.welcome) footer :is(h2,p,a) { color:var(--ink); text-shadow:0 1px 2px #fff,0 0 4px #ffffffbf; }
+ .root .footerScene:has(.welcome) footer svg { color:#88601c; }
+ .root:has(input[id=login-email]) footer[data-customer-footer] svg { color:var(--gold); }
+ .root .sidebar [aria-current=page] { background:var(--gold); color:var(--ink); border-color:var(--gold); }
+ .accountDashboard .familyGrid .accountServiceMobileIcon,.walletMobileIcon,.documentMobileIcon,.favoritesMobileIcon { display:none; }
+ .accountDashboard .familyGrid .accountServiceDesktopIcon,.walletActions .walletDesktopIcon,.walletDestinations .walletDesktopIcon,.documentDesktopIcon,.favoritesDesktopIcon { display:block; color:var(--gold); stroke-width:1.75; }
+ .walletActions .walletDesktopIcon,.walletDestinations .walletDesktopIcon,.categoryGrid .documentDesktopIcon,.categoryGrid .favoritesDesktopIcon { width:56px; height:56px; padding:14px; border:1px solid var(--gold); border-radius:12px; background:#f8f9fa; }
+ .securityBanner .documentDesktopIcon,.securityBanner .favoritesDesktopIcon { width:48px; height:48px; }
+ .bookingsEmptyIcon,.documentEmptyIcon,.favoritesEmptyIcon { display:block; width:36px; height:36px; margin:0 auto 12px; color:var(--gold); }
+ .empty { padding:28px 16px; }
+ .requestSummary:not(:has(a)) > div { padding:16px; margin-block-start:20px; }
+ .documentsHeading { margin-block-end:24px; }
+ .root .balance { background:#fff; color:var(--ink); }
+ .root .walletQuote { color:var(--ink) !important; font-size:21px; }
+ .balanceToggle { color:#88601c; }
+ .balanceRows > div { background:#f8f9fa; border-color:#e2e6eb; padding:12px; min-width:0; }
+ .walletActions { background:#fff; }
+ .root .accountDashboard .dabraIntroduction { grid-template-columns:80px minmax(0,1fr); text-align:start; gap:16px; padding:16px; }
+ .accountDashboard .dabraSupportPortrait { display:block; width:80px; height:80px; position:relative; overflow:hidden; border-radius:50%; }
+ .accountDashboard .dabraSupportPortrait > img { position:absolute; width:233px; height:233px; max-width:none; left:-90px; top:-10px; border-radius:0; }
+ .accountDashboard .dabraIntroduction h2 { font-size:19px; }
+ .accountDashboard .dabraIntroduction > div { display:grid; min-width:0; row-gap:6px; }
+ .accountDashboard .dabraIntroduction p { display:none; }
+ .accountDashboard .dabraIntroduction a { justify-self:start; margin-top:6px; padding:8px 12px; }
+ .accountIdentity a { display:inline-flex; align-items:center; min-height:44px; }
+ .root .dabraCompact[data-dabra-desktop-artwork] img { left:var(--dabra-desktop-left) !important; }
+ .root:has([data-account-settings]) { min-height:0; }
+ .root [data-account-settings] { min-height:0; padding:0; background:transparent; color:var(--ink); }
+ .root [data-profile-heading] { margin-block-end:20px; }
+ .root [data-profile-heading] h1 { color:var(--ink); }
+ .root [data-profile-card] { padding:16px; border:1px solid #e4e7eb; border-radius:16px; background:#fff; }
+ .root [data-account-information] { font-size:20px; padding-bottom:12px; }
+ .root [data-profile-fields] { display:grid; grid-template-columns:minmax(0,1fr); gap:0; }
+ .root [data-profile-fields] > div { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.4fr); gap:12px; padding:12px 8px; border-bottom:1px solid #e4e7eb; align-items:baseline; }
+ .root [data-profile-fields] p:first-child { color:var(--muted); font-size:14px; }
+ .root [data-profile-fields] p:last-child { color:var(--ink); font-size:15px; overflow-wrap:anywhere; }
+}
+/* END MOBILE REVIEW RESTORATION */

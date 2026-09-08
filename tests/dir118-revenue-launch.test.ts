@@ -5,6 +5,7 @@ import test from 'node:test';
 const migration = readFileSync('supabase/migrations-archive/20260829223000_dir118_revenue_launch_requests.sql', 'utf8');
 const route = readFileSync('app/api/marketplace/requests/route.ts', 'utf8');
 const bookings = readFileSync('app/my-bookings/page.tsx', 'utf8');
+const bookingsView = readFileSync('components/v6/Bookings.tsx', 'utf8');
 const customerRequests = readFileSync('lib/marketplace/customer-requests.ts', 'utf8');
 const operations = readFileSync('components/admin/MarketplaceRequestOperationsTable.tsx', 'utf8');
 const operationsActions = readFileSync('lib/actions/operations-actions.ts', 'utf8');
@@ -23,7 +24,12 @@ test('customer bookings page includes owner-scoped marketplace requests without 
   assert.match(bookings, /listCustomerMarketplaceRequests\(supabase, user\.id\)/);
   assert.match(customerRequests, /from\('marketplace_requests'\)/);
   assert.match(customerRequests, /eq\('user_id', authenticatedUserId\)/);
-  assert.match(bookings, /MarketplaceRequestsPanel/);
+  assert.match(bookings, /import Bookings from '@\/components\/v6\/Bookings'/);
+  assert.match(bookings, /<Bookings[^>]*requests=\{requests\}/);
+  assert.match(bookingsView, /import MarketplaceRequestsPanel from '@\/components\/account\/MarketplaceRequestsPanel'/);
+  assert.match(bookingsView, /<MarketplaceRequestsPanel requests=\{requests\}/);
+  assert.match(bookingsView, /bookings\.filter/);
+  assert.doesNotMatch(bookingsView, /requests\.map|bookings\.concat\(requests\)/);
 });
 
 test('operations visibility is authorized beside the privileged query', () => {

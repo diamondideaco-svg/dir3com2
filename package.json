@@ -71,6 +71,7 @@
     "date-fns": "^4.4.0",
     "framer-motion": "^12.23.12",
     "franc-min": "6.2.0",
+    "libphonenumber-js": "1.13.12",
     "next": "16.2.11",
     "pg": "^8.16.3",
     "react": "19.0.0",
