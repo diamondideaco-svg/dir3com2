@@ -36,11 +36,21 @@
 @media(max-width:1000px) { .tools,.languages { gap:12px; } .tools > button { padding-inline-end:12px; } }
 @media(max-width:1050px) { .columns { grid-template-columns:minmax(0,1fr); } }
 @media(max-width:720px) {
-  .header { flex-wrap:wrap; padding:12px 16px; gap:8px; }
-  .tools { width:100%; justify-content:space-between; gap:4px; flex-wrap:wrap; }
-  .tools > button { padding-inline-end:4px; }
-  .languages { gap:4px; }
-  .home { padding:8px; font-size:14px; }
+  /* Two intentional rows: brand/display tools, then language/home action.
+     Reserve the menu slot on Auth too; keep every control at least 44px. */
+  .header { display:grid; grid-template-columns:minmax(0,1fr) repeat(3,44px); grid-template-rows:minmax(61px,auto) minmax(44px,auto); min-height:118px; padding:4px 16px; gap:4px; align-content:start; }
+  .header:has(.languages button[lang=ar][aria-pressed=true]) { direction:rtl; }
+  .header:has(.languages button[lang=en][aria-pressed=true]) { direction:ltr; }
+  .header > .logo { grid-column:1; grid-row:1; width:154px; height:61px; justify-self:start; }
+  .header > .logo img { width:207.49px; height:138.35px; left:-29.74px; top:-35.96px; }
+  .tools { display:contents; }
+  .tools > button { grid-row:1; width:44px; height:44px; min-width:44px; padding:0; }
+  .tools > button[aria-controls] { grid-column:2; }
+  .tools > button:nth-last-of-type(2) { grid-column:3; }
+  .tools > button:last-of-type { grid-column:4; }
+  .languages { grid-column:1; grid-row:2; justify-self:start; flex-wrap:nowrap; gap:4px; white-space:nowrap; }
+  .languages button { height:44px; padding:0; gap:4px; flex-shrink:0; line-height:20px; }
+  .tools > .home { grid-column:1/-1; grid-row:2; justify-self:end; width:max-content; max-width:100%; height:44px; min-height:44px; box-sizing:border-box; flex-shrink:0; padding:8px 12px; gap:8px; font-size:14px; line-height:20px; white-space:nowrap; }
   .footer { padding:24px 16px; }
   .columns { gap:24px; }
   .columns section > a { min-height:44px; }

@@ -6,6 +6,7 @@ import { runInNewContext } from 'node:vm';
 import { createElement, type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
+import postcss from 'postcss';
 import { placeDabraLauncher } from '../lib/dabra/floating-layout';
 import { registerSocialLinks } from '../lib/auth/register-contact';
 const read = (p: string) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
@@ -99,8 +100,42 @@ test('footer owns its direction, contact grid, social axis and single-column mob
   assert.match(css, /\.contactRow \{ display:grid; grid-template-columns:18px minmax\(0,1fr\)/);
   assert.match(css, /\.socials \{ display:flex; flex-wrap:nowrap; justify-content:flex-start; gap:10px; direction:inherit/);
   assert.match(css, /@media\(max-width:1050px\) \{ \.columns \{ grid-template-columns:minmax\(0,1fr\); \} \}/);
-  for (const [file, selector] of [['app/(auth)/register/register.module.css', 'canonicalFooter'], ['components/v6/v6.module.css', 'verifyFooter']]) {
-    assert.doesNotMatch(read(file), new RegExp('\\.' + selector + ' > \\[data-footer-columns\\] \\{[^}]*grid-template-columns'));
+  assert.match(css, /\.columns section \{ min-width:0; \}/);
+  assert.match(css, /overflow-wrap:anywhere/);
+  assert.doesNotMatch(css, /row-reverse|scaleX/);
+  // The shared DOM stacks Company, Services, Contact on mobile. Desktop grid
+  // columns 3, 2, 1 put Contact first in the footer's own LTR/RTL direction.
+  assert.match(read('components/v6/CustomerChrome.tsx'), /<section><h2>\{ar \? 'عن الشركة' : 'Company'\}[\s\S]*<section><h2>\{ar \? 'خدماتنا' : 'Services'\}[\s\S]*<section><h2>\{ar \? 'تواصل معنا' : 'Contact us'\}/);
+  for (const [file, footer, grid] of [
+    ['app/(auth)/register/register.module.css', '.canonicalFooter', '.canonicalFooter > [data-footer-columns]'],
+    ['components/v6/v6.module.css', '.verifyFooter', '.authStage [data-footer-columns]'],
+  ]) {
+    const ast = postcss.parse(read(file));
+    const placements = new Map<number, number>();
+    let desktopGrids = 0;
+    ast.walkRules(rule => {
+      if (!rule.selector.includes(footer) && !rule.selector.startsWith(grid)) return;
+      assert.doesNotMatch(rule.toString(), /row-reverse|scaleX|direction\s*:/);
+      rule.walkDecls('grid-template-columns', declaration => {
+        // No unscoped/mobile override may force desktop tracks at 390px.
+        assert.equal(rule.selector, grid);
+        assert.equal(rule.parent?.type, 'atrule');
+        assert.equal((rule.parent as postcss.AtRule).params, '(min-width:1051px)');
+        assert.equal(declaration.value, 'minmax(260px,1.4fr) minmax(0,1fr) minmax(0,1fr)');
+        desktopGrids++;
+      });
+      for (const [section, column] of [[1, 3], [2, 2], [3, 1]]) {
+        if (rule.selector !== `${grid} > section:nth-child(${section})`) continue;
+        assert.equal(rule.parent?.type, 'atrule');
+        assert.equal((rule.parent as postcss.AtRule).params, '(min-width:1051px)');
+        const values = Object.fromEntries(rule.nodes.filter(node => node.type === 'decl').map(node => [node.prop, node.value]));
+        assert.deepEqual(values, { 'grid-column': String(column), 'grid-row': '1' });
+        assert.ok(!placements.has(section), 'No competing footer placement');
+        placements.set(section, column);
+      }
+    });
+    assert.equal(desktopGrids, 1);
+    assert.deepEqual([...placements], [[1, 3], [2, 2], [3, 1]]);
   }
 });
 

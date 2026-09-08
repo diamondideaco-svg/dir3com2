@@ -3,6 +3,7 @@
 import Link from 'next/link';
 
 import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { useCustomerReviewLayout } from '@/components/v6/ProfileDesktopFrame';
 import { normalizeSessionRole } from '@/lib/auth/identity-contract';
 import {
   customerHubCopy,
@@ -23,21 +24,24 @@ export type CustomerProfile = {
 export default function MyProfileContent({ customer }: { customer: CustomerProfile | null }) {
   const { language, direction } = useLanguage();
   const t = customerHubCopy[language].profile;
+  const desktop = useCustomerReviewLayout();
+  const settingsTitle = language === 'ar' ? 'إعدادات الحساب' : 'Account settings';
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]" dir={direction}>
+    <div data-account-settings className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]" dir={direction}>
       <div className="mx-auto max-w-6xl">
-        <div className="mb-8 flex items-center justify-between gap-4">
+        <div data-profile-heading className="mb-8 flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">{t.eyebrow}</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">{t.title}</h1>
+            {!desktop && <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">{t.eyebrow}</p>}
+            <h1 className="mt-2 text-3xl font-semibold text-white">{desktop ? settingsTitle : t.title}</h1>
           </div>
-          <Link href="/my-account" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">{t.back}</Link>
+          {!desktop && <Link href="/my-account" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]">{t.back}</Link>}
         </div>
 
         {customer ? (
-          <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
-            <div className="grid gap-4 sm:grid-cols-2">
+          <div data-profile-card className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-6">
+            {desktop && <h2 data-account-information>{language === 'ar' ? 'معلومات الحساب' : 'Account information'}</h2>}
+            <div data-profile-fields className="grid gap-4 sm:grid-cols-2">
               <div>
                 <p className="text-xs text-[var(--color-muted)]">{t.name}</p>
                 <p className="mt-2 text-sm font-semibold text-white">{customer.full_name || '—'}</p>
@@ -67,7 +71,7 @@ export default function MyProfileContent({ customer }: { customer: CustomerProfi
             </div>
           </div>
         ) : (
-          <div className="rounded-[1.5rem] border border-dashed border-white/20 bg-[var(--color-surface)] p-6 text-sm text-[var(--color-muted)]">
+          <div data-profile-empty className="rounded-[1.5rem] border border-dashed border-white/20 bg-[var(--color-surface)] p-6 text-sm text-[var(--color-muted)]">
             {t.empty}
           </div>
         )}

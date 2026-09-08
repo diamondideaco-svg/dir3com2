@@ -1,0 +1,14 @@
+.context > .desktop { display:none; }
+@media(min-width:1051px) {
+  .context > [data-default-identity] { display:none; }
+  .context > .desktop { display:flex; flex-direction:column; gap:2px; text-align:start; }
+  .desktop > strong { color:#0d1b2a; font-size:14px; font-weight:700; line-height:1.5; }
+  .desktop > span { color:#715315; font-size:13px; line-height:1.5; }
+}
+/* Existing contextual identity is also visible in the phone panel. */
+@media(max-width:720px) {
+ .context > [data-default-identity] { display:none; }
+ .context > .desktop { display:flex; flex-direction:column; gap:2px; text-align:start; }
+ .desktop > strong { color:#0d1b2a; font-size:14px; font-weight:700; line-height:1.5; }
+ .desktop > span { color:#715315; font-size:13px; line-height:1.5; }
+}

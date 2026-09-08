@@ -60,7 +60,7 @@ export function Chrome({ children, viewer, variant = 'light', scene = false, foo
     </div>
     {!footerInContent && <CustomerFooter surface={scene ? 'image' : 'white'} />}
     </div>
-    {viewer && path !== '/my-account' && <div className={styles.customerLauncher}><FloatingDibrah launcherIdentity={<DabraCompact artwork={path === '/my-documents' ? 'mall-center' : 'customer-service'} />} /></div>}
+    {viewer && path !== '/my-account' && <div className={styles.customerLauncher}><FloatingDibrah launcherIdentity={<DabraCompact artwork={path === '/my-documents' ? 'mall-center' : 'customer-service'} desktopArtwork={path === '/my-documents' ? 'customer-service' : undefined} />} desktopIdentity={(path === '/my-bookings' ? { greeting: ar ? 'مرحبًا، أنا الدبرة' : "Hi, I'm DABRA", role: ar ? 'الكونسيرج' : 'Concierge' } : undefined) ?? (path === '/my-wallet' ? { greeting: ar ? 'مرحبًا، أنا الدبرة' : "Hi, I'm DABRA", role: ar ? 'خدمة العملاء' : 'Customer Service' } : undefined) ?? (path === '/my-documents' ? { greeting: ar ? 'مرحبًا، أنا الدبرة' : "Hi, I'm DABRA", role: ar ? 'خدمة العملاء' : 'Customer Service' } : undefined) ?? (path === '/favorites' ? { greeting: ar ? 'مرحبًا، أنا الدبرة' : "Hi, I'm DABRA", role: ar ? 'الكونسيرج' : 'Concierge' } : undefined) ?? (path === '/my-profile' ? { greeting: ar ? 'مرحبًا، أنا الدبرة' : "Hi, I'm DABRA", role: ar ? 'خدمة العملاء' : 'Customer Service' } : undefined)} /></div>}
   </div>;
 }
 

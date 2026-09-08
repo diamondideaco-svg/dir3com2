@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase/client';
 import { getPostLoginDestination, getRolePostLoginDestination, type TrustedSessionIdentity } from '@/lib/auth/redirect';
 import { buildOAuthCallbackUrl } from '@/lib/auth/oauth-callback';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
+import recoveryStyles from '@/components/auth/password-recovery.module.css';
 
 const loginCopy = {
     ar: {
@@ -254,8 +255,9 @@ function LoginContent() {
                         />
                     </div>
 
-                    <div style={{ marginBottom: '20px' }}>
+                    <div style={{ marginBottom: '20px', position: 'relative' }}>
                         <label htmlFor="login-password" style={{ display: 'block', marginBottom: '5px', color: '#6B7280' }}>{t.password}</label>
+                        <Link href="/auth/forgot-password" className={recoveryStyles.loginEntry}>{language === 'ar' ? 'نسيت كلمة المرور؟' : 'Forgot password?'}</Link>
                         <input
                             id="login-password"
                             type="password"

@@ -2,6 +2,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiFileText, FiShield, FiPlus, FiDownload, FiEye, FiX, FiGlobe, FiCreditCard, FiTruck } from 'react-icons/fi';
+import { LuFileText, LuShieldCheck, LuIdCard, LuCarFront, LuBookOpenCheck } from 'react-icons/lu';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import type { DocumentQueryResult } from '@/lib/customer/document-query';
 import { customerHubCopy, formatCustomerHubDate, getVerificationStatusLabel } from '@/lib/i18n/customer-hub';
@@ -15,9 +16,9 @@ export type VerificationDocumentRow = {
   issue_date?: string | null; expiry_date: string | null; created_at: string; storage_bucket?: string | null;
 };
 const categories = [
-  ['passport','جوازات السفر','Passports',FiGlobe], ['visa','التأشيرات','Visas',FiFileText],
-  ['id_card','بطاقات الهوية','ID cards',FiCreditCard], ['driving_license','رخص القيادة','Driving licenses',FiTruck],
-  ['insurance','التأمينات','Insurance',FiShield], ['other','أخرى','Other',FiFileText],
+  ['passport','جوازات السفر','Passports',FiGlobe,LuBookOpenCheck], ['visa','التأشيرات','Visas',FiFileText,LuFileText],
+  ['id_card','بطاقات الهوية','ID cards',FiCreditCard,LuIdCard], ['driving_license','رخص القيادة','Driving licenses',FiTruck,LuCarFront],
+  ['insurance','التأمينات','Insurance',FiShield,LuShieldCheck], ['other','أخرى','Other',FiFileText,LuFileText],
 ] as const;
 export default function MyDocumentsContent({ documentsState }: { documentsState: DocumentQueryResult<VerificationDocumentRow> }) {
   const { language, direction } = useLanguage();
@@ -54,12 +55,12 @@ export default function MyDocumentsContent({ documentsState }: { documentsState:
     finally { busy.current = false; setUploading(false); }
   }
   return <div dir={direction}>
-    <div className={styles.documentsHeading} data-dabra-avoid><PageHeading title={ar ? 'مستنداتي' : 'My documents'} subtitle={ar ? 'إدارة وتنظيم مستنداتك المهمة وسهولة الوصول إليها' : 'Organize your important documents and access them easily'} icon={<FiFileText />} /><div className={styles.securityBanner}><FiFileText aria-hidden="true" /><strong>{ar ? 'مستنداتك الخاصة، في مكان واحد' : 'Your private documents, in one place'}</strong></div></div>
-    <div className={styles.categoryGrid}>{categories.map(([key,arabic,english,Icon]) => <button key={key} type="button" aria-pressed={category === key} onClick={() => {setCategory(key);setPage(1);}}><Icon />{ar ? arabic : english}<strong>{documentsState.status === 'ready' ? documents.filter(d => d.document_type === key).length : '—'}</strong></button>)}</div>
+    <div className={styles.documentsHeading} data-dabra-avoid><PageHeading title={ar ? 'مستنداتي' : 'My documents'} subtitle={ar ? 'إدارة وتنظيم مستنداتك المهمة وسهولة الوصول إليها' : 'Organize your important documents and access them easily'} icon={<><FiFileText className={styles.documentMobileIcon} /><LuFileText className={styles.documentDesktopIcon} strokeWidth={1.75} aria-hidden="true" /></>} /><div className={styles.securityBanner}><FiFileText className={styles.documentMobileIcon} aria-hidden="true" /><LuShieldCheck className={styles.documentDesktopIcon} strokeWidth={1.75} aria-hidden="true" /><strong>{ar ? 'مستنداتك الخاصة، في مكان واحد' : 'Your private documents, in one place'}</strong></div></div>
+    <div className={styles.categoryGrid}>{categories.map(([key,arabic,english,Icon,DesktopIcon]) => <button key={key} type="button" aria-pressed={category === key} onClick={() => {setCategory(key);setPage(1);}}><Icon className={styles.documentMobileIcon} /><DesktopIcon className={styles.documentDesktopIcon} strokeWidth={1.75} aria-hidden="true" />{ar ? arabic : english}<strong>{documentsState.status === 'ready' ? documents.filter(d => d.document_type === key).length : '—'}</strong></button>)}</div>
     <section className={styles.card}>
       <div className={styles.toolbar}><button type="button" aria-pressed={category === 'all'} onClick={() => {setCategory('all');setPage(1);}} className={styles.secondary}>{ar ? 'الكل' : 'All'}</button><label>{ar ? 'البحث في المستندات' : 'Search documents'}<input type="search" value={search} onChange={e => {setSearch(e.target.value);setPage(1);}} /></label><button ref={launcher} type="button" className={styles.primary} onClick={() => {setError('');setSuccess(false);dialog.current?.showModal();}}><FiPlus />{ar ? 'رفع مستند جديد' : 'Upload New Document'}</button></div>
       {success && <p role="status">{ar ? 'تم حفظ المستند.' : 'Document saved.'}</p>}
-      {documentsState.status === 'error' ? <LoadError /> : !filtered.length ? <div className={styles.empty}>{t.empty}</div> : <>
+      {documentsState.status === 'error' ? <LoadError /> : !filtered.length ? <div className={styles.empty}><LuFileText className={styles.documentEmptyIcon} strokeWidth={1.75} aria-hidden="true" />{t.empty}</div> : <>
         <div className={styles.tableWrap}><table className={`${styles.table} ${styles.documentTable}`}><thead><tr>{(ar ? ['المستند','تاريخ الإضافة','تاريخ الانتهاء','الحالة','الإجراءات'] : ['Document','Added','Expiry date','Status','Actions']).map(text => <th scope="col" key={text}>{text}</th>)}</tr></thead><tbody>{filtered.slice((current-1)*10,current*10).map(document => <tr key={document.id}>
           <td><FiFileText /> {label(document.document_type)}</td>
           <td data-label={ar ? 'تاريخ الإضافة' : 'Added'}>{formatCustomerHubDate(document.created_at,language)}</td>

@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import MyProfileContent, { type CustomerProfile } from '@/components/account/MyProfileContent';
+import { ProfileDesktopFrame } from '@/components/v6/ProfileDesktopFrame';
+import { normalizeSessionRole } from '@/lib/auth/identity-contract';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 function buildLoginTarget(destination: string) {
@@ -23,11 +25,21 @@ async function getProfile() {
     .eq('id', user.id)
     .maybeSingle();
 
-  return data as CustomerProfile | null;
+  const customer = data as CustomerProfile | null;
+  // Reuse the already authenticated read for display; no additional query or write.
+  const viewer = {
+    id: user.id,
+    name: customer?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'dir3com',
+    role: normalizeSessionRole(customer?.role),
+    roleRaw: customer?.role || null,
+    avatar: null,
+    joined: null,
+  };
+  return { customer, viewer };
 }
 
 export default async function MyProfilePage() {
-  const customer = await getProfile();
+  const { customer, viewer } = await getProfile();
 
-  return <MyProfileContent customer={customer} />;
+  return <ProfileDesktopFrame viewer={viewer}><MyProfileContent customer={customer} /></ProfileDesktopFrame>;
 }
