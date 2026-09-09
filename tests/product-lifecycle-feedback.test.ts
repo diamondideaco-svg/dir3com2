@@ -5,8 +5,8 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { isProductVersionConflict, productConflictMessage, productResultMessages } from '../lib/products/lifecycle-feedback';
 
-test('five lifecycle success messages follow Arabic and English contracts', () => {
-  assert.deepEqual(Object.keys(productResultMessages), ['created', 'updated', 'published', 'unpublished', 'archived']);
+test('lifecycle result messages follow Arabic and English contracts', () => {
+  assert.deepEqual(Object.keys(productResultMessages), ['created', 'updated', 'published', 'unpublished', 'archived', 'publish_blocked']);
   for (const message of Object.values(productResultMessages)) {
     assert.match(message.ar, /[\u0600-\u06ff]/);
     assert.doesNotMatch(message.en, /[\u0600-\u06ff]/);

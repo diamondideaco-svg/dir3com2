@@ -134,12 +134,19 @@ export function AdminSubmitButton({
   const { pending } = useFormStatus();
   const [confirmForm, setConfirmForm] = useState<HTMLFormElement | null>(null);
   const approvedRef = useRef(false);
+  const submittingRef = useRef(false);
   const dialogId = useId();
   const confirmation = language === 'ar' ? confirmAr : confirmEn;
 
   function handleClick(event: MouseEvent<HTMLButtonElement>) {
+    if (submittingRef.current) {
+      event.preventDefault();
+      return;
+    }
+
     if (!confirmation || approvedRef.current) {
       approvedRef.current = false;
+      submittingRef.current = true;
       return;
     }
 
@@ -150,8 +157,9 @@ export function AdminSubmitButton({
   }
 
   function approve() {
-    if (!confirmForm) return;
+    if (!confirmForm || submittingRef.current) return;
     const form = confirmForm;
+    submittingRef.current = true;
     approvedRef.current = true;
     setConfirmForm(null);
     form.requestSubmit();
