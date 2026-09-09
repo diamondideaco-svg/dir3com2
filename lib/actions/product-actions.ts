@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { assertCountryAllowed, requireScopedAdminActionAccess } from '@/lib/auth/admin';
+import { assertCountryAllowed, requireScopedAdminActionAccess, scopeCountryQuery } from '@/lib/auth/admin';
 import { sanitizeBoolean, sanitizeNumber, sanitizeText } from '@/lib/security/validation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { isProductVersionConflict } from '@/lib/products/lifecycle-feedback';
@@ -28,10 +28,10 @@ function cleanSlug(value: FormDataEntryValue | null, seed: string) {
 
 async function requireProductInScope(id: string, permission: 'products:read' | 'products:write') {
   const context = await requireScopedAdminActionAccess(permission);
-  const { data, error } = await context.supabase
+  const { data, error } = await scopeCountryQuery(context.supabase
     .from('products')
     .select('id, country, lifecycle_version, status, deleted_at')
-    .eq('id', id)
+    .eq('id', id), context.scope)
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error('PRODUCT_NOT_FOUND');
@@ -232,7 +232,7 @@ export async function assignPartnerAction(formData: FormData) {
   const city = formData.get('city')?.toString() || '';
   if (!productId || !partnerId) throw new Error('PRODUCT_AND_PARTNER_REQUIRED');
   const { supabase, scope } = await requireProductInScope(productId, 'products:write');
-  const { data: partner, error: partnerError } = await supabase.from('partners').select('id, country').eq('id', partnerId).maybeSingle();
+  const { data: partner, error: partnerError } = await scopeCountryQuery(supabase.from('partners').select('id, country').eq('id', partnerId), scope).maybeSingle();
   if (partnerError) throw partnerError;
   if (!partner) throw new Error('PARTNER_NOT_FOUND');
   assertCountryAllowed(scope, partner.country);

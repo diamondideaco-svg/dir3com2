@@ -1,19 +1,18 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import PartnerForm from '@/components/admin/PartnerForm';
-import { isCountryAllowed, requireScopedAdminPageDataAccess } from '@/lib/auth/admin';
+import { isCountryAllowed, requireScopedAdminPageDataAccess, scopeCountryQuery } from '@/lib/auth/admin';
 import type { PartnerRecord } from '@/lib/supabase/types';
 import { AdminText } from '@/components/admin/AdminLocale';
 import PartnerActivation from '@/components/admin/PartnerActivation';
-import { isAdminRole } from '@/lib/auth/identity';
 
 async function getPartner(id: string) {
-  const { supabase, scope, role } = await requireScopedAdminPageDataAccess(`/admin/partners/${id}`, 'partners:read');
-  const { data, error } = await supabase.from('partners').select('*').eq('id', id).maybeSingle();
+  const { supabase, scope } = await requireScopedAdminPageDataAccess(`/admin/partners/${id}`, 'partners:read');
+  const { data, error } = await scopeCountryQuery(supabase.from('partners').select('*').eq('id', id), scope).maybeSingle();
   if (error) throw new Error(`Partner query failed: ${error.message}`);
   if (!data) return null;
   if (!isCountryAllowed(scope, data.country)) notFound();
-  return { partner: data as PartnerRecord, canActivate: isAdminRole(role) };
+  return { partner: data as PartnerRecord, canActivate: scope.mode === 'global' };
 }
 
 export default async function PartnerDetailsPage({ params }: { params: Promise<{ id: string }> }) {

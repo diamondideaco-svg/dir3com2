@@ -50,6 +50,8 @@ function fixture({ tableError = null, functionError = null, data = [] as unknown
         AdminText: (props: { ar: React.ReactNode; en: React.ReactNode }) => props[language],
         AdminRetryButton: () => createElement('button', { type: 'button' }, language === 'ar' ? 'إعادة المحاولة' : 'Try again'),
         AdminStatusText: ({ value }: { value: string }) => value,
+        AdminPermissionText: ({ value }: { value: string }) => value,
+        AdminSubmitButton: ({ ar, en, disabled }: { ar: string; en: string; disabled?: boolean }) => createElement('button', { type: 'submit', disabled }, language === 'ar' ? ar : en),
         AdminLocalizedInput: ({ ar, en, ...props }: { ar: string; en: string }) => createElement('input', { ...props, placeholder: language === 'ar' ? ar : en }),
       },
     });

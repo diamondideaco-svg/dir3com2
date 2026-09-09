@@ -19,6 +19,7 @@ const productionBooking: ExecutiveBookingRow = {
   status: 'confirmed',
   payment_status: 'paid',
   total_amount: '1250.50',
+  currency: 'SAR',
   synthetic: false,
   environment: 'production',
   source_channel: 'marketplace',
@@ -67,6 +68,14 @@ test('invalid amount on a confirmed paid Production booking fails revenue closed
   const metrics = resolveBookingMetrics([{ ...productionBooking, total_amount: null }], null);
   assert.deepEqual(metrics.productionBookings, { status: 'available', value: 1 });
   assert.deepEqual(metrics.confirmedProductionRevenue, { status: 'unavailable' });
+});
+
+test('mixed or absent currency never becomes a fabricated SAR total', () => {
+  for (const currency of ['USD', 'EGP', null, '']) {
+    const metrics = resolveBookingMetrics([productionBooking,{...productionBooking,currency}],null);
+    assert.deepEqual(metrics.confirmedProductionRevenue,{status:'unavailable'});
+    assert.deepEqual(metrics.productionBookings,{status:'available',value:2});
+  }
 });
 
 test('a successful zero-row result remains an authoritative zero', () => {

@@ -287,3 +287,51 @@ for (const country of ['EG', 'QA']) {
     await assert.rejects(f.admin.requireScopedAdminActionAccess('customers:read'), /Forbidden/);
   });
 }
+
+test('non-CEO Admin requires a fresh valid grant and never inherits global authority from profile', async () => {
+  const f = fixture(employee, 'admin');
+  await assert.rejects(f.admin.requireAdminShellAccess(), /NOT_FOUND/);
+  await assert.rejects(f.admin.requireAdminActionAccess(), /Forbidden/);
+  f.grants.push({ id: 'scoped-admin', invited_user_id: employee, email: 'fixture@example.invalid', access_level: 'scoped_staff', status: 'active', country_scope: ['EG','QA'], permissions: ['customers:read','products:read'] });
+  assert.equal((await f.admin.requireScopedAdminActionAccess('customers:read')).scope.mode, 'country');
+  await assert.rejects(f.admin.requireAdminActionAccess(), /Forbidden/);
+  await assert.rejects(f.admin.requireScopedAdminActionAccess('customers:write'), /Forbidden/);
+  f.grants[0].country_scope = ['EG'];
+  const next = await f.admin.requireScopedAdminActionAccess('customers:read');
+  assert.equal(f.admin.isCountryAllowed(next.scope, 'QA'), false);
+  assert.equal(f.admin.isCountryAllowed(next.scope, 'Egypt'), true);
+  f.grants[0].permissions = ['products:read'];
+  await assert.rejects(f.admin.requireScopedAdminActionAccess('customers:read'), /Forbidden/);
+  f.grants[0].status = 'inactive';
+  await assert.rejects(f.admin.requireScopedAdminActionAccess('products:read'), /Forbidden/);
+  f.grants[0].status = 'active';
+  f.profiles[0].status = 'inactive';
+  await assert.rejects(f.admin.requireAdminShellAccess(), /NOT_FOUND/);
+  f.profiles[0].status = 'active';
+  f.grants.length = 0;
+  await assert.rejects(f.admin.requireAdminShellAccess(), /NOT_FOUND/);
+  assert.equal(f.writes.length, 0);
+});
+
+test('explicit global grant is authoritative, malformed and cross-identity grants fail closed', async () => {
+  const f = fixture(employee, 'admin');
+  const grant = { id:'global', invited_user_id:employee, email:'test@example.invalid', access_level:'global_admin', status:'active', country_scope:[], permissions:['admin:full'] };
+  f.grants.push(grant);
+  assert.equal((await f.admin.requireAdminActionAccess()).user.id, employee);
+  for (const mutation of [{permissions:[]}, {permissions:['unknown:permission']}, {country_scope:[null]}, {invited_user_id:other}, {access_level:'admin'}]) {
+    f.grants[0] = {...grant,...mutation};
+    await assert.rejects(f.admin.requireAdminActionAccess(), /Forbidden/);
+  }
+});
+
+test('service query is bounded by canonical country before execution, never caller country or OR interpolation', async () => {
+  const f = fixture(employee,'staff');
+  const filters: Array<[string,string[]]> = [];
+  const query = { in(column:string, values:string[]) { filters.push([column,values]); return this; } };
+  f.admin.scopeCountryQuery(query,{mode:'country',countries:['EG'],grant:null});
+  assert.equal(filters[0][0],'country');
+  assert.ok(filters[0][1].includes('Egypt'));
+  assert.ok(filters[0][1].includes('مصر'));
+  assert.equal(filters[0][1].includes('QA'),false);
+  assert.throws(()=>f.admin.scopeCountryQuery(query,{mode:'country',countries:[],grant:null}),/COUNTRY_SCOPE_FORBIDDEN/);
+});

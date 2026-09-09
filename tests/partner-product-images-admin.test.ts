@@ -13,7 +13,11 @@ test('admin product table exposes existing images through the admin preview rout
   assert.match(page, /product_images\(id, product_id, image_url/);
   assert.match(table, /api\/admin\/products\/images/);
   assert.match(table, /product\.product_images/);
-  assert.match(route, /requireAdminActionAccess\(\)/);
+  assert.match(route, /requireScopedAdminActionAccess\('products:read'\)/);
+  assert.match(route, /scopeCountryQuery\(supabaseAdmin/);
+  assert.match(route, /product_images!inner\(id, image_url\)/);
+  assert.ok(route.indexOf('requireScopedAdminActionAccess(') < route.indexOf(".from('products')"));
+  assert.ok(route.indexOf('if (!image)') < route.indexOf('createSignedUrl'));
   assert.match(route, /createSignedUrl\(image\.image_url, 300\)/);
   assert.doesNotMatch(route, /object\/public/);
 });

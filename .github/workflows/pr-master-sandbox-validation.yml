@@ -59,6 +59,16 @@ jobs:
       - name: Partner durable ownership boundary (isolated PostgreSQL)
         run: node scripts/test-partner-durable-postgresql.mjs
 
+      - name: Protected operations active authority (isolated PostgreSQL 17)
+        run: |
+          docker run -d --name dir3com-protected-ops-policy-20260909 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:17-alpine
+          trap 'docker stop dir3com-protected-ops-policy-20260909' EXIT
+          for attempt in $(seq 1 30); do
+            if docker exec dir3com-protected-ops-policy-20260909 pg_isready -U postgres; then break; fi
+            sleep 1
+          done
+          node scripts/test-protected-operations-postgresql.mjs
+
       - name: Verification Documents Reconciliation (PostgreSQL 17)
         run: npm run test:customer-documents-postgresql
 

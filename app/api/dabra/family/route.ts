@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { normalizeRole } from '@/lib/auth/identity';
+import { resolveCanonicalActiveProfile } from '@/lib/auth/identity';
+import { resolveVerifiedOperationalAccess } from '@/lib/auth/admin';
 import { isCeoActor } from '@/lib/auth/team-access';
 import {
   DABRA_ACTION_RULES,
@@ -33,17 +34,16 @@ async function resolveTrustedActor(request: NextRequest): Promise<{
     };
   }
 
-  const [{ data: profile, error }, executive] = await Promise.all([
-    auth.supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', auth.user.id)
-      .maybeSingle(),
+  const [profile, executive] = await Promise.all([
+    resolveCanonicalActiveProfile(auth.supabase, auth.user.id),
     isCeoActor(auth.supabase, auth.user),
   ]);
-  if (error) logServerError('api.dabra.family.profile_read_failed', error);
-  const rawRole = typeof profile?.role === 'string' ? profile.role : null;
-  const platformRole = (normalizeRole(rawRole) ?? 'anonymous') as DabraPlatformRole;
+  let rawRole = profile?.sourceRole ?? null;
+  let platformRole: DabraPlatformRole = profile?.role ?? 'anonymous';
+  if (platformRole === 'admin' || platformRole === 'staff') {
+    const operational = await resolveVerifiedOperationalAccess(auth.supabase, auth.user);
+    if (!operational.scope) { rawRole = null; platformRole = 'anonymous'; }
+  }
   return {
     actor: {
       authenticated: true,

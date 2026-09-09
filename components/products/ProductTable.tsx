@@ -11,6 +11,7 @@ type ProductWithImages = ProductRecord & {
 
 type ProductTableProps = {
   products: ProductWithImages[];
+  canWrite?: boolean;
 };
 
 function ProductImages({ product }: { product: ProductWithImages }) {
@@ -27,7 +28,6 @@ function ProductImages({ product }: { product: ProductWithImages }) {
           target="_blank"
           rel="noreferrer"
           className="group inline-flex flex-col gap-1 text-xs text-[#334155]"
-          aria-label={`فتح صورة ${product.name_en || product.name_ar}`}
         >
           <img
             src={`/api/admin/products/images/${encodeURIComponent(image.id)}`}
@@ -41,7 +41,7 @@ function ProductImages({ product }: { product: ProductWithImages }) {
   );
 }
 
-export default function ProductTable({ products }: ProductTableProps) {
+export default function ProductTable({ products, canWrite = false }: ProductTableProps) {
   if (products.length === 0) {
     return (
       <div className="rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] px-5 py-10 text-center text-sm text-[var(--color-muted)]">
@@ -56,7 +56,7 @@ export default function ProductTable({ products }: ProductTableProps) {
         {products.map((product) => (
           <article key={product.id} className="min-w-0 overflow-hidden rounded-[1.25rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-muted)]">
             <div className="min-w-0">
-              <div className="break-words font-semibold text-[var(--color-navy)]">{product.name_en || product.name_ar}</div>
+              <div className="break-words font-semibold text-[var(--color-navy)]"><AdminText ar={product.name_ar || product.name_en} en={product.name_en || product.name_ar} /></div>
               <div className="mt-1 break-all text-xs text-[var(--color-muted)]">{product.slug}</div>
             </div>
 
@@ -86,6 +86,7 @@ export default function ProductTable({ products }: ProductTableProps) {
                 slug={product.slug}
                 status={product.status}
                 lifecycleVersion={product.lifecycle_version}
+                canWrite={canWrite}
               />
             </div>
           </article>
@@ -108,7 +109,7 @@ export default function ProductTable({ products }: ProductTableProps) {
             {products.map((product) => (
               <tr key={product.id} className="border-t border-[color:var(--color-border)] align-top text-sm text-[var(--color-muted)]">
                 <td className="px-5 py-4">
-                  <div className="font-semibold text-[var(--color-navy)]">{product.name_en || product.name_ar}</div>
+                  <div className="font-semibold text-[var(--color-navy)]"><AdminText ar={product.name_ar || product.name_en} en={product.name_en || product.name_ar} /></div>
                   <div className="mt-1 text-xs text-[var(--color-muted)]">{product.slug}</div>
                 </td>
                 <td className="px-5 py-4 uppercase">{product.marketplace_family || '—'}</td>
@@ -127,6 +128,7 @@ export default function ProductTable({ products }: ProductTableProps) {
                     slug={product.slug}
                     status={product.status}
                     lifecycleVersion={product.lifecycle_version}
+                canWrite={canWrite}
                   />
                 </td>
               </tr>

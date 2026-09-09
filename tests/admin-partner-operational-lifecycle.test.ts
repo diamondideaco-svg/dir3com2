@@ -92,7 +92,11 @@ test('admin lifecycle controls serialize sibling mutations against one rendered 
 });
 
 test('admin mobile cards and desktop table preserve responsive overflow and lifecycle controls', () => {
-  assert.match(adminPlatformShell, /<nav[^>]+className="[^"]*w-full[^"]*min-w-0[^"]*max-w-full[^"]*overflow-x-auto[^"]*overscroll-x-contain/);
+  assert.match(adminPlatformShell, /<nav[^>]+className=\{styles\.nav\}/);
+  const shellCss = read('components/admin/ProtectedOperations.module.css');
+  assert.match(shellCss, /\.content :where\(\*\) \{ margin: revert-layer; padding: revert-layer; \}/);
+  assert.match(shellCss, /@media \(max-width: 639px\)[\s\S]*\.nav\s*\{[^}]*flex-wrap: nowrap;[^}]*overflow-x: auto;[^}]*overscroll-behavior-x: contain/);
+  assert.match(shellCss, /\.nav a\s*\{[^}]*flex-shrink: 0;[^}]*white-space: nowrap/);
   assert.doesNotMatch(adminPlatformShell, /<nav[^>]+hidden/);
   assert.doesNotMatch(productTable, /<table[^>]+hidden/);
 

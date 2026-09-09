@@ -139,7 +139,9 @@ test('server endpoint derives actor and owned resources and contains no mutation
   const route = fs.readFileSync(path.join(process.cwd(), 'app', 'api', 'dabra', 'family', 'route.ts'), 'utf8');
   assert.match(route, /createSupabaseRequestClient\(request\)/);
   assert.match(route, /isCeoActor\(auth\.supabase, auth\.user\)/);
-  assert.match(route, /\.from\('profiles'\)[\s\S]*?\.select\('role'\)/);
+  assert.match(route, /resolveCanonicalActiveProfile\(auth\.supabase, auth\.user\.id\)/);
+  assert.match(route, /resolveVerifiedOperationalAccess\(auth\.supabase, auth\.user\)/);
+  assert.match(route, /if \(!operational\.scope\) \{ rawRole = null; platformRole = 'anonymous'; \}/);
   assert.match(route, /\.eq\('user_id', actor\.userId\)/);
   assert.match(route, /normalizeTruth/);
   assert.match(route, /resolveProviderCheckout/);

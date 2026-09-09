@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { isCountryAllowed, requireScopedAdminPageDataAccess } from '@/lib/auth/admin';
+import { isCountryAllowed, requireScopedAdminPageDataAccess, scopeCountryQuery } from '@/lib/auth/admin';
 import CustomerProfile from '@/components/customers/CustomerProfile';
 import CustomerShieldBadge from '@/components/customers/CustomerShieldBadge';
 import CustomerTimeline from '@/components/customers/CustomerTimeline';
@@ -10,7 +10,7 @@ import { AdminText } from '@/components/admin/AdminLocale';
 
 async function getCustomer(id: string) {
   const { supabase, scope } = await requireScopedAdminPageDataAccess(`/admin/customers/${id}`, 'customers:read');
-  const { data: customerData, error: customerError } = await supabase.from('customers').select('*').eq('id', id).maybeSingle();
+  const { data: customerData, error: customerError } = await scopeCountryQuery(supabase.from('customers').select('*').eq('id', id), scope).maybeSingle();
 
   if (customerError) throw new Error(`Customer query failed: ${customerError.message}`);
   if (!customerData) return { customer: null, activity: [], activityAvailable: true, documents: [], documentsAvailable: true };

@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import PartnerForm from '@/components/admin/PartnerForm';
 import { AdminText } from '@/components/admin/AdminLocale';
+import { requireAdminPageAccess } from '@/lib/auth/admin';
 
-export default function NewPartnerPage() {
+export default async function NewPartnerPage() {
+  await requireAdminPageAccess('/admin/partners/new');
   return (
     <div className="min-h-screen bg-[#FAF8F4] px-4 py-8 text-[#334155]">
       <div className="mx-auto max-w-5xl">
