@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import LogoutButton from '@/components/auth/LogoutButton';
 import styles from './partner-workspace.module.css';
+import { partnerNavigationItems } from '@/lib/navigation/route-catalog';
 const FloatingDibrah = dynamic(() => import('@/components/layout/FloatingDibrah'), { ssr: false });
 
 export default function PartnerWorkspace({ children, fullName, email }: { children: ReactNode; fullName: string; email: string }) {
@@ -27,8 +28,7 @@ export default function PartnerWorkspace({ children, fullName, email }: { childr
       </div>
     </header>
     <nav className={styles.navigation} aria-label={ar ? 'عمليات الشريك' : 'Partner operations'}>
-      <Link href="/partner-portal" aria-current={pathname === '/partner-portal' ? 'page' : undefined}>{ar ? 'بوابة الشريك' : 'Partner portal'}</Link>
-      <Link href="/partner-portal/requests" aria-current={pathname === '/partner-portal/requests' ? 'page' : undefined}>{ar ? 'الطلبات' : 'Requests'}</Link>
+      {partnerNavigationItems.map((item) => <Link key={item.href} href={item.href} aria-current={pathname === item.href ? 'page' : undefined}>{ar ? item.ar : item.en}</Link>)}
     </nav>
     <div id="partner-content" tabIndex={-1} className={styles.content}>{children}</div>
     <footer className={styles.footer}>dir3com · {ar ? 'مساحة تشغيل الشريك' : 'Partner operations'}</footer>

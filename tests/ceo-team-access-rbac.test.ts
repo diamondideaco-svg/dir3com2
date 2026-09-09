@@ -11,6 +11,7 @@ const page = read('app/admin/team/page.tsx');
 const identity = read('lib/auth/identity.ts');
 const layout = read('app/admin/layout.tsx');
 const shell = read('components/admin/AdminPlatformShell.tsx');
+const routeCatalog = read('lib/navigation/route-catalog.ts');
 const adminAuth = read('lib/auth/admin.ts');
 const customerActions = read('lib/actions/customer-actions.ts');
 const productActions = read('lib/actions/product-actions.ts');
@@ -110,13 +111,14 @@ test('country authorization normalizes known country names and fails closed on m
 });
 
 test('scoped navigation exposes only hardened customer, partner and product surfaces', () => {
-  assert.match(shell, /href: '\/admin\/customers'.*permission: 'customers:read'/);
-  assert.match(shell, /href: '\/admin\/partners'.*permission: 'partners:read'/);
-  assert.match(shell, /href: '\/admin\/products'.*permission: 'products:read'/);
-  assert.match(shell, /href: '\/admin\/finance'.*globalOnly: true/);
-  assert.match(shell, /href: '\/admin\/operations'.*globalOnly: true/);
-  assert.match(shell, /href: '\/admin\/verification'.*globalOnly: true/);
-  assert.match(shell, /href: '\/admin\/assignment'.*globalOnly: true/);
+  assert.match(shell, /visibleProtectedNavigation/);
+  assert.match(routeCatalog, /href: '\/admin\/customers'.*permission: 'customers:read'/);
+  assert.match(routeCatalog, /href: '\/admin\/partners'.*permission: 'partners:read'/);
+  assert.match(routeCatalog, /href: '\/admin\/products'.*permission: 'products:read'/);
+  assert.match(routeCatalog, /href: '\/admin\/finance'.*globalOnly: true/);
+  assert.match(routeCatalog, /href: '\/admin\/operations'.*globalOnly: true/);
+  assert.match(routeCatalog, /href: '\/admin\/verification'.*globalOnly: true/);
+  assert.match(routeCatalog, /href: '\/admin\/assignment'.*globalOnly: true/);
 });
 
 test('customer admin list and details enforce country read scope', () => {

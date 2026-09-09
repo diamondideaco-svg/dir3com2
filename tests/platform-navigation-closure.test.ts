@@ -29,9 +29,11 @@ test('marketplace browsing remains public for late authentication', () => {
 
 test('admin shell wires all approved routes and reuses canonical logout', () => {
   const shell = read('components/admin/AdminPlatformShell.tsx');
+  const catalog = read('lib/navigation/route-catalog.ts');
   for (const route of ['/admin/audit', '/admin/events', '/admin/notifications', '/admin/shield', '/admin/partners/vip-local-egypt']) {
-    assert.ok(shell.includes(route), `${route} must be linked`);
+    assert.ok(catalog.includes(route), `${route} must be linked by the authoritative navigation model`);
   }
+  assert.match(shell, /visibleProtectedNavigation/);
   assert.match(shell, /LogoutButton/);
   assert.match(read('components/layout/Header.tsx'), /LogoutButton/);
   assert.match(read('components/auth/LogoutButton.tsx'), /fetch\('\/api\/auth\/logout'/);
