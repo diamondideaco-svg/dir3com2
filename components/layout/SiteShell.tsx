@@ -19,6 +19,8 @@ const hiddenExactPaths = ['/auth/callback'];
 
 export default function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  // Partner pages own protected operational chrome; public routes are unchanged.
+  if (pathname === '/partner-portal' || pathname === '/partner-portal/requests') return <>{children}</>;
   if (pathname === '/') return <HomeChrome>{children}</HomeChrome>;
   if (pathname === '/services') return <ServicesChrome>{children}</ServicesChrome>;
   if (pathname === '/marketplace') return <ServicesChrome>{children}</ServicesChrome>;

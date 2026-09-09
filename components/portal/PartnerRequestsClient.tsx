@@ -102,9 +102,10 @@ export default function PartnerRequestsClient() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]">PARTNER PORTAL</p>
+            <p className="text-sm font-semibold text-[#80600e]">{ar ? 'بوابة الشريك' : 'Partner portal'}</p>
             <h1 className="mt-2 text-3xl font-semibold">{ar ? 'الطلبات' : 'Requests'}</h1>
             <p className="mt-2 text-sm text-[#64748B]">{ar ? 'الطلبات المرتبطة بمنتجاتك فقط. كل تسليم يحتفظ برقم DIR3COM وحالته.' : 'Only requests tied to your products. Every handoff keeps the DIR3COM reference and status.'}</p>
+            <p className="mt-2 text-sm text-[#0D1B2A]">{ar ? 'الطلب ليس حجزًا مؤكدًا. التأكيد يتطلب سجل حجز معتمد.' : 'A request is not a confirmed booking. Confirmation requires an authoritative booking record.'}</p>
           </div>
           <Link href="/partner-portal" className="rounded-full border border-[#D4AF37]/30 bg-white px-4 py-2 text-sm font-semibold text-[#0D1B2A]">{ar ? 'العودة للبوابة' : 'Back to portal'}</Link>
         </div>

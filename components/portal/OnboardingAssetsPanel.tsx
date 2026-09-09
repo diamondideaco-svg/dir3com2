@@ -1,5 +1,7 @@
 'use client';
 
+import PortalInput from './PortalInput';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 
@@ -188,12 +190,13 @@ function privateImageUrl(item: Media) {
   return `/api/partner-portal/assets/media?mediaId=${encodeURIComponent(item.id)}`;
 }
 
-export default function OnboardingAssetsPanel({ mode, language, direction }: { mode: Mode; language: Lang; direction: 'rtl' | 'ltr' }) {
+export default function OnboardingAssetsPanel({ mode, language, direction, operational = false }: { mode: Mode; language: Lang; direction: 'rtl' | 'ltr'; operational?: boolean }) {
   const t = labels[language];
   const ownerKind = useMemo(() => ownerFromMode(mode), [mode]);
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [loadFailed, setLoadFailed] = useState(false);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [media, setMedia] = useState<Media[]>([]);
   const [contracts, setContracts] = useState<ContractAssociation[]>([]);
@@ -203,25 +206,28 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
   const load = useCallback(async () => {
     setLoading(true);
     setMessage('');
+    setLoadFailed(false);
     try {
       const [assetsRes, queueRes] = await Promise.all([
-        fetch(`/api/partner-portal/assets?ownerKind=${ownerKind}`, { cache: 'no-store' }),
-        fetch(`/api/partner-portal/review-queue?ownerKind=${ownerKind}`, { cache: 'no-store' }),
+        fetch(operational ? '/api/partner-portal/assets' : `/api/partner-portal/assets?ownerKind=${ownerKind}`, { cache: 'no-store' }),
+        operational ? Promise.resolve(null) : fetch(`/api/partner-portal/review-queue?ownerKind=${ownerKind}`, { cache: 'no-store' }),
       ]);
 
       const assetsJson = await assetsRes.json().catch(() => ({}));
-      const queueJson = await queueRes.json().catch(() => ({}));
+      const queueJson = queueRes ? await queueRes.json().catch(() => ({})) : {};
+      if (operational && (!assetsRes.ok || !Array.isArray(assetsJson?.data?.assets) || !Array.isArray(assetsJson?.data?.media) || !Array.isArray(assetsJson?.data?.contracts))) throw new Error('ASSETS_LOAD_FAILED');
 
       setAssets(Array.isArray(assetsJson?.data?.assets) ? assetsJson.data.assets : []);
       setMedia(Array.isArray(assetsJson?.data?.media) ? assetsJson.data.media : []);
       setContracts(Array.isArray(assetsJson?.data?.contracts) ? assetsJson.data.contracts : []);
       setQueue(Array.isArray(queueJson?.data) ? queueJson.data : []);
     } catch {
+      setLoadFailed(true);
       setMessage(t.failed);
     } finally {
       setLoading(false);
     }
-  }, [ownerKind, t.failed]);
+  }, [ownerKind, t.failed, operational]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -313,7 +319,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
     setMessage('');
     try {
       const form = new FormData();
-      form.append('ownerKind', ownerKind);
+      form.append('ownerKind', operational ? (assets.find((asset) => asset.id === assetId)?.ownerKind || '') : ownerKind);
       form.append('assetId', assetId);
       form.append('label', local.label || local.file.name);
       if (local.replaceMediaId) {
@@ -406,13 +412,17 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
   return (
     <section className="rounded-2xl border border-[color:var(--color-border)] bg-white p-4" dir={direction}>
       <h3 className="text-lg font-semibold text-[#334155]">{t.heading}</h3>
-      <p className="mt-1 text-xs text-[#64748B]">{t.subheading}</p>
-      <button type="button" disabled={loading} onClick={() => void createAsset()} className="mt-3 rounded-lg bg-[#D4AF37] px-3 py-2 text-xs font-semibold text-[#334155] disabled:opacity-50">{language === 'ar' ? 'إضافة أصل' : 'Add asset'}</button>
+      <p className="mt-1 text-xs text-[#64748B]">{operational ? (language === 'ar' ? 'حدّث بيانات أصولك وصورها وأرسلها للمراجعة.' : 'Update your asset details and images, then submit them for review.') : t.subheading}</p>
+      <button type="button" disabled={loading || (operational && loadFailed)} onClick={() => void createAsset()} className="mt-3 rounded-lg bg-[#D4AF37] px-3 py-2 text-xs font-semibold text-[#334155] disabled:opacity-50">{language === 'ar' ? 'إضافة أصل' : 'Add asset'}</button>
 
-      {message ? <div className="mt-3 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-xs text-[#334155]">{message}</div> : null}
+      {message ? <div role={loadFailed ? 'alert' : 'status'} className="mt-3 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-2 text-xs text-[#334155]">{message}</div> : null}
+      {operational && loadFailed ? <button type="button" onClick={() => void load()}>{language === 'ar' ? 'إعادة المحاولة' : 'Retry'}</button> : null}
+      {operational && loading ? <p role="status">{language === 'ar' ? 'جارٍ التحميل…' : 'Loading…'}</p> : null}
+      {(!operational || (!loading && !loadFailed)) && <>
 
       <div className="mt-4 rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-3">
         <p className="text-xs font-semibold text-[#334155]">{t.contracts}</p>
+        {operational && contracts.length === 0 ? <p className="mt-2 text-sm">{language === 'ar' ? 'لا توجد ارتباطات عقود حاليًا.' : 'There are no contract associations yet.'}</p> : null}
         <div className="mt-2 space-y-2 text-xs">
           {contracts.map((contract) => (
             <div key={contract.id} className="rounded-lg border border-[color:var(--color-border)] bg-[#FAF8F4] px-3 py-2">
@@ -440,19 +450,19 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2">
-                <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.title} onChange={(e) => patchAsset(asset.id, { title: e.target.value })} placeholder={t.title} />
-                <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.location} onChange={(e) => patchAsset(asset.id, { location: e.target.value })} placeholder={t.location} />
+                <PortalInput operational={operational} className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.title} onChange={(e) => patchAsset(asset.id, { title: e.target.value })} placeholder={t.title} />
+                <PortalInput operational={operational} className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.location} onChange={(e) => patchAsset(asset.id, { location: e.target.value })} placeholder={t.location} />
                 {asset.assetType === 'vehicle' ? (
                   <>
-                    <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.make} onChange={(e) => patchAsset(asset.id, { make: e.target.value })} placeholder={t.make} />
-                    <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.model} onChange={(e) => patchAsset(asset.id, { model: e.target.value })} placeholder={t.model} />
-                    <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.plateNumber} onChange={(e) => patchAsset(asset.id, { plateNumber: e.target.value })} placeholder={t.plate} />
+                    <PortalInput operational={operational} className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.make} onChange={(e) => patchAsset(asset.id, { make: e.target.value })} placeholder={t.make} />
+                    <PortalInput operational={operational} className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.model} onChange={(e) => patchAsset(asset.id, { model: e.target.value })} placeholder={t.model} />
+                    <PortalInput operational={operational} className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.plateNumber} onChange={(e) => patchAsset(asset.id, { plateNumber: e.target.value })} placeholder={t.plate} />
                   </>
                 ) : null}
-                <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.pricing} onChange={(e) => patchAsset(asset.id, { pricing: e.target.value })} placeholder={t.pricing} />
-                <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.availability} onChange={(e) => patchAsset(asset.id, { availability: e.target.value })} placeholder={t.availability} />
-                <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm sm:col-span-2" value={asset.amenities.join(', ')} onChange={(e) => patchAsset(asset.id, { amenities: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })} placeholder={t.amenities} />
-                <input className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm sm:col-span-2" value={asset.optionalVideoUrl} onChange={(e) => patchAsset(asset.id, { optionalVideoUrl: e.target.value })} placeholder={t.videoUrl} />
+                <PortalInput operational={operational} className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.pricing} onChange={(e) => patchAsset(asset.id, { pricing: e.target.value })} placeholder={t.pricing} />
+                <PortalInput operational={operational} className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm" value={asset.availability} onChange={(e) => patchAsset(asset.id, { availability: e.target.value })} placeholder={t.availability} />
+                <PortalInput operational={operational} className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm sm:col-span-2" value={asset.amenities.join(', ')} onChange={(e) => patchAsset(asset.id, { amenities: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) })} placeholder={t.amenities} />
+                <PortalInput operational={operational} className="rounded-lg bg-[#FAF8F4] px-3 py-2 text-sm sm:col-span-2" value={asset.optionalVideoUrl} onChange={(e) => patchAsset(asset.id, { optionalVideoUrl: e.target.value })} placeholder={t.videoUrl} />
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -469,7 +479,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
                         {privateImageUrl(item) ? (
                           <img src={privateImageUrl(item)} alt={item.label} className="h-full w-full object-cover" />
                         ) : (
-                          <div className="flex h-full items-center justify-center text-[10px] text-[#64748B]">No preview</div>
+                          <div className="flex h-full items-center justify-center text-[10px] text-[#64748B]">{operational && language === 'ar' ? 'لا تتوفر معاينة' : 'No preview'}</div>
                         )}
                       </div>
                       <p className="mt-2 text-[11px] text-[#334155]">{item.label}</p>
@@ -486,14 +496,15 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
               <div className="mt-4 rounded-lg border border-[color:var(--color-border)] bg-[#FAF8F4] p-3">
                 <p className="mb-2 text-xs font-semibold text-[#334155]">{t.upload}</p>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <input
+                  <PortalInput operational={operational}
                     type="text"
                     value={localUpload.label}
                     onChange={(e) => setUploadByAsset((prev) => ({ ...prev, [asset.id]: { ...localUpload, label: e.target.value } }))}
                     className="rounded-lg bg-white px-3 py-2 text-sm"
-                    placeholder="Label"
+                    placeholder={operational && language === 'ar' ? 'وصف الصورة' : 'Label'}
                   />
                   <select
+                    aria-label={t.replaceHint}
                     value={localUpload.replaceMediaId}
                     onChange={(e) => setUploadByAsset((prev) => ({ ...prev, [asset.id]: { ...localUpload, replaceMediaId: e.target.value } }))}
                     className="rounded-lg bg-white px-3 py-2 text-sm"
@@ -503,8 +514,9 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
                       <option key={item.id} value={item.id}>{item.label}</option>
                     ))}
                   </select>
-                  <input
+                  <PortalInput operational={operational}
                     type="file"
+                    aria-label={t.upload}
                     accept={uploadAccept}
                     onChange={(e) => setUploadByAsset((prev) => ({ ...prev, [asset.id]: { ...localUpload, file: e.target.files?.[0] || null } }))}
                     className="rounded-lg bg-white px-3 py-2 text-sm sm:col-span-2"
@@ -524,7 +536,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
         })}
       </div>
 
-      <div className="mt-6 rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4">
+      {!operational && <div className="mt-6 rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4">
         <p className="text-sm font-semibold text-[#334155]">{t.reviewQueue}</p>
         <div className="mt-3 space-y-2">
           {queue.map((item) => (
@@ -541,7 +553,8 @@ export default function OnboardingAssetsPanel({ mode, language, direction }: { m
             </div>
           ))}
         </div>
-      </div>
+      </div>}
+      </>}
     </section>
   );
 }

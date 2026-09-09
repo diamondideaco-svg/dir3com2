@@ -36,11 +36,6 @@ function safeDocumentId(value: unknown) {
   return /^[0-9a-f-]{36}$/i.test(normalized) ? normalized : null;
 }
 
-function isReadSchemaDrift(error: unknown) {
-  const code = String((error as { code?: unknown })?.code || '').toUpperCase();
-  return code.startsWith('PGRST') || code === '42P01' || code === '42703';
-}
-
 async function retryPendingCleanup(ownerId: string) {
   if (!supabaseAdmin) return;
   const { data: pending } = await supabaseAdmin.from('partner_storage_cleanup_queue').select('id, document_id, bucket, storage_path, attempts').eq('owner_id', ownerId).limit(10);
@@ -105,9 +100,6 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      if (isReadSchemaDrift(error)) {
-        return NextResponse.json({ data: [] }, { headers: privateHeaders() });
-      }
       throw error;
     }
 
@@ -117,7 +109,7 @@ export async function GET(request: Request) {
       route: '/api/partner-portal/documents',
       actorId: actor.userId,
     });
-    return NextResponse.json({ data: [] }, { headers: privateHeaders() });
+    return NextResponse.json({ error: { code: 'PORTAL_DOCUMENTS_READ_FAILED' } }, { status: 500, headers: privateHeaders() });
   }
 }
 

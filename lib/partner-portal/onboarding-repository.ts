@@ -1,8 +1,9 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
 import type { ContractAssociation, PortalAssetMedia, PortalAssetRecord, PortalOnboardingStore, ReviewQueueItem } from '@/lib/partner-portal/onboarding-types';
 import type { PortalActor } from '@/lib/partner-portal/server';
+import { readPersistedPortalRecord, type PersistedPortalRow } from './persisted-record';
 
-type PersistedRow<T> = { record: T };
+type PersistedRow<T> = PersistedPortalRow<T>;
 
 function repository() {
   if (!supabaseAdmin) throw new Error('PARTNER_PORTAL_REPOSITORY_UNAVAILABLE');
@@ -10,16 +11,16 @@ function repository() {
 }
 
 function records<T>(rows: PersistedRow<T>[] | null) {
-  return (rows || []).map((row) => row.record);
+  return (rows || []).map(readPersistedPortalRecord);
 }
 
 export async function readOnboardingStore(actor: PortalActor): Promise<PortalOnboardingStore> {
   const db = repository();
   const privileged = actor.authRole === 'admin' || actor.authRole === 'staff';
-  const assetQuery = db.from('partner_portal_assets').select('record');
-  const mediaQuery = db.from('partner_portal_asset_media').select('record');
-  const reviewQuery = db.from('partner_portal_review_queue').select('record');
-  const contractQuery = db.from('partner_portal_contracts').select('record');
+  const assetQuery = db.from('partner_portal_assets').select('id, owner_id, owner_kind, record');
+  const mediaQuery = db.from('partner_portal_asset_media').select('id, owner_id, owner_kind, asset_id, storage_path, record');
+  const reviewQuery = db.from('partner_portal_review_queue').select('id, owner_id, owner_kind, asset_id, media_id, record');
+  const contractQuery = db.from('partner_portal_contracts').select('id, owner_id, owner_kind, record');
   const [assets, media, reviewQueue, contracts] = await Promise.all([
     privileged ? assetQuery : assetQuery.eq('owner_id', actor.userId),
     privileged ? mediaQuery : mediaQuery.eq('owner_id', actor.userId),

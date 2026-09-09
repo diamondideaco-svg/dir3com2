@@ -9,11 +9,6 @@ function privateHeaders() {
   };
 }
 
-function isReadSchemaDrift(error: unknown) {
-  const code = String((error as { code?: unknown })?.code || '').toUpperCase();
-  return code.startsWith('PGRST') || code === '42P01' || code === '42703';
-}
-
 export async function GET() {
   const actor = await requirePortalActor();
   if (!actor) {
@@ -33,8 +28,10 @@ export async function GET() {
       .limit(100);
 
     if (error) {
-      if (isReadSchemaDrift(error)) {
-        return NextResponse.json({ data: [] }, { headers: privateHeaders() });
+      // Finance has not provisioned this relation in the canonical baseline.
+      // Preserve that dependency explicitly; never fabricate an empty ledger.
+      if (error.code === '42P01' || error.code === 'PGRST205') {
+        return NextResponse.json({ error: { code: 'PORTAL_SETTLEMENTS_UNAVAILABLE' } }, { status: 503, headers: privateHeaders() });
       }
       throw error;
     }

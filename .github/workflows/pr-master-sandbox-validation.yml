@@ -56,6 +56,9 @@ jobs:
       - name: Admin + Partner Lifecycle PostgreSQL Replay
         run: npm run test:admin-partner-lifecycle-postgresql
 
+      - name: Partner durable ownership boundary (isolated PostgreSQL)
+        run: node scripts/test-partner-durable-postgresql.mjs
+
       - name: Verification Documents Reconciliation (PostgreSQL 17)
         run: npm run test:customer-documents-postgresql
 

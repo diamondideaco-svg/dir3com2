@@ -2,5 +2,9 @@
   {
     "path": "supabase/migrations/20260906183519_customer_private_document_upload.sql",
     "sha256": "43d3f2faa3609308f5a8535f37b27ecfd8ce7d84ac55571bcc66a0c661c9f5d3"
+  },
+  {
+    "path": "supabase/migrations/20260909064524_partner_durable_owner_boundary.sql",
+    "sha256": "e1bffd02361a14d95543c2901b8407138c3c5edfd33e3bff5c17331641b9826e"
   }
 ]
