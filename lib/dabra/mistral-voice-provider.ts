@@ -24,11 +24,12 @@ export type MistralVoiceConfig = Readonly<{
 
 export function getMistralVoiceConfig(env: MistralVoiceEnv = process.env): MistralVoiceConfig | null {
   const apiKey = env.MISTRAL_API_KEY?.trim() ?? '';
-  const voiceId = env.DABRA_MISTRAL_VOICE_ID?.trim() ?? '';
+  const configuredVoiceId = env.DABRA_MISTRAL_VOICE_ID?.trim() ?? '';
   const configuredTimeout = Number(env.DABRA_VOICE_TIMEOUT_MS ?? '20000');
   const requestTimeoutMs = Number.isFinite(configuredTimeout) ? Math.min(30_000, Math.max(3_000, configuredTimeout)) : 20_000;
-  if (apiKey.length < 16 || voiceId !== DABRA_APPROVED_VOICE.voiceId) return null;
-  return Object.freeze({ apiKey, voiceId, requestTimeoutMs });
+  if (apiKey.length < 16) return null;
+  if (configuredVoiceId && configuredVoiceId !== DABRA_APPROVED_VOICE.voiceId) return null;
+  return Object.freeze({ apiKey, voiceId: DABRA_APPROVED_VOICE.voiceId, requestTimeoutMs });
 }
 
 export function isMistralVoiceConfigured(env: MistralVoiceEnv = process.env) {
