@@ -4,7 +4,7 @@ export const DABRA_APPROVED_VOICE = Object.freeze({
   sha256: '4AA9AFA4EDDF369FE79E8F597946766C6FBDD8C789DE199DE9A5253EBFE044FB',
   dynamicEngine: 'mistral-voxtral-tts' as const,
   voiceId: 'ae29537c-c796-4fb5-9f5b-da1e02176a5d',
-  productionStatus: 'credential-and-voice-id-required' as const,
+  productionStatus: 'server-credential-required-approved-voice-pinned' as const,
   browserSpeechAllowed: false,
 });
 
