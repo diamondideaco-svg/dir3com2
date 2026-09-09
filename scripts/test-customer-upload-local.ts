@@ -78,7 +78,7 @@ async function main(){
   // Reconstruct them ONLY in this newly-created local container; RLS remains
   // authoritative, and the application migration must not widen these grants.
   sql('GRANT USAGE ON SCHEMA storage TO anon,authenticated,service_role; GRANT ALL ON ALL TABLES IN SCHEMA storage TO anon,authenticated,service_role; GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA storage TO anon,authenticated,service_role;');
-  const migration=readFileSync('supabase/migrations/20260906183519_customer_private_document_upload.sql','utf8');
+  const migration=readFileSync('supabase/migrations/20260909171237_customer_private_document_upload.sql','utf8');
   // Fail closed and transaction rollback before any application change.
   assert.throws(()=>sql("BEGIN; INSERT INTO storage.buckets(id,name,public) VALUES('customer-documents','customer-documents',true);\n"+migration),error=>String((error as {stderr?:string}).stderr).includes('CUSTOMER_DOCUMENT_BUCKET_CONFLICT'));
   assert.equal(sql("SELECT count(*) FROM storage.buckets WHERE id='customer-documents'"),'0');

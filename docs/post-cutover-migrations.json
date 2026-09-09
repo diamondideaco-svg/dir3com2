@@ -1,6 +1,6 @@
 [
   {
-    "path": "supabase/migrations/20260906183519_customer_private_document_upload.sql",
+    "path": "supabase/migrations/20260909171237_customer_private_document_upload.sql",
     "sha256": "43d3f2faa3609308f5a8535f37b27ecfd8ce7d84ac55571bcc66a0c661c9f5d3"
   },
   {
