@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { assertCountryAllowed, requireScopedAdminActionAccess, scopeCountryQuery } from '@/lib/auth/admin';
 import { sanitizeBoolean, sanitizeNumber, sanitizeText } from '@/lib/security/validation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { isProductVersionConflict } from '@/lib/products/lifecycle-feedback';
+import { isExpectedPublishBlock, isProductVersionConflict } from '@/lib/products/lifecycle-feedback';
 
 const PRODUCT_FAMILIES = ['drive', 'stay', 'fly', 'concierge', 'vip'] as const;
 const FULFILMENT_STATES = ['verified_requestable', 'verified_quote', 'live_bookable', 'unavailable', 'availability_unknown'] as const;
@@ -157,6 +157,7 @@ export async function publishProductAction(formData: FormData) {
     p_reason: reason,
   });
   if (isProductVersionConflict(error)) redirect('/admin/products?conflict=version');
+  if (isExpectedPublishBlock(error)) redirect('/admin/products?result=publish_blocked');
   if (error) throw new Error('PRODUCT_PUBLISH_FAILED');
 
   refreshProductSurfaces();
