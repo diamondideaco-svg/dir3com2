@@ -14,9 +14,9 @@ test('approved DABRA voice identity is pinned to the human-approved master finge
   assert.equal(DABRA_APPROVED_VOICE.voiceId, 'ae29537c-c796-4fb5-9f5b-da1e02176a5d');
 });
 
-test('dynamic output uses only the server adapter and remains fail-closed until infrastructure is configured', () => {
+test('dynamic output uses only the server adapter and pins the approved voice identity in source', () => {
   assert.equal(DABRA_APPROVED_VOICE.dynamicEngine, 'mistral-voxtral-tts');
-  assert.equal(DABRA_APPROVED_VOICE.productionStatus, 'credential-and-voice-id-required');
+  assert.equal(DABRA_APPROVED_VOICE.productionStatus, 'server-credential-required-approved-voice-pinned');
   assert.equal(DABRA_APPROVED_VOICE.browserSpeechAllowed, false);
   assert.doesNotMatch(chat, /speechSynthesis|SpeechSynthesisUtterance/);
   assert.match(chat, /approvedVoiceAvailable === false/);
