@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FiArrowUpLeft, FiCloud, FiCompass, FiDollarSign, FiMapPin, FiMessageCircle } from 'react-icons/fi';
+import Image from 'next/image';
+import { FiArrowUpLeft, FiClock, FiCloud, FiCompass, FiDollarSign, FiMapPin, FiMessageCircle } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
 const currencies = ['SAR', 'USD', 'EGP', 'EUR', 'AED'] as const;
@@ -46,6 +47,10 @@ const copy = {
     support: 'الدبرة',
     supportDescription: 'مساعد السفر الذكي من dir3com.',
     openSupport: 'اسأل الدبرة',
+    homeSupport: 'الدبرة — مساعد السفر',
+    localTime: 'الوقت المحلي',
+    destinationRequired: 'اختر وجهة لعرض الوقت المحلي',
+    currencyDeferred: 'تحويل العملات غير متاح حاليًا',
   },
   en: {
     eyebrow: 'TRAVEL TOOLS',
@@ -68,6 +73,10 @@ const copy = {
     support: 'DABRA Travel Assistant',
     supportDescription: 'dir3com smart travel assistant.',
     openSupport: 'Ask DABRA',
+    homeSupport: 'DABRA Travel Assistant',
+    localTime: 'Local time',
+    destinationRequired: 'Choose a destination to see local time',
+    currencyDeferred: 'Currency conversion is currently unavailable',
   },
 } as const;
 
@@ -76,7 +85,7 @@ function formatTemperature(weather: RuntimeWeather | null, unavailable: string) 
   return `${weather.cityLabel} ${weather.temperature}${weather.unit === 'f' ? '°F' : '°C'}${weather.condition ? ` · ${weather.condition}` : ''}`;
 }
 
-export default function HomeUtilities() {
+export default function HomeUtilities({ homePresentation = false }: { homePresentation?: boolean } = {}) {
   const { language, direction } = useLanguage();
   const t = copy[language];
   const [weather, setWeather] = useState<RuntimeWeather | null>(null);
@@ -108,6 +117,8 @@ export default function HomeUtilities() {
   }, [language]);
 
   async function convert() {
+    // Home has no live converter endpoint yet. Keep service-route behavior unchanged.
+    if (homePresentation) return;
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       setConversionState('error');
@@ -164,12 +175,18 @@ export default function HomeUtilities() {
               <label className="home-utility-field"><span>{t.amount}</span><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} aria-label={t.amount} /></label>
               <label className="home-utility-field"><span>{t.from}</span><select value={from} onChange={(event) => setFrom(event.target.value as Currency)} aria-label={t.from}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label>
               <label className="home-utility-field"><span>{t.to}</span><select value={to} onChange={(event) => setTo(event.target.value as Currency)} aria-label={t.to}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label>
-              <button type="button" className="home-utility-action" onClick={convert} disabled={conversionState === 'loading'}>{conversionState === 'loading' ? '...' : t.convert}</button>
+              <button type="button" className="home-utility-action" onClick={convert} disabled={homePresentation || conversionState === 'loading'} aria-describedby={homePresentation ? 'home-currency-status' : undefined}>{conversionState === 'loading' ? '...' : t.convert}</button>
             </div>
-            <p className={`home-utility-card__result ${conversionState === 'error' ? 'home-utility-card__result--error' : ''}`} aria-live="polite">
-              {conversionState === 'ready' && converted !== null ? `${converted.toFixed(2)} ${to}${rate ? ` · 1 ${from} = ${rate.toFixed(4)} ${to}` : ''}` : conversionState === 'error' ? t.conversionUnavailable : `${amount || '0'} ${from} → ${to}`}
+            <p id={homePresentation ? 'home-currency-status' : undefined} className={`home-utility-card__result ${conversionState === 'error' ? 'home-utility-card__result--error' : ''}`} aria-live="polite">
+              {homePresentation ? t.currencyDeferred : conversionState === 'ready' && converted !== null ? `${converted.toFixed(2)} ${to}${rate ? ` · 1 ${from} = ${rate.toFixed(4)} ${to}` : ''}` : conversionState === 'error' ? t.conversionUnavailable : `${amount || '0'} ${from} → ${to}`}
             </p>
           </article>
+
+          {homePresentation ? <article id="home-local-time" className="home-utility-card">
+            <div className="home-utility-card__icon"><FiClock aria-hidden="true" /></div>
+            <h3>{t.localTime}</h3>
+            <p className="home-utility-card__description">{t.destinationRequired}</p>
+          </article> : null}
 
           <article id="home-map" className="home-utility-card home-utility-card--maps">
             <div className="home-utility-card__icon"><FiMapPin /></div>
@@ -180,7 +197,7 @@ export default function HomeUtilities() {
         </div>
 
         <div className="home-support-card mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--home-gold)]/20 bg-white/75 px-5 py-4 shadow-[0_12px_28px_rgba(88,65,31,0.05)]">
-          <div className="flex items-center gap-3"><span className="home-utility-card__icon home-utility-card__icon--small"><FiMessageCircle /></span><div><h3 className="text-sm font-semibold text-[var(--color-navy)]">{t.support}</h3><p className="text-sm text-[#5d6672]">{t.supportDescription}</p></div></div>
+          <div className="flex items-center gap-3">{homePresentation ? <Image src="/brand/runtime/DABRA emoji.png" alt="" width={40} height={40} sizes="40px" className="home-utility-avatar" /> : <span className="home-utility-card__icon home-utility-card__icon--small"><FiMessageCircle /></span>}<div><h3 className="text-sm font-semibold text-[var(--color-navy)]">{homePresentation ? t.homeSupport : t.support}</h3><p className="text-sm text-[#5d6672]">{t.supportDescription}</p></div></div>
           <button type="button" className="home-utility-link" onClick={openDabra}>{t.openSupport}<FiArrowUpLeft /></button>
         </div>
       </div>

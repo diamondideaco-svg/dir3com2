@@ -9,6 +9,7 @@ import { Chrome } from '@/components/v6/Chrome';
 import { useCustomerReviewLayout } from '@/components/v6/ProfileDesktopFrame';
 import { SupportDesktopShell } from '@/components/v6/SupportDesktopShell';
 import requestStyles from '@/components/v6/request-detail-desktop.module.css';
+import { HomeChrome } from '@/components/home/HomeChrome';
 
 const FloatingDibrah = dynamic(() => import('@/components/layout/FloatingDibrah'), { ssr: false });
 
@@ -17,6 +18,7 @@ const hiddenExactPaths = ['/auth/callback'];
 
 export default function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  if (pathname === '/') return <HomeChrome>{children}</HomeChrome>;
   if (pathname === '/support') return <SupportSiteShell>{children}</SupportSiteShell>;
   if (/^\/my-requests\/[^/]+$/.test(pathname)) return <RequestDetailSiteShell pathname={pathname}>{children}</RequestDetailSiteShell>;
   if (pathname === '/my-profile') return <ProfileSiteShell>{children}</ProfileSiteShell>;
