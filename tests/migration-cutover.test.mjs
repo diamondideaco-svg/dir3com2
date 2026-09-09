@@ -21,10 +21,24 @@ test('Partner release version matches the applied ledger without SQL drift or an
  assert.equal(archive.includes(old),false);
  assert.deepEqual(forwards.filter(f=>f.path.endsWith('_partner_durable_owner_boundary.sql')),[{path,sha256:hash}]);
  assert.equal(createHash('sha256').update(read(path)).digest('hex'),hash);
- assert.ok(file>'20260906183519_customer_private_document_upload.sql');
+ assert.ok(file<'20260909171237_customer_private_document_upload.sql');
  assert.throws(()=>validateCutover(plan,[...active,old],archive,read),/active migration chain/);
  assert.throws(()=>validateCutover(plan,active.map(f=>f===file?old:f),archive,read),/active migration chain/);
 });
+test('Customer Documents release version matches the applied ledger without SQL drift or an active old alias',()=>{
+ const file='20260909171237_customer_private_document_upload.sql';
+ const old='20260906183519_customer_private_document_upload.sql';
+ const path='supabase/migrations/'+file;
+ const hash='43d3f2faa3609308f5a8535f37b27ecfd8ce7d84ac55571bcc66a0c661c9f5d3';
+ assert.deepEqual(active.filter(f=>f.endsWith('_customer_private_document_upload.sql')),[file]);
+ assert.equal(archive.includes(old),false);
+ assert.deepEqual(forwards.filter(f=>f.path.endsWith('_customer_private_document_upload.sql')),[{path,sha256:hash}]);
+ assert.equal(createHash('sha256').update(read(path)).digest('hex'),hash);
+ assert.ok(file>'20260909151646_partner_durable_owner_boundary.sql');
+ assert.throws(()=>validateCutover(plan,[...active,old],archive,read),/active migration chain/);
+ assert.throws(()=>validateCutover(plan,active.map(f=>f===file?old:f),archive,read),/active migration chain/);
+});
+
 test('forward registration fails closed for absent, duplicate, old, escaped or changed SQL',()=>{
  assert.throws(()=>validate(plan,active,archive,read),/active migration chain/);
  assert.throws(()=>validate(plan,active,archive,read,[...forwards,...forwards]),/Duplicate forward/);

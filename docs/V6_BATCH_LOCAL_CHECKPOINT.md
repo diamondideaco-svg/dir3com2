@@ -24,7 +24,9 @@ New core endpoint: `/api/customer/documents`.
 - Owner-authenticated signed view/download, 60 seconds, no permanent public URL.
 - Supported PDF/JPG/PNG/WebP; 4MiB file limit, bounded multipart body. Uses approved validator; no antivirus claim.
 
-## Forward migration — NOT applied to Production
+## Forward migration — historical checkpoint, superseded release status
+
+Release update (2026-09-09): Customer Documents DDL was separately applied to Production as `20260909171237_customer_private_document_upload`. Its active repository filename is now `20260909171237_customer_private_document_upload.sql`, a byte-identical rename of the original filename below. Do not reapply it or repair Production history. See [Customer Documents parity closure](customer-documents-production-parity.md). The original local checkpoint below remains historical evidence, not the current release status.
 
 `20260906183519_customer_private_document_upload.sql` adds nullable upload fingerprint/bucket fields to the canonical table and creates private `customer-documents`.
 Customer record writes remain Pending and auth.uid-bound. Direct customer Storage upload/update/delete is denied, while signed read uses the customer client. Existing explicit Admin document policy is preserved; no new Admin Storage permission.
