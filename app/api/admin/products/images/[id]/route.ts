@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdminActionAccess } from '@/lib/auth/admin';
-import { supabaseAdmin } from '@/lib/supabase/server';
+import { requireScopedAdminActionAccess, scopeCountryQuery } from '@/lib/auth/admin';
 import { logServerError } from '@/lib/security/safe-logger';
 import { isMissingStorageObject } from '@/lib/storage/errors';
 
@@ -8,19 +7,20 @@ const BUCKET = 'partner-media';
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdminActionAccess();
-    if (!supabaseAdmin) return NextResponse.json({ error: { code: 'ADMIN_UNAVAILABLE' } }, { status: 503 });
+    const { supabase: supabaseAdmin, scope } = await requireScopedAdminActionAccess('products:read');
 
     const { id } = await context.params;
     if (!id) return NextResponse.json({ error: { code: 'IMAGE_ID_REQUIRED' } }, { status: 400 });
 
-    const { data: image, error } = await supabaseAdmin
-      .from('product_images')
-      .select('id, image_url')
-      .eq('id', id)
+    const { data: product, error } = await scopeCountryQuery(supabaseAdmin
+      .from('products')
+      .select('id, country, product_images!inner(id, image_url)')
+      .is('deleted_at', null)
+      .eq('product_images.id', id), scope)
       .maybeSingle();
 
     if (error) throw error;
+    const image = product?.product_images?.find(image => image.id === id);
     if (!image) return NextResponse.json({ error: { code: 'IMAGE_NOT_FOUND' } }, { status: 404 });
 
     const { data: signed, error: signedError } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(image.image_url, 300);

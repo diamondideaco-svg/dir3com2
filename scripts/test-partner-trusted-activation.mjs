@@ -50,6 +50,7 @@ function partnerHarness({ status = 'active', readError = false, missing = false,
   const server = load('lib/partner-portal/server.ts', {
     '@/lib/supabase/server': { supabaseAdmin: client },
     '@/lib/auth/identity': {}, '@/lib/partner-portal/domain': {},
+    '@/lib/auth/admin': { resolveVerifiedOperationalAccess: async () => { throw new Error('Partner profile persistence must not request operational authority'); } },
   });
   const route = load('app/api/partner-portal/profile/route.ts', {
     'next/server': next, '@/lib/security/safe-logger': logger,
@@ -226,5 +227,5 @@ test('UI status is read-only; activation requires attestation and remains admin-
   assert.match(panel,/type="checkbox" name="confirmed" value="true" required/);
   assert.match(panel,/name="reason" required/);
   assert.match(panel,/window.confirm/);
-  assert.match(read('app/admin/partners/[id]/page.tsx'),/canActivate: isAdminRole\(role\)/);
+  assert.match(read('app/admin/partners/[id]/page.tsx'),/canActivate: scope\.mode === 'global'/);
 });

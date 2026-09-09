@@ -39,6 +39,8 @@ function harness(error: { message: string } | null, denied = false) {
     if (name === '@/lib/auth/admin') return {
       requireScopedAdminActionAccess: async () => { if (denied) throw new Error('DENIED'); return { supabase: client, scope: 'Egypt' }; },
       assertCountryAllowed: (_scope: string, country: string) => { if (country !== 'Egypt') throw new Error('COUNTRY_SCOPE_FORBIDDEN'); },
+      // Authorization/query bounding is covered by ceo-identity-runtime; this harness isolates lifecycle feedback.
+      scopeCountryQuery: <T,>(query: T, scope: string) => { assert.equal(scope, 'Egypt'); return query; },
     };
     if (name === '@/lib/supabase/server') return { createSupabaseServerClient: async () => client };
     if (name === '@/lib/products/lifecycle-feedback') return { isProductVersionConflict };

@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import PartnerTable from '@/components/admin/PartnerTable';
-import { filterRowsByCountryScope, requireScopedAdminPageDataAccess } from '@/lib/auth/admin';
+import { filterRowsByCountryScope, requireScopedAdminPageDataAccess, scopeCountryQuery } from '@/lib/auth/admin';
 import type { PartnerRecord } from '@/lib/supabase/types';
 import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
 
 async function getPartners() {
   const { supabase, scope } = await requireScopedAdminPageDataAccess('/admin/partners', 'partners:read');
-  const { data, error } = await supabase.from('partners').select('*').order('created_at', { ascending: false });
+  const { data, error } = await scopeCountryQuery(supabase.from('partners').select('*'), scope).order('created_at', { ascending: false });
 
   if (error) {
     console.error(error);

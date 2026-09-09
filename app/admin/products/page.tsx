@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { filterRowsByCountryScope, requireScopedAdminPageDataAccess } from '@/lib/auth/admin';
+import { filterRowsByCountryScope, requireScopedAdminPageDataAccess, scopeCountryQuery } from '@/lib/auth/admin';
+import { hasPermission } from '@/lib/auth/team-access';
 import ProductTable from '@/components/products/ProductTable';
 import ProductForm from '@/components/products/ProductForm';
 import type { ProductRecord } from '@/lib/supabase/types';
-import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
+import { AdminRetryButton, AdminText, AdminLocalizedInput } from '@/components/admin/AdminLocale';
 
 import { productConflictMessage, productResultMessages } from '@/lib/products/lifecycle-feedback';
 
@@ -27,19 +28,19 @@ type Filters = {
 
 async function getProducts() {
   const { supabase, scope } = await requireScopedAdminPageDataAccess('/admin/products', 'products:read');
-  const { data, error } = await supabase
+  const { data, error } = await scopeCountryQuery(supabase
     .from('products')
     .select('*, product_images(id, product_id, image_url, caption, sort_order, created_at), product_availability(partner_id)')
-    .is('deleted_at', null)
+    .is('deleted_at', null), scope)
     .order('created_at', { ascending: false });
 
   if (error) {
     console.error(error);
-    return { products: [] as ProductRow[], error: 'تعذر تحميل بيانات المنتجات حالياً.', isGlobal: scope.mode === 'global' };
+    return { products: [] as ProductRow[], error: 'تعذر تحميل بيانات المنتجات حالياً.', canWrite: scope.mode === 'global' || hasPermission(scope.grant, 'products:write'), isGlobal: scope.mode === 'global' };
   }
 
   const scoped = filterRowsByCountryScope(scope, (data || []) as ProductRow[]);
-  return { products: scoped, error: null, isGlobal: scope.mode === 'global' };
+  return { products: scoped, error: null, canWrite: scope.mode === 'global' || hasPermission(scope.grant, 'products:write'), isGlobal: scope.mode === 'global' };
 }
 
 function applyFilters(products: ProductRow[], params: Filters) {
@@ -63,7 +64,7 @@ function applyFilters(products: ProductRow[], params: Filters) {
 }
 
 export default async function AdminProductsPage({ searchParams }: { searchParams: Promise<Filters> }) {
-  const { products, error, isGlobal } = await getProducts();
+  const { products, error, isGlobal, canWrite } = await getProducts();
   const params = await searchParams;
   const filteredProducts = applyFilters(products, params);
   const resultMessage = params?.result && Object.hasOwn(productResultMessages, params.result) ? productResultMessages[params.result] : null;
@@ -94,19 +95,19 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
         ) : null}
 
         <form method="get" className="mb-6 grid min-w-0 gap-3 rounded-[1.5rem] border border-[color:var(--color-border)] bg-white p-4 sm:grid-cols-2 xl:grid-cols-[1.5fr_repeat(4,minmax(130px,1fr))_auto]">
-          <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#64748B]"><AdminText ar="البحث" en="Search" /><input name="q" defaultValue={params.q || ''} placeholder="Name / slug / city" className="min-h-11 min-w-0 rounded-xl border border-[color:var(--color-border)] px-3 text-sm text-[#334155]" /></label>
-          <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#64748B]"><AdminText ar="الحالة" en="Status" /><select name="status" defaultValue={params.status || 'all'} className="min-h-11 min-w-0 rounded-xl border border-[color:var(--color-border)] bg-white px-3 text-sm text-[#334155]"><option value="all">All</option><option value="draft">Draft</option><option value="published">Published</option></select></label>
-          <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#64748B]"><AdminText ar="العائلة" en="Family" /><select name="family" defaultValue={params.family || 'all'} className="min-h-11 min-w-0 rounded-xl border border-[color:var(--color-border)] bg-white px-3 text-sm text-[#334155]"><option value="all">All</option><option value="drive">Drive</option><option value="stay">Stay</option><option value="fly">Fly</option><option value="concierge">Concierge</option><option value="vip">VIP</option></select></label>
-          <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#64748B]"><AdminText ar="المدينة" en="City" /><select name="city" defaultValue={params.city || 'all'} className="min-h-11 min-w-0 rounded-xl border border-[color:var(--color-border)] bg-white px-3 text-sm text-[#334155]"><option value="all">All</option>{cities.map((cityName) => <option key={cityName} value={cityName.toLowerCase()}>{cityName}</option>)}</select></label>
-          <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#64748B]"><AdminText ar="الشريك" en="Partner" /><input name="partner" defaultValue={params.partner === 'all' ? '' : params.partner || ''} placeholder="Partner ID" className="min-h-11 min-w-0 rounded-xl border border-[color:var(--color-border)] px-3 text-sm text-[#334155]" /></label>
+          <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#64748B]"><AdminText ar="البحث" en="Search" /><AdminLocalizedInput name="q" defaultValue={params.q || ''} ar="الاسم / الرابط / المدينة" en="Name / slug / city" className="min-h-11 min-w-0 rounded-xl border border-[color:var(--color-border)] px-3 text-sm text-[#334155]" /></label>
+          <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#64748B]"><AdminText ar="الحالة" en="Status" /><select name="status" defaultValue={params.status || 'all'} className="min-h-11 min-w-0 rounded-xl border border-[color:var(--color-border)] bg-white px-3 text-sm text-[#334155]"><option value="all"><AdminText ar="الكل" en="All" /></option><option value="draft"><AdminText ar="مسودة" en="Draft" /></option><option value="published"><AdminText ar="منشور" en="Published" /></option></select></label>
+          <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#64748B]"><AdminText ar="العائلة" en="Family" /><select name="family" defaultValue={params.family || 'all'} className="min-h-11 min-w-0 rounded-xl border border-[color:var(--color-border)] bg-white px-3 text-sm text-[#334155]"><option value="all"><AdminText ar="الكل" en="All" /></option><option value="drive">Drive</option><option value="stay">Stay</option><option value="fly">Fly</option><option value="concierge">Concierge</option><option value="vip">VIP</option></select></label>
+          <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#64748B]"><AdminText ar="المدينة" en="City" /><select name="city" defaultValue={params.city || 'all'} className="min-h-11 min-w-0 rounded-xl border border-[color:var(--color-border)] bg-white px-3 text-sm text-[#334155]"><option value="all"><AdminText ar="الكل" en="All" /></option>{cities.map((cityName) => <option key={cityName} value={cityName.toLowerCase()}>{cityName}</option>)}</select></label>
+          <label className="grid min-w-0 gap-1 text-xs font-semibold text-[#64748B]"><AdminText ar="الشريك" en="Partner" /><AdminLocalizedInput name="partner" defaultValue={params.partner === 'all' ? '' : params.partner || ''} ar="معرّف الشريك" en="Partner ID" className="min-h-11 min-w-0 rounded-xl border border-[color:var(--color-border)] px-3 text-sm text-[#334155]" /></label>
           <div className="flex min-w-0 flex-wrap items-end gap-2"><button type="submit" className="min-h-11 rounded-full bg-[#0D1B2A] px-5 text-sm font-semibold text-white"><AdminText ar="تطبيق" en="Apply" /></button><Link href="/admin/products" className="inline-flex min-h-11 items-center rounded-full border border-[color:var(--color-border)] px-4 text-sm font-semibold"><AdminText ar="مسح" en="Clear" /></Link></div>
         </form>
 
-        <div className="grid min-w-0 gap-6 xl:grid-cols-[0.72fr_1.28fr]">
-          <div className="min-w-0"><ProductForm /></div>
+        <div className={`grid min-w-0 gap-6 ${canWrite ? 'xl:grid-cols-[0.72fr_1.28fr]' : ''}`}>
+          {canWrite && <div className="min-w-0"><ProductForm /></div>}
           <div className="min-w-0 space-y-3">
-            <div className="text-sm text-[#64748B]"><AdminText ar={`النتائج: ${filteredProducts.length} من ${products.length}`} en={`Results: ${filteredProducts.length} of ${products.length}`} /></div>
-            {!error && <ProductTable products={filteredProducts} />}
+            {!error && <div className="text-sm text-[#64748B]"><AdminText ar={`النتائج: ${filteredProducts.length} من ${products.length}`} en={`Results: ${filteredProducts.length} of ${products.length}`} /></div>}
+            {!error && <ProductTable products={filteredProducts} canWrite={canWrite} />}
           </div>
         </div>
       </div>

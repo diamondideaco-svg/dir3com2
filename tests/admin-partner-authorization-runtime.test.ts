@@ -24,7 +24,7 @@ function load<T>(path: string, dependencies: Record<string, unknown>): T {
   return exports as T;
 }
 
-function fixture(profile: Row | null, options: { authError?: boolean; profileError?: boolean } = {}) {
+function fixture(profile: Row | null, options: { authError?: boolean; profileError?: boolean; operationalScope?: 'global' | 'country' } = {}) {
   const user = { id: '11111111-1111-4111-8111-111111111111', email: 'partner@example.invalid', user_metadata: {} };
   const filters: Array<[string, unknown]> = [];
   const client = {
@@ -48,6 +48,7 @@ function fixture(profile: Row | null, options: { authError?: boolean; profileErr
 
   const portal = load<typeof import('../lib/partner-portal/server')>('lib/partner-portal/server.ts', {
     '@/lib/auth/identity': identity,
+    '@/lib/auth/admin': { resolveVerifiedOperationalAccess: async () => ({scope: options.operationalScope ? {mode:options.operationalScope} : null}) },
     '@/lib/supabase/server': { createSupabaseServerClient: async () => client, supabaseAdmin: null },
     '@/lib/partner-portal/domain': { resolvePartnerDomainType: async () => 'partner' },
   });
@@ -58,7 +59,7 @@ test('canonical active profile requires exact ID, active status, null deletion a
   const userId = '11111111-1111-4111-8111-111111111111';
   const cases: Array<[string, Row | null, boolean]> = [
     ['active partner', { id: userId, role: 'partner', status: 'active', deleted_at: null, full_name: 'Partner' }, true],
-    ['active admin alias', { id: userId, role: 'super_admin', status: 'active', deleted_at: null, full_name: 'Admin' }, true],
+    ['admin alias without grant', { id: userId, role: 'super_admin', status: 'active', deleted_at: null, full_name: 'Admin' }, false],
     ['wrong id', { id: '22222222-2222-4222-8222-222222222222', role: 'partner', status: 'active', deleted_at: null }, false],
     ['deleted active', { id: userId, role: 'partner', status: 'active', deleted_at: '2026-09-05T00:00:00Z' }, false],
     ['inactive', { id: userId, role: 'partner', status: 'inactive', deleted_at: null }, false],
@@ -79,11 +80,16 @@ test('portal authorization fails closed on auth and profile lookup errors', asyn
   assert.equal(await fixture(row, { profileError: true }).portal.requirePortalActor(), null);
 });
 
-test('legitimate active portal roles remain available while customer authority is denied', async () => {
+test('partner ownership is preserved and operational cross-tenant access requires explicit global authority', async () => {
   const userId = '11111111-1111-4111-8111-111111111111';
   for (const role of ['partner', 'admin', 'staff']) {
-    const actor = await fixture({ id: userId, role, status: 'active', deleted_at: null, full_name: role }).portal.requirePortalActor();
+    const row = { id: userId, role, status: 'active', deleted_at: null, full_name: role };
+    const actor = await fixture(row, {operationalScope:'global'}).portal.requirePortalActor();
     assert.equal(actor?.authRole, role);
+    if (role !== 'partner') {
+      assert.equal(await fixture(row).portal.requirePortalActor(), null);
+      assert.equal(await fixture(row,{operationalScope:'country'}).portal.requirePortalActor(), null);
+    }
   }
   assert.equal(await fixture({ id: userId, role: 'customer', status: 'active', deleted_at: null }).portal.requirePortalActor(), null);
 });

@@ -5,7 +5,7 @@ import AdminStats from '@/components/admin/AdminStats';
 import BookingsTable from '@/components/admin/BookingsTable';
 import { AdminRetryButton, AdminText } from '@/components/admin/AdminLocale';
 import { requireAdminPageDataAccess, requireAdminShellAccess } from '@/lib/auth/admin';
-import { isConfirmedProductionRevenue, isProductionBooking } from '@/lib/integration/executive-dashboard-contract';
+import { isProductionBooking, resolveBookingMetrics } from '@/lib/integration/executive-dashboard-contract';
 import { attachAuthoritativeCustomerName } from '@/lib/admin/booking-customer';
 
 async function getAdminData() {
@@ -36,14 +36,14 @@ async function getAdminData() {
     }
 
     const productionBookings = (bookings ?? []).filter(isProductionBooking).map((booking) => attachAuthoritativeCustomerName(booking, profileNames));
-    const revenueBookings = productionBookings.filter(isConfirmedProductionRevenue);
+    const revenue = resolveBookingMetrics(productionBookings, null).confirmedProductionRevenue;
 
     const stats = {
         total: productionBookings.length,
         pending: productionBookings.filter((booking) => booking.status === 'pending').length,
         confirmed: productionBookings.filter((booking) => booking.status === 'confirmed').length,
         completed: productionBookings.filter((booking) => booking.status === 'completed').length,
-        revenue: revenueBookings.reduce((sum, booking) => sum + Number(booking.total_amount ?? booking.total_price ?? 0), 0),
+        revenue: revenue.status === 'available' ? revenue.value : null,
     };
 
     return { bookings: productionBookings, stats, error: false };
@@ -56,17 +56,15 @@ export default async function AdminPage() {
         if (permissions.includes('customers:read')) redirect('/admin/customers');
         if (permissions.includes('partners:read')) redirect('/admin/partners');
         if (permissions.includes('products:read')) redirect('/admin/products');
-        throw new Error('SCOPED_ADMIN_HAS_NO_SUPPORTED_ROUTE');
+        return <main className="mx-auto max-w-3xl p-6"><h1 className="text-2xl font-semibold"><AdminText ar="نطاق العمل" en="Operational access" /></h1><p className="mt-4"><AdminText ar="صلاحياتك الحالية لا تتضمن وحدة تشغيل متاحة في هذه الواجهة. تواصل مع مسؤول الصلاحيات." en="Your current permissions do not include a module available on this surface. Contact your access administrator." /></p></main>;
     }
 
     const { bookings, stats, error } = await getAdminData();
 
     return (
         <div style={{
-            backgroundColor: '#FAF8F4',
-            minHeight: '100vh',
+            backgroundColor: '#F7F8FA',
             color: '#334155',
-            fontFamily: 'var(--font-arabic)',
             padding: '40px 20px'
         }}>
             <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
@@ -179,7 +177,7 @@ export default async function AdminPage() {
                         <h2 style={{
                             fontFamily: 'var(--font-display)',
                             fontSize: '1.5rem',
-                            color: '#FFFFFF'
+                            color: '#0D1B2A'
                         }}>
                             📋 <AdminText ar="حجوزات الإنتاج" en="Production bookings" />
                         </h2>

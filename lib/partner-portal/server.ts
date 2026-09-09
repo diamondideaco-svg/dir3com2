@@ -1,5 +1,6 @@
 import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
 import { resolveCanonicalActiveProfile } from '@/lib/auth/identity';
+import { resolveVerifiedOperationalAccess } from '@/lib/auth/admin';
 import { resolvePartnerDomainType, type CanonicalAuthRole, type PartnerDomainType } from '@/lib/partner-portal/domain';
 
 export type PortalActor = {
@@ -44,6 +45,12 @@ export async function requirePortalActor(): Promise<PortalActor | null> {
   const authRole = profile?.role ?? 'customer';
   if (!PORTAL_ALLOWED_AUTH_ROLES.has(authRole)) {
     return null;
+  }
+  // Operational reviewers cross tenant boundaries on this existing surface.
+  // A profile role or a country-scoped grant must never become global authority.
+  if (authRole !== 'partner') {
+    const operational = await resolveVerifiedOperationalAccess(supabase, user);
+    if (operational.scope?.mode !== 'global') return null;
   }
 
   const partnerDomainType = authRole === 'partner' ? await resolvePartnerDomainType(user.id) : null;

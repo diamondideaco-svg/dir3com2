@@ -2,11 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { assertCountryAllowed, requireScopedAdminActionAccess } from '@/lib/auth/admin';
+import { assertCountryAllowed, requireScopedAdminActionAccess, scopeCountryQuery } from '@/lib/auth/admin';
 
 async function requireCustomerInScope(id: string, permission: 'customers:read' | 'customers:write') {
   const context = await requireScopedAdminActionAccess(permission);
-  const { data, error } = await context.supabase.from('customers').select('id, country').eq('id', id).maybeSingle();
+  const { data, error } = await scopeCountryQuery(context.supabase.from('customers').select('id, country').eq('id', id), context.scope).maybeSingle();
   if (error) throw error;
   if (!data) throw new Error('CUSTOMER_NOT_FOUND');
   assertCountryAllowed(context.scope, data.country);

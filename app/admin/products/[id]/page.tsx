@@ -1,16 +1,16 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ProductEditorForm from '@/components/products/ProductEditorForm';
-import { assertCountryAllowed, requireScopedAdminPageDataAccess } from '@/lib/auth/admin';
+import { assertCountryAllowed, requireScopedAdminPageDataAccess, scopeCountryQuery } from '@/lib/auth/admin';
 import { AdminText } from '@/components/admin/AdminLocale';
 
 export default async function AdminProductEditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, scope } = await requireScopedAdminPageDataAccess(`/admin/products/${encodeURIComponent(id)}`, 'products:write');
-  const { data: product, error } = await supabase
+  const { data: product, error } = await scopeCountryQuery(supabase
     .from('products')
     .select('id,name_ar,name_en,slug,base_price,country,city,status,marketplace_family,fulfilment_state,transaction_method,supply_type,supplier_verified,featured,shield_certified,lifecycle_version,deleted_at')
-    .eq('id', id)
+    .eq('id', id), scope)
     .maybeSingle();
 
   if (error || !product || product.deleted_at) notFound();

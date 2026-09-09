@@ -17,6 +17,25 @@ export function AdminText({ ar, en }: LocalizedProps) {
 }
 
 const statusCopy: Record<string, { ar: string; en: string }> = {
+  admin: { ar: 'مدير', en: 'Admin' },
+  staff: { ar: 'موظف', en: 'Staff' },
+  catalog_only: { ar: 'كتالوج فقط', en: 'Catalog only' },
+  verified_requestable: { ar: 'متاح بطلب تأكيد', en: 'Request to confirm' },
+  verified_quote: { ar: 'عرض سعر', en: 'Quote' },
+  live_bookable: { ar: 'حجز مباشر', en: 'Live bookable' },
+  unavailable: { ar: 'غير متاح', en: 'Unavailable' },
+  availability_unknown: { ar: 'التوفر غير معروف', en: 'Availability unknown' },
+  external_provider: { ar: 'مزود خارجي', en: 'External provider' },
+  test_sandbox: { ar: 'اختبار معزول', en: 'Test sandbox' },
+  none: { ar: 'لا يوجد', en: 'None' },
+  instant_booking: { ar: 'حجز فوري', en: 'Instant booking' },
+  provider_checkout: { ar: 'الدفع لدى المزود', en: 'Provider checkout' },
+  request_to_confirm: { ar: 'طلب تأكيد', en: 'Request to confirm' },
+  request_quote: { ar: 'طلب عرض سعر', en: 'Request quote' },
+  verified_local_partner: { ar: 'شريك محلي موثق', en: 'Verified local partner' },
+  global_travel_partner: { ar: 'شريك سفر عالمي', en: 'Global travel partner' },
+  dir3com_managed: { ar: 'بإدارة dir3com', en: 'dir3com managed' },
+  unknown: { ar: 'غير معروف', en: 'Unknown' },
   active: { ar: 'نشط', en: 'Active' },
   inactive: { ar: 'غير نشط', en: 'Inactive' },
   pending: { ar: 'قيد الانتظار', en: 'Pending' },
@@ -102,12 +121,14 @@ export function AdminSubmitButton({
   className,
   confirmAr,
   confirmEn,
+  disabled = false,
 }: {
   ar: string;
   en: string;
   className: string;
   confirmAr?: string;
   confirmEn?: string;
+  disabled?: boolean;
 }) {
   const { language } = useLanguage();
   const { pending } = useFormStatus();
@@ -120,10 +141,23 @@ export function AdminSubmitButton({
   }
 
   return (
-    <button type="submit" disabled={pending} onClick={handleClick} className={`${className} disabled:cursor-wait disabled:opacity-60`}>
+    <button type="submit" disabled={pending || disabled} onClick={handleClick} className={`${className} disabled:cursor-wait disabled:opacity-60`}>
       {pending ? (language === 'ar' ? 'جارٍ التنفيذ…' : 'Working…') : (language === 'ar' ? ar : en)}
     </button>
   );
+}
+
+export function AdminPermissionText({ value }: { value: string }) {
+  const { language } = useLanguage();
+  const modules: Record<string, [string,string]> = {
+    admin: ['الإدارة العامة','Global administration'], operations: ['العمليات','Operations'],
+    customers: ['العملاء','Customers'], partners: ['الشركاء','Partners'], products: ['المنتجات','Products'],
+    finance: ['المالية','Finance'], verification: ['التحقق','Verification'],
+  };
+  const [module, action] = value.split(':');
+  if (!modules[module] || !['read','write','full'].includes(action)) return <>{value}</>;
+  const ar = language === 'ar';
+  return <>{modules[module][ar ? 0 : 1]} — {action === 'read' ? (ar ? 'قراءة' : 'Read') : action === 'write' ? (ar ? 'تعديل' : 'Write') : (ar ? 'كاملة' : 'Full')}</>;
 }
 
 export function AdminUnavailableControl({

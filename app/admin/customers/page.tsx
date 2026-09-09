@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { filterRowsByCountryScope, requireScopedAdminPageDataAccess } from '@/lib/auth/admin';
+import { filterRowsByCountryScope, requireScopedAdminPageDataAccess, scopeCountryQuery } from '@/lib/auth/admin';
 import CustomerTable from '@/components/customers/CustomerTable';
 import CustomerForm from '@/components/customers/CustomerForm';
 import type { CustomerRecord } from '@/lib/supabase/types';
@@ -13,7 +13,7 @@ const resultMessages: Record<string, string> = {
 
 async function getCustomers() {
   const { supabase, scope } = await requireScopedAdminPageDataAccess('/admin/customers', 'customers:read');
-  const { data, error } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
+  const { data, error } = await scopeCountryQuery(supabase.from('customers').select('*'), scope).order('created_at', { ascending: false });
 
   if (error) {
     console.error(error);

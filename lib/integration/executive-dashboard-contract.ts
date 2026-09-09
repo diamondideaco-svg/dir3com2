@@ -8,6 +8,7 @@ export type ExecutiveBookingRow = {
   status?: string | null;
   payment_status?: string | null;
   total_amount?: number | string | null;
+  currency?: string | null;
   synthetic?: boolean | null;
   environment?: string | null;
   source_channel?: string | null;
@@ -72,7 +73,10 @@ export function resolveBookingMetrics(
       ? Number.NaN
       : Number(row.total_amount)
   ));
+  // The existing widget is denominated in SAR; never add unlike/unknown units.
+  // No implicit FX conversion or invented rate is authorized.
   const confirmedProductionRevenue = revenueAmounts.every(Number.isFinite)
+    && revenueRows.every(row => row.currency?.trim().toUpperCase() === 'SAR')
     ? { status: 'available' as const, value: revenueAmounts.reduce((sum, value) => sum + value, 0) }
     : { status: 'unavailable' as const };
 

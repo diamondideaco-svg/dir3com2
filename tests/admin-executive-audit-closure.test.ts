@@ -13,7 +13,7 @@ test('executive route authorizes before loading executive data', () => {
   const guard = executivePage.indexOf("await requireAdminPageAccess('/admin/dashboard')");
   const load = executivePage.indexOf('await getExecutiveDashboardData()');
   assert.ok(guard >= 0 && load > guard, 'global admin guard must precede the executive query');
-  assert.match(adminAuth, /requireAdminPageAccess[\s\S]*?!isAdminRole\(context\.role\)\) notFound\(\)/);
+  assert.match(adminAuth, /requireAdminPageAccess[\s\S]*?context\.scope\?\.mode !== 'global'\) notFound\(\)/);
 });
 
 test('audit route denies scoped staff before rendering either audit surface', () => {

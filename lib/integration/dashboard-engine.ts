@@ -31,7 +31,7 @@ export async function getExecutiveDashboardData(): Promise<ExecutiveDashboardDat
   const [bookingsRes, settlementsRes, refundsRes, verificationsRes] = await Promise.all([
     supabase
       .from('bookings')
-      .select('id, booking_reference, status, payment_status, total_amount, synthetic, environment, source_channel')
+      .select('id, booking_reference, status, payment_status, total_amount, currency, synthetic, environment, source_channel')
       .eq('synthetic', false)
       .eq('environment', 'production')
       .is('deleted_at', null),

@@ -84,7 +84,7 @@ test('enabled audited state-changing controls require confirmation and prevent d
   const locale = read('components/admin/AdminLocale.tsx');
   assert.match(locale, /useFormStatus\(\)/);
   assert.match(locale, /window\.confirm/);
-  assert.match(locale, /disabled=\{pending\}/);
+  assert.match(locale, /disabled=\{pending \|\| disabled\}/);
   for (const file of [
     'components/admin/MarketplaceRequestOperationsTable.tsx',
     'components/admin/VipPartnerConfigForm.tsx',

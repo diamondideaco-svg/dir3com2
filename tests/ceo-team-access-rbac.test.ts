@@ -162,9 +162,11 @@ test('country scoped managers never land on the global executive dashboard', () 
   assert.match(adminLanding, /redirect\('\/admin\/products'\)/);
 });
 
-test('legacy global admin gates stay admin-only rather than silently accepting scoped staff', () => {
+test('global gates require authoritative global scope rather than an Admin profile', () => {
   assert.match(adminAuth, /requireAdminPageAccess/);
-  assert.match(adminAuth, /!isAdminRole\(context\.role\)/);
+  assert.match(adminAuth, /context\.scope\?\.mode !== 'global'/);
+  assert.match(adminAuth, /await isCeoActor\(supabase, user\)/);
+  assert.match(adminAuth, /await getTeamAccessGrant\(supabase, user\)/);
   assert.match(adminAuth, /requireAdminActionAccess/);
   assert.match(adminAuth, /throw new Error\('Forbidden'\)/);
 });
