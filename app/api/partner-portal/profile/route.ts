@@ -35,11 +35,13 @@ export async function GET() {
 
   try {
     const partner = await ensurePartnerRecord(actor);
-    const { data: partnerDetails } = await supabaseAdmin
+    const { data: partnerDetails, error: partnerDetailsError } = await supabaseAdmin
       .from('partners')
       .select('id, company_name, contact_person, email, phone, country, city, commercial_registration, tax_number, iban, status, shield_level, updated_at')
       .eq('id', actor.userId)
       .maybeSingle();
+
+    if (partnerDetailsError) throw partnerDetailsError;
 
     const result = {
       actor: {

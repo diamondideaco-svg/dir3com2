@@ -241,7 +241,11 @@ test('partner reads and timelines are scoped before protected fields are project
 });
 
 test('partner Requests workspace is visible and truthful without DABRA coupling', () => {
-  assert.match(partnerPortalPage, /\/partner-portal\/requests/);
+  assert.match(partnerPortalPage, /<PartnerWorkspace\b/);
+  assert.match(partnerRequestsPage, /<PartnerWorkspace\b/);
+  const partnerWorkspace = read('components/portal/PartnerWorkspace.tsx');
+  assert.match(partnerWorkspace, /href="\/partner-portal\/requests"/);
+  assert.match(partnerWorkspace, /aria-current=/);
   assert.match(partnerRequestsPage, /PartnerRequestsClient/);
   assert.match(partnerRequestsClient, /Start WhatsApp handoff/);
   assert.match(partnerRequestsClient, /Open WhatsApp handoff/);

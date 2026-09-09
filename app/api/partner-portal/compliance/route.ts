@@ -17,11 +17,6 @@ function privateHeaders() {
   };
 }
 
-function isReadSchemaDrift(error: unknown) {
-  const code = String((error as { code?: unknown })?.code || '').toUpperCase();
-  return code.startsWith('PGRST') || code === '42P01' || code === '42703';
-}
-
 export async function GET() {
   const actor = await requirePortalActor();
   if (!actor) {
@@ -42,27 +37,15 @@ export async function GET() {
       .eq('partner_id', actor.userId);
 
     if (docsError) {
-      if (isReadSchemaDrift(docsError)) {
-        return NextResponse.json(
-          {
-            data: {
-              requiredDocuments: REQUIRED_DOCS,
-              missingDocuments: REQUIRED_DOCS,
-              expiredDocuments: [],
-              pendingReviews: 0,
-            },
-          },
-          { headers: privateHeaders() },
-        );
-      }
       throw docsError;
     }
 
-    const { data: verificationDocs } = await supabaseAdmin
+    const { data: verificationDocs, error: verificationError } = await supabaseAdmin
       .from('verification_documents')
       .select('document_type, verification_status, expiry_date')
       .eq('owner_type', 'partner')
       .eq('owner_id', actor.userId);
+    if (verificationError) throw verificationError;
 
     const presentTypes = new Set((partnerDocs || []).map((doc) => String(doc.document_type || '').toLowerCase()));
     const missing = REQUIRED_DOCS.filter((docType) => !presentTypes.has(docType));
@@ -93,16 +76,6 @@ export async function GET() {
       route: '/api/partner-portal/compliance',
       actorId: actor.userId,
     });
-    return NextResponse.json(
-      {
-        data: {
-          requiredDocuments: REQUIRED_DOCS,
-          missingDocuments: REQUIRED_DOCS,
-          expiredDocuments: [],
-          pendingReviews: 0,
-        },
-      },
-      { headers: privateHeaders() },
-    );
+    return NextResponse.json({ error: { code: 'PORTAL_COMPLIANCE_READ_FAILED' } }, { status: 500, headers: privateHeaders() });
   }
 }

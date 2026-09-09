@@ -156,7 +156,7 @@ export async function PUT(request: Request) {
     cancellationPolicy: asText(payload.cancellationPolicy, 400) || asset.cancellationPolicy,
     accessRules: asText(payload.accessRules, 400) || asset.accessRules,
     optionalVideoUrl: asText(payload.optionalVideoUrl, 500),
-    verificationStatus: asText(payload.verificationStatus, 120) || asset.verificationStatus,
+    verificationStatus: isPrivilegedPortalActor(actor) ? (asText(payload.verificationStatus, 120) || asset.verificationStatus) : asset.verificationStatus,
     needsConfirmationFields,
     dataStatus: transitionProductStatus({
       current: asset.dataStatus,

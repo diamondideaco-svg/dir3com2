@@ -1,9 +1,12 @@
 'use client';
 
+import PortalInput from './PortalInput';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import OnboardingAssetsPanel from '@/components/portal/OnboardingAssetsPanel';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
+import { readPortalSections, type PortalSection } from '@/lib/partner-portal/section-load';
 
 type PortalMode = 'partner' | 'provider';
 type Lang = 'ar' | 'en';
@@ -98,15 +101,22 @@ type ComplianceData = {
 const uploadAccept = '.pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp';
 
 const arabicPresentationValues: Record<string, string> = {
-  commercial_registration: '?????????? ??????????????',
-  registration_commercial: '?????????? ??????????????',
-  pending: '?????????????? ????????????????',
-  unverified: '?????? ????????',
-  pending_review: '?????? ????????????????',
-  review_pending: '?????? ????????????????',
+  commercial_registration: 'السجل التجاري',
+  registration_commercial: 'السجل التجاري',
+  tax_card: 'البطاقة الضريبية',
+  manager_id: 'هوية المسؤول',
+  authorization_letter: 'خطاب التفويض',
+  bank_letter: 'خطاب البنك',
+  license: 'الترخيص',
+  insurance: 'التأمين',
+  vehicle_registration: 'تسجيل المركبة',
+  pending: 'قيد الانتظار',
+  unverified: 'غير موثق',
+  pending_review: 'قيد المراجعة',
+  review_pending: 'قيد المراجعة',
 };
 
-function presentPortalValue(value: string | null | undefined, language: Lang, fallback = '???') {
+function presentPortalValue(value: string | null | undefined, language: Lang, fallback = '—') {
   const normalized = String(value || '').trim();
   if (!normalized) return fallback;
   return language === 'ar' ? (arabicPresentationValues[normalized.toLowerCase()] || normalized) : normalized;
@@ -255,11 +265,13 @@ function buildProductDrafts(rows: ProductAvailabilityRow[]) {
   return next;
 }
 
-export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode }) {
+export default function PartnerProviderPortalClient({ mode, operational = false }: { mode: PortalMode; operational?: boolean }) {
   const { language, direction, toggleLanguage } = useLanguage();
   const [tab, setTab] = useState<'profile' | 'docs' | 'products' | 'bookings' | 'settlements' | 'compliance'>('profile');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [sectionErrors, setSectionErrors] = useState<Partial<Record<PortalSection, boolean>>>({});
 
   const [profile, setProfile] = useState<ProfileData>({});
   const [documents, setDocuments] = useState<PartnerDocument[]>([]);
@@ -293,8 +305,25 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
 
   const loadAll = useCallback(async () => {
     setBusy(true);
+    setLoadState('loading');
     setMessage('');
     try {
+      if (operational) {
+        const sections = await readPortalSections();
+        setSectionErrors(Object.fromEntries(Object.entries(sections).map(([name, result]) => [name, result.state === 'error'])));
+        if (sections.profile.state === 'ready') setProfile(sections.profile.data as ProfileData);
+        if (sections.docs.state === 'ready') setDocuments(sections.docs.data as PartnerDocument[]);
+        if (sections.products.state === 'ready') {
+          const rows = sections.products.data as ProductAvailabilityRow[];
+          setProducts(rows);
+          setProductDrafts(buildProductDrafts(rows));
+        }
+        if (sections.bookings.state === 'ready') setBookings(sections.bookings.data as BookingRow[]);
+        if (sections.settlements.state === 'ready') setSettlements(sections.settlements.data as SettlementRow[]);
+        if (sections.compliance.state === 'ready') setCompliance(sections.compliance.data as ComplianceData);
+        setLoadState('ready');
+        return;
+      }
       const [profileRes, docsRes, productsRes, bookingsRes, settlementsRes, complianceRes] = await Promise.all([
         fetch('/api/partner-portal/profile', { cache: 'no-store' }),
         fetch('/api/partner-portal/documents', { cache: 'no-store' }),
@@ -319,12 +348,14 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
       setBookings(Array.isArray(bookingsJson?.data) ? (bookingsJson.data as BookingRow[]) : []);
       setSettlements(Array.isArray(settlementsJson?.data) ? (settlementsJson.data as SettlementRow[]) : []);
       setCompliance((complianceJson?.data || null) as ComplianceData | null);
+      setLoadState('ready');
     } catch {
+      setLoadState('error');
       setMessage(t.failed);
     } finally {
       setBusy(false);
     }
-  }, [t.failed]);
+  }, [t.failed, operational]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -593,16 +624,16 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4 sm:gap-5">
           <div>
             <h1 className="text-3xl font-semibold text-[#334155]">{pageTitle}</h1>
-            <p className="mt-2 text-sm text-[#64748B]">{pageSubtitle}</p>
+            <p className="mt-2 text-sm text-[#64748B]">{operational ? (language === 'ar' ? 'إدارة ملفك ومستنداتك وخدماتك ومتابعة حالتها.' : 'Manage your profile, documents and services, and follow their status.') : pageSubtitle}</p>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-            <button
+            {!operational && <button
               type="button"
               onClick={toggleLanguage}
               className="min-h-11 rounded-xl border border-[#334155]/20 px-4 py-2 text-sm text-[#334155]"
             >
               {language === 'ar' ? 'EN' : 'AR'}
-            </button>
+            </button>}
             <button
               type="button"
               onClick={() => void loadAll()}
@@ -626,6 +657,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
               key={id}
               type="button"
               onClick={() => setTab(id as typeof tab)}
+              aria-pressed={tab === id}
               className={`min-h-11 rounded-xl border px-3 py-2 text-sm ${
                 tab === id ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-[#334155]' : 'border-[color:var(--color-border)] bg-[var(--color-surface)] text-[#334155]'
               }`}
@@ -636,26 +668,30 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         </div>
 
         {message ? (
-          <div className="mb-4 rounded-xl border border-[#D4AF37]/25 bg-[#D4AF37]/10 px-4 py-3 text-sm text-[#334155]">{message}</div>
+          <div role={loadState === 'error' ? 'alert' : 'status'} className="mb-4 rounded-xl border border-[#D4AF37]/25 bg-[#D4AF37]/10 px-4 py-3 text-sm text-[#334155]">{message}</div>
         ) : null}
+
+        {operational && loadState === 'loading' ? <p role="status">{language === 'ar' ? 'جارٍ تحميل بيانات الشريك…' : 'Loading partner information…'}</p> : null}
+        {operational && (loadState === 'error' || (loadState === 'ready' && sectionErrors[tab])) ? <p role="alert">{language === 'ar' ? 'تعذر تحميل هذا القسم. استخدم تحديث لإعادة المحاولة.' : 'This section could not be loaded. Use Refresh to try again.'}</p> : null}
+        {(!operational || (loadState === 'ready' && !sectionErrors[tab])) && <fieldset disabled={busy} className="min-w-0 border-0 p-0">
 
         {tab === 'profile' ? (
           <section className="grid gap-4 sm:grid-cols-2">
-            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.legalName} value={profile.company_name || ''} onChange={(e) => setProfile((prev) => ({ ...prev, company_name: e.target.value }))} />
-            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.contactPerson} value={profile.contact_person || ''} onChange={(e) => setProfile((prev) => ({ ...prev, contact_person: e.target.value }))} />
-            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.email} value={profile.email || ''} onChange={(e) => setProfile((prev) => ({ ...prev, email: e.target.value }))} />
-            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.phone} value={profile.phone || ''} onChange={(e) => setProfile((prev) => ({ ...prev, phone: e.target.value }))} />
-            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.country} value={profile.country || ''} onChange={(e) => setProfile((prev) => ({ ...prev, country: e.target.value }))} />
-            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.city} value={profile.city || ''} onChange={(e) => setProfile((prev) => ({ ...prev, city: e.target.value }))} />
-            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.commercialReg} value={profile.commercial_registration || ''} onChange={(e) => setProfile((prev) => ({ ...prev, commercial_registration: e.target.value }))} />
-            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.taxNumber} value={profile.tax_number || ''} onChange={(e) => setProfile((prev) => ({ ...prev, tax_number: e.target.value }))} />
-            <input className="rounded-xl bg-white px-4 py-3" placeholder={t.iban} value={profile.iban || ''} onChange={(e) => setProfile((prev) => ({ ...prev, iban: e.target.value }))} />
+            <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.legalName} value={profile.company_name || ''} onChange={(e) => setProfile((prev) => ({ ...prev, company_name: e.target.value }))} />
+            <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.contactPerson} value={profile.contact_person || ''} onChange={(e) => setProfile((prev) => ({ ...prev, contact_person: e.target.value }))} />
+            <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.email} value={profile.email || ''} onChange={(e) => setProfile((prev) => ({ ...prev, email: e.target.value }))} />
+            <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.phone} value={profile.phone || ''} onChange={(e) => setProfile((prev) => ({ ...prev, phone: e.target.value }))} />
+            <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.country} value={profile.country || ''} onChange={(e) => setProfile((prev) => ({ ...prev, country: e.target.value }))} />
+            <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.city} value={profile.city || ''} onChange={(e) => setProfile((prev) => ({ ...prev, city: e.target.value }))} />
+            <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.commercialReg} value={profile.commercial_registration || ''} onChange={(e) => setProfile((prev) => ({ ...prev, commercial_registration: e.target.value }))} />
+            <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.taxNumber} value={profile.tax_number || ''} onChange={(e) => setProfile((prev) => ({ ...prev, tax_number: e.target.value }))} />
+            <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.iban} value={profile.iban || ''} onChange={(e) => setProfile((prev) => ({ ...prev, iban: e.target.value }))} />
             <div className="rounded-xl bg-white px-4 py-3" role="status">
               {t.reviewStatus}: {profile.status === 'active'
                 ? (language === 'ar' ? 'نشط — جاهز للتشغيل' : 'Active — Operational')
                 : profile.status === 'approved'
                   ? (language === 'ar' ? 'معتمد — بانتظار التفعيل' : 'Approved — Awaiting activation')
-                  : reviewStatusDisplay[language as Lang][(profile.reviewStatus || 'Draft') as keyof (typeof reviewStatusDisplay)['en']] || (language === 'ar' ? 'غير محدد' : 'Unknown')}
+                  : reviewStatusDisplay[language as Lang][(profile.reviewStatus || (operational ? '' : 'Draft')) as keyof (typeof reviewStatusDisplay)['en']] || (language === 'ar' ? 'غير محدد' : 'Unknown')}
             </div>
             <div className="sm:col-span-2">
               <button type="button" disabled={busy} onClick={() => void saveProfile()} className="rounded-xl bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#334155] disabled:opacity-60">
@@ -668,17 +704,11 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         {tab === 'docs' ? (
           <section>
             <div className="mb-4 flex flex-wrap items-stretch gap-2 sm:items-center">
-              <select className="min-h-11 w-full rounded-xl bg-white px-4 py-3 text-sm sm:w-auto" value={docType} onChange={(e) => setDocType(e.target.value)}>
+              <select aria-label={t.docType} className="min-h-11 w-full rounded-xl bg-white px-4 py-3 text-sm sm:w-auto" value={docType} onChange={(e) => setDocType(e.target.value)}>
                 <option value="commercial_registration">{presentPortalValue('commercial_registration', language as Lang)}</option>
-                <option value="tax_card">tax_card</option>
-                <option value="manager_id">manager_id</option>
-                <option value="authorization_letter">authorization_letter</option>
-                <option value="bank_letter">bank_letter</option>
-                <option value="license">license</option>
-                <option value="insurance">insurance</option>
-                <option value="vehicle_registration">vehicle_registration</option>
+                {['tax_card', 'manager_id', 'authorization_letter', 'bank_letter', 'license', 'insurance', 'vehicle_registration'].map((value) => <option key={value} value={value}>{presentPortalValue(value, language as Lang)}</option>)}
               </select>
-              <input type="file" accept={uploadAccept} onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="min-h-11 w-full rounded-xl bg-white px-4 py-3 text-sm sm:w-auto sm:max-w-xs" />
+              <PortalInput operational={operational} type="file" aria-label={t.upload} accept={uploadAccept} onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} className="min-h-11 w-full rounded-xl bg-white px-4 py-3 text-sm sm:w-auto sm:max-w-xs" />
               <button type="button" disabled={busy || !selectedFile} onClick={() => void uploadDocument()} className="min-h-11 w-full rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60 sm:w-auto">
                 {t.upload}
               </button>
@@ -690,7 +720,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                   <span className="mx-2 text-[#64748B]">|</span>
                   <span>{presentPortalValue(doc.status, language as Lang, presentPortalValue('pending', language as Lang))}</span>
                   <span className="mx-2 text-[#64748B]">|</span>
-                  <span>{doc.verified ? (language === 'ar' ? '????????' : 'verified') : presentPortalValue('unverified', language as Lang)}</span>
+                  <span>{doc.verified ? (language === 'ar' ? 'موثق' : 'verified') : presentPortalValue('unverified', language as Lang)}</span>
                   <span className="mx-2 text-[#64748B]">|</span>
                   <span>{formatDate(doc.created_at || undefined, language as Lang)}</span>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -707,25 +737,25 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
         {tab === 'products' ? (
           <section>
             <div className="mb-4 grid gap-3 sm:grid-cols-2">
-              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.serviceNameAr} value={newProduct.nameAr} onChange={(e) => setNewProduct((prev) => ({ ...prev, nameAr: e.target.value }))} />
-              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.serviceNameEn} value={newProduct.nameEn} onChange={(e) => setNewProduct((prev) => ({ ...prev, nameEn: e.target.value }))} />
-              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.city} value={newProduct.city} onChange={(e) => setNewProduct((prev) => ({ ...prev, city: e.target.value }))} />
-              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.price} value={newProduct.basePrice} onChange={(e) => setNewProduct((prev) => ({ ...prev, basePrice: e.target.value }))} />
-              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.currency} value={newProduct.currency} onChange={(e) => setNewProduct((prev) => ({ ...prev, currency: e.target.value }))} />
-              <input className="rounded-xl bg-white px-4 py-3" placeholder={t.status} value={newProduct.status} onChange={(e) => setNewProduct((prev) => ({ ...prev, status: e.target.value }))} />
+              <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.serviceNameAr} value={newProduct.nameAr} onChange={(e) => setNewProduct((prev) => ({ ...prev, nameAr: e.target.value }))} />
+              <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.serviceNameEn} value={newProduct.nameEn} onChange={(e) => setNewProduct((prev) => ({ ...prev, nameEn: e.target.value }))} />
+              <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.city} value={newProduct.city} onChange={(e) => setNewProduct((prev) => ({ ...prev, city: e.target.value }))} />
+              <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.price} value={newProduct.basePrice} onChange={(e) => setNewProduct((prev) => ({ ...prev, basePrice: e.target.value }))} />
+              <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.currency} value={newProduct.currency} onChange={(e) => setNewProduct((prev) => ({ ...prev, currency: e.target.value }))} />
+              <PortalInput operational={operational} className="rounded-xl bg-white px-4 py-3" placeholder={t.status} value={newProduct.status} onChange={(e) => setNewProduct((prev) => ({ ...prev, status: e.target.value }))} />
               <div className="sm:col-span-2">
                 <button type="button" disabled={busy} onClick={() => void createProduct()} className="rounded-xl bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-[#334155] disabled:opacity-60">{t.addService}</button>
               </div>
             </div>
 
             <div className="mb-4 flex flex-wrap items-stretch gap-2 rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-3 sm:items-center">
-              <select className="min-h-11 w-full rounded-xl bg-white px-4 py-2 text-sm sm:w-auto" value={productImage.productId} onChange={(e) => setProductImage((prev) => ({ ...prev, productId: e.target.value }))}>
-                <option value="">Select product</option>
+              <select aria-label={language === 'ar' ? 'اختر الخدمة' : 'Select product'} className="min-h-11 w-full rounded-xl bg-white px-4 py-2 text-sm sm:w-auto" value={productImage.productId} onChange={(e) => setProductImage((prev) => ({ ...prev, productId: e.target.value }))}>
+                <option value="">{language === 'ar' ? 'اختر الخدمة' : 'Select product'}</option>
                 {products.map((row) => (
                   <option key={row.id} value={row.products?.id || ''}>{row.products?.name_ar || row.products?.name_en || row.products?.id}</option>
                 ))}
               </select>
-              <input type="file" accept={uploadAccept} aria-label={t.uploadImage} onChange={(e) => { const file = e.target.files?.[0] || null; setProductImage((prev) => ({ ...prev, file, previewUrl: file ? URL.createObjectURL(file) : '' })); }} className="min-h-11 w-full rounded-xl bg-white px-4 py-2 text-sm sm:w-auto sm:max-w-xs" />
+              <PortalInput operational={operational} type="file" accept={uploadAccept} aria-label={t.uploadImage} onChange={(e) => { const file = e.target.files?.[0] || null; setProductImage((prev) => ({ ...prev, file, previewUrl: file ? URL.createObjectURL(file) : '' })); }} className="min-h-11 w-full rounded-xl bg-white px-4 py-2 text-sm sm:w-auto sm:max-w-xs" />
               {productImage.file ? <div className="flex items-center gap-3 rounded-xl border border-[#334155]/15 bg-white px-3 py-2 text-xs text-[#334155]">
                 {productImage.previewUrl ? <img src={productImage.previewUrl} alt={productImage.file.name} className="h-12 w-12 rounded-lg object-cover" /> : null}
                 <span>{productImage.file.name}<br /><span className="text-[#64748B]">{busy ? t.uploading : t.imageReady}</span></span>
@@ -738,37 +768,37 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                 <div key={row.id} className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm [overflow-wrap:anywhere]">
                   {row.products?.id ? (
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <input
+                      <PortalInput operational={operational}
                         className="rounded-xl bg-white px-4 py-2"
                         placeholder={t.serviceNameAr}
                         value={productDrafts[row.products.id]?.nameAr || ''}
                         onChange={(e) => updateProductDraft(row.products!.id, 'nameAr', e.target.value)}
                       />
-                      <input
+                      <PortalInput operational={operational}
                         className="rounded-xl bg-white px-4 py-2"
                         placeholder={t.serviceNameEn}
                         value={productDrafts[row.products.id]?.nameEn || ''}
                         onChange={(e) => updateProductDraft(row.products!.id, 'nameEn', e.target.value)}
                       />
-                      <input
+                      <PortalInput operational={operational}
                         className="rounded-xl bg-white px-4 py-2"
                         placeholder={t.city}
                         value={productDrafts[row.products.id]?.city || ''}
                         onChange={(e) => updateProductDraft(row.products!.id, 'city', e.target.value)}
                       />
-                      <input
+                      <PortalInput operational={operational}
                         className="rounded-xl bg-white px-4 py-2"
                         placeholder={t.price}
                         value={productDrafts[row.products.id]?.basePrice || '0'}
                         onChange={(e) => updateProductDraft(row.products!.id, 'basePrice', e.target.value)}
                       />
-                      <input
+                      <PortalInput operational={operational}
                         className="rounded-xl bg-white px-4 py-2"
                         placeholder={t.currency}
                         value={productDrafts[row.products.id]?.currency || 'SAR'}
                         onChange={(e) => updateProductDraft(row.products!.id, 'currency', e.target.value)}
                       />
-                      <input
+                      <PortalInput operational={operational}
                         className="rounded-xl bg-white px-4 py-2"
                         placeholder={t.status}
                         value={productDrafts[row.products.id]?.status || 'draft'}
@@ -795,7 +825,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                             </a>
                             <label className="inline-flex cursor-pointer flex-col gap-1">
                               <span>{t.replaceImage}</span>
-                              <input type="file" accept={uploadAccept} className="max-w-32 text-[10px]" onChange={(event) => { const file = event.target.files?.[0]; if (file) setReplacementImages((current) => ({ ...current, [image.id]: { file, previewUrl: URL.createObjectURL(file) } })); }} />
+                              <PortalInput operational={operational} type="file" accept={uploadAccept} className="max-w-32 text-[10px]" onChange={(event) => { const file = event.target.files?.[0]; if (file) setReplacementImages((current) => ({ ...current, [image.id]: { file, previewUrl: URL.createObjectURL(file) } })); }} />
                             </label>
                             {replacementImages[image.id] ? <>
                               <img src={replacementImages[image.id].previewUrl} alt={replacementImages[image.id].file.name} className="h-12 w-12 rounded object-cover" />
@@ -814,7 +844,8 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
             </div>
 
             <div className="mt-6">
-              <OnboardingAssetsPanel mode={mode} language={language as Lang} direction={direction} />
+              {operational && products.length === 0 ? <p role="status" className="mb-4 text-sm">{language === 'ar' ? 'لا توجد خدمات في القائمة حاليًا.' : 'There are no services in the list yet.'}</p> : null}
+              <OnboardingAssetsPanel mode={mode} language={language as Lang} direction={direction} operational={operational} />
             </div>
           </section>
         ) : null}
@@ -827,7 +858,7 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
                 <span className="mx-2 text-[#64748B]">|</span>
                 <span>{presentPortalValue(booking.status, language as Lang, presentPortalValue('pending', language as Lang))}</span>
                 <span className="mx-2 text-[#64748B]">|</span>
-                <span>{booking.total_amount ?? booking.total_price ?? 0} {booking.currency || 'SAR'}</span>
+                <span>{booking.total_amount ?? booking.total_price ?? (operational ? '—' : 0)} {booking.currency || (operational ? '' : 'SAR')}</span>
                 <span className="mx-2 text-[#64748B]">|</span>
                 <span>{booking.product_name || '—'}</span>
               </div>
@@ -863,10 +894,12 @@ export default function PartnerProviderPortalClient({ mode }: { mode: PortalMode
             </div>
             <div className="rounded-xl border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4">
                 <p className="text-xs text-[#64748B]">{t.pending}</p>
-              <p className="mt-2 text-lg font-semibold text-[#334155]">{compliance?.pendingReviews ?? 0}</p>
+              <p className="mt-2 text-lg font-semibold text-[#334155]">{compliance?.pendingReviews ?? (operational ? '—' : 0)}</p>
             </div>
           </section>
         ) : null}
+        {operational && ((tab === 'docs' && documents.length === 0) || (tab === 'bookings' && bookings.length === 0) || (tab === 'settlements' && settlements.length === 0)) ? <p role="status" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5">{language === 'ar' ? 'لا توجد سجلات في هذا القسم حاليًا.' : 'There are no records in this section yet.'}</p> : null}
+        </fieldset>}
       </div>
     </div>
   );

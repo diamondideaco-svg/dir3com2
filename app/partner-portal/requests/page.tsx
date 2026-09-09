@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import PartnerRequestsClient from '@/components/portal/PartnerRequestsClient';
+import PartnerWorkspace from '@/components/portal/PartnerWorkspace';
 import { requirePortalActor } from '@/lib/partner-portal/server';
 
 export default async function PartnerRequestsPage() {
@@ -10,5 +11,5 @@ export default async function PartnerRequestsPage() {
   if (actor.authRole !== 'partner') {
     redirect('/partner-portal');
   }
-  return <PartnerRequestsClient />;
+  return <PartnerWorkspace fullName={actor.fullName} email={actor.email}><PartnerRequestsClient /></PartnerWorkspace>;
 }
