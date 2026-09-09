@@ -6,6 +6,8 @@ const PUBLIC_CATEGORY_PATHS = ['/cars', '/hotels', '/experiences', '/concierge',
 const PROTECTED_PREFIXES = ['/profile', '/my-account', '/my-bookings', '/my-documents', '/my-profile', '/my-wallet', '/my-requests', '/dashboard'];
 
 function isPublicPath(pathname: string) {
+  // Native public discovery metadata; keep the exception exact, not a prefix.
+  if (pathname === '/sitemap.xml') return true;
   // Recovery pages must render before a session exists; password updates are verified separately.
   if (pathname === '/auth/forgot-password' || pathname === '/auth/reset-password') return true;
   if (pathname === '/') return true;

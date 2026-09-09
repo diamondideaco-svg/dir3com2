@@ -3,6 +3,9 @@ import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPubli
 import type { MarketplaceEnvironment, MarketplaceFulfilmentState, MarketplaceSupplyType, MarketplaceTransactionMethod } from '@/lib/marketplace/truth';
 
 export type RawMarketplaceServiceRecord = {
+  max_guests?: number | null;
+  city?: string | null;
+  country?: string | null;
   id?: string | number | null;
   slug?: string | null;
   name_ar?: string | null;
@@ -37,6 +40,9 @@ export type RawMarketplaceServiceRecord = {
 };
 
 type RawMarketplaceProductRecord = {
+  max_guests?: number | null;
+  city?: string | null;
+  country?: string | null;
   synthetic?: boolean | null;
   id: string;
   slug?: string | null;
@@ -112,7 +118,7 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
       applyPublicProductFilters(
         supabaseAdmin
           .from('products')
-          .select('id,slug,name_ar,name_en,description_ar,description_en,base_price,currency,status,synthetic,featured,verified,category_id,marketplace_family,created_at,updated_at,fulfilment_state,transaction_method,marketplace_environment,supply_type,supplier_name,supplier_verified')
+          .select('id,slug,name_ar,name_en,description_ar,description_en,base_price,currency,status,synthetic,featured,verified,category_id,marketplace_family,created_at,updated_at,fulfilment_state,transaction_method,marketplace_environment,supply_type,supplier_name,supplier_verified,max_guests,city,country')
       ).order('created_at', { ascending: true }),
       applyPublicCategoryFilters(supabaseAdmin.from('product_categories').select('id,slug,name_en,name_ar')),
     ]);
@@ -160,6 +166,9 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
 
         return {
           id: product.id,
+          max_guests: product.max_guests,
+          city: product.city,
+          country: product.country,
           slug: product.slug,
           name_ar: product.name_ar,
           name_en: product.name_en,

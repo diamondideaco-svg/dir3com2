@@ -1,3 +1,5 @@
+import { withSearchContext, type SearchContext } from '../marketplace/search-context';
+
 export type MarketplaceRequestIntent = 'request_to_confirm' | 'request_quote';
 
 export function buildMarketplaceRequestReturnPath(input: {
@@ -5,6 +7,7 @@ export function buildMarketplaceRequestReturnPath(input: {
   productId: string;
   family: string;
   intent: MarketplaceRequestIntent;
+  searchContext?: SearchContext;
 }) {
   const params = new URLSearchParams({
     intent: input.intent,
@@ -12,7 +15,7 @@ export function buildMarketplaceRequestReturnPath(input: {
     family: input.family,
   });
 
-  return `/services/${encodeURIComponent(input.slug)}?${params.toString()}`;
+  return withSearchContext(`/services/${encodeURIComponent(input.slug)}?${params.toString()}`, input.searchContext ?? {});
 }
 
 export function buildMarketplaceLoginHandoff(returnPath: string) {

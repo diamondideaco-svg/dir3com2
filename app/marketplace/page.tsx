@@ -1,5 +1,7 @@
 import MarketplaceExplorer from '@/components/public/MarketplaceExplorer';
 import { isMarketplaceFamilyKey } from '@/lib/marketplace/data';
+import styles from '@/components/public/marketplace-local.module.css';
+import { serializePageQuery } from '@/lib/marketplace/search-context';
 
 export default async function MarketplacePage({
   searchParams,
@@ -11,8 +13,13 @@ export default async function MarketplacePage({
   const family = isMarketplaceFamilyKey(requested) ? requested : undefined;
 
   return (
+    <div className={styles.page}>
     <MarketplaceExplorer
+      key={serializePageQuery(query)}
+      initialSearch={serializePageQuery(query)}
       family={family}
+      publicNormalization
     />
+    </div>
   );
 }

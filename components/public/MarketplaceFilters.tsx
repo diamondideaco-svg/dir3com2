@@ -16,13 +16,14 @@ type MarketplaceFiltersValue = {
 };
 
 type MarketplaceFiltersProps = {
+  descriptiveDates?: boolean;
   value: MarketplaceFiltersValue;
   destinationOptions: MarketplaceOption[];
   serviceTypeOptions: MarketplaceOption[];
   onChange: (next: MarketplaceFiltersValue) => void;
 };
 
-export default function MarketplaceFilters({ value, destinationOptions, serviceTypeOptions, onChange }: MarketplaceFiltersProps) {
+export default function MarketplaceFilters({ value, destinationOptions, serviceTypeOptions, onChange, descriptiveDates = false }: MarketplaceFiltersProps) {
   const { language } = useLanguage();
   const en = language === 'en';
   const budgetOptions = [
@@ -31,8 +32,11 @@ export default function MarketplaceFilters({ value, destinationOptions, serviceT
   const travelersOptions = [
     { value: 'all', label: en ? 'Any number' : 'أي عدد' }, { value: '1', label: en ? '1 traveller' : 'مسافر 1' }, { value: '2', label: en ? '2 travellers' : 'مسافران' }, { value: '3+', label: en ? '3+ travellers' : '3+ مسافرين' },
   ];
+  if (!travelersOptions.some(option => option.value === value.travelers)) {
+    travelersOptions.push({ value: value.travelers, label: en ? `${value.travelers} travellers` : `${value.travelers} مسافرين` });
+  }
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div data-marketplace-filters className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <SelectField
         label={en ? 'Destination' : 'الوجهة'}
         value={value.destination}
@@ -59,12 +63,14 @@ export default function MarketplaceFilters({ value, destinationOptions, serviceT
         <div className="grid grid-cols-2 gap-2">
           <input
             type="date"
+            aria-label={descriptiveDates ? (en ? 'Start date' : 'تاريخ البداية') : undefined}
             value={value.checkIn}
             onChange={(event) => onChange({ ...value, checkIn: event.target.value })}
             className="min-h-11 rounded-[18px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-3 py-2 text-sm text-[var(--color-navy)] outline-none transition focus:border-[var(--color-gold)] focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35"
           />
           <input
             type="date"
+            aria-label={descriptiveDates ? (en ? 'End date' : 'تاريخ النهاية') : undefined}
             value={value.checkOut}
             onChange={(event) => onChange({ ...value, checkOut: event.target.value })}
             className="min-h-11 rounded-[18px] border border-[color:var(--color-border)] bg-[var(--color-shell)] px-3 py-2 text-sm text-[var(--color-navy)] outline-none transition focus:border-[var(--color-gold)] focus-visible:ring-2 focus-visible:ring-[var(--color-gold)]/35"

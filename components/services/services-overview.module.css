@@ -1,0 +1,32 @@
+/* Exact /services landing only; shared Home and family presentations are unchanged. */
+.shell { background:#fff; color:#0d1b2a; min-width:0; }
+.page { max-width:1440px; margin:auto; padding:32px; }
+.intro { max-width:800px; margin-bottom:28px; }
+.intro h1 { margin:0 0 12px; font-size:40px; line-height:1.25; font-weight:700; }
+.intro p { margin:0; color:#536174; font-size:17px; line-height:1.8; }
+.grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:16px; }
+.card { min-width:0; overflow:hidden; display:flex; flex-direction:column; background:#fff; border:1px solid #d4af374d; border-radius:16px; box-shadow:0 4px 16px #0d1b2a08; }
+.card > img { display:block; width:100%; height:auto; aspect-ratio:16/10; object-fit:cover; }
+.card > div { display:flex; flex-direction:column; flex:1; padding:18px; }
+.card h2 { margin:0 0 10px; font-size:18px; line-height:1.4; font-weight:700; }
+.card p { margin:0 0 14px; font-size:14px; line-height:1.8; color:#536174; }
+.card a { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:auto; min-height:44px; color:#775807; font-size:14px; font-weight:600; }
+.card a:hover { text-decoration:underline; }
+.assistance { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-top:28px; padding:18px 20px; border:1px solid #d4af374d; border-radius:14px; background:#f5f6f8; }
+.assistance h2 { margin:0 0 4px; font-size:16px; font-weight:700; }
+.assistance p { margin:0; font-size:14px; color:#536174; }
+.assistance > a { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; min-height:44px; padding:8px 16px; border:1px solid #b98b2b; border-radius:10px; color:#775807; font-size:14px; font-weight:600; }
+.page :focus-visible { outline:3px solid #88601c; outline-offset:3px; }
+@media(max-width:1050px) { .grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:640px) {
+  .page { padding:24px 16px; }
+  .intro h1 { font-size:30px; }
+  .intro p { font-size:15px; }
+  .grid { grid-template-columns:minmax(0,1fr); }
+  .card { display:grid; grid-template-columns:112px minmax(0,1fr); }
+  .card > img { height:100%; aspect-ratio:auto; }
+  .card > div { padding:14px; }
+  .card h2 { font-size:17px; }
+  .card p { font-size:13px; }
+  .assistance { flex-wrap:wrap; gap:12px; padding:16px; }
+}
