@@ -219,13 +219,15 @@ test('AR/EN lifecycle denial is truthful, with no fake empty list or WhatsApp co
   }
   assert.match(state.getPartnerRequestListPresentation(result,'en').lifecycleNotice,/awaiting admin activation/);
 });
-test('UI status is read-only; activation requires attestation and remains admin-only', () => {
+test('UI status is read-only; activation requires typed attestation and remains admin-only', () => {
   const portal = read('components/portal/PartnerProviderPortalClient.tsx');
   assert.doesNotMatch(portal,/reviewStatusOptions|reviewStatus:\s*profile.reviewStatus/);
   const panel = read('components/admin/PartnerActivation.tsx');
   assert.match(panel,/canActivate && status === 'approved'/);
-  assert.match(panel,/type="checkbox" name="confirmed" value="true" required/);
-  assert.match(panel,/name="reason" required/);
-  assert.match(panel,/window.confirm/);
+  assert.match(panel,/activationAttestation\.trim\(\) !== partnerName\.trim\(\)/);
+  assert.match(panel,/deactivationAttestation\.trim\(\) !== partnerName\.trim\(\)/);
+  assert.match(panel,/!deactivationReason\.trim\(\)/);
+  assert.match(panel,/submittingRef\.current/);
+  assert.doesNotMatch(panel,/window\.confirm/);
   assert.match(read('app/admin/partners/[id]/page.tsx'),/canActivate: scope\.mode === 'global'/);
 });
