@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, type InputHTMLAttributes, type ReactNode } from 'react';
+import { useId, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import type { MouseEvent } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
@@ -132,18 +132,50 @@ export function AdminSubmitButton({
 }) {
   const { language } = useLanguage();
   const { pending } = useFormStatus();
+  const [confirmForm, setConfirmForm] = useState<HTMLFormElement | null>(null);
+  const approvedRef = useRef(false);
+  const dialogId = useId();
   const confirmation = language === 'ar' ? confirmAr : confirmEn;
 
   function handleClick(event: MouseEvent<HTMLButtonElement>) {
-    if (confirmation && !window.confirm(confirmation)) {
-      event.preventDefault();
+    if (!confirmation || approvedRef.current) {
+      approvedRef.current = false;
+      return;
     }
+
+    const form = event.currentTarget.form;
+    if (!form) return;
+    event.preventDefault();
+    setConfirmForm(form);
+  }
+
+  function approve() {
+    if (!confirmForm) return;
+    const form = confirmForm;
+    approvedRef.current = true;
+    setConfirmForm(null);
+    form.requestSubmit();
   }
 
   return (
-    <button type="submit" disabled={pending || disabled} onClick={handleClick} className={`${className} disabled:cursor-wait disabled:opacity-60`}>
-      {pending ? (language === 'ar' ? 'جارٍ التنفيذ…' : 'Working…') : (language === 'ar' ? ar : en)}
-    </button>
+    <>
+      <button type="submit" disabled={pending || disabled} onClick={handleClick} className={`${className} disabled:cursor-wait disabled:opacity-60`}>
+        {pending ? (language === 'ar' ? 'جارٍ التنفيذ…' : 'Working…') : (language === 'ar' ? ar : en)}
+      </button>
+      {confirmForm && confirmation ? (
+        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-[#0D1B2A]/45 p-4 sm:items-center" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby={dialogId} dir={language === 'ar' ? 'rtl' : 'ltr'} className="w-full max-w-md rounded-[1.75rem] border border-[#D4AF37]/40 bg-white p-5 text-[#0D1B2A] shadow-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#A67C00]">{language === 'ar' ? 'تأكيد الإجراء' : 'Confirm action'}</p>
+            <h2 id={dialogId} className="mt-3 text-lg font-semibold leading-8">{confirmation}</h2>
+            <p className="mt-2 text-sm leading-6 text-[#64748B]">{language === 'ar' ? 'لن يتم تنفيذ التغيير قبل تأكيدك.' : 'The change will not be executed until you confirm.'}</p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setConfirmForm(null)} className="min-h-11 rounded-full border border-[#CBD5E1] px-5 text-sm font-semibold text-[#334155]">{language === 'ar' ? 'إلغاء' : 'Cancel'}</button>
+              <button type="button" onClick={approve} className="min-h-11 rounded-full bg-[#D4AF37] px-5 text-sm font-bold text-[#0D1B2A]">{language === 'ar' ? 'تأكيد' : 'Confirm'}</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </>
   );
 }
 
