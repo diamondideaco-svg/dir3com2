@@ -20,7 +20,7 @@ export default function StoriesCarousel({ stories, service, homeDiscovery = fals
       <div className={homeStyles.discoverContent}>
         <Image src="/brand/runtime/golden_hour_over_the_rugged_desert_canyon.png" alt="" width={1672} height={941} sizes="(max-width: 640px) 100vw, 65vw" />
         <div>{saudiSources.map(source => <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer">
-          <span>{language === 'en' && source.id === 'gea-events-ar' ? 'General Entertainment Authority' : language === 'en' && source.id === 'aishha-events-ar' ? 'Enjoy Saudi' : source.name}</span>
+          <span>{source.id === 'visit-saudi-ar' ? (language === 'ar' ? 'روح السعودية' : 'Visit Saudi') : language === 'en' && source.id === 'gea-events-ar' ? 'General Entertainment Authority' : language === 'en' && source.id === 'aishha-events-ar' ? 'Enjoy Saudi' : source.name}</span>
           <span aria-hidden="true">↗</span>
         </a>)}</div>
       </div>

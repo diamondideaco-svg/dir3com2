@@ -8,6 +8,7 @@ import SectionHeading from '@/components/home/SectionHeading';
 import { Badge, Chip, ContentContainer, SearchField, SectionContainer, SectionSurface, SelectField } from '@/components/design-system';
 import ServicesGrid from '@/components/home/ServicesGrid';
 import MarketplaceFilters from '@/components/public/MarketplaceFilters';
+import { canonicalCity, contextSummary, initialContextFilters, readSearchContext, withSearchContext } from '@/lib/marketplace/search-context';
 import { useMarketplaceServices } from '@/components/public/useMarketplaceServices';
 import { fadeUpItem, revealViewport, sectionStagger, subtleEasing } from '@/components/shared/motion';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,6 +24,8 @@ import {
 } from '@/lib/marketplace/data';
 
 type MarketplaceExplorerProps = {
+  initialSearch?: string;
+  publicNormalization?: boolean;
   title?: string;
   description?: string;
   family?: MarketplaceFamilyKey;
@@ -58,6 +61,8 @@ export default function MarketplaceExplorer({
   family,
   defaultCategory,
   defaultCollection = 'all',
+  publicNormalization = false,
+  initialSearch,
 }: MarketplaceExplorerProps) {
   const { language, direction } = useLanguage();
   const t = copy[language];
@@ -65,27 +70,35 @@ export default function MarketplaceExplorer({
   const collectionLabels: Array<{ value: MarketplaceCollectionKey; label: string }> = [
     { value: 'all', label: t.all }, { value: 'featured', label: t.featured }, { value: 'popular', label: t.popular }, { value: 'recommended', label: t.recommended },
   ];
-  const destinationOptions = destinationValues.map((value, index) => ({ value, label: t.destinations[index] }));
-  const sortOptions = sortValues.map((value, index) => ({ value, label: t.sorts[index] }));
+  const destinationOptions: Array<{ value: string; label: string }> = destinationValues.map((value, index) => ({ value, label: t.destinations[index] }));
+  const sortOptions = sortValues.filter(value => value !== 'popular').map(value => ({ value, label: t.sorts[sortValues.indexOf(value)] }));
   const initialUrlParams =
-    typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
+    new URLSearchParams(initialSearch ?? (typeof window === 'undefined' ? '' : window.location.search));
+  const incomingContext = readSearchContext(initialUrlParams);
+  const initialFilters = initialContextFilters(incomingContext, family);
   const initialQuery = initialUrlParams.get('query') ?? '';
-  const initialDestination = initialUrlParams.get('destination') ?? 'all';
+  const initialDestination = initialFilters.destination;
 
   const [searchInput, setSearchInput] = useState(initialQuery);
   const [query, setQuery] = useState(initialQuery);
   const [collection, setCollection] = useState<MarketplaceCollectionKey>(defaultCollection);
-  const [sort, setSort] = useState<MarketplaceSortKey>('recommended');
+  const [sort, setSort] = useState<MarketplaceSortKey>(sortOptions.some(option => option.value === initialUrlParams.get('sort')) ? initialUrlParams.get('sort') as MarketplaceSortKey : 'recommended');
   const [category, setCategory] = useState<MarketplacePageCategory | 'all'>(defaultCategory ?? 'all');
   const [page, setPage] = useState(1);
   const [advancedFilters, setAdvancedFilters] = useState({
     destination: initialDestination,
     serviceType: defaultCategory ?? 'all',
-    budget: 'all',
-    checkIn: '',
-    checkOut: '',
-    travelers: 'all',
+    budget: initialFilters.budget,
+    checkIn: initialFilters.checkIn,
+    checkOut: initialFilters.checkOut,
+    travelers: initialFilters.travelers,
   });
+  const handoffContext = { ...incomingContext, ...advancedFilters, query };
+  const contextItems = contextSummary(incomingContext, language);
+  if (!destinationOptions.some(option => option.value === advancedFilters.destination)) {
+    destinationOptions.push({ value: advancedFilters.destination, label: canonicalCity(advancedFilters.destination)?.[language] ?? advancedFilters.destination });
+  }
+  const flightContext = family === 'dir3-fly' && incomingContext.service === 'fly';
 
   const serviceTypeCategory = advancedFilters.serviceType === 'all' ? undefined : (advancedFilters.serviceType as MarketplacePageCategory);
   const activeCategory = serviceTypeCategory ?? (category === 'all' ? undefined : category);
@@ -105,9 +118,12 @@ export default function MarketplaceExplorer({
     language: inferredLanguage,
     collection,
     sort,
-    destination: advancedFilters.destination,
-    checkIn: advancedFilters.checkIn,
-    checkOut: advancedFilters.checkOut,
+    destination: canonicalCity(advancedFilters.destination)?.en ?? advancedFilters.destination,
+    checkIn: family !== 'dir3-fly' ? advancedFilters.checkIn : undefined,
+    checkOut: family !== 'dir3-fly' ? advancedFilters.checkOut : undefined,
+    departureFrom: flightContext ? canonicalCity(incomingContext.originCity)?.en ?? incomingContext.originCity : undefined,
+    departureDate: flightContext && incomingContext.originCity ? advancedFilters.checkIn : undefined,
+    returnDate: flightContext ? advancedFilters.checkOut : undefined,
     budget: advancedFilters.budget,
     travelers: advancedFilters.travelers,
     page,
@@ -151,7 +167,7 @@ export default function MarketplaceExplorer({
     <div className={language === 'en' ? 'text-left' : 'text-right'} dir={direction} lang={language}>
     <SectionContainer>
       <ContentContainer>
-        <SectionHeading eyebrow="MARKETPLACE" title={title ?? t.title} description={description ?? t.description} />
+        <SectionHeading eyebrow={language === 'ar' ? 'السوق' : 'MARKETPLACE'} title={title ?? t.title} description={description ?? t.description} />
 
         <nav aria-label={t.families} className="mt-6 flex flex-wrap gap-2">
           {[{ key: undefined, label: t.all }, ...marketplaceFamilyDefinitions.map((definition) => ({
@@ -159,7 +175,7 @@ export default function MarketplaceExplorer({
             label: definition.label[language],
           }))].map((item) => {
             const isActive = family === item.key;
-            const href = item.key ? `/marketplace?family=${item.key}` : '/marketplace';
+            const href = withSearchContext(item.key ? `/marketplace?family=${item.key}` : '/marketplace', handoffContext);
 
             return (
               <Link
@@ -173,6 +189,10 @@ export default function MarketplaceExplorer({
             );
           })}
         </nav>
+        {contextItems.length > 0 ? <p data-marketplace-context className="mt-4 break-words text-sm leading-7 text-[var(--color-muted)]">
+          {language === 'ar' ? 'سياق البحث الوارد (ليس تأكيدًا للتوفر): ' : 'Incoming search context (not availability confirmation): '}
+          {contextItems.join(' · ')}
+        </p> : null}
 
         <motion.div variants={sectionStagger} initial="hidden" whileInView="visible" viewport={revealViewport} className="mt-8 space-y-5">
           <motion.div variants={fadeUpItem}>
@@ -180,7 +200,7 @@ export default function MarketplaceExplorer({
               <CardContent className="p-5 sm:p-6 lg:p-7">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <p className="text-xs font-semibold tracking-[0.24em] text-[var(--color-gold)]">SMART SEARCH</p>
+                    <p className="text-xs font-semibold tracking-[0.24em] text-[var(--color-gold)]">{language === 'ar' ? 'البحث الذكي' : 'SMART SEARCH'}</p>
                     <h3 className="mt-2 text-2xl font-semibold text-[var(--color-navy)] sm:text-3xl">{t.smartTitle}</h3>
                     <p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">{t.smartDescription}</p>
                   </div>
@@ -189,7 +209,12 @@ export default function MarketplaceExplorer({
                   </Badge>
                 </div>
 
-                <div className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
+                <div data-marketplace-search className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_0.6fr]" onKeyDown={publicNormalization ? (event) => {
+                  if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
+                    event.preventDefault();
+                    event.currentTarget.nextElementSibling?.querySelector('button')?.click();
+                  }
+                } : undefined}>
                   <SearchField label={language === 'en' ? 'Search' : 'البحث'} value={searchInput} onChange={setSearchInput} placeholder={t.searchPlaceholder} />
                   <SelectField label={t.sort} value={sort} onChange={(next) => setSort(next as MarketplaceSortKey)} options={sortOptions} />
                 </div>
@@ -214,6 +239,7 @@ export default function MarketplaceExplorer({
                     <FiFilter /> {t.filters}
                   </div>
                   <MarketplaceFilters
+                    descriptiveDates={publicNormalization}
                     value={advancedFilters}
                     destinationOptions={destinationOptions}
                     serviceTypeOptions={serviceTypeOptions}
@@ -224,6 +250,7 @@ export default function MarketplaceExplorer({
                   />
                   <p className="mt-3 text-xs leading-6 text-[var(--color-muted)]">
                     {t.filtersNote}
+                    {sort === 'price-low' || sort === 'price-high' ? <span className="block">{language === 'ar' ? 'الأسعار مرتبة داخل كل عملة دون تحويل.' : 'Prices are ordered within each currency, without conversion.'}</span> : null}
                   </p>
                 </div>
               </CardContent>
@@ -231,7 +258,7 @@ export default function MarketplaceExplorer({
           </motion.div>
 
           {!loading && !error ? <>
-          <motion.div variants={fadeUpItem} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <motion.div data-marketplace-categories variants={fadeUpItem} animate={publicNormalization ? 'visible' : undefined} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {categoryBrowseItems.map((option) => (
               <motion.button
                 key={option.category}
@@ -262,7 +289,7 @@ export default function MarketplaceExplorer({
               : null}
           </motion.div>
 
-          <motion.div variants={fadeUpItem} className="rounded-[26px] border border-[color:var(--color-border)] bg-white/72 p-4 sm:p-5">
+          <motion.div data-marketplace-collections variants={fadeUpItem} animate={publicNormalization ? 'visible' : undefined} className="rounded-[26px] border border-[color:var(--color-border)] bg-white/72 p-4 sm:p-5">
             <div className="flex flex-wrap gap-2">
               {collectionLabels.map((option) => {
                 const collectionCount = meta.facets.collections[option.value] ?? 0;
@@ -340,7 +367,7 @@ export default function MarketplaceExplorer({
             </CardContent>
           </Card>
         ) : error ? (
-          <Card className="mt-6 border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 shadow-none">
+          <Card role={publicNormalization ? 'alert' : undefined} className="mt-6 border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 shadow-none">
             <CardContent className="p-4 text-sm text-[var(--color-navy)]">
               <p className="font-semibold">{t.loadError}</p>
               <p className="mt-2">{error} {t.safeError}</p>
@@ -391,7 +418,7 @@ export default function MarketplaceExplorer({
               </div>
             </SectionSurface>
           ) : (
-            <ServicesGrid services={services} loading={false} emptyMessage={t.noResults} skeletonCount={6} />
+            <ServicesGrid services={services.map(service => ({ ...service, href: withSearchContext(service.href, handoffContext) }))} loading={false} emptyMessage={t.noResults} skeletonCount={6} />
           )}
           </div>
           </>
@@ -416,6 +443,7 @@ export default function MarketplaceExplorer({
               <button
                 key={pageNumber}
                 type="button"
+                aria-current={publicNormalization && meta.page === pageNumber ? 'page' : undefined}
                 onClick={() => setPage(pageNumber)}
                 className={`min-h-10 min-w-10 rounded-full px-3 py-2 text-sm font-medium transition ${
                   meta.page === pageNumber

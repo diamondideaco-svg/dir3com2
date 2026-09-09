@@ -15,7 +15,7 @@ export function HomeChrome({ children }: { children: ReactNode }) {
   return <div className={styles.shell} lang={language} dir={direction}>
     <Header logo={<CustomerLogo />} onHomeSearch={() => document.querySelector<HTMLButtonElement>('[data-home-search-entry] button')?.click()} />
     {children}
-    <CustomerFooter surface="white" className={styles.footer} />
+    <CustomerFooter surface="white" className={styles.footer} servicesOverviewAccess />
     <FloatingDibrah />
   </div>;
 }

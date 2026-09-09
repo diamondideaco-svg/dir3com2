@@ -36,6 +36,17 @@ test('AR and EN canonical chrome renders real links, transparent logo, language 
     const header = renderToStaticMarkup(createElement(exports.CustomerHeader, { large: false, appearance: false, onLarge() {}, onAppearance() {} }));
     const footer = renderToStaticMarkup(createElement(exports.CustomerFooter));
     const imageFooter = renderToStaticMarkup(createElement(exports.CustomerFooter, { surface: 'image' }));
+    const linkedFooter = renderToStaticMarkup(createElement(exports.CustomerFooter, { servicesOverviewAccess: true }));
+    for (const markup of [footer, linkedFooter]) {
+      const headings = [...markup.matchAll(/<h2>(.*?)<\/h2>/g)].map(match => match[1].replace(/<[^>]*>/g, ''));
+      assert.deepEqual(headings, language === 'ar' ? ['عن الشركة', 'خدماتنا', 'تواصل معنا'] : ['Company', 'Services', 'Contact us']);
+      for (const family of ['drive', 'stay', 'concierge', 'vip', 'fly']) {
+        assert.equal(markup.split(`href="/services/${family}"`).length - 1, 1);
+      }
+    }
+    assert.doesNotMatch(footer, /href="\/services"/);
+    assert.equal(linkedFooter.split('href="/services"').length - 1, 1);
+    assert.match(linkedFooter, /<h2><a href="\/services"/);
     assert.match(header, /dir3com-logo-transparent\.png/);
     assert.doesNotMatch(footer, /<img/); // Approved reference starts with columns, not an added logo block.
     assert.match(footer, /data-footer-surface="white"/);
@@ -105,7 +116,8 @@ test('footer owns its direction, contact grid, social axis and single-column mob
   assert.doesNotMatch(css, /row-reverse|scaleX/);
   // The shared DOM stacks Company, Services, Contact on mobile. Desktop grid
   // columns 3, 2, 1 put Contact first in the footer's own LTR/RTL direction.
-  assert.match(read('components/v6/CustomerChrome.tsx'), /<section><h2>\{ar \? 'عن الشركة' : 'Company'\}[\s\S]*<section><h2>\{ar \? 'خدماتنا' : 'Services'\}[\s\S]*<section><h2>\{ar \? 'تواصل معنا' : 'Contact us'\}/);
+  // Actual AR/EN rendering above verifies this order both with and without the
+  // approved secondary /services heading link; JSX source shape is not the UI.
   for (const [file, footer, grid] of [
     ['app/(auth)/register/register.module.css', '.canonicalFooter', '.canonicalFooter > [data-footer-columns]'],
     ['components/v6/v6.module.css', '.verifyFooter', '.authStage [data-footer-columns]'],
@@ -137,6 +149,37 @@ test('footer owns its direction, contact grid, social axis and single-column mob
     assert.equal(desktopGrids, 1);
     assert.deepEqual([...placements], [[1, 3], [2, 2], [3, 1]]);
   }
+});
+
+test('Services stays secondary while Home and all family searches preserve direct discovery', () => {
+  const home = read('components/approved/ApprovedVisualPage.tsx');
+  assert.match(home, /href={`\/services\/\$\{service.slug\}`}/);
+  assert.doesNotMatch(home, /href="\/services"/);
+  const family = read('components/services/ServicePageContent.tsx');
+  assert.match(family, /href={`\/marketplace\?family=dir3-\$\{service\}`}/);
+  assert.doesNotMatch(family, /href="\/services"/);
+  const search = read('components/shared/ServiceSearchTable.tsx');
+  for (const branch of ['directDrive', 'familyMarketplace']) {
+    const block = search.slice(search.indexOf(`if (${branch}) {`)).split('\n    }')[0];
+    assert.ok(block.includes('router.push(`/marketplace?${params.toString()}`)'));
+    assert.doesNotMatch(block, /router.push\([^\n]*\/services/);
+  }
+  for (const key of ['stay', 'fly', 'concierge', 'vip']) {
+    assert.match(read(`app/services/${key}/page.tsx`), new RegExp(`service="${key}"[^>]*familyMarketplace`));
+  }
+  assert.match(read('app/services/page.tsx'), /return <ServicesOverview \/>/);
+  assert.doesNotMatch(read('app/services/page.tsx'), /redirect\(/);
+  assert.match(read('app/sitemap.ts'), /'\/services'/);
+});
+
+test('public headings and accessibility copy use the active language without translating brands', () => {
+  const marketplace = read('components/public/MarketplaceExplorer.tsx');
+  assert.ok(marketplace.includes("eyebrow={language === 'ar' ? 'السوق' : 'MARKETPLACE'}"));
+  assert.ok(marketplace.includes("{language === 'ar' ? 'البحث الذكي' : 'SMART SEARCH'}"));
+  const header = read('components/layout/Header.tsx');
+  assert.equal(header.split("aria-label={language === 'ar' ? 'التبديل إلى الإنجليزية' : 'Switch to Arabic'}").length - 1, 2);
+  assert.ok(read('components/layout/FloatingDibrah.tsx').includes("alt={language === 'ar' ? 'صورة الدبرة' : 'DABRA avatar'}"));
+  assert.ok(read('components/shared/StoriesCarousel.tsx').includes("language === 'ar' ? 'روح السعودية' : 'Visit Saudi'"));
 });
 
 test('density decisions remove sidebar and banner characters without modifying approved artwork', () => {

@@ -615,7 +615,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
       >
         <span className="pointer-events-none absolute -right-4 top-1/2 h-12 w-12 -translate-y-1/2 rounded-full bg-[var(--color-gold)]/20 blur-2xl" />
         {launcherIdentity ?? <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-[var(--color-gold)]/40 bg-white/60">
-          <Image src="/brand/runtime/DABRA emoji.png" alt="DABRA avatar" fill sizes="48px" unoptimized className="object-cover" />
+          <Image src="/brand/runtime/DABRA emoji.png" alt={language === 'ar' ? 'صورة الدبرة' : 'DABRA avatar'} fill sizes="48px" unoptimized className="object-cover" />
         </span>}
         <span className={`hidden flex-col sm:flex${desktopIdentity ? ` ${identityStyles.context}` : ''}`}>
           {desktopIdentity && <span className={identityStyles.desktop}><strong>{desktopIdentity.greeting}</strong><span>{desktopIdentity.role}</span></span>}

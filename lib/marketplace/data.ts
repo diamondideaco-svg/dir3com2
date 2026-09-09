@@ -1,4 +1,5 @@
 import { customerProductSlug } from './customer-identifiers';
+import { canonicalCity } from './search-context';
 
 export type MarketplaceFamilyKey =
   | 'dir3-drive'
@@ -77,6 +78,9 @@ type RawServiceProduct = {
 };
 
 type RawServiceApiItem = {
+  max_guests?: number | null;
+  city?: string | null;
+  country?: string | null;
   id?: string | number | null;
   slug?: string | null;
   name_ar?: string | null;
@@ -114,6 +118,8 @@ type RawServiceApiItem = {
 };
 
 export type MarketplaceService = {
+  maxGuests?: number | null;
+  country?: string | null;
   synthetic?: boolean | null;
   verified?: boolean | null;
   id: string | number;
@@ -395,13 +401,16 @@ const customerSafeCategoryDescriptionEn: Record<MarketplacePageCategory, string>
 };
 
 function inferDestination(item: RawServiceApiItem) {
-  const haystack = [item.destination, item.region_name, item.slug, item.name_ar, item.name_en, item.description_ar, item.description_en]
+  const location = item.city ?? item.destination ?? item.region_name;
+  const city = canonicalCity(location ?? undefined);
+  if (city) return city.slug;
+  const haystack = [location]
     .map(normalizeText)
     .join(' ');
 
   const matchedDestination = destinationKeywords.find(({ keywords }) => keywords.some((keyword) => haystack.includes(keyword)));
 
-  return matchedDestination?.destination ?? 'saudi-arabia';
+  return matchedDestination?.destination ?? normalizeText(location);
 }
 
 function inferAvailability(item: RawServiceApiItem, productCount: number): MarketplaceAvailability {
@@ -527,7 +536,8 @@ export function normalizeMarketplaceServices(
       : 0;
     const basePrice = Number(item.base_price ?? basePriceFromProducts ?? 0);
     const featured = Boolean(item.featured) || item.status === 'featured';
-    const popular = productCount >= 2 || index < 2;
+    // No authoritative popularity metric is published by the current adapter.
+    const popular = false;
     const recommended = featured || productCount > 0 || family === 'dir3-stay' || family === 'dir3-drive';
     const destination = inferDestination(item);
     const availability = inferAvailability(item, productCount);
@@ -554,6 +564,8 @@ export function normalizeMarketplaceServices(
       basePrice,
       currency: item.currency ?? 'SAR',
       productCount,
+      maxGuests: Number.isInteger(item.max_guests) && Number(item.max_guests) > 0 ? item.max_guests : null,
+      country: item.country,
       inventoryCount: productCount,
       availability,
       destination,
@@ -618,12 +630,10 @@ function withinBudget(price: number, budget?: string) {
   return true;
 }
 
-function withinTravelerGroup(productCount: number, travelers?: string) {
+function withinTravelerGroup(maxGuests: number | null | undefined, travelers?: string) {
   if (!travelers || travelers === 'all') return true;
-  if (travelers === '1') return productCount >= 1;
-  if (travelers === '2') return productCount >= 2;
-  if (travelers === '3+') return productCount >= 3;
-  return true;
+  const minimum = travelers === '3+' ? 3 : /^[1-9]\d?$/.test(travelers) ? Number(travelers) : NaN;
+  return Number.isInteger(maxGuests) && Number(maxGuests) >= minimum;
 }
 
 export function filterMarketplaceServices(services: MarketplaceService[], options: MarketplaceQueryOptions) {
@@ -652,7 +662,10 @@ export function filterMarketplaceServices(services: MarketplaceService[], option
       return false;
     }
 
-    if (options.destination && options.destination !== 'all' && service.destination !== options.destination) {
+    const destination = canonicalCity(options.destination)?.slug ?? normalizeText(options.destination);
+    const countryMatch = destination === 'saudi-arabia' ? /^(sa|saudi arabia|السعودية)$/i.test(service.country ?? '')
+      : destination === 'egypt' ? /^(eg|egypt|مصر)$/i.test(service.country ?? '') : false;
+    if (options.destination && options.destination !== 'all' && service.destination !== destination && !countryMatch) {
       return false;
     }
 
@@ -660,11 +673,12 @@ export function filterMarketplaceServices(services: MarketplaceService[], option
       return false;
     }
 
+    if (options.budget && options.budget !== 'all' && service.currency.toUpperCase() !== 'SAR') return false;
     if (!withinBudget(service.basePrice, options.budget)) {
       return false;
     }
 
-    if (!withinTravelerGroup(service.productCount, options.travelers)) {
+    if (!withinTravelerGroup(service.maxGuests, options.travelers)) {
       return false;
     }
 
@@ -681,11 +695,11 @@ export function filterMarketplaceServices(services: MarketplaceService[], option
     }
 
     if (sort === 'price-low') {
-      return left.basePrice - right.basePrice;
+      return left.currency.localeCompare(right.currency) || left.basePrice - right.basePrice;
     }
 
     if (sort === 'price-high') {
-      return right.basePrice - left.basePrice;
+      return left.currency.localeCompare(right.currency) || right.basePrice - left.basePrice;
     }
 
     if (sort === 'featured') {

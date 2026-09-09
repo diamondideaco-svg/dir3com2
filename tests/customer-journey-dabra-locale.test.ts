@@ -24,7 +24,7 @@ test('each canonical service journey exposes its own family-filtered Marketplace
   assert.match(source, /href={`\/marketplace\?family=dir3-\${service}`}/);
   assert.match(source, /Browse \${page\.eyebrow} marketplace/);
   assert.match(source, /تصفح سوق \${page\.eyebrow}/);
-  assert.match(source, /<ServiceSearchTable initialService=\{service\} \/>/);
+  assert.match(source, /<ServiceSearchTable initialService=\{service\} familyMarketplace=\{familyMarketplace\} \/>/);
 });
 
 test('all active service and marketplace copy sources exclude unsupported claims in AR and EN', () => {

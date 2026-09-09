@@ -1,0 +1,60 @@
+/* Opt-in on /marketplace only. Existing search, facets and result order are retained. */
+.page {
+  --color-shell:#f5f6f8;
+  --color-muted:#536174;
+  --color-border:#dfe3e8;
+  background:#fff;
+  color:var(--color-navy);
+  min-width:0;
+}
+.page > div > section { padding:32px 32px 48px; }
+.page > div > section > div { max-width:1360px; margin-inline:auto; }
+.page h2,.page h3 { font-family:inherit; letter-spacing:normal; }
+.page h2 { margin:8px 0 12px; font-size:36px; line-height:1.3; }
+.page h3 { font-size:26px; line-height:1.4; }
+.page nav { display:flex; flex-wrap:wrap; gap:10px; margin-block:24px; }
+.page nav a { min-height:44px; padding:10px 20px; }
+.page :is(button,a,input,select) { font-family:inherit; }
+.page :is(button,a):focus-visible,.page :is(input,select):focus-visible { outline:3px solid #88601c; outline-offset:3px; }
+.page label:has(input:focus-visible) > span:last-child { outline:2px solid #88601c; outline-offset:2px; }
+.page :is(label,input,select) { min-width:0; max-width:100%; }
+.page select,.page input[type=date] { min-height:44px; padding:10px 12px; background:#fff; border-radius:12px; }
+.page [data-marketplace-search] { margin-top:24px; gap:16px; }
+.page [data-marketplace-search] label > span:last-child { padding:10px 14px; border-radius:12px; background:#fff; }
+.page [data-marketplace-search] + div { margin-top:16px; }
+.page [data-marketplace-search] + div > button { padding:10px 20px; min-height:44px; }
+.page [data-marketplace-search] ~ div:has([data-marketplace-filters]) { padding:20px; margin-top:24px; background:#f5f6f8; }
+.page [data-marketplace-filters] { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.page [data-marketplace-filters] > label > span { margin-bottom:8px; }
+.page [data-marketplace-filters] > label:has(input[type=date]) { grid-column:span 2; }
+.page [data-marketplace-filters] input[type=date] { width:100%; }
+.page div:has(> [data-marketplace-search]) { padding:24px; }
+.page div:has(> div > [data-marketplace-search]) { background:#fff; box-shadow:0 4px 20px #0d1b2a08; }
+.page div:has(> [data-marketplace-search]) h3 + p { margin-top:8px; }
+.page div:has(> [data-marketplace-search]) > div:first-child { gap:16px; }
+.page button[aria-pressed] { min-height:44px; padding:10px 16px; text-align:start; }
+.page button[aria-pressed=true] { background:var(--color-gold); color:var(--color-navy); }
+.page button:disabled { color:#536174; }
+.page [data-marketplace-categories] { margin-top:20px; gap:12px; }
+.page [data-marketplace-categories] > div { padding:14px 16px; }
+.page [data-marketplace-collections] { margin-block:20px; padding:20px; }
+.page [data-marketplace-collections] > div { gap:10px; }
+.page [data-marketplace-collections] > div + div { margin-top:16px; }
+.page p,.page label > span:first-child { color:#536174; }
+.page [id=marketplace-results] > div > p:first-child { color:var(--color-navy); }
+.page [id=marketplace-results] { margin-top:24px; scroll-margin-top:100px; }
+.page [id=marketplace-results] > div:not(:has(article)) { padding:24px; background:#f5f6f8; box-shadow:none; }
+.page [id=marketplace-results] :is(a,button) { min-height:44px; padding:10px 18px; }
+.page [id=marketplace-results] p + div { margin-top:20px; gap:12px; }
+@media(max-width:640px) {
+  .page > div > section { padding:24px 16px 32px; }
+  .page h2 { font-size:30px; }
+  .page h3 { font-size:22px; }
+  .page nav { gap:8px; margin-block:20px; }
+  .page nav a { padding:10px 14px; }
+  .page div:has(> [data-marketplace-search]) { padding:16px; }
+  .page [data-marketplace-search] ~ div:has([data-marketplace-filters]) { padding:14px; }
+  .page [data-marketplace-filters] { grid-template-columns:minmax(0,1fr); gap:14px; }
+  .page [data-marketplace-filters] > label:has(input[type=date]) { grid-column:auto; }
+  .page [id=marketplace-results] > div:not(:has(article)) { padding:18px; }
+}

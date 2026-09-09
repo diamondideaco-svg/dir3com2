@@ -23,6 +23,9 @@ type MarketplaceServicesQuery = {
   destination?: string;
   checkIn?: string;
   checkOut?: string;
+  departureFrom?: string;
+  departureDate?: string;
+  returnDate?: string;
   budget?: string;
   travelers?: string;
   availability?: 'all' | 'available' | 'limited' | 'sold-out';
@@ -129,6 +132,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
     destination,
     checkIn,
     checkOut,
+    departureFrom, departureDate, returnDate,
     budget,
     travelers,
     availability,
@@ -150,6 +154,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
       destination,
       checkIn,
       checkOut,
+      departureFrom, departureDate, returnDate,
       budget,
       travelers,
       availability,
@@ -166,7 +171,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
     });
 
     return params.toString();
-  }, [family, category, query, userIntent, language, collection, sort, destination, checkIn, checkOut, budget, travelers, availability, page, pageSize]);
+  }, [family, category, query, userIntent, language, collection, sort, destination, checkIn, checkOut, departureFrom, departureDate, returnDate, budget, travelers, availability, page, pageSize]);
 
   const aiRequestBody = useMemo(
     () => ({
@@ -206,7 +211,9 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
   );
 
   const shouldUseAISearch = useMemo(() => {
-    if (!aiSearchEnabled) {
+    // The AI POST contract cannot carry flight-route/date fields. Keep them in
+    // the existing canonical GET contract rather than silently dropping them.
+    if (!aiSearchEnabled || departureFrom || departureDate || returnDate) {
       return false;
     }
 
@@ -214,7 +221,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
     const normalizedIntent = (userIntent ?? '').trim();
 
     return normalizedQuery.length > 0 || normalizedIntent.length > 0;
-  }, [aiSearchEnabled, query, userIntent]);
+  }, [aiSearchEnabled, query, userIntent, departureFrom, departureDate, returnDate]);
 
   useEffect(() => {
     const controller = new AbortController();

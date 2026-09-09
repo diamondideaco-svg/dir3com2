@@ -42,7 +42,7 @@ test('Login Success new lounge scene has no desktop footer overlay and preserves
     if ((rule.parent as postcss.AtRule).params === '(max-width:720px)') return;
     scenes++;
     assert.equal((rule.parent as postcss.AtRule).params, '(min-width:1051px)');
-    assert.equal(rule.selector, '.root .footerScene:has(.welcome),\n  .root[dir=rtl] .footerScene:has(.welcome)');
+    assert.equal(rule.selector.replace(/\r\n/g, '\n'), '.root .footerScene:has(.welcome),\n  .root[dir=rtl] .footerScene:has(.welcome)');
     assert.equal(rule.nodes.length, 1);
     assert.match(rule.toString(), /center\/cover no-repeat/);
     assert.doesNotMatch(rule.toString(), /gradient|6000%|transform|filter|opacity/);

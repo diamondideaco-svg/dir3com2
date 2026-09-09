@@ -89,10 +89,10 @@ test('Home exposes truthful deferred currency and destination-context time witho
   assert.match(utilities, /#dibrah > button:last-of-type/);
 });
 
-test('Home utility controls stay inline while shared service routes keep their existing targets', () => {
+test('Home utility controls stay inline while secondary pages link to their current Home locations', () => {
   const header = read('components/layout/Header.tsx');
   for (const target of ['weather', 'currency']) {
-    assert.equal(header.split(`onHomeSearch ? '#home-${target}' : '/services#home-${target}'`).length - 1, 2);
+    assert.equal(header.split(`onHomeSearch ? '#home-${target}' : '/#home-${target}'`).length - 1, 2);
   }
   assert.equal((header.match(/onClick=\{openHomeSearch\}/g) ?? []).length, 2);
   assert.match(header, /requestAnimationFrame\(\(\) => onHomeSearch\?\.\(\)\)/);

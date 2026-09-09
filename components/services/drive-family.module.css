@@ -1,0 +1,35 @@
+/* Only the existing Drive composition opts in. Other family pages stay unchanged. */
+.page { background:#fff; color:#0d1b2a; min-width:0; }
+.page :global(.drive-master-hero) { background:#fff; padding:28px 32px 20px; }
+.page :global(.drive-master-hero) > div { display:grid; grid-template-columns:1fr .9fr; align-items:center; gap:32px; max-width:1280px; margin:auto; }
+.page :global(.drive-master-hero) h1 { margin:12px 0; font-size:40px; line-height:1.25; font-weight:700; }
+.page :global(.drive-master-hero) p { margin:0; }
+.page :global(.drive-master-hero) h1 + p { font-size:17px; line-height:1.8; color:#536174; }
+.page :global(.drive-master-hero) h1 + p + div { display:flex; flex-wrap:wrap; gap:12px; margin-top:20px; }
+.page :global(.drive-master-hero) a { display:inline-flex; align-items:center; gap:8px; min-height:48px; padding:10px 18px; border:1px solid #b98b2b; border-radius:999px; font-size:14px; font-weight:600; color:#0d1b2a; background:#d4af37; }
+.page :global(.drive-master-hero) a + a { background:white; color:#775807; }
+.page :global(.drive-master-hero__image) { width:100%; max-width:480px; justify-self:center; }
+.page :global(.service-search-table) { background:#fff; padding:20px 32px 32px; scroll-margin-top:150px; }
+.page :global(.service-search-table) > div { max-width:1280px; margin:auto; }
+.page :global(.service-search-table__shell) { background:#fff; box-shadow:0 4px 16px #0d1b2a08; border:1px solid #d4af374d; }
+.page :global(.service-search-table__tab) { margin:0; padding:14px 20px; border-radius:0; font-size:16px; color:#775807; background:#f5f6f8; text-align:start; }
+.page :global(.service-search-table__fields) { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; padding:20px; }
+.page :global(.service-search-table__field) { min-width:0; gap:8px; }
+.page :global(.service-search-table__field) span { color:#536174; font-size:14px; }
+.page :global(.service-search-table__field) input,
+.page :global(.service-search-table__field) select { width:100%; min-width:0; min-height:46px; padding:10px 12px; color:#0d1b2a; background:#fff; font:inherit; font-size:15px; }
+.page :global(.service-search-table__submit) { grid-column:1/-1; justify-self:end; min-height:48px; min-width:180px; padding:10px 24px; background:#d4af37; color:#0d1b2a; font-size:15px; }
+.page :focus-visible { outline:3px solid #88601c; outline-offset:3px; }
+@media(max-width:1023px) {
+  .page :global(.drive-master-hero) > div { grid-template-columns:minmax(0,1fr); gap:20px; }
+}
+@media(max-width:640px) {
+  .page :global(.drive-master-hero) { padding:24px 16px 12px; }
+  .page :global(.drive-master-hero) h1 { font-size:32px; }
+  .page :global(.drive-master-hero) h1 + p { font-size:15px; }
+  .page :global(.drive-master-hero) a { justify-content:center; max-width:100%; font-size:13px; }
+  .page :global(.service-search-table) { padding:12px 16px 24px; scroll-margin-top:100px; }
+  .page :global(.service-search-table__fields) { grid-template-columns:minmax(0,1fr); padding:16px; gap:14px; }
+  .page :global(.service-search-table__submit) { width:100%; min-width:0; }
+  .page :global(.service-search-table__mobile-toggle) { min-height:48px; padding:12px 16px; }
+}

@@ -26,6 +26,7 @@ import { getCanonicalService } from '@/lib/services/canonical';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { buildMarketplaceLoginHandoff, buildMarketplaceRequestReturnPath } from '@/lib/auth/marketplace-request-handoff';
 import { customerProductAliasId, hasLegacyCustomerIdentifier } from '@/lib/marketplace/customer-identifiers';
+import { contextSummary, partySize, requestDetailHref, searchContextBrief, type SearchContext } from '@/lib/marketplace/search-context';
 
 type ServiceProduct = {
   id: string;
@@ -72,7 +73,7 @@ function unitLabel(unitType: string | null | undefined, en: boolean) {
   return unitType || (en ? 'unit' : 'وحدة');
 }
 
-export default function PublicServiceDetailClient({ slug }: { slug: string }) {
+export default function PublicServiceDetailClient({ slug, searchContext = {} }: { slug: string; searchContext?: SearchContext }) {
   const router = useRouter();
   const { language, direction } = useLanguage();
   const en = language === 'en';
@@ -84,7 +85,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
   const [requestState, setRequestState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [requestReference, setRequestReference] = useState<string | null>(null);
   const [requestedFor, setRequestedFor] = useState('');
-  const [travellerCount, setTravellerCount] = useState(1);
+  const [travellerCount, setTravellerCount] = useState(partySize(searchContext.travelers) ?? partySize(searchContext.passengers) ?? partySize(searchContext.guests) ?? 1);
   const [requestNotes, setRequestNotes] = useState('');
 
   useEffect(() => {
@@ -190,6 +191,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
       productId: String(service_.id),
       family: service_.marketplace_family ?? 'drive',
       intent: primaryAction,
+      searchContext,
     });
 
     try {
@@ -213,7 +215,7 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
           request_type: primaryAction,
           requested_for: requestedFor || null,
           traveller_count: travellerCount,
-          customer_brief: { notes: requestNotes },
+          customer_brief: { ...searchContextBrief(searchContext), notes: requestNotes },
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as { request?: { request_reference?: string } };
@@ -270,7 +272,10 @@ export default function PublicServiceDetailClient({ slug }: { slug: string }) {
                   </span>
                 )}
                 {requestState === 'error' ? <span className="text-sm text-red-700">{en ? 'Unable to submit the request. Sign in and try again.' : 'تعذر إرسال الطلب. سجّل الدخول ثم حاول مجددًا.'}</span> : null}
-                {requestReference ? <span className="text-sm font-semibold text-[var(--color-navy)]">{en ? 'Request ID' : 'رقم الطلب'}: {requestReference}</span> : null}
+                {requestReference ? <span className="text-sm font-semibold text-[var(--color-navy)]">{en ? 'Request ID' : 'رقم الطلب'}: {requestReference}
+                  {requestDetailHref(requestReference) ? <Link href={requestDetailHref(requestReference)!} className={`${buttonVariants({ variant: 'outline' })} ms-3`}>{en ? 'View request details' : 'عرض تفاصيل الطلب'}</Link> : null}
+                </span> : null}
+                {Object.keys(searchContext).length ? <p className="break-words text-sm leading-7 text-[var(--color-muted)]">{en ? 'Request preferences: ' : 'تفضيلات الطلب: '}{contextSummary(searchContext, language).join(' · ')}</p> : null}
               </div>
               {primaryAction === 'request_to_confirm' || primaryAction === 'request_quote' ? (
                 <div data-marketplace-request-form className="mt-4 grid max-w-2xl gap-3 pb-24 sm:grid-cols-2 sm:pb-0">

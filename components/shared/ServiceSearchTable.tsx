@@ -132,7 +132,10 @@ function iconFor(kind: FieldKind) {
   return FiMapPin;
 }
 
-export default function ServiceSearchTable({ initialService = 'drive' }: { initialService?: ServiceDef['key'] }) {
+export default function ServiceSearchTable({ initialService = 'drive', driveMarketplace = false, familyMarketplace = false }: { initialService?: ServiceDef['key']; driveMarketplace?: boolean; familyMarketplace?: boolean }) {
+  const directDrive = driveMarketplace && initialService === 'drive';
+  const directMarketplace = directDrive || familyMarketplace;
+  const FieldsContainer = directMarketplace ? 'form' : 'div';
   const { language, direction } = useLanguage();
   const router = useRouter();
   const t = copy[language];
@@ -203,11 +206,23 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
 
     const params = new URLSearchParams({ service: selected.key });
     for (const field of selected.fields) params.set(field.name, submissionValues[field.name]);
+    if (directDrive) {
+      params.set('family', 'dir3-drive');
+      // Preserve the existing inputs as URL context, not proof of live availability.
+      router.push(`/marketplace?${params.toString()}`);
+      return;
+    }
+    if (familyMarketplace) {
+      params.set('family', `dir3-${selected.key}`);
+      // Family inputs remain URL context; the catalog consumes the family filter.
+      router.push(`/marketplace?${params.toString()}`);
+      return;
+    }
     router.push(`/services/${selected.key}?${params.toString()}`);
   }
 
   return (
-    <section id="service-search" className="service-search-table px-4 py-10 sm:px-6 lg:px-10" dir={direction}>
+    <section id="service-search" className="service-search-table px-4 py-10 sm:px-6 lg:px-10" dir={direction} data-drive-search={directDrive || undefined} data-family-search={familyMarketplace ? initialService : undefined} data-dabra-avoid={directMarketplace || undefined}>
       <div className="mx-auto max-w-[1240px]">
         <div className="service-search-table__shell">
           <button
@@ -222,7 +237,7 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
             {!mobileExpanded ? <FiChevronDown aria-hidden="true" /> : null}
           </button>
           <div id="service-search-content" className={mobileExpanded ? 'service-search-table__content' : 'service-search-table__content service-search-table__content--collapsed'}>
-          <div className="service-search-table__tabs" role="tablist" aria-label={t.choose}>
+          {directMarketplace ? <h2 className="service-search-table__tab service-search-table__tab--active">{selected[language]}</h2> : <div className="service-search-table__tabs" role="tablist" aria-label={t.choose}>
             {services.map((service) => (
               <button
                 key={service.key}
@@ -239,8 +254,17 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
                 {service[language]}
               </button>
             ))}
-          </div>
-          <div className="service-search-table__fields">
+          </div>}
+          <FieldsContainer className="service-search-table__fields" noValidate={directMarketplace && selected.key === 'stay' ? true : undefined} onSubmit={directMarketplace ? (event) => {
+            event.preventDefault();
+            // Stay rooms deliberately use the existing normalization (empty/invalid => 1).
+            // Validate all other controls natively, without blocking that contract first.
+            if (selected.key === 'stay') {
+              const controls = event.currentTarget.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input:not([data-normalized-rooms]), select');
+              for (const control of controls) if (!control.reportValidity()) return;
+            }
+            submitSearch();
+          } : undefined}>
             {selected.fields.map((field) => {
               const Icon = iconFor(field.kind);
               const label = field[language];
@@ -250,14 +274,14 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
                 <label key={`${selected.key}-${field.name}`} className="service-search-table__field">
                   <span><Icon aria-hidden="true" />{label}</span>
                   {field.kind === 'country' ? (
-                    <select aria-label={label} value={values[field.name] ?? ''} onChange={(event) => setValue(field, event.target.value)}>
+                    <select required={directMarketplace || undefined} aria-label={label} value={values[field.name] ?? ''} onChange={(event) => setValue(field, event.target.value)}>
                       <option value="">{t.selectCountry}</option>
                       {canonicalCountries.map((country) => (
                         <option key={country.code} value={country.code}>{country[language]}</option>
                       ))}
                     </select>
                   ) : field.kind === 'city' ? (
-                    <select aria-label={label} value={values[field.name] ?? ''} disabled={!parentCountry} onChange={(event) => setValue(field, event.target.value)}>
+                    <select required={directMarketplace || undefined} aria-label={label} value={values[field.name] ?? ''} disabled={!parentCountry} onChange={(event) => setValue(field, event.target.value)}>
                       <option value="">{parentCountry ? t.selectCity : t.pickCountryFirst}</option>
                       {cityOptions.map((city) => (
                         <option key={city.slug} value={city.slug}>{city[language]}</option>
@@ -266,6 +290,7 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
                   ) : field.kind === 'date' ? (
                     <input
                       type="date"
+                      required={directMarketplace || undefined}
                       aria-label={label}
                       min={field.notBefore ? values[field.notBefore] || today : today}
                       value={values[field.name] ?? ''}
@@ -274,6 +299,8 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
                   ) : (
                     <input
                       type="number"
+                      required={directMarketplace || undefined}
+                      data-normalized-rooms={selected.key === 'stay' && field.name === 'rooms' ? true : undefined}
                       inputMode="numeric"
                       aria-label={label}
                       min={1}
@@ -286,11 +313,11 @@ export default function ServiceSearchTable({ initialService = 'drive' }: { initi
                 </label>
               );
             })}
-            <button type="button" className="service-search-table__submit" onClick={submitSearch}>
+            <button type={directMarketplace ? 'submit' : 'button'} className="service-search-table__submit" onClick={directMarketplace ? undefined : submitSearch}>
               <FiSearch aria-hidden="true" />
               {t.search}
             </button>
-          </div>
+          </FieldsContainer>
           {error ? <p role="alert" className="px-4 pb-3 text-xs font-semibold text-[#b91c1c]">{error}</p> : null}
           </div>
         </div>

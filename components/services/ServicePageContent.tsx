@@ -10,6 +10,7 @@ import { partners } from '@/lib/content/partners';
 import type { PartnerScope } from '@/lib/content/partners';
 import type { TravelStory, TravelStoryService } from '@/lib/content/travel-stories';
 import { getCanonicalService } from '@/lib/services/canonical';
+import driveStyles from './drive-family.module.css';
 
 type ServicePageConfig = {
   key: TravelStoryService;
@@ -65,17 +66,19 @@ const relatedServices = [
   { key: 'vip', title: 'dir3com VIP', href: '/services/vip', image: '/brand/runtime/1000467129 (1).png' },
 ] as const;
 
-export function ServicePageContent({ service, stories }: { service: TravelStoryService; stories: readonly TravelStory[] }) {
-  const { language } = useLanguage();
+export function ServicePageContent({ service, stories, familyMarketplace = false }: { service: TravelStoryService; stories: readonly TravelStory[]; familyMarketplace?: boolean }) {
+  const { language, direction } = useLanguage();
+  const directDrive = service === 'drive';
+  const familyMaster = directDrive || familyMarketplace;
   const page = servicePages[service];
   const canonicalPage = getCanonicalService(service);
   const related = relatedServices.filter((item) => item.key !== service);
 
   return (
-    <div className="drive-master-page bg-[#fcfaf6] text-[var(--color-navy)]">
+    <div className={`drive-master-page bg-[#fcfaf6] text-[var(--color-navy)]${familyMaster ? ` ${driveStyles.page}` : ''}`} dir={familyMaster ? direction : undefined}>
       <section className="drive-master-hero px-4 py-10 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl items-center gap-8 lg:grid-cols-[1fr_0.9fr]">
-          <div>
+          <div data-dabra-avoid={familyMaster || undefined}>
             <p className="text-xs font-semibold tracking-[0.22em] text-[var(--home-gold)]">{page.eyebrow}</p>
             <h1 className="mt-4 text-4xl font-semibold leading-tight sm:text-6xl">{page.title[language]}</h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-[#5d6672]">{language === 'ar' ? canonicalPage?.descriptionAr : canonicalPage?.descriptionEn}</p>
@@ -94,7 +97,8 @@ export function ServicePageContent({ service, stories }: { service: TravelStoryS
         </div>
       </section>
 
-      <ServiceSearchTable initialService={service} />
+      {directDrive ? <ServiceSearchTable initialService="drive" driveMarketplace /> : <ServiceSearchTable initialService={service} familyMarketplace={familyMarketplace} />}
+      {!familyMaster && <>
       <HomeUtilities />
 
       <section className="drive-master-products px-4 py-10 sm:px-6 lg:px-10">
@@ -120,6 +124,7 @@ export function ServicePageContent({ service, stories }: { service: TravelStoryS
 
       <StoriesCarousel stories={stories} />
       <PartnersTicker partners={partners} scope={page.scope} />
+      </>}
     </div>
   );
 }
