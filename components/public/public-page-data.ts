@@ -114,15 +114,16 @@ export const publicCategoryConfigs: Record<PublicCategorySlug, PublicCategoryCon
 };
 
 export const publicQuickLinks = [
-  { label: 'الخدمات', href: '/services' },
-  { label: 'dir3 Drive', href: '/services/drive' },
-  { label: 'dir3 Stay', href: '/services/stay' },
-  { label: 'dir3 Fly', href: '/services/fly' },
-  { label: 'dir3 Concierge', href: '/services/concierge' },
-  { label: 'dir3 VIP', href: '/services/vip' },
-  { label: 'الشقق', href: '/apartments' },
-  { label: 'التجارب', href: '/experiences' },
-  { label: 'العروض', href: '/offers' },
-  { label: 'من نحن', href: '/about' },
-  { label: 'تواصل', href: '/contact' },
+  { ar: 'الخدمات', en: 'Services', href: '/services' },
+  { ar: 'السوق', en: 'Marketplace', href: '/marketplace' },
+  { ar: 'dir3 Drive', en: 'dir3 Drive', href: '/services/drive' },
+  { ar: 'dir3 Stay', en: 'dir3 Stay', href: '/services/stay' },
+  { ar: 'dir3 Fly', en: 'dir3 Fly', href: '/services/fly' },
+  { ar: 'dir3 Concierge', en: 'dir3 Concierge', href: '/services/concierge' },
+  { ar: 'dir3 VIP', en: 'dir3 VIP', href: '/services/vip' },
+  { ar: 'الشقق', en: 'Apartments', href: '/apartments' },
+  { ar: 'التجارب', en: 'Experiences', href: '/experiences' },
+  { ar: 'العروض', en: 'Offers', href: '/offers' },
+  { ar: 'من نحن', en: 'About us', href: '/about' },
+  { ar: 'تواصل', en: 'Contact', href: '/contact' },
 ];

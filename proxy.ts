@@ -7,7 +7,7 @@ const PROTECTED_PREFIXES = ['/profile', '/my-account', '/my-bookings', '/my-docu
 
 function isPublicPath(pathname: string) {
   // Native public discovery metadata; keep the exception exact, not a prefix.
-  if (pathname === '/sitemap.xml') return true;
+  if (pathname === '/sitemap.xml' || pathname === '/robots.txt') return true;
   // Recovery pages must render before a session exists; password updates are verified separately.
   if (pathname === '/auth/forgot-password' || pathname === '/auth/reset-password') return true;
   if (pathname === '/') return true;

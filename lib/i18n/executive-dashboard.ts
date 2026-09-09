@@ -8,6 +8,10 @@ export const executiveDashboardCopy = {
       navigation: 'تنقل الإدارة',
       nav: {
         dashboard: 'لوحة التحكم',
+        executive: 'اللوحة التنفيذية',
+        bookings: 'الحجوزات',
+        categories: 'الفئات',
+        pricing: 'التسعير',
         partners: 'الشركاء',
         customers: 'العملاء',
         products: 'المنتجات',
@@ -80,6 +84,10 @@ export const executiveDashboardCopy = {
       navigation: 'Admin navigation',
       nav: {
         dashboard: 'Dashboard',
+        executive: 'Executive dashboard',
+        bookings: 'Bookings',
+        categories: 'Categories',
+        pricing: 'Pricing',
         partners: 'Partners',
         customers: 'Customers',
         products: 'Products',

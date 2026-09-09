@@ -26,6 +26,7 @@ const partnerRequestListState = read('components/portal/partner-request-list-sta
 const partnerRequestsPage = read('app/partner-portal/requests/page.tsx');
 const partnerPortalPage = read('app/partner-portal/page.tsx');
 const partnerPortalServer = read('lib/partner-portal/server.ts');
+const routeCatalog = read('lib/navigation/route-catalog.ts');
 
 test('admin product lifecycle is explicit, atomic and audited', () => {
   assert.match(lifecycleMigration, /create table if not exists public\.product_audit_events/i);
@@ -248,7 +249,8 @@ test('partner Requests workspace is visible and truthful without DABRA coupling'
   assert.match(partnerPortalPage, /<PartnerWorkspace\b/);
   assert.match(partnerRequestsPage, /<PartnerWorkspace\b/);
   const partnerWorkspace = read('components/portal/PartnerWorkspace.tsx');
-  assert.match(partnerWorkspace, /href="\/partner-portal\/requests"/);
+  assert.match(partnerWorkspace, /partnerNavigationItems\.map/);
+  assert.match(routeCatalog, /href: '\/partner-portal\/requests'/);
   assert.match(partnerWorkspace, /aria-current=/);
   assert.match(partnerRequestsPage, /PartnerRequestsClient/);
   assert.match(partnerRequestsClient, /Start WhatsApp handoff/);

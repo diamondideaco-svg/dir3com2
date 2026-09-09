@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 import { canonicalServices } from '../lib/services/canonical';
+import { publicSitemapPaths } from '../lib/navigation/route-catalog';
 import sitemap from '../app/sitemap';
 import { NextRequest } from 'next/server';
 import { proxy } from '../proxy';
@@ -47,7 +48,10 @@ test('metadata has its own canonical and sitemap contains only the authorized pu
   assert.match(page, /description: 'Drive, Stay, Fly, Concierge and VIP/);
   assert.match(page, /alternates: \{ canonical: '\/services' \}/);
   assert.doesNotMatch(page, /redirect\(|noindex|canonical:.*marketplace/);
-  assert.deepEqual(sitemap().map(item => item.url), ['', '/services', ...canonicalServices.map(service => `/services/${service.slug}`)].map(path => `https://dir3com.com${path}`));
+  assert.deepEqual(
+    sitemap().map(item => item.url),
+    publicSitemapPaths.map(path => path === '/' ? 'https://dir3com.com' : `https://dir3com.com${path}`),
+  );
   assert.ok(sitemap().every(item => !('lastModified' in item)));
 });
 

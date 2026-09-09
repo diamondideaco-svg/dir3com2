@@ -7,22 +7,7 @@ import styles from './ProtectedOperations.module.css';
 import LogoutButton from '@/components/auth/LogoutButton';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { executiveDashboardCopy } from '@/lib/i18n/executive-dashboard';
-
-const adminNavItems = [
-  { href: '/admin', key: 'dashboard', globalOnly: true },
-  { href: '/admin/partners', key: 'partners', permission: 'partners:read' },
-  { href: '/admin/customers', key: 'customers', permission: 'customers:read' },
-  { href: '/admin/products', key: 'products', permission: 'products:read' },
-  { href: '/admin/assignment', key: 'assignment', globalOnly: true },
-  { href: '/admin/finance', key: 'finance', globalOnly: true },
-  { href: '/admin/operations', key: 'operations', globalOnly: true },
-  { href: '/admin/verification', key: 'verification', globalOnly: true },
-  { href: '/admin/audit', key: 'audit', globalOnly: true },
-  { href: '/admin/events', key: 'events', globalOnly: true },
-  { href: '/admin/notifications', key: 'notifications', globalOnly: true },
-  { href: '/admin/shield', key: 'shield', globalOnly: true },
-  { href: '/admin/partners/vip-local-egypt', key: 'vipEgypt', globalOnly: true },
-] as const;
+import { visibleProtectedNavigation } from '@/lib/navigation/route-catalog';
 
 type AdminPlatformShellProps = {
   children: ReactNode;
@@ -49,14 +34,7 @@ export default function AdminPlatformShell({
   const ar = language === 'ar';
   const roleLabel = isCeo ? (ar ? 'الرئيس التنفيذي' : 'CEO') : adminRole === 'admin' ? (ar ? 'مدير' : 'Admin') : (ar ? 'موظف' : 'Staff');
   const countryLabels: Record<string, string> = ar ? { EG: 'مصر', QA: 'قطر', SA: 'السعودية', SY: 'سوريا', LB: 'لبنان' } : { EG: 'Egypt', QA: 'Qatar', SA: 'Saudi Arabia', SY: 'Syria', LB: 'Lebanon' };
-  const visibleNavItems = adminNavItems.filter((item) => {
-    if (isGlobal) return true;
-    if ('globalOnly' in item && item.globalOnly) return false;
-    if ('permission' in item && item.permission) {
-      return permissions.includes('admin:full') || permissions.includes(item.permission);
-    }
-    return false;
-  });
+  const visibleNavItems = visibleProtectedNavigation(isGlobal, permissions);
 
   return (
     <div className={styles.shell} dir={direction} lang={language} data-protected-operations>

@@ -169,7 +169,8 @@ test('Services stays secondary while Home and all family searches preserve direc
   }
   assert.match(read('app/services/page.tsx'), /return <ServicesOverview \/>/);
   assert.doesNotMatch(read('app/services/page.tsx'), /redirect\(/);
-  assert.match(read('app/sitemap.ts'), /'\/services'/);
+  assert.match(read('app/sitemap.ts'), /publicSitemapPaths/);
+  assert.match(read('lib\/navigation\/route-catalog.ts'), /path: '\/services'/);
 });
 
 test('public headings and accessibility copy use the active language without translating brands', () => {

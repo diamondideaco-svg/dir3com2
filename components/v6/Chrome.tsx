@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase/client';
 import styles from './v6.module.css';
 import { DabraCompact } from './DabraIdentity';
 import { CustomerHeader, CustomerFooter } from './CustomerChrome';
+import { customerNavigationItems } from '@/lib/navigation/route-catalog';
 
 const FloatingDibrah = dynamic(() => import('@/components/layout/FloatingDibrah'), { ssr: false });
 
@@ -26,12 +27,7 @@ export function Chrome({ children, viewer, variant = 'light', scene = false, foo
   const [warm, setWarm] = useState(false);
   const [menu, setMenu] = useState(false);
   const [logoutError, setLogoutError] = useState(false);
-  const links = [
-    ['/my-account', 'لوحة الحساب', 'My account', FiHome], ['/my-bookings', 'حجوزاتي', 'My bookings', FiCalendar],
-    ['/my-wallet', 'محفظة السفر', 'Travel wallet', FiCreditCard], ['/my-documents', 'مستنداتي', 'My documents', FiFileText],
-    ['/favorites', 'المفضلة', 'Favorites', FiHeart], ['/my-profile', 'إعدادات الحساب', 'Account settings', FiSettings],
-    ['/support', 'المساعدة والدعم', 'Help and support', FiHelpCircle],
-  ] as const;
+  const iconByHref = { '/my-account': FiHome, '/my-bookings': FiCalendar, '/my-wallet': FiCreditCard, '/my-documents': FiFileText, '/favorites': FiHeart, '/my-profile': FiSettings, '/support': FiHelpCircle } as const;
   async function logout() {
     setLogoutError(false);
     const { error } = await supabase.auth.signOut();
@@ -51,7 +47,7 @@ export function Chrome({ children, viewer, variant = 'light', scene = false, foo
           <strong>{viewer.name}</strong>
           <span>{getCustomerRoleLabel(viewer.role, viewer.roleRaw, language)}</span>
         </div>
-        <nav aria-label={ar ? 'التنقل في الحساب' : 'Account navigation'}>{links.map(([href, arabic, english, Icon]) => <Link key={href} href={href} aria-current={path === href ? 'page' : undefined} onClick={() => setMenu(false)}><Icon />{ar ? arabic : english}</Link>)}
+        <nav aria-label={ar ? 'التنقل في الحساب' : 'Account navigation'}>{customerNavigationItems.map(({ href, ar: arabic, en: english }) => { const Icon = iconByHref[href]; return <Link key={href} href={href} aria-current={path === href ? 'page' : undefined} onClick={() => setMenu(false)}><Icon />{ar ? arabic : english}</Link>; })}
           <button type="button" onClick={logout}><FiLogOut />{ar ? 'تسجيل الخروج' : 'Log out'}</button>
         </nav>
         {logoutError && <p role="alert">{ar ? 'تعذّر تسجيل الخروج. حاول مرة أخرى.' : 'Could not sign out. Try again.'}</p>}
