@@ -37,11 +37,11 @@ test('voice input accepts only bounded Arabic or English text', () => {
   assert.equal(parseDabraVoiceInput({ locale: 'en', text: '' }), null);
 });
 
-test('Mistral configuration fails closed unless both server secret and approved voice ID exist', () => {
+test('Mistral configuration requires the server secret and pins the approved voice ID', () => {
   assert.equal(getMistralVoiceConfig({}), null);
-  assert.equal(getMistralVoiceConfig({ MISTRAL_API_KEY: validEnv.MISTRAL_API_KEY }), null);
-  assert.equal(getMistralVoiceConfig({ DABRA_MISTRAL_VOICE_ID: validEnv.DABRA_MISTRAL_VOICE_ID }), null);
-  assert.equal(getMistralVoiceConfig({ ...validEnv, DABRA_MISTRAL_VOICE_ID: 'wrong-speaker' }), null);
+  assert.equal(getMistralVoiceConfig({ DABRA_MISTRAL_VOICE_ID: DABRA_APPROVED_VOICE.voiceId }), null);
+  assert.equal(getMistralVoiceConfig({ MISTRAL_API_KEY: validEnv.MISTRAL_API_KEY })?.voiceId, DABRA_APPROVED_VOICE.voiceId);
+  assert.equal(getMistralVoiceConfig({ MISTRAL_API_KEY: validEnv.MISTRAL_API_KEY, DABRA_MISTRAL_VOICE_ID: 'wrong-speaker' }), null);
   assert.equal(getMistralVoiceConfig(validEnv)?.requestTimeoutMs, 12_000);
 });
 
