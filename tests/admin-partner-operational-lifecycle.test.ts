@@ -80,12 +80,17 @@ test('admin UI exposes clear draft, preview, publish, unpublish and archive acti
   assert.match(lifecycleControls, /Publish/);
   assert.match(lifecycleControls, /Unpublish/);
   assert.match(lifecycleControls, /Archive/);
-  assert.match(lifecycleControls, /window\.confirm/);
+  assert.match(lifecycleControls, /type PendingLifecycleAction = 'publish' \| 'unpublish' \| 'archive'/);
+  assert.match(lifecycleControls, /role="dialog"/);
+  assert.match(lifecycleControls, /aria-modal="true"/);
+  assert.doesNotMatch(lifecycleControls, /window\.confirm/);
 });
 
 test('admin lifecycle controls serialize sibling mutations against one rendered version', () => {
   assert.match(lifecycleControls, /const submittingRef = useRef\(false\)/);
-  assert.match(lifecycleControls, /submittingRef\.current \|\| !window\.confirm/);
+  assert.match(lifecycleControls, /submittingRef\.current/);
+  assert.match(lifecycleControls, /setPendingAction\(action\)/);
+  assert.match(lifecycleControls, /void runConfirmedAction\(\)/);
   assert.match(lifecycleControls, /submittingRef\.current = true/);
   assert.match(lifecycleControls, /aria-busy=\{submitting\}/);
   assert.equal((lifecycleControls.match(/disabled=\{!active \|\| submitting\}/g) || []).length, 3);
