@@ -35,6 +35,12 @@ Independent functional review identified that one failed section read could hide
 
 ## Release sequencing
 
-`20260909064524_partner_durable_owner_boundary.sql` is an unapplied release migration in this PR, not evidence of a live database change. Production/UAT data and settings have not been mutated. Apply it only through the separately authorized release process before claiming deployed database hardening. Existing malformed durable rows fail closed and require evidence-led reconciliation, not automatic deletion or relaxed checks.
+Production release update (2026-09-09): PR #105 is merged at `ed4d2a0726d79337cfbfa8b4992386c42ef6ee57`. The separately authorized release already applied Partner hardening as `20260909151646_partner_durable_owner_boundary`. The repository file is now `20260909151646_partner_durable_owner_boundary.sql`, reconciled from its earlier repository-only version `20260909064524`. Do not execute it again or edit Production migration history.
+
+Read-only Production precheck confirmed exactly one new-version ledger row, no old-version row, all four identity triggers enabled, RLS enabled on all four durable tables, and direct INSERT/UPDATE/DELETE denied to both anon and authenticated. Ledger SQL and the live function body match the approved SQL after removing full-line explanatory comments and normalizing line endings/edge whitespace only. The renamed file retains its exact byte SHA-256 `e1bffd02361a14d95543c2901b8407138c3c5edfd33e3bff5c17331641b9826e`; normalized SQL SHA-256 is `31fc0745d0b5da37f7e2e690b129c7f711ccf9e7d89f253fec9c21e8871cd340`.
+
+Repository-side reconciliation preserves the already-applied ledger and DDL, avoids replaying non-idempotent CREATE TRIGGER statements, and leaves the immutable baseline/archive untouched. This change performs no Production DDL, history writes, or business-data mutation. The independent precheck approved this approach over Production history editing. Existing malformed durable rows still fail closed and require evidence-led reconciliation, not automatic deletion or relaxed checks.
+
+Parity scope is Partner only: `20260906183519_customer_private_document_upload` is also active locally but absent from the inspected Production ledger. That unrelated release dependency remains unchanged. A zero-pending Partner result is not a claim that the entire active migration chain is synchronized, nor authorization for a blanket Production `db push`.
 
 Cloud CI, exact-SHA Preview, Sandbox and independent fixed-SHA reviews are recorded in the PR/final handoff. This document does not pre-approve those gates or authorize merge. Live Partner account/storage mutation E2E is not claimed.

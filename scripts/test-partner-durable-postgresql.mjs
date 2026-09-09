@@ -34,7 +34,7 @@ try {
   const record = (id, ownerId) => ({id,ownerId,ownerKind:'drive_partner',dataStatus:'needs_confirmation'});
   await db.query('INSERT INTO partner_portal_assets(id,owner_id,owner_kind,record) VALUES($1,$2,$3,$4),($5,$6,$3,$7)', ['a',a,'drive_partner',record('a',a),'b',b,record('b',b)]);
   const before = await db.query('SELECT id,owner_id,record FROM partner_portal_assets ORDER BY id');
-  const migration = readFileSync(new URL('../supabase/migrations/20260909064524_partner_durable_owner_boundary.sql', import.meta.url),'utf8');
+  const migration = readFileSync(new URL('../supabase/migrations/20260909151646_partner_durable_owner_boundary.sql', import.meta.url),'utf8');
   await db.query(migration);
   assert.deepEqual((await db.query('SELECT id,owner_id,record FROM partner_portal_assets ORDER BY id')).rows, before.rows);
   await db.query('SET ROLE authenticated'); await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)",[a]);
