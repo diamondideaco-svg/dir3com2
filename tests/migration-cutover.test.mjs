@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync,readdirSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {validateCutover as validate} from '../scripts/check-migration-baseline.mjs';
 const root=new URL('../',import.meta.url);
 const read=p=>readFileSync(new URL(p,root));
@@ -10,6 +11,20 @@ const archive=readdirSync(new URL('supabase/migrations-archive/',root)).filter(f
 const forwards=JSON.parse(read('docs/post-cutover-migrations.json'));
 const validateCutover=(plan,active,archive,read)=>validate(plan,active,archive,read,forwards);
 test('frozen cutover plus explicitly registered forwards and 45 immutable archive blobs pass',()=>assert.equal(validateCutover(plan,active,archive,read),true));
+
+test('Partner release version matches the applied ledger without SQL drift or an active old alias',()=>{
+ const file='20260909151646_partner_durable_owner_boundary.sql';
+ const old='20260909064524_partner_durable_owner_boundary.sql';
+ const path='supabase/migrations/'+file;
+ const hash='e1bffd02361a14d95543c2901b8407138c3c5edfd33e3bff5c17331641b9826e';
+ assert.deepEqual(active.filter(f=>f.endsWith('_partner_durable_owner_boundary.sql')),[file]);
+ assert.equal(archive.includes(old),false);
+ assert.deepEqual(forwards.filter(f=>f.path.endsWith('_partner_durable_owner_boundary.sql')),[{path,sha256:hash}]);
+ assert.equal(createHash('sha256').update(read(path)).digest('hex'),hash);
+ assert.ok(file>'20260906183519_customer_private_document_upload.sql');
+ assert.throws(()=>validateCutover(plan,[...active,old],archive,read),/active migration chain/);
+ assert.throws(()=>validateCutover(plan,active.map(f=>f===file?old:f),archive,read),/active migration chain/);
+});
 test('forward registration fails closed for absent, duplicate, old, escaped or changed SQL',()=>{
  assert.throws(()=>validate(plan,active,archive,read),/active migration chain/);
  assert.throws(()=>validate(plan,active,archive,read,[...forwards,...forwards]),/Duplicate forward/);
