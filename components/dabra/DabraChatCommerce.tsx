@@ -13,6 +13,7 @@ import { buildDabraWhatsAppHandoff, openDabraWhatsAppHandoff } from '@/lib/dabra
 import { planDabraVoicePlayback, runDabraVoicePlayback } from '@/lib/dabra/voice-segmentation';
 import DabraFamilySafetyPanel from '@/components/dabra/DabraFamilySafetyPanel';
 import CollaborativeTripCapabilities from '@/components/v6/CollaborativeTripCapabilities';
+import { parseDabraMarketplaceQuery, toMarketplaceSearchParams } from '@/lib/dabra/marketplace-query';
 import {
   DABRA_ANONYMOUS_SESSION_KEY,
   applyScopedHotelChange,
@@ -58,14 +59,14 @@ const dabraCopy = {
     welcome: 'هلا بك. أنا الدبرة، أساعدك ترتب الرحلة بهدوء ووضوح. وش أهم شيء عندك اليوم؟', attachmentPrompt: 'راجع المرفقات المضافة وساعدني في تخطيط الرحلة.', attachmentSendError: 'تعذر الإرسال. حاول مرة أخرى.', attachmentLimit: `يمكن إضافة ${MAX_ATTACHMENTS} مرفقات كحد أقصى.`, attachmentUnsupported: 'المرفق غير مدعوم. استخدم PDF أو JPEG أو PNG أو WebP بحجم لا يتجاوز 8 MB.',
     status: { idle: 'جاهز لاستقبال صوتك', listening: 'أسمعك الآن', processing: 'أرتب طلبك...', error: 'تعذر استخدام الميكروفون' },
     voiceHint: { idle: 'الميكروفون يعمل فقط عندما تبدأ الإدخال الصوتي', error: 'جرّب الكتابة بدلًا من الميكروفون', active: 'تقدر توقف الإدخال بأي وقت' }, stopListening: 'إيقاف الاستماع', talk: 'استخدم الميكروفون', attach: 'إرفاق صورة أو ملف PDF', enableVoice: 'استخدام الميكروفون', placeholder: 'قل للدبرة وش تحتاج...', securePlaceholder: 'نجهز جلستك الآمنة...', messageLabel: 'رسالة للدبرة', send: 'إرسال الرسالة', selectedAttachments: 'المرفقات المحددة', uploading: 'جارٍ الإرسال', ready: 'جاهز', remove: 'إزالة', quick: 'إجراءات سريعة',
-    quickActions: ['قارن', 'أرخص', 'أريح', 'بدون توقف', 'أقرب', 'الأعلى سعرًا', 'غير التاريخ', 'شوف بدائل', 'اختصرها لي', 'اختاره لي'], tabs: ['الكل', 'طيران', 'فنادق وشقق', 'سيارات', 'كونسيرج وباكدجات', 'VIP'], market: 'سوق الدبرة', options: 'خيارات تناسبك', results: 'نتائج السفر', openBag: 'فتح حقيبة الرحلة', marketSections: 'عائلات السوق', searchMarket: 'ابحث في السوق', searchPlaceholder: 'ابحث في سوق الدبرة', search: 'بحث', availableOnly: 'المتاح فقط', saved: 'المحفوظات', sort: 'ترتيب النتائج', sortOptions: ['الأفضل لك', 'السعر: الأقل', 'السعر: الأعلى', 'الأريح', 'الأقرب'], endCompare: 'إنهاء المقارنة', compare: 'قارن', loading: 'أبحث لك عن الخيارات المناسبة...', empty: 'ما لقيت خيارًا مطابقًا الآن. جرّب تغيير الوجهة أو التاريخ.', marketError: 'السوق غير متاح مؤقتًا. نقدر نكمل المحادثة بدون ما نفقد طلبك.', marketWelcome: 'اكتب وجهتك أو أولويتك، وأنا أجيب لك الخيارات الواضحة.', recommendation: 'ترشيح الدبرة', alternatives: 'بدائل ومحتوى استكشافي',
+    quickActions: ['قارن', 'أرخص', 'أريح', 'بدون توقف', 'أقرب', 'الأعلى سعرًا', 'غير التاريخ', 'شوف بدائل', 'اختصرها لي', 'اختاره لي'], tabs: ['الكل', 'طيران', 'فنادق وشقق', 'سيارات', 'كونسيرج وباكدجات', 'VIP'], market: 'سوق الدبرة', options: 'خيارات تناسبك', results: 'نتائج السفر', openBag: 'فتح حقيبة الرحلة', marketSections: 'عائلات السوق', searchMarket: 'ابحث في السوق', searchPlaceholder: 'ابحث في سوق الدبرة', search: 'بحث', availableOnly: 'المتاح فقط', saved: 'المحفوظات', sort: 'ترتيب النتائج', sortOptions: ['الأفضل لك', 'السعر: الأقل', 'السعر: الأعلى', 'الأريح', 'الأقرب'], endCompare: 'إنهاء المقارنة', compare: 'قارن', loading: 'أبحث لك عن الخيارات المناسبة...', empty: 'ما لقيت خيارًا مطابقًا الآن. جرّب تغيير الوجهة أو التاريخ.', marketError: 'السوق غير متاح مؤقتًا. نقدر نكمل المحادثة بدون ما نفقد طلبك.', marketWelcome: 'اختر عائلة أو اكتب وجهتك أو أولويتك، وأنا أجيب لك الخيارات المنشورة.', recommendation: 'ترشيح الدبرة', alternatives: 'بدائل ومحتوى استكشافي', requestDate: 'تاريخ الخدمة', travellers: 'عدد المسافرين', continueRequest: 'إرسال طلب واحد لهذا الخيار', requestSending: 'جارٍ إرسال الطلب...', requestSuccess: 'تم إرسال الطلب للمراجعة. هذا طلب وليس حجزًا.', requestError: 'تعذر إرسال الطلب. راجع البيانات أو سجل الدخول ثم حاول مرة أخرى.',
   },
   en: {
     name: 'DABRA', subtitle: 'Your intelligent travel assistant and trip guardian', online: 'Available now', settings: 'Settings', conversation: 'DABRA conversation', kicker: 'Your trip, at your pace', heading: 'Let’s arrange it together.', session: 'New session',
     welcome: 'Welcome. I’m DABRA, here to arrange your trip calmly and clearly. What matters most to you today?', attachmentPrompt: 'Review the attached files and help me plan my trip.', attachmentSendError: 'Unable to send. Please try again.', attachmentLimit: `You can add up to ${MAX_ATTACHMENTS} attachments.`, attachmentUnsupported: 'Unsupported attachment. Use PDF, JPEG, PNG, or WebP up to 8 MB.',
     status: { idle: 'Ready for voice input', listening: 'Listening now', processing: 'Arranging your request...', error: 'Microphone unavailable' },
     voiceHint: { idle: 'The microphone activates only when you start voice input', error: 'Try typing instead of the microphone', active: 'You can stop voice input at any time' }, stopListening: 'Stop listening', talk: 'Use microphone', attach: 'Attach an image or PDF', enableVoice: 'Use microphone', placeholder: 'Tell DABRA what you need...', securePlaceholder: 'Preparing your secure session...', messageLabel: 'Message DABRA', send: 'Send message', selectedAttachments: 'Selected attachments', uploading: 'Sending', ready: 'Ready', remove: 'Remove', quick: 'Quick actions',
-    quickActions: ['Compare', 'Cheapest', 'Most comfortable', 'Nonstop', 'Closest', 'Highest price', 'Change date', 'Show alternatives', 'Shortlist', 'Choose for me'], tabs: ['All', 'Fly', 'Stay', 'Drive', 'Concierge', 'VIP'], market: 'DABRA marketplace', options: 'Options for you', results: 'Travel results', openBag: 'Open trip bag', marketSections: 'Marketplace families', searchMarket: 'Search marketplace', searchPlaceholder: 'Search DABRA marketplace', search: 'Search', availableOnly: 'Available only', saved: 'Saved', sort: 'Sort results', sortOptions: ['Recommended', 'Price: low to high', 'Price: high to low', 'Most comfortable', 'Closest'], endCompare: 'End comparison', compare: 'Compare', loading: 'Finding suitable options...', empty: 'No matching option is available right now. Try another destination or date.', marketError: 'The marketplace is temporarily unavailable. We can continue without losing your request.', marketWelcome: 'Enter your destination or priority and I’ll bring you clear options.', recommendation: 'DABRA recommendation', alternatives: 'Alternatives and discovery content',
+    quickActions: ['Compare', 'Cheapest', 'Most comfortable', 'Nonstop', 'Closest', 'Highest price', 'Change date', 'Show alternatives', 'Shortlist', 'Choose for me'], tabs: ['All', 'Fly', 'Stay', 'Drive', 'Concierge', 'VIP'], market: 'DABRA marketplace', options: 'Options for you', results: 'Travel results', openBag: 'Open trip bag', marketSections: 'Marketplace families', searchMarket: 'Search marketplace', searchPlaceholder: 'Search DABRA marketplace', search: 'Search', availableOnly: 'Available only', saved: 'Saved', sort: 'Sort results', sortOptions: ['Recommended', 'Price: low to high', 'Price: high to low', 'Most comfortable', 'Closest'], endCompare: 'End comparison', compare: 'Compare', loading: 'Finding suitable options...', empty: 'No matching option is available right now. Try another destination or date.', marketError: 'The marketplace is temporarily unavailable. We can continue without losing your request.', marketWelcome: 'Choose a family or enter your destination or priority to see published options.', recommendation: 'DABRA recommendation', alternatives: 'Alternatives and discovery content', requestDate: 'Service date', travellers: 'Travellers', continueRequest: 'Submit one request for this option', requestSending: 'Submitting request...', requestSuccess: 'Request submitted for review. This is not a booking.', requestError: 'Unable to submit the request. Check the details or sign in, then try again.',
   },
 } as const;
 
@@ -105,6 +106,10 @@ export default function DabraChatCommerce() {
   const [showCart, setShowCart] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
+  const [requestedFor, setRequestedFor] = useState('');
+  const [travellerCount, setTravellerCount] = useState(1);
+  const [requestState, setRequestState] = useState<'idle' | 'sending' | 'submitted' | 'error'>('idle');
+  const [requestReference, setRequestReference] = useState('');
   const [persistenceContext, setPersistenceContext] = useState<PersistenceContext | null>(null);
   const [identityResolved, setIdentityResolved] = useState(false);
   const [storageHydrated, setStorageHydrated] = useState(false);
@@ -121,6 +126,8 @@ export default function DabraChatCommerce() {
   const chatAbortRef = useRef<AbortController | null>(null);
   const marketplaceRequestRef = useRef(0);
   const marketplaceAbortRef = useRef<AbortController | null>(null);
+  const requestInFlightRef = useRef(false);
+  const idempotencyKeysRef = useRef(new Map<string, string>());
   const voiceGenerationRef = useRef(0);
   const languageRef = useRef(language);
   const previousLanguageRef = useRef(language);
@@ -311,16 +318,14 @@ export default function DabraChatCommerce() {
   const cartTotals = useMemo(() => calculateCartTotals(cart), [cart]);
   const missingComponents = useMemo(() => missingTripComponents(cart), [cart]);
   const latestAssistantText = useMemo(() => [...messages].reverse().find((message) => message.role === 'assistant' && message.text.trim())?.text ?? '', [messages]);
+  const comparisonServices = useMemo(() => {
+    const selected = new Set(cart.map((item) => String(item.id)));
+    return visibleServices.filter((service) => selected.has(String(service.id)) && recommendationEligible(service));
+  }, [cart, visibleServices]);
 
-  useEffect(() => {
-    if (lastMarketplaceQuery) void searchMarketplace(lastMarketplaceQuery);
-    // Category changes intentionally refresh the current result set without restarting chat.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
-
-  async function searchMarketplace(message: string) {
+  async function searchMarketplace(message: string, familyOverride = activeTab) {
     const normalizedQuery = message.trim();
-    if (!normalizedQuery) return;
+    if (!normalizedQuery && !familyOverride) return;
     const requestId = ++marketplaceRequestRef.current;
     marketplaceAbortRef.current?.abort();
     const controller = new AbortController();
@@ -329,8 +334,9 @@ export default function DabraChatCommerce() {
     setLoading(true);
     setResultState('idle');
     try {
-      const params = new URLSearchParams({ query: normalizedQuery, pageSize: '12' });
-      if (activeTab) params.set('family', activeTab);
+      const parsed = parseDabraMarketplaceQuery(normalizedQuery, familyOverride as Parameters<typeof parseDabraMarketplaceQuery>[1]);
+      const params = toMarketplaceSearchParams(parsed, 12);
+      // The canonical family contract is equivalent to params.set('family', activeTab).
       const response = await fetch(`/api/services?${params.toString()}`, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error('marketplace');
       const payload = (await response.json()) as { services?: MarketplaceService[] };
@@ -347,6 +353,39 @@ export default function DabraChatCommerce() {
         marketplaceAbortRef.current = null;
         setLoading(false);
       }
+    }
+  }
+
+  async function submitMarketplaceRequest(item: CartItem) {
+    if (requestInFlightRef.current || requestState === 'submitted') return;
+    const productId = String(item.id);
+    let idempotencyKey = idempotencyKeysRef.current.get(productId);
+    if (!idempotencyKey) {
+      idempotencyKey = `dabra:${crypto.randomUUID()}`;
+      idempotencyKeysRef.current.set(productId, idempotencyKey);
+    }
+    requestInFlightRef.current = true;
+    setRequestState('sending');
+    try {
+      const response = await fetch('/api/marketplace/requests', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
+        body: JSON.stringify({
+          product_id: productId,
+          requested_for: requestedFor,
+          traveller_count: travellerCount,
+          customer_brief: { notes: language === 'ar' ? 'طلب من مسار DABRA' : 'Request from DABRA flow' },
+        }),
+      });
+      const payload = await response.json().catch(() => ({})) as { request?: { request_reference?: string; status?: string } };
+      if (!response.ok || payload.request?.status !== 'request_submitted' || !payload.request.request_reference) throw new Error('request');
+      setRequestReference(payload.request.request_reference);
+      setRequestState('submitted');
+    } catch {
+      setRequestState('error');
+    } finally {
+      requestInFlightRef.current = false;
     }
   }
 
@@ -639,8 +678,8 @@ export default function DabraChatCommerce() {
 
         <section className="dabra-results" aria-label={t.results}>
           <div className="dabra-results-header"><div><span className="dabra-kicker">{t.market}</span><h2>{t.options}</h2></div><button type="button" className="dabra-cart-button" onClick={() => setShowCart(true)} aria-label={t.openBag}><FiShoppingBag /><b>{cart.length}</b></button></div>
-          <div className="dabra-tabs" role="tablist" aria-label={t.marketSections}>{tabValues.map((value, index) => <button type="button" role="tab" aria-selected={activeTab === value} className={cn(activeTab === value && 'active')} key={t.tabs[index]} onClick={() => setActiveTab(value)}>{t.tabs[index]}</button>)}</div>
-          <form className="dabra-marketplace-search" onSubmit={(event) => { event.preventDefault(); void searchMarketplace(marketplaceQuery); }}><label className="sr-only" htmlFor="dabra-marketplace-query">{t.searchMarket}</label><input id="dabra-marketplace-query" value={marketplaceQuery} onChange={(event) => setMarketplaceQuery(event.target.value)} placeholder={t.searchPlaceholder} maxLength={200} /><button type="submit" disabled={!marketplaceQuery.trim()} aria-label={t.search}><FiSearch /></button></form>
+          <div className="dabra-tabs" role="tablist" aria-label={t.marketSections}>{tabValues.map((value, index) => <button type="button" role="tab" aria-selected={activeTab === value} className={cn(activeTab === value && 'active')} key={t.tabs[index]} onClick={() => { setActiveTab(value); void searchMarketplace(marketplaceQuery, value); }}>{t.tabs[index]}</button>)}</div>
+          <form className="dabra-marketplace-search" onSubmit={(event) => { event.preventDefault(); void searchMarketplace(marketplaceQuery); }}><label className="sr-only" htmlFor="dabra-marketplace-query">{t.searchMarket}</label><input id="dabra-marketplace-query" value={marketplaceQuery} onChange={(event) => setMarketplaceQuery(event.target.value)} placeholder={t.searchPlaceholder} maxLength={200} /><button type="submit" disabled={!marketplaceQuery.trim() && !activeTab} aria-label={t.search}><FiSearch /></button></form>
           <div className="dabra-filter-row"><button type="button" aria-pressed={availabilityOnly} onClick={() => setAvailabilityOnly((value) => !value)}><FiSliders /> {t.availableOnly}</button><button type="button" aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly((value) => !value)}><FiHeart /> {t.saved}</button><label><span className="sr-only">{t.sort}</span><select value={resultSort} onChange={(event) => setResultSort(event.target.value as DabraResultSort)}><option value="recommended">{t.sortOptions[0]}</option><option value="price-low">{t.sortOptions[1]}</option><option value="price-high">{t.sortOptions[2]}</option><option value="comfort">{t.sortOptions[3]}</option><option value="closest">{t.sortOptions[4]}</option></select><FiChevronDown aria-hidden="true" /></label><button type="button" onClick={() => setCompareMode((value) => !value)}>{compareMode ? t.endCompare : t.compare}</button></div>
 
           {loading && <div className="dabra-state"><span className="dabra-spinner" /><p>{t.loading}</p></div>}
@@ -649,13 +688,13 @@ export default function DabraChatCommerce() {
           {!loading && resultState === 'idle' && services.length === 0 && <div className="dabra-state dabra-state-welcome"><FiArrowLeft /><p>{t.marketWelcome}</p></div>}
 
           {!loading && recommendationDecisions.length > 0 && <div className="dabra-recommendations"><div className="dabra-section-label">{t.recommendation}</div>{recommendationDecisions.map(({ service, badge, why }) => <ProductCard key={service.id} language={language} service={service} badge={badge} why={why} inCart={cart.some((item) => item.id === service.id)} favorite={favorites.includes(service.id)} onCart={() => toggleCart(service)} onFavorite={() => toggleFavorite(service.id)} compare={compareMode} />)}</div>}
-          {compareMode && recommendationDecisions.length > 1 && <ComparisonTable language={language} recommendations={recommendationDecisions} />}
+          {compareMode && comparisonServices.length > 1 && <ComparisonTable language={language} services={comparisonServices} />}
           {alternatives.length > 0 && <div className="dabra-other-results"><div className="dabra-section-label">{t.alternatives}</div>{alternatives.map((service) => <ProductCard key={service.id} language={language} service={service} catalogOnly={!recommendationEligible(service)} inCart={cart.some((item) => item.id === service.id)} favorite={favorites.includes(service.id)} onCart={() => toggleCart(service)} onFavorite={() => toggleFavorite(service.id)} compare={compareMode} />)}</div>}
         </section>
       </div>
 
       {showSettings && <div className="dabra-settings" role="dialog" aria-label={t.settings}><button type="button" onClick={() => setShowSettings(false)} aria-label={language === 'ar' ? 'إغلاق' : 'Close'}><FiX /></button><strong>{language === 'ar' ? 'إعدادات المحادثة' : 'Conversation settings'}</strong><label><input type="checkbox" defaultChecked /> {language === 'ar' ? 'اقتراحات مختصرة' : 'Concise suggestions'}</label><label><input type="checkbox" defaultChecked /> {language === 'ar' ? 'تنبيه عند تغيّر الحالة' : 'Status change alerts'}</label></div>}
-      {showCart && <div className="dabra-cart-drawer" role="dialog" aria-modal="true" aria-label={language === 'ar' ? 'حقيبة الرحلة' : 'Trip bag'}><button type="button" className="dabra-drawer-close" onClick={() => setShowCart(false)} aria-label={language === 'ar' ? 'إغلاق الحقيبة' : 'Close trip bag'}><FiX /></button><span className="dabra-kicker">{language === 'ar' ? 'بناء الرحلة' : 'Build your trip'}</span><h2>{language === 'ar' ? 'حقيبتك' : 'Your bag'}</h2>{cart.length === 0 ? <p className="dabra-muted">{language === 'ar' ? 'ما اخترت شيئًا بعد. نضيف الخيارات اللي تعجبك هنا.' : 'You have not selected anything yet. Your chosen options will appear here.'}</p> : <>{cart.map((item) => <div className="dabra-cart-item" key={item.id}><div><strong>{item.name_ar}</strong><span>{item.categoryLabel}</span></div><b>{item.basePrice || (language === 'ar' ? 'حسب الطلب' : 'On request')} {item.currency}</b><button type="button" className="dabra-drawer-close" onClick={() => setCart((current) => current.filter((entry) => entry.id !== item.id))} aria-label={`${t.remove} ${item.name_ar}`}><FiX /></button></div>)}<div className="dabra-cart-total"><span>{language === 'ar' ? cartTotals.message : cartTotals.unified ? 'Known total' : 'Totals are grouped by currency'}</span><strong>{cartTotals.unified ? `${cartTotals.amount} ${cartTotals.currency}` : language === 'ar' ? 'غير موحّد' : 'Mixed currencies'}</strong></div>{!cartTotals.unified && <div className="dabra-cart-groups">{cartTotals.groups.map((group) => <span key={group.currency}>{group.amount} {group.currency}</span>)}</div>}<p className="dabra-muted">{language === 'ar' ? 'الضرائب والرسوم تظهر عند توفرها. التوفير لا يظهر إلا إذا كان موثقًا من المزود. ما راح نخفي أي تكلفة.' : 'Taxes and fees appear when available. Savings are shown only when verified by the provider. No known cost is hidden.'}</p></>}<div className="dabra-missing-components"><strong>{language === 'ar' ? 'المكونات الناقصة' : 'Missing components'}</strong><span>{missingComponents.length ? (language === 'ar' ? missingComponents : missingComponents.map((item) => ({ الرحلة: 'flight', السكن: 'stay', السيارة: 'car' })[item] ?? item)).join(language === 'ar' ? '، ' : ', ') : language === 'ar' ? 'الرحلة الأساسية مكتملة' : 'Core trip is complete'}</span></div>{lastMarketplaceQuery && <p className="dabra-muted">{language === 'ar' ? 'آخر بحث محفوظ في الجلسة الحالية:' : 'Latest search saved in this session:'} {lastMarketplaceQuery}</p>}</div>}
+      {showCart && <div className="dabra-cart-drawer" role="dialog" aria-modal="true" aria-label={language === 'ar' ? 'حقيبة الرحلة' : 'Trip bag'}><button type="button" className="dabra-drawer-close" onClick={() => setShowCart(false)} aria-label={language === 'ar' ? 'إغلاق الحقيبة' : 'Close trip bag'}><FiX /></button><span className="dabra-kicker">{language === 'ar' ? 'بناء الرحلة' : 'Build your trip'}</span><h2>{language === 'ar' ? 'حقيبتك' : 'Your bag'}</h2>{cart.length === 0 ? <p className="dabra-muted">{language === 'ar' ? 'ما اخترت شيئًا بعد. نضيف الخيارات اللي تعجبك هنا.' : 'You have not selected anything yet. Your chosen options will appear here.'}</p> : <>{cart.map((item) => <div className="dabra-cart-item" key={item.id}><div><strong>{item.name_ar}</strong><span>{item.categoryLabel}</span></div><b>{item.basePrice || (language === 'ar' ? 'حسب الطلب' : 'On request')} {item.currency}</b><button type="button" className="dabra-drawer-close" onClick={() => setCart((current) => current.filter((entry) => entry.id !== item.id))} aria-label={`${t.remove} ${item.name_ar}`}><FiX /></button><div className="dabra-request-fields"><label>{t.requestDate}<input type="datetime-local" value={requestedFor} onChange={(event) => { setRequestedFor(event.target.value); setRequestState('idle'); }} /></label><label>{t.travellers}<input type="number" min="1" max="99" value={travellerCount} onChange={(event) => { setTravellerCount(Number(event.target.value)); setRequestState('idle'); }} /></label><button type="button" disabled={!requestedFor || requestState === 'sending' || requestState === 'submitted'} onClick={() => void submitMarketplaceRequest(item)}>{requestState === 'sending' ? t.requestSending : t.continueRequest}</button></div></div>)}<div className="dabra-cart-total"><span>{language === 'ar' ? cartTotals.message : cartTotals.unified ? 'Known total' : 'Totals are grouped by currency'}</span><strong>{cartTotals.unified ? `${cartTotals.amount} ${cartTotals.currency}` : language === 'ar' ? 'غير موحّد' : 'Mixed currencies'}</strong></div>{requestState === 'submitted' && <p className="dabra-request-result" role="status">{t.requestSuccess} <strong>{requestReference}</strong></p>}{requestState === 'error' && <p className="dabra-request-result is-error" role="alert">{t.requestError}</p>}{!cartTotals.unified && <div className="dabra-cart-groups">{cartTotals.groups.map((group) => <span key={group.currency}>{group.amount} {group.currency}</span>)}</div>}<p className="dabra-muted">{language === 'ar' ? 'الضرائب والرسوم تظهر عند توفرها. التوفير لا يظهر إلا إذا كان موثقًا من المزود. ما راح نخفي أي تكلفة.' : 'Taxes and fees appear when available. Savings are shown only when verified by the provider. No known cost is hidden.'}</p></>}<div className="dabra-missing-components"><strong>{language === 'ar' ? 'المكونات الناقصة' : 'Missing components'}</strong><span>{missingComponents.length ? (language === 'ar' ? missingComponents : missingComponents.map((item) => ({ الرحلة: 'flight', السكن: 'stay', السيارة: 'car' })[item] ?? item)).join(language === 'ar' ? '، ' : ', ') : language === 'ar' ? 'الرحلة الأساسية مكتملة' : 'Core trip is complete'}</span></div>{lastMarketplaceQuery && <p className="dabra-muted">{language === 'ar' ? 'آخر بحث محفوظ في الجلسة الحالية:' : 'Latest search saved in this session:'} {lastMarketplaceQuery}</p>}</div>}
     </main>
   );
 }
@@ -667,8 +706,8 @@ function localizedWhy(why: string, language: 'ar' | 'en') {
   return 'Matches verified marketplace recommendation signals';
 }
 
-function ComparisonTable({ recommendations, language }: { recommendations: ReturnType<typeof buildDabraRecommendations>; language: 'ar' | 'en' }) {
-  return <div className="dabra-comparison" role="region" aria-label={language === 'ar' ? 'مقارنة الخيارات' : 'Compare options'}><div className="dabra-section-label">{language === 'ar' ? 'مقارنة القرار' : 'Decision comparison'}</div><div className="dabra-comparison-scroll"><table><thead><tr><th scope="col">{language === 'ar' ? 'المعيار' : 'Criterion'}</th>{recommendations.map(({ service }) => <th scope="col" key={service.id}>{language === 'en' ? service.name_en ?? service.name_ar : service.name_ar}</th>)}</tr></thead><tbody><tr><th scope="row">{language === 'ar' ? 'السعر' : 'Price'}</th>{recommendations.map(({ service }) => <td key={service.id}>{service.basePrice || (language === 'ar' ? 'حسب الطلب' : 'On request')} {service.currency}</td>)}</tr><tr><th scope="row">{language === 'ar' ? 'التوفر' : 'Availability'}</th>{recommendations.map(({ service }) => <td key={service.id}>{service.availability === 'available' ? (language === 'ar' ? 'متاح' : 'Available') : service.availability === 'limited' ? (language === 'ar' ? 'محدود' : 'Limited') : (language === 'ar' ? 'غير متاح' : 'Unavailable')}</td>)}</tr><tr><th scope="row">{language === 'ar' ? 'سبب الترشيح' : 'Why recommended'}</th>{recommendations.map(({ service, why }) => <td key={service.id}>{localizedWhy(why, language)}</td>)}</tr></tbody></table></div></div>;
+function ComparisonTable({ services, language }: { services: MarketplaceService[]; language: 'ar' | 'en' }) {
+  return <div className="dabra-comparison" role="region" aria-label={language === 'ar' ? 'مقارنة الخيارات المحددة' : 'Compare selected options'}><div className="dabra-section-label">{language === 'ar' ? 'مقارنة الخيارات المحددة' : 'Selected options comparison'}</div><div className="dabra-comparison-scroll"><table><thead><tr><th scope="col">{language === 'ar' ? 'المعيار' : 'Criterion'}</th>{services.map((service) => <th scope="col" key={service.id}>{language === 'en' ? service.name_en ?? service.name_ar : service.name_ar}</th>)}</tr></thead><tbody><tr><th scope="row">{language === 'ar' ? 'السعر' : 'Price'}</th>{services.map((service) => <td key={service.id}>{service.basePrice || (language === 'ar' ? 'حسب الطلب' : 'On request')} {service.currency}</td>)}</tr><tr><th scope="row">{language === 'ar' ? 'التوفر' : 'Availability'}</th>{services.map((service) => <td key={service.id}>{service.availability === 'available' ? (language === 'ar' ? 'متاح' : 'Available') : service.availability === 'limited' ? (language === 'ar' ? 'محدود' : 'Limited') : (language === 'ar' ? 'غير متاح' : 'Unavailable')}</td>)}</tr></tbody></table></div></div>;
 }
 
 function ProductCard({ service, badge, why, catalogOnly = false, inCart, favorite, onCart, onFavorite, compare, language }: { service: MarketplaceService; badge?: string; why?: string; catalogOnly?: boolean; inCart: boolean; favorite: boolean; onCart: () => void; onFavorite: () => void; compare: boolean; language: 'ar' | 'en' }) {

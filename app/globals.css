@@ -1318,6 +1318,14 @@ html[data-theme='dark'] .portal-dashboard-shell [class*='text-[#9EB0C3]'] {
 .dabra-comparison th, .dabra-comparison td { border-color: rgba(15, 23, 42, .1); color: var(--color-navy); }
 .dabra-settings, .dabra-cart-drawer { border-color: rgba(212, 175, 55, .35); background: #fffdf8; color: var(--color-navy); }
 .dabra-settings label, .dabra-cart-item span { color: var(--color-muted); }
+.dabra-cart-item { flex-wrap: wrap; }
+.dabra-request-fields { display: grid; flex: 1 0 100%; grid-template-columns: minmax(0, 1fr) 7rem; gap: .65rem; padding-top: .4rem; }
+.dabra-request-fields label { color: var(--color-muted); font-size: .75rem; }
+.dabra-request-fields input { display: block; width: 100%; margin-top: .3rem; border: 1px solid rgba(15, 23, 42, .12); border-radius: .65rem; background: #fff; padding: .55rem; color: var(--color-navy); }
+.dabra-request-fields button { grid-column: 1 / -1; border-radius: 999px; background: var(--color-gold); padding: .7rem 1rem; color: var(--color-navy); font-weight: 700; }
+.dabra-request-fields button:disabled { cursor: not-allowed; opacity: .5; }
+.dabra-request-result { margin-top: .8rem; border: 1px solid rgba(212, 175, 55, .32); border-radius: .75rem; background: rgba(212, 175, 55, .09); padding: .75rem; color: var(--color-navy); font-size: .8rem; }
+.dabra-request-result.is-error { border-color: rgba(162, 60, 53, .28); background: rgba(162, 60, 53, .08); color: #a23c35; }
 .dabra-send:disabled, .dabra-quick-actions button:disabled, .dabra-composer-icon:disabled { cursor: not-allowed; opacity: .4; }
 
 @media (max-width: 699px) {

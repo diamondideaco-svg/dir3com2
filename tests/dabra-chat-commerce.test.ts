@@ -48,6 +48,9 @@ test('chat commerce surface includes tabs, quick actions, recommendation set, co
   assert.match(chatContract, /response\.body\.getReader/);
   assert.match(component, /storageKey\(ownerId, 'context'\)/);
   assert.match(component, /ComparisonTable/);
+  assert.match(component, /Selected options comparison/);
+  assert.match(component, /idempotency-key/);
+  assert.match(component, /request_submitted/);
 });
 
 test('responsive and accessibility hooks exist for the primary experience', () => {

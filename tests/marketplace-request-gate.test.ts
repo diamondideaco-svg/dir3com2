@@ -66,3 +66,12 @@ test('request creation uses the server-only admin client', () => {
   assert.match(route, /supabaseAdmin\.from\('marketplace_requests'\)\.insert/);
   assert.doesNotMatch(route, /auth\.supabase\.from\('marketplace_requests'\)\.insert/);
 });
+
+test('request route derives request type server-side and supports idempotent DABRA retries', () => {
+  const route = fs.readFileSync(path.resolve('app/api/marketplace/requests/route.ts'), 'utf8');
+  assert.match(route, /request\.headers\.get\('idempotency-key'\)/);
+  assert.match(route, /requestReferenceFor\(auth\.user\.id, body\.product_id, idempotencyKey\)/);
+  assert.match(route, /product\.transaction_method/);
+  assert.match(route, /error\?\.code === '23505'/);
+  assert.doesNotMatch(route, /select\('[^']*supplier_name[^']*'\)\.single\(\)/);
+});

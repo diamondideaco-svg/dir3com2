@@ -10,6 +10,17 @@ function validUuid(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+function validIdempotencyKey(value: string | null) {
+  return typeof value === 'string' && /^[A-Za-z0-9:_-]{16,120}$/.test(value);
+}
+
+async function requestReferenceFor(userId: string, productId: string, idempotencyKey: string) {
+  const bytes = new TextEncoder().encode(`${userId}:${productId}:${idempotencyKey}`);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const token = Array.from(new Uint8Array(digest)).map((value) => value.toString(16).padStart(2, '0')).join('').slice(0, 20).toUpperCase();
+  return `REQ-${token}`;
+}
+
 function parseBrief(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const allowed = ['dates', 'location', 'travellers', 'requirements', 'notes'] as const;
@@ -52,8 +63,7 @@ export async function POST(request: NextRequest) {
   }
   const body = rawBody as Record<string, unknown>;
 
-  const requestType = body.request_type;
-  if (!validUuid(body.product_id) || (requestType !== 'request_to_confirm' && requestType !== 'request_quote')) {
+  if (!validUuid(body.product_id)) {
     return NextResponse.json({ error: 'Invalid product or request type' }, { status: 400 });
   }
 
@@ -72,16 +82,34 @@ export async function POST(request: NextRequest) {
     logServerError('api.marketplace.requests.product_lookup_failed', productError);
     return NextResponse.json({ error: 'Unable to verify product' }, { status: 500 });
   }
-  if (!product || !requestTypeMatchesProduct(requestType, product as Record<string, unknown>)) {
+  if (!product) {
     return NextResponse.json({ error: 'Product is not eligible for this request path' }, { status: 409 });
   }
 
-  const requestReference = `REQ-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+  const authoritativeRequestType = product.transaction_method;
+  if (authoritativeRequestType !== 'request_to_confirm' && authoritativeRequestType !== 'request_quote') {
+    return NextResponse.json({ error: 'Product is not eligible for this request path' }, { status: 409 });
+  }
+  if (body.request_type !== undefined && body.request_type !== authoritativeRequestType) {
+    return NextResponse.json({ error: 'Product is not eligible for this request path' }, { status: 409 });
+  }
+  if (!requestTypeMatchesProduct(authoritativeRequestType, product as Record<string, unknown>)) {
+    return NextResponse.json({ error: 'Product is not eligible for this request path' }, { status: 409 });
+  }
+
+  const idempotencyKey = request.headers.get('idempotency-key');
+  if (idempotencyKey !== null && !validIdempotencyKey(idempotencyKey)) {
+    return NextResponse.json({ error: 'Invalid idempotency key' }, { status: 400 });
+  }
+
+  const requestReference = idempotencyKey
+    ? await requestReferenceFor(auth.user.id, body.product_id, idempotencyKey)
+    : `REQ-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
   const { data, error } = await supabaseAdmin.from('marketplace_requests').insert({
     request_reference: requestReference,
     user_id: auth.user.id,
     product_id: body.product_id,
-    request_type: requestType,
+    request_type: authoritativeRequestType,
     requested_for: parsedInputs.requestedFor,
     traveller_count: parsedInputs.travellers,
     customer_brief: parseBrief(body.customer_brief),
@@ -89,11 +117,21 @@ export async function POST(request: NextRequest) {
     marketplace_family: product.marketplace_family,
     supplier_name: product.supplier_name,
     service_name: product.name_ar || product.name_en,
-    fulfilment_method: requestType,
+    fulfilment_method: authoritativeRequestType,
     transaction_method: product.transaction_method,
     next_action: 'operations_review',
-  }).select('id, request_reference, request_type, status, payment_status, marketplace_family, supplier_name, service_name, fulfilment_method, transaction_method, handoff_type, created_at').single();
+  }).select('id, request_reference, request_type, status, payment_status, marketplace_family, service_name, fulfilment_method, transaction_method, handoff_type, created_at').single();
 
+  if (error?.code === '23505' && idempotencyKey) {
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from('marketplace_requests')
+      .select('id, request_reference, request_type, status, payment_status, marketplace_family, service_name, fulfilment_method, transaction_method, handoff_type, created_at')
+      .eq('request_reference', requestReference)
+      .eq('user_id', auth.user.id)
+      .eq('product_id', body.product_id)
+      .maybeSingle();
+    if (!existingError && existing) return NextResponse.json({ request: existing }, { status: 200 });
+  }
   if (error) {
     logServerError('api.marketplace.requests.insert_failed', error);
     return NextResponse.json({ error: 'Unable to create request' }, { status: 500 });
