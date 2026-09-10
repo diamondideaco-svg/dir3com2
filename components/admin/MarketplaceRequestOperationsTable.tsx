@@ -27,7 +27,7 @@ export async function MarketplaceRequestOperationsTable() {
   const requestIds = (data ?? []).map((request) => request.id);
   const { data: notifications, error: notificationsError } = twilioEnabled && requestIds.length && supabaseAdmin
     ? await supabaseAdmin.from('partner_whatsapp_notifications')
-        .select('request_id,status,reconciliation_required_at,created_at').in('request_id', requestIds).order('created_at', { ascending: false })
+        .select('request_id,status,provider_attempted_at,reconciliation_required_at,created_at').in('request_id', requestIds).order('created_at', { ascending: false })
     : { data: [], error: null };
   if (notificationsError) {
     logServerError('admin.operations.partner_whatsapp_read_failed', notificationsError);
@@ -36,7 +36,7 @@ export async function MarketplaceRequestOperationsTable() {
   const notificationState = new Map<string, PartnerWhatsappState>();
   for (const notification of notifications ?? []) {
     if (!notificationState.has(notification.request_id)) notificationState.set(notification.request_id,
-      notification.status === 'prepared' && notification.reconciliation_required_at
+      notification.status === 'prepared' && (notification.provider_attempted_at || notification.reconciliation_required_at)
         ? 'reconciling' : notification.status as PartnerWhatsappState);
   }
 

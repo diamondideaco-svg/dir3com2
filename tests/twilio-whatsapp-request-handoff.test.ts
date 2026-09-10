@@ -112,6 +112,7 @@ test('disabled UI does not require the notification migration and uncertain send
   assert.match(route, /COUNTRY_SCOPE_FORBIDDEN/);
   assert.match(callback, /p_notification_id: notificationId/);
   assert.match(table, /reconciliation_required_at/);
+  assert.match(table, /provider_attempted_at \|\| notification\.reconciliation_required_at/);
   assert.match(route, /prepared\.provider_attempted_at/);
 });
 
