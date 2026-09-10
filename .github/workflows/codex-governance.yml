@@ -37,7 +37,7 @@ jobs:
             }
 
             function issueField(issueBody, label) {
-              const match = issueBody.match(new RegExp('^##\\s*' + escapeRegex(label) + '\\s*$\\s*([^#\\n][^\\n]*)', 'im'));
+              const match = issueBody.match(new RegExp('^#{2,3}\\s*' + escapeRegex(label) + '\\s*$\\s*([^#\\n][^\\n]*)', 'im'));
               return match ? match[1].trim() : '';
             }
 
@@ -71,7 +71,7 @@ jobs:
                 if (issueField(taskBody, 'Implementation owner') !== owner) failures.push('Task Implementation owner must match the PR record.');
                 if (issueField(taskBody, 'Independent reviewer') !== reviewer) failures.push('Task Independent reviewer must match the PR record.');
                 if (issueField(taskBody, 'Branch') !== pr.head.ref) failures.push('Task Branch must match the actual PR head branch.');
-                if (issueField(taskBody, 'Target SHA').toLowerCase() !== pr.head.sha.toLowerCase()) failures.push('Task Target SHA must match the actual PR head SHA.');
+                if (issueField(taskBody, 'Current target SHA').toLowerCase() !== pr.head.sha.toLowerCase()) failures.push('Task Target SHA must match the actual PR head SHA.');
               } catch (error) {
                 failures.push('Task issue could not be verified: ' + error.message);
               }
