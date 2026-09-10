@@ -28,8 +28,98 @@ jobs:
             const body = pr.body || '';
 
             function field(label) {
+              const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\            function field(label) {
               const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
               const match = body.match(new RegExp('^[-*]\\s*' + escaped + '\\s*:\\s*(.+?)\\s*$', 'im'));
+              return match ? match[1].trim() : '';
+            }
+');
+              const match = body.match(new RegExp('^[-*]\\s*' + escaped + '\\s*:\\s*(.+?)\\s*
+            const task = field('Task');
+            const owner = field('Implementation owner');
+            const reviewer = field('Independent reviewer');
+            const branch = field('Branch');
+            const targetSha = field('Target SHA');
+            const verdict = field('Verdict').toUpperCase();
+            const failures = [];
+
+            const allowedOwners = ['Codex Desktop', 'VS Code Codex'];
+            const allowedReviewers = ['Codex Desktop', 'VS Code Codex', 'Codex Security'];
+            const allowedVerdicts = ['IN_PROGRESS', 'REVIEW', 'PASS', 'FAIL', 'BLOCKED'];
+
+            const taskMatch = task.match(/^#([0-9]+)$/);
+            if (!taskMatch) {
+              failures.push('Task must reference exactly one GitHub Codex Task issue as #number.');
+            } else {
+              try {
+                const { data: taskRecord } = await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: Number(taskMatch[1])
+                });
+                if (taskRecord.pull_request) {
+                  failures.push('Task must reference a GitHub issue, not a pull request.');
+                }
+                if (!taskRecord.title.startsWith('[Codex Task]')) {
+                  failures.push('Task issue title must start with [Codex Task].');
+                }
+
+                const taskBody = taskRecord.body || '';
+                const taskOwner = issueField(taskBody, 'Implementation owner');
+                const taskReviewer = issueField(taskBody, 'Independent reviewer');
+                const taskBranch = issueField(taskBody, 'Branch');
+                const taskSha = issueField(taskBody, 'Target SHA');
+
+                if (taskOwner !== owner) failures.push('Task Implementation owner must match the PR record.');
+                if (taskReviewer !== reviewer) failures.push('Task Independent reviewer must match the PR record.');
+                if (taskBranch !== pr.head.ref) failures.push('Task Branch must match the actual PR head branch.');
+                if (taskSha.toLowerCase() !== pr.head.sha.toLowerCase()) failures.push('Task Target SHA must match the actual PR head SHA.');
+              } catch (error) {
+                failures.push(`Task issue could not be verified: ${error.message}`);
+              }
+            }
+
+            if (!allowedOwners.includes(owner)) failures.push('Implementation owner must be Codex Desktop or VS Code Codex.');
+            if (!allowedReviewers.includes(reviewer)) failures.push('Independent reviewer must be Codex Desktop, VS Code Codex, or Codex Security.');
+            if (owner && reviewer && owner === reviewer) failures.push('Implementation owner and independent reviewer must be different.');
+            if (branch !== pr.head.ref) failures.push(`Declared Branch must equal actual head branch: ${pr.head.ref}`);
+            if (!/^[0-9a-f]{40}$/i.test(targetSha)) failures.push('Target SHA must be a full 40-character commit SHA.');
+            if (targetSha && targetSha.toLowerCase() !== pr.head.sha.toLowerCase()) failures.push(`Target SHA must equal actual PR head SHA: ${pr.head.sha}`);
+            if (!allowedVerdicts.includes(verdict)) failures.push('Verdict must be IN_PROGRESS, REVIEW, PASS, FAIL, or BLOCKED.');
+
+            const summary = [
+              '## Codex Control Tower Record',
+              '',
+              `- Task: ${task || 'MISSING'}`,
+              `- Implementation owner: ${owner || 'MISSING'}`,
+              `- Independent reviewer: ${reviewer || 'MISSING'}`,
+              `- Branch: ${branch || 'MISSING'}`,
+              `- Target SHA: ${targetSha || 'MISSING'}`,
+              `- Verdict: ${verdict || 'MISSING'}`,
+              '',
+              failures.length ? '### FAIL' : '### PASS',
+              ...(failures.length ? failures.map(item => `- ${item}`) : ['Traceability metadata is complete.']),
+              '',
+              '> This gate validates metadata only. It does not authorize merge or production release.'
+            ].join('\n');
+
+            await core.summary.addRaw(summary).write();
+
+            if (failures.length) {
+              core.setFailed(failures.join('\n'));
+            }
+, 'im'));
+              return match ? match[1].trim() : '';
+            }
+
+            function issueField(issueBody, label) {
+              const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\            function field(label) {
+              const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const match = body.match(new RegExp('^[-*]\\s*' + escaped + '\\s*:\\s*(.+?)\\s*$', 'im'));
+              return match ? match[1].trim() : '';
+            }
+');
+              const match = issueBody.match(new RegExp('^##\\s*' + escaped + '\\s*$\\s*([^#\\n][^\\n]*)', 'im'));
               return match ? match[1].trim() : '';
             }
 
