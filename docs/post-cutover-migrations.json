@@ -10,5 +10,9 @@
   {
     "path": "supabase/migrations/20260909190225_protected_operations_active_grant_authority.sql",
     "sha256": "81948a7577f9f998eb9c7306603d2e57ac3366330b39b9bf26115b05a809093a"
+  },
+  {
+    "path": "supabase/migrations/20260910114856_partner_whatsapp_notifications.sql",
+    "sha256": "26559f570c20d6ba9fa620734924cf774efefba5d367dc9a7a378a12971ef237"
   }
 ]
