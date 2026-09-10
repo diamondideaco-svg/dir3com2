@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { updateMarketplaceRequestStatus } from '@/lib/actions/operations-actions';
 import { logServerError } from '@/lib/security/safe-logger';
 import { AdminDateTime, AdminLocalizedInput, AdminStatusText, AdminSubmitButton, AdminText } from '@/components/admin/AdminLocale';
+import { PartnerWhatsappNotificationAction } from '@/components/admin/PartnerWhatsappNotificationAction';
+import type { PartnerWhatsappState } from '@/lib/integrations/twilio-whatsapp';
 
 const managedStatuses = ['under_review', 'awaiting_supplier', 'confirmed', 'declined', 'cancelled'] as const;
 
@@ -20,6 +22,21 @@ export async function MarketplaceRequestOperationsTable() {
     logServerError('admin.operations.marketplace_requests_read_failed', error);
     throw new Error('Unable to load marketplace revenue requests.');
   }
+
+  const requestIds = (data ?? []).map((request) => request.id);
+  const { data: notifications, error: notificationsError } = requestIds.length && supabaseAdmin
+    ? await supabaseAdmin.from('partner_whatsapp_notifications')
+        .select('request_id,status,created_at').in('request_id', requestIds).order('created_at', { ascending: false })
+    : { data: [], error: null };
+  if (notificationsError) {
+    logServerError('admin.operations.partner_whatsapp_read_failed', notificationsError);
+    throw new Error('Unable to load partner WhatsApp notification state.');
+  }
+  const notificationState = new Map<string, PartnerWhatsappState>();
+  for (const notification of notifications ?? []) {
+    if (!notificationState.has(notification.request_id)) notificationState.set(notification.request_id, notification.status as PartnerWhatsappState);
+  }
+  const twilioEnabled = process.env.TWILIO_WHATSAPP_ENABLED === 'true';
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
@@ -57,7 +74,10 @@ export async function MarketplaceRequestOperationsTable() {
                 <AdminSubmitButton ar="تحديث" en="Update" confirmAr="تطبيق انتقال الحالة هذا؟" confirmEn="Apply this status transition?" className="rounded bg-gold-400 px-2 py-1 text-xs font-semibold text-slate-950" />
               </form>
             </td>
-            <td className="p-2">{request.next_action ?? '—'}</td>
+            <td className="p-2">
+              <div>{request.next_action ?? '—'}</div>
+              <PartnerWhatsappNotificationAction requestId={request.id} initialState={notificationState.get(request.id) ?? null} enabled={twilioEnabled} />
+            </td>
             <td className="p-2"><AdminDateTime value={request.created_at} /></td>
             <td className="p-2"><AdminDateTime value={request.updated_at} /></td>
           </tr>)}</tbody>

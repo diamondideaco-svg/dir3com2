@@ -11,6 +11,7 @@ const serverOnlyTests = new Set([
   'marketplace-launch-bridge.test.ts',
   'marketplace-travel-provider-integration.test.ts',
   'marketplace-truth-contract.test.ts',
+  'twilio-whatsapp-request-handoff.test.ts',
 ]);
 const databaseTests = new Set([
   'ceo-identity-postgres.integration.test.ts',
