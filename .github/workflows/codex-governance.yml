@@ -73,34 +73,34 @@ jobs:
                 if (issueField(taskBody, 'Branch') !== pr.head.ref) failures.push('Task Branch must match the actual PR head branch.');
                 if (issueField(taskBody, 'Target SHA').toLowerCase() !== pr.head.sha.toLowerCase()) failures.push('Task Target SHA must match the actual PR head SHA.');
               } catch (error) {
-                failures.push(\`Task issue could not be verified: ${error.message}\`);
+                failures.push('Task issue could not be verified: ' + error.message);
               }
             }
 
             if (!allowedOwners.includes(owner)) failures.push('Implementation owner must be Codex Desktop or VS Code Codex.');
             if (!allowedReviewers.includes(reviewer)) failures.push('Independent reviewer must be Codex Desktop, VS Code Codex, or Codex Security.');
             if (owner && reviewer && owner === reviewer) failures.push('Implementation owner and independent reviewer must be different.');
-            if (branch !== pr.head.ref) failures.push(\`Declared Branch must equal actual head branch: ${pr.head.ref}\`);
+            if (branch !== pr.head.ref) failures.push('Declared Branch must equal actual head branch: ' + pr.head.ref);
             if (!/^[0-9a-f]{40}$/i.test(targetSha)) failures.push('Target SHA must be a full 40-character commit SHA.');
-            if (targetSha && targetSha.toLowerCase() !== pr.head.sha.toLowerCase()) failures.push(\`Target SHA must equal actual PR head SHA: ${pr.head.sha}\`);
+            if (targetSha && targetSha.toLowerCase() !== pr.head.sha.toLowerCase()) failures.push('Target SHA must equal actual PR head SHA: ' + pr.head.sha);
             if (!allowedVerdicts.includes(verdict)) failures.push('Verdict must be IN_PROGRESS, REVIEW, PASS, FAIL, or BLOCKED.');
 
             const summary = [
               '## Codex Control Tower Record',
               '',
-              \`- Task: ${task || 'MISSING'}\`,
-              \`- Implementation owner: ${owner || 'MISSING'}\`,
-              \`- Independent reviewer: ${reviewer || 'MISSING'}\`,
-              \`- Branch: ${branch || 'MISSING'}\`,
-              \`- Target SHA: ${targetSha || 'MISSING'}\`,
-              \`- Verdict: ${verdict || 'MISSING'}\`,
+              '- Task: ' + (task || 'MISSING'),
+              '- Implementation owner: ' + (owner || 'MISSING'),
+              '- Independent reviewer: ' + (reviewer || 'MISSING'),
+              '- Branch: ' + (branch || 'MISSING'),
+              '- Target SHA: ' + (targetSha || 'MISSING'),
+              '- Verdict: ' + (verdict || 'MISSING'),
               '',
               failures.length ? '### FAIL' : '### PASS',
-              ...(failures.length ? failures.map(item => \`- ${item}\`) : ['Traceability metadata is complete.']),
+              ...(failures.length ? failures.map(item => '- ' + item) : ['Traceability metadata is complete.']),
               '',
               '> This gate validates metadata only. It does not authorize merge or production release.'
-            ].join('\\n');
+            ].join('\n');
 
             await core.summary.addRaw(summary).write();
 
-            if (failures.length) core.setFailed(failures.join('\\n'));
+            if (failures.length) core.setFailed(failures.join('\n'));
