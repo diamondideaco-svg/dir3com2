@@ -87,7 +87,7 @@ test('enabled audited state-changing controls require confirmation and prevent d
   assert.match(locale, /aria-modal="true"/);
   assert.doesNotMatch(locale, /window\.confirm/);
   assert.match(locale, /const submittingRef = useRef\(false\)/);
-  assert.match(locale, /if \(!confirmForm \|\| submittingRef\.current\) return/);
+  assert.match(locale, /if \(!confirmForm \|\| pending \|\| submittingRef\.current\) return/);
   assert.match(locale, /disabled=\{pending \|\| disabled\}/);
   for (const file of [
     'components/admin/MarketplaceRequestOperationsTable.tsx',

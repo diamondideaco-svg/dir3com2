@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import type { MouseEvent } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
@@ -133,36 +133,52 @@ export function AdminSubmitButton({
   const { language } = useLanguage();
   const { pending } = useFormStatus();
   const [confirmForm, setConfirmForm] = useState<HTMLFormElement | null>(null);
-  const approvedRef = useRef(false);
   const submittingRef = useRef(false);
   const dialogId = useId();
   const confirmation = language === 'ar' ? confirmAr : confirmEn;
 
-  function handleClick(event: MouseEvent<HTMLButtonElement>) {
-    if (submittingRef.current) {
-      event.preventDefault();
-      return;
-    }
+  useEffect(() => {
+    // A retained form must be usable again after its action settles.
+    if (!pending) submittingRef.current = false;
+  }, [pending]);
 
-    if (!confirmation || approvedRef.current) {
-      approvedRef.current = false;
-      submittingRef.current = true;
+  function handleClick(event: MouseEvent<HTMLButtonElement>) {
+    if (pending || submittingRef.current) {
+      event.preventDefault();
       return;
     }
 
     const form = event.currentTarget.form;
     if (!form) return;
+    if (!form.reportValidity()) {
+      event.preventDefault();
+      return;
+    }
+
+    if (!confirmation) {
+      submittingRef.current = true;
+      return;
+    }
+
     event.preventDefault();
     setConfirmForm(form);
   }
 
   function approve() {
-    if (!confirmForm || submittingRef.current) return;
+    if (!confirmForm || pending || submittingRef.current) return;
     const form = confirmForm;
+    if (!form.reportValidity()) {
+      setConfirmForm(null);
+      return;
+    }
     submittingRef.current = true;
-    approvedRef.current = true;
     setConfirmForm(null);
-    form.requestSubmit();
+    try {
+      form.requestSubmit();
+    } catch (error) {
+      submittingRef.current = false;
+      throw error;
+    }
   }
 
   return (

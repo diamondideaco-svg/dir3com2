@@ -48,10 +48,28 @@ export default function ProductLifecycleControls({ id, slug, status, lifecycleVe
 
   function approvePendingAction() {
     const form = pendingConfirm?.form;
-    if (!form) return;
+    if (!form || submittingRef.current) return;
+    if (!form.reportValidity()) {
+      setPendingConfirm(null);
+      return;
+    }
     approvedRef.current = true;
     setPendingConfirm(null);
-    form.requestSubmit();
+    try {
+      form.requestSubmit();
+    } finally {
+      // requestSubmit dispatches submit synchronously; approval is single-use.
+      approvedRef.current = false;
+    }
+  }
+
+  async function runAction(action: (data: FormData) => Promise<void>, data: FormData) {
+    try {
+      await action(data);
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -65,7 +83,7 @@ export default function ProductLifecycleControls({ id, slug, status, lifecycleVe
         </Link>
 
         {canWrite && status === 'draft' ? (
-          <form action={publishProductAction} onSubmit={confirmAction('نشر هذا المنتج في السوق؟', 'Publish this product to the Marketplace?')}>
+          <form action={(data) => runAction(publishProductAction, data)} onSubmit={confirmAction('نشر هذا المنتج في السوق؟', 'Publish this product to the Marketplace?')}>
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="expectedVersion" value={lifecycleVersion ?? ''} />
             <button disabled={!active || submitting || Boolean(publishBlockedReason)} className="min-h-10 rounded-full bg-[#D4AF37] px-3 py-2 text-xs font-bold text-[#0D1B2A] disabled:cursor-not-allowed disabled:opacity-45">
@@ -73,7 +91,7 @@ export default function ProductLifecycleControls({ id, slug, status, lifecycleVe
             </button>
           </form>
         ) : canWrite && status === 'published' ? (
-          <form action={unpublishProductAction} onSubmit={confirmAction('إلغاء نشر هذا المنتج وإعادته لمسودة؟', 'Unpublish this product and return it to draft?')}>
+          <form action={(data) => runAction(unpublishProductAction, data)} onSubmit={confirmAction('إلغاء نشر هذا المنتج وإعادته لمسودة؟', 'Unpublish this product and return it to draft?')}>
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="expectedVersion" value={lifecycleVersion ?? ''} />
             <button disabled={!active || submitting} className="min-h-10 rounded-full border border-[#D4AF37] px-3 py-2 text-xs font-bold text-[#8B6516] disabled:cursor-not-allowed disabled:opacity-45">
@@ -82,7 +100,7 @@ export default function ProductLifecycleControls({ id, slug, status, lifecycleVe
           </form>
         ) : null}
 
-        {canWrite && <form action={archiveProductAction} onSubmit={confirmAction('أرشفة المنتج؟ سيختفي من التشغيل اليومي مع بقاء السجل التاريخي.', 'Archive this product? It will leave daily operations while history is preserved.')}>
+        {canWrite && <form action={(data) => runAction(archiveProductAction, data)} onSubmit={confirmAction('أرشفة المنتج؟ سيختفي من التشغيل اليومي مع بقاء السجل التاريخي.', 'Archive this product? It will leave daily operations while history is preserved.')}>
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="expectedVersion" value={lifecycleVersion ?? ''} />
           <button disabled={!active || submitting} className="min-h-10 rounded-full border border-red-300 px-3 py-2 text-xs font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-45">
