@@ -44,7 +44,7 @@ jobs:
             const allowedReviewers = ['Codex Desktop', 'VS Code Codex', 'Codex Security'];
             const allowedVerdicts = ['IN_PROGRESS', 'REVIEW', 'PASS', 'FAIL', 'BLOCKED'];
 
-            if (!/^#\\d+(?:\\b|$)/.test(task)) failures.push('Task must reference one GitHub issue or prior governance PR as #number.');
+            if (!/^#[0-9]+(?:\b|$)/.test(task)) failures.push('Task must reference one GitHub issue or prior governance PR as #number.');
             if (!allowedOwners.includes(owner)) failures.push('Implementation owner must be Codex Desktop or VS Code Codex.');
             if (!allowedReviewers.includes(reviewer)) failures.push('Independent reviewer must be Codex Desktop, VS Code Codex, or Codex Security.');
             if (owner && reviewer && owner === reviewer) failures.push('Implementation owner and independent reviewer must be different.');
