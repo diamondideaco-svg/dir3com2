@@ -68,6 +68,12 @@ jobs:
                 if (!taskRecord.title.startsWith('[Codex Task]')) failures.push('Task issue title must start with [Codex Task].');
 
                 const taskBody = taskRecord.body || '';
+                const taskPullRequest = issueField(taskBody, 'Pull request');
+                const validPullRequests = [
+                  '#' + pr.number,
+                  'https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/pull/' + pr.number
+                ];
+                if (!validPullRequests.includes(taskPullRequest)) failures.push('Task Pull request must match the current PR number or canonical URL.');
                 if (issueField(taskBody, 'Implementation owner') !== owner) failures.push('Task Implementation owner must match the PR record.');
                 if (issueField(taskBody, 'Independent reviewer') !== reviewer) failures.push('Task Independent reviewer must match the PR record.');
                 if (issueField(taskBody, 'Branch') !== pr.head.ref) failures.push('Task Branch must match the actual PR head branch.');
