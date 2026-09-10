@@ -76,6 +76,15 @@ function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function publicItemsToServices(items: Array<Record<string, unknown>>): MarketplaceService[] {
+  return items.map((item) => {
+    const family = typeof item.marketplace_family === 'string' && item.marketplace_family.startsWith('dir3-')
+      ? item.marketplace_family as MarketplaceService['family'] : 'dir3-concierge';
+    const availability = item.availability_status === 'sold-out' ? 'sold-out' : item.availability_status === 'limited' ? 'limited' : 'available';
+    return { id: String(item.id), slug: String(item.slug), name_ar: String(item.name_ar), name_en: String(item.name_en), description_ar: String(item.description ?? ''), description_en: String(item.description ?? ''), badge: family, family, familyLabel: family, category: family === 'dir3-drive' ? 'cars' : family === 'dir3-stay' ? 'hotels' : 'experiences', categoryLabel: String(item.category_name_en ?? item.category_slug ?? ''), icon: String(item.image_url ?? ''), href: `/services/${String(item.slug)}`, metric: availability, tags: [], basePrice: typeof item.starting_price === 'number' ? item.starting_price : 0, currency: typeof item.currency === 'string' ? item.currency : 'SAR', productCount: 1, inventoryCount: 1, availability, destination: '', featured: false, popular: false, recommended: true, source: 'api', provenance: item.supplier_verified === true ? 'PARTNER_VERIFIED' : 'PROVIDER_LIVE', fulfilmentState: (item.fulfilment_state as MarketplaceService['fulfilmentState']) ?? 'catalog_only', transactionMethod: (item.transaction_method as MarketplaceService['transactionMethod']) ?? 'none', marketplaceEnvironment: (item.marketplace_environment as MarketplaceService['marketplaceEnvironment']) ?? 'production', supplyType: 'verified_local_partner', supplierVerified: item.supplier_verified === true, verified: item.verified === true, createdAt: null, updatedAt: null, imageUrl: typeof item.image_url === 'string' ? item.image_url : null };
+  });
+}
+
 export default function DabraChatCommerce() {
   const { language, direction } = useLanguage();
   const t = dabraCopy[language];
@@ -337,11 +346,11 @@ export default function DabraChatCommerce() {
       const parsed = parseDabraMarketplaceQuery(normalizedQuery, familyOverride as Parameters<typeof parseDabraMarketplaceQuery>[1]);
       const params = toMarketplaceSearchParams(parsed, 12);
       // The canonical family contract is equivalent to params.set('family', activeTab).
-      const response = await fetch(`/api/services?${params.toString()}`, { cache: 'no-store', signal: controller.signal });
+      const response = await fetch(`/api/public/marketplace/items?${params.toString().replace('query=', 'q=')}`, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error('marketplace');
-      const payload = (await response.json()) as { services?: MarketplaceService[] };
+      const payload = (await response.json()) as { items?: Array<Record<string, unknown>> };
       if (requestId !== marketplaceRequestRef.current) return;
-      const nextServices = payload.services ?? [];
+      const nextServices = publicItemsToServices(payload.items ?? []);
       setServices(nextServices);
       setResultState(nextServices.length ? 'idle' : 'empty');
     } catch {

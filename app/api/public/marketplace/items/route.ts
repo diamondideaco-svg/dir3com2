@@ -14,7 +14,7 @@ const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 30;
 const MIN_SEARCH_LENGTH = 2;
 const MAX_SEARCH_LENGTH = 80;
-const ALLOWED_QUERY_PARAMS = new Set(['category', 'page', 'pageSize', 'q', 'currency']);
+const ALLOWED_QUERY_PARAMS = new Set(['category', 'family', 'page', 'pageSize', 'q', 'currency']);
 
 function parseDisplayCurrency(value: string | null) {
   const normalized = (value ?? '').trim().toUpperCase();
@@ -78,6 +78,7 @@ export async function GET(request: NextRequest) {
     const page = readPositiveInt(request.nextUrl.searchParams.get('page'), DEFAULT_PAGE);
     const pageSize = Math.min(readPositiveInt(request.nextUrl.searchParams.get('pageSize'), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE);
     const categorySlug = normalizeMarketplaceSlug(request.nextUrl.searchParams.get('category'));
+    const family = normalizeMarketplaceSlug(request.nextUrl.searchParams.get('family'));
     const displayCurrency = parseDisplayCurrency(request.nextUrl.searchParams.get('currency'));
     const search = normalizeSearchQuery(request.nextUrl.searchParams.get('q'));
 
@@ -142,6 +143,7 @@ export async function GET(request: NextRequest) {
         const pattern = `%${escapeIlikePattern(search.value)}%`;
         query = query.or(`name_ar.ilike.${pattern},name_en.ilike.${pattern},description_ar.ilike.${pattern}`);
       }
+      if (family) query = query.eq('marketplace_family', family.replace(/^dir3-/, ''));
 
       return query;
     };
@@ -230,6 +232,13 @@ export async function GET(request: NextRequest) {
           image_url: imageByProductId.get(productId),
           starting_price: product.base_price,
           currency: product.currency,
+          availability_status: product.availability_status ?? product.status,
+          marketplace_family: product.marketplace_family,
+          fulfilment_state: product.fulfilment_state,
+          transaction_method: product.transaction_method,
+          marketplace_environment: product.marketplace_environment,
+          verified: product.verified,
+          supplier_verified: product.supplier_verified,
         });
       })
       .filter((item: ReturnType<typeof toPublicMarketplaceItemSummary> | null): item is NonNullable<typeof item> => item !== null);

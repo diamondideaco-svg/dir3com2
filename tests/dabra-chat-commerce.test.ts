@@ -39,7 +39,7 @@ test('chat commerce surface includes tabs, quick actions, recommendation set, co
   }
   for (const badge of ['BEST MATCH', 'BEST VALUE', 'PREMIUM']) assert.match(commerceState, new RegExp(badge));
   assert.match(component, /localStorage/);
-  assert.match(component, /fetch\(`\/api\/services/);
+  assert.match(component, /fetch\(`\/api\/public\/marketplace\/items/);
   assert.match(component, /fetch\('\/api\/ai2\/chat'/);
   assert.match(component, /form\.set\('stream', 'true'\)/);
   assert.match(component, /consumeDabraChatResponse\(response/);
