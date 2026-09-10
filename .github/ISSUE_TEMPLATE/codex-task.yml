@@ -1,6 +1,6 @@
 name: Codex Task
 description: Create the single source-of-truth record for a DIR3COM engineering task
-title: "[CODEX] "
+title: "[Codex Task] "
 labels: []
 body:
   - type: markdown
