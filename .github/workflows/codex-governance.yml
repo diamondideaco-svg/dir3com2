@@ -37,7 +37,7 @@ jobs:
             }
 
             function issueField(issueBody, label) {
-              const match = issueBody.match(new RegExp('^#{2,3}\\s*' + escapeRegex(label) + '\\s*$\\s*([^#\\n][^\\n]*)', 'im'));
+              const match = issueBody.match(new RegExp('^#{2,3}\\s*' + escapeRegex(label) + '\\s*$\\s*([^\\n]+)', 'im'));
               return match ? match[1].trim() : '';
             }
 
