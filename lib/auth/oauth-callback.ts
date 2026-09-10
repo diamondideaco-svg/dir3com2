@@ -29,10 +29,13 @@ export function getOAuthCallbackOrigin(
   return new URL(currentOrigin).origin;
 }
 
-export function buildOAuthCallbackUrl(currentOrigin: string, destination: string) {
+export function buildOAuthCallbackUrl(currentOrigin: string, destination?: string | null) {
   const callbackOrigin = getOAuthCallbackOrigin(currentOrigin);
   const callback = new URL('/auth/callback', callbackOrigin);
-  callback.searchParams.set('redirect', destination);
-  callback.searchParams.set('next', destination);
+  // No requested return path lets the callback select the trusted role's home.
+  if (destination) {
+    callback.searchParams.set('redirect', destination);
+    callback.searchParams.set('next', destination);
+  }
   return callback.toString();
 }
