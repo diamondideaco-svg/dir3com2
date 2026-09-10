@@ -4,7 +4,7 @@ This document extends the governance introduced by PR #86. It is the operating p
 
 ## One source of work truth
 
-Every engineering change starts from exactly one GitHub issue created with the **Codex Task** issue form. That issue is the unified task record.
+Every engineering change starts from exactly one GitHub issue created with the **Codex Task** issue form. That issue is the unified task record. A pull request number is not a valid substitute.
 
 The record must contain:
 
@@ -14,7 +14,7 @@ The record must contain:
 - branch and pull request;
 - current exact commit SHA;
 - evidence and unresolved blockers;
-- verdict: `PLANNED`, `IN_PROGRESS`, `REVIEW`, `PASS`, `FAIL`, or `BLOCKED`.
+- task verdict: `PLANNED`, `IN_PROGRESS`, `REVIEW`, `PASS`, `FAIL`, or `BLOCKED`.
 
 Chats are working surfaces, not the permanent system of record. Important decisions and handoffs must be copied to the issue or pull request.
 
@@ -68,12 +68,14 @@ A handoff without a full 40-character SHA is incomplete. Review comments must na
 
 The **Codex Governance Gate** workflow validates pull request metadata without executing untrusted pull request text in a shell. It fails when:
 
-- the task record is missing;
+- the Task is not a verifiable GitHub issue whose title starts with `[Codex Task]`, or it points to a pull request;
 - owner, reviewer, branch, target SHA, or verdict is missing;
 - owner and reviewer are identical;
 - the declared branch differs from the actual pull request branch;
 - the target SHA differs from the actual pull request head;
-- the verdict is not one of the allowed lifecycle values.
+- the PR verdict is not exactly `IN_PROGRESS`, `REVIEW`, `PASS`, `FAIL`, or `BLOCKED`.
+
+The task issue may also use `PLANNED` before a pull request exists. The separate PR **Gate result** records the overall evidence outcome as `PASS`, `PARTIAL`, `BLOCKED`, or `FAIL`.
 
 The gate validates traceability. It does not replace tests, browser QA, security review, CEO authorization, or branch protection.
 
