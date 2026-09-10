@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FiArrowLeft, FiMapPin } from 'react-icons/fi';
 import {
   Chip,
@@ -27,6 +27,8 @@ import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { buildMarketplaceLoginHandoff, buildMarketplaceRequestReturnPath } from '@/lib/auth/marketplace-request-handoff';
 import { customerProductAliasId, hasLegacyCustomerIdentifier } from '@/lib/marketplace/customer-identifiers';
 import { contextSummary, partySize, requestDetailHref, searchContextBrief, type SearchContext } from '@/lib/marketplace/search-context';
+import { parseMarketplaceRequestInputs } from '@/lib/marketplace/request-input';
+import { marketplaceRequestErrorMessage } from '@/lib/marketplace/request-feedback';
 
 type ServiceProduct = {
   id: string;
@@ -87,6 +89,8 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
   const [requestedFor, setRequestedFor] = useState('');
   const [travellerCount, setTravellerCount] = useState(partySize(searchContext.travelers) ?? partySize(searchContext.passengers) ?? partySize(searchContext.guests) ?? 1);
   const [requestNotes, setRequestNotes] = useState('');
+  const [requestError, setRequestError] = useState<number | null>(null);
+  const requestInFlight = useRef(false);
 
   useEffect(() => {
     async function loadService() {
@@ -185,6 +189,16 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
   }) : 'view_details';
   const submitRequest = async () => {
     if (primaryAction !== 'request_to_confirm' && primaryAction !== 'request_quote') return;
+    if (requestInFlight.current || requestState === 'sent') return;
+    const inputs = parseMarketplaceRequestInputs({ requested_for: requestedFor, traveller_count: travellerCount });
+    if (!inputs.ok) {
+      setRequestError(400);
+      setRequestState('error');
+      return;
+    }
+    requestInFlight.current = true;
+    setRequestError(null);
+    setRequestState('sending');
 
     const returnPath = buildMarketplaceRequestReturnPath({
       slug: service_.slug ?? slug,
@@ -202,7 +216,11 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
       const identity = (await identityResponse.json().catch(() => null)) as { authenticated?: boolean } | null;
 
       if (!identityResponse.ok || identity?.authenticated !== true) {
-        window.location.assign(buildMarketplaceLoginHandoff(returnPath));
+        if (identityResponse.ok || identityResponse.status === 401) window.location.assign(buildMarketplaceLoginHandoff(returnPath));
+        else {
+          setRequestError(identityResponse.status);
+          setRequestState('error');
+        }
         return;
       }
 
@@ -213,8 +231,8 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
         body: JSON.stringify({
           product_id: service_.id,
           request_type: primaryAction,
-          requested_for: requestedFor || null,
-          traveller_count: travellerCount,
+          requested_for: inputs.requestedFor,
+          traveller_count: inputs.travellers,
           customer_brief: { ...searchContextBrief(searchContext), notes: requestNotes },
         }),
       });
@@ -223,10 +241,14 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
         setRequestReference(payload.request.request_reference);
         setRequestState('sent');
       } else {
+        setRequestError(response.status);
         setRequestState('error');
       }
     } catch {
+      setRequestError(0);
       setRequestState('error');
+    } finally {
+      requestInFlight.current = false;
     }
   };
 
@@ -271,7 +293,7 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
                     {primaryAction === 'unavailable' ? (en ? 'Service currently unavailable' : 'الخدمة غير متاحة حاليًا') : service_.fulfilment_state === 'availability_unknown' ? (en ? 'Availability is not currently confirmed' : 'التوفر غير مؤكد حاليًا') : (en ? 'View only' : 'للاطلاع فقط')}
                   </span>
                 )}
-                {requestState === 'error' ? <span className="text-sm text-red-700">{en ? 'Unable to submit the request. Sign in and try again.' : 'تعذر إرسال الطلب. سجّل الدخول ثم حاول مجددًا.'}</span> : null}
+                {requestState === 'error' ? <span role="alert" className="text-sm text-red-700">{marketplaceRequestErrorMessage(requestError ?? 0, en)}</span> : null}
                 {requestReference ? <span className="text-sm font-semibold text-[var(--color-navy)]">{en ? 'Request ID' : 'رقم الطلب'}: {requestReference}
                   {requestDetailHref(requestReference) ? <Link href={requestDetailHref(requestReference)!} className={`${buttonVariants({ variant: 'outline' })} ms-3`}>{en ? 'View request details' : 'عرض تفاصيل الطلب'}</Link> : null}
                 </span> : null}

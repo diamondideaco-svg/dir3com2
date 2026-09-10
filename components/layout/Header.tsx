@@ -32,6 +32,7 @@ const copy = {
     staffDashboard: 'لوحة العمل',
     partnerDashboard: 'لوحة الشريك',
     providerDashboard: 'لوحة مقدم الخدمة',
+    customerDashboard: 'لوحة العميل',
     logout: 'تسجيل الخروج',
   },
   en: {
@@ -56,6 +57,7 @@ const copy = {
     staffDashboard: 'Staff workspace',
     partnerDashboard: 'Partner Dashboard',
     providerDashboard: 'Provider Dashboard',
+    customerDashboard: 'My account',
     logout: 'Logout',
   },
 } as const;
@@ -72,7 +74,7 @@ export default function Header({ logo, onHomeSearch }: { logo?: ReactNode; onHom
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dark, setDark] = useState(false);
   const [largeText, setLargeText] = useState(false);
-  const [dashboard, setDashboard] = useState<{ href: string; kind: 'admin' | 'staff' | 'partner' | 'provider' } | null>(null);
+  const [dashboard, setDashboard] = useState<{ href: string; kind: 'admin' | 'staff' | 'partner' | 'provider' | 'customer' } | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
 
   function openHomeSearch() {
@@ -104,6 +106,7 @@ export default function Header({ logo, onHomeSearch }: { logo?: ReactNode; onHom
         else if (identity.role === 'staff') setDashboard({ href: getRolePostLoginDestination(identity), kind: 'staff' });
         else if (identity.role === 'partner') setDashboard({ href: '/partner-portal', kind: 'partner' });
         else if (raw === 'provider' || raw === 'service_provider' || raw === 'supplier') setDashboard({ href: '/provider-portal', kind: 'provider' });
+        else if (identity.role === 'customer') setDashboard({ href: '/my-account', kind: 'customer' });
       })
       .catch(() => undefined);
     return () => { active = false; };
@@ -125,7 +128,7 @@ export default function Header({ logo, onHomeSearch }: { logo?: ReactNode; onHom
   }
 
   const utilityClass = 'inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-[#d4af37]/25 bg-white px-2 text-sm font-semibold text-[#2a2118] transition hover:border-[#d4af37] hover:text-[#a66d10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/40';
-  const dashboardLabel = dashboard?.kind === 'admin' ? t.adminDashboard : dashboard?.kind === 'staff' ? t.staffDashboard : dashboard?.kind === 'partner' ? t.partnerDashboard : t.providerDashboard;
+  const dashboardLabel = dashboard?.kind === 'admin' ? t.adminDashboard : dashboard?.kind === 'staff' ? t.staffDashboard : dashboard?.kind === 'partner' ? t.partnerDashboard : dashboard?.kind === 'customer' ? t.customerDashboard : t.providerDashboard;
 
   return (
     <header dir={direction} className="site-header sticky top-0 z-40 border-b border-[#d4af37]/20 bg-[#fffdf9]/95 shadow-[0_8px_28px_rgba(76,53,18,0.07)] backdrop-blur-xl">
