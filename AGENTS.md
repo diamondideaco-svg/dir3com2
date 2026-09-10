@@ -8,6 +8,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 These instructions apply to every Codex surface working in this repository: Desktop, IDE, CLI, cloud tasks, and code review.
 
+The operational procedure is `docs/CODEX_OPERATIONS.md`. Every engineering change must have one authoritative **Codex Task** GitHub issue and the pull request must carry the matching Control Tower record.
+
 ## Operating Roles
 
 The authoritative coordinator is the ChatGPT conversation named **مهندس المشروع — Control Tower**. It assigns work, records the owner and reviewer, tracks the PR and current SHA, and recommends MERGE, RETURN FOR FIX, or BLOCKED. It does not compete with implementation agents by editing the same task.

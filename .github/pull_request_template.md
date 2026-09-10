@@ -1,3 +1,14 @@
+## Control Tower Record
+
+- Task: #<!-- required Codex Task issue number; PR numbers are rejected -->
+- Implementation owner: <!-- Codex Desktop | VS Code Codex -->
+- Independent reviewer: <!-- Codex Desktop | VS Code Codex | Codex Security; must differ from owner -->
+- Branch: <!-- exact PR head branch -->
+- Target SHA: <!-- exact 40-character current PR head SHA -->
+- Verdict: <!-- lifecycle state: IN_PROGRESS | REVIEW | PASS | FAIL | BLOCKED -->
+
+> Any new commit invalidates the recorded review and requires updating Target SHA plus independent re-review.
+
 ## Scope
 
 Describe the user-visible or system behavior changed.
@@ -11,6 +22,7 @@ Describe the user-visible or system behavior changed.
 - [ ] Uploads, customer data, or secrets
 - [ ] Supplier or external integration
 - [ ] Database schema or migration
+- [ ] Engineering governance only
 - [ ] None of the above
 
 ## Evidence
@@ -37,11 +49,12 @@ Skipped or blocked checks, with reason:
 
 ## Review and Release
 
-- [ ] Implementation review completed
+- [ ] Implementation review completed on the exact Target SHA
 - [ ] Independent security review completed when risk requires it
+- [ ] Implementation owner and independent reviewer are different
 - [ ] Unresolved risks are listed below
 - [ ] This PR does not assume CI PASS authorizes merge or production deployment
 
 Unresolved risks:
 
-Final status: <!-- PASS / PARTIAL / BLOCKED / FAIL -->
+Gate result: <!-- overall evidence outcome: PASS | PARTIAL | BLOCKED | FAIL -->

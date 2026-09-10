@@ -1,0 +1,87 @@
+name: Codex Task
+description: Create the single source-of-truth record for a DIR3COM engineering task
+title: "[Codex Task] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue is the authoritative task record. One task has one implementation owner, one branch/PR, and a different independent reviewer.
+  - type: textarea
+    id: mission
+    attributes:
+      label: Mission and bounded scope
+      description: State the required outcome and explicit exclusions.
+      placeholder: "Outcome: ...\nDo not: ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Implementation owner
+      options:
+        - Codex Desktop
+        - VS Code Codex
+    validations:
+      required: true
+  - type: dropdown
+    id: reviewer
+    attributes:
+      label: Independent reviewer
+      options:
+        - Codex Desktop
+        - VS Code Codex
+        - Codex Security
+    validations:
+      required: true
+  - type: input
+    id: branch
+    attributes:
+      label: Branch
+      description: Use TBD only before implementation starts; replace it as soon as the branch exists.
+      placeholder: chore/example
+    validations:
+      required: true
+  - type: input
+    id: pull_request
+    attributes:
+      label: Pull request
+      description: Use TBD until opened, then record the PR number or URL.
+      placeholder: "#123"
+    validations:
+      required: true
+  - type: input
+    id: target_sha
+    attributes:
+      label: Current target SHA
+      description: Use TBD before the first commit; review requires the exact 40-character SHA.
+      placeholder: 40-character commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance evidence
+      description: List required tests, QA, security coverage, and PASS criteria.
+    validations:
+      required: true
+  - type: dropdown
+    id: verdict
+    attributes:
+      label: Current verdict
+      options:
+        - PLANNED
+        - IN_PROGRESS
+        - REVIEW
+        - PASS
+        - FAIL
+        - BLOCKED
+    validations:
+      required: true
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Blockers and unresolved risks
+      placeholder: NONE or a concrete blocker with owner
+    validations:
+      required: true
