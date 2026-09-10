@@ -126,7 +126,7 @@ function LoginContent() {
         const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: buildOAuthCallbackUrl(window.location.origin, redirectTo),
+                redirectTo: buildOAuthCallbackUrl(window.location.origin, requestedDestination ? redirectTo : null),
                 skipBrowserRedirect: true,
             },
         });

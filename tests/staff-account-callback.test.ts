@@ -14,14 +14,14 @@ import * as bookingStatus from '../lib/booking/workflow-status';
 
 const require = createRequire(import.meta.url);
 
-function load<T>(path: string, dependencies: Record<string, unknown>): T {
-  const source = readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+function load<T>(path: string, dependencies: Record<string, unknown>, suffix = '', globals: Record<string, unknown> = {}): T {
+  const source = readFileSync(new URL(`../${path}`, import.meta.url), 'utf8') + suffix;
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const exports = {};
   runInNewContext(compiled, {
-    exports, URL,
+    exports, URL, ...globals,
     require: (id: string) => id in dependencies ? dependencies[id] : require(id),
   }, { filename: path });
   return exports as T;
@@ -29,6 +29,61 @@ function load<T>(path: string, dependencies: Record<string, unknown>): T {
 
 const identity = load<typeof import('../lib/auth/identity')>('lib/auth/identity.ts', { 'server-only': {} });
 const actorId = '11111111-1111-4111-8111-111111111111';
+
+async function googleLoginCallback(search = '') {
+  let callbackUrl = '';
+  const page = load<{ LoginContent(): unknown }>('app/(auth)/login/page.tsx', {
+    react: {
+      useState: (initial: unknown) => [initial, () => undefined],
+      useEffect() {},
+      useSyncExternalStore: () => false,
+    },
+    'next/navigation': { useSearchParams: () => new URLSearchParams(search) },
+    'next/link': { default: 'a' },
+    '@/lib/supabase/client': { supabase: { auth: { signInWithOAuth: async (input: { options: { redirectTo: string } }) => {
+      callbackUrl = input.options.redirectTo;
+      return { data: { url: 'https://accounts.google.invalid' }, error: null };
+    } } } },
+    '@/lib/auth/redirect': routing,
+    '@/lib/auth/oauth-callback': { buildOAuthCallbackUrl },
+    '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language: 'en', direction: 'ltr' }) },
+    '@/components/auth/password-recovery.module.css': { default: {} },
+  }, '\nexport { LoginContent };', { window: { location: { origin: 'https://example.invalid', assign() {} } } });
+  type Element = { type?: unknown; props?: { onClick?: () => Promise<void>; children?: unknown } };
+  function findButton(value: unknown): Element | undefined {
+    if (Array.isArray(value)) return value.map(findButton).find(Boolean);
+    if (!value || typeof value !== 'object') return undefined;
+    const element = value as Element;
+    if (element.type === 'button' && element.props?.onClick) return element;
+    return findButton(element.props?.children);
+  }
+  const button = findButton(page.LoginContent());
+  assert.ok(button?.props?.onClick, 'real login page exposes the Google handler');
+  await button.props.onClick();
+  return new URL(callbackUrl);
+}
+
+test('real Google login with no return path reaches the trusted role dashboard', async () => {
+  for (const search of ['', 'next=', 'redirect=']) {
+    const url = await googleLoginCallback(search);
+    assert.equal(url.search, '');
+    for (const [role, destination] of [['customer', '/my-account'], ['admin', '/admin'], ['staff', '/admin'], ['partner', '/partner-portal']] as const) {
+      assert.equal(await callback(role, `&${url.searchParams}`), `https://example.invalid${destination}`);
+    }
+  }
+});
+
+test('real Google login preserves product returns and rejects external destinations', async () => {
+  for (const parameter of ['redirect', 'next']) {
+    const destination = '/services/mercedes-e200-1788045255789?request=1#request';
+    const url = await googleLoginCallback(`${parameter}=${encodeURIComponent(destination)}`);
+    assert.equal(await callback('customer', `&${url.searchParams}`), `https://example.invalid${destination}`);
+    const external = await googleLoginCallback(`${parameter}=${encodeURIComponent('https://outside.invalid/account')}`);
+    assert.equal(await callback('customer', `&${external.searchParams}`), 'https://example.invalid/');
+  }
+  const explicitHome = await googleLoginCallback('redirect=%2F');
+  assert.equal(await callback('customer', `&${explicitHome.searchParams}`), 'https://example.invalid/');
+});
 
 async function callback(role: string | null, search = '') {
   const chain = {
