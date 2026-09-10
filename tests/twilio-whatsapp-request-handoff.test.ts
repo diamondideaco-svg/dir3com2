@@ -106,15 +106,19 @@ test('disabled UI does not require the notification migration and uncertain send
   const callback = readFileSync('app/api/twilio/whatsapp/status/route.ts', 'utf8');
   assert.match(table, /twilioEnabled && requestIds\.length && supabaseAdmin/);
   assert.match(route, /record_partner_whatsapp_provider_uncertain/);
-  assert.match(route, /TIMEOUT\|TIMEDOUT\|ECONNRESET/);
+  assert.match(route, /definitiveRejection/);
+  assert.match(route, /providerStatus >= 400 && providerStatus < 500/);
   assert.match(route, /state: 'reconciling'/);
   assert.match(route, /COUNTRY_SCOPE_FORBIDDEN/);
   assert.match(callback, /p_notification_id: notificationId/);
+  assert.match(table, /reconciliation_required_at/);
+  assert.match(route, /prepared\.provider_attempted_at/);
 });
 
 test('operations UI exposes disabled, idle, sending, queued, delivered, and failed states without changing request truth', () => {
   const component = readFileSync('components/admin/PartnerWhatsappNotificationAction.tsx', 'utf8');
   for (const state of ['disabled', 'idle', 'sending', 'reconciling', 'queued', 'delivered', 'failed']) assert.match(component, new RegExp(state));
   assert.match(component, /Send partner WhatsApp notification/);
+  assert.match(component, /setState\('reconciling'\)/);
   assert.doesNotMatch(component, /booking confirmed|payment completed/i);
 });

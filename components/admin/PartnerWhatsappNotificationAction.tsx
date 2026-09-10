@@ -19,7 +19,7 @@ export function PartnerWhatsappNotificationAction({
   const [state, setState] = useState<PartnerWhatsappState>(enabled ? initialState ?? 'idle' : 'disabled');
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const final = ['reconciling', 'queued', 'sent', 'delivered', 'read'].includes(state);
+  const final = ['reconciling', 'queued', 'sent', 'delivered', 'read', 'failed'].includes(state);
 
   async function send() {
     if (!enabled || working || final) return;
@@ -37,8 +37,8 @@ export function PartnerWhatsappNotificationAction({
       if (!response.ok || !payload.data?.state) throw new Error(payload.error?.code ?? 'SEND_FAILED');
       setState(payload.data.state);
     } catch {
-      setState('failed');
-      setError(ar ? 'تعذر تجهيز الإشعار أو وضعه في قائمة الإرسال.' : 'The notification could not be prepared or queued.');
+      setState('reconciling');
+      setError(ar ? 'تعذر تأكيد النتيجة. يلزم التحقق من الحالة قبل أي محاولة أخرى.' : 'The outcome could not be confirmed. Reconcile status before another attempt.');
     } finally {
       setWorking(false);
     }
@@ -52,6 +52,7 @@ export function PartnerWhatsappNotificationAction({
       </button>
       <span className="text-xs text-slate-400">{state === 'reconciling'
         ? (ar ? 'بانتظار تسوية حالة المزوّد.' : 'Awaiting provider reconciliation.')
+        : state === 'failed' ? (ar ? 'رفض المزوّد الإرسال.' : 'Provider delivery failed.')
         : <AdminStatusText value={working ? 'sending' : state} />}</span>
       {state === 'disabled' ? <span className="text-xs text-slate-400">{ar ? 'الإرسال الآلي غير مفعّل.' : 'Automated delivery is disabled.'}</span> : null}
       {error ? <span role="alert" className="text-xs text-rose-300">{error}</span> : null}

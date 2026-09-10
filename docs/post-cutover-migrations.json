@@ -13,6 +13,6 @@
   },
   {
     "path": "supabase/migrations/20260910114856_partner_whatsapp_notifications.sql",
-    "sha256": "84e215c1616dbb44ddbeef62d1e75ee50e7f8d6bc8b5329055d4008d39ace37e"
+    "sha256": "20fe5c0b5009ba20a4d33c5b8bd056dfefb6c7026c1ee7f000d7086f9f145c9e"
   }
 ]

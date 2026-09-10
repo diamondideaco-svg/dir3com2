@@ -15,6 +15,7 @@ CREATE TABLE public.partner_whatsapp_notifications (
   status text NOT NULL DEFAULT 'prepared' CHECK (status IN ('prepared','queued','sent','delivered','read','failed')),
   twilio_message_sid text UNIQUE CHECK (twilio_message_sid IS NULL OR twilio_message_sid ~ '^SM[0-9A-Za-z]{32}$'),
   provider_attempted_at timestamptz,
+  reconciliation_required_at timestamptz,
   queued_at timestamptz,
   sent_at timestamptz,
   delivered_at timestamptz,
@@ -242,6 +243,9 @@ BEGIN
   VALUES(v_row.id,'prepared','provider-uncertain:'||v_row.id::text,
     left(nullif(btrim(p_error_code),''),100),'provider_error')
   ON CONFLICT (notification_id,provider_event_key) DO NOTHING;
+  UPDATE public.partner_whatsapp_notifications
+  SET reconciliation_required_at=coalesce(reconciliation_required_at,clock_timestamp()),updated_at=clock_timestamp()
+  WHERE id=v_row.id;
 END $$;
 
 CREATE OR REPLACE FUNCTION public.apply_partner_whatsapp_callback(

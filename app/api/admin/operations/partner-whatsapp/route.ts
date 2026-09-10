@@ -70,11 +70,14 @@ export async function POST(request: Request) {
     }
     const prepared = firstRow<{
       id: string; status: string; recipient_e164: string; content_variables: Record<string, string>;
-      twilio_message_sid?: string | null;
+      twilio_message_sid?: string | null; provider_attempted_at?: string | null;
     }>(preparedData);
     if (!prepared?.id) throw new Error('PARTNER_WHATSAPP_PREPARE_RESULT_INVALID');
     if (prepared.status !== 'prepared') {
       return NextResponse.json({ data: { state: prepared.status, idempotent: true } }, { headers: privateHeaders() });
+    }
+    if (prepared.provider_attempted_at) {
+      return NextResponse.json({ data: { state: 'reconciling', idempotent: true } }, { status: 202, headers: privateHeaders() });
     }
 
     const { data: claimed, error: claimError } = await access.supabase.rpc('claim_partner_whatsapp_notification', {
@@ -93,17 +96,17 @@ export async function POST(request: Request) {
         contentVariables: prepared.content_variables,
       });
     } catch (providerError) {
-      const errorCode = providerError && typeof providerError === 'object' && 'code' in providerError
-        ? String(providerError.code).toUpperCase() : '';
-      const message = providerError instanceof Error ? providerError.message.toUpperCase() : '';
-      const uncertain = /TIMEOUT|TIMEDOUT|ECONNRESET|ECONNABORTED|EAI_AGAIN|NETWORK/.test(`${errorCode} ${message}`);
-      await access.supabase.rpc(uncertain
-        ? 'record_partner_whatsapp_provider_uncertain'
-        : 'fail_partner_whatsapp_notification', {
+      const providerStatus = providerError && typeof providerError === 'object' && 'status' in providerError
+        ? Number(providerError.status) : NaN;
+      const definitiveRejection = Number.isInteger(providerStatus) && providerStatus >= 400 && providerStatus < 500
+        && ![408, 409, 425, 429].includes(providerStatus);
+      await access.supabase.rpc(definitiveRejection
+        ? 'fail_partner_whatsapp_notification'
+        : 'record_partner_whatsapp_provider_uncertain', {
         p_notification_id: prepared.id,
-        p_error_code: uncertain ? 'PROVIDER_OUTCOME_UNCERTAIN' : 'PROVIDER_REQUEST_FAILED',
+        p_error_code: definitiveRejection ? 'PROVIDER_REQUEST_REJECTED' : 'PROVIDER_OUTCOME_UNCERTAIN',
       });
-      if (uncertain) {
+      if (!definitiveRejection) {
         logServerEvent('api.admin.operations.partner_whatsapp.reconciliation_required', { actorId, requestId, notificationId: prepared.id });
         return NextResponse.json({ data: { state: 'reconciling' } }, { status: 202, headers: privateHeaders() });
       }
