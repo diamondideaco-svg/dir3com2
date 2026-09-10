@@ -23,8 +23,9 @@ export async function MarketplaceRequestOperationsTable() {
     throw new Error('Unable to load marketplace revenue requests.');
   }
 
+  const twilioEnabled = process.env.TWILIO_WHATSAPP_ENABLED === 'true';
   const requestIds = (data ?? []).map((request) => request.id);
-  const { data: notifications, error: notificationsError } = requestIds.length && supabaseAdmin
+  const { data: notifications, error: notificationsError } = twilioEnabled && requestIds.length && supabaseAdmin
     ? await supabaseAdmin.from('partner_whatsapp_notifications')
         .select('request_id,status,created_at').in('request_id', requestIds).order('created_at', { ascending: false })
     : { data: [], error: null };
@@ -36,7 +37,6 @@ export async function MarketplaceRequestOperationsTable() {
   for (const notification of notifications ?? []) {
     if (!notificationState.has(notification.request_id)) notificationState.set(notification.request_id, notification.status as PartnerWhatsappState);
   }
-  const twilioEnabled = process.env.TWILIO_WHATSAPP_ENABLED === 'true';
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/5 p-5">

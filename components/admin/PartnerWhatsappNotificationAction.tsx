@@ -19,7 +19,7 @@ export function PartnerWhatsappNotificationAction({
   const [state, setState] = useState<PartnerWhatsappState>(enabled ? initialState ?? 'idle' : 'disabled');
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const final = ['queued', 'sent', 'delivered', 'read'].includes(state);
+  const final = ['reconciling', 'queued', 'sent', 'delivered', 'read'].includes(state);
 
   async function send() {
     if (!enabled || working || final) return;
@@ -50,7 +50,9 @@ export function PartnerWhatsappNotificationAction({
         className="rounded border border-gold-400 px-2 py-1 text-xs font-semibold text-gold-400 disabled:cursor-not-allowed disabled:opacity-55">
         {working ? (ar ? 'جارٍ الإرسال…' : 'Sending…') : (ar ? 'إرسال إشعار واتساب للشريك' : 'Send partner WhatsApp notification')}
       </button>
-      <span className="text-xs text-slate-400"><AdminStatusText value={working ? 'sending' : state} /></span>
+      <span className="text-xs text-slate-400">{state === 'reconciling'
+        ? (ar ? 'بانتظار تسوية حالة المزوّد.' : 'Awaiting provider reconciliation.')
+        : <AdminStatusText value={working ? 'sending' : state} />}</span>
       {state === 'disabled' ? <span className="text-xs text-slate-400">{ar ? 'الإرسال الآلي غير مفعّل.' : 'Automated delivery is disabled.'}</span> : null}
       {error ? <span role="alert" className="text-xs text-rose-300">{error}</span> : null}
     </div>

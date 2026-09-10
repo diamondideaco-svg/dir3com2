@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import { getTwilioStatusCallbackUrl, validateTwilioStatusSignature } from '@/lib/integrations/twilio-whatsapp';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function toParams(form: FormData) {
   const params: Record<string, string> = {};
   for (const [key, value] of form.entries()) if (typeof value === 'string') params[key] = value;
@@ -10,7 +12,9 @@ function toParams(form: FormData) {
 }
 
 export async function POST(request: Request) {
-  const expectedUrl = getTwilioStatusCallbackUrl();
+  const notificationId = new URL(request.url).searchParams.get('notification') ?? '';
+  if (!UUID_PATTERN.test(notificationId)) return NextResponse.json({ error: 'CALLBACK_REJECTED' }, { status: 409 });
+  const expectedUrl = getTwilioStatusCallbackUrl(process.env, notificationId);
   if (!expectedUrl || !supabaseAdmin) return NextResponse.json({ error: 'CALLBACK_UNAVAILABLE' }, { status: 503 });
   const form = await request.formData().catch(() => null);
   if (!form) return NextResponse.json({ error: 'INVALID_FORM' }, { status: 400 });
@@ -24,6 +28,7 @@ export async function POST(request: Request) {
   const status = params.EventType?.toUpperCase() === 'READ' ? 'read' : params.MessageStatus ?? params.SmsStatus ?? '';
   const errorCode = params.ErrorCode ?? null;
   const { data, error } = await supabaseAdmin.rpc('apply_partner_whatsapp_callback', {
+    p_notification_id: notificationId,
     p_message_sid: messageSid,
     p_status: status,
     p_error_code: errorCode,

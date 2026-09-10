@@ -7,7 +7,7 @@ const WHATSAPP_ADDRESS_PATTERN = /^whatsapp:(\+[1-9]\d{7,14})$/;
 const SID_PATTERN = /^SM[0-9A-Za-z]{32}$/;
 const CONTENT_SID_PATTERN = /^HX[0-9A-Za-z]{32}$/;
 
-export type PartnerWhatsappState = 'disabled' | 'idle' | 'prepared' | 'sending' | 'queued' | 'sent' | 'delivered' | 'read' | 'failed';
+export type PartnerWhatsappState = 'disabled' | 'idle' | 'prepared' | 'sending' | 'reconciling' | 'queued' | 'sent' | 'delivered' | 'read' | 'failed';
 
 export function normalizeE164(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -42,10 +42,11 @@ export function getTwilioWhatsappConfig(env: ServerEnvironment = process.env) {
   return { enabled, configured, accountSid, authToken, from, contentSid };
 }
 
-export function getTwilioStatusCallbackUrl(env: ServerEnvironment = process.env) {
+export function getTwilioStatusCallbackUrl(env: ServerEnvironment = process.env, notificationId?: string) {
   const raw = env.NEXT_PUBLIC_SITE_URL?.trim() ?? '';
   try {
     const url = new URL('/api/twilio/whatsapp/status', raw);
+    if (notificationId) url.searchParams.set('notification', notificationId);
     if (url.protocol !== 'https:' && url.hostname !== 'localhost') return null;
     return url.toString();
   } catch {
@@ -64,6 +65,7 @@ type CreateMessageInput = {
 type MessageCreator = (input: CreateMessageInput) => Promise<{ sid: string; status: string }>;
 
 export async function sendPartnerWhatsappMessage(input: {
+  notificationId: string;
   recipientE164: string;
   contentVariables: Record<string, string>;
   createMessage?: MessageCreator;
@@ -72,7 +74,7 @@ export async function sendPartnerWhatsappMessage(input: {
   const env = input.env ?? process.env;
   const config = getTwilioWhatsappConfig(env);
   const recipient = normalizeE164(input.recipientE164);
-  const statusCallback = getTwilioStatusCallbackUrl(env);
+  const statusCallback = getTwilioStatusCallbackUrl(env, input.notificationId);
   if (!config.enabled) throw new Error('TWILIO_WHATSAPP_DISABLED');
   if (!config.configured || !recipient || !statusCallback) throw new Error('TWILIO_WHATSAPP_NOT_CONFIGURED');
 

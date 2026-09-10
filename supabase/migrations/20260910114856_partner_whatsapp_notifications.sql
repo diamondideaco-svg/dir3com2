@@ -140,7 +140,7 @@ BEGIN
     RAISE EXCEPTION 'PARTNER_WHATSAPP_COUNTRY_SCOPE_DENIED' USING ERRCODE='42501';
   END IF;
 
-  v_phone := regexp_replace(coalesce(v_partner.phone,''), '[^0-9+]', '', 'g');
+  v_phone := regexp_replace(btrim(coalesce(v_partner.phone,'')), '[[:space:]().-]', '', 'g');
   IF v_phone LIKE '00%' THEN v_phone := '+' || substr(v_phone,3); END IF;
   IF v_phone !~ '^\+[1-9][0-9]{7,14}$' THEN
     RAISE EXCEPTION 'PARTNER_WHATSAPP_RECIPIENT_INVALID' USING ERRCODE='23514';
@@ -189,7 +189,7 @@ END $$;
 
 CREATE OR REPLACE FUNCTION public.queue_partner_whatsapp_notification(
   p_notification_id uuid,p_message_sid text
-) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+) RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_row public.partner_whatsapp_notifications%ROWTYPE;
 BEGIN
   IF current_setting('role', true) IS DISTINCT FROM 'service_role'
@@ -200,9 +200,15 @@ BEGIN
     queued_at=clock_timestamp(),updated_at=clock_timestamp()
   WHERE id=p_notification_id AND status='prepared' AND provider_attempted_at IS NOT NULL
     AND twilio_message_sid IS NULL RETURNING * INTO v_row;
-  IF NOT FOUND THEN RAISE EXCEPTION 'PARTNER_WHATSAPP_QUEUE_CONFLICT' USING ERRCODE='40001'; END IF;
+  IF NOT FOUND THEN
+    SELECT * INTO v_row FROM public.partner_whatsapp_notifications
+    WHERE id=p_notification_id AND twilio_message_sid=p_message_sid FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'PARTNER_WHATSAPP_QUEUE_CONFLICT' USING ERRCODE='40001'; END IF;
+    RETURN v_row.status;
+  END IF;
   INSERT INTO public.partner_whatsapp_notification_events(notification_id,status,provider_event_key,actor_user_id,source)
   VALUES(v_row.id,'queued','provider:'||p_message_sid||':queued',v_row.created_by,'operations');
+  RETURN 'queued';
 END $$;
 
 CREATE OR REPLACE FUNCTION public.fail_partner_whatsapp_notification(
@@ -221,8 +227,25 @@ BEGIN
   VALUES(v_row.id,'failed','provider-error:'||v_row.id::text, v_row.error_code,'provider_error');
 END $$;
 
+CREATE OR REPLACE FUNCTION public.record_partner_whatsapp_provider_uncertain(
+  p_notification_id uuid,p_error_code text
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_row public.partner_whatsapp_notifications%ROWTYPE;
+BEGIN
+  IF current_setting('role', true) IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'PARTNER_WHATSAPP_SERVICE_ROLE_REQUIRED' USING ERRCODE='42501';
+  END IF;
+  SELECT * INTO v_row FROM public.partner_whatsapp_notifications
+  WHERE id=p_notification_id AND status='prepared' AND provider_attempted_at IS NOT NULL FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'PARTNER_WHATSAPP_UNCERTAIN_CONFLICT' USING ERRCODE='40001'; END IF;
+  INSERT INTO public.partner_whatsapp_notification_events(notification_id,status,provider_event_key,error_code,source)
+  VALUES(v_row.id,'prepared','provider-uncertain:'||v_row.id::text,
+    left(nullif(btrim(p_error_code),''),100),'provider_error')
+  ON CONFLICT (notification_id,provider_event_key) DO NOTHING;
+END $$;
+
 CREATE OR REPLACE FUNCTION public.apply_partner_whatsapp_callback(
-  p_message_sid text,p_status text,p_error_code text DEFAULT NULL
+  p_notification_id uuid,p_message_sid text,p_status text,p_error_code text DEFAULT NULL
 ) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   v_row public.partner_whatsapp_notifications%ROWTYPE;
@@ -238,19 +261,23 @@ BEGIN
     RAISE EXCEPTION 'PARTNER_WHATSAPP_CALLBACK_STATUS_INVALID' USING ERRCODE='22023';
   END IF;
   SELECT * INTO v_row FROM public.partner_whatsapp_notifications
-  WHERE twilio_message_sid=p_message_sid FOR UPDATE;
+  WHERE id=p_notification_id AND (twilio_message_sid=p_message_sid OR (
+    twilio_message_sid IS NULL AND status='prepared' AND provider_attempted_at IS NOT NULL
+  )) FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'PARTNER_WHATSAPP_MESSAGE_UNKNOWN' USING ERRCODE='P0002'; END IF;
   IF v_row.status=v_next OR EXISTS(
     SELECT 1 FROM public.partner_whatsapp_notification_events
     WHERE notification_id=v_row.id AND provider_event_key='twilio:'||p_message_sid||':'||v_status
   ) THEN RAISE EXCEPTION 'PARTNER_WHATSAPP_CALLBACK_REPLAY' USING ERRCODE='23505'; END IF;
   IF NOT (
+    (v_row.status='prepared' AND v_next IN ('queued','sent','delivered','read','failed')) OR
     (v_row.status='queued' AND v_next IN ('sent','delivered','read','failed')) OR
     (v_row.status='sent' AND v_next IN ('delivered','read','failed')) OR
     (v_row.status='delivered' AND v_next='read')
   ) THEN RAISE EXCEPTION 'PARTNER_WHATSAPP_CALLBACK_TRANSITION_INVALID' USING ERRCODE='23514'; END IF;
 
-  UPDATE public.partner_whatsapp_notifications SET status=v_next,
+  UPDATE public.partner_whatsapp_notifications SET status=v_next,twilio_message_sid=p_message_sid,
+    queued_at=CASE WHEN v_row.status='prepared' THEN clock_timestamp() ELSE queued_at END,
     sent_at=CASE WHEN v_next='sent' THEN clock_timestamp() ELSE sent_at END,
     delivered_at=CASE WHEN v_next='delivered' THEN clock_timestamp() ELSE delivered_at END,
     read_at=CASE WHEN v_next='read' THEN clock_timestamp() ELSE read_at END,
@@ -268,11 +295,13 @@ REVOKE ALL ON FUNCTION public.prepare_partner_whatsapp_notification(uuid,uuid,te
 REVOKE ALL ON FUNCTION public.claim_partner_whatsapp_notification(uuid) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION public.queue_partner_whatsapp_notification(uuid,text) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION public.fail_partner_whatsapp_notification(uuid,text) FROM PUBLIC,anon,authenticated,service_role;
-REVOKE ALL ON FUNCTION public.apply_partner_whatsapp_callback(text,text,text) FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION public.record_partner_whatsapp_provider_uncertain(uuid,text) FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION public.apply_partner_whatsapp_callback(uuid,text,text,text) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.prepare_partner_whatsapp_notification(uuid,uuid,text,text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.claim_partner_whatsapp_notification(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.queue_partner_whatsapp_notification(uuid,text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.fail_partner_whatsapp_notification(uuid,text) TO service_role;
-GRANT EXECUTE ON FUNCTION public.apply_partner_whatsapp_callback(text,text,text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.record_partner_whatsapp_provider_uncertain(uuid,text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.apply_partner_whatsapp_callback(uuid,text,text,text) TO service_role;
 
 COMMIT;

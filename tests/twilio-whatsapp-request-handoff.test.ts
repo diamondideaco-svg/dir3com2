@@ -39,6 +39,7 @@ test('Twilio feature flag is disabled by default and configuration is server-onl
 test('provider queues an approved template with callback and no body fabrication', async () => {
   const calls: Array<Record<string, unknown>> = [];
   const result = await sendPartnerWhatsappMessage({
+    notificationId: '11111111-1111-4111-8111-111111111111',
     recipientE164: '+201556006410',
     contentVariables: { '1': 'REQ-TEST', '2': 'Drive' },
     env: configuredEnv,
@@ -50,16 +51,18 @@ test('provider queues an approved template with callback and no body fabrication
   assert.equal(result.status, 'queued');
   assert.equal(calls[0]?.to, 'whatsapp:+201556006410');
   assert.equal(calls[0]?.from, 'whatsapp:+14155238886');
-  assert.equal(calls[0]?.statusCallback, 'https://example.test/api/twilio/whatsapp/status');
+  assert.equal(calls[0]?.statusCallback, 'https://example.test/api/twilio/whatsapp/status?notification=11111111-1111-4111-8111-111111111111');
   assert.equal('body' in (calls[0] ?? {}), false);
 });
 
-test('provider failure and timeout remain failures, never sent or delivered', async () => {
+test('provider errors surface without inventing sent or delivered state', async () => {
   await assert.rejects(sendPartnerWhatsappMessage({
+    notificationId: '11111111-1111-4111-8111-111111111111',
     recipientE164: '+201556006410', contentVariables: {}, env: configuredEnv,
     createMessage: async () => { throw new Error('provider failed'); },
   }), /provider failed/);
   await assert.rejects(sendPartnerWhatsappMessage({
+    notificationId: '11111111-1111-4111-8111-111111111111',
     recipientE164: '+201556006410', contentVariables: {}, env: configuredEnv,
     createMessage: async () => { throw new Error('ETIMEDOUT'); },
   }), /ETIMEDOUT/);
@@ -88,14 +91,30 @@ test('migration enforces authorization, country scope, idempotency, append-only 
   assert.match(migration, /PARTNER_WHATSAPP_EVENT_APPEND_ONLY/);
   assert.match(migration, /PARTNER_WHATSAPP_CALLBACK_REPLAY/);
   assert.match(migration, /PARTNER_WHATSAPP_CALLBACK_TRANSITION_INVALID/);
+  assert.match(migration, /record_partner_whatsapp_provider_uncertain/);
+  assert.match(migration, /twilio_message_sid IS NULL AND status='prepared'/);
+  assert.match(migration, /RETURN v_row\.status/);
+  assert.doesNotMatch(migration, /\[\^0-9\+\]/);
   assert.match(migration, /recipient_e164 ~ '\^\\\+\[1-9\]/);
   assert.doesNotMatch(migration, /UPDATE public\.marketplace_requests/i);
   assert.doesNotMatch(migration, /INSERT INTO public\.bookings/i);
 });
 
+test('disabled UI does not require the notification migration and uncertain sends stay reconcilable', () => {
+  const table = readFileSync('components/admin/MarketplaceRequestOperationsTable.tsx', 'utf8');
+  const route = readFileSync('app/api/admin/operations/partner-whatsapp/route.ts', 'utf8');
+  const callback = readFileSync('app/api/twilio/whatsapp/status/route.ts', 'utf8');
+  assert.match(table, /twilioEnabled && requestIds\.length && supabaseAdmin/);
+  assert.match(route, /record_partner_whatsapp_provider_uncertain/);
+  assert.match(route, /TIMEOUT\|TIMEDOUT\|ECONNRESET/);
+  assert.match(route, /state: 'reconciling'/);
+  assert.match(route, /COUNTRY_SCOPE_FORBIDDEN/);
+  assert.match(callback, /p_notification_id: notificationId/);
+});
+
 test('operations UI exposes disabled, idle, sending, queued, delivered, and failed states without changing request truth', () => {
   const component = readFileSync('components/admin/PartnerWhatsappNotificationAction.tsx', 'utf8');
-  for (const state of ['disabled', 'idle', 'sending', 'queued', 'delivered', 'failed']) assert.match(component, new RegExp(state));
+  for (const state of ['disabled', 'idle', 'sending', 'reconciling', 'queued', 'delivered', 'failed']) assert.match(component, new RegExp(state));
   assert.match(component, /Send partner WhatsApp notification/);
   assert.doesNotMatch(component, /booking confirmed|payment completed/i);
 });

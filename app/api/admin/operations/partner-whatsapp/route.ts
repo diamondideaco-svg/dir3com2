@@ -88,26 +88,43 @@ export async function POST(request: Request) {
     let result: Awaited<ReturnType<typeof sendPartnerWhatsappMessage>>;
     try {
       result = await sendPartnerWhatsappMessage({
+        notificationId: prepared.id,
         recipientE164: prepared.recipient_e164,
         contentVariables: prepared.content_variables,
       });
     } catch (providerError) {
-      await access.supabase.rpc('fail_partner_whatsapp_notification', {
+      const errorCode = providerError && typeof providerError === 'object' && 'code' in providerError
+        ? String(providerError.code).toUpperCase() : '';
+      const message = providerError instanceof Error ? providerError.message.toUpperCase() : '';
+      const uncertain = /TIMEOUT|TIMEDOUT|ECONNRESET|ECONNABORTED|EAI_AGAIN|NETWORK/.test(`${errorCode} ${message}`);
+      await access.supabase.rpc(uncertain
+        ? 'record_partner_whatsapp_provider_uncertain'
+        : 'fail_partner_whatsapp_notification', {
         p_notification_id: prepared.id,
-        p_error_code: 'PROVIDER_REQUEST_FAILED',
+        p_error_code: uncertain ? 'PROVIDER_OUTCOME_UNCERTAIN' : 'PROVIDER_REQUEST_FAILED',
       });
+      if (uncertain) {
+        logServerEvent('api.admin.operations.partner_whatsapp.reconciliation_required', { actorId, requestId, notificationId: prepared.id });
+        return NextResponse.json({ data: { state: 'reconciling' } }, { status: 202, headers: privateHeaders() });
+      }
       throw providerError;
     }
-    const { error: queueError } = await access.supabase.rpc('queue_partner_whatsapp_notification', {
+    const { data: queuedState, error: queueError } = await access.supabase.rpc('queue_partner_whatsapp_notification', {
       p_notification_id: prepared.id,
       p_message_sid: result.messageSid,
     });
-    if (queueError) throw queueError;
+    if (queueError) {
+      logServerError('api.admin.operations.partner_whatsapp.queue_persistence_uncertain', queueError, {
+        actorId, requestId, notificationId: prepared.id,
+      });
+      return NextResponse.json({ data: { state: 'reconciling' } }, { status: 202, headers: privateHeaders() });
+    }
     logServerEvent('api.admin.operations.partner_whatsapp.queued', { actorId, requestId, notificationId: prepared.id });
-    return NextResponse.json({ data: { state: 'queued' } }, { status: 202, headers: privateHeaders() });
+    return NextResponse.json({ data: { state: queuedState ?? 'queued' } }, { status: 202, headers: privateHeaders() });
   } catch (error) {
-    if (error instanceof Error && (error.message === 'Unauthorized' || error.message === 'Forbidden')) {
-      return NextResponse.json({ error: { code: error.message.toUpperCase() } }, { status: error.message === 'Unauthorized' ? 401 : 403, headers: privateHeaders() });
+    if (error instanceof Error && (error.message === 'Unauthorized' || error.message === 'Forbidden' || error.message === 'COUNTRY_SCOPE_FORBIDDEN')) {
+      const unauthorized = error.message === 'Unauthorized';
+      return NextResponse.json({ error: { code: unauthorized ? 'UNAUTHORIZED' : 'FORBIDDEN' } }, { status: unauthorized ? 401 : 403, headers: privateHeaders() });
     }
     logServerError('api.admin.operations.partner_whatsapp.failed', error, { actorId, requestId });
     return NextResponse.json({ error: { code: 'PARTNER_WHATSAPP_SEND_FAILED' } }, { status: 502, headers: privateHeaders() });
