@@ -190,6 +190,40 @@ export async function GET(request: NextRequest) {
       .map((product: Record<string, unknown>) => (typeof product.id === 'string' ? product.id : null))
       .filter((value: string | null): value is string => value !== null);
 
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: availabilityRows, error: availabilityError } = productIds.length
+      ? await client
+          .from('product_availability')
+          .select('product_id,available,availability_status,date,capacity,booked_count,synthetic,environment')
+          .in('product_id', productIds)
+          .eq('synthetic', false)
+          .gte('date', today)
+          .order('date', { ascending: true })
+      : { data: [], error: null };
+
+    if (availabilityError) {
+      logServerError('api.public.marketplace.items.availability_read_failed', availabilityError);
+      if (isOperationalSyntheticSchemaError(availabilityError)) {
+        return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
+      }
+      return NextResponse.json({ error: 'Unable to load marketplace items right now.' }, { status: 500 });
+    }
+
+    const availabilityByProductId = new Map<string, string>();
+    for (const row of availabilityRows ?? []) {
+      const productId = typeof row.product_id === 'string' ? row.product_id : null;
+      if (!productId || row.synthetic !== false || (row.environment !== null && row.environment !== undefined && row.environment !== 'production')) {
+        continue;
+      }
+
+      const capacity = typeof row.capacity === 'number' ? row.capacity : null;
+      const bookedCount = typeof row.booked_count === 'number' ? row.booked_count : null;
+      const capacityAvailable = capacity === null || bookedCount === null || bookedCount < capacity;
+      const available = row.available === true && capacityAvailable;
+      const status = typeof row.availability_status === 'string' ? row.availability_status : (available ? 'available' : 'sold-out');
+      availabilityByProductId.set(productId, available ? status : 'sold-out');
+    }
+
     const { data: images, error: imagesError } = productIds.length
       ? await client
           .from('product_images')
@@ -241,7 +275,7 @@ export async function GET(request: NextRequest) {
           image_url: imageByProductId.get(productId),
           starting_price: product.base_price,
           currency: product.currency,
-          availability_status: product.availability_status,
+          availability_status: availabilityByProductId.get(productId),
           marketplace_family: product.marketplace_family,
           fulfilment_state: product.fulfilment_state,
           transaction_method: product.transaction_method,

@@ -25,7 +25,9 @@ export function normalizeDabraMarketplaceFamily(value: unknown): MarketplaceFami
 
 export function normalizeDabraAvailability(value: unknown): MarketplaceAvailability {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (normalized.includes('sold') || normalized.includes('unavailable') || normalized.includes('نفد')) return 'sold-out';
+  if (normalized.includes('sold') || normalized.includes('unavailable') || normalized.includes('نفد') ||
+      normalized === 'full' || normalized === 'maintenance' || normalized === 'blackout') return 'sold-out';
+  if (normalized.includes('partial') || normalized.includes('limited') || normalized.includes('few') || normalized.includes('جزئي')) return 'limited';
   if (normalized.includes('available') || normalized.includes('متاح')) return 'available';
   return 'limited';
 }
