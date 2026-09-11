@@ -176,15 +176,15 @@ export default function Header({ logo, onHomeSearch }: { logo?: ReactNode; onHom
         <div className="border-t border-[#d4af37]/20 bg-[#fffdf9] px-4 py-4 xl:hidden">
           <nav className="mx-auto grid max-w-7xl gap-2" aria-label={t.menu}>
             {t.nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className="rounded-xl border border-[#d4af37]/15 bg-white px-4 py-3 text-sm font-semibold text-[#2a2118]">{item.label}</Link>)}
+            {dashboard ? <Link href={dashboard.href} onClick={() => setMobileOpen(false)} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#d4af37]/25 bg-white px-4 text-sm font-semibold text-[#2a2118]"><FiGrid />{dashboardLabel}</Link> : null}
             <div className="mt-2 flex flex-wrap gap-2 md:hidden">
               {onHomeSearch ? <button type="button" onClick={openHomeSearch} className={utilityClass} aria-label={t.search} aria-controls="home-search-panel"><FiSearch /></button> : <Link href="/marketplace" className={utilityClass} aria-label={t.search}><FiSearch /></Link>}
               <Link href={onHomeSearch ? '#home-weather' : '/#home-weather'} onClick={onHomeSearch ? () => setMobileOpen(false) : undefined} className={utilityClass} aria-label={t.weather}><FiCloud /></Link>
               <Link href={onHomeSearch ? '#home-currency' : '/#home-currency'} onClick={onHomeSearch ? () => setMobileOpen(false) : undefined} className={utilityClass} aria-label={t.currency}><FiDollarSign /></Link>
               <button type="button" onClick={toggleLanguage} className={utilityClass} aria-label={language === 'ar' ? 'التبديل إلى الإنجليزية' : 'Switch to Arabic'}><FiGlobe /> {language === 'ar' ? 'EN' : 'AR'}</button>
               <button type="button" onClick={toggleTheme} className={utilityClass} aria-label={t.theme} aria-pressed={dark}>{dark ? <FiSun /> : <FiMoon />}</button>
-              <button type="button" onClick={toggleTextSize} className={utilityClass} aria-label={t.accessibility} aria-pressed={largeText}>{largeText ? <FiType /> : <FiType />}</button>
+              <button type="button" onClick={toggleTextSize} className={utilityClass} aria-label={t.accessibility} aria-pressed={largeText}><FiType /></button>
             </div>
-            {dashboard ? <Link href={dashboard.href} onClick={() => setMobileOpen(false)} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#d4af37]/25 bg-white px-4 text-sm font-semibold text-[#2a2118]"><FiGrid />{dashboardLabel}</Link> : null}
             {authenticated ? (
               <LogoutButton label={t.logout} className="mt-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#c89536] px-5 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60 sm:hidden" />
             ) : (
