@@ -19,9 +19,17 @@ export type PublicMarketplaceItemSummary = {
   category_slug: string;
   category_name_ar: string;
   category_name_en: string;
+  city?: string;
   image_url?: string;
   starting_price?: number;
   currency?: string;
+  availability_status?: string;
+  marketplace_family?: string;
+  fulfilment_state?: string;
+  transaction_method?: string;
+  marketplace_environment?: string;
+  verified?: boolean;
+  supplier_verified?: boolean;
 };
 
 export type PublicMarketplaceItemDetail = {
@@ -178,9 +186,17 @@ export function toPublicMarketplaceItemSummary(input: {
   category_slug: unknown;
   category_name_ar: unknown;
   category_name_en: unknown;
+  city?: unknown;
   image_url?: unknown;
   starting_price?: unknown;
   currency?: unknown;
+  availability_status?: unknown;
+  marketplace_family?: unknown;
+  fulfilment_state?: unknown;
+  transaction_method?: unknown;
+  marketplace_environment?: unknown;
+  verified?: unknown;
+  supplier_verified?: unknown;
 }): PublicMarketplaceItemSummary | null {
   const id = sanitizeText(input.id, 120);
   const slug = normalizeMarketplaceSlug(input.slug);
@@ -211,9 +227,17 @@ export function toPublicMarketplaceItemSummary(input: {
     category_slug: categorySlug,
     category_name_ar: categoryNameAr,
     category_name_en: categoryNameEn,
+    city: sanitizeText(input.city, 120) ?? undefined,
     image_url: imageUrl,
     starting_price: startingPrice,
     currency,
+    availability_status: sanitizeText(input.availability_status, 40) ?? undefined,
+    marketplace_family: sanitizeText(input.marketplace_family, 20) ?? undefined,
+    fulfilment_state: sanitizeText(input.fulfilment_state, 40) ?? undefined,
+    transaction_method: sanitizeText(input.transaction_method, 40) ?? undefined,
+    marketplace_environment: sanitizeText(input.marketplace_environment, 20) ?? undefined,
+    verified: input.verified === true,
+    supplier_verified: input.supplier_verified === true,
   };
 }
 

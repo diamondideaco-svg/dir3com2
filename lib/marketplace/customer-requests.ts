@@ -56,7 +56,9 @@ export type CustomerRequestTimestamp = {
 };
 
 export function isMarketplaceRequestReference(value: string) {
-  return /^REQ-[A-Z0-9]{8}$/.test(value);
+  // Legacy callers use an 8-character reference; idempotent DABRA requests
+  // use the 20-character SHA-256-derived form.
+  return /^REQ-[A-Z0-9]{8}(?:[A-Z0-9]{12})?$/.test(value);
 }
 
 export function formatCustomerRequestTimestamp(value: string): CustomerRequestTimestamp {

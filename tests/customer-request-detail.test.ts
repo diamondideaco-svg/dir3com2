@@ -154,6 +154,7 @@ test('route validates references, protects anonymous sessions, and returns 404 f
   const proxy = read('proxy.ts');
   assert.equal(isMarketplaceRequestReference('REQ-FC5095B5'), true);
   assert.equal(isMarketplaceRequestReference('REQ-E8BB9F5E'), true);
+  assert.equal(isMarketplaceRequestReference('REQ-0123456789ABCDEF0123'), true);
   assert.equal(isMarketplaceRequestReference('../admin'), false);
   assert.match(page, /supabase\.auth\.getUser\(\)/);
   assert.match(page, /if \(!user\) redirect\(buildLoginTarget\(destination\)\)/);

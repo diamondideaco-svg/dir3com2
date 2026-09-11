@@ -14,7 +14,7 @@ const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 30;
 const MIN_SEARCH_LENGTH = 2;
 const MAX_SEARCH_LENGTH = 80;
-const ALLOWED_QUERY_PARAMS = new Set(['category', 'page', 'pageSize', 'q', 'currency']);
+const ALLOWED_QUERY_PARAMS = new Set(['category', 'destination', 'family', 'page', 'pageSize', 'q', 'currency']);
 
 function parseDisplayCurrency(value: string | null) {
   const normalized = (value ?? '').trim().toUpperCase();
@@ -78,11 +78,16 @@ export async function GET(request: NextRequest) {
     const page = readPositiveInt(request.nextUrl.searchParams.get('page'), DEFAULT_PAGE);
     const pageSize = Math.min(readPositiveInt(request.nextUrl.searchParams.get('pageSize'), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE);
     const categorySlug = normalizeMarketplaceSlug(request.nextUrl.searchParams.get('category'));
+    const destination = normalizeMarketplaceSlug(request.nextUrl.searchParams.get('destination'));
+    const family = normalizeMarketplaceSlug(request.nextUrl.searchParams.get('family'));
     const displayCurrency = parseDisplayCurrency(request.nextUrl.searchParams.get('currency'));
     const search = normalizeSearchQuery(request.nextUrl.searchParams.get('q'));
 
     if (search.error) {
       return NextResponse.json({ error: search.error }, { status: 400 });
+    }
+    if (request.nextUrl.searchParams.has('destination') && !destination) {
+      return NextResponse.json({ error: 'Invalid marketplace destination.' }, { status: 400 });
     }
 
     let categoryId: string | null = null;
@@ -140,7 +145,12 @@ export async function GET(request: NextRequest) {
 
       if (search.value) {
         const pattern = `%${escapeIlikePattern(search.value)}%`;
-        query = query.or(`name_ar.ilike.${pattern},name_en.ilike.${pattern},description_ar.ilike.${pattern}`);
+        query = query.or(`name_ar.ilike.${pattern},name_en.ilike.${pattern},description_ar.ilike.${pattern},city.ilike.${pattern}`);
+      }
+      if (family) query = query.eq('marketplace_family', family.replace(/^dir3-/, ''));
+      if (destination) {
+        const pattern = `%${escapeIlikePattern(destination.replace(/-/g, ' '))}%`;
+        query = query.ilike('city', pattern);
       }
 
       return query;
@@ -179,6 +189,40 @@ export async function GET(request: NextRequest) {
     const productIds = (products ?? [])
       .map((product: Record<string, unknown>) => (typeof product.id === 'string' ? product.id : null))
       .filter((value: string | null): value is string => value !== null);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: availabilityRows, error: availabilityError } = productIds.length
+      ? await client
+          .from('product_availability')
+          .select('product_id,available,availability_status,date,capacity,booked_count,synthetic,environment')
+          .in('product_id', productIds)
+          .eq('synthetic', false)
+          .gte('date', today)
+          .order('date', { ascending: true })
+      : { data: [], error: null };
+
+    if (availabilityError) {
+      logServerError('api.public.marketplace.items.availability_read_failed', availabilityError);
+      if (isOperationalSyntheticSchemaError(availabilityError)) {
+        return NextResponse.json({ error: getSyntheticSchemaOperationalMessage() }, { status: 503 });
+      }
+      return NextResponse.json({ error: 'Unable to load marketplace items right now.' }, { status: 500 });
+    }
+
+    const availabilityByProductId = new Map<string, string>();
+    for (const row of availabilityRows ?? []) {
+      const productId = typeof row.product_id === 'string' ? row.product_id : null;
+      if (!productId || row.synthetic !== false || (row.environment !== null && row.environment !== undefined && row.environment !== 'production')) {
+        continue;
+      }
+
+      const capacity = typeof row.capacity === 'number' ? row.capacity : null;
+      const bookedCount = typeof row.booked_count === 'number' ? row.booked_count : null;
+      const capacityAvailable = capacity === null || bookedCount === null || bookedCount < capacity;
+      const available = row.available === true && capacityAvailable;
+      const status = typeof row.availability_status === 'string' ? row.availability_status : (available ? 'available' : 'sold-out');
+      availabilityByProductId.set(productId, available ? status : 'sold-out');
+    }
 
     const { data: images, error: imagesError } = productIds.length
       ? await client
@@ -227,9 +271,17 @@ export async function GET(request: NextRequest) {
           category_slug: category.slug,
           category_name_ar: category.name_ar,
           category_name_en: category.name_en,
+          city: product.city,
           image_url: imageByProductId.get(productId),
           starting_price: product.base_price,
           currency: product.currency,
+          availability_status: availabilityByProductId.get(productId),
+          marketplace_family: product.marketplace_family,
+          fulfilment_state: product.fulfilment_state,
+          transaction_method: product.transaction_method,
+          marketplace_environment: product.marketplace_environment,
+          verified: product.verified,
+          supplier_verified: product.supplier_verified,
         });
       })
       .filter((item: ReturnType<typeof toPublicMarketplaceItemSummary> | null): item is NonNullable<typeof item> => item !== null);
