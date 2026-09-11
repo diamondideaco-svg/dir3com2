@@ -1,4 +1,4 @@
-import type { MarketplaceFamilyKey, MarketplacePageCategory } from '@/lib/marketplace/data';
+import type { MarketplaceAvailability, MarketplaceFamilyKey, MarketplacePageCategory } from '@/lib/marketplace/data';
 
 export type DabraMarketplaceQuery = {
   query?: string;
@@ -8,6 +8,27 @@ export type DabraMarketplaceQuery = {
   make?: string;
   model?: string;
 };
+
+const familyKeys: Record<string, MarketplaceFamilyKey> = {
+  drive: 'dir3-drive',
+  stay: 'dir3-stay',
+  fly: 'dir3-fly',
+  concierge: 'dir3-concierge',
+  vip: 'dir3-vip',
+};
+
+export function normalizeDabraMarketplaceFamily(value: unknown): MarketplaceFamilyKey {
+  if (typeof value !== 'string') return 'dir3-concierge';
+  const normalized = value.trim().toLowerCase().replace(/^dir3-/, '');
+  return familyKeys[normalized] ?? 'dir3-concierge';
+}
+
+export function normalizeDabraAvailability(value: unknown): MarketplaceAvailability {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (normalized.includes('sold') || normalized.includes('unavailable') || normalized.includes('نفد')) return 'sold-out';
+  if (normalized.includes('available') || normalized.includes('متاح')) return 'available';
+  return 'limited';
+}
 
 const families: Array<{ value: MarketplaceFamilyKey; terms: string[] }> = [
   { value: 'dir3-fly', terms: ['fly', 'flight', 'flights', 'airline', 'طيران', 'رحلة جوية', 'رحلات جوية'] },
@@ -74,7 +95,9 @@ export function toMarketplaceSearchParams(parsed: DabraMarketplaceQuery, pageSiz
   if (parsed.category) params.set('category', parsed.category);
   if (parsed.destination) params.set('destination', parsed.destination);
   const productTerms = [parsed.make, parsed.model].filter(Boolean).join(' ');
-  const query = productTerms || parsed.query;
+  // A recognized destination is sent through the explicit server-side city
+  // filter; avoid forcing the full natural-language phrase into `q`.
+  const query = productTerms || (parsed.destination ? undefined : parsed.query);
   if (query) params.set('query', query);
   return params;
 }

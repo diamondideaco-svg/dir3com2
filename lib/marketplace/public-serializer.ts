@@ -19,6 +19,7 @@ export type PublicMarketplaceItemSummary = {
   category_slug: string;
   category_name_ar: string;
   category_name_en: string;
+  city?: string;
   image_url?: string;
   starting_price?: number;
   currency?: string;
@@ -185,6 +186,7 @@ export function toPublicMarketplaceItemSummary(input: {
   category_slug: unknown;
   category_name_ar: unknown;
   category_name_en: unknown;
+  city?: unknown;
   image_url?: unknown;
   starting_price?: unknown;
   currency?: unknown;
@@ -225,6 +227,7 @@ export function toPublicMarketplaceItemSummary(input: {
     category_slug: categorySlug,
     category_name_ar: categoryNameAr,
     category_name_en: categoryNameEn,
+    city: sanitizeText(input.city, 120) ?? undefined,
     image_url: imageUrl,
     starting_price: startingPrice,
     currency,

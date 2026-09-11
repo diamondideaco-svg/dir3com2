@@ -14,7 +14,7 @@ const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 30;
 const MIN_SEARCH_LENGTH = 2;
 const MAX_SEARCH_LENGTH = 80;
-const ALLOWED_QUERY_PARAMS = new Set(['category', 'family', 'page', 'pageSize', 'q', 'currency']);
+const ALLOWED_QUERY_PARAMS = new Set(['category', 'destination', 'family', 'page', 'pageSize', 'q', 'currency']);
 
 function parseDisplayCurrency(value: string | null) {
   const normalized = (value ?? '').trim().toUpperCase();
@@ -78,12 +78,16 @@ export async function GET(request: NextRequest) {
     const page = readPositiveInt(request.nextUrl.searchParams.get('page'), DEFAULT_PAGE);
     const pageSize = Math.min(readPositiveInt(request.nextUrl.searchParams.get('pageSize'), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE);
     const categorySlug = normalizeMarketplaceSlug(request.nextUrl.searchParams.get('category'));
+    const destination = normalizeMarketplaceSlug(request.nextUrl.searchParams.get('destination'));
     const family = normalizeMarketplaceSlug(request.nextUrl.searchParams.get('family'));
     const displayCurrency = parseDisplayCurrency(request.nextUrl.searchParams.get('currency'));
     const search = normalizeSearchQuery(request.nextUrl.searchParams.get('q'));
 
     if (search.error) {
       return NextResponse.json({ error: search.error }, { status: 400 });
+    }
+    if (request.nextUrl.searchParams.has('destination') && !destination) {
+      return NextResponse.json({ error: 'Invalid marketplace destination.' }, { status: 400 });
     }
 
     let categoryId: string | null = null;
@@ -141,9 +145,13 @@ export async function GET(request: NextRequest) {
 
       if (search.value) {
         const pattern = `%${escapeIlikePattern(search.value)}%`;
-        query = query.or(`name_ar.ilike.${pattern},name_en.ilike.${pattern},description_ar.ilike.${pattern}`);
+        query = query.or(`name_ar.ilike.${pattern},name_en.ilike.${pattern},description_ar.ilike.${pattern},city.ilike.${pattern}`);
       }
       if (family) query = query.eq('marketplace_family', family.replace(/^dir3-/, ''));
+      if (destination) {
+        const pattern = `%${escapeIlikePattern(destination.replace(/-/g, ' '))}%`;
+        query = query.ilike('city', pattern);
+      }
 
       return query;
     };
@@ -229,10 +237,11 @@ export async function GET(request: NextRequest) {
           category_slug: category.slug,
           category_name_ar: category.name_ar,
           category_name_en: category.name_en,
+          city: product.city,
           image_url: imageByProductId.get(productId),
           starting_price: product.base_price,
           currency: product.currency,
-          availability_status: product.availability_status ?? product.status,
+          availability_status: product.availability_status,
           marketplace_family: product.marketplace_family,
           fulfilment_state: product.fulfilment_state,
           transaction_method: product.transaction_method,

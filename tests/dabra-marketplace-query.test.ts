@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDabraMarketplaceQuery, toMarketplaceSearchParams } from '@/lib/dabra/marketplace-query';
+import { normalizeDabraMarketplaceFamily, parseDabraMarketplaceQuery, toMarketplaceSearchParams } from '@/lib/dabra/marketplace-query';
+
+test('public family values normalize to the DABRA family keys', () => {
+  assert.equal(normalizeDabraMarketplaceFamily('drive'), 'dir3-drive');
+  assert.equal(normalizeDabraMarketplaceFamily('dir3-stay'), 'dir3-stay');
+  assert.equal(normalizeDabraMarketplaceFamily('unknown'), 'dir3-concierge');
+});
 
 test('DABRA parses Arabic and English family/destination intent deterministically', () => {
   assert.deepEqual(parseDabraMarketplaceQuery('سيارة فاخرة الرياض'), {
@@ -22,4 +28,10 @@ test('make and model terms remain bounded and are sent through the canonical que
   assert.equal(parsed.make, 'lexus');
   assert.equal(parsed.model, 'es300');
   assert.equal(toMarketplaceSearchParams(parsed).get('query'), 'lexus es300');
+});
+
+test('destination remains in the canonical q contract for server-side city filtering', () => {
+  const params = toMarketplaceSearchParams(parseDabraMarketplaceQuery('hotel in Riyadh'));
+  assert.equal(params.get('destination'), 'riyadh');
+  assert.equal(params.get('query'), null);
 });
