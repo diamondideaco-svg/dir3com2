@@ -73,12 +73,24 @@ test('staff sees the operational entry in Arabic/English desktop and mobile navi
   }
 });
 
-test('customer and unavailable roles do not acquire administrative navigation', async () => {
-  for (const role of ['customer', null]) {
-    const html = await renderHeader(role, 'en', true);
-    assert.doesNotMatch(html, /href="\/admin/);
-    assert.doesNotMatch(html, /Staff workspace/);
+test('customer sees My account / حسابي entry without acquiring administrative navigation', async () => {
+  for (const language of ['ar', 'en'] as const) {
+    for (const mobileOpen of [false, true]) {
+      const html = await renderHeader('customer', language, mobileOpen);
+      assert.match(html, /href="\/my-account"/);
+      assert.ok(html.includes(language === 'ar' ? 'حسابي' : 'My account'));
+      assert.doesNotMatch(html, /href="\/admin/);
+      assert.doesNotMatch(html, /Staff workspace|لوحة العمل/);
+      assert.equal((html.match(/href="\/my-account"/g) ?? []).length, mobileOpen ? 2 : 1);
+    }
   }
+});
+
+test('unavailable roles do not acquire customer or administrative navigation', async () => {
+  const html = await renderHeader(null, 'en', true);
+  assert.doesNotMatch(html, /href="\/admin/);
+  assert.doesNotMatch(html, /Staff workspace/);
+  assert.doesNotMatch(html, /href="\/my-account"/);
 });
 
 test('admin and partner entries retain their existing labels and destinations', async () => {
