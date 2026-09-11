@@ -29,6 +29,7 @@ import { customerProductAliasId, hasLegacyCustomerIdentifier } from '@/lib/marke
 import { contextSummary, partySize, requestDetailHref, searchContextBrief, type SearchContext } from '@/lib/marketplace/search-context';
 import { parseMarketplaceRequestInputs } from '@/lib/marketplace/request-input';
 import { marketplaceRequestErrorMessage } from '@/lib/marketplace/request-feedback';
+import { supabase } from '@/lib/supabase/client';
 
 type ServiceProduct = {
   id: string;
@@ -209,9 +210,17 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
     });
 
     try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      const accessToken = session?.access_token ?? null;
+      if (sessionError || !accessToken) {
+        window.location.assign(buildMarketplaceLoginHandoff(returnPath));
+        return;
+      }
+
       const identityResponse = await fetch('/api/auth/session-identity', {
         cache: 'no-store',
         credentials: 'same-origin',
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
       const identity = (await identityResponse.json().catch(() => null)) as { authenticated?: boolean } | null;
 
@@ -227,7 +236,8 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
       setRequestState('sending');
       const response = await fetch('/api/marketplace/requests', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({
           product_id: service_.id,
           request_type: primaryAction,
@@ -240,6 +250,9 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
       if (response.ok && payload.request?.request_reference) {
         setRequestReference(payload.request.request_reference);
         setRequestState('sent');
+      } else if (response.status === 401) {
+        window.location.assign(buildMarketplaceLoginHandoff(returnPath));
+        return;
       } else {
         setRequestError(response.status);
         setRequestState('error');
