@@ -77,6 +77,47 @@ export type TravelProviderMarketplaceOptions = {
    * Language preference
    */
   language?: 'ar' | 'en';
+
+  /** True only when called by the explicitly gated Marketplace Provider Proof surface. */
+  proofMode?: boolean;
+};
+
+const PROVIDER_SEARCH_TIMEOUT_MS = 12_000;
+
+async function withProviderTimeout<T>(promise: Promise<T>, timeoutMs = PROVIDER_SEARCH_TIMEOUT_MS): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('provider_timeout')), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+export const PROVIDER_CITY_TO_IATA: Record<string, string> = {
+  Cairo: 'CAI',
+  Riyadh: 'RUH',
+  Jeddah: 'JED',
+  Dammam: 'DMM',
+  Madinah: 'MED',
+  Alexandria: 'HBE',
+  Hurghada: 'HRG',
+  'Sharm El Sheikh': 'SSH',
+};
+
+export const PROVIDER_CITY_TO_COUNTRY: Record<string, string> = {
+  Cairo: 'EG',
+  Alexandria: 'EG',
+  Hurghada: 'EG',
+  'Sharm El Sheikh': 'EG',
+  Riyadh: 'SA',
+  Jeddah: 'SA',
+  Dammam: 'SA',
+  Madinah: 'SA',
 };
 
 /**
@@ -87,31 +128,22 @@ export type TravelProviderMarketplaceOptions = {
 export async function fetchTravelProviderFlights(
   options: TravelProviderMarketplaceOptions,
 ): Promise<MarketplaceCard[]> {
-  if (!isPublicSafeMode(options.mode)) {
+  const proofSandbox = options.mode === 'PROVIDER_SANDBOX' && options.proofMode === true;
+  if (!isPublicSafeMode(options.mode) && !proofSandbox) {
     return [];
   }
 
   const duffelEnvironment = process.env.DUFFEL_ENV?.trim().toLowerCase();
-  if (duffelEnvironment !== 'production' && duffelEnvironment !== 'live') return [];
+  const liveEnvironment = duffelEnvironment === 'production' || duffelEnvironment === 'live';
+  const sandboxEnvironment = duffelEnvironment === 'sandbox' || duffelEnvironment === 'test';
+  if ((proofSandbox && !sandboxEnvironment) || (!proofSandbox && !liveEnvironment)) return [];
 
   if (!options.destination || !options.departureDate) {
     return [];
   }
 
-  // Map city names to IATA codes (simplified; should be in a lookup table)
-  const cityToIATA: Record<string, string> = {
-    'Cairo': 'CAI',
-    'Riyadh': 'RUH',
-    'Jeddah': 'JED',
-    'Dammam': 'DMM',
-    'Madinah': 'MED',
-    'Alexandria': 'HBE',
-    'Hurghada': 'HRG',
-    'Sharm El Sheikh': 'SSH',
-  };
-
-  const from = options.departureFrom ? cityToIATA[options.departureFrom] : 'RUH'; // Default to Riyadh
-  const to = cityToIATA[options.destination];
+  const from = options.departureFrom ? PROVIDER_CITY_TO_IATA[options.departureFrom] : 'RUH';
+  const to = PROVIDER_CITY_TO_IATA[options.destination];
 
   if (!to) {
     return [];
@@ -130,6 +162,7 @@ export async function fetchTravelProviderFlights(
     return mapFlightOffers({ ...result, offers: result.offers.slice(0, 20) }, {
       mode: options.mode,
       language: options.language,
+      proofMode: options.proofMode,
     });
   } catch {
     // Provider unavailable or errored—fail-closed
@@ -145,30 +178,23 @@ export async function fetchTravelProviderFlights(
 export async function fetchTravelProviderHotels(
   options: TravelProviderMarketplaceOptions,
 ): Promise<MarketplaceCard[]> {
-  if (!isPublicSafeMode(options.mode)) {
+  const proofSandbox = options.mode === 'PROVIDER_SANDBOX' && options.proofMode === true;
+  if (!isPublicSafeMode(options.mode) && !proofSandbox) {
     return [];
   }
 
   const liteApiEnvironment = process.env.LITEAPI_ENV?.trim().toLowerCase();
-  if (liteApiEnvironment !== 'production' && liteApiEnvironment !== 'live') return [];
+  const liveEnvironment = liteApiEnvironment === 'production' || liteApiEnvironment === 'live';
+  const sandboxEnvironment = liteApiEnvironment === 'sandbox';
+  if ((proofSandbox && !sandboxEnvironment) || (!proofSandbox && !liveEnvironment)) return [];
 
   if (!options.destination || !options.checkIn || !options.checkOut) {
     return [];
   }
+  // This search contract has no child ages. Do not invent ages for provider pricing.
+  if (options.children && options.children > 0) return [];
 
-  // Map city names to country codes (simplified)
-  const cityToCountry: Record<string, string> = {
-    'Cairo': 'EG',
-    'Alexandria': 'EG',
-    'Hurghada': 'EG',
-    'Sharm El Sheikh': 'EG',
-    'Riyadh': 'SA',
-    'Jeddah': 'SA',
-    'Dammam': 'SA',
-    'Madinah': 'SA',
-  };
-
-  const countryCode = cityToCountry[options.destination];
+  const countryCode = PROVIDER_CITY_TO_COUNTRY[options.destination];
 
   if (!countryCode) {
     return [];
@@ -183,10 +209,7 @@ export async function fetchTravelProviderHotels(
       occupancies: [
         {
           adults: options.adults ?? 1,
-          childAges:
-            options.children && options.children > 0
-              ? Array(options.children).fill(8)
-              : undefined,
+          childAges: undefined,
         },
       ],
       currency: 'SAR',
@@ -197,6 +220,7 @@ export async function fetchTravelProviderHotels(
     return mapHotelOffers({ ...result, hotels: result.hotels.slice(0, 20) }, {
       mode: options.mode,
       language: options.language,
+      proofMode: options.proofMode,
     });
   } catch {
     // Provider unavailable or errored—fail-closed
@@ -258,11 +282,13 @@ export async function fetchTravelProviderVIP(
 export async function fetchAllTravelProviderCards(
   options: TravelProviderMarketplaceOptions,
 ): Promise<MarketplaceCard[]> {
-  const [flights, hotels, concierge] = await Promise.all([
-    fetchTravelProviderFlights(options),
-    fetchTravelProviderHotels(options),
-    fetchTravelProviderConcierge(options),
+  const results = await Promise.allSettled([
+    withProviderTimeout(fetchTravelProviderFlights(options)),
+    withProviderTimeout(fetchTravelProviderHotels(options)),
+    withProviderTimeout(fetchTravelProviderConcierge(options)),
   ]);
 
-  return [...flights, ...hotels, ...concierge];
+  // One unavailable provider must not hide valid results from another. A
+  // timeout is intentionally normalized to an empty provider result.
+  return results.flatMap((result) => result.status === 'fulfilled' ? result.value : []);
 }

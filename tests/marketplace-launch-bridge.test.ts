@@ -16,7 +16,7 @@ test.afterEach(() => {
   else process.env.TICKETMASTER_CONSUMER_KEY = originalConsumerKey;
 });
 
-test('authorized Ticketmaster content reaches the canonical Concierge marketplace with provider-checkout truth', async () => {
+test('public Concierge launch remains Coming Soon without Ticketmaster cards', async () => {
   process.env.TICKETMASTER_API_KEY = 'test-key-not-real';
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
@@ -32,17 +32,10 @@ test('authorized Ticketmaster content reaches the canonical Concierge marketplac
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   }) as typeof fetch;
 
-  const payload = await queryMarketplace({ family: 'dir3-concierge', page: 1, pageSize: 9 }, { anonymous: false, clientKey: 'test' });
-  assert.equal(payload.services.length, 1);
-  const item = payload.services[0];
-  assert.equal(item?.provider, 'ticketmaster');
-  assert.equal(item?.providerItemId, 'evt_sa_launch_1');
-  assert.equal(item?.transactionMethod, 'provider_checkout');
-  assert.equal(item?.fulfilmentState, 'external_provider');
-  assert.equal(item?.marketplaceEnvironment, 'production');
-  assert.equal(item?.imageUrl, 'https://s1.ticketm.net/event.jpg');
-  assert.equal(item?.href, '/marketplace/preview/evt_sa_launch_1');
-  assert.equal(payload.meta.hasRealData, true);
+  const payload = await queryMarketplace({ family: 'dir3-concierge', page: 1, pageSize: 9 }, { anonymous: false, clientKey: 'test', publicMarketplace: true });
+  assert.equal(payload.services.length, 0);
+  assert.equal(payload.meta.hasRealData, false);
+  assert.equal(payload.services.some((item) => item.provider === 'ticketmaster'), false);
 });
 
 test('missing Ticketmaster authorization fails closed without substitute cards', async () => {
@@ -50,7 +43,7 @@ test('missing Ticketmaster authorization fails closed without substitute cards',
   delete process.env.TICKETMASTER_CONSUMER_KEY;
   const requestedUrls: string[] = [];
   globalThis.fetch = (async (input: RequestInfo | URL) => { requestedUrls.push(String(input)); return new Response('{}'); }) as typeof fetch;
-  const payload = await queryMarketplace({ family: 'dir3-concierge', page: 1, pageSize: 9 }, { anonymous: false, clientKey: 'test' });
+  const payload = await queryMarketplace({ family: 'dir3-concierge', page: 1, pageSize: 9 }, { anonymous: false, clientKey: 'test', publicMarketplace: true });
   assert.equal(payload.services.some((item) => item.provider === 'ticketmaster'), false);
   assert.equal(requestedUrls.some((url) => url.includes('app.ticketmaster.com')), false);
 });

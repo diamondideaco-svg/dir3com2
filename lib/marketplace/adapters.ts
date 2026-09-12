@@ -1,8 +1,12 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { readCatalogAvailability, readApprovedPartnerProductIds } from './catalog-availability-server';
 import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters, applyPublicServiceFilters } from '@/lib/marketplace/public-filters';
 import type { MarketplaceEnvironment, MarketplaceFulfilmentState, MarketplaceSupplyType, MarketplaceTransactionMethod } from '@/lib/marketplace/truth';
 
 export type RawMarketplaceServiceRecord = {
+  availability_status?: string;
+  inventory_count?: number;
+  partner_approved?: boolean;
   max_guests?: number | null;
   city?: string | null;
   country?: string | null;
@@ -131,6 +135,10 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
     const categories = (categoriesData ?? []) as RawMarketplaceProductCategoryRecord[];
     const categoriesById = new Map(categories.map((category) => [category.id, category]));
     const productIds = products.map((product) => product.id);
+    const [availability, approvedPartnerProducts] = await Promise.all([
+      readCatalogAvailability(supabaseAdmin, productIds),
+      readApprovedPartnerProductIds(supabaseAdmin, productIds),
+    ]);
     const imageResult = productIds.length
       ? await applyPublicAssetSyntheticFilter(
           supabaseAdmin
@@ -166,6 +174,8 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
 
         return {
           id: product.id,
+          ...availability.byProduct.get(product.id),
+          partner_approved: approvedPartnerProducts.has(product.id),
           max_guests: product.max_guests,
           city: product.city,
           country: product.country,

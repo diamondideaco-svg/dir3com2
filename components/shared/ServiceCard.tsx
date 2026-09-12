@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { FiTruck } from 'react-icons/fi';
+import { LuCarFront } from 'react-icons/lu';
 import { Badge, Chip } from '@/components/design-system';
 import { buttonVariants } from '@/components/ui/button';
 import { marketplacePrimaryAction, type MarketplaceTruth } from '@/lib/marketplace/truth';
+import { catalogRequestAction } from '@/lib/marketplace/catalog-availability';
 import { marketplaceBadgeLabels, marketplaceOptionCountLabel } from '@/lib/marketplace/localization';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
@@ -27,6 +29,11 @@ export type ServiceItem = {
   tags?: string[];
   basePrice?: number;
   currency?: string;
+  supplierPriceAmount?: number | null;
+  supplierPriceCurrency?: string | null;
+  displayPriceAmount?: number | null;
+  displayCurrency?: string | null;
+  pricingStatus?: 'supplied' | 'on_request' | 'original_currency' | 'converted' | 'conversion_unavailable';
   productCount?: number;
   featured?: boolean;
   popular?: boolean;
@@ -38,6 +45,14 @@ export type ServiceItem = {
   supplyType?: MarketplaceTruth['supplyType'];
   supplierName?: string;
   supplierVerified?: boolean;
+  marketplacePresentation?: boolean;
+  availability?: 'available' | 'limited' | 'sold-out' | 'unknown';
+  destination?: string;
+  updatedAt?: string | null;
+  retrievedAt?: string | null;
+  provider?: string;
+  providerItemId?: string;
+  provenance?: string;
 };
 
 type ServiceCardProps = {
@@ -51,7 +66,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
   const [providerImageFailed, setProviderImageFailed] = useState(false);
   const href = service.href?.startsWith('/') ? service.href : `/services/${service.slug}`;
   const labels = marketplaceBadgeLabels(language, service);
-  const action = marketplacePrimaryAction({
+  const truthAction = marketplacePrimaryAction({
     family: service.familyLabel?.toLowerCase().includes('stay') ? 'stay' :
       service.familyLabel?.toLowerCase().includes('fly') ? 'fly' :
       service.familyLabel?.toLowerCase().includes('drive') ? 'drive' :
@@ -62,6 +77,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
     supplyType: service.supplyType ?? 'unknown',
     supplierVerified: service.supplierVerified === true,
   });
+  const action = service.marketplacePresentation ? catalogRequestAction(truthAction, service.availability) : truthAction;
   const actionLabel = action === 'continue_to_booking' ? (en ? 'Continue to booking' : 'متابعة الحجز') :
     action === 'continue_to_provider' ? (en ? 'Provider Checkout' : 'الإكمال لدى المزود') :
     action === 'request_to_confirm' ? (en ? 'Request confirmation' : 'طلب تأكيد') :
@@ -74,6 +90,28 @@ export default function ServiceCard({ service }: ServiceCardProps) {
   const metricLabel = service.productCount
     ? marketplaceOptionCountLabel(service.productCount, language)
     : service.metric;
+  const availabilityLabel = service.availability === 'available' ? (en ? 'Available' : 'متاح') :
+    service.availability === 'limited' ? (en ? 'Limited availability' : 'توفر محدود') :
+    service.availability === 'sold-out' ? (en ? 'Sold out' : 'نفد') :
+    (en ? 'Availability unknown' : 'التوفر غير معروف');
+  const sourceLabel = service.provider ?? service.supplierName ?? (en ? 'Source not supplied' : 'المصدر غير متاح');
+  const environmentLabel = service.marketplaceEnvironment === 'sandbox'
+    ? (en ? 'Sandbox' : 'بيئة الاختبار')
+    : (en ? 'Live / production' : 'مباشر / إنتاج');
+  const retrievedLabel = service.retrievedAt ?? service.updatedAt
+    ? (service.retrievedAt ?? service.updatedAt)!.slice(0, 16).replace('T', ' ')
+    : null;
+  const supplierAmount = service.supplierPriceAmount ?? (service.basePrice && service.basePrice > 0 ? service.basePrice : null);
+  const supplierCurrency = service.supplierPriceCurrency ?? (supplierAmount !== null ? service.currency : null);
+  const hasDisplayPrice = typeof service.displayPriceAmount === 'number' && Number.isFinite(service.displayPriceAmount) && service.displayCurrency;
+  const priceLabel = hasDisplayPrice
+    ? `${service.displayPriceAmount} ${service.displayCurrency}`
+    : supplierAmount !== null && supplierCurrency
+      ? `${supplierAmount} ${supplierCurrency}${service.pricingStatus === 'conversion_unavailable' ? (en ? ' (conversion unavailable)' : ' (التحويل غير متاح)') : ''}`
+      : (en ? 'Price on request' : 'السعر عند التأكيد');
+  const supplierPriceLabel = supplierAmount !== null && supplierCurrency
+    ? `${supplierAmount} ${supplierCurrency}`
+    : (en ? 'Not supplied' : 'غير مزوّد');
 
   const navigateToService = () => {
     router.push(href || '/services');
@@ -101,7 +139,9 @@ export default function ServiceCard({ service }: ServiceCardProps) {
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-1 items-start gap-4">
             <div className="mt-1 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/88 shadow-[0_8px_18px_rgba(13,27,42,0.2)]">
-              {service.icon === '/icons/drive.svg' ? (
+              {service.icon === '/icons/drive.svg' && service.marketplacePresentation ? (
+                <LuCarFront aria-hidden="true" className="h-7 w-7 text-[var(--color-navy)]" />
+              ) : service.icon === '/icons/drive.svg' ? (
                 <FiTruck aria-hidden="true" className="h-7 w-7 text-[var(--color-navy)]" />
               ) : service.icon ? (
                 <Image src={service.icon} alt={serviceName} width={28} height={28} className="h-7 w-7 rounded-lg object-cover" unoptimized />
@@ -155,6 +195,21 @@ export default function ServiceCard({ service }: ServiceCardProps) {
         <p className="mt-4 text-xs text-[var(--color-muted)]">
           {en ? 'Supplier' : 'مقدم الخدمة'}: {service.supplierName}{service.supplierVerified ? (en ? ' — verified local partner' : ' — شريك محلي موثّق') : ''}
         </p>
+      ) : null}
+
+      {service.marketplacePresentation ? (
+        <div data-marketplace-truth className="mt-4 grid gap-2 rounded-2xl border border-white/12 bg-white/55 p-3 text-xs text-[var(--color-muted)] sm:grid-cols-2">
+          <span><strong className="font-semibold text-[var(--color-navy)]">{en ? 'Source' : 'المصدر'}:</strong> {sourceLabel}</span>
+          <span><strong className="font-semibold text-[var(--color-navy)]">{en ? 'Environment' : 'البيئة'}:</strong> {environmentLabel}</span>
+          <span><strong className="font-semibold text-[var(--color-navy)]">{en ? 'Status' : 'الحالة'}:</strong> {availabilityLabel}</span>
+          <span><strong className="font-semibold text-[var(--color-navy)]">{en ? 'Price' : 'السعر'}:</strong> {priceLabel}</span>
+          <span><strong className="font-semibold text-[var(--color-navy)]">{en ? 'Supplier price' : 'سعر المورد'}:</strong> {supplierPriceLabel}</span>
+          {service.pricingStatus === 'conversion_unavailable' ? <span><strong className="font-semibold text-[var(--color-navy)]">{en ? 'Pricing status' : 'حالة التسعير'}:</strong> {en ? 'Display conversion unavailable; original currency shown.' : 'التحويل للعرض غير متاح؛ تظهر عملة المورد الأصلية.'}</span> : null}
+          {service.destination ? <span><strong className="font-semibold text-[var(--color-navy)]">{en ? 'Location' : 'الموقع'}:</strong> {service.destination}</span> : null}
+          {service.providerItemId ? <span className="break-all"><strong className="font-semibold text-[var(--color-navy)]">{en ? 'Provider ID' : 'معرّف المزود'}:</strong> {service.providerItemId}</span> : null}
+          {retrievedLabel ? <span><strong className="font-semibold text-[var(--color-navy)]">{en ? 'Updated' : 'آخر تحديث'}:</strong> {retrievedLabel}</span> : null}
+          <span className="sm:col-span-2"><strong className="font-semibold text-[var(--color-navy)]">{en ? 'Booking status' : 'حالة الحجز'}:</strong> {service.fulfilmentState === 'verified_requestable' ? (en ? 'Request to confirm' : 'طلب تأكيد') : service.fulfilmentState === 'verified_quote' ? (en ? 'Quote required' : 'يتطلب عرض سعر') : service.fulfilmentState === 'catalog_only' ? (en ? 'Details only' : 'للاطلاع فقط') : (en ? 'Not bookable here' : 'الحجز غير متاح هنا')}</span>
+        </div>
       ) : null}
 
       {service.tags?.length && !en ? (

@@ -7,6 +7,7 @@ import {
 } from '@/lib/marketplace/synthetic-compat';
 import { getCanonicalService, resolveCanonicalServiceSlug } from '@/lib/services/canonical';
 import { customerProductAliasId, customerProductSlug } from '@/lib/marketplace/customer-identifiers';
+import { readCatalogAvailability } from '@/lib/marketplace/catalog-availability-server';
 
 type ServiceApiErrorCode = 'invalid_slug' | 'not_found' | 'internal_error';
 
@@ -105,11 +106,18 @@ export async function GET(
                 .maybeSingle();
 
             if (!error && service) {
-                const safeProducts = sanitizeServiceProductsForCompatibility(Array.isArray(service.products) ? service.products : []);
+                const safeProducts = sanitizeServiceProductsForCompatibility(Array.isArray(service.products) ? service.products : [])
+                    .filter((product): product is Record<string, unknown> & { id: string } =>
+                        Boolean(product) && typeof product === 'object' && typeof (product as Record<string, unknown>).id === 'string');
+                const productIds = safeProducts.map((product) => String(product.id));
+                const availability = await readCatalogAvailability(client, productIds);
 
                 return NextResponse.json({
                     ...service,
-                    products: safeProducts,
+                    // A service shell is not a requestable product. Keep each child's own truth.
+                    availability_status: 'unknown',
+                    inventory_count: 0,
+                    products: safeProducts.map((product) => ({ ...product, ...availability.byProduct.get(String(product.id)) })),
                 });
             }
 
@@ -131,6 +139,7 @@ export async function GET(
             }
 
             if (product) {
+                const availability = await readCatalogAvailability(client, [String(product.id)]);
                 const { data: category, error: categoryError } = product.category_id
                     ? await applyPublicCategoryFilters(
                         client
@@ -165,6 +174,7 @@ export async function GET(
 
                 return NextResponse.json({
                     id: product.id,
+                    ...availability.byProduct.get(String(product.id)),
                     slug: customerProductSlug(product.id, product.slug),
                     name_ar: product.name_ar,
                     name_en: product.name_en,
@@ -232,6 +242,7 @@ export async function GET(
             currency: fallback.currency,
             featured: fallback.featured,
             status: fallback.availability,
+            availability_status: fallback.availability,
             marketplace_family: fallback.family.replace('dir3-', ''),
             fulfilment_state: fallback.fulfilmentState,
             transaction_method: fallback.transactionMethod,

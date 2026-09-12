@@ -1,3 +1,5 @@
+import { resolveSabreCertUrl, SABRE_CERT_ORIGIN } from './config';
+
 type FetchLike = typeof fetch;
 type TokenCache = { accessToken: string; expiresAt: number };
 
@@ -45,9 +47,16 @@ export function createSabreTokenProvider(
     const encodedPassword = Buffer.from(password, "utf8").toString("base64");
     const credential = Buffer.from(`${encodedUserId}:${encodedPassword}`, "utf8").toString("base64");
 
+    let authUrl: string;
+    try {
+      authUrl = resolveSabreCertUrl(env.SABRE_AUTH_URL, `${SABRE_CERT_ORIGIN}/v2/auth/token`);
+    } catch {
+      throw new SabreAuthError();
+    }
+
     const response = await fetchWithTimeout(
       fetchImpl,
-      env.SABRE_AUTH_URL || "https://api.cert.platform.sabre.com/v2/auth/token",
+      authUrl,
       {
         method: "POST",
         headers: {

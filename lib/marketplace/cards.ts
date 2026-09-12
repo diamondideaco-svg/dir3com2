@@ -18,6 +18,10 @@ export type MarketplaceCardInput = {
   imageSource?: ImageSource | string | null;
   priceFrom?: number | null;
   totalPrice?: number | null;
+  /** Preserve an absent provider price instead of the legacy zero default. */
+  preserveUnknownPrice?: boolean | null;
+  /** Preserve an absent provider currency instead of defaulting to SAR. */
+  preserveUnknownCurrency?: boolean | null;
   currency?: string | null;
   availabilityStatus?: MarketplaceAvailabilityStatus | string | null;
   rating?: number | null;
@@ -27,6 +31,8 @@ export type MarketplaceCardInput = {
   verified?: boolean | null;
   synthetic?: boolean | null;
   providerSandbox?: boolean | null;
+  /** Allow a sandbox card only from an explicitly authorized proof surface. */
+  allowSandbox?: boolean | null;
   transactionMethod?: import('./truth').MarketplaceTransactionMethod | null;
   fulfilmentState?: import('./truth').MarketplaceFulfilmentState | null;
   marketplaceEnvironment?: import('./truth').MarketplaceEnvironment | null;
@@ -170,7 +176,7 @@ export function normalizeMarketplaceCard(input: MarketplaceCardInput | null | un
   const synthetic = Boolean(input.synthetic);
   const providerSandbox = Boolean(input.providerSandbox);
 
-  if (synthetic || providerSandbox) {
+  if (synthetic || (providerSandbox && input.allowSandbox !== true)) {
     return null;
   }
 
@@ -187,8 +193,13 @@ export function normalizeMarketplaceCard(input: MarketplaceCardInput | null | un
     input.availabilityStatus ?? (capabilityStatus === 'blocked' ? 'unavailable' : 'available')
   );
 
-  const priceFrom = normalizePrice(input.priceFrom ?? input.totalPrice ?? 0);
-  const totalPrice = normalizePrice(input.totalPrice ?? input.priceFrom ?? 0);
+  const preserveUnknownPrice = input.preserveUnknownPrice === true;
+  const priceFrom = preserveUnknownPrice && input.priceFrom == null && input.totalPrice == null
+    ? null
+    : normalizePrice(input.priceFrom ?? input.totalPrice ?? 0);
+  const totalPrice = preserveUnknownPrice && input.totalPrice == null && input.priceFrom == null
+    ? null
+    : normalizePrice(input.totalPrice ?? input.priceFrom ?? 0);
   const imageSource = normalizeImageSource(input.imageSource ?? (input.image ? 'PROVIDER' : 'NONE'));
   const image = resolveMarketplaceImage({
     serviceType,
@@ -209,6 +220,10 @@ export function normalizeMarketplaceCard(input: MarketplaceCardInput | null | un
   const deepLink = coerceString(input.deepLink || input.title || '').trim() ? input.deepLink ?? null : null;
   const rating = typeof input.rating === 'number' && Number.isFinite(input.rating) ? input.rating : null;
 
+  const currency = input.preserveUnknownCurrency === true && !coerceString(input.currency)
+    ? ''
+    : normalizeCurrency(input.currency);
+
   return {
     serviceType,
     title,
@@ -222,7 +237,7 @@ export function normalizeMarketplaceCard(input: MarketplaceCardInput | null | un
     imageSource,
     priceFrom,
     totalPrice,
-    currency: normalizeCurrency(input.currency),
+    currency,
     availabilityStatus,
     rating,
     category,

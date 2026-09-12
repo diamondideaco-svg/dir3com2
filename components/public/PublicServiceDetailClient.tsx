@@ -1,4 +1,5 @@
 'use client';
+import { catalogRequestAction } from '@/lib/marketplace/catalog-availability';
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -43,6 +44,7 @@ type ServiceProduct = {
 };
 
 type ServiceDetail = {
+  availability_status?: string | null;
   id?: string | number | null;
   slug?: string | null;
   name_ar?: string | null;
@@ -175,7 +177,7 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
         en ? (service_.description_en ?? service_.description_ar) : service_.description_ar,
         en ? 'Service details will appear when verified data is available.' : 'تظهر تفاصيل الخدمة هنا عند توفر البيانات.',
       );
-  const primaryAction = service_.marketplace_family ? marketplacePrimaryAction({
+  const truthAction = service_.marketplace_family ? marketplacePrimaryAction({
     family: service_.marketplace_family,
     fulfilmentState: service_.fulfilment_state ?? 'catalog_only',
     transactionMethod: service_.transaction_method ?? 'none',
@@ -183,6 +185,8 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
     supplyType: service_.supply_type ?? 'unknown',
     supplierVerified: service_.supplier_verified === true,
   }) : 'view_details';
+  const primaryAction = service_.marketplace_family && service_.marketplace_environment === 'production'
+    ? catalogRequestAction(truthAction, service_.availability_status) : truthAction;
   const submitRequest = async () => {
     if (primaryAction !== 'request_to_confirm' && primaryAction !== 'request_quote') return;
 
@@ -268,7 +272,7 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
                   </button>
                 ) : (
                   <span className="rounded-full border border-[color:var(--color-border)] px-5 py-3 text-sm text-[var(--color-muted)]">
-                    {primaryAction === 'unavailable' ? (en ? 'Service currently unavailable' : 'الخدمة غير متاحة حاليًا') : service_.fulfilment_state === 'availability_unknown' ? (en ? 'Availability is not currently confirmed' : 'التوفر غير مؤكد حاليًا') : (en ? 'View only' : 'للاطلاع فقط')}
+                    {primaryAction === 'unavailable' ? (en ? 'Service currently unavailable' : 'الخدمة غير متاحة حاليًا') : (service_.fulfilment_state === 'availability_unknown' || service_.availability_status === 'unknown') ? (en ? 'Availability is not currently confirmed' : 'التوفر غير مؤكد حاليًا') : (en ? 'View only' : 'للاطلاع فقط')}
                   </span>
                 )}
                 {requestState === 'error' ? <span className="text-sm text-red-700">{en ? 'Unable to submit the request. Sign in and try again.' : 'تعذر إرسال الطلب. سجّل الدخول ثم حاول مجددًا.'}</span> : null}
@@ -313,7 +317,7 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
                     service_.fulfilment_state === 'verified_requestable' ? (en ? 'Confirmation request required' : 'يتطلب طلب تأكيد') :
                     service_.fulfilment_state === 'verified_quote' ? (en ? 'Quote request required' : 'يتطلب طلب عرض سعر') :
                     service_.fulfilment_state === 'unavailable' ? (en ? 'Currently unavailable' : 'غير متاح حاليًا') :
-                    service_.fulfilment_state === 'availability_unknown' ? (en ? 'Availability not currently confirmed' : 'التوفر غير مؤكد حاليًا') : (en ? 'View only' : 'للاطلاع فقط')}
+                    (service_.fulfilment_state === 'availability_unknown' || service_.availability_status === 'unknown') ? (en ? 'Availability not currently confirmed' : 'التوفر غير مؤكد حاليًا') : (en ? 'View only' : 'للاطلاع فقط')}
                 </p>
               </div>
             </HeroBlock>

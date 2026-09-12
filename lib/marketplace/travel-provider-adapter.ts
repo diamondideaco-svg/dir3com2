@@ -14,6 +14,7 @@
 
 import type { FlightSearchResult, StaySearchResult } from '@/lib/travel/contracts';
 import type { TicketmasterDiscoveryResult } from '@/lib/travel/ticketmaster/discovery';
+import type { NormalizedSabreItinerary, SabreFlightSearchResult } from '@/lib/sabre/search';
 import { isAllowedTicketmasterCheckoutUrl } from '@/lib/marketplace/provider-url-safety';
 import type { MarketplaceCard, MarketplaceCardInput } from '@/lib/marketplace/cards';
 import { normalizeMarketplaceCard } from '@/lib/marketplace/cards';
@@ -28,7 +29,76 @@ export type DataSourceMode =
 export type TravelProviderCardInput = {
   mode: DataSourceMode;
   language?: 'ar' | 'en';
+  retrievedAt?: string;
+  /** Sandbox is renderable only for the explicitly gated provider-proof surface. */
+  proofMode?: boolean;
 };
+
+function formatSabreDateTime(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  return value.replace('T', ' ').replace(/Z$/, '').slice(0, 16);
+}
+
+function formatSabreDuration(minutes: number | undefined): string | undefined {
+  if (minutes == null || !Number.isFinite(minutes) || minutes < 0) return undefined;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return hours ? `${hours}h ${remainder}m` : `${remainder}m`;
+}
+
+function mapSabreItinerary(itinerary: NormalizedSabreItinerary, input: TravelProviderCardInput): MarketplaceCard | null {
+  const hasProviderCurrency = typeof itinerary.currency === 'string' && /^[A-Z]{3}$/i.test(itinerary.currency.trim());
+  const providerPrice = hasProviderCurrency && typeof itinerary.totalFare === 'number' && Number.isFinite(itinerary.totalFare) && itinerary.totalFare >= 0
+    ? itinerary.totalFare
+    : null;
+  const departure = formatSabreDateTime(itinerary.departureDateTime);
+  const arrival = formatSabreDateTime(itinerary.arrivalDateTime);
+  const duration = formatSabreDuration(itinerary.totalDurationMinutes);
+  const stops = itinerary.stopCount === 0 ? 'nonstop' : `${itinerary.stopCount} stop${itinerary.stopCount === 1 ? '' : 's'}`;
+  const route = `${itinerary.origin} → ${itinerary.destination}`;
+  const title = [itinerary.marketingCarrier, itinerary.flightNumber].filter(Boolean).join(' ') || route;
+  const detailParts = [route, departure, arrival, duration, stops, itinerary.cabin, itinerary.baggage].filter(Boolean);
+
+  return normalizeMarketplaceCard({
+    serviceType: 'fly',
+    title,
+    subtitle: detailParts.join(' · ') || 'Available',
+    location: route,
+    provider: 'Sabre',
+    providerItemId: itinerary.id,
+    retrievedAt: input.retrievedAt ?? new Date().toISOString(),
+    image: null,
+    imageSource: 'NONE',
+    priceFrom: providerPrice,
+    totalPrice: providerPrice,
+    preserveUnknownPrice: input.proofMode === true,
+    currency: itinerary.currency || null,
+    preserveUnknownCurrency: true,
+    availabilityStatus: 'available',
+    rating: null,
+    category: 'flights',
+    deepLink: itinerary.id ? `/marketplace/provider-proof/sabre/${encodeURIComponent(itinerary.id)}` : null,
+    capabilityStatus: input.mode === 'PROVIDER_SANDBOX' ? 'blocked' : 'available',
+    verified: false,
+    synthetic: false,
+    providerSandbox: input.mode === 'PROVIDER_SANDBOX',
+    transactionMethod: 'none',
+    fulfilmentState: input.mode === 'PROVIDER_SANDBOX' ? 'test_sandbox' : 'availability_unknown',
+    marketplaceEnvironment: input.mode === 'PROVIDER_SANDBOX' ? 'sandbox' : 'production',
+    allowSandbox: input.proofMode === true,
+  });
+}
+
+/** SABRE BFM mapping for the gated Provider Proof surface only. */
+export function mapSabreItineraries(
+  result: SabreFlightSearchResult,
+  input: TravelProviderCardInput,
+): MarketplaceCard[] {
+  if (input.mode === 'SYNTHETIC_TEST' || input.mode === 'FALLBACK') return [];
+  if (input.mode === 'PROVIDER_SANDBOX' && input.proofMode !== true) return [];
+  if (result.provider !== 'sabre' || result.environment !== 'cert' || result.itineraries.length === 0) return [];
+  return result.itineraries.map((itinerary) => mapSabreItinerary(itinerary, input)).filter((card): card is MarketplaceCard => card !== null);
+}
 
 /**
  * FLY mapping: Duffel flight offers → MarketplaceCard[]
@@ -39,7 +109,7 @@ export function mapFlightOffers(
 ): MarketplaceCard[] {
   // Enforce truth safety: reject non-live/non-verified for public
   if (
-    input.mode === 'PROVIDER_SANDBOX' ||
+    (input.mode === 'PROVIDER_SANDBOX' && input.proofMode !== true) ||
     input.mode === 'SYNTHETIC_TEST' ||
     input.mode === 'FALLBACK'
   ) {
@@ -55,6 +125,9 @@ export function mapFlightOffers(
     const departureDate = departureParts[0] ?? '';
     const departureTime = departureParts[1]?.substring(0, 5) ?? '';
 
+    const hasProviderCurrency = typeof offer.currency === 'string' && /^[A-Z]{3}$/i.test(offer.currency.trim());
+    const normalizedAmount = Number(offer.totalAmount);
+    const providerPrice = hasProviderCurrency && Number.isFinite(normalizedAmount) && normalizedAmount >= 0 ? normalizedAmount : null;
     const cardInput: MarketplaceCardInput = {
       serviceType: 'fly',
       title: `${offer.origin} → ${offer.destination}`,
@@ -69,22 +142,26 @@ export function mapFlightOffers(
       providerItemId: offer.id,
       retrievedAt: new Date().toISOString(),
       image: null, // Duffel doesn't provide images directly
-      priceFrom: Number(offer.totalAmount) || null,
-      totalPrice: Number(offer.totalAmount) || null,
+      priceFrom: providerPrice,
+      totalPrice: providerPrice,
+      preserveUnknownPrice: input.proofMode === true,
       currency: offer.currency || 'SAR',
       availabilityStatus: 'available',
       rating: null,
       category: 'flights',
       deepLink: offer.id
-        ? `/flights?offer=${encodeURIComponent(offer.id)}`
+        ? input.proofMode
+          ? `/marketplace/provider-proof/duffel/${encodeURIComponent(offer.id)}`
+          : `/flights?offer=${encodeURIComponent(offer.id)}`
         : null,
-      capabilityStatus: 'available',
+      capabilityStatus: input.mode === 'PROVIDER_SANDBOX' ? 'blocked' : 'available',
       verified: input.mode === 'PARTNER_VERIFIED',
       synthetic: false,
-      providerSandbox: false,
+      providerSandbox: input.mode === 'PROVIDER_SANDBOX',
       transactionMethod: 'none',
-      fulfilmentState: 'availability_unknown',
-      marketplaceEnvironment: 'production',
+      fulfilmentState: input.mode === 'PROVIDER_SANDBOX' ? 'test_sandbox' : 'availability_unknown',
+      marketplaceEnvironment: input.mode === 'PROVIDER_SANDBOX' ? 'sandbox' : 'production',
+      allowSandbox: input.proofMode === true,
     };
 
     const card = normalizeMarketplaceCard(cardInput);
@@ -101,7 +178,7 @@ export function mapHotelOffers(
 ): MarketplaceCard[] {
   // Enforce truth safety
   if (
-    input.mode === 'PROVIDER_SANDBOX' ||
+    (input.mode === 'PROVIDER_SANDBOX' && input.proofMode !== true) ||
     input.mode === 'SYNTHETIC_TEST' ||
     input.mode === 'FALLBACK'
   ) {
@@ -129,22 +206,26 @@ export function mapHotelOffers(
         retrievedAt: new Date().toISOString(),
         image: hotel.imageUrl || null,
         imageSource: hotel.imageUrl ? 'PROVIDER' : 'DIR3COM_FALLBACK',
-        priceFrom: Number(rate.totalAmount) || null,
-        totalPrice: Number(rate.totalAmount) || null,
+        priceFrom: typeof rate.currency === 'string' && /^[A-Z]{3}$/i.test(rate.currency.trim()) && Number.isFinite(Number(rate.totalAmount)) && Number(rate.totalAmount) >= 0 ? Number(rate.totalAmount) : null,
+        totalPrice: typeof rate.currency === 'string' && /^[A-Z]{3}$/i.test(rate.currency.trim()) && Number.isFinite(Number(rate.totalAmount)) && Number(rate.totalAmount) >= 0 ? Number(rate.totalAmount) : null,
+        preserveUnknownPrice: input.proofMode === true,
         currency: rate.currency || 'SAR',
         availabilityStatus: 'available',
         rating: hotel.rating || null,
         category: 'hotels',
         deepLink: rate.id
-          ? `/hotels?rate=${encodeURIComponent(rate.id)}`
+          ? input.proofMode
+            ? `/marketplace/provider-proof/liteapi/${encodeURIComponent(rate.id)}?hotelId=${encodeURIComponent(hotel.id)}`
+            : `/hotels?rate=${encodeURIComponent(rate.id)}`
           : null,
-        capabilityStatus: 'available',
+        capabilityStatus: input.mode === 'PROVIDER_SANDBOX' ? 'blocked' : 'available',
         verified: input.mode === 'PARTNER_VERIFIED',
         synthetic: false,
-        providerSandbox: false,
+        providerSandbox: input.mode === 'PROVIDER_SANDBOX',
         transactionMethod: 'none',
-        fulfilmentState: 'availability_unknown',
-        marketplaceEnvironment: 'production',
+        fulfilmentState: input.mode === 'PROVIDER_SANDBOX' ? 'test_sandbox' : 'availability_unknown',
+        marketplaceEnvironment: input.mode === 'PROVIDER_SANDBOX' ? 'sandbox' : 'production',
+        allowSandbox: input.proofMode === true,
       };
 
       const card = normalizeMarketplaceCard(cardInput);

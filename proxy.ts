@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/', '/about', '/contact', '/services', '/services/', '/marketplace', '/marketplace/preview', '/dabra', '/terms', '/privacy', '/support', '/login', '/register', '/auth/signin', '/auth/callback', '/auth/verify-email'];
+const PUBLIC_PATHS = ['/', '/about', '/contact', '/services', '/services/', '/marketplace', '/marketplace/preview', '/marketplace/provider-proof', '/dabra', '/terms', '/privacy', '/support', '/login', '/register', '/auth/signin', '/auth/callback', '/auth/verify-email'];
 const PUBLIC_CATEGORY_PATHS = ['/cars', '/hotels', '/experiences', '/concierge', '/offers', '/apartments', '/airport-transfers'];
 const PROTECTED_PREFIXES = ['/profile', '/my-account', '/my-bookings', '/my-documents', '/my-profile', '/my-wallet', '/my-requests', '/dashboard'];
 
@@ -14,7 +14,12 @@ function isPublicPath(pathname: string) {
   if (pathname.startsWith('/_next') || pathname.startsWith('/api/')) return true;
   if (pathname.startsWith('/brand/')) return true;
 
-  if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/services/') || pathname.startsWith('/marketplace/preview/')) {
+  if (
+    PUBLIC_PATHS.includes(pathname)
+    || pathname.startsWith('/services/')
+    || pathname.startsWith('/marketplace/preview/')
+    || pathname.startsWith('/marketplace/provider-proof/')
+  ) {
     return true;
   }
 

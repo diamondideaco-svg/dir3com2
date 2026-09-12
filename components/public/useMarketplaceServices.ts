@@ -13,6 +13,9 @@ import {
 } from '@/lib/marketplace/data';
 
 type MarketplaceServicesQuery = {
+  enabled?: boolean;
+  publicMarketplace?: boolean;
+  providerProof?: 'liteapi';
   family?: MarketplaceFamilyKey;
   category?: MarketplacePageCategory;
   query?: string;
@@ -29,6 +32,8 @@ type MarketplaceServicesQuery = {
   budget?: string;
   travelers?: string;
   availability?: 'all' | 'available' | 'limited' | 'sold-out';
+  /** Customer-selected display currency; supplier pricing remains in the response. */
+  currency?: string;
   page?: number;
   pageSize?: number;
 };
@@ -119,9 +124,13 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
   const [meta, setMeta] = useState<MarketplaceServicesMeta>(fallbackMeta);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const aiSearchEnabled = isPublicAISearchEnabled();
 
   const {
+    enabled = true,
+    publicMarketplace = false,
+    providerProof,
     family,
     category,
     query,
@@ -136,6 +145,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
     budget,
     travelers,
     availability,
+    currency,
     page,
     pageSize,
   } = options;
@@ -158,8 +168,10 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
       budget,
       travelers,
       availability,
+      currency,
       page,
       pageSize,
+      providerProof,
     };
 
     Object.entries(normalizedQuery).forEach(([key, value]) => {
@@ -171,7 +183,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
     });
 
     return params.toString();
-  }, [family, category, query, userIntent, language, collection, sort, destination, checkIn, checkOut, departureFrom, departureDate, returnDate, budget, travelers, availability, page, pageSize]);
+  }, [family, category, query, userIntent, language, collection, sort, destination, checkIn, checkOut, departureFrom, departureDate, returnDate, budget, travelers, availability, currency, page, pageSize, providerProof]);
 
   const aiRequestBody = useMemo(
     () => ({
@@ -213,7 +225,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
   const shouldUseAISearch = useMemo(() => {
     // The AI POST contract cannot carry flight-route/date fields. Keep them in
     // the existing canonical GET contract rather than silently dropping them.
-    if (!aiSearchEnabled || departureFrom || departureDate || returnDate) {
+    if (!aiSearchEnabled || publicMarketplace || departureFrom || departureDate || returnDate) {
       return false;
     }
 
@@ -221,11 +233,20 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
     const normalizedIntent = (userIntent ?? '').trim();
 
     return normalizedQuery.length > 0 || normalizedIntent.length > 0;
-  }, [aiSearchEnabled, query, userIntent, departureFrom, departureDate, returnDate]);
+  }, [aiSearchEnabled, publicMarketplace, query, userIntent, departureFrom, departureDate, returnDate]);
 
   useEffect(() => {
+    if (!enabled) {
+      return () => undefined;
+    }
+
     const controller = new AbortController();
     let active = true;
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, providerProof === 'liteapi' ? 30_000 : 12_000);
 
     async function loadServices() {
       setLoading(true);
@@ -281,6 +302,11 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
         setError(null);
       } catch (fetchError) {
         if ((fetchError as Error).name === 'AbortError') {
+          if (timedOut && active) {
+            setError(interfaceLanguage === 'en' ? 'The provider search timed out.' : 'انتهت مهلة البحث لدى المزود.');
+            setServices([]);
+            setMeta(fallbackMeta);
+          }
           return;
         }
 
@@ -292,6 +318,7 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
         setServices([]);
         setMeta(fallbackMeta);
       } finally {
+        clearTimeout(timeoutId);
         if (active) {
           setLoading(false);
         }
@@ -304,7 +331,13 @@ export function useMarketplaceServices(options: MarketplaceServicesQuery = {}) {
       active = false;
       controller.abort();
     };
-  }, [aiRequestBody, interfaceLanguage, requestQuery, shouldUseAISearch]);
+  }, [aiRequestBody, enabled, interfaceLanguage, providerProof, requestQuery, retryNonce, shouldUseAISearch]);
 
-  return { services, loading, error, meta };
+  return {
+    services: enabled ? services : [],
+    loading: enabled ? loading : false,
+    error: enabled ? error : null,
+    meta: enabled ? meta : fallbackMeta,
+    retry: () => setRetryNonce((value) => value + 1),
+  };
 }
