@@ -1,4 +1,5 @@
-const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024;
+// Keep multipart uploads below the hosted function request-body ceiling.
+const MAX_VIDEO_SIZE_BYTES = 4 * 1024 * 1024;
 export const MAX_VIDEO_DURATION_SECONDS = 120;
 
 type VideoValidationResult =
@@ -41,7 +42,7 @@ export async function validateAndNormalizeVideoFile(file: unknown): Promise<Vide
     return { ok: false, code: 'VIDEO_INVALID_FILE', message: 'اختر ملف فيديو صالحاً.' };
   }
   if (file.size > MAX_VIDEO_SIZE_BYTES) {
-    return { ok: false, code: 'VIDEO_TOO_LARGE', message: 'الفيديو يتجاوز الحد الأقصى المسموح (50MB).' };
+    return { ok: false, code: 'VIDEO_TOO_LARGE', message: 'الفيديو يتجاوز الحد الأقصى المسموح (4MB).' };
   }
   const name = file.name.trim().toLowerCase();
   if (!name.endsWith('.mp4') || (file.type && file.type !== 'video/mp4')) {
