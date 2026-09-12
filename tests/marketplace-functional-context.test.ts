@@ -102,7 +102,7 @@ test('database read selects authoritative capacity and preserves public isolatio
 });
 
 test('adapter query carries max_guests/city/country through the actual mapping (isolated database double)', async () => {
-  const availabilityContract = await import('../lib/marketplace/catalog-availability');
+  const availabilityContract = await import('../lib/marketplace/catalog-availability-server');
   const calls: Array<{ table: string; method: string; args: unknown[] }> = [];
   const database = { from(table: string) {
     const chain: Record<string, unknown> = {};
@@ -118,7 +118,7 @@ test('adapter query carries max_guests/city/country through the actual mapping (
   runInNewContext(source, { exports, require(id: string) {
     if (id === '@/lib/supabase/server') return { supabaseAdmin: database };
     if (id === '@/lib/marketplace/public-filters') return publicFilters;
-    if (id === './catalog-availability') return availabilityContract;
+    if (id === './catalog-availability-server') return availabilityContract;
     throw new Error(`Unexpected dependency ${id}`);
   } });
   const result = await (exports.supabaseMarketplaceAdapter as typeof import('../lib/marketplace/adapters').supabaseMarketplaceAdapter).fetchServices();
@@ -138,7 +138,7 @@ test('adapter query carries max_guests/city/country through the actual mapping (
 for (const language of ['ar', 'en'] as const) {
   test(`${language}: actual PDP click preserves context and shows only the successful response REQ link (isolated component)`, async () => {
     type Node = { type: unknown; props: { children?: unknown; href?: string; onClick?: () => Promise<void> } };
-    const state: unknown[] = [{ id: 'unit-product', slug: 'unit-product', name_ar: 'unit only', name_en: 'unit only', marketplace_family: 'drive', fulfilment_state: 'verified_requestable', transaction_method: 'request_to_confirm', marketplace_environment: 'production', supply_type: 'verified_local_partner', supplier_verified: true }, null, false, null, 'idle', null, '2026-10-10T10:00', 5, 'unit notes'];
+    const state: unknown[] = [{ id: 'unit-product', slug: 'unit-product', name_ar: 'unit only', name_en: 'unit only', marketplace_family: 'drive', fulfilment_state: 'verified_requestable', transaction_method: 'request_to_confirm', marketplace_environment: 'production', supply_type: 'verified_local_partner', supplier_verified: true, availability_status: 'available' }, null, false, null, 'idle', null, '2026-10-10T10:00', 5, 'unit notes'];
     let index = 0;
     const calls: Array<{ url: string; body?: string }> = [];
     const context = { service: 'drive', ...inputs.drive };
@@ -149,6 +149,7 @@ for (const language of ['ar', 'en'] as const) {
       'react-icons/fi': {}, '@/components/design-system': {}, '@/components/ui/button': { buttonVariants: () => '' },
       '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language, direction: language === 'ar' ? 'rtl' : 'ltr' }) },
       '@/lib/marketplace/data': marketplaceData, '@/lib/marketplace/truth': marketplaceTruth,
+      '@/lib/marketplace/catalog-availability': await import('../lib/marketplace/catalog-availability'),
       '@/lib/services/canonical': { getCanonicalService: () => null },
       '@/lib/auth/marketplace-request-handoff': handoffContract,
       '@/lib/marketplace/customer-identifiers': {}, '@/lib/marketplace/search-context': searchContextContract,
@@ -183,5 +184,16 @@ for (const language of ['ar', 'en'] as const) {
     assert.equal(links.length, 1);
     assert.equal(links[0].props.href, '/my-requests/REQ-UNIT1234');
     assert.equal(links[0].props.children, language === 'ar' ? 'عرض تفاصيل الطلب' : 'View request details');
+    for (const availabilityStatus of ['unknown', 'sold-out']) {
+      state[0] = { ...(state[0] as Record<string, unknown>), availability_status: availabilityStatus };
+      index = 0;
+      tree = component({ slug: 'unit-product', searchContext: context });
+      assert.equal(flatten(tree).filter(node => node.type === 'button' && node.props.onClick).length, 0);
+      const rendered = JSON.stringify(tree);
+      assert.ok(rendered.includes(availabilityStatus === 'unknown'
+        ? language === 'ar' ? 'التوفر غير مؤكد حاليًا' : 'Availability is not currently confirmed'
+        : language === 'ar' ? 'الخدمة غير متاحة حاليًا' : 'Service currently unavailable'));
+      assert.equal(calls.length, 2, 'no request is triggered by the unavailable render');
+    }
   });
 }

@@ -1,3 +1,5 @@
+import type { MarketplacePrimaryAction } from './truth';
+
 /** Public catalogue summary, not a reservation or confirmation for selected dates. */
 export type CatalogAvailabilityRow = {
   product_id: string;
@@ -9,6 +11,13 @@ export type CatalogAvailabilityRow = {
   synthetic: boolean | null;
   environment?: string | null;
 };
+
+export function catalogRequestAction(action: MarketplacePrimaryAction, availability?: string | null): MarketplacePrimaryAction {
+  if (action === 'unavailable' || action === 'none') return action;
+  if (availability === 'sold-out') return 'unavailable';
+  if (availability !== 'available' && availability !== 'limited') return 'view_details';
+  return action;
+}
 
 export function summarizeCatalogAvailability(rows: CatalogAvailabilityRow[], productId: string, today: string) {
   const eligible = rows.filter((row) => row.product_id === productId && row.synthetic === false &&

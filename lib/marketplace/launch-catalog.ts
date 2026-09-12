@@ -17,26 +17,18 @@ export function isApprovedLaunchMarketplaceFamily(family: MarketplaceFamilyKey):
   return APPROVED_LAUNCH_FAMILIES.includes(family as (typeof APPROVED_LAUNCH_FAMILIES)[number]);
 }
 
-function normalizeSupplierName(value?: string) {
-  return value?.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() ?? '';
-}
-
-/**
- * Abu Al-Hana's 13 published Drive records are authoritative partner inventory.
- * Two approved quote records predate the product-level `verified` bit, so the
- * partner approval/publication contract is the source of truth for this known
- * supplier while their quote/request state remains visible to customers.
- */
-function isApprovedAbuAlHanaDrive(service: MarketplaceService) {
-  return service.family === 'dir3-drive' &&
-    normalizeSupplierName(service.supplierName) === 'abu al hana drive' &&
+/** Approved ownership is server-derived from the product/partner relation. */
+function isApprovedPartnerSupply(service: MarketplaceService) {
+  return isApprovedLaunchMarketplaceFamily(service.family) &&
+    service.partnerApproved === true &&
     service.status === 'published' &&
     service.supplierVerified === true &&
     service.marketplaceEnvironment === 'production' &&
     service.synthetic !== true &&
     service.source !== 'fallback' &&
     service.fulfilmentState !== 'test_sandbox' &&
-    (service.transactionMethod === 'request_to_confirm' || service.transactionMethod === 'request_quote');
+    ((service.transactionMethod === 'request_to_confirm' && service.fulfilmentState === 'verified_requestable') ||
+      (service.transactionMethod === 'request_quote' && service.fulfilmentState === 'verified_quote'));
 }
 
 export function isApprovedLaunchInventory(service: MarketplaceService) {
@@ -46,10 +38,11 @@ export function isApprovedLaunchInventory(service: MarketplaceService) {
     service.marketplaceEnvironment === 'production' &&
     service.synthetic !== true &&
     service.verified === true &&
+    ['published', 'active', 'featured'].includes(service.status ?? '') &&
     service.supplierVerified === true &&
     service.fulfilmentState !== 'test_sandbox';
 
-  return verifiedProductionInventory || isApprovedAbuAlHanaDrive(service);
+  return verifiedProductionInventory || isApprovedPartnerSupply(service);
 }
 
 export function filterApprovedLaunchInventory(services: MarketplaceService[]) {

@@ -75,14 +75,13 @@ test('all thirteen approved products remain visible with unknown/sold-out availa
 });
 
 test('adapter reads production availability scoped to selected products and fails unknown on read error', () => {
-  const adapter = readFileSync('lib/marketplace/adapters.ts', 'utf8');
+  const adapter = readFileSync('lib/marketplace/catalog-availability-server.ts', 'utf8');
   assert.match(adapter, /from\('product_availability'\)/);
   assert.match(adapter, /\.in\('product_id', productIds\)[\s\S]*\.eq\('synthetic', false\)[\s\S]*\.gte\('date', today\)/);
-  assert.match(adapter, /availabilityResult\.error \? \[\]/);
-  assert.match(adapter, /summarizeCatalogAvailability\(availabilityRows, product\.id, today\)/);
+  assert.match(adapter, /error \? \[\]/);
+  assert.match(adapter, /summarizeCatalogAvailability\(rows, id, today\)/);
   const card = readFileSync('components/shared/ServiceCard.tsx', 'utf8');
-  assert.match(card, /marketplacePresentation && service\.availability === 'sold-out' \? 'unavailable'/);
-  assert.match(card, /marketplacePresentation && service\.availability === 'unknown' \? 'view_details'/);
+  assert.match(card, /catalogRequestAction\(truthAction, service\.availability\)/);
 });
 
 test('LiteAPI rejects missing child ages without calling the provider', async () => {

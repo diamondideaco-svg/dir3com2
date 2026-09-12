@@ -17,7 +17,7 @@ test('public launch catalog exposes only verified production Drive, Stay and VIP
     { id: 'concierge-blocked', marketplace_family: 'concierge', supplier_verified: true, verified: true, marketplace_environment: 'production' },
     { id: 'sandbox-blocked', marketplace_family: 'stay', supplier_verified: true, verified: true, marketplace_environment: 'sandbox' },
     { id: 'unverified-blocked', marketplace_family: 'drive', supplier_verified: false, verified: false, marketplace_environment: 'production' },
-  ], false);
+  ].map((item) => ({ ...item, status: 'published' })), false);
 
   assert.deepEqual(filterApprovedLaunchInventory(services).map((service) => service.id), ['drive-ok', 'stay-ok', 'vip-ok']);
   assert.equal(isComingSoonMarketplaceFamily('dir3-fly'), true);
@@ -34,6 +34,7 @@ test('all thirteen published Abu Al-Hana Drive products remain visible with trut
       marketplace_family: 'drive' as const,
       supplier_name: 'Abu Al hana Drive',
       supplier_verified: true,
+      partner_approved: true,
       verified: !quote,
       status: 'published',
       synthetic: false,
@@ -91,6 +92,7 @@ test('missing FX or supplier price never hides an approved Drive card', async ()
     },
     {
       id: 'on-request-drive', marketplace_family: 'drive', supplier_name: 'Abu Al hana Drive', supplier_verified: true,
+      partner_approved: true,
       verified: false, status: 'published', synthetic: false, marketplace_environment: 'production',
       fulfilment_state: 'verified_quote', transaction_method: 'request_quote', base_price: null, currency: null,
       products: [{ id: 'inventory-request', price_per_unit: 0 }],

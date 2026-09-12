@@ -107,6 +107,7 @@ type RawServiceApiItem = {
   region_name?: string | null;
   availability_status?: string | null;
   inventory_count?: number;
+  partner_approved?: boolean;
   marketplace_category?: string | null;
   marketplace_family?: 'drive' | 'stay' | 'fly' | 'concierge' | 'vip' | null;
   category_slug?: string | null;
@@ -156,6 +157,7 @@ export type MarketplaceService = {
   pricingStatus?: MarketplacePricingStatus;
   productCount: number;
   inventoryCount: number;
+  partnerApproved?: boolean;
   availability: MarketplaceAvailability;
   destination: string;
   featured: boolean;
@@ -604,6 +606,7 @@ export function normalizeMarketplaceServices(
       maxGuests: Number.isInteger(item.max_guests) && Number(item.max_guests) > 0 ? item.max_guests : null,
       country: item.country,
       inventoryCount: item.inventory_count ?? productCount,
+      partnerApproved: item.partner_approved === true,
       availability,
       destination,
       featured,

@@ -5,6 +5,8 @@ import { logServerError } from '@/lib/security/safe-logger';
 import { requestTypeMatchesProduct } from '@/lib/marketplace/request-gate';
 import { listCustomerMarketplaceRequests } from '@/lib/marketplace/customer-requests';
 import { parseMarketplaceRequestInputs } from '@/lib/marketplace/request-input';
+import { readCatalogAvailability } from '@/lib/marketplace/catalog-availability-server';
+import { catalogRequestAction } from '@/lib/marketplace/catalog-availability';
 
 function validUuid(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -105,6 +107,20 @@ export async function POST(request: NextRequest) {
   const requestReference = idempotencyKey
     ? await requestReferenceFor(auth.user.id, body.product_id, idempotencyKey)
     : `REQ-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+  // An existing owner-scoped REQ is a replay, not a fresh availability claim.
+  if (idempotencyKey) {
+    const { data: existing, error: replayError } = await supabaseAdmin.from('marketplace_requests')
+      .select('id, request_reference, request_type, status, payment_status, marketplace_family, service_name, fulfilment_method, transaction_method, handoff_type, created_at')
+      .eq('request_reference', requestReference).eq('user_id', auth.user.id).eq('product_id', body.product_id).maybeSingle();
+    if (replayError) return NextResponse.json({ error: 'Unable to verify request replay' }, { status: 503 });
+    if (existing) return NextResponse.json({ request: existing }, { status: 200 });
+  }
+  const availability = await readCatalogAvailability(supabaseAdmin, [body.product_id]);
+  if (availability.failed) return NextResponse.json({ error: 'Unable to verify availability' }, { status: 503 });
+  const availabilityStatus = availability.byProduct.get(body.product_id)?.availability_status;
+  if (catalogRequestAction(authoritativeRequestType, availabilityStatus) !== authoritativeRequestType) {
+    return NextResponse.json({ error: 'Availability is not confirmed for this request', code: 'AVAILABILITY_UNCONFIRMED' }, { status: 409 });
+  }
   const { data, error } = await supabaseAdmin.from('marketplace_requests').insert({
     request_reference: requestReference,
     user_id: auth.user.id,

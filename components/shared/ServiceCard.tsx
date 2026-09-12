@@ -9,6 +9,7 @@ import { LuCarFront } from 'react-icons/lu';
 import { Badge, Chip } from '@/components/design-system';
 import { buttonVariants } from '@/components/ui/button';
 import { marketplacePrimaryAction, type MarketplaceTruth } from '@/lib/marketplace/truth';
+import { catalogRequestAction } from '@/lib/marketplace/catalog-availability';
 import { marketplaceBadgeLabels, marketplaceOptionCountLabel } from '@/lib/marketplace/localization';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
@@ -65,8 +66,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
   const [providerImageFailed, setProviderImageFailed] = useState(false);
   const href = service.href?.startsWith('/') ? service.href : `/services/${service.slug}`;
   const labels = marketplaceBadgeLabels(language, service);
-  const action = service.marketplacePresentation && service.availability === 'sold-out' ? 'unavailable' :
-    service.marketplacePresentation && service.availability === 'unknown' ? 'view_details' : marketplacePrimaryAction({
+  const truthAction = marketplacePrimaryAction({
     family: service.familyLabel?.toLowerCase().includes('stay') ? 'stay' :
       service.familyLabel?.toLowerCase().includes('fly') ? 'fly' :
       service.familyLabel?.toLowerCase().includes('drive') ? 'drive' :
@@ -77,6 +77,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
     supplyType: service.supplyType ?? 'unknown',
     supplierVerified: service.supplierVerified === true,
   });
+  const action = service.marketplacePresentation ? catalogRequestAction(truthAction, service.availability) : truthAction;
   const actionLabel = action === 'continue_to_booking' ? (en ? 'Continue to booking' : 'متابعة الحجز') :
     action === 'continue_to_provider' ? (en ? 'Provider Checkout' : 'الإكمال لدى المزود') :
     action === 'request_to_confirm' ? (en ? 'Request confirmation' : 'طلب تأكيد') :

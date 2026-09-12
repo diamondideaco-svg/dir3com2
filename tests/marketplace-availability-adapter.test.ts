@@ -17,6 +17,7 @@ test('real Supabase query builder scopes availability and retains products when 
       id: 'unit-product', status: 'published', synthetic: false, base_price: 80, currency: 'USD',
     }]);
     if (table === 'product_availability') {
+      if (url.searchParams.get('select')?.includes('partner:partners')) return Response.json([]);
       availabilityReads++;
       assert.equal(url.searchParams.get('product_id'), 'in.(unit-product)');
       assert.equal(url.searchParams.get('synthetic'), 'eq.false');
