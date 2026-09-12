@@ -4,6 +4,7 @@ import PortalInput from './PortalInput';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
+import { validateAndNormalizeVideoFile } from '@/lib/security/video-validation';
 
 type Mode = 'partner' | 'provider';
 type Lang = 'ar' | 'en';
@@ -65,6 +66,8 @@ type Media = {
   origin: string;
   mimeType: string;
   sizeBytes: number;
+  mediaKind?: 'image' | 'document' | 'video';
+  durationSeconds?: number;
   sortOrder: number;
   status: MediaWorkflowStatus;
   technicalValidation: {
@@ -102,7 +105,7 @@ const labels = {
     subheading: 'صور WhatsApp وScreenshots معتمدة كبذور أولية حتى يتم الاستبدال والتحسين',
     contracts: 'ارتباطات مسودات العقود',
     media: 'معرض الوسائط',
-    upload: 'رفع/استبدال صورة',
+    upload: 'رفع/استبدال صورة أو فيديو',
     replaceHint: 'استبدال (اختياري)',
     save: 'حفظ',
     submit: 'إرسال للمراجعة',
@@ -135,7 +138,7 @@ const labels = {
     subheading: 'WhatsApp photos and screenshots are accepted as provisional seed until replacement and review',
     contracts: 'Contract Draft Associations',
     media: 'Media Gallery',
-    upload: 'Upload/Replace Image',
+    upload: 'Upload/Replace Image or Video',
     replaceHint: 'Replace (optional)',
     save: 'Save',
     submit: 'Submit For Review',
@@ -165,7 +168,7 @@ const labels = {
   },
 } as const;
 
-const uploadAccept = '.pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp';
+const uploadAccept = '.pdf,.jpg,.jpeg,.png,.webp,.mp4,application/pdf,image/jpeg,image/png,image/webp,video/mp4';
 
 const arabicPresentationValues: Record<string, string> = {
   pending: 'قيد المراجعة',
@@ -309,7 +312,9 @@ export default function OnboardingAssetsPanel({ mode, language, direction, opera
   async function uploadMedia(assetId: string) {
     const local = uploadByAsset[assetId];
     if (!local?.file) return;
-    const validation = await validateAndNormalizeDocumentFile(local.file);
+    const validation = local.file.type === 'video/mp4' || local.file.name.toLowerCase().endsWith('.mp4')
+      ? await validateAndNormalizeVideoFile(local.file)
+      : await validateAndNormalizeDocumentFile(local.file);
     if (!validation.ok) {
       setMessage(validation.message);
       return;
@@ -476,7 +481,9 @@ export default function OnboardingAssetsPanel({ mode, language, direction, opera
                   {assetMedia.map((item, index) => (
                     <div key={item.id} className="rounded-lg border border-[color:var(--color-border)] bg-[#FAF8F4] p-2">
                       <div className="aspect-[4/3] overflow-hidden rounded bg-black/20">
-                        {privateImageUrl(item) ? (
+                        {privateImageUrl(item) && item.mediaKind === 'video' ? (
+                          <video src={privateImageUrl(item)} controls preload="metadata" className="h-full w-full object-cover" aria-label={item.label} />
+                        ) : privateImageUrl(item) ? (
                           <img src={privateImageUrl(item)} alt={item.label} className="h-full w-full object-cover" />
                         ) : (
                           <div className="flex h-full items-center justify-center text-[10px] text-[#64748B]">{operational && language === 'ar' ? 'لا تتوفر معاينة' : 'No preview'}</div>

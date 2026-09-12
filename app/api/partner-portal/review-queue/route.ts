@@ -111,13 +111,16 @@ export async function POST(request: Request) {
   }
 
   const asset = associatedAsset;
-  if (asset && action === 'APPROVE') {
+  const allAssetMediaApproved = store.media
+    .filter((item) => item.assetId === asset.id && item.status !== 'archived')
+    .every((item) => item.id === media?.id ? action === 'APPROVE' : item.status === 'published');
+  if (asset && action === 'APPROVE' && allAssetMediaApproved) {
     asset.verificationStatus = 'Approved';
     asset.dataStatus = 'published';
     asset.updatedAt = now;
   }
 
-  if (asset && action !== 'APPROVE') {
+  if (asset && (action !== 'APPROVE' || !allAssetMediaApproved)) {
     asset.verificationStatus = action === 'REJECT' ? 'Needs better photo' : 'Needs your confirmation';
     asset.dataStatus = 'needs_confirmation';
     asset.updatedAt = now;

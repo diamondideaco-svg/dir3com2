@@ -58,6 +58,8 @@ export type PortalAssetMedia = {
   url: string;
   origin: 'whatsapp_screenshot' | 'whatsapp_photo' | 'library' | 'provider_upload';
   mimeType: string;
+  mediaKind?: 'image' | 'document' | 'video';
+  durationSeconds?: number;
   sizeBytes: number;
   hash: string;
   sortOrder: number;

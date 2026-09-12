@@ -14,5 +14,9 @@
   {
     "path": "supabase/migrations/20260910003822_reconcile_alhana_active_publish_guard.sql",
     "sha256": "f4219c3ced2a95fd07d812d7e0c828ee23a1df2748adab507bfc051b6093708e"
+  },
+  {
+    "path": "supabase/migrations/20260912222748_partner_media_video_storage.sql",
+    "sha256": "0559c293d98f146f24e4541b4661de189014120440a8f413d24de7f3cd27f2a3"
   }
 ]
