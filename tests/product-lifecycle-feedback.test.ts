@@ -3,10 +3,10 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import ts from 'typescript';
-import { isProductVersionConflict, productConflictMessage, productResultMessages } from '../lib/products/lifecycle-feedback';
+import { isExpectedPublishBlock, isProductVersionConflict, productConflictMessage, productResultMessages } from '../lib/products/lifecycle-feedback';
 
-test('five lifecycle success messages follow Arabic and English contracts', () => {
-  assert.deepEqual(Object.keys(productResultMessages), ['created', 'updated', 'published', 'unpublished', 'archived']);
+test('lifecycle result messages follow Arabic and English contracts', () => {
+  assert.deepEqual(Object.keys(productResultMessages), ['created', 'updated', 'published', 'unpublished', 'archived', 'publish_blocked']);
   for (const message of Object.values(productResultMessages)) {
     assert.match(message.ar, /[\u0600-\u06ff]/);
     assert.doesNotMatch(message.en, /[\u0600-\u06ff]/);
@@ -15,6 +15,8 @@ test('five lifecycle success messages follow Arabic and English contracts', () =
   const page = readFileSync(new URL('../app/admin/products/page.tsx', import.meta.url), 'utf8');
   assert.ok(page.includes('<AdminText {...resultMessage} />'));
   assert.ok(page.includes('Object.hasOwn(productResultMessages'));
+  assert.ok(page.includes("params?.result === 'publish_blocked'"));
+  assert.ok(page.includes('border-amber-400/45 bg-amber-50 text-amber-900'));
 });
 
 test('conflict classifier does not mask authorization or internal failures', () => {
@@ -43,7 +45,7 @@ function harness(error: { message: string } | null, denied = false) {
       scopeCountryQuery: <T,>(query: T, scope: string) => { assert.equal(scope, 'Egypt'); return query; },
     };
     if (name === '@/lib/supabase/server') return { createSupabaseServerClient: async () => client };
-    if (name === '@/lib/products/lifecycle-feedback') return { isProductVersionConflict };
+    if (name === '@/lib/products/lifecycle-feedback') return { isExpectedPublishBlock, isProductVersionConflict };
     if (name === '@/lib/security/validation') return {
       sanitizeText: (v: string, fallback: string) => v || fallback,
       sanitizeNumber: (v: unknown) => Number(v),
@@ -77,6 +79,20 @@ test('stale lifecycle controls return to a localized conflict instead of success
     assert.equal(h.calls.length, 1);
     assert.equal(h.calls[0].args.p_expected_version, 2);
     assert.deepEqual(h.refreshed, []);
+  }
+});
+
+test('expected publish-readiness blocks stay in workflow while authorization and unknown failures fail closed', async () => {
+  const blocked = harness({ message: 'PRODUCT_SUPPLIER_NOT_VERIFIED' });
+  await assert.rejects(blocked.actions.publishProductAction(fields()), /REDIRECT:\/admin\/products\?result=publish_blocked/);
+  assert.equal(blocked.calls.length, 1);
+  assert.deepEqual(blocked.refreshed, []);
+
+  for (const message of ['COUNTRY_SCOPE_FORBIDDEN', 'OPERATIONAL_ACCESS_DENIED', 'private SQL details']) {
+    const failure = harness({ message });
+    await assert.rejects(failure.actions.publishProductAction(fields()), /^Error: PRODUCT_PUBLISH_FAILED$/);
+    assert.equal(failure.calls.length, 1);
+    assert.deepEqual(failure.refreshed, []);
   }
 });
 
