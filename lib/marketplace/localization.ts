@@ -1,5 +1,12 @@
 import type { AppLanguage } from '@/lib/i18n/config';
 
+export function liteApiProofHrefLanguage(href: string, language: AppLanguage) {
+  if (!href.startsWith('/marketplace/provider-proof/liteapi/')) return href;
+  const url = new URL(href, 'https://dir3com.invalid');
+  url.searchParams.set('language', language);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 const marketplaceBadgeCopy = {
   ar: {
     featured: 'مميز',

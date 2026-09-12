@@ -10,7 +10,7 @@ import { Badge, Chip } from '@/components/design-system';
 import { buttonVariants } from '@/components/ui/button';
 import { marketplacePrimaryAction, type MarketplaceTruth } from '@/lib/marketplace/truth';
 import { catalogRequestAction } from '@/lib/marketplace/catalog-availability';
-import { marketplaceBadgeLabels, marketplaceOptionCountLabel } from '@/lib/marketplace/localization';
+import { liteApiProofHrefLanguage, marketplaceBadgeLabels, marketplaceOptionCountLabel } from '@/lib/marketplace/localization';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
 export type ServiceItem = {
@@ -64,7 +64,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
   const en = language === 'en';
   const router = useRouter();
   const [providerImageFailed, setProviderImageFailed] = useState(false);
-  const href = service.href?.startsWith('/') ? service.href : `/services/${service.slug}`;
+  const href = liteApiProofHrefLanguage(service.href?.startsWith('/') ? service.href : `/services/${service.slug}`, language);
   const labels = marketplaceBadgeLabels(language, service);
   const truthAction = marketplacePrimaryAction({
     family: service.familyLabel?.toLowerCase().includes('stay') ? 'stay' :

@@ -2,8 +2,11 @@
 
 Owner: Codex Desktop — Engineer A. Policy: BR86 / PR #115.
 
-This activation reuses the merged Marketplace implementation. No application,
-database, catalogue, transaction or provider integration code is changed.
+This activation reuses the merged Marketplace implementation. Browser QA found
+that switching UI language retained an old language in LiteAPI detail links.
+Only those links now follow the selected UI language; provider IDs and query
+context are preserved. No database, catalogue, transaction or provider
+integration behavior is changed.
 
 ## Binding contract
 

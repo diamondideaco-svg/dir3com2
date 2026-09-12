@@ -9,6 +9,16 @@ import type { FlightSearchResult, StaySearchResult } from '@/lib/travel/contract
 import type { SabreFlightSearchResult } from '@/lib/sabre/search';
 import fs from 'node:fs';
 import { proxy } from '../proxy';
+import { liteApiProofHrefLanguage } from '@/lib/marketplace/localization';
+
+test('LiteAPI detail navigation follows selected UI language without changing rate or stay context', () => {
+  const href = '/marketplace/provider-proof/liteapi/rate%2B123?hotelId=hotel-1&environment=sandbox&checkIn=2026-10-12&language=ar';
+  const result = liteApiProofHrefLanguage(href, 'en');
+  assert.equal(result, href.replace('language=ar', 'language=en'));
+  assert.equal(liteApiProofHrefLanguage(result, 'ar'), href);
+  assert.equal(liteApiProofHrefLanguage('/services/local-drive?language=ar', 'en'), '/services/local-drive?language=ar');
+  assert.equal(liteApiProofHrefLanguage('/marketplace/provider-proof/duffel/offer?language=ar', 'en'), '/marketplace/provider-proof/duffel/offer?language=ar');
+});
 
 const sandboxEnv = {
   NODE_ENV: 'development',
