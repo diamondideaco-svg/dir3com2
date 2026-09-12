@@ -9,6 +9,16 @@ import type { FlightSearchResult, StaySearchResult } from '@/lib/travel/contract
 import type { SabreFlightSearchResult } from '@/lib/sabre/search';
 import fs from 'node:fs';
 import { proxy } from '../proxy';
+import { liteApiProofHrefLanguage } from '@/lib/marketplace/localization';
+
+test('LiteAPI detail navigation follows selected UI language without changing rate or stay context', () => {
+  const href = '/marketplace/provider-proof/liteapi/rate%2B123?hotelId=hotel-1&environment=sandbox&checkIn=2026-10-12&language=ar';
+  const result = liteApiProofHrefLanguage(href, 'en');
+  assert.equal(result, href.replace('language=ar', 'language=en'));
+  assert.equal(liteApiProofHrefLanguage(result, 'ar'), href);
+  assert.equal(liteApiProofHrefLanguage('/services/local-drive?language=ar', 'en'), '/services/local-drive?language=ar');
+  assert.equal(liteApiProofHrefLanguage('/marketplace/provider-proof/duffel/offer?language=ar', 'en'), '/marketplace/provider-proof/duffel/offer?language=ar');
+});
 
 const sandboxEnv = {
   NODE_ENV: 'development',
@@ -18,6 +28,25 @@ const sandboxEnv = {
   LITEAPI_ENV: 'sandbox',
   DIR3COM_PROVIDER_PROOF_PROVIDERS: 'duffel,liteapi',
 } satisfies NodeJS.ProcessEnv;
+
+test('Task 136 Preview-only LiteAPI configuration keeps Production and other providers denied', () => {
+  const preview = {
+    NODE_ENV: 'production', VERCEL_ENV: 'preview',
+    DIR3COM_PROVIDER_PROOF_ENABLED: 'true',
+    DIR3COM_PROVIDER_PROOF_PROVIDERS: 'liteapi', LITEAPI_ENV: 'sandbox',
+  } satisfies NodeJS.ProcessEnv;
+  const request = new NextRequest('https://protected-preview.example/api/services?family=dir3-stay&providerProof=liteapi');
+  assert.equal(authorizeMarketplaceLiteApiProofRequest(request, preview), true);
+  assert.deepEqual(providerProofProviders(preview), ['liteapi']);
+  for (const VERCEL_ENV of ['production', 'development', '']) {
+    assert.equal(authorizeMarketplaceLiteApiProofRequest(request, { ...preview, VERCEL_ENV }), false);
+  }
+  assert.equal(authorizeMarketplaceLiteApiProofRequest(request, { ...preview, DIR3COM_PROVIDER_PROOF_ENABLED: 'false' }), false);
+  assert.equal(authorizeMarketplaceLiteApiProofRequest(request, { ...preview, LITEAPI_ENV: 'production' }), false);
+  for (const provider of ['duffel', 'sabre']) {
+    assert.equal(authorizeProviderProofRequest(new NextRequest(`https://protected-preview.example/api/marketplace/provider-proof?provider=${provider}&environment=sandbox`), preview), false);
+  }
+});
 
 const sabreEnv = {
   ...sandboxEnv,
