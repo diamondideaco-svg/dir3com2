@@ -102,10 +102,11 @@ test('database read selects authoritative capacity and preserves public isolatio
 });
 
 test('adapter query carries max_guests/city/country through the actual mapping (isolated database double)', async () => {
+  const availabilityContract = await import('../lib/marketplace/catalog-availability');
   const calls: Array<{ table: string; method: string; args: unknown[] }> = [];
   const database = { from(table: string) {
     const chain: Record<string, unknown> = {};
-    for (const method of ['select', 'in', 'eq', 'neq', 'is', 'order']) {
+    for (const method of ['select', 'in', 'eq', 'neq', 'is', 'gte', 'order']) {
       chain[method] = (...args: unknown[]) => { calls.push({ table, method, args }); return chain; };
     }
     chain.then = (resolve: (result: unknown) => unknown) => resolve({ error: null, data: table === 'products'
@@ -117,12 +118,17 @@ test('adapter query carries max_guests/city/country through the actual mapping (
   runInNewContext(source, { exports, require(id: string) {
     if (id === '@/lib/supabase/server') return { supabaseAdmin: database };
     if (id === '@/lib/marketplace/public-filters') return publicFilters;
+    if (id === './catalog-availability') return availabilityContract;
     throw new Error(`Unexpected dependency ${id}`);
   } });
   const result = await (exports.supabaseMarketplaceAdapter as typeof import('../lib/marketplace/adapters').supabaseMarketplaceAdapter).fetchServices();
   assert.equal(result?.services[0].max_guests, 6);
   assert.equal(result?.services[0].city, 'Riyadh');
   assert.equal(normalizeMarketplaceServices(result?.services, false)[0].maxGuests, 6);
+  assert.equal(result?.services[0].availability_status, 'unknown');
+  assert.equal(result?.services[0].inventory_count, 0);
+  assert.ok(calls.some(call => call.table === 'product_availability' && call.method === 'in' && call.args[0] === 'product_id'));
+  assert.ok(calls.some(call => call.table === 'product_availability' && call.method === 'gte' && call.args[0] === 'date'));
   assert.ok(calls.some(call => call.table === 'products' && call.method === 'select' && String(call.args[0]).includes('max_guests,city,country')));
   for (const [method, column, value] of [['eq', 'synthetic', false], ['eq', 'marketplace_environment', 'production'], ['neq', 'fulfilment_state', 'test_sandbox'], ['is', 'deleted_at', null]]) {
     assert.ok(calls.some(call => call.table === 'products' && call.method === method && call.args[0] === column && call.args[1] === value));
