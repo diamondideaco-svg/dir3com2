@@ -19,6 +19,25 @@ const sandboxEnv = {
   DIR3COM_PROVIDER_PROOF_PROVIDERS: 'duffel,liteapi',
 } satisfies NodeJS.ProcessEnv;
 
+test('Task 136 Preview-only LiteAPI configuration keeps Production and other providers denied', () => {
+  const preview = {
+    NODE_ENV: 'production', VERCEL_ENV: 'preview',
+    DIR3COM_PROVIDER_PROOF_ENABLED: 'true',
+    DIR3COM_PROVIDER_PROOF_PROVIDERS: 'liteapi', LITEAPI_ENV: 'sandbox',
+  } satisfies NodeJS.ProcessEnv;
+  const request = new NextRequest('https://protected-preview.example/api/services?family=dir3-stay&providerProof=liteapi');
+  assert.equal(authorizeMarketplaceLiteApiProofRequest(request, preview), true);
+  assert.deepEqual(providerProofProviders(preview), ['liteapi']);
+  for (const VERCEL_ENV of ['production', 'development', '']) {
+    assert.equal(authorizeMarketplaceLiteApiProofRequest(request, { ...preview, VERCEL_ENV }), false);
+  }
+  assert.equal(authorizeMarketplaceLiteApiProofRequest(request, { ...preview, DIR3COM_PROVIDER_PROOF_ENABLED: 'false' }), false);
+  assert.equal(authorizeMarketplaceLiteApiProofRequest(request, { ...preview, LITEAPI_ENV: 'production' }), false);
+  for (const provider of ['duffel', 'sabre']) {
+    assert.equal(authorizeProviderProofRequest(new NextRequest(`https://protected-preview.example/api/marketplace/provider-proof?provider=${provider}&environment=sandbox`), preview), false);
+  }
+});
+
 const sabreEnv = {
   ...sandboxEnv,
   DIR3COM_PROVIDER_PROOF_PROVIDERS: 'sabre',
