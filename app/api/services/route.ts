@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getMarketplaceAssistantContext, queryMarketplace, sanitizeMarketplaceQuery } from '@/lib/marketplace/server';
 import { resolveMarketplaceRequestContext } from '@/lib/marketplace/request-context';
+import { authorizeMarketplaceLiteApiProofRequest } from '@/lib/marketplace/provider-proof-mode';
 
 export async function GET(request: NextRequest) {
     try {
@@ -13,7 +14,11 @@ export async function GET(request: NextRequest) {
         }
 
         const query = sanitizeMarketplaceQuery(url.searchParams);
-        const payload = await queryMarketplace(query, await resolveMarketplaceRequestContext(request));
+        const payload = await queryMarketplace(query, {
+            ...(await resolveMarketplaceRequestContext(request)),
+            publicMarketplace: true,
+            liteApiSandboxProof: authorizeMarketplaceLiteApiProofRequest(request),
+        });
 
         return NextResponse.json(payload);
     } catch {

@@ -1,8 +1,11 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { summarizeCatalogAvailability, type CatalogAvailabilityRow } from './catalog-availability';
 import { applyPublicAssetSyntheticFilter, applyPublicCategoryFilters, applyPublicProductFilters, applyPublicServiceFilters } from '@/lib/marketplace/public-filters';
 import type { MarketplaceEnvironment, MarketplaceFulfilmentState, MarketplaceSupplyType, MarketplaceTransactionMethod } from '@/lib/marketplace/truth';
 
 export type RawMarketplaceServiceRecord = {
+  availability_status?: string;
+  inventory_count?: number;
   max_guests?: number | null;
   city?: string | null;
   country?: string | null;
@@ -131,6 +134,17 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
     const categories = (categoriesData ?? []) as RawMarketplaceProductCategoryRecord[];
     const categoriesById = new Map(categories.map((category) => [category.id, category]));
     const productIds = products.map((product) => product.id);
+    const today = new Date().toISOString().slice(0, 10);
+    const availabilityResult = productIds.length
+      ? await supabaseAdmin.from('product_availability')
+          .select('product_id,available,availability_status,date,capacity,booked_count,synthetic,environment')
+          .in('product_id', productIds)
+          .eq('synthetic', false)
+          .gte('date', today)
+          .order('date', { ascending: true })
+      : { data: [], error: null };
+    // A failed availability read must not manufacture availability or hide products.
+    const availabilityRows = availabilityResult.error ? [] : (availabilityResult.data ?? []) as CatalogAvailabilityRow[];
     const imageResult = productIds.length
       ? await applyPublicAssetSyntheticFilter(
           supabaseAdmin
@@ -166,6 +180,7 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
 
         return {
           id: product.id,
+          ...summarizeCatalogAvailability(availabilityRows, product.id, today),
           max_guests: product.max_guests,
           city: product.city,
           country: product.country,

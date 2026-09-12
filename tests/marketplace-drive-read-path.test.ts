@@ -26,7 +26,8 @@ test('stored Drive truth controls the customer family label and partner image', 
   assert.equal(service.badge, 'dir3 Drive');
   assert.equal(service.category, 'cars');
   assert.equal(service.categoryLabel, 'السيارات');
-  assert.equal(service.icon, 'https://example.test/approved-drive.jpg');
+  assert.equal(service.imageUrl, 'https://example.test/approved-drive.jpg');
+  assert.equal(service.icon, '/icons/drive.svg');
 });
 
 test('Drive customer copy drops internal seed and review language', () => {
@@ -68,7 +69,7 @@ test('product PDP continues to the direct product query when the legacy service 
   assert.match(source, /: \{ data: null, error: null \}/);
 });
 
-test('customer Drive surface requests enough rows to render the accepted eleven records', () => {
+test('customer Drive surface requests enough rows to render the accepted thirteen records', () => {
   const source = readFileSync(new URL('../components/public/MarketplaceExplorer.tsx', import.meta.url), 'utf8');
 
   assert.match(source, /pageSize: 30/);

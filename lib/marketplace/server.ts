@@ -1,5 +1,5 @@
 import { getMarketplaceAdapters } from '@/lib/marketplace/adapters';
-import { fetchAllTravelProviderCards } from '@/lib/marketplace/travel-provider-integration';
+import { fetchAllTravelProviderCards, fetchTravelProviderHotels } from '@/lib/marketplace/travel-provider-integration';
 import type { MarketplaceCard } from '@/lib/marketplace/cards';
 import { fetchProtectedProviderCards } from '@/lib/marketplace/provider-search-protection';
 import {
@@ -15,6 +15,19 @@ import {
   type MarketplaceService,
   type MarketplaceSortKey,
 } from '@/lib/marketplace/data';
+import { filterApprovedLaunchInventory } from '@/lib/marketplace/launch-catalog';
+import { convertCurrency } from '@/lib/currency/service';
+import { canonicalCity } from '@/lib/marketplace/search-context';
+
+const MARKETPLACE_DISPLAY_CURRENCIES = ['SAR', 'USD', 'EGP', 'EUR', 'AED'] as const;
+type MarketplaceDisplayCurrency = (typeof MARKETPLACE_DISPLAY_CURRENCIES)[number];
+
+function normalizeDisplayCurrency(value: string | null | undefined): MarketplaceDisplayCurrency | undefined {
+  const normalized = value?.trim().toUpperCase();
+  return MARKETPLACE_DISPLAY_CURRENCIES.includes(normalized as MarketplaceDisplayCurrency)
+    ? normalized as MarketplaceDisplayCurrency
+    : undefined;
+}
 
 export type MarketplaceApiQuery = MarketplaceQueryOptions & {
   page?: number;
@@ -26,11 +39,16 @@ export type MarketplaceApiQuery = MarketplaceQueryOptions & {
   returnDate?: string;
   adults?: number;
   children?: number;
+  language?: 'ar' | 'en' | 'mixed';
 };
 
 export type MarketplaceRequestContext = {
   anonymous?: boolean;
   clientKey?: string;
+  /** True only for the customer-facing /api/services Marketplace route. */
+  publicMarketplace?: boolean;
+  /** Explicit local/Preview-only LiteAPI Sandbox proof on Marketplace Stay. */
+  liteApiSandboxProof?: boolean;
 };
 
 export type MarketplaceSnapshot = {
@@ -153,10 +171,15 @@ export function sanitizeMarketplaceQuery(input: URLSearchParams): MarketplaceApi
   const budget = input.get('budget') ?? undefined;
   const travelers = input.get('travelers') ?? undefined;
   const availability = (input.get('availability') ?? 'all') as MarketplaceApiQuery['availability'];
+  const currency = normalizeDisplayCurrency(input.get('currency'));
   const page = Number(input.get('page') ?? 1);
   const pageSize = Number(input.get('pageSize') ?? 9);
   const adults = Number(input.get('adults') ?? 1);
   const children = Number(input.get('children') ?? 0);
+  const languageValue = input.get('language');
+  const language = languageValue === 'ar' || languageValue === 'en' || languageValue === 'mixed'
+    ? languageValue
+    : undefined;
 
   return {
     family,
@@ -168,6 +191,7 @@ export function sanitizeMarketplaceQuery(input: URLSearchParams): MarketplaceApi
     budget,
     travelers,
     availability,
+    currency,
     page: Number.isFinite(page) && page > 0 ? page : 1,
     pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.min(pageSize, 30) : 9,
     checkIn: input.get('checkIn') ?? undefined,
@@ -177,6 +201,7 @@ export function sanitizeMarketplaceQuery(input: URLSearchParams): MarketplaceApi
     returnDate: input.get('returnDate') ?? undefined,
     adults: Number.isFinite(adults) && adults > 0 ? Math.min(adults, 20) : 1,
     children: Number.isFinite(children) && children >= 0 ? Math.min(children, 20) : 0,
+    language,
   };
 }
 
@@ -207,6 +232,9 @@ function providerCardsToServices(cards: MarketplaceCard[]): MarketplaceService[]
       tags: [card.provider, card.location],
       basePrice: card.priceFrom ?? 0,
       currency: card.currency,
+      supplierPriceAmount: card.priceFrom,
+      supplierPriceCurrency: card.currency,
+      pricingStatus: card.priceFrom !== null && card.priceFrom !== undefined && card.currency ? 'supplied' : 'on_request',
       productCount: 1,
       inventoryCount: 1,
       availability: card.availabilityStatus === 'sold-out' ? 'sold-out' : 'available',
@@ -215,7 +243,7 @@ function providerCardsToServices(cards: MarketplaceCard[]): MarketplaceService[]
       popular: false,
       recommended: true,
       source: 'api',
-      provenance: card.verified ? 'PARTNER_VERIFIED' : 'PROVIDER_LIVE',
+      provenance: card.providerSandbox ? 'PROVIDER_SANDBOX' : card.verified ? 'PARTNER_VERIFIED' : 'PROVIDER_LIVE',
       fulfilmentState: card.fulfilmentState,
       transactionMethod: card.transactionMethod,
       marketplaceEnvironment: card.marketplaceEnvironment,
@@ -229,8 +257,59 @@ function providerCardsToServices(cards: MarketplaceCard[]): MarketplaceService[]
       providerItemId: card.providerItemId ?? undefined,
       sourceUrl: card.sourceUrl,
       retrievedAt: card.retrievedAt,
-    } satisfies MarketplaceService;
+  } satisfies MarketplaceService;
   });
+}
+
+export async function applyDisplayPricing(services: MarketplaceService[], targetCurrency?: string) {
+  const target = normalizeDisplayCurrency(targetCurrency) ?? 'SAR';
+
+  return Promise.all(services.map(async (service) => {
+    const amount = service.supplierPriceAmount;
+    const source = normalizeDisplayCurrency(service.supplierPriceCurrency);
+
+    if (amount === null || amount === undefined || amount <= 0 || !source) {
+      return {
+        ...service,
+        displayPriceAmount: null,
+        displayCurrency: source ?? null,
+        pricingStatus: 'on_request' as const,
+      };
+    }
+
+    if (source === target) {
+      return {
+        ...service,
+        displayPriceAmount: amount,
+        displayCurrency: source,
+        pricingStatus: 'original_currency' as const,
+      };
+    }
+
+    const conversion = await convertCurrency({
+      amount,
+      sourceCurrency: source,
+      targetCurrency: target,
+    });
+
+    if (!conversion.ok) {
+      // Fallback rates are deliberately not shown as customer prices. Keep
+      // the card visible and expose the supplier currency instead.
+      return {
+        ...service,
+        displayPriceAmount: null,
+        displayCurrency: source,
+        pricingStatus: 'conversion_unavailable' as const,
+      };
+    }
+
+    return {
+      ...service,
+      displayPriceAmount: conversion.quote.convertedAmount,
+      displayCurrency: target,
+      pricingStatus: 'converted' as const,
+    };
+  }));
 }
 
 export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: MarketplaceRequestContext = {}) {
@@ -241,7 +320,8 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: M
     || apiQuery.family === 'dir3-concierge',
   );
   const providerOptions = {
-        mode: 'PROVIDER_LIVE',
+        mode: context.liteApiSandboxProof ? 'PROVIDER_SANDBOX' : 'PROVIDER_LIVE',
+        proofMode: context.liteApiSandboxProof === true,
         destination: apiQuery.destination,
         checkIn: apiQuery.checkIn,
         checkOut: apiQuery.checkOut,
@@ -250,18 +330,38 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: M
         returnDate: apiQuery.returnDate,
         adults: apiQuery.adults,
         children: apiQuery.children,
+        language: apiQuery.language === 'ar' ? 'ar' : 'en',
       } as const;
   const providerResult = hasTravelSearch
     ? await fetchProtectedProviderCards(
         providerOptions,
         context.clientKey ?? 'anonymous',
-        fetchAllTravelProviderCards,
+        context.liteApiSandboxProof ? fetchTravelProviderHotels : fetchAllTravelProviderCards,
       )
     : { cards: [], limited: false };
-  const providerServices = providerCardsToServices(providerResult.cards);
-  const services = filterCustomerMarketplaceServices(providerServices.length > 0
-    ? [...providerServices, ...snapshot.services]
-    : snapshot.services);
+  const providerServices = providerCardsToServices(providerResult.cards).map((service) => {
+    const requestedDestination = canonicalCity(apiQuery.destination)?.slug;
+    const normalizedService = requestedDestination ? { ...service, destination: requestedDestination } : service;
+    if (!context.liteApiSandboxProof || !service.href.startsWith('/marketplace/provider-proof/liteapi/')) return normalizedService;
+    const href = new URL(service.href, 'https://local.invalid');
+    href.searchParams.set('environment', 'sandbox');
+    if (apiQuery.destination) href.searchParams.set('destination', apiQuery.destination);
+    if (apiQuery.checkIn) href.searchParams.set('checkIn', apiQuery.checkIn);
+    if (apiQuery.checkOut) href.searchParams.set('checkOut', apiQuery.checkOut);
+    href.searchParams.set('language', apiQuery.language === 'ar' ? 'ar' : 'en');
+    return { ...normalizedService, href: `${href.pathname}${href.search}` };
+  });
+  const verifiedCustomerServices = filterCustomerMarketplaceServices(snapshot.services);
+  const customerServices = context.liteApiSandboxProof
+    ? [...providerServices, ...verifiedCustomerServices]
+    : filterCustomerMarketplaceServices(providerServices.length > 0
+      ? [...providerServices, ...snapshot.services]
+      : snapshot.services);
+  const services = context.publicMarketplace
+    ? context.liteApiSandboxProof
+      ? [...providerServices, ...filterApprovedLaunchInventory(verifiedCustomerServices)]
+      : filterApprovedLaunchInventory(customerServices)
+    : customerServices;
 
   const scoped = filterMarketplaceServices(services, {
     family: apiQuery.family,
@@ -269,10 +369,11 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: M
 
   const facets = summarizeMarketplace(scoped);
   const result = queryMarketplaceServices(services, apiQuery);
-  const provenance = summarizeMarketplacePageProvenance(result.items);
+  const servicesWithDisplayPricing = await applyDisplayPricing(result.items, apiQuery.currency);
+  const provenance = summarizeMarketplacePageProvenance(servicesWithDisplayPricing);
 
   return {
-    services: result.items,
+      services: servicesWithDisplayPricing,
     meta: {
       source: snapshot.source,
       ...provenance,

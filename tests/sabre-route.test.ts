@@ -12,8 +12,8 @@ function json(body: unknown, status = 200) {
 }
 
 test.beforeEach(() => {
-  process.env.SABRE_AUTH_URL = "https://sabre.test/auth";
-  process.env.SABRE_API_BASE_URL = "https://sabre.test";
+  process.env.SABRE_AUTH_URL = "https://api.cert.platform.sabre.com/v2/auth/token";
+  process.env.SABRE_API_BASE_URL = "https://api.cert.platform.sabre.com";
   process.env.SABRE_USER_ID = "user";
   process.env.SABRE_PASSWORD = "password";
   process.env.SABRE_PCC = "S5OM";

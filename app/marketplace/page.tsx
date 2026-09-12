@@ -11,6 +11,7 @@ export default async function MarketplacePage({
   const query = await searchParams;
   const requested = typeof query.family === 'string' ? query.family : undefined;
   const family = isMarketplaceFamilyKey(requested) ? requested : undefined;
+  const liteApiSandboxProof = family === 'dir3-stay' && query.providerProof === 'liteapi';
 
   return (
     <div className={styles.page}>
@@ -18,6 +19,7 @@ export default async function MarketplacePage({
       key={serializePageQuery(query)}
       initialSearch={serializePageQuery(query)}
       family={family}
+      liteApiSandboxProof={liteApiSandboxProof}
       publicNormalization
     />
     </div>

@@ -22,6 +22,7 @@ import {
   type MarketplacePageCategory,
   type MarketplaceSortKey,
 } from '@/lib/marketplace/data';
+import { isComingSoonMarketplaceFamily } from '@/lib/marketplace/launch-catalog';
 
 type MarketplaceExplorerProps = {
   initialSearch?: string;
@@ -31,6 +32,7 @@ type MarketplaceExplorerProps = {
   family?: MarketplaceFamilyKey;
   defaultCategory?: MarketplacePageCategory;
   defaultCollection?: MarketplaceCollectionKey;
+  liteApiSandboxProof?: boolean;
 };
 
 const copy = {
@@ -38,18 +40,20 @@ const copy = {
     title: 'السوق', description: 'تصفّح بحرية، واعرف ما هو متاح فعلاً، واطلب ما يحتاج إلى تأكيد بشري.', all: 'الكل', featured: 'المميز', popular: 'الشائع', recommended: 'موصى به',
     destinations: ['كل الوجهات','السعودية','مصر','الرياض','جدة','مكة','المدينة','الدمام','الخبر','أبها','الطائف','العلا','نيوم','القاهرة','الجيزة','الإسكندرية','الغردقة','شرم الشيخ','الأقصر','أسوان','مرسى علم','العلمين الجديدة'],
     sorts: ['الأكثر ملاءمة','المميز أولا','الأكثر شعبية','السعر: الأقل أولا','السعر: الأعلى أولا','الاسم'],
-    allServices: 'كل الخدمات', smartTitle: 'ابحث في سوق dir3com بوضوح وبساطة.', smartDescription: 'واجهة لاكتشاف الخدمات مع مرشحات مرنة وتجربة قراءة سريعة.', discovery: 'استكشاف السوق', searchPlaceholder: 'ابحث عن خدمة، فئة، أو تجربة', sort: 'الترتيب', searchNow: 'ابحث الآن', filters: 'المرشحات', filtersNote: 'اختر التواريخ وعدد المسافرين لتوضيح تفضيلات بحثك.', result: 'نتيجة', categoriesPending: 'فئات السوق تظهر تلقائيا عند توفر البيانات.', browseCategories: 'تصفح الفئات', loadingResults: 'جاري تحميل النتائج…', loadError: 'تعذر تحميل نتائج السوق حالياً.', safeError: 'لم نعرض أي قائمة غير منشورة بدلاً منها.', visible: 'النتائج الظاهرة', total: 'إجمالي النتائج', source: 'المصدر', verified: 'قوائم السوق المنشورة', noVerified: 'لا توجد قوائم سوق منشورة', emptyTitle: 'لا يوجد خيار مدرج يطابق بحثك حتى الآن.', emptyDescription: 'عدّل البحث، تصفّح عائلة أخرى، أو اطلب مساعدة DABRA من دون تصنيع نتائج أو أسعار.', reset: 'إعادة ضبط المرشحات', browseServices: 'تصفح كل الخدمات', askDabra: 'اسأل DABRA', noResults: 'لا توجد نتائج مطابقة للمرشحات الحالية.', previous: 'السابق', next: 'التالي', families: 'عائلات السوق',
+    allServices: 'كل الخدمات', smartTitle: 'ابحث في سوق dir3com بوضوح وبساطة.', smartDescription: 'واجهة لاكتشاف الخدمات مع مرشحات مرنة وتجربة قراءة سريعة.', discovery: 'استكشاف السوق', searchPlaceholder: 'ابحث عن خدمة، فئة، أو تجربة', sort: 'الترتيب', currency: 'عملة العرض', currencyOptions: { SAR: 'ريال سعودي', USD: 'دولار أمريكي', EGP: 'جنيه مصري', EUR: 'يورو', AED: 'درهم إماراتي' }, searchNow: 'ابحث الآن', filters: 'المرشحات', filtersNote: 'اختر التواريخ وعدد المسافرين لتوضيح تفضيلات بحثك.', result: 'نتيجة', categoriesPending: 'فئات السوق تظهر تلقائيا عند توفر البيانات.', browseCategories: 'تصفح الفئات', loadingResults: 'جاري تحميل النتائج…', loadError: 'تعذر تحميل نتائج السوق حالياً.', safeError: 'لم نعرض أي قائمة غير منشورة بدلاً منها.', visible: 'النتائج الظاهرة', total: 'إجمالي النتائج', source: 'المصدر', verified: 'قوائم السوق المنشورة', noVerified: 'لا توجد قوائم سوق منشورة', emptyTitle: 'لا يوجد خيار مدرج يطابق بحثك حتى الآن.', emptyDescription: 'عدّل البحث، تصفّح عائلة أخرى، أو اطلب مساعدة DABRA من دون تصنيع نتائج أو أسعار.', reset: 'إعادة ضبط المرشحات', browseServices: 'تصفح كل الخدمات', askDabra: 'اسأل DABRA', noResults: 'لا توجد نتائج مطابقة للمرشحات الحالية.', previous: 'السابق', next: 'التالي', families: 'عائلات السوق', comingSoon: 'قريبًا', comingSoonTitle: 'هذه العائلة ستتوفر قريبًا.', comingSoonDescription: 'البحث العام وإجراءات المعاملة غير مفعّلة لهذه العائلة.',
   },
   en: {
     title: 'Marketplace', description: 'Browse freely, see what is genuinely available, and request anything that needs human confirmation.', all: 'All', featured: 'Featured', popular: 'Popular', recommended: 'Recommended',
     destinations: ['All destinations','Saudi Arabia','Egypt','Riyadh','Jeddah','Makkah','Madinah','Dammam','Khobar','Abha','Taif','AlUla','NEOM','Cairo','Giza','Alexandria','Hurghada','Sharm El Sheikh','Luxor','Aswan','Marsa Alam','New Alamein'],
     sorts: ['Most relevant','Featured first','Most popular','Price: low to high','Price: high to low','Name'],
-    allServices: 'All services', smartTitle: 'Search the dir3com marketplace with clarity.', smartDescription: 'A clear discovery experience with flexible filters and quick browsing.', discovery: 'Marketplace discovery', searchPlaceholder: 'Search for a service, category, or experience', sort: 'Sort', searchNow: 'Search now', filters: 'Filters', filtersNote: 'Choose dates and traveller count to clarify your search preferences.', result: 'results', categoriesPending: 'Marketplace categories appear when published listings are available.', browseCategories: 'Browse categories', loadingResults: 'Loading results…', loadError: 'Marketplace results are temporarily unavailable.', safeError: 'No unpublished listing was shown as a substitute.', visible: 'Visible results', total: 'Total results', source: 'Source', verified: 'Published marketplace listings', noVerified: 'No published marketplace listings', emptyTitle: 'No listed option matches your search yet.', emptyDescription: 'Adjust your search, browse another family, or ask DABRA for help without fabricated results or prices.', reset: 'Reset filters', browseServices: 'Browse all services', askDabra: 'Ask DABRA', noResults: 'No results match the current filters.', previous: 'Previous', next: 'Next', families: 'Marketplace families',
+    allServices: 'All services', smartTitle: 'Search the dir3com marketplace with clarity.', smartDescription: 'A clear discovery experience with flexible filters and quick browsing.', discovery: 'Marketplace discovery', searchPlaceholder: 'Search for a service, category, or experience', sort: 'Sort', currency: 'Display currency', currencyOptions: { SAR: 'Saudi Riyal', USD: 'US Dollar', EGP: 'Egyptian Pound', EUR: 'Euro', AED: 'UAE Dirham' }, searchNow: 'Search now', filters: 'Filters', filtersNote: 'Choose dates and traveller count to clarify your search preferences.', result: 'results', categoriesPending: 'Marketplace categories appear when published listings are available.', browseCategories: 'Browse categories', loadingResults: 'Loading results…', loadError: 'Marketplace results are temporarily unavailable.', safeError: 'No unpublished listing was shown as a substitute.', visible: 'Visible results', total: 'Total results', source: 'Source', verified: 'Published marketplace listings', noVerified: 'No published marketplace listings', emptyTitle: 'No listed option matches your search yet.', emptyDescription: 'Adjust your search, browse another family, or ask DABRA for help without fabricated results or prices.', reset: 'Reset filters', browseServices: 'Browse all services', askDabra: 'Ask DABRA', noResults: 'No results match the current filters.', previous: 'Previous', next: 'Next', families: 'Marketplace families', comingSoon: 'Coming soon', comingSoonTitle: 'This family is coming soon.', comingSoonDescription: 'Public search and transaction actions are not enabled for this family yet.',
   },
 } as const;
 
 const destinationValues = ['all','saudi-arabia','egypt','riyadh','jeddah','makkah','madinah','dammam','khobar','abha','taif','alula','neom','cairo','giza','alexandria','hurghada','sharm-el-sheikh','luxor','aswan','marsa-alam','new-alamein'];
 const sortValues: MarketplaceSortKey[] = ['recommended','featured','popular','price-low','price-high','name'];
+const displayCurrencyValues = ['SAR', 'USD', 'EGP', 'EUR', 'AED'] as const;
+type DisplayCurrency = (typeof displayCurrencyValues)[number];
 const categoryCopy: Record<MarketplacePageCategory, { ar: string; en: string }> = {
   cars: { ar: 'السيارات', en: 'Cars' }, hotels: { ar: 'الفنادق', en: 'Hotels' }, apartments: { ar: 'الشقق', en: 'Apartments' },
   'airport-transfers': { ar: 'النقل من وإلى المطار', en: 'Airport transfers' }, concierge: { ar: 'الكونسيرج', en: 'Concierge' }, experiences: { ar: 'التجارب', en: 'Experiences' }, offers: { ar: 'العروض', en: 'Offers' },
@@ -63,9 +67,11 @@ export default function MarketplaceExplorer({
   defaultCollection = 'all',
   publicNormalization = false,
   initialSearch,
+  liteApiSandboxProof = false,
 }: MarketplaceExplorerProps) {
   const { language, direction } = useLanguage();
   const t = copy[language];
+  const comingSoonFamily = isComingSoonMarketplaceFamily(family);
   const activeFamilyLabel = getMarketplaceFamilyLabel(family, language, t.all);
   const collectionLabels: Array<{ value: MarketplaceCollectionKey; label: string }> = [
     { value: 'all', label: t.all }, { value: 'featured', label: t.featured }, { value: 'popular', label: t.popular }, { value: 'recommended', label: t.recommended },
@@ -83,6 +89,7 @@ export default function MarketplaceExplorer({
   const [query, setQuery] = useState(initialQuery);
   const [collection, setCollection] = useState<MarketplaceCollectionKey>(defaultCollection);
   const [sort, setSort] = useState<MarketplaceSortKey>(sortOptions.some(option => option.value === initialUrlParams.get('sort')) ? initialUrlParams.get('sort') as MarketplaceSortKey : 'recommended');
+  const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>('SAR');
   const [category, setCategory] = useState<MarketplacePageCategory | 'all'>(defaultCategory ?? 'all');
   const [page, setPage] = useState(1);
   const [advancedFilters, setAdvancedFilters] = useState({
@@ -110,7 +117,9 @@ export default function MarketplaceExplorer({
       ? 'en'
       : 'ar';
 
-  const { services, loading, error, meta } = useMarketplaceServices({
+  const { services, loading, error, meta, retry } = useMarketplaceServices({
+    enabled: !comingSoonFamily,
+    publicMarketplace: true,
     family,
     category: activeCategory,
     query,
@@ -126,8 +135,10 @@ export default function MarketplaceExplorer({
     returnDate: flightContext ? advancedFilters.checkOut : undefined,
     budget: advancedFilters.budget,
     travelers: advancedFilters.travelers,
+    currency: displayCurrency,
     page,
     pageSize: 30,
+    providerProof: liteApiSandboxProof && family === 'dir3-stay' ? 'liteapi' : undefined,
   });
 
   const categoryBrowseItems = useMemo(
@@ -194,7 +205,14 @@ export default function MarketplaceExplorer({
           {contextItems.join(' · ')}
         </p> : null}
 
-        <motion.div variants={sectionStagger} initial="hidden" whileInView="visible" viewport={revealViewport} className="mt-8 space-y-5">
+        {comingSoonFamily ? (
+          <SectionSurface className="mt-8 border-[var(--color-gold)]/35 bg-white/80 shadow-[0_18px_42px_rgba(13,27,42,0.08)]">
+            <Badge>{t.comingSoon}</Badge>
+            <h3 className="mt-4 text-2xl font-semibold text-[var(--color-navy)]">{t.comingSoonTitle}</h3>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-muted)]">{t.comingSoonDescription}</p>
+            <Link href="/marketplace" className={`${buttonVariants({ variant: 'outline', size: 'default' })} mt-6`}>{t.browseServices}</Link>
+          </SectionSurface>
+        ) : <motion.div variants={sectionStagger} initial="hidden" whileInView="visible" viewport={revealViewport} className="mt-8 space-y-5">
           <motion.div variants={fadeUpItem}>
             <SectionSurface className="overflow-hidden border-[var(--color-gold)]/18 bg-[linear-gradient(150deg,rgba(255,255,255,0.9)_0%,rgba(248,242,231,0.84)_100%)] shadow-[0_24px_58px_rgba(13,27,42,0.1)]">
               <CardContent className="p-5 sm:p-6 lg:p-7">
@@ -209,7 +227,7 @@ export default function MarketplaceExplorer({
                   </Badge>
                 </div>
 
-                <div data-marketplace-search className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_0.6fr]" onKeyDown={publicNormalization ? (event) => {
+                <div data-marketplace-search className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_0.45fr_0.45fr]" onKeyDown={publicNormalization ? (event) => {
                   if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
                     event.preventDefault();
                     event.currentTarget.nextElementSibling?.querySelector('button')?.click();
@@ -217,6 +235,12 @@ export default function MarketplaceExplorer({
                 } : undefined}>
                   <SearchField label={language === 'en' ? 'Search' : 'البحث'} value={searchInput} onChange={setSearchInput} placeholder={t.searchPlaceholder} />
                   <SelectField label={t.sort} value={sort} onChange={(next) => setSort(next as MarketplaceSortKey)} options={sortOptions} />
+                  <SelectField
+                    label={t.currency}
+                    value={displayCurrency}
+                    onChange={(next) => setDisplayCurrency(next as DisplayCurrency)}
+                    options={displayCurrencyValues.map((value) => ({ value, label: `${value} — ${t.currencyOptions[value]}` }))}
+                  />
                 </div>
 
                 <div className="mt-4 flex justify-end">
@@ -358,9 +382,9 @@ export default function MarketplaceExplorer({
             </div>
           </motion.div>
           </> : null}
-        </motion.div>
+        </motion.div>}
 
-        {loading ? (
+        {!comingSoonFamily ? (loading ? (
           <Card className="mt-6 border-[var(--color-gold)]/25 bg-[var(--color-gold)]/10 shadow-none" role="status" aria-live="polite">
             <CardContent className="p-5 text-sm font-medium text-[var(--color-navy)]">
               {t.loadingResults}
@@ -371,6 +395,7 @@ export default function MarketplaceExplorer({
             <CardContent className="p-4 text-sm text-[var(--color-navy)]">
               <p className="font-semibold">{t.loadError}</p>
               <p className="mt-2">{error} {t.safeError}</p>
+              <button type="button" onClick={retry} className={`${buttonVariants({ variant: 'outline', size: 'default' })} mt-4`}>{language === 'en' ? 'Try again' : 'إعادة المحاولة'}</button>
             </CardContent>
           </Card>
         ) : (
@@ -418,11 +443,11 @@ export default function MarketplaceExplorer({
               </div>
             </SectionSurface>
           ) : (
-            <ServicesGrid services={services.map(service => ({ ...service, href: withSearchContext(service.href, handoffContext) }))} loading={false} emptyMessage={t.noResults} skeletonCount={6} />
+            <ServicesGrid services={services.map(service => ({ ...service, marketplacePresentation: true, href: withSearchContext(service.href, handoffContext) }))} loading={false} emptyMessage={t.noResults} skeletonCount={6} />
           )}
           </div>
           </>
-        )}
+        )) : null}
 
         {meta.totalPages > 1 ? (
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">

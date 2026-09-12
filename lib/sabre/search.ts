@@ -21,6 +21,7 @@ export type NormalizedSabreItinerary = {
   taxes?: number;
   currency?: string;
   validatingCarrier?: string;
+  baggage?: string;
 };
 
 export type SabreFlightSearchResult = {
@@ -36,6 +37,30 @@ const isRecord = (value: unknown): value is RecordValue => typeof value === "obj
 const records = (value: unknown) => (Array.isArray(value) ? value.filter(isRecord) : []);
 const text = (value: unknown) => (typeof value === "string" ? value : undefined);
 const number = (value: unknown) => (typeof value === "number" ? value : Number.isFinite(Number(value)) ? Number(value) : undefined);
+
+function extractBaggage(fareComponents: RecordValue[]): string | undefined {
+  for (const component of fareComponents) {
+    for (const segmentValue of records(component.segments)) {
+      const segment = isRecord(segmentValue.segment) ? segmentValue.segment : segmentValue;
+      const info = isRecord(segment.baggageInfo)
+        ? segment.baggageInfo
+        : isRecord(segment.baggageAllowance)
+          ? segment.baggageAllowance
+          : undefined;
+      if (!info) continue;
+
+      const suppliedText = text(info.description) ?? text(info.text) ?? text(info.allowance);
+      if (suppliedText) return suppliedText;
+
+      const pieces = number(info.pieces ?? info.pieceCount ?? info.quantity);
+      const weight = number(info.weight ?? info.weightValue);
+      const unit = text(info.unit) ?? text(info.weightUnit);
+      if (pieces != null) return `${pieces} piece${pieces === 1 ? '' : 's'}`;
+      if (weight != null) return `${weight}${unit ? ` ${unit}` : ''}`;
+    }
+  }
+  return undefined;
+}
 
 export class SabreValidationError extends Error {
   constructor(message: string) {
@@ -88,6 +113,10 @@ export function normalizeSabreBfmResponse(raw: unknown, input: SabreFlightSearch
     const legDescription = records(groupInfo.legDescriptions)[0];
 
     for (const itinerary of records(group.itineraries)) {
+      const itineraryId = itinerary.id == null ? '' : String(itinerary.id).trim();
+      // A proof card must retain an authoritative provider identifier; never
+      // substitute a local array index when Sabre omits one.
+      if (!itineraryId) continue;
       const pricing = records(itinerary.pricingInformation)[0];
       const fare = isRecord(pricing?.fare) ? pricing.fare : {};
       const totalFare = isRecord(fare.totalFare) ? fare.totalFare : {};
@@ -102,6 +131,7 @@ export function normalizeSabreBfmResponse(raw: unknown, input: SabreFlightSearch
       const passengerInfo = records(fare.passengerInfoList)[0];
       const passenger = isRecord(passengerInfo?.passengerInfo) ? passengerInfo.passengerInfo : {};
       const fareComponents = records(passenger.fareComponents);
+      const baggage = extractBaggage(fareComponents);
       const departureDate = text(legDescription?.departureDate) ?? input.departureDate;
       const departureValue = isRecord(first?.departure) ? first.departure : {};
       const arrivalValue = isRecord(last?.arrival) ? last.arrival : {};
@@ -117,8 +147,8 @@ export function normalizeSabreBfmResponse(raw: unknown, input: SabreFlightSearch
             ? `${departureDate}T${arrivalTime}`
             : undefined);
 
-      itineraries.push({
-        id: String(itinerary.id ?? itineraries.length + 1),
+      const normalizedItinerary: NormalizedSabreItinerary = {
+        id: itineraryId,
         origin: input.origin,
         destination: input.destination,
         departureDateTime,
@@ -141,7 +171,9 @@ export function normalizeSabreBfmResponse(raw: unknown, input: SabreFlightSearch
         taxes: number(totalFare.totalTaxAmount),
         currency: text(totalFare.currency),
         validatingCarrier: text(fare.validatingCarrierCode) ?? text(groupInfo.validatingCarrier),
-      });
+      };
+      if (baggage) normalizedItinerary.baggage = baggage;
+      itineraries.push(normalizedItinerary);
     }
   }
 

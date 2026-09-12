@@ -1,4 +1,5 @@
 import { clearSabreTokenCache, getSabreAccessToken } from "./auth";
+import { resolveSabreCertUrl, SABRE_CERT_ORIGIN } from './config';
 
 type FetchLike = typeof fetch;
 type TokenProvider = () => Promise<string>;
@@ -31,7 +32,15 @@ export function createSabreRequest(
   clearToken: () => void = clearSabreTokenCache
 ) {
   return async function sabreRequest(endpoint: string, options: RequestInit = {}) {
-    const url = new URL(endpoint, env.SABRE_API_BASE_URL || "https://api.cert.platform.sabre.com").toString();
+    let url: string;
+    try {
+      const baseUrl = resolveSabreCertUrl(env.SABRE_API_BASE_URL, SABRE_CERT_ORIGIN);
+      const resolved = new URL(endpoint, baseUrl);
+      if (resolved.origin !== SABRE_CERT_ORIGIN) throw new Error('Sabre endpoint escaped certification origin.');
+      url = resolved.toString();
+    } catch {
+      throw new SabreProviderError();
+    }
 
     const execute = async (token: string) =>
       fetchWithTimeout(

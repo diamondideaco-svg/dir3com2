@@ -57,7 +57,14 @@ export type MarketplaceSortKey = 'recommended' | 'featured' | 'popular' | 'price
 export type MarketplaceDataSource = 'supabase' | 'api' | 'fallback';
 export type MarketplaceProvenance = 'PROVIDER_LIVE' | 'PARTNER_VERIFIED' | 'FALLBACK' | 'SYNTHETIC_TEST' | 'PROVIDER_SANDBOX';
 
-export type MarketplaceAvailability = 'available' | 'limited' | 'sold-out';
+export type MarketplacePricingStatus =
+  | 'supplied'
+  | 'on_request'
+  | 'original_currency'
+  | 'converted'
+  | 'conversion_unavailable';
+
+export type MarketplaceAvailability = 'available' | 'limited' | 'sold-out' | 'unknown';
 
 export type MarketplaceCatalogEntry = {
   id: string;
@@ -99,6 +106,7 @@ type RawServiceApiItem = {
   destination?: string | null;
   region_name?: string | null;
   availability_status?: string | null;
+  inventory_count?: number;
   marketplace_category?: string | null;
   marketplace_family?: 'drive' | 'stay' | 'fly' | 'concierge' | 'vip' | null;
   category_slug?: string | null;
@@ -122,6 +130,7 @@ export type MarketplaceService = {
   country?: string | null;
   synthetic?: boolean | null;
   verified?: boolean | null;
+  status?: string | null;
   id: string | number;
   slug: string;
   name_ar: string;
@@ -139,6 +148,12 @@ export type MarketplaceService = {
   tags: string[];
   basePrice: number;
   currency: string;
+  /** The supplier amount/currency are immutable operational truth. */
+  supplierPriceAmount?: number | null;
+  supplierPriceCurrency?: string | null;
+  displayPriceAmount?: number | null;
+  displayCurrency?: string | null;
+  pricingStatus?: MarketplacePricingStatus;
   productCount: number;
   inventoryCount: number;
   availability: MarketplaceAvailability;
@@ -181,6 +196,8 @@ export type MarketplaceQueryOptions = {
   budget?: string;
   travelers?: string;
   availability?: 'all' | MarketplaceAvailability;
+  /** Customer-selected display currency; supplier values remain untouched. */
+  currency?: string;
 };
 
 export type MarketplaceQueryResult = {
@@ -311,6 +328,11 @@ function normalizeText(value: string | null | undefined) {
   return (value ?? '').trim().toLowerCase();
 }
 
+function normalizeCurrency(value: string | null | undefined) {
+  const normalized = value?.trim().toUpperCase() ?? '';
+  return /^[A-Z]{3}$/.test(normalized) ? normalized : null;
+}
+
 const explicitCategoryAliasMap: Record<string, MarketplacePageCategory> = {
   cars: 'cars',
   car: 'cars',
@@ -414,6 +436,10 @@ function inferDestination(item: RawServiceApiItem) {
 }
 
 function inferAvailability(item: RawServiceApiItem, productCount: number): MarketplaceAvailability {
+  if (item.inventory_count !== undefined) {
+    return item.availability_status === 'available' || item.availability_status === 'limited' || item.availability_status === 'sold-out'
+      ? item.availability_status : 'unknown';
+  }
   const status = normalizeText(item.availability_status ?? item.status);
 
   if (status.includes('sold') || status.includes('نفذ')) {
@@ -535,6 +561,11 @@ export function normalizeMarketplaceServices(
           .sort((left, right) => left - right)[0] ?? 0
       : 0;
     const basePrice = Number(item.base_price ?? basePriceFromProducts ?? 0);
+    const supplierPriceAmount = Number.isFinite(basePrice) && basePrice > 0 ? basePrice : null;
+    const supplierPriceCurrency = normalizeCurrency(item.currency);
+    const pricingStatus: MarketplacePricingStatus = supplierPriceAmount !== null && supplierPriceCurrency
+      ? 'supplied'
+      : 'on_request';
     const featured = Boolean(item.featured) || item.status === 'featured';
     // No authoritative popularity metric is published by the current adapter.
     const popular = false;
@@ -547,6 +578,7 @@ export function normalizeMarketplaceServices(
       id: item.id ?? index + 1,
       synthetic: item.synthetic,
       verified: item.verified,
+      status: item.status,
       slug: customerProductSlug(item.id, item.slug ?? fallbackSlug),
       name_ar: item.name_ar ?? item.name_en ?? catalogEntry.title,
       name_en: item.name_en ?? item.name_ar ?? catalogEntry.title,
@@ -557,16 +589,21 @@ export function normalizeMarketplaceServices(
       familyLabel,
       category,
       categoryLabel: categoryLabels[category],
-      icon: item.primary_image_url ?? catalogEntry.icon,
+      // Keep the approved service-family icon separate from provider imagery.
+      // Provider images belong in imageUrl and must never become an icon.
+      icon: catalogEntry.icon,
       href: resolveServiceHref(item, catalogEntry, fallbackSlug),
       metric: productCount > 0 ? `${productCount} خيارات` : catalogEntry.metric,
       tags: catalogEntry.tags,
       basePrice,
-      currency: item.currency ?? 'SAR',
+      currency: supplierPriceCurrency ?? item.currency ?? 'SAR',
+      supplierPriceAmount,
+      supplierPriceCurrency,
+      pricingStatus,
       productCount,
       maxGuests: Number.isInteger(item.max_guests) && Number(item.max_guests) > 0 ? item.max_guests : null,
       country: item.country,
-      inventoryCount: productCount,
+      inventoryCount: item.inventory_count ?? productCount,
       availability,
       destination,
       featured,

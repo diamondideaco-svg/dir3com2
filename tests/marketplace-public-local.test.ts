@@ -8,7 +8,7 @@ const css = read('components/public/marketplace-local.module.css');
 
 test('only exact Marketplace opts into approved public chrome and presentation', () => {
   assert.match(read('components/layout/SiteShell.tsx'), /pathname === '\/marketplace'\) return <ServicesChrome>/);
-  assert.match(read('app/marketplace/page.tsx'), /family=\{family\}\s+publicNormalization/);
+  assert.match(read('app/marketplace/page.tsx'), /family=\{family\}\s+liteApiSandboxProof=\{liteApiSandboxProof\}\s+publicNormalization/);
   assert.match(explorer, /publicNormalization = false/);
   assert.doesNotMatch(css, /:global\(body|:global\(header|row-reverse|display:\s*none/);
 });
@@ -27,7 +27,7 @@ test('late-loading facets become visible and responsive filters cannot force des
   assert.match(css, /focus-visible/);
 });
 test('normalization preserves real result, request and family contracts', () => {
-  assert.match(explorer, /<ServicesGrid services=\{services.map\(service => \(\{ \.\.\.service, href: withSearchContext\(service.href, handoffContext\) \}\)\)\} loading=\{false\}/);
+  assert.match(explorer, /<ServicesGrid services=\{services.map\(service => \(\{ \.\.\.service, marketplacePresentation: true, href: withSearchContext\(service.href, handoffContext\) \}\)\)\} loading=\{false\}/);
   assert.match(explorer, /const isActive = family === item.key/);
   assert.match(explorer, /meta.hasRealData \? t.verified : t.noVerified/);
   assert.match(explorer, /services.length === 0/);

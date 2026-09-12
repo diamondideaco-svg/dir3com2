@@ -8,8 +8,8 @@ const env = {
   SABRE_USER_ID: "fixture-user",
   SABRE_PASSWORD: "fixture-password",
   SABRE_PCC: "TEST",
-  SABRE_AUTH_URL: "https://example.test/auth",
-  SABRE_API_BASE_URL: "https://example.test",
+  SABRE_AUTH_URL: "https://api.cert.platform.sabre.com/v2/auth/token",
+  SABRE_API_BASE_URL: "https://api.cert.platform.sabre.com",
 };
 
 const json = (body: unknown, status = 200) =>
@@ -44,6 +44,18 @@ test("OAuth failure is sanitized", async () => {
       !error.message.includes("fixture-password") &&
       !error.message.includes("opaque-token")
   );
+});
+
+test("OAuth rejects non-certification origins before sending credentials", async () => {
+  clearSabreTokenCache();
+  let called = false;
+  const provider = createSabreTokenProvider({ ...env, SABRE_AUTH_URL: "https://evil.example/auth" }, async () => {
+    called = true;
+    return json({ access_token: "should-not-be-requested" });
+  });
+
+  await assert.rejects(provider(), SabreAuthError);
+  assert.equal(called, false);
 });
 
 test("BFM success and 401 refresh exactly once", async () => {
@@ -88,6 +100,21 @@ test("provider failure never leaks raw response secrets", async () => {
       !error.message.includes("opaque-token") &&
       !error.message.includes("fixture-password")
   );
+});
+
+test("BFM rejects a non-certification API origin before sending bearer tokens", async () => {
+  let called = false;
+  const request = createSabreRequest(
+    { ...env, SABRE_API_BASE_URL: "https://evil.example" },
+    async () => {
+      called = true;
+      return json({});
+    },
+    async () => "opaque-token"
+  );
+
+  await assert.rejects(request("/v5/offers/shop"), SabreProviderError);
+  assert.equal(called, false);
 });
 
 test("strict input validation rejects malformed searches before invocation", () => {
@@ -174,4 +201,16 @@ test("normalizes grouped itinerary into stable dir3com shape", () => {
     currency: "USD",
     validatingCarrier: "SV",
   });
+});
+
+test("does not synthesize a provider itinerary ID when Sabre omits it", () => {
+  const result = normalizeSabreBfmResponse(
+    {
+      groupedItineraryResponse: {
+        itineraryGroups: [{ itineraries: [{ legs: [], pricingInformation: [] }] }],
+      },
+    },
+    { origin: "CAI", destination: "RUH", departureDate: "2026-10-01", adults: 1 }
+  );
+  assert.equal(result.itineraryCount, 0);
 });

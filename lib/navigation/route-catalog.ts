@@ -20,6 +20,7 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   ...['drive', 'stay', 'fly', 'concierge', 'vip'].map((slug) => ({ path: `/services/${slug}`, audience: 'public' as const, protected: false, discoverability: 'hub' as const, parent: '/services', indexable: true })),
   { path: '/marketplace', audience: 'public', protected: false, discoverability: 'direct', indexable: true },
   { path: '/marketplace/preview', audience: 'public', protected: false, discoverability: 'contextual', parent: '/marketplace' },
+  { path: '/marketplace/provider-proof', audience: 'public', protected: false, discoverability: 'contextual', parent: '/marketplace' },
   { path: '/dabra', audience: 'public', protected: false, discoverability: 'direct', indexable: true },
   { path: '/terms', audience: 'public', protected: false, discoverability: 'direct', indexable: true },
   { path: '/privacy', audience: 'public', protected: false, discoverability: 'direct', indexable: true },
