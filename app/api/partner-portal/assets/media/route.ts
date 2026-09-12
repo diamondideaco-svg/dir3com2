@@ -104,7 +104,7 @@ async function uploadWithBucketRecovery(input: { path: string; bytes: Uint8Array
 
   const create = await supabaseAdmin.storage.createBucket(BUCKET, {
     public: false,
-    fileSizeLimit: 50 * 1024 * 1024,
+    fileSizeLimit: 10 * 1024 * 1024,
     allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf', 'video/mp4'],
   });
 
