@@ -18,16 +18,50 @@ function mp4(durationSeconds = 30) {
   const handler = Buffer.alloc(12);
   handler.write('vide', 8);
   const sizes = Buffer.alloc(12);
+  sizes.writeUInt32BE(1, 4);
   sizes.writeUInt32BE(1, 8);
-  const track = box('trak', box('tkhd'), box('mdia', box('mdhd'), box('hdlr', handler),
-    box('minf', box('stbl', box('stsd'), box('stts'), box('stsc'), box('stco'), box('stsz', sizes)))));
+  const trackHeader = Buffer.alloc(84);
+  trackHeader.writeUInt32BE(durationSeconds * 1000, 20);
+  const mediaHeader = Buffer.alloc(24);
+  mediaHeader.writeUInt32BE(1000, 12);
+  mediaHeader.writeUInt32BE(durationSeconds * 1000, 16);
+  const words = (...values: number[]) => { const b=Buffer.alloc(values.length*4); values.forEach((v,i)=>b.writeUInt32BE(v,i*4)); return b; };
+  const description = Buffer.alloc(78);
+  description.writeUInt16BE(1, 6);
+  const track = box('trak', box('tkhd', trackHeader), box('mdia', box('mdhd', mediaHeader), box('hdlr', handler),
+    box('minf', box('dinf', box('dref', words(0,1),box('url ',words(1)))), box('stbl',
+      box('stsd',words(0,1),box('avc1',description)),box('stts',words(0,1,1,durationSeconds*1000)),
+      box('stsc',words(0,1,1,1,1)),box('stco',words(0,1,24)),box('stsz',sizes)))));
   return Buffer.concat([box('ftyp', Buffer.from('isom0000')), box('mdat', Buffer.from([1])), box('moov', box('mvhd', header), track)]);
 }
 
-test('accepts a bounded MP4 and records authoritative duration', async () => {
+test('accepts consistent bounded MP4 container timing', async () => {
   const result = await validateAndNormalizeVideoFile(new File([mp4(45)], 'studio.mp4', { type: 'video/mp4' }));
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.data.durationSeconds, 45);
+});
+
+test('short movie metadata cannot override track/sample duration', async () => {
+  const b = mp4(121);
+  b.writeUInt32BE(1000,b.indexOf(Buffer.from('mvhd'))+20);
+  b.writeUInt32BE(1000,b.indexOf(Buffer.from('tkhd'))+24);
+  b.writeUInt32BE(1000,b.indexOf(Buffer.from('mdhd'))+20);
+  const result=await validateAndNormalizeVideoFile(new File([b],'long.mp4',{type:'video/mp4'}));
+  assert.equal(result.ok,false);
+  if(!result.ok)assert.equal(result.code,'VIDEO_TOO_LONG');
+});
+
+test('rejects empty tables, missing sample data, external references and ambiguous boxes', async () => {
+  for(const kind of ['stts','stsc','stco','stsd']) {
+    const b=mp4();b.writeUInt32BE(0,b.indexOf(Buffer.from(kind))+8);
+    assert.equal((await validateAndNormalizeVideoFile(new File([b],'bad.mp4',{type:'video/mp4'}))).ok,false,kind);
+  }
+  for(const [kind,offset,value] of [['stco',12,0],['stsz',8,2000],['url ',4,0],['stts',12,2]] as const) {
+    const b=mp4();b.writeUInt32BE(value,b.indexOf(Buffer.from(kind))+offset);
+    assert.equal((await validateAndNormalizeVideoFile(new File([b],'bad.mp4',{type:'video/mp4'}))).ok,false,kind);
+  }
+  const b=mp4();b.write('tkhd',b.indexOf(Buffer.from('mdia')));
+  assert.equal((await validateAndNormalizeVideoFile(new File([b],'bad.mp4',{type:'video/mp4'}))).ok,false);
 });
 
 test('rejects forged markers, truncated boxes and oversized uploads', async () => {

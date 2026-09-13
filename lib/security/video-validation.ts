@@ -46,34 +46,148 @@ function mp4Duration(bytes: Uint8Array): number | null {
   const movie = boxes(movies[0].start, movies[0].end);
   const headers = movie.filter(b => b.type === 'mvhd');
   if (headers.length !== 1) return null;
+  function one(items: Box[], kind: string): Box {
+    const matches = items.filter(b => b.type === kind);
+    if (matches.length !== 1) throw new Error('INVALID_STRUCTURE');
+    return matches[0];
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  function wide(offset: number) {
+    const n = Number(view.getBigUint64(offset));
+    if (!Number.isSafeInteger(n)) throw new Error('INVALID_INTEGER');
+    return n;
+  }
+  function clock(b: Box, minimum: number) {
+    const version = bytes[b.start];
+    if (version > 1 || b.end - b.start < minimum + (version ? 12 : 0)) throw new Error('INVALID_CLOCK');
+    const offset = b.start + (version ? 20 : 12);
+    const scale = uint32(bytes, offset);
+    const duration = version ? wide(offset + 4) : uint32(bytes, offset + 4);
+    if (!scale || !duration) throw new Error('INVALID_CLOCK');
+    return { scale, duration, seconds: duration / scale };
+  }
+  function table(b: Box, width: number, prefix = 8) {
+    if (b.end - b.start < prefix || bytes[b.start] > 1) throw new Error('INVALID_TABLE');
+    const count = uint32(bytes, b.start + prefix - 4);
+    if (!count || count > bytes.length || b.end - b.start !== prefix + count * width) throw new Error('INVALID_TABLE');
+    return count;
+  }
+  const movieClock = clock(headers[0], 100);
+  let durationSeconds = movieClock.seconds;
   let hasVideo = false;
+  const payloads = top.filter(b => b.type === 'mdat');
   for (const track of movie.filter(b => b.type === 'trak')) {
     const trackBoxes = boxes(track.start, track.end);
-    const mdia = trackBoxes.find(b => b.type === 'mdia');
-    if (!trackBoxes.some(b => b.type === 'tkhd') || !mdia) return null;
+    const mdia = one(trackBoxes, 'mdia');
+    const tkhd = one(trackBoxes, 'tkhd');
+    const trackVersion = bytes[tkhd.start];
+    if (trackVersion > 1 || tkhd.end - tkhd.start < (trackVersion ? 96 : 84)) return null;
+    const trackDuration = trackVersion ? wide(tkhd.start + 28) : uint32(bytes, tkhd.start + 20);
+    if (!trackDuration) return null;
+    durationSeconds = Math.max(durationSeconds, trackDuration / movieClock.scale);
     const media = boxes(mdia.start, mdia.end);
-    const handler = media.find(b => b.type === 'hdlr');
-    const minf = media.find(b => b.type === 'minf');
-    if (!handler || handler.end - handler.start < 12 || !media.some(b => b.type === 'mdhd') || !minf) return null;
-    const stbl = boxes(minf.start, minf.end).find(b => b.type === 'stbl');
-    if (!stbl) return null;
+    const handler = one(media, 'hdlr');
+    const minf = one(media, 'minf');
+    if (handler.end - handler.start < 12) return null;
+    const mediaClock = clock(one(media, 'mdhd'), 24);
+    durationSeconds = Math.max(durationSeconds, mediaClock.seconds);
+    const stbl = one(boxes(minf.start, minf.end), 'stbl');
     const sample = boxes(stbl.start, stbl.end);
-    const stsz = sample.find(b => b.type === 'stsz');
-    if (!sample.some(b => b.type === 'stsd') || !sample.some(b => b.type === 'stts') || !sample.some(b => b.type === 'stsc') || !sample.some(b => b.type === 'stco' || b.type === 'co64') || !stsz || stsz.end - stsz.start < 12 || uint32(bytes, stsz.start + 8) === 0) return null;
+    const stsz = one(sample, 'stsz');
+    if (stsz.end - stsz.start < 12) return null;
+    const fixedSize = uint32(bytes, stsz.start + 4);
+    const sampleCount = uint32(bytes, stsz.start + 8);
+    if (!sampleCount || sampleCount > bytes.length || stsz.end - stsz.start !== 12 + (fixedSize ? 0 : sampleCount * 4)) return null;
+    const sizes = Array.from({ length: sampleCount }, (_, i) => fixedSize || uint32(bytes, stsz.start + 12 + i * 4));
+    if (sizes.some(size => !size || size > bytes.length)) return null;
+    const stsd = one(sample, 'stsd');
+    if (stsd.end - stsd.start < 8) return null;
+    const descriptions = boxes(stsd.start + 8, stsd.end);
+    if (!descriptions.length || descriptions.length !== uint32(bytes, stsd.start + 4) || descriptions.some(b => b.end - b.start < 8)) return null;
+    // Only self-contained samples: external data references are never fetched.
+    const dinf = one(boxes(minf.start, minf.end), 'dinf');
+    const dref = one(boxes(dinf.start, dinf.end), 'dref');
+    if (dref.end - dref.start < 8) return null;
+    const refs = boxes(dref.start + 8, dref.end);
+    if (!refs.length || refs.length !== uint32(bytes, dref.start + 4) || refs.some(b => b.type !== 'url ' || b.end - b.start !== 4 || uint32(bytes, b.start) !== 1)) return null;
+    if (descriptions.some(b => { const ref = view.getUint16(b.start + 6); return ref < 1 || ref > refs.length; })) return null;
+    const stts = one(sample, 'stts');
+    const runs = table(stts, 8);
+    let totalSamples = 0;
+    let ticks = 0;
+    for (let i = 0; i < runs; i++) {
+      const count = uint32(bytes, stts.start + 8 + i * 8);
+      const delta = uint32(bytes, stts.start + 12 + i * 8);
+      totalSamples += count;
+      ticks += count * delta;
+      if (!count || !delta || totalSamples > sampleCount || !Number.isSafeInteger(ticks)) return null;
+    }
+    if (totalSamples !== sampleCount) return null;
+    durationSeconds = Math.max(durationSeconds, ticks / mediaClock.scale);
+    const ctts = sample.filter(b => b.type === 'ctts');
+    if (ctts.length > 1) return null;
+    let maxCompositionOffset = 0;
+    if (ctts.length) {
+      const b = ctts[0];
+      const entries = table(b, 8);
+      let count = 0;
+      for (let i = 0; i < entries; i++) {
+        const n = uint32(bytes, b.start + 8 + i * 8);
+        const offset = bytes[b.start] ? view.getInt32(b.start + 12 + i * 8) : uint32(bytes, b.start + 12 + i * 8);
+        if (!n) return null;
+        count += n;
+        maxCompositionOffset = Math.max(maxCompositionOffset, offset);
+      }
+      if (count !== sampleCount) return null;
+    }
+    const edits = trackBoxes.filter(b => b.type === 'edts');
+    if (edits.length > 1) return null;
+    if (edits.length) {
+      const elst = one(boxes(edits[0].start, edits[0].end), 'elst');
+      const width = bytes[elst.start] === 1 ? 20 : 12;
+      const count = table(elst, width);
+      let editDuration = 0;
+      for (let i = 0; i < count; i++) {
+        const p = elst.start + 8 + i * width;
+        const duration = width === 20 ? wide(p) : uint32(bytes, p);
+        const time = width === 20 ? Number(view.getBigInt64(p + 8)) : view.getInt32(p + 4);
+        if (!duration || !Number.isSafeInteger(time) || time < -1 || time > ticks + maxCompositionOffset || view.getInt16(p + width - 4) !== 1 || view.getInt16(p + width - 2) !== 0) return null;
+        editDuration += duration;
+        if (!Number.isSafeInteger(editDuration)) return null;
+      }
+      durationSeconds = Math.max(durationSeconds, editDuration / movieClock.scale);
+    } else {
+      durationSeconds = Math.max(durationSeconds, (ticks + maxCompositionOffset) / mediaClock.scale);
+    }
+    const offsets = sample.filter(b => b.type === 'stco' || b.type === 'co64');
+    if (offsets.length !== 1) return null;
+    const offsetBox = offsets[0];
+    const offsetWidth = offsetBox.type === 'co64' ? 8 : 4;
+    const chunks = table(offsetBox, offsetWidth);
+    const stsc = one(sample, 'stsc');
+    const mappings = table(stsc, 12);
+    let consumed = 0;
+    for (let i = 0; i < mappings; i++) {
+      const p = stsc.start + 8 + i * 12;
+      const first = uint32(bytes, p);
+      const perChunk = uint32(bytes, p + 4);
+      const description = uint32(bytes, p + 8);
+      const next = i + 1 < mappings ? uint32(bytes, p + 12) : chunks + 1;
+      if ((i === 0 && first !== 1) || !first || next <= first || next > chunks + 1 || !perChunk || perChunk > sampleCount || description < 1 || description > descriptions.length) return null;
+      for (let chunk = first; chunk < next; chunk++) {
+        const offset = offsetBox.start + 8 + (chunk - 1) * offsetWidth;
+        let cursor = offsetWidth === 8 ? wide(offset) : uint32(bytes, offset);
+        const payload = payloads.find(b => cursor >= b.start && cursor < b.end);
+        if (!payload || consumed + perChunk > sampleCount) return null;
+        for (let j = 0; j < perChunk; j++) cursor += sizes[consumed++];
+        if (cursor > payload.end) return null;
+      }
+    }
+    if (consumed !== sampleCount) return null;
     if (ascii(bytes, handler.start + 8, 4) === 'vide') hasVideo = true;
   }
   if (!hasVideo) return null;
-  const marker = headers[0].start - 4;
-  const version = bytes[marker + 4];
-  if (version !== 0 && version !== 1) return null;
-  const timescaleOffset = marker + (version === 1 ? 24 : 16);
-  const durationOffset = timescaleOffset + 4;
-  if (headers[0].end - headers[0].start < (version === 1 ? 112 : 100) || durationOffset + (version === 1 ? 8 : 4) > headers[0].end) return null;
-  const timescale = uint32(bytes, timescaleOffset);
-  if (!timescale) return null;
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const duration = version === 1 ? Number(view.getBigUint64(durationOffset)) : view.getUint32(durationOffset);
-  const seconds = duration / timescale;
+  const seconds = durationSeconds;
   return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
   } catch { return null; }
 }
