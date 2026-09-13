@@ -90,7 +90,6 @@ function mp4Duration(bytes: Uint8Array): number | null {
     const minf = one(media, 'minf');
     if (handler.end - handler.start < 12) return null;
     const mediaClock = clock(one(media, 'mdhd'), 24);
-    durationSeconds = Math.max(durationSeconds, mediaClock.seconds);
     const stbl = one(boxes(minf.start, minf.end), 'stbl');
     const sample = boxes(stbl.start, stbl.end);
     const stsz = one(sample, 'stsz');
@@ -123,7 +122,6 @@ function mp4Duration(bytes: Uint8Array): number | null {
       if (!count || !delta || totalSamples > sampleCount || !Number.isSafeInteger(ticks)) return null;
     }
     if (totalSamples !== sampleCount) return null;
-    durationSeconds = Math.max(durationSeconds, ticks / mediaClock.scale);
     const ctts = sample.filter(b => b.type === 'ctts');
     if (ctts.length > 1) return null;
     let maxCompositionOffset = 0;
@@ -155,9 +153,12 @@ function mp4Duration(bytes: Uint8Array): number | null {
         editDuration += duration;
         if (!Number.isSafeInteger(editDuration)) return null;
       }
+      // Edit lists define the presented track timeline; retained source samples
+      // may be longer (for example, a non-destructively trimmed clip).
+      // Keep validating all source sample tables, but do not report them as playback.
       durationSeconds = Math.max(durationSeconds, editDuration / movieClock.scale);
     } else {
-      durationSeconds = Math.max(durationSeconds, (ticks + maxCompositionOffset) / mediaClock.scale);
+      durationSeconds = Math.max(durationSeconds, mediaClock.seconds, (ticks + maxCompositionOffset) / mediaClock.scale);
     }
     const offsets = sample.filter(b => b.type === 'stco' || b.type === 'co64');
     if (offsets.length !== 1) return null;

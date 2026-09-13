@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { validateAndNormalizeVideoFile, videoValidationMessage } from '../lib/security/video-validation';
 
-function mp4(durationSeconds = 30) {
+function mp4(durationSeconds = 30, presentedDurationSeconds?: number) {
   // Structural unit fixture, not a playable video or browser-QA evidence.
   const box = (kind: string, ...parts: Uint8Array[]) => {
     const body = Buffer.concat(parts);
@@ -14,21 +14,24 @@ function mp4(durationSeconds = 30) {
   };
   const header = Buffer.alloc(100);
   header.writeUInt32BE(1000, 12);
-  header.writeUInt32BE(durationSeconds * 1000, 16);
+  header.writeUInt32BE((presentedDurationSeconds ?? durationSeconds) * 1000, 16);
   const handler = Buffer.alloc(12);
   handler.write('vide', 8);
   const sizes = Buffer.alloc(12);
   sizes.writeUInt32BE(1, 4);
   sizes.writeUInt32BE(1, 8);
   const trackHeader = Buffer.alloc(84);
-  trackHeader.writeUInt32BE(durationSeconds * 1000, 20);
+  trackHeader.writeUInt32BE((presentedDurationSeconds ?? durationSeconds) * 1000, 20);
   const mediaHeader = Buffer.alloc(24);
   mediaHeader.writeUInt32BE(1000, 12);
   mediaHeader.writeUInt32BE(durationSeconds * 1000, 16);
   const words = (...values: number[]) => { const b=Buffer.alloc(values.length*4); values.forEach((v,i)=>b.writeUInt32BE(v,i*4)); return b; };
   const description = Buffer.alloc(78);
   description.writeUInt16BE(1, 6);
-  const track = box('trak', box('tkhd', trackHeader), box('mdia', box('mdhd', mediaHeader), box('hdlr', handler),
+  const edits = presentedDurationSeconds === undefined ? [] : [
+    box('edts', box('elst', words(0, 1, presentedDurationSeconds * 1000, 0, 0x00010000))),
+  ];
+  const track = box('trak', box('tkhd', trackHeader), ...edits, box('mdia', box('mdhd', mediaHeader), box('hdlr', handler),
     box('minf', box('dinf', box('dref', words(0,1),box('url ',words(1)))), box('stbl',
       box('stsd',words(0,1),box('avc1',description)),box('stts',words(0,1,1,durationSeconds*1000)),
       box('stsc',words(0,1,1,1,1)),box('stco',words(0,1,24)),box('stsz',sizes)))));
@@ -39,6 +42,17 @@ test('accepts consistent bounded MP4 container timing', async () => {
   const result = await validateAndNormalizeVideoFile(new File([mp4(45)], 'studio.mp4', { type: 'video/mp4' }));
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.data.durationSeconds, 45);
+});
+
+test('reports edit-list playback duration instead of retained source duration', async () => {
+  for (const [source, presentation] of [[2, 1], [121, 120]]) {
+    const result = await validateAndNormalizeVideoFile(new File([mp4(source, presentation)], 'trim.mp4', { type: 'video/mp4' }));
+    assert.equal(result.ok, true);
+    if (result.ok) assert.equal(result.data.durationSeconds, presentation);
+  }
+  const long = await validateAndNormalizeVideoFile(new File([mp4(130, 121)], 'long-edit.mp4', { type: 'video/mp4' }));
+  assert.equal(long.ok, false);
+  if (!long.ok) assert.equal(long.code, 'VIDEO_TOO_LONG');
 });
 
 test('short movie metadata cannot override track/sample duration', async () => {
