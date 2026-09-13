@@ -72,7 +72,8 @@ export type PortalAssetMedia = {
     duplicateImage: boolean;
     basicImageQuality: boolean | 'not_available';
     correctAssociation: boolean;
-    malwareSafeControls: boolean;
+    // Legacy booleans remain readable; current uploads do not run a malware scan.
+    malwareSafeControls: boolean | 'not_available';
     metadataStripped: boolean | 'not_available';
     messages: string[];
   };

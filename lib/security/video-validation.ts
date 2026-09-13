@@ -2,6 +2,16 @@
 const MAX_VIDEO_SIZE_BYTES = 4 * 1024 * 1024;
 export const MAX_VIDEO_DURATION_SECONDS = 120;
 
+// Complexity policy for short, <=4MiB partner clips, not MP4 format limits.
+// 32K samples accommodates 120s at 240fps or ordinary compressed audio.
+// Totals are per file (not reset for each track/table). Bound mdat lookups too.
+export const VIDEO_PARSE_LIMITS = Object.freeze({
+  tracks: 8, boxes: 4096, payloads: 64,
+  samplesPerTrack: 32768, samplesTotal: 65536,
+  entriesPerTable: 32768, entriesTotal: 131072,
+  chunksPerTrack: 16384, chunksTotal: 32768,
+});
+
 type VideoValidationResult =
   | { ok: true; data: { bytes: Uint8Array; extension: 'mp4'; mimeType: 'video/mp4'; durationSeconds: number } }
   | { ok: false; code: string; message: string };
@@ -16,10 +26,18 @@ function uint32(bytes: Uint8Array, offset: number) {
 
 function mp4Duration(bytes: Uint8Array): number | null {
   type Box = { type: string; start: number; end: number };
+  const remaining: Record<'boxes' | 'samples' | 'entries' | 'chunks', number> = {
+    boxes: VIDEO_PARSE_LIMITS.boxes, samples: VIDEO_PARSE_LIMITS.samplesTotal,
+    entries: VIDEO_PARSE_LIMITS.entriesTotal, chunks: VIDEO_PARSE_LIMITS.chunksTotal };
+  function reserve(kind: keyof typeof remaining, count: number) {
+    if (!Number.isSafeInteger(count) || count < 0 || count > remaining[kind]) throw new Error('PARSE_BUDGET');
+    remaining[kind] -= count;
+  }
   function boxes(start: number, end: number): Box[] {
     const result: Box[] = [];
     while (start < end) {
-      if (end - start < 8 || result.length > 4096) throw new Error('INVALID_BOX');
+      reserve('boxes', 1);
+      if (end - start < 8) throw new Error('INVALID_BOX');
       let size = uint32(bytes, start);
       const type = ascii(bytes, start + 4, 4);
       let header = 8;
@@ -69,14 +87,17 @@ function mp4Duration(bytes: Uint8Array): number | null {
   function table(b: Box, width: number, prefix = 8) {
     if (b.end - b.start < prefix || bytes[b.start] > 1) throw new Error('INVALID_TABLE');
     const count = uint32(bytes, b.start + prefix - 4);
-    if (!count || count > bytes.length || b.end - b.start !== prefix + count * width) throw new Error('INVALID_TABLE');
+    if (!count || count > VIDEO_PARSE_LIMITS.entriesPerTable || b.end - b.start !== prefix + count * width) throw new Error('INVALID_TABLE');
+    reserve('entries', count);
     return count;
   }
   const movieClock = clock(headers[0], 100);
   let durationSeconds = movieClock.seconds;
   let hasVideo = false;
   const payloads = top.filter(b => b.type === 'mdat');
-  for (const track of movie.filter(b => b.type === 'trak')) {
+  const tracks = movie.filter(b => b.type === 'trak');
+  if (payloads.length > VIDEO_PARSE_LIMITS.payloads || tracks.length > VIDEO_PARSE_LIMITS.tracks) return null;
+  for (const track of tracks) {
     const trackBoxes = boxes(track.start, track.end);
     const mdia = one(trackBoxes, 'mdia');
     const tkhd = one(trackBoxes, 'tkhd');
@@ -96,9 +117,9 @@ function mp4Duration(bytes: Uint8Array): number | null {
     if (stsz.end - stsz.start < 12) return null;
     const fixedSize = uint32(bytes, stsz.start + 4);
     const sampleCount = uint32(bytes, stsz.start + 8);
-    if (!sampleCount || sampleCount > bytes.length || stsz.end - stsz.start !== 12 + (fixedSize ? 0 : sampleCount * 4)) return null;
-    const sizes = Array.from({ length: sampleCount }, (_, i) => fixedSize || uint32(bytes, stsz.start + 12 + i * 4));
-    if (sizes.some(size => !size || size > bytes.length)) return null;
+    if (!sampleCount || sampleCount > VIDEO_PARSE_LIMITS.samplesPerTrack || sampleCount > bytes.length || stsz.end - stsz.start !== 12 + (fixedSize ? 0 : sampleCount * 4)) return null;
+    reserve('samples', sampleCount);
+    if (fixedSize > bytes.length) return null;
     const stsd = one(sample, 'stsd');
     if (stsd.end - stsd.start < 8) return null;
     const descriptions = boxes(stsd.start + 8, stsd.end);
@@ -165,6 +186,8 @@ function mp4Duration(bytes: Uint8Array): number | null {
     const offsetBox = offsets[0];
     const offsetWidth = offsetBox.type === 'co64' ? 8 : 4;
     const chunks = table(offsetBox, offsetWidth);
+    if (chunks > VIDEO_PARSE_LIMITS.chunksPerTrack) return null;
+    reserve('chunks', chunks);
     const stsc = one(sample, 'stsc');
     const mappings = table(stsc, 12);
     let consumed = 0;
@@ -180,7 +203,13 @@ function mp4Duration(bytes: Uint8Array): number | null {
         let cursor = offsetWidth === 8 ? wide(offset) : uint32(bytes, offset);
         const payload = payloads.find(b => cursor >= b.start && cursor < b.end);
         if (!payload || consumed + perChunk > sampleCount) return null;
-        for (let j = 0; j < perChunk; j++) cursor += sizes[consumed++];
+        // Read sample sizes in place: never expand an attacker-declared count.
+        for (let j = 0; j < perChunk; j++) {
+          const size = fixedSize || uint32(bytes, stsz.start + 12 + consumed * 4);
+          if (!size || size > bytes.length) return null;
+          cursor += size;
+          consumed++;
+        }
         if (cursor > payload.end) return null;
       }
     }

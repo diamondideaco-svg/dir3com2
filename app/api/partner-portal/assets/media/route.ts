@@ -322,7 +322,7 @@ export async function POST(request: Request) {
             duplicateImage: false,
             basicImageQuality: 'not_available',
             correctAssociation: true,
-            malwareSafeControls: true,
+            malwareSafeControls: 'not_available',
             metadataStripped: 'not_available',
             messages: [validation.message],
           },
@@ -366,7 +366,7 @@ export async function POST(request: Request) {
             duplicateImage: true,
             basicImageQuality: 'not_available',
             correctAssociation: true,
-            malwareSafeControls: true,
+            malwareSafeControls: 'not_available',
             metadataStripped: 'not_available',
             messages: ['Duplicate image detected for this asset'],
           },
@@ -407,9 +407,11 @@ export async function POST(request: Request) {
     duplicateImage: false,
     basicImageQuality: 'not_available',
     correctAssociation: true,
-    malwareSafeControls: true,
+    malwareSafeControls: 'not_available',
     metadataStripped: 'not_available',
-    messages: ['Technical checks passed where available. Routed to pending review.'],
+    messages: [videoUpload
+      ? 'MP4 structural validation only; malware scanning is not available. Routed to pending review.'
+      : 'Technical checks passed where available; malware scanning is not available. Routed to pending review.'],
   };
 
   const newMedia: PortalAssetMedia = {
