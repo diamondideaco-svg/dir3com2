@@ -8,6 +8,8 @@ import * as searchContextContract from '../lib/marketplace/search-context';
 import * as handoffContract from '../lib/auth/marketplace-request-handoff';
 import * as marketplaceData from '../lib/marketplace/data';
 import * as marketplaceTruth from '../lib/marketplace/truth';
+import * as requestInputs from '../lib/marketplace/request-input';
+import * as requestFeedback from '../lib/marketplace/request-feedback';
 import { filterMarketplaceServices, normalizeMarketplaceServices } from '../lib/marketplace/data';
 import { buildMarketplaceRequestReturnPath, buildMarketplaceLoginHandoff } from '../lib/auth/marketplace-request-handoff';
 import { familyContextFields, readSearchContext, initialContextFilters, contextSummary, withSearchContext, searchContextBrief, requestDetailHref, validSearchDate } from '../lib/marketplace/search-context';
@@ -140,24 +142,28 @@ for (const language of ['ar', 'en'] as const) {
     type Node = { type: unknown; props: { children?: unknown; href?: string; onClick?: () => Promise<void> } };
     const state: unknown[] = [{ id: 'unit-product', slug: 'unit-product', name_ar: 'unit only', name_en: 'unit only', marketplace_family: 'drive', fulfilment_state: 'verified_requestable', transaction_method: 'request_to_confirm', marketplace_environment: 'production', supply_type: 'verified_local_partner', supplier_verified: true, availability_status: 'available' }, null, false, null, 'idle', null, '2026-10-10T10:00', 5, 'unit notes'];
     let index = 0;
-    const calls: Array<{ url: string; body?: string }> = [];
+    const pendingRef = { current: false };
+    const calls: Array<{ url: string; body?: string; headers?: Record<string, string>; credentials?: string }> = [];
     const context = { service: 'drive', ...inputs.drive };
     const dependencies: Record<string, unknown> = {
       'react/jsx-runtime': { jsx: (type: unknown, props: Node['props']) => ({ type, props }), jsxs: (type: unknown, props: Node['props']) => ({ type, props }) },
-      react: { useState: () => { const i = index++; return [state[i], (value: unknown) => { state[i] = value; }]; }, useEffect() {} },
+      react: { useState: () => { const i = index++; return [state[i], (value: unknown) => { state[i] = value; }]; }, useEffect() {}, useRef: () => pendingRef },
       'next/image': 'image', 'next/link': 'link', 'next/navigation': { useRouter: () => ({ replace() {} }) },
       'react-icons/fi': {}, '@/components/design-system': {}, '@/components/ui/button': { buttonVariants: () => '' },
       '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language, direction: language === 'ar' ? 'rtl' : 'ltr' }) },
       '@/lib/marketplace/data': marketplaceData, '@/lib/marketplace/truth': marketplaceTruth,
       '@/lib/marketplace/catalog-availability': await import('../lib/marketplace/catalog-availability'),
+      '@/lib/marketplace/request-input': requestInputs,
+      '@/lib/marketplace/request-feedback': requestFeedback,
       '@/lib/services/canonical': { getCanonicalService: () => null },
       '@/lib/auth/marketplace-request-handoff': handoffContract,
       '@/lib/marketplace/customer-identifiers': {}, '@/lib/marketplace/search-context': searchContextContract,
+      '@/lib/supabase/client': { supabase: { auth: { getSession: async () => ({ data: { session: { access_token: 'unit-access-token' } }, error: null }) } } },
     };
     const exports: Record<string, unknown> = {};
     const source = ts.transpileModule(readFileSync('components/public/PublicServiceDetailClient.tsx', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-    runInNewContext(source, { exports, require(id: string) { assert.ok(id in dependencies, id); return dependencies[id]; }, fetch: async (url: string, options?: { body?: string }) => {
-      calls.push({ url, body: options?.body });
+    runInNewContext(source, { exports, require(id: string) { assert.ok(id in dependencies, id); return dependencies[id]; }, fetch: async (url: string, options?: { body?: string; headers?: Record<string, string>; credentials?: string }) => {
+      calls.push({ url, body: options?.body, headers: options?.headers, credentials: options?.credentials });
       return { ok: true, json: async () => url.includes('session-identity') ? { authenticated: true } : { request: { request_reference: 'REQ-UNIT1234' } } };
     } });
     const component = exports.default as (props: { slug: string; searchContext: Record<string, string> }) => Node;
@@ -173,9 +179,14 @@ for (const language of ['ar', 'en'] as const) {
     assert.ok(submit?.props.onClick);
     await submit.props.onClick();
     assert.deepEqual(calls.map(call => call.url), ['/api/auth/session-identity', '/api/marketplace/requests']);
+    assert.deepEqual(calls.map(call => call.credentials), ['same-origin', 'same-origin']);
+    assert.equal(calls[0].headers?.Authorization, 'Bearer unit-access-token');
+    assert.equal(calls[1].headers?.Authorization, 'Bearer unit-access-token');
     const body = JSON.parse(calls[1].body!);
     assert.equal(body.product_id, 'unit-product');
     assert.equal(body.traveller_count, 5);
+    assert.equal(body.requested_for, new Date('2026-10-10T10:00').toISOString());
+    assert.equal(pendingRef.current, false);
     assert.deepEqual(JSON.parse(body.customer_brief.requirements), context);
     assert.equal(body.user_id, undefined);
     index = 0;
