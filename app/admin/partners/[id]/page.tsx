@@ -28,7 +28,8 @@ export default async function PartnerDetailsPage({ params }: { params: Promise<{
     !partner.city,
     !partner.phone,
     !partner.commercial_registration,
-    partner.company_name.trim().toLowerCase() === partner.contact_person.trim().toLowerCase(),
+    !partner.contact_person?.trim(),
+    (partner.company_name ?? '').trim().toLowerCase() === (partner.contact_person ?? '').trim().toLowerCase(),
   ].some(Boolean);
 
   return (

@@ -81,7 +81,7 @@ for (const confirmation of [false, true]) {
     let submissions = 0;
     const form = { reportValidity: () => valid, requestSubmit() { assert.ok(valid); submissions++; } };
     assert.equal(click(button(render()), form), true);
-    assert.equal(render().some(node => node.props.role === 'dialog'), false);
+    assert.equal(render().some(node => node.type === 'dialog'), false);
     valid = true;
     const start = () => {
       const prevented = click(button(render()), form);

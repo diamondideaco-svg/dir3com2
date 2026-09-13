@@ -135,7 +135,19 @@ export function AdminSubmitButton({
   const [confirmForm, setConfirmForm] = useState<HTMLFormElement | null>(null);
   const submittingRef = useRef(false);
   const dialogId = useId();
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const confirmation = language === 'ar' ? confirmAr : confirmEn;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!confirmForm || !dialog) return;
+    const opener = document.activeElement;
+    dialog.showModal();
+    return () => {
+      dialog.close();
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
+  }, [confirmForm]);
 
   useEffect(() => {
     // A retained form must be usable again after its action settles.
@@ -187,8 +199,8 @@ export function AdminSubmitButton({
         {pending ? (language === 'ar' ? 'جارٍ التنفيذ…' : 'Working…') : (language === 'ar' ? ar : en)}
       </button>
       {confirmForm && confirmation ? (
-        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-[#0D1B2A]/45 p-4 sm:items-center" role="presentation">
-          <section role="dialog" aria-modal="true" aria-labelledby={dialogId} dir={language === 'ar' ? 'rtl' : 'ltr'} className="w-full max-w-md rounded-[1.75rem] border border-[#D4AF37]/40 bg-white p-5 text-[#0D1B2A] shadow-2xl">
+        <dialog ref={dialogRef} role="dialog" aria-modal="true" onCancel={(event) => { event.preventDefault(); setConfirmForm(null); }} aria-labelledby={dialogId} className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md border-0 bg-transparent p-0 backdrop:bg-[#0D1B2A]/45">
+          <section dir={language === 'ar' ? 'rtl' : 'ltr'} className="w-full max-w-md rounded-[1.75rem] border border-[#D4AF37]/40 bg-white p-5 text-[#0D1B2A] shadow-2xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#A67C00]">{language === 'ar' ? 'تأكيد الإجراء' : 'Confirm action'}</p>
             <h2 id={dialogId} className="mt-3 text-lg font-semibold leading-8">{confirmation}</h2>
             <p className="mt-2 text-sm leading-6 text-[#64748B]">{language === 'ar' ? 'لن يتم تنفيذ التغيير قبل تأكيدك.' : 'The change will not be executed until you confirm.'}</p>
@@ -197,7 +209,7 @@ export function AdminSubmitButton({
               <button type="button" onClick={approve} className="min-h-11 rounded-full bg-[#D4AF37] px-5 text-sm font-bold text-[#0D1B2A]">{language === 'ar' ? 'تأكيد' : 'Confirm'}</button>
             </div>
           </section>
-        </div>
+        </dialog>
       ) : null}
     </>
   );

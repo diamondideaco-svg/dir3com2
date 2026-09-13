@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { archiveProductAction, publishProductAction, unpublishProductAction } from '@/lib/actions/product-actions';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
@@ -28,6 +28,18 @@ export default function ProductLifecycleControls({ id, slug, status, lifecycleVe
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const submittingRef = useRef(false);
   const approvedRef = useRef(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!pendingConfirm || !dialog) return;
+    const opener = document.activeElement;
+    dialog.showModal();
+    return () => {
+      dialog.close();
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
+  }, [pendingConfirm]);
 
   const confirmAction = (messageAr: string, messageEn: string) => (event: React.FormEvent<HTMLFormElement>) => {
     if (submittingRef.current) {
@@ -127,8 +139,8 @@ export default function ProductLifecycleControls({ id, slug, status, lifecycleVe
       </div>
 
       {pendingConfirm ? (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-[#0D1B2A]/45 p-4 sm:items-center" role="presentation">
-          <section role="dialog" aria-modal="true" aria-labelledby={`product-confirm-${id}`} dir={ar ? 'rtl' : 'ltr'} className="w-full max-w-md rounded-[1.75rem] border border-[#D4AF37]/40 bg-white p-5 text-[#0D1B2A] shadow-2xl">
+        <dialog ref={dialogRef} role="dialog" aria-modal="true" onCancel={(event) => { event.preventDefault(); setPendingConfirm(null); }} aria-labelledby={`product-confirm-${id}`} className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md border-0 bg-transparent p-0 backdrop:bg-[#0D1B2A]/45">
+          <section dir={ar ? 'rtl' : 'ltr'} className="w-full max-w-md rounded-[1.75rem] border border-[#D4AF37]/40 bg-white p-5 text-[#0D1B2A] shadow-2xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#A67C00]">{ar ? 'تأكيد الإجراء' : 'Confirm action'}</p>
             <h2 id={`product-confirm-${id}`} className="mt-3 text-lg font-semibold leading-8">{ar ? pendingConfirm.messageAr : pendingConfirm.messageEn}</h2>
             <p className="mt-2 text-sm leading-6 text-[#64748B]">{ar ? 'لن يتم تنفيذ أي تغيير قبل تأكيدك.' : 'No change will be executed until you confirm.'}</p>
@@ -137,7 +149,7 @@ export default function ProductLifecycleControls({ id, slug, status, lifecycleVe
               <button type="button" onClick={approvePendingAction} className="min-h-11 rounded-full bg-[#D4AF37] px-5 text-sm font-bold text-[#0D1B2A]">{ar ? 'تأكيد' : 'Confirm'}</button>
             </div>
           </section>
-        </div>
+        </dialog>
       ) : null}
     </>
   );
