@@ -30,6 +30,7 @@ import { customerProductAliasId, hasLegacyCustomerIdentifier } from '@/lib/marke
 import { contextSummary, partySize, requestDetailHref, searchContextBrief, type SearchContext } from '@/lib/marketplace/search-context';
 import { parseMarketplaceRequestInputs } from '@/lib/marketplace/request-input';
 import { marketplaceRequestErrorMessage } from '@/lib/marketplace/request-feedback';
+import { marketplaceRequestAttemptKey } from '@/lib/marketplace/request-attempt';
 import { supabase } from '@/lib/supabase/client';
 
 type ServiceProduct = {
@@ -94,6 +95,7 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
   const [requestNotes, setRequestNotes] = useState('');
   const [requestError, setRequestError] = useState<number | null>(null);
   const requestInFlight = useRef(false);
+  const requestAttempt = useRef<{ nonce: string | null }>({ nonce: null });
 
   useEffect(() => {
     async function loadService() {
@@ -216,7 +218,7 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       const accessToken = session?.access_token ?? null;
-      if (sessionError || !accessToken) {
+      if (sessionError || !session || !accessToken) {
         window.location.assign(buildMarketplaceLoginHandoff(returnPath));
         return;
       }
@@ -238,17 +240,19 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
       }
 
       setRequestState('sending');
+      const requestBody = JSON.stringify({
+        product_id: service_.id,
+        request_type: primaryAction,
+        requested_for: inputs.requestedFor,
+        traveller_count: inputs.travellers,
+        customer_brief: { ...searchContextBrief(searchContext), notes: requestNotes },
+      });
+      const idempotencyKey = await marketplaceRequestAttemptKey(requestAttempt.current, session.user.id, requestBody, () => window.sessionStorage);
       const response = await fetch('/api/marketplace/requests', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'content-type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({
-          product_id: service_.id,
-          request_type: primaryAction,
-          requested_for: inputs.requestedFor,
-          traveller_count: inputs.travellers,
-          customer_brief: { ...searchContextBrief(searchContext), notes: requestNotes },
-        }),
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${accessToken}`, 'Idempotency-Key': idempotencyKey },
+        body: requestBody,
       });
       const payload = (await response.json().catch(() => ({}))) as { request?: { request_reference?: string } };
       if (response.ok && payload.request?.request_reference) {
