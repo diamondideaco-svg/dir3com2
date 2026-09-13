@@ -80,6 +80,6 @@ test('partner UI accepts and previews MP4 without claiming publication', () => {
   assert.match(panel, /<video[\s\S]*controls[\s\S]*preload="metadata"/);
   assert.match(panel, /pending_review/);
   assert.match(panel, /<fieldset disabled=\{loading \|\| item.status !== 'pending_review'/);
-  assert.match(panel, /entry.submittedAt > item.submittedAt/);
+  assert.doesNotMatch(panel, /entry.submittedAt > item.submittedAt/);
   assert.match(panel, /approve: 'اعتماد'/);
 });
