@@ -1,25 +1,53 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { validateAndNormalizeVideoFile } from '../lib/security/video-validation';
+import { validateAndNormalizeVideoFile, videoValidationMessage } from '../lib/security/video-validation';
 
 function mp4(durationSeconds = 30) {
-  const bytes = new Uint8Array(64);
-  bytes.set([0, 0, 0, 24], 0);
-  bytes.set(new TextEncoder().encode('ftyp'), 4);
-  bytes.set(new TextEncoder().encode('isom'), 8);
-  bytes.set(new TextEncoder().encode('mvhd'), 28);
-  bytes[32] = 0;
-  const view = new DataView(bytes.buffer);
-  view.setUint32(44, 1000);
-  view.setUint32(48, durationSeconds * 1000);
-  return bytes;
+  // Structural unit fixture, not a playable video or browser-QA evidence.
+  const box = (kind: string, ...parts: Uint8Array[]) => {
+    const body = Buffer.concat(parts);
+    const header = Buffer.alloc(8);
+    header.writeUInt32BE(body.length + 8);
+    header.write(kind, 4);
+    return Buffer.concat([header, body]);
+  };
+  const header = Buffer.alloc(100);
+  header.writeUInt32BE(1000, 12);
+  header.writeUInt32BE(durationSeconds * 1000, 16);
+  const handler = Buffer.alloc(12);
+  handler.write('vide', 8);
+  const sizes = Buffer.alloc(12);
+  sizes.writeUInt32BE(1, 8);
+  const track = box('trak', box('tkhd'), box('mdia', box('mdhd'), box('hdlr', handler),
+    box('minf', box('stbl', box('stsd'), box('stts'), box('stsc'), box('stco'), box('stsz', sizes)))));
+  return Buffer.concat([box('ftyp', Buffer.from('isom0000')), box('mdat', Buffer.from([1])), box('moov', box('mvhd', header), track)]);
 }
 
 test('accepts a bounded MP4 and records authoritative duration', async () => {
   const result = await validateAndNormalizeVideoFile(new File([mp4(45)], 'studio.mp4', { type: 'video/mp4' }));
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.data.durationSeconds, 45);
+});
+
+test('rejects forged markers, truncated boxes and oversized uploads', async () => {
+  const forged = Buffer.alloc(64);
+  forged.writeUInt32BE(24, 0);
+  forged.write('ftypisom', 4);
+  forged.write('mvhd', 28);
+  forged.writeUInt32BE(1000, 44);
+  forged.writeUInt32BE(30000, 48);
+  for (const bytes of [forged, mp4().subarray(0, 60), Buffer.alloc(4 * 1024 * 1024 + 1)]) {
+    assert.equal((await validateAndNormalizeVideoFile(new File([bytes], 'qa.mp4', { type: 'video/mp4' }))).ok, false);
+  }
+});
+
+test('video rejection messages are localized for both languages', () => {
+  for (const code of ['VIDEO_INVALID_FILE', 'VIDEO_TOO_LARGE', 'VIDEO_UNSUPPORTED_TYPE', 'VIDEO_INVALID_STRUCTURE', 'VIDEO_TOO_LONG']) {
+    assert.match(videoValidationMessage(code, 'ar')!, /[\u0600-\u06ff]/);
+    assert.doesNotMatch(videoValidationMessage(code, 'en')!, /[\u0600-\u06ff]/);
+    assert.ok(videoValidationMessage(code, 'en'));
+  }
 });
 
 test('rejects oversized duration, spoofed MIME and invalid structure', async () => {
@@ -41,7 +69,7 @@ test('video stays private, signed-previewed and review-gated', () => {
   assert.match(route, /createSignedUrl\(media\.url, 300\)/);
   assert.match(route, /validateAndNormalizeVideoFile/);
   assert.match(route, /status: 'pending_review'/);
-  assert.match(review, /allAssetMediaApproved/);
+  assert.match(review, /rpc\('review_partner_portal_media'/);
   assert.match(migration, /public = false/);
   assert.doesNotMatch(migration, /create policy[\s\S]*insert/i);
 });
@@ -51,4 +79,7 @@ test('partner UI accepts and previews MP4 without claiming publication', () => {
   assert.match(panel, /video\/mp4/);
   assert.match(panel, /<video[\s\S]*controls[\s\S]*preload="metadata"/);
   assert.match(panel, /pending_review/);
+  assert.match(panel, /<fieldset disabled=\{loading \|\| item.status !== 'pending_review'/);
+  assert.match(panel, /entry.submittedAt > item.submittedAt/);
+  assert.match(panel, /approve: 'اعتماد'/);
 });

@@ -5,7 +5,13 @@ import ProductLifecycleControls from '@/components/products/ProductLifecycleCont
 type ProductWithImages = ProductRecord & {
   country?: string | null;
   marketplace_family?: string | null;
+  marketplace_environment?: string | null;
   lifecycle_version?: number | null;
+  fulfilment_state?: string | null;
+  transaction_method?: string | null;
+  supply_type?: string | null;
+  supplier_verified?: boolean | null;
+  synthetic?: boolean | null;
   product_images?: Array<{ id: string; product_id: string; image_url: string; caption?: string | null }>;
 };
 
@@ -13,6 +19,52 @@ type ProductTableProps = {
   products: ProductWithImages[];
   canWrite?: boolean;
 };
+
+function publishBlocker(product: ProductWithImages): { ar: string; en: string } | null {
+  const ar: string[] = [];
+  const en: string[] = [];
+
+  if (product.synthetic !== false) {
+    ar.push('السجل تجريبي/غير مثبت كمخزون حقيقي');
+    en.push('record is synthetic or not proven as real inventory');
+  }
+  if (!product.country?.trim()) {
+    ar.push('الدولة غير محددة');
+    en.push('country is missing');
+  }
+  if (!product.marketplace_family || !['drive', 'stay', 'fly', 'concierge', 'vip'].includes(product.marketplace_family)) {
+    ar.push('عائلة المنتج غير محددة');
+    en.push('marketplace family is missing');
+  }
+  if (product.marketplace_environment !== 'production') {
+    ar.push('بيئة المنتج ليست Production');
+    en.push('product environment is not Production');
+  }
+  if (!product.supply_type || !['verified_local_partner', 'global_travel_partner', 'dir3com_managed'].includes(product.supply_type)) {
+    ar.push('مصدر التوريد غير موثّق');
+    en.push('supply source is not authoritative');
+  }
+  if (product.supplier_verified !== true) {
+    ar.push('المورّد غير موثّق');
+    en.push('supplier is not verified');
+  }
+
+  const transactionValid =
+    (product.fulfilment_state === 'verified_requestable' && product.transaction_method === 'request_to_confirm') ||
+    (product.fulfilment_state === 'verified_quote' && product.transaction_method === 'request_quote') ||
+    (['unavailable', 'availability_unknown'].includes(product.fulfilment_state || '') && product.transaction_method === 'none');
+
+  if (!transactionValid) {
+    ar.push('مسار التنفيذ/المعاملة غير صالح للنشر');
+    en.push('fulfilment/transaction path is not publishable');
+  }
+
+  if (!ar.length) return null;
+  return {
+    ar: `النشر متوقف حتى تصحيح: ${ar.join('، ')}.`,
+    en: `Publishing is blocked until corrected: ${en.join(', ')}.`,
+  };
+}
 
 function ProductImages({ product }: { product: ProductWithImages }) {
   if (!product.product_images?.length) {
@@ -53,7 +105,9 @@ export default function ProductTable({ products, canWrite = false }: ProductTabl
   return (
     <>
       <div className="grid min-w-0 gap-3 md:hidden">
-        {products.map((product) => (
+        {products.map((product) => {
+          const blocker = product.status === 'draft' ? publishBlocker(product) : null;
+          return (
           <article key={product.id} className="min-w-0 overflow-hidden rounded-[1.25rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-muted)]">
             <div className="min-w-0">
               <div className="break-words font-semibold text-[var(--color-navy)]"><AdminText ar={product.name_ar || product.name_en} en={product.name_en || product.name_ar} /></div>
@@ -87,10 +141,12 @@ export default function ProductTable({ products, canWrite = false }: ProductTabl
                 status={product.status}
                 lifecycleVersion={product.lifecycle_version}
                 canWrite={canWrite}
+                publishBlockedReason={blocker}
               />
             </div>
           </article>
-        ))}
+          );
+        })}
       </div>
 
       <div className="hidden w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain rounded-[1.5rem] border border-[color:var(--color-border)] bg-[var(--color-surface)] md:block">
@@ -106,7 +162,9 @@ export default function ProductTable({ products, canWrite = false }: ProductTabl
             </tr>
           </thead>
           <tbody>
-            {products.map((product) => (
+            {products.map((product) => {
+              const blocker = product.status === 'draft' ? publishBlocker(product) : null;
+              return (
               <tr key={product.id} className="border-t border-[color:var(--color-border)] align-top text-sm text-[var(--color-muted)]">
                 <td className="px-5 py-4">
                   <div className="font-semibold text-[var(--color-navy)]"><AdminText ar={product.name_ar || product.name_en} en={product.name_en || product.name_ar} /></div>
@@ -128,11 +186,13 @@ export default function ProductTable({ products, canWrite = false }: ProductTabl
                     slug={product.slug}
                     status={product.status}
                     lifecycleVersion={product.lifecycle_version}
-                canWrite={canWrite}
+                    canWrite={canWrite}
+                    publishBlockedReason={blocker}
                   />
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

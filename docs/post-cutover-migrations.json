@@ -18,5 +18,9 @@
   {
     "path": "supabase/migrations/20260912222748_partner_media_video_storage.sql",
     "sha256": "0559c293d98f146f24e4541b4661de189014120440a8f413d24de7f3cd27f2a3"
+  },
+  {
+    "path": "supabase/migrations/20260913174922_partner_media_atomic_review.sql",
+    "sha256": "22b8d0befd980d760d962d3870ca289db8e54ff1ca79242e1cb01a5abdb04d24"
   }
 ]

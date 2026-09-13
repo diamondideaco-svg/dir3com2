@@ -82,12 +82,17 @@ test('request-to-confirm login handoff preserves product, PDP, family, and inten
 
 test('PDP checks trusted session identity before the durable request mutation', () => {
   const source = read('components/public/PublicServiceDetailClient.tsx');
+  const sessionIdentityRoute = read('app/api/auth/session-identity/route.ts');
   const identityIndex = source.indexOf("fetch('/api/auth/session-identity'");
   const requestIndex = source.indexOf("fetch('/api/marketplace/requests'");
 
   assert.ok(identityIndex > 0);
   assert.ok(requestIndex > identityIndex);
+  assert.match(source, /supabase\.auth\.getSession\(\)/);
+  assert.match(source, /Authorization: `Bearer \$\{accessToken\}`/);
+  assert.match(sessionIdentityRoute, /createSupabaseRequestClient\(request\)/);
   assert.match(source, /identity\?\.authenticated !== true[\s\S]*window\.location\.assign\(buildMarketplaceLoginHandoff\(returnPath\)\)/);
+  assert.match(source, /response\.status === 401[\s\S]*window\.location\.assign\(buildMarketplaceLoginHandoff\(returnPath\)\)/);
   assert.match(source, /identity\?\.authenticated !== true[\s\S]*return;[\s\S]*setRequestState\('sending'\)[\s\S]*fetch\('\/api\/marketplace\/requests'/);
 });
 

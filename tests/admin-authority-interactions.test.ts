@@ -76,14 +76,18 @@ test('admin data failures are not converted to truthful-looking empty states', (
   for (const file of ['lib/actions/operations-actions.ts', 'lib/actions/verification-actions.ts', 'lib/actions/finance-actions.ts']) {
     assert.match(read(file), /throw new Error\('ADMIN_/);
   }
-  assert.match(read('app/admin/error.tsx'), /No fallback empty data is shown/);
+  assert.match(read('app/admin/error.tsx'), /No (?:success or )?fallback (?:empty )?data is shown/);
   assert.match(read('app/admin/loading.tsx'), /Loading authorized admin data/);
 });
 
 test('enabled audited state-changing controls require confirmation and prevent duplicate submits', () => {
   const locale = read('components/admin/AdminLocale.tsx');
   assert.match(locale, /useFormStatus\(\)/);
-  assert.match(locale, /window\.confirm/);
+  assert.match(locale, /role="dialog"/);
+  assert.match(locale, /aria-modal="true"/);
+  assert.doesNotMatch(locale, /window\.confirm/);
+  assert.match(locale, /const submittingRef = useRef\(false\)/);
+  assert.match(locale, /if \(!confirmForm \|\| pending \|\| submittingRef\.current\) return/);
   assert.match(locale, /disabled=\{pending \|\| disabled\}/);
   for (const file of [
     'components/admin/MarketplaceRequestOperationsTable.tsx',

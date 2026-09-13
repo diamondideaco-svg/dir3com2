@@ -68,6 +68,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
   const params = await searchParams;
   const filteredProducts = applyFilters(products, params);
   const resultMessage = params?.result && Object.hasOwn(productResultMessages, params.result) ? productResultMessages[params.result] : null;
+  const resultIsBlocked = params?.result === 'publish_blocked';
   const cities = [...new Set(products.map((product) => product.city).filter((value): value is string => Boolean(value)))].sort();
 
   return (
@@ -87,7 +88,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
           ) : null}
         </div>
 
-        {resultMessage ? <div role="status" aria-live="polite" className="mb-5 rounded-2xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700"><AdminText {...resultMessage} /></div> : null}
+        {resultMessage ? <div role="status" aria-live="polite" className={`mb-5 rounded-2xl border px-4 py-3 text-sm ${resultIsBlocked ? 'border-amber-400/45 bg-amber-50 text-amber-900' : 'border-emerald-400/35 bg-emerald-500/10 text-emerald-700'}`}><AdminText {...resultMessage} /></div> : null}
         {params.conflict === 'version' ? <div role="alert" className="mb-5 rounded-2xl border border-amber-400 bg-amber-50 p-4 text-sm text-amber-900"><AdminText {...productConflictMessage} /><AdminRetryButton /></div> : null}
 
         {error ? (

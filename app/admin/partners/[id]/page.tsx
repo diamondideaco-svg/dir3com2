@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import PartnerForm from '@/components/admin/PartnerForm';
 import { isCountryAllowed, requireScopedAdminPageDataAccess, scopeCountryQuery } from '@/lib/auth/admin';
 import type { PartnerRecord } from '@/lib/supabase/types';
-import { AdminText } from '@/components/admin/AdminLocale';
+import { AdminStatusText, AdminText } from '@/components/admin/AdminLocale';
 import PartnerActivation from '@/components/admin/PartnerActivation';
 
 async function getPartner(id: string) {
@@ -20,20 +20,45 @@ export default async function PartnerDetailsPage({ params }: { params: Promise<{
   const result = await getPartner(id);
 
   if (!result) {
-    return <div className="min-h-screen bg-[#0D1B2A] p-10 text-white"><AdminText ar="الشريك غير موجود." en="Partner not found." /></div>;
+    return <div className="min-h-screen bg-[#F8FAFC] p-6 text-[#0D1B2A]"><AdminText ar="الشريك غير موجود." en="Partner not found." /></div>;
   }
   const { partner, canActivate } = result;
+  const incomplete = [
+    !partner.country,
+    !partner.city,
+    !partner.phone,
+    !partner.commercial_registration,
+    !partner.contact_person?.trim(),
+    (partner.company_name ?? '').trim().toLowerCase() === (partner.contact_person ?? '').trim().toLowerCase(),
+  ].some(Boolean);
 
   return (
-    <div className="min-h-screen bg-[#0D1B2A] px-4 py-8 text-white">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#D4AF37]"><AdminText ar="تفاصيل الشريك" en="Partner details" /></p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">{partner.company_name}</h1>
+    <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 text-[#0D1B2A] sm:py-8">
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-4 rounded-[1.5rem] border border-[#E2E8F0] bg-white p-5 shadow-sm">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#A67C00]"><AdminText ar="تفاصيل الشريك" en="Partner details" /></p>
+            <h1 className="mt-2 break-words text-2xl font-semibold text-[#0D1B2A] sm:text-3xl">{partner.company_name || '—'}</h1>
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/35 bg-[#FFFDF5] px-3 py-1.5 text-sm font-semibold text-[#6B7280]">
+              <span className="h-2 w-2 rounded-full bg-[#D4AF37]" aria-hidden="true" />
+              <AdminStatusText value={partner.status} />
+            </div>
           </div>
-          <Link href="/admin/partners" className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-sm text-[var(--color-navy)]"><AdminText ar="العودة" en="Back" /></Link>
+          <Link href="/admin/partners" className="inline-flex min-h-11 items-center rounded-full border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#0D1B2A]">
+            <AdminText ar="العودة" en="Back" />
+          </Link>
         </div>
+
+        {incomplete ? (
+          <div role="status" className="mb-6 rounded-[1.25rem] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+            <p className="font-semibold"><AdminText ar="بيانات ملف الشريك غير مكتملة" en="Partner profile data is incomplete" /></p>
+            <p className="mt-1"><AdminText
+              ar="هذه البيانات معروضة كما هي من قاعدة البيانات؛ لم نملأ حقولاً أو نفترض اسم شركة أو دولة. راجع الحقول قبل أي اعتماد تشغيلي."
+              en="These values are shown exactly as stored; no company name, country, or other business data is inferred. Review the fields before operational approval."
+            /></p>
+          </div>
+        ) : null}
+
         <PartnerActivation partnerId={partner.id} status={partner.status} updatedAt={partner.updated_at} canActivate={canActivate} />
         <PartnerForm initialData={partner} />
       </div>

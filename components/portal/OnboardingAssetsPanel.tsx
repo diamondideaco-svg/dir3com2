@@ -4,7 +4,7 @@ import PortalInput from './PortalInput';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
-import { validateAndNormalizeVideoFile } from '@/lib/security/video-validation';
+import { validateAndNormalizeVideoFile, videoValidationMessage } from '@/lib/security/video-validation';
 
 type Mode = 'partner' | 'provider';
 type Lang = 'ar' | 'en';
@@ -117,9 +117,9 @@ const labels = {
     needsConfirmation: 'Needs your confirmation',
     needsBetterPhoto: 'Needs better photo',
     reviewQueue: 'طابور المراجعة الداخلي',
-    approve: 'APPROVE',
-    reject: 'REJECT',
-    requestReplacement: 'REQUEST REPLACEMENT',
+    approve: 'اعتماد',
+    reject: 'رفض',
+    requestReplacement: 'طلب استبدال',
     noAssets: 'لا توجد أصول بعد',
     done: 'تم الحفظ',
     failed: 'تعذر تنفيذ العملية',
@@ -175,6 +175,11 @@ const arabicPresentationValues: Record<string, string> = {
   unverified: 'غير موثق',
   pending_review: 'قيد المراجعة',
   review_pending: 'قيد المراجعة',
+  needs_supplier_action: 'يتطلب إجراءً من الشريك',
+  rejected: 'مرفوض',
+  approved: 'معتمد',
+  published: 'منشور',
+  archived: 'مؤرشف',
 };
 
 function presentWorkflowValue(value: string, language: Lang) {
@@ -316,7 +321,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction, opera
       ? await validateAndNormalizeVideoFile(local.file)
       : await validateAndNormalizeDocumentFile(local.file);
     if (!validation.ok) {
-      setMessage(validation.message);
+      setMessage(videoValidationMessage(validation.code, language) || validation.message);
       return;
     }
 
@@ -340,7 +345,7 @@ export default function OnboardingAssetsPanel({ mode, language, direction, opera
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}));
         const firstMessage = String(errorPayload?.data?.technicalValidation?.messages?.[0] || t.failed);
-        setMessage(firstMessage);
+        setMessage(videoValidationMessage(String(errorPayload?.error?.code || ''), language) || firstMessage);
         return;
       }
 
@@ -552,11 +557,11 @@ export default function OnboardingAssetsPanel({ mode, language, direction, opera
               <p className="text-[#64748B]">{presentWorkflowValue(item.status, language)}</p>
               <p className="text-[#64748B]">{item.technicalSummary.join(' | ')}</p>
               <p className="text-[#64748B]">Changed: {(item.changedFields || []).join(', ') || '—'}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button type="button" disabled={loading} onClick={() => void review(item.id, 'APPROVE')} className="rounded border border-green-400/40 px-2 py-1 text-[10px] text-green-200 disabled:opacity-60">{t.approve}</button>
-                <button type="button" disabled={loading} onClick={() => void review(item.id, 'REJECT')} className="rounded border border-red-400/40 px-2 py-1 text-[10px] text-red-200 disabled:opacity-60">{t.reject}</button>
-                <button type="button" disabled={loading} onClick={() => void review(item.id, 'REQUEST_REPLACEMENT')} className="rounded border border-amber-400/40 px-2 py-1 text-[10px] text-amber-100 disabled:opacity-60">{t.requestReplacement}</button>
-              </div>
+              <fieldset disabled={loading || item.status !== 'pending_review' || item.technicalValidationStatus !== 'pass' || (item.mediaId !== 'catalog-update' && !media.some((entry) => entry.id === item.mediaId && entry.status === 'pending_review')) || (item.mediaId === 'catalog-update' && queue.some((entry) => entry.assetId === item.assetId && entry.mediaId === 'catalog-update' && (entry.submittedAt > item.submittedAt || (entry.submittedAt === item.submittedAt && entry.id > item.id))))} className="mt-2 flex flex-wrap gap-2">
+                <button type="button" disabled={loading} onClick={() => void review(item.id, 'APPROVE')} className="min-h-10 rounded border border-green-700 px-3 py-2 text-xs text-green-800 disabled:opacity-60">{t.approve}</button>
+                <button type="button" disabled={loading} onClick={() => void review(item.id, 'REJECT')} className="min-h-10 rounded border border-red-700 px-3 py-2 text-xs text-red-800 disabled:opacity-60">{t.reject}</button>
+                <button type="button" disabled={loading} onClick={() => void review(item.id, 'REQUEST_REPLACEMENT')} className="min-h-10 rounded border border-amber-700 px-3 py-2 text-xs text-amber-800 disabled:opacity-60">{t.requestReplacement}</button>
+              </fieldset>
             </div>
           ))}
         </div>

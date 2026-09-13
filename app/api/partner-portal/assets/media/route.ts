@@ -459,7 +459,11 @@ export async function POST(request: Request) {
   });
 
   store.reviewQueue.unshift(queueItem);
+  asset.verificationStatus = 'Needs your confirmation';
+  asset.dataStatus = 'pending_review';
+  asset.updatedAt = newMedia.updatedAt;
   await writeOnboardingStore({
+    assets: [asset],
     media: [newMedia, ...(replaceMediaId ? store.media.filter((item) => item.id === replaceMediaId) : [])],
     reviewQueue: [queueItem],
   }, actor);

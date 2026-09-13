@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseRequestClient } from '@/lib/supabase/server';
 import { normalizeRole } from '@/lib/auth/identity';
 import { createAnonymousSessionIdentity, type SessionIdentity } from '@/lib/auth/identity-contract';
 import { logServerError } from '@/lib/security/safe-logger';
@@ -64,17 +64,14 @@ function buildAuthenticatedIdentity(args: {
   };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
+    const auth = await createSupabaseRequestClient(request);
+    if (!auth) {
       return NextResponse.json(createAnonymousSessionIdentity(), { status: 200 });
     }
+
+    const { supabase, user } = auth;
 
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
