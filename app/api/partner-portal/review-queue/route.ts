@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requirePortalActor } from '@/lib/partner-portal/server';
-import { readOnboardingStore, writeOnboardingStore } from '@/lib/partner-portal/onboarding-repository';
+import { readOnboardingStore } from '@/lib/partner-portal/onboarding-repository';
+import { supabaseAdmin } from '@/lib/supabase/server';
 import type { ReviewAction } from '@/lib/partner-portal/onboarding-types';
 import { hasValidTenantAssociation, isPrivilegedPortalActor } from '@/lib/partner-portal/tenant-access';
 
@@ -80,54 +81,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: { code: 'REVIEW_ASSOCIATION_INVALID' } }, { status: 409, headers: privateHeaders() });
   }
 
-  const now = new Date().toISOString();
-
-  if (action === 'APPROVE') {
-    if (media) {
-      media.status = 'published';
-    }
-    queueItem.status = 'approved';
+  if (!supabaseAdmin) {
+    return NextResponse.json({ error: { code: 'REVIEW_UNAVAILABLE' } }, { status: 503, headers: privateHeaders() });
   }
-
-  if (action === 'REJECT') {
-    if (media) {
-      media.status = 'rejected';
-    }
-    queueItem.status = 'rejected';
+  const { data, error } = await supabaseAdmin.rpc('review_partner_portal_media', {
+    p_queue_id: queueId, p_action: action, p_actor_id: actor.userId, p_reason: reason,
+  });
+  if (error) {
+    const conflicts = ['REVIEW_ITEM_NOT_PENDING', 'REVIEW_ASSOCIATION_INVALID'];
+    const code = conflicts.includes(error.message) ? error.message : 'REVIEW_UNAVAILABLE';
+    return NextResponse.json({ error: { code } }, { status: conflicts.includes(code) ? 409 : 503, headers: privateHeaders() });
   }
-
-  if (action === 'REQUEST_REPLACEMENT') {
-    if (media) {
-      media.status = 'needs_supplier_action';
-    }
-    queueItem.status = 'needs_supplier_action';
-  }
-
-  queueItem.actionBy = actor.userId;
-  queueItem.actionAt = now;
-  queueItem.actionReason = reason || undefined;
-  if (media) {
-    media.updatedAt = now;
-  }
-
-  const asset = associatedAsset;
-  if (asset && action === 'APPROVE') {
-    asset.verificationStatus = 'Approved';
-    asset.dataStatus = 'published';
-    asset.updatedAt = now;
-  }
-
-  if (asset && action !== 'APPROVE') {
-    asset.verificationStatus = action === 'REJECT' ? 'Needs better photo' : 'Needs your confirmation';
-    asset.dataStatus = 'needs_confirmation';
-    asset.updatedAt = now;
-  }
-
-  await writeOnboardingStore({
-    assets: asset ? [asset] : [],
-    media: media ? [media] : [],
-    reviewQueue: [queueItem],
-  }, actor);
-
-  return NextResponse.json({ data: queueItem }, { headers: privateHeaders() });
+  return NextResponse.json({ data }, { headers: privateHeaders() });
 }

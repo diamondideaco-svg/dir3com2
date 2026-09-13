@@ -58,6 +58,8 @@ export type PortalAssetMedia = {
   url: string;
   origin: 'whatsapp_screenshot' | 'whatsapp_photo' | 'library' | 'provider_upload';
   mimeType: string;
+  mediaKind?: 'image' | 'document' | 'video';
+  durationSeconds?: number;
   sizeBytes: number;
   hash: string;
   sortOrder: number;
@@ -70,7 +72,8 @@ export type PortalAssetMedia = {
     duplicateImage: boolean;
     basicImageQuality: boolean | 'not_available';
     correctAssociation: boolean;
-    malwareSafeControls: boolean;
+    // Legacy booleans remain readable; current uploads do not run a malware scan.
+    malwareSafeControls: boolean | 'not_available';
     metadataStripped: boolean | 'not_available';
     messages: string[];
   };

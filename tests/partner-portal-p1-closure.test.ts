@@ -24,7 +24,11 @@ test('production onboarding routes use the authoritative repository without tmpd
   assert.match(repository, /\.eq\('owner_id', actor\.userId\)/);
   assert.match(repository, /record\.ownerId === actor\.userId/);
   assert.match(repository, /Partial<PortalOnboardingStore>/);
-  assert.match(read('app/api/partner-portal/review-queue/route.ts'), /reviewQueue: \[queueItem\]/);
+  assert.match(read('app/api/partner-portal/review-queue/route.ts'), /rpc\('review_partner_portal_media',[\s\S]*p_actor_id: actor.userId/);
+  const atomicReview = read('supabase/migrations/20260913174922_partner_media_atomic_review.sql');
+  assert.match(atomicReview, /for update/);
+  assert.match(atomicReview, /update public.partner_portal_review_queue set record = reviewed/);
+  assert.match(atomicReview, /'actionBy', p_actor_id/);
   assert.match(read('app/api/partner-portal/assets/route.ts'), /export async function POST/);
 });
 

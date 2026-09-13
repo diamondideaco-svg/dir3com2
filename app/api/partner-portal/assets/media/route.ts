@@ -6,6 +6,7 @@ import { readOnboardingStore, writeOnboardingStore } from '@/lib/partner-portal/
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
+import { validateAndNormalizeVideoFile } from '@/lib/security/video-validation';
 import type { PortalAssetMedia, PortalOwnerKind, ReviewQueueItem } from '@/lib/partner-portal/onboarding-types';
 import {
   canReadTenantAssociation,
@@ -104,7 +105,7 @@ async function uploadWithBucketRecovery(input: { path: string; bytes: Uint8Array
   const create = await supabaseAdmin.storage.createBucket(BUCKET, {
     public: false,
     fileSizeLimit: 10 * 1024 * 1024,
-    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'],
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf', 'video/mp4'],
   });
 
   if (create.error && !String(create.error.message || '').toLowerCase().includes('already exists')) {
@@ -285,7 +286,10 @@ export async function POST(request: Request) {
   }
 
   const file = formData.get('file');
-  const validation = await validateAndNormalizeDocumentFile(file);
+  const videoUpload = file instanceof File && (file.type === 'video/mp4' || file.name.toLowerCase().endsWith('.mp4'));
+  const validation = videoUpload
+    ? await validateAndNormalizeVideoFile(file)
+    : await validateAndNormalizeDocumentFile(file);
 
   if (!validation.ok) {
     const failedMediaId = crypto.randomUUID();
@@ -299,7 +303,7 @@ export async function POST(request: Request) {
       partnerOrSupplier: asset.ownerLabel,
       technicalValidationStatus: 'fail',
       technicalSummary: [validation.message],
-      changedFields: ['image_file'],
+      changedFields: [videoUpload ? 'video_file' : 'image_file'],
       status: 'needs_supplier_action',
     });
 
@@ -318,7 +322,7 @@ export async function POST(request: Request) {
             duplicateImage: false,
             basicImageQuality: 'not_available',
             correctAssociation: true,
-            malwareSafeControls: true,
+            malwareSafeControls: 'not_available',
             metadataStripped: 'not_available',
             messages: [validation.message],
           },
@@ -362,7 +366,7 @@ export async function POST(request: Request) {
             duplicateImage: true,
             basicImageQuality: 'not_available',
             correctAssociation: true,
-            malwareSafeControls: true,
+            malwareSafeControls: 'not_available',
             metadataStripped: 'not_available',
             messages: ['Duplicate image detected for this asset'],
           },
@@ -372,11 +376,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const storagePath = buildStoragePath(actor.userId, assetId, validation.data.signature.extension);
+  const extension = 'extension' in validation.data ? validation.data.extension : validation.data.signature.extension;
+  const contentType = 'mimeType' in validation.data ? validation.data.mimeType : validation.data.signature.mimeType;
+  const storagePath = buildStoragePath(actor.userId, assetId, extension);
   const upload = await uploadWithBucketRecovery({
     path: storagePath,
     bytes: validation.data.bytes,
-    contentType: validation.data.signature.mimeType,
+    contentType,
   });
 
   if (!upload.ok) {
@@ -401,9 +407,11 @@ export async function POST(request: Request) {
     duplicateImage: false,
     basicImageQuality: 'not_available',
     correctAssociation: true,
-    malwareSafeControls: true,
+    malwareSafeControls: 'not_available',
     metadataStripped: 'not_available',
-    messages: ['Technical checks passed where available. Routed to pending review.'],
+    messages: [videoUpload
+      ? 'MP4 structural validation only; malware scanning is not available. Routed to pending review.'
+      : 'Technical checks passed where available; malware scanning is not available. Routed to pending review.'],
   };
 
   const newMedia: PortalAssetMedia = {
@@ -414,7 +422,9 @@ export async function POST(request: Request) {
     label,
     url: storagePath,
     origin: 'provider_upload',
-    mimeType: validation.data.signature.mimeType,
+    mimeType: contentType,
+    mediaKind: videoUpload ? 'video' : contentType === 'application/pdf' ? 'document' : 'image',
+    durationSeconds: videoUpload && 'durationSeconds' in validation.data ? validation.data.durationSeconds : undefined,
     sizeBytes: validation.data.bytes.length,
     hash,
     sortOrder,
@@ -444,12 +454,18 @@ export async function POST(request: Request) {
     partnerOrSupplier: asset.ownerLabel,
     technicalValidationStatus: 'pass',
     technicalSummary: technicalValidation.messages,
-    changedFields: replaceMediaId ? ['image_file', 'image_replacement', 'media_label'] : ['image_file', 'media_label'],
+    changedFields: replaceMediaId
+      ? [videoUpload ? 'video_file' : 'image_file', 'media_replacement', 'media_label']
+      : [videoUpload ? 'video_file' : 'image_file', 'media_label'],
     status: 'pending_review',
   });
 
   store.reviewQueue.unshift(queueItem);
+  asset.verificationStatus = 'Needs your confirmation';
+  asset.dataStatus = 'pending_review';
+  asset.updatedAt = newMedia.updatedAt;
   await writeOnboardingStore({
+    assets: [asset],
     media: [newMedia, ...(replaceMediaId ? store.media.filter((item) => item.id === replaceMediaId) : [])],
     reviewQueue: [queueItem],
   }, actor);
