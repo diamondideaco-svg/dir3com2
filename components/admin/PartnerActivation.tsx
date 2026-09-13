@@ -16,7 +16,6 @@ export default function PartnerActivation({ partnerId, status, updatedAt, canAct
   const active = status === 'active';
 
   async function submit(formData: FormData) {
-    if (!window.confirm(ar ? 'أؤكد مراجعتي للشريك وأوافق على تفعيله تشغيليًا الآن.' : 'I confirm my review of this partner and authorize operational activation now.')) return;
     setBusy(true);
     setResult(null);
     try {
@@ -30,10 +29,23 @@ export default function PartnerActivation({ partnerId, status, updatedAt, canAct
     }
   }
 
-  return <section lang={ar ? 'ar' : 'en'} dir={ar ? 'rtl' : 'ltr'} className="mb-6 min-w-0 rounded-2xl border border-[#D4AF37]/30 bg-white p-5 text-[#0D1B2A]">
-    <h2 className="font-semibold">{active ? (ar ? 'نشط — جاهز للتشغيل' : 'Active — Operational')
-      : status === 'approved' ? (ar ? 'معتمد — بانتظار التفعيل' : 'Approved — Awaiting activation')
-        : (ar ? 'غير مؤهل للتفعيل التشغيلي' : 'Not eligible for operational activation')}</h2>
+  const stateTitle = active
+    ? (ar ? 'نشط — جاهز للتشغيل' : 'Active — Operational')
+    : status === 'approved'
+      ? (ar ? 'معتمد — بانتظار التفعيل' : 'Approved — Awaiting activation')
+      : status === 'pending'
+        ? (ar ? 'قيد المراجعة — لم يعتمد بعد' : 'Under review — Not approved yet')
+        : status === 'inactive'
+          ? (ar ? 'غير نشط — التفعيل متوقف' : 'Inactive — Activation blocked')
+          : (ar ? 'غير مؤهل للتفعيل التشغيلي' : 'Not eligible for operational activation');
+
+  return <section lang={ar ? 'ar' : 'en'} dir={ar ? 'rtl' : 'ltr'} className="mb-6 min-w-0 rounded-2xl border border-[#D4AF37]/30 bg-white p-5 text-[#0D1B2A] shadow-sm">
+    <h2 className="font-semibold">{stateTitle}</h2>
+    {!active && status !== 'approved' ? (
+      <p className="mt-2 text-sm leading-6 text-[#64748B]">{ar
+        ? 'لن يظهر زر التفعيل قبل اكتمال الاعتماد الرسمي. هذه الحالة ليست خطأ في الصفحة.'
+        : 'The activation control appears only after formal approval. This state is not a page error.'}</p>
+    ) : null}
     {canActivate && status === 'approved' ? <form action={submit} className="mt-4 grid min-w-0 gap-4">
       <input type="hidden" name="partnerId" value={partnerId} />
       <input type="hidden" name="expectedStatus" value={status} />
@@ -49,7 +61,7 @@ export default function PartnerActivation({ partnerId, status, updatedAt, canAct
       </label>
       <button type="submit" disabled={busy} className="min-h-11 rounded-xl bg-[#D4AF37] px-4 py-3 font-semibold disabled:opacity-50">{busy ? (ar ? 'جارٍ التفعيل…' : 'Activating…') : (ar ? 'تفعيل الشريك' : 'Activate partner')}</button>
     </form> : null}
-    {result ? <p role={result === 'ACTIVE' ? 'status' : 'alert'} className="mt-4 break-words">{result === 'ACTIVE'
+    {result ? <p role={result === 'ACTIVE' ? 'status' : 'alert'} className={`mt-4 break-words rounded-xl px-3 py-2 text-sm ${result === 'ACTIVE' ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-800'}`}>{result === 'ACTIVE'
       ? (ar ? 'تم التفعيل التشغيلي وحفظ الإقرار في سجل التدقيق.' : 'Operational activation and audit attestation were saved.')
       : result === 'STATE_CONFLICT'
         ? (ar ? 'تغيّرت بيانات الشريك. حدّث الصفحة وراجع الحالة قبل المحاولة مجددًا.' : 'Partner data changed. Refresh and review the current state before retrying.')
