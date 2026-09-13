@@ -15,7 +15,6 @@ const next = { NextResponse: { json: (body, options = {}) => ({ body, status: op
 const logger = { logServerError() {}, logServerEvent() {} };
 
 const profileActor = { userId: '11111111-1111-4111-8111-111111111111', fullName: 'Test Partner', email: 'partner@example.invalid', authRole: 'partner' };
-// Stateful mock deliberately models the old upsert demotion, not just call counts.
 function partnerHarness({ status = 'active', readError = false, missing = false, race = false, rereadError = false, conflictWithoutRow = false, insertError = null } = {}) {
   let row = missing ? null : { id: profileActor.userId, status, country: '', city: '' };
   let reads = 0;
@@ -219,13 +218,13 @@ test('AR/EN lifecycle denial is truthful, with no fake empty list or WhatsApp co
   }
   assert.match(state.getPartnerRequestListPresentation(result,'en').lifecycleNotice,/awaiting admin activation/);
 });
-test('UI status is read-only; activation requires attestation and remains admin-only', () => {
+test('UI status is read-only; activation requires server-recorded attestation and remains admin-only', () => {
   const portal = read('components/portal/PartnerProviderPortalClient.tsx');
   assert.doesNotMatch(portal,/reviewStatusOptions|reviewStatus:\s*profile.reviewStatus/);
   const panel = read('components/admin/PartnerActivation.tsx');
   assert.match(panel,/canActivate && status === 'approved'/);
   assert.match(panel,/type="checkbox" name="confirmed" value="true" required/);
   assert.match(panel,/name="reason" required/);
-  assert.match(panel,/window.confirm/);
+  assert.doesNotMatch(panel,/window\.confirm/);
   assert.match(read('app/admin/partners/[id]/page.tsx'),/canActivate: scope\.mode === 'global'/);
 });
