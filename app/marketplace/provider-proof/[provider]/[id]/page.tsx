@@ -10,10 +10,12 @@ export default async function ProviderProofDetailPage({ params, searchParams }: 
   const environment = (query.environment === 'live' ? 'live' : 'sandbox') as ProviderProofEnvironment;
   const allowedProvider = provider === 'duffel' || provider === 'liteapi' || provider === 'sabre';
   const enabled = isProviderProofEnabled() && proofEnvironmentAllowed(environment);
+  const adults = query.adults === undefined ? 1 : typeof query.adults === 'string' && /^[1-9]\d?$/.test(query.adults) ? Number(query.adults) : NaN;
+  const validOccupancy = Number.isInteger(adults) && adults >= 1 && adults <= 20;
   let decodedId = id;
   try { decodedId = decodeURIComponent(id); } catch { decodedId = ''; }
-  const card = enabled && allowedProvider && decodedId
-    ? await getProviderProofOffer({ provider: provider as ProviderProofProvider, providerItemId: decodedId, environment, destination: typeof query.destination === 'string' ? query.destination : 'Riyadh', departureFrom: typeof query.departureFrom === 'string' ? query.departureFrom : 'Cairo', departureDate: typeof query.departureDate === 'string' ? query.departureDate : undefined, returnDate: typeof query.returnDate === 'string' ? query.returnDate : undefined, checkIn: typeof query.checkIn === 'string' ? query.checkIn : undefined, checkOut: typeof query.checkOut === 'string' ? query.checkOut : undefined, language, hotelId: typeof query.hotelId === 'string' ? query.hotelId : undefined })
+  const card = enabled && allowedProvider && decodedId && (provider !== 'liteapi' || validOccupancy)
+    ? await getProviderProofOffer({ provider: provider as ProviderProofProvider, providerItemId: decodedId, environment, destination: typeof query.destination === 'string' ? query.destination : 'Riyadh', departureFrom: typeof query.departureFrom === 'string' ? query.departureFrom : 'Cairo', departureDate: typeof query.departureDate === 'string' ? query.departureDate : undefined, returnDate: typeof query.returnDate === 'string' ? query.returnDate : undefined, checkIn: typeof query.checkIn === 'string' ? query.checkIn : undefined, checkOut: typeof query.checkOut === 'string' ? query.checkOut : undefined, language, hotelId: typeof query.hotelId === 'string' ? query.hotelId : undefined, ...(provider === 'liteapi' ? { adults } : {}) })
     : null;
   return <ProviderProofDetail card={card} provider={allowedProvider ? provider : 'unknown'} providerItemId={id} environment={environment} language={language} />;
 }

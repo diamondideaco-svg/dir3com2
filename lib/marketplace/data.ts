@@ -128,6 +128,8 @@ type RawServiceApiItem = {
 
 export type MarketplaceService = {
   maxGuests?: number | null;
+  /** Actual adult occupancy used for this provider quote; not property capacity. */
+  queriedAdults?: number;
   country?: string | null;
   synthetic?: boolean | null;
   verified?: boolean | null;
@@ -718,7 +720,12 @@ export function filterMarketplaceServices(services: MarketplaceService[], option
       return false;
     }
 
-    if (!withinTravelerGroup(service.maxGuests, options.travelers)) {
+    const providerQuote = service.provenance === 'PROVIDER_SANDBOX' || service.provenance === 'PROVIDER_LIVE';
+    const matchesTravelers = providerQuote && service.queriedAdults !== undefined
+      ? !options.travelers || options.travelers === 'all'
+        || (/^[1-9]\d?$/.test(options.travelers) && Number(options.travelers) === service.queriedAdults)
+      : withinTravelerGroup(service.maxGuests, options.travelers);
+    if (!matchesTravelers) {
       return false;
     }
 
