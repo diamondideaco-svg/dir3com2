@@ -314,6 +314,12 @@ export async function applyDisplayPricing(services: MarketplaceService[], target
 
 export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: MarketplaceRequestContext = {}) {
   const snapshot = await getMarketplaceSnapshot();
+  // A traveler range (3+) is not an exact hotel occupancy. Never price it as one adult.
+  const proofAdults = !apiQuery.travelers || apiQuery.travelers === 'all'
+    ? apiQuery.adults ?? 1
+    : /^[1-9]\d?$/.test(apiQuery.travelers) ? Number(apiQuery.travelers) : NaN;
+  const validProofOccupancy = Number.isInteger(proofAdults) && proofAdults >= 1 && proofAdults <= 20
+    && !(apiQuery.children && apiQuery.children > 0);
   const hasTravelSearch = Boolean(
     (apiQuery.destination && (apiQuery.checkIn || apiQuery.departureDate))
     || !apiQuery.family
@@ -328,11 +334,11 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: M
         departureFrom: apiQuery.departureFrom,
         departureDate: apiQuery.departureDate,
         returnDate: apiQuery.returnDate,
-        adults: apiQuery.adults,
+        adults: context.liteApiSandboxProof ? proofAdults : apiQuery.adults,
         children: apiQuery.children,
         language: apiQuery.language === 'ar' ? 'ar' : 'en',
       } as const;
-  const providerResult = hasTravelSearch
+  const providerResult = hasTravelSearch && (!context.liteApiSandboxProof || validProofOccupancy)
     ? await fetchProtectedProviderCards(
         providerOptions,
         context.clientKey ?? 'anonymous',
@@ -348,8 +354,9 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: M
     if (apiQuery.destination) href.searchParams.set('destination', apiQuery.destination);
     if (apiQuery.checkIn) href.searchParams.set('checkIn', apiQuery.checkIn);
     if (apiQuery.checkOut) href.searchParams.set('checkOut', apiQuery.checkOut);
+    href.searchParams.set('adults', String(proofAdults));
     href.searchParams.set('language', apiQuery.language === 'ar' ? 'ar' : 'en');
-    return { ...normalizedService, href: `${href.pathname}${href.search}` };
+    return { ...normalizedService, queriedAdults: proofAdults, href: `${href.pathname}${href.search}` };
   });
   const verifiedCustomerServices = filterCustomerMarketplaceServices(snapshot.services);
   const customerServices = context.liteApiSandboxProof
