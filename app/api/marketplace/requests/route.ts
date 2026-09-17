@@ -7,6 +7,7 @@ import { listCustomerMarketplaceRequests } from '@/lib/marketplace/customer-requ
 import { parseMarketplaceRequestInputs } from '@/lib/marketplace/request-input';
 import { readCatalogAvailability } from '@/lib/marketplace/catalog-availability-server';
 import { catalogRequestAction } from '@/lib/marketplace/catalog-availability';
+import { createDriveRequest } from '@/lib/drive/request-server';
 
 function validUuid(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -64,6 +65,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
   const body = rawBody as Record<string, unknown>;
+
+  if (body.drive_offer_id !== undefined) {
+    return createDriveRequest(auth.supabase, body, request.headers.get('idempotency-key'));
+  }
 
   if (!validUuid(body.product_id)) {
     return NextResponse.json({ error: 'Invalid product or request type' }, { status: 400 });

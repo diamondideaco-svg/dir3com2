@@ -364,11 +364,14 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: M
     : filterCustomerMarketplaceServices(providerServices.length > 0
       ? [...providerServices, ...snapshot.services]
       : snapshot.services);
-  const services = context.publicMarketplace
+  const launchServices = context.publicMarketplace
     ? context.liteApiSandboxProof
       ? [...providerServices, ...filterApprovedLaunchInventory(verifiedCustomerServices)]
       : filterApprovedLaunchInventory(customerServices)
     : customerServices;
+  // CEO option 1 (#147): new Drive entry uses the nine managed offers.
+  // Legacy catalogue records and non-public API consumers remain unchanged.
+  const services = context.publicMarketplace ? launchServices.filter(service => service.family !== 'dir3-drive') : launchServices;
 
   const scoped = filterMarketplaceServices(services, {
     family: apiQuery.family,

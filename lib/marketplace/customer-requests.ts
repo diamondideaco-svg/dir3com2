@@ -28,7 +28,7 @@ export const CUSTOMER_MARKETPLACE_REQUEST_FIELDS = [
 export type CustomerMarketplaceRequest = {
   id: string;
   request_reference: string;
-  product_id: string;
+  product_id: string | null;
   request_type: string;
   status: string;
   requested_for: string | null;
