@@ -34,6 +34,18 @@ test('query validates real calendar, future dates, occupancy, bounds and destina
   }
   const p=new URLSearchParams(params);p.set('destination','القاهرة');assert.equal(contract.parseStayDemoQuery(p,now)?.destination,'Cairo');
 });
+test('existing Stay service search keeps city, guests, rooms, dates and submitted intent',()=>{
+  const legacy='family=dir3-stay&service=stay&city=riyadh&guests=4&rooms=2&checkIn=2027-01-12&checkOut=2027-01-14';
+  const normalized=new URLSearchParams(contract.normalizeStayDemoSearch(legacy));
+  assert.equal(normalized.get('destination'),'Riyadh');assert.equal(normalized.get('adults'),'4');assert.equal(normalized.get('rooms'),'2');assert.equal(normalized.get('searched'),'1');
+  assert.equal(contract.parseStayDemoQuery(normalized,now)?.destination,'Riyadh');
+  assert.equal(contract.normalizeStayDemoSearch(normalized.toString()),normalized.toString());
+  const unsupported=new URLSearchParams(contract.normalizeStayDemoSearch(legacy.replace('riyadh','unsupported').replace('guests=4','guests=99')));
+  assert.equal(unsupported.get('destination'),'unsupported');assert.equal(unsupported.get('adults'),'99');assert.equal(contract.parseStayDemoQuery(unsupported,now),null);
+  const explicit=new URLSearchParams(contract.normalizeStayDemoSearch(`${legacy}&destination=Cairo&adults=2`));
+  assert.equal(explicit.get('destination'),'Cairo');assert.equal(explicit.get('adults'),'2');
+  assert.equal(new URLSearchParams(contract.normalizeStayDemoSearch('family=dir3-stay')).has('searched'),false);
+});
 test('rooms preserve explicit allocation, currency and nationality without invented child ages',()=>{
   const input=contract.stayDemoProviderInput({...query,adults:5});
   assert.deepEqual(input.occupancies,[{adults:3},{adults:2}]);assert.equal(input.currency,'SAR');assert.equal(input.guestNationality,'EG');assert.equal(input.maxRatesPerHotel,1);

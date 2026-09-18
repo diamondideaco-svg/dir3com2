@@ -1,4 +1,5 @@
 import type { StaySearchInput, StaySearchResult } from '../travel/contracts';
+import { canonicalCity } from './search-context';
 
 // Client-safe contracts only. Provider credentials and execution stay server-side.
 export const STAY_DEMO_NOTICE = {
@@ -22,6 +23,20 @@ export type StayDemoCard = {
   provider: 'LiteAPI'; environment: 'sandbox'; availability: 'sandbox_available'; retrievedAt: string;
 };
 export type StayDemoResult = { status: 'ok' | 'no_results' | 'unavailable' | 'rate_limited'; cards: StayDemoCard[]; retrievedAt: string };
+
+/** Preserve the existing service-family form contract when entering this Demo. */
+export function normalizeStayDemoSearch(search: string): string {
+  const params = new URLSearchParams(search);
+  if (params.get('service') === 'stay') {
+    if (!params.has('destination') && params.has('city')) {
+      const city = params.get('city')!;
+      params.set('destination', canonicalCity(city)?.en ?? city);
+    }
+    if (!params.has('adults') && params.has('guests')) params.set('adults', params.get('guests')!);
+    if (!params.has('searched') && params.has('checkIn') && params.has('checkOut')) params.set('searched', '1');
+  }
+  return params.toString();
+}
 
 export function parseStayDemoQuery(params: URLSearchParams, now = Date.now()): StayDemoQuery | null {
   const destination = STAY_DESTINATIONS.find(d => [d.city.toLowerCase(), d.ar].includes((params.get('destination') ?? '').trim().toLowerCase()));

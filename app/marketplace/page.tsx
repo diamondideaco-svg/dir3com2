@@ -5,6 +5,7 @@ import { serializePageQuery } from '@/lib/marketplace/search-context';
 import DriveMarketplace from '@/components/drive/DriveMarketplace';
 import StaySandbox from '@/components/stay/StaySandbox';
 import { stayDemoEnabled } from '@/lib/marketplace/stay-demo-mode';
+import { normalizeStayDemoSearch } from '@/lib/marketplace/stay-demo';
 
 export default async function MarketplacePage({
   searchParams,
@@ -19,7 +20,8 @@ export default async function MarketplacePage({
   if (family === 'dir3-drive') return <DriveMarketplace key={serializePageQuery(query)} initialSearch={serializePageQuery(query)} />;
 
   if (family === 'dir3-stay' && !liteApiSandboxProof && query.inventory !== 'partners' && stayDemoEnabled()) {
-    return <StaySandbox key={serializePageQuery(query)} initialSearch={serializePageQuery(query)}/>;
+    const search = normalizeStayDemoSearch(serializePageQuery(query));
+    return <StaySandbox key={search} initialSearch={search}/>;
   }
 
   return (
