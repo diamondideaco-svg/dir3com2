@@ -27,6 +27,16 @@ test('marketplace browsing remains public for late authentication', () => {
   assert.match(proxy, /PUBLIC_PATHS[^\n]*['"]\/marketplace['"]/);
 });
 
+test('approved vehicle image formats remain public without opening the full directory', () => {
+  const proxy = read('proxy.ts');
+  assert.match(proxy, /PUBLIC_VEHICLE_ASSET_PATH/);
+  for (const extension of ['avif', 'jpe?g', 'png', 'webp']) {
+    assert.ok(proxy.includes(extension), `${extension} must remain in the exact vehicle asset allowlist`);
+  }
+  assert.match(proxy, /PUBLIC_VEHICLE_ASSET_PATH\.test\(pathname\)/);
+  assert.doesNotMatch(proxy, /pathname\.startsWith\(['"]\/vehicles\/['"]\)/);
+});
+
 test('admin shell wires all approved routes and reuses canonical logout', () => {
   const shell = read('components/admin/AdminPlatformShell.tsx');
   const catalog = read('lib/navigation/route-catalog.ts');
