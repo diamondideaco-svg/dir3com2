@@ -20,10 +20,14 @@ function configuredSearchOrigin(): string {
   return url.origin;
 }
 
-async function fetchOnce(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+async function fetchOnce(url: string, init: RequestInit, timeoutMs: number): Promise<{ response: Response; text: string }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try { return await fetch(url, { ...init, signal: controller.signal, cache: "no-store" }); }
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal, cache: "no-store" });
+    const text = await response.text();
+    return { response, text };
+  }
   finally { clearTimeout(timer); }
 }
 
@@ -39,11 +43,10 @@ export async function liteApiRequest<T>(path: string, options: LiteApiRequestOpt
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const response = await fetchOnce(url, {
+      const { response, text } = await fetchOnce(url, {
         ...init,
         headers: { Accept: "application/json", "Content-Type": "application/json", ...getLiteApiAuthHeaders(), ...(init.headers || {}) },
       }, timeoutMs);
-      const text = await response.text();
       let body: unknown = undefined;
       if (text) {
         try { body = JSON.parse(text); }

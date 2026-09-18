@@ -81,6 +81,23 @@ test("bounds transient read retries", async () => {
   assert.equal(calls, 2);
 });
 
+test("public demo keeps room totals separate from provider aggregate and suggested price", async () => {
+  global.fetch = (async () => json({ sandbox:true, hotels:[{id:'h1',name:'Unit'}],data:[{hotelId:'h1',roomTypes:[{offerId:'offer',offerRetailRate:{amount:200,currency:'SAR'},suggestedSellingPrice:{amount:220,currency:'SAR'},rates:[{name:'Room',retailRate:{total:[{amount:100,currency:'SAR'}]}}]}]}] })) as typeof fetch;
+  const result=await searchLiteApiHotels(input(),{singleAttempt:true});
+  const rate=result.hotels[0].rooms[0].rates[0];
+  assert.equal(result.sandbox,true);assert.equal(rate.totalAmount,'100.00');assert.equal(rate.offerTotalAmount,'200.00');assert.equal(rate.suggestedSellingAmount,'220.00');
+});
+
+test("public demo timeout covers stalled response body and does not retry", async () => {
+  let calls=0;
+  global.fetch = (async (_request, init) => {
+    calls++;
+    return { text:()=>new Promise((_resolve,reject)=>init?.signal?.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true})) } as Response;
+  }) as typeof fetch;
+  await assert.rejects(searchLiteApiHotels(input(),{singleAttempt:true,timeoutMs:10}),(error:unknown)=>(error as TravelProviderError).code==='PROVIDER_TIMEOUT');
+  assert.equal(calls,1);
+});
+
 test("maps unauthorized, malformed, and provider failures safely", async (t) => {
   await t.test("unauthorized", async () => {
     global.fetch = (async () => json({ error: { code: 401, message: "unauthorized" } }, 401)) as typeof fetch;

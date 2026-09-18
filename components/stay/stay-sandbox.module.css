@@ -1,0 +1,26 @@
+.page { max-width:1360px; margin:auto; padding:32px; color:var(--color-navy,#102238); min-width:0; }
+.page nav { display:flex; flex-wrap:wrap; gap:16px; margin-bottom:20px; }
+.page h1 { font-size:32px; margin:16px 0; }
+.page h2 { font-size:22px; line-height:1.4; }
+.page p { margin:10px 0; }
+.notice,.badge { border:1px solid #b78934; border-radius:12px; padding:12px; background:#f5f6f8; color:#102238; }
+.badge { font-size:13px; }
+.search,.filters { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; border:1px solid #dfe3e8; border-radius:16px; padding:20px; margin:24px 0; }
+.page label { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.page input,.page select,.page button,.action { border:1px solid #b78934; border-radius:10px; padding:10px 12px; min-height:44px; font:inherit; max-width:100%; min-width:0; background:white; color:#102238; }
+.page input,.page select { width:100%; box-sizing:border-box; }
+.page button,.action { cursor:pointer; background:var(--color-gold,#d4af37); text-align:center; align-self:end; }
+.page button:disabled { cursor:not-allowed; background:#eef0f3; border-color:#85909e; }
+.page :is(a,button,input,select,summary):focus-visible { outline:3px solid #88601c; outline-offset:3px; }
+.help { grid-column:1/-1; font-size:14px; }
+.grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }
+.card,.detail { border:1px solid #dfe3e8; border-radius:16px; overflow:hidden; min-width:0; background:white; }
+.photo { width:100%; height:220px; object-fit:cover; }
+.content { padding:20px; overflow-wrap:anywhere; }
+.price { font-size:23px; }
+.action { display:block; margin-top:16px; text-decoration:none; }
+.reference { max-height:120px; overflow:auto; font-size:12px; }
+.detail { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); margin-top:20px; }
+.detail .photo { height:100%; max-height:550px; }
+@media(max-width:900px) { .search,.filters,.grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:600px) { .page {padding:20px 16px;} .page h1 {font-size:26px;} .search,.filters,.grid,.detail {grid-template-columns:minmax(0,1fr);} .search,.filters,.content {padding:16px;} }

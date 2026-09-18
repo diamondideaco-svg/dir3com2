@@ -48,6 +48,10 @@ export type StayRate = {
   boardName?: string;
   currency: string;
   totalAmount: string;
+  offerTotalAmount?: string;
+  offerCurrency?: string;
+  suggestedSellingAmount?: string;
+  suggestedSellingCurrency?: string;
   refundable: boolean;
   cancellationDeadline?: string;
 };
@@ -63,6 +67,7 @@ export type HotelResult = {
 };
 export type StaySearchResult = {
   provider: string;
+  sandbox?: boolean;
   status: "ok" | "no_results" | "blocked" | "unavailable";
   hotels: HotelResult[];
   error?: NormalizedError;

@@ -29,7 +29,10 @@ function normalizeSearch(response: LiteApiRatesResponse): StaySearchResult {
         if (!totalAmount || !total?.currency || !rawRate.name) continue;
         const roomId = rawRate.mappedRoomId == null ? `${rawHotel.hotelId}-${roomIndex}` : String(rawRate.mappedRoomId);
         const rates = grouped.get(roomId) || [];
-        rates.push({ id: roomType.offerId, provider: "liteapi", roomId, roomName: rawRate.name, boardName: rawRate.boardName, currency: total.currency, totalAmount, refundable: rawRate.cancellationPolicies?.refundableTag === "RFN", cancellationDeadline: rawRate.cancellationPolicies?.cancelPolicyInfos?.[0]?.cancelTime });
+        rates.push({ id: roomType.offerId, provider: "liteapi", roomId, roomName: rawRate.name, boardName: rawRate.boardName, currency: total.currency, totalAmount,
+          offerTotalAmount: amount(roomType.offerRetailRate?.amount), offerCurrency: roomType.offerRetailRate?.currency,
+          suggestedSellingAmount: amount(roomType.suggestedSellingPrice?.amount), suggestedSellingCurrency: roomType.suggestedSellingPrice?.currency,
+          refundable: rawRate.cancellationPolicies?.refundableTag === "RFN", cancellationDeadline: rawRate.cancellationPolicies?.cancelPolicyInfos?.[0]?.cancelTime });
         grouped.set(roomId, rates);
       }
       return [...grouped.entries()].map(([id, rates]) => ({ id, name: rates[0]?.roomName || "Room", rates }));
@@ -37,7 +40,7 @@ function normalizeSearch(response: LiteApiRatesResponse): StaySearchResult {
     if (rooms.length) hotels.push({ id: rawHotel.hotelId, provider: "liteapi", name: hotelData?.name, address: hotelData?.address, rating: hotelData?.rating, imageUrl: hotelData?.main_photo || hotelData?.mainPhoto, rooms });
   }
   if (!hotels.length) return { provider: "liteapi", status: "no_results", hotels: [], error: { code: "NO_RESULTS", message: "No LiteAPI hotel rates were available.", retryable: false } };
-  return { provider: "liteapi", status: "ok", hotels };
+  return { provider: "liteapi", status: "ok", hotels, sandbox: response.sandbox === true };
 }
 
 function searchBody(input: StaySearchInput): Record<string, unknown> {
@@ -54,9 +57,9 @@ function searchBody(input: StaySearchInput): Record<string, unknown> {
   return { hotelIds: input.hotelIds, cityName: input.cityName, countryCode: input.countryCode, iataCode: input.iataCode, occupancies: input.occupancies.map((entry) => ({ adults: entry.adults, children: entry.childAges })), currency: input.currency, guestNationality: input.guestNationality, checkin: input.checkIn, checkout: input.checkOut, maxRatesPerHotel: input.maxRatesPerHotel ?? 5, refundableRatesOnly: input.refundableOnly, roomMapping: true, includeHotelData: true, sessionId: input.sessionId, timeout: 10 };
 }
 
-export async function searchLiteApiHotels(input: StaySearchInput): Promise<StaySearchResult> {
+export async function searchLiteApiHotels(input: StaySearchInput, transport: { timeoutMs?: number; singleAttempt?: boolean } = {}): Promise<StaySearchResult> {
   try {
-    const response = await liteApiRequest<LiteApiRatesResponse>("/v3.0/hotels/rates", { method: "POST", operation: "search", idempotentRead: true, body: JSON.stringify(searchBody(input)) });
+    const response = await liteApiRequest<LiteApiRatesResponse>("/v3.0/hotels/rates", { method: "POST", operation: "search", idempotentRead: !transport.singleAttempt, timeoutMs: transport.timeoutMs, body: JSON.stringify(searchBody(input)) });
     return normalizeSearch(response);
   } catch (error) {
     if (error instanceof TravelProviderError && error.code === "NO_RESULTS") return { provider: "liteapi", status: "no_results", hotels: [], error: { code: error.code, message: error.message, retryable: error.retryable } };

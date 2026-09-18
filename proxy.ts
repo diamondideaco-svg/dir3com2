@@ -24,6 +24,7 @@ function isPublicPath(pathname: string) {
     || pathname.startsWith('/services/')
     || pathname.startsWith('/marketplace/preview/')
     || pathname.startsWith('/marketplace/provider-proof/')
+    || /^\/marketplace\/stay-sandbox\/[A-Za-z0-9_-]{1,100}$/.test(pathname)
   ) {
     return true;
   }
