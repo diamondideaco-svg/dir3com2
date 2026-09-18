@@ -82,6 +82,7 @@ test('actual request route replays one submitted REQ after response loss with th
     '@/lib/marketplace/request-input': requestInput,
     '@/lib/marketplace/catalog-availability-server': { readCatalogAvailability: async () => ({ failed: false, byProduct: new Map([[product.id, { availability_status: 'available' }]]) }) },
     '@/lib/marketplace/catalog-availability': catalogAvailability,
+    '@/lib/drive/request-server': { createDriveRequest() { assert.fail('Legacy product requests must not enter the managed Drive branch'); } },
   };
   const exports: { POST?: (request: Request) => Promise<{ status: number; body: { request: Record<string, unknown> } }> } = {};
   const source = readFileSync(new URL('../app/api/marketplace/requests/route.ts', import.meta.url), 'utf8');

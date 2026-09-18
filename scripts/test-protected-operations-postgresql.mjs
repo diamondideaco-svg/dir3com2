@@ -66,8 +66,10 @@ try {
     GRANT SELECT ON storage.objects TO authenticated;`);
   const files = readdirSync(new URL('supabase/migrations/', root)).filter(file => file.endsWith('.sql')).sort();
   const migration = files.find(file => file.endsWith('_protected_operations_active_grant_authority.sql'));
+  const managedDrive = files.find(file => file.endsWith('_managed_drive_request_boundary.sql'));
+  const managedDriveModelYear = files.find(file => file.endsWith('_drive_model_year_boundary.sql'));
   assert.ok(migration);
-  for (const file of files.filter(file => file !== migration)) sql(read(`supabase/migrations/${file}`));
+  for (const file of files.filter(file => file !== migration && file !== managedDrive && file !== managedDriveModelYear)) sql(read(`supabase/migrations/${file}`));
   // Fixtures are inserted only in our disposable database; no captured user data.
   for (const [id, role] of [[ceo,'admin'],[admin,'admin'],[staff,'staff'],[customer,'customer'],[partner,'partner']]) {
     sql(`INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES('${id}','${id}@example.invalid','{}');
@@ -87,6 +89,12 @@ try {
   equal(rows(), before, 'forward migration does not rewrite business/profile data');
   sql(read(`supabase/migrations/${migration}`));
   equal(rows(), before, 'forward replay idempotent');
+  if (managedDrive) {
+    sql(read(`supabase/migrations/${managedDrive}`));
+    if (managedDriveModelYear) sql(read(`supabase/migrations/${managedDriveModelYear}`));
+    sql(read('tests/sql/drive-managed-request.sql'));
+    equal(rows(), before, 'managed Drive regression rolls back fixtures without changing existing business data');
+  }
   equal(allowed(ceo,'admin:full',null,true), 't', 'CEO without grant');
   equal(actor(ceo,'SELECT count(*) FROM public.product_audit_events'), '2', 'CEO global product audit');
   for (const id of [admin,staff,customer,partner]) {

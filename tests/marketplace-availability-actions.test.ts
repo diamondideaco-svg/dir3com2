@@ -78,6 +78,7 @@ async function runRequest(state: string, options: { authenticated?: boolean; rep
     '@/lib/marketplace/request-input': requestInputs,
     '@/lib/marketplace/customer-requests': {},
     '@/lib/marketplace/catalog-availability': availability,
+    '@/lib/drive/request-server': { createDriveRequest() { assert.fail('Legacy product requests must not enter the managed Drive branch'); } },
     '@/lib/marketplace/catalog-availability-server': { async readCatalogAvailability() { reads++; return { failed: options.readFailure, byProduct: new Map([[productId, { availability_status: state }]]) }; } },
   };
   runInNewContext(code, { exports, crypto, TextEncoder, require(name: string) { assert.ok(name in deps, name); return deps[name]; } });

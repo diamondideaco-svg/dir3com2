@@ -19,6 +19,8 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   { path: '/services', audience: 'public', protected: false, discoverability: 'direct', indexable: true },
   ...['drive', 'stay', 'fly', 'concierge', 'vip'].map((slug) => ({ path: `/services/${slug}`, audience: 'public' as const, protected: false, discoverability: 'hub' as const, parent: '/services', indexable: true })),
   { path: '/marketplace', audience: 'public', protected: false, discoverability: 'direct', indexable: true },
+  { path: '/marketplace/drive/[offer]', audience: 'public', protected: false, discoverability: 'contextual', parent: '/marketplace' },
+  { path: '/marketplace/drive/image-credits', audience: 'public', protected: false, discoverability: 'contextual', parent: '/marketplace' },
   { path: '/marketplace/preview', audience: 'public', protected: false, discoverability: 'contextual', parent: '/marketplace' },
   { path: '/marketplace/provider-proof', audience: 'public', protected: false, discoverability: 'contextual', parent: '/marketplace' },
   { path: '/dabra', audience: 'public', protected: false, discoverability: 'direct', indexable: true },
@@ -34,6 +36,7 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   ...['/my-account', '/my-bookings', '/my-wallet', '/my-documents', '/favorites', '/my-profile', '/support'].map((path) => ({ path, audience: 'customer' as const, protected: path !== '/support', discoverability: 'direct' as const })),
   { path: '/booking', audience: 'customer', protected: true, discoverability: 'contextual', parent: '/marketplace' },
   { path: '/my-requests/[reference]', audience: 'customer', protected: true, discoverability: 'contextual', parent: '/my-account' },
+  { path: '/my-requests/[reference]/drive', audience: 'customer', protected: true, discoverability: 'contextual', parent: '/my-account' },
   { path: '/my-bookings/[id]', audience: 'customer', protected: true, discoverability: 'contextual', parent: '/my-bookings' },
   { path: '/my-bookings/[id]/review', audience: 'customer', protected: true, discoverability: 'contextual', parent: '/my-bookings/[id]' },
 
@@ -42,6 +45,7 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   { path: '/provider-portal', audience: 'partner', protected: true, discoverability: 'contextual', parent: '/partner-portal' },
 
   { path: '/admin', audience: 'admin', protected: true, discoverability: 'direct' },
+  { path: '/admin/operations/drive', audience: 'admin', protected: true, discoverability: 'direct', parent: '/admin' },
   ...['dashboard', 'bookings', 'categories', 'pricing', 'partners', 'customers', 'products', 'assignment', 'finance', 'operations', 'verification', 'audit', 'events', 'notifications', 'shield'].map((slug) => ({ path: `/admin/${slug}`, audience: 'admin' as const, protected: true, discoverability: 'direct' as const, parent: '/admin' })),
   { path: '/admin/team', audience: 'ceo', protected: true, discoverability: 'direct', parent: '/admin' },
   { path: '/admin/partners/vip-local-egypt', audience: 'admin', protected: true, discoverability: 'direct', parent: '/admin/partners' },
@@ -73,7 +77,7 @@ export const partnerNavigationItems = [
 
 export type ProtectedNavigationItem = {
   href: string;
-  key: 'dashboard' | 'executive' | 'bookings' | 'categories' | 'pricing' | 'partners' | 'customers' | 'products' | 'assignment' | 'finance' | 'operations' | 'verification' | 'audit' | 'events' | 'notifications' | 'shield' | 'vipEgypt';
+  key: 'dashboard' | 'executive' | 'bookings' | 'categories' | 'pricing' | 'partners' | 'customers' | 'products' | 'assignment' | 'finance' | 'operations' | 'driveOperations' | 'verification' | 'audit' | 'events' | 'notifications' | 'shield' | 'vipEgypt';
   globalOnly?: boolean;
   permission?: TeamPermission;
 };
@@ -90,6 +94,7 @@ export const protectedNavigationItems: readonly ProtectedNavigationItem[] = [
   { href: '/admin/assignment', key: 'assignment', globalOnly: true },
   { href: '/admin/finance', key: 'finance', globalOnly: true },
   { href: '/admin/operations', key: 'operations', globalOnly: true },
+  { href: '/admin/operations/drive', key: 'driveOperations', permission: 'operations:read' },
   { href: '/admin/verification', key: 'verification', globalOnly: true },
   { href: '/admin/audit', key: 'audit', globalOnly: true },
   { href: '/admin/events', key: 'events', globalOnly: true },

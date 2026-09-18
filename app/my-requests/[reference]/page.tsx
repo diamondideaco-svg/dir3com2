@@ -32,6 +32,9 @@ export default async function CustomerRequestDetailPage({ params }: { params: Pr
     throw new Error('Unable to load marketplace request details.');
   }
   if (!request) notFound();
+  // The source XOR constraint makes a null product a managed Drive request.
+  // Keep the shared projection compatible before the forward migration lands.
+  if (request.product_id === null && request.marketplace_family === 'drive') redirect(`${destination}/drive`);
 
   return (
     <MarketplaceRequestDetail

@@ -13,6 +13,10 @@ function isPublicPath(pathname: string) {
   if (pathname === '/') return true;
   if (pathname.startsWith('/_next') || pathname.startsWith('/api/')) return true;
   if (pathname.startsWith('/brand/')) return true;
+  // Public managed-catalogue assets and deal pages; request/Operations routes
+  // retain server-verified sessions and ownership/country authorization.
+  if (/^\/vehicles\/[a-z0-9-]+\.jpg$/.test(pathname)) return true;
+  if (pathname.startsWith('/marketplace/drive/')) return true;
 
   if (
     PUBLIC_PATHS.includes(pathname)

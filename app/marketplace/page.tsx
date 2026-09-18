@@ -2,6 +2,7 @@ import MarketplaceExplorer from '@/components/public/MarketplaceExplorer';
 import { isMarketplaceFamilyKey } from '@/lib/marketplace/data';
 import styles from '@/components/public/marketplace-local.module.css';
 import { serializePageQuery } from '@/lib/marketplace/search-context';
+import DriveMarketplace from '@/components/drive/DriveMarketplace';
 
 export default async function MarketplacePage({
   searchParams,
@@ -12,6 +13,8 @@ export default async function MarketplacePage({
   const requested = typeof query.family === 'string' ? query.family : undefined;
   const family = isMarketplaceFamilyKey(requested) ? requested : undefined;
   const liteApiSandboxProof = family === 'dir3-stay' && query.providerProof === 'liteapi';
+
+  if (family === 'dir3-drive') return <DriveMarketplace key={serializePageQuery(query)} initialSearch={serializePageQuery(query)} />;
 
   return (
     <div className={styles.page}>
