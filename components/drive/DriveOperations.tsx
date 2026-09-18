@@ -5,7 +5,7 @@ import { AdminSubmitButton } from '@/components/admin/AdminLocale';
 import { reviewDriveRequest } from '@/app/admin/operations/drive/actions';
 import { driveRequestState } from '@/lib/drive/request';
 import type { DriveRequestRecord } from '@/lib/drive/record';
-import { DRIVE_CURRENCIES, driveOffer, vehicleFor, vehicleTitle } from '@/lib/drive/catalog';
+import { DRIVE_CURRENCIES, DRIVE_MODEL_YEARS, driveOffer, vehicleFor, vehicleTitle, vehicleYearAvailabilityLabel } from '@/lib/drive/catalog';
 import styles from './drive.module.css';
 
 function RequestRow({request,canWrite}:{request:DriveRequestRecord;canWrite:boolean}) {
@@ -15,12 +15,13 @@ function RequestRow({request,canWrite}:{request:DriveRequestRecord;canWrite:bool
   const active=['request_submitted','under_review'].includes(request.status);
   const messages:Record<string,[string,string]>={SAVED:['تم حفظ الإجراء في سجل التدقيق.','Action saved with audit.'],STALE:['تغير الطلب؛ حدّث الصفحة.','Request changed; refresh the page.'],FORBIDDEN:['لا توجد صلاحية لعمليات مصر.','Egypt Operations permission denied.'],UNAUTHORIZED:['انتهت الجلسة.','Session expired.'],INVALID:['تحقق من البيانات والمهلة وتسلسل الإجراء.','Check fields, expiry and action order.'],UNAVAILABLE:['تعذّر الحفظ؛ لم نؤكد نجاح الإجراء.','Unable to save; success is not confirmed.']};
   return <article className={styles.panel}><h2>{request.request_reference}</h2><p>{vehicleTitle(vehicleFor(driveOffer(request.drive_offer_id)!),language)}</p>
+    <p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language)}</p>
     <p>{trip.pickup} → {trip.dropoff} · {trip.pickupAt} → {trip.returnAt} (Africa/Cairo)</p><p>{trip.name} · {trip.phone} · {trip.passengers} {ar?'ركاب':'passengers'} / {trip.luggage} {ar?'أمتعة':'bags'}</p>
     {trip.mode==='airport'&&<p>{trip.flightNumber} · {trip.flightArrival}</p>}<p>{trip.specialRequest}</p><p>{trip.notes}</p><p>{ar?'سعر المورد':'Supplier rate'}: {context.supplier_amount} {context.supplier_currency}</p>
     <p>{ar?'الحالة':'State'}: {states[driveRequestState(request.status,request.quote_expires_at)]?.[ar?0:1] ?? (ar?'الحالة غير متاحة':'Status unavailable')}</p>{result&&<p role="status">{messages[result]?.[ar?0:1]}</p>}
     {active&&canWrite&&<form action={action}><input type="hidden" name="requestId" value={request.id}/><input type="hidden" name="version" value={context.version}/>
       <div className={styles.fields}><label>{ar?'الإجراء':'Action'}<select name="action">{request.status==='request_submitted'?<option value="review">{ar?'بدء المراجعة':'Start review'}</option>:<option value="confirm">{ar?'تأكيد الطلب — دون حجز أو دفع':'Confirm request — no booking or payment'}</option>}<option value="decline">{ar?'رفض':'Decline'}</option></select></label>
-      {request.status==='under_review'&&<><label>{ar?'السيارة أو الفئة المكافئة المؤكدة':'Confirmed vehicle or equivalent class'}<input name="vehicle" maxLength={200}/></label><label>{ar?'الإجمالي النهائي':'Final total'}<input name="amount" type="number" step="0.01" min="0.01" max="99999999"/></label><label>{ar?'العملة':'Currency'}<select name="currency">{DRIVE_CURRENCIES.map(currency=><option key={currency}>{currency}</option>)}</select></label><label>{ar?'انتهاء صلاحية العرض — القاهرة':'Offer validity deadline — Cairo'}<input name="expires" type="datetime-local"/></label></>}
+      {request.status==='under_review'&&<><label>{ar?'السيارة أو الفئة المكافئة المؤكدة':'Confirmed vehicle or equivalent class'}<input name="vehicle" maxLength={200}/></label><label>{ar?'سنة الموديل المؤكدة':'Confirmed model year'}<select name="vehicleYear" required>{DRIVE_MODEL_YEARS.map(year=><option key={year}>{year}</option>)}</select></label><label>{ar?'الإجمالي النهائي':'Final total'}<input name="amount" type="number" step="0.01" min="0.01" max="99999999"/></label><label>{ar?'العملة':'Currency'}<select name="currency">{DRIVE_CURRENCIES.map(currency=><option key={currency}>{currency}</option>)}</select></label><label>{ar?'انتهاء صلاحية العرض — القاهرة':'Offer validity deadline — Cairo'}<input name="expires" type="datetime-local"/></label></>}
       <label>{ar?'ملاحظات العمليات الخاصة':'Private Operations notes'}<textarea name="note" maxLength={2000}/></label></div>
       <AdminSubmitButton ar="حفظ الإجراء" en="Save action" confirmAr="تنفيذ الإجراء المحدد على هذا الطلب؟ لا ينشئ حجزًا أو دفعًا." confirmEn="Apply the selected action to this request? This creates no booking or payment." className={styles.button}/>
     </form>}

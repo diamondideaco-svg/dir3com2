@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { DRIVE_OFFERS, VEHICLE_MASTER, journeyPrice, vehicleTitle } from '../lib/drive/catalog';
+import { DRIVE_MIN_MODEL_YEAR, DRIVE_MODEL_YEARS, DRIVE_OFFERS, VEHICLE_MASTER, journeyPrice, vehicleTitle, vehicleYearAvailabilityLabel } from '../lib/drive/catalog';
 import { cairoInstant, readDriveSearch, driveSearchParams, validateDriveSearch } from '../lib/drive/search';
 import { parseDriveTrip, driveRequestState, validateDriveOfferRequest } from '../lib/drive/request';
 import { CUSTOMER_MARKETPLACE_REQUEST_FIELDS } from '../lib/marketplace/customer-requests';
@@ -15,8 +15,15 @@ test('exact nine approved offers, immutable supplier identity and no legacy subs
   assert.ok(DRIVE_OFFERS.every(x=>x.supplierId==='safeerat-al-arab'&&x.country==='EG'&&x.availability==='request_to_confirm'));
 });
 test('unknown capacities/trims remain unknown and each mapped image exists locally',()=>{
-  for(const v of VEHICLE_MASTER){assert.equal(v.passengers,null);assert.equal(v.luggage,null);assert.equal(v.airConditioning,null);assert.ok(existsSync(`public${v.image}`));assert.match(vehicleTitle(v,'en'),/or similar$/);assert.match(vehicleTitle(v,'ar'),/أو ما يماثلها$/);}
+  for(const v of VEHICLE_MASTER){
+    assert.equal(v.passengers,null);assert.equal(v.luggage,null);assert.equal(v.airConditioning,null);
+    assert.match(v.image,/\.webp$/);assert.ok(existsSync(`public${v.image}`));
+    const bytes=readFileSync(`public${v.image}`);assert.equal(bytes.subarray(0,4).toString(),'RIFF');assert.equal(bytes.subarray(8,12).toString(),'WEBP');
+    assert.match(vehicleTitle(v,'en'),/or similar$/);assert.match(vehicleTitle(v,'ar'),/أو ما يماثلها$/);
+  }
   assert.equal(VEHICLE_MASTER.filter(v=>v.year!==null).length,1);
+  assert.equal(DRIVE_MIN_MODEL_YEAR,2025);assert.deepEqual(DRIVE_MODEL_YEARS,[2025,2026,2027]);
+  assert.match(vehicleYearAvailabilityLabel('ar'),/2025 \/ 2026 \/ 2027/);assert.match(vehicleYearAvailabilityLabel('en'),/subject to availability or similar/);
 });
 test('price truth: no invented total or G-Class airport rate',()=>{
   for(const offer of DRIVE_OFFERS){assert.equal(journeyPrice(offer,'chauffeur').total,null);assert.equal(journeyPrice(offer,'chauffeur').baseAmount,offer.chauffeur);}
@@ -66,6 +73,7 @@ test('migration preserves legacy inventory, protects country audit and payment s
   assert.match(sql,/pg_advisory_xact_lock/);assert.match(sql,/require_operational_access\('operations:write','EG',false\)/);
   assert.match(sql,/ENABLE ROW LEVEL SECURITY/);assert.match(sql,/drive_payment_stop/);assert.match(sql,/drive_events_immutable/);
   assert.match(sql,/trip=p_trip/);assert.match(sql,/IDEMPOTENCY_CONFLICT/);
+  assert.match(sql,/acceptableModelYears/);assert.match(sql,/confirmed_vehicle_year/);assert.match(sql,/p_vehicle_year NOT IN \(2025,2026,2027\)/);
 });
 test('UI contains no active payment fields or fabricated hour packages',()=>{
   const ui=readFileSync('components/drive/DriveRequestReview.tsx','utf8');assert.match(ui,/Payment unavailable/);assert.match(ui,/<button disabled>/);assert.doesNotMatch(ui,/<input|stripe|tokenize|capture\(/i);

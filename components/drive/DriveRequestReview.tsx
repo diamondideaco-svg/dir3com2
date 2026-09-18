@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
-import { driveOffer, vehicleFor, vehicleTitle } from '@/lib/drive/catalog';
+import { driveOffer, vehicleFor, vehicleTitle, vehicleYearAvailabilityLabel } from '@/lib/drive/catalog';
 import { driveRequestState } from '@/lib/drive/request';
 import type { DriveRequestRecord } from '@/lib/drive/record';
 import { DriveInclusions } from './DriveMarketplace';
@@ -25,7 +25,7 @@ export default function DriveRequestReview({ request }: { request: DriveRequestR
     <p>{ar?'هذا طلب وليس حجزًا. لم يتم تنفيذ دفع أو إصدار حجز.':'This is a request, not a booking. No payment or booking has been made.'}</p>
     <section className={styles.fields}><div className={styles.panel}>
       <Image src={vehicle.image} alt={vehicleTitle(vehicle,language)} width={800} height={500} className={styles.gallery}/>
-      <h2>{context.confirmed_vehicle || vehicleTitle(vehicle,language)}</h2><DriveInclusions ar={ar}/>
+      <h2>{context.confirmed_vehicle || vehicleTitle(vehicle,language)}</h2><p className={styles.modelYear}>{context.confirmed_vehicle_year ? `${ar?'موديل':'Model year'} ${context.confirmed_vehicle_year}` : vehicleYearAvailabilityLabel(language)}</p><DriveInclusions ar={ar}/>
     </div><div className={styles.panel}>
       <h2>{ar?'الرحلة والعميل':'Trip and customer'}</h2><p>{trip.pickup} → {trip.dropoff}</p><p dir="ltr">{trip.pickupAt} → {trip.returnAt}</p><p>Africa/Cairo</p>
       <p>{trip.name} · {trip.phone}</p><p>{trip.passengers} {ar?'ركاب':'passengers'} · {trip.luggage} {ar?'قطع أمتعة':'bags'}</p>

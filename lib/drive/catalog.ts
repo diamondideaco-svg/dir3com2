@@ -3,6 +3,8 @@ export const DRIVE_CATALOG_VERSION = 'safeerat-eg-20260916-v1';
 export const DRIVE_COUNTRY = 'EG';
 export const DRIVE_TIME_ZONE = 'Africa/Cairo';
 export const DRIVE_CURRENCIES = ['EGP', 'USD', 'SAR', 'EUR', 'AED'] as const;
+export const DRIVE_MODEL_YEARS = [2025, 2026, 2027] as const;
+export const DRIVE_MIN_MODEL_YEAR = DRIVE_MODEL_YEARS[0];
 export type DriveCurrency = typeof DRIVE_CURRENCIES[number];
 export type DriveMode = 'airport' | 'chauffeur';
 export type VehicleClass = 'Economy' | 'Sedan' | 'SUV' | 'Luxury' | 'Premium SUV';
@@ -15,7 +17,7 @@ export type VehicleMaster = {
 const master = (id: string, make: string, model: string, ar: string, vehicleClass: VehicleClass, body: 'sedan' | 'suv', year: number | null = null, trim: string | null = null): VehicleMaster => ({
   id, make, model, ar, en: `${make} ${model}${year ? ` ${year}` : ''}${trim ? ` ${trim}` : ''}`,
   vehicleClass, body, year, trim, passengers: null, luggage: null, doors: null, airConditioning: null,
-  image: `/vehicles/${id === 'range-rover-2025' ? 'range-rover' : id}.jpg`, exactModelGuaranteed: false,
+  image: `/vehicles/${id === 'range-rover-2025' ? 'range-rover' : id}.webp`, exactModelGuaranteed: false,
 });
 export const VEHICLE_MASTER: readonly VehicleMaster[] = [
   master('mercedes-e200-amg', 'Mercedes-Benz', 'E 200', 'مرسيدس E 200 AMG Line', 'Luxury', 'sedan', null, 'AMG Line'),
@@ -48,6 +50,9 @@ export function vehicleTitle(vehicle: VehicleMaster, language: 'ar' | 'en') {
 export function vehicleClassLabel(value: VehicleClass, language: 'ar' | 'en') {
   const ar: Record<VehicleClass, string> = { Economy: 'اقتصادية', Sedan: 'سيدان', SUV: 'رياضية متعددة الاستخدامات', Luxury: 'فاخرة', 'Premium SUV': 'رياضية فاخرة متعددة الاستخدامات' };
   return language === 'ar' ? ar[value] : value;
+}
+export function vehicleYearAvailabilityLabel(language: 'ar' | 'en') {
+  return language === 'ar' ? 'موديل 2025 / 2026 / 2027 — حسب التوفر أو ما يماثلها' : 'Model year 2025 / 2026 / 2027 — subject to availability or similar';
 }
 export function supplierRate(offer: DriveOffer, mode: DriveMode) { return offer[mode]; }
 /** The rate sheet does not define extra-distance, daily rounding or return-transfer pricing. */

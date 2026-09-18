@@ -12,11 +12,12 @@ export async function reviewDriveRequest(_previous: string, form: FormData): Pro
   if (!access.scope || !isCountryAllowed(access.scope,'EG')) return 'FORBIDDEN';
   const id = String(form.get('requestId') ?? ''); const version = Number(form.get('version'));
   const action = String(form.get('action')); const amount = Number(form.get('amount'));
+  const vehicleYear = Number(form.get('vehicleYear'));
   const expiry = cairoInstant(String(form.get('expires') ?? ''));
   if (!/^[a-f0-9-]{36}$/i.test(id) || !Number.isInteger(version) || version<0 || !['review','confirm','decline'].includes(action)) return 'INVALID';
-  if (action==='confirm' && (!Number.isFinite(amount) || amount<=0 || expiry===null)) return 'INVALID';
+  if (action==='confirm' && (!Number.isFinite(amount) || amount<=0 || expiry===null || ![2025,2026,2027].includes(vehicleYear))) return 'INVALID';
   const { error } = await supabase.rpc('review_managed_drive_request', {
-    p_request_id:id,p_version:version,p_action:action,p_vehicle:String(form.get('vehicle') ?? ''),
+    p_request_id:id,p_version:version,p_action:action,p_vehicle:String(form.get('vehicle') ?? ''),p_vehicle_year:action==='confirm'?vehicleYear:null,
     p_amount:action==='confirm'?amount:null,p_currency:action==='confirm'?String(form.get('currency')):null,
     p_expires:action==='confirm'?new Date(expiry!).toISOString():null,p_note:String(form.get('note') ?? ''),
   });

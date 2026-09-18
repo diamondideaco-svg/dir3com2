@@ -12,7 +12,7 @@ SELECT gen_random_uuid() AS customer,gen_random_uuid() AS outsider,gen_random_uu
 INSERT INTO auth.users(id,email) VALUES (:'customer','task147-customer@example.invalid'),(:'outsider','task147-outsider@example.invalid'),(:'operator','task147-ops@example.invalid');
 INSERT INTO public.profiles(id,email,full_name,role,status) VALUES (:'customer','task147-customer@example.invalid','QA Customer','customer','active'),(:'outsider','task147-outsider@example.invalid','QA Other','customer','active'),(:'operator','task147-ops@example.invalid','QA Egypt Ops','admin','active') ON CONFLICT(id) DO UPDATE SET role=excluded.role,status=excluded.status;
 INSERT INTO public.team_access_grants(email,job_title,access_level,country_scope,permissions,status,invited_user_id,created_by) VALUES ('task147-ops@example.invalid','QA Operations','scoped_staff',ARRAY['EG'],ARRAY['operations:read','operations:write'],'active',:'operator',:'operator');
-SELECT jsonb_build_object('pickup','Cairo airport','dropoff','Cairo hotel','pickupAt',to_char((now()+interval '2 days') AT TIME ZONE 'Africa/Cairo','YYYY-MM-DD"T"HH24:MI'),'returnAt',to_char((now()+interval '3 days') AT TIME ZONE 'Africa/Cairo','YYYY-MM-DD"T"HH24:MI'),'mode','chauffeur','passengers',2,'luggage',1,'currency','EGP','name','QA Customer','phone','+201000000000','flightNumber','','flightArrival','','notes','','specialRequest','','acknowledged',true)::text AS trip \gset
+SELECT jsonb_build_object('pickup','Cairo airport','dropoff','Cairo hotel','pickupAt',to_char((now()+interval '2 days') AT TIME ZONE 'Africa/Cairo','YYYY-MM-DD"T"HH24:MI'),'returnAt',to_char((now()+interval '3 days') AT TIME ZONE 'Africa/Cairo','YYYY-MM-DD"T"HH24:MI'),'mode','chauffeur','passengers',2,'luggage',1,'currency','EGP','name','QA Customer','phone','+201000000000','flightNumber','','flightArrival','','notes','','specialRequest','','acknowledged',true,'minimumModelYear',2025,'acceptableModelYears',jsonb_build_array(2025,2026,2027))::text AS trip \gset
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',jsonb_build_object('sub',:'customer','role','authenticated')::text,true);
 SELECT public.create_managed_drive_request('safeerat-eg-jetour-t2','task147-idempotency-key',:'trip'::jsonb)->>'reference' AS reference \gset
@@ -21,6 +21,7 @@ SELECT pg_temp.ok((SELECT count(*)=1 FROM public.marketplace_requests WHERE requ
 SELECT pg_temp.ok((public.create_managed_drive_request('safeerat-eg-jetour-t2','task147-idempotency-key',:'trip'::jsonb)->>'replayed')::boolean,'identical retry replay');
 SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%L::jsonb)','safeerat-eg-jetour-t1','task147-idempotency-key',:'trip'),'23505','changed offer replay denied');
 SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%L::jsonb)','safeerat-eg-jetour-t2','task147-missing-ack',jsonb_set(:'trip'::jsonb,'{acknowledged}','false')),'22023','missing acknowledgement rejected');
+SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%L::jsonb)','safeerat-eg-jetour-t2','task147-old-model',jsonb_set(:'trip'::jsonb,'{minimumModelYear}','2024')),'22023','model older than 2025 rejected');
 SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%L::jsonb)','safeerat-eg-jetour-t2','task147-too-soon',jsonb_set(:'trip'::jsonb,'{pickupAt}',to_jsonb(to_char((now()+interval '5 hours') AT TIME ZONE 'Africa/Cairo','YYYY-MM-DD"T"HH24:MI')))),'22023','six-hour rule at database');
 SELECT pg_temp.ok((SELECT supplier_amount=100 AND supplier_currency='USD' FROM public.drive_request_context WHERE request_id=:'request_id'),'supplier original amount/currency snapshot');
 SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%L::jsonb)','safeerat-eg-jetour-t2','task147-dst-arrival',:'trip'::jsonb || '{"mode":"airport","flightNumber":"MS123","flightArrival":"2027-04-30T00:30"}'::jsonb),'22023','airport DST gap rejected at RPC');
@@ -48,7 +49,9 @@ SELECT pg_temp.denied(format('select public.review_managed_drive_request(%L,1,%L
 RESET ROLE;
 UPDATE public.team_access_grants SET status='active' WHERE invited_user_id=:'operator';
 SET LOCAL ROLE authenticated;
-SELECT public.review_managed_drive_request(:'request_id',1,'confirm','Jetour T2 or similar',250,'USD',now()+interval '1 day','QA private note');
+SELECT pg_temp.denied(format('select public.review_managed_drive_request(%L,1,%L,%L,2024,250,%L,now()+interval ''1 day'',%L)',:'request_id','confirm','Jetour T2 or similar','USD','QA private note'),'22023','Operations cannot confirm model older than 2025');
+SELECT public.review_managed_drive_request(:'request_id',1,'confirm','Jetour T2 or similar',2025,250,'USD',now()+interval '1 day','QA private note');
+SELECT pg_temp.ok((SELECT confirmed_vehicle_year=2025 FROM public.drive_request_context WHERE request_id=:'request_id'),'confirmed model year preserved');
 SELECT pg_temp.ok((SELECT status='awaiting_customer_acceptance' AND payment_status='awaiting_payment' AND product_id IS NULL FROM public.marketplace_requests WHERE id=:'request_id'),'confirmed request is not BOOKING/payment');
 SELECT pg_temp.ok((SELECT count(*)=3 FROM public.drive_request_events WHERE request_id=:'request_id'),'all three actions audited');
 SELECT pg_temp.denied(format('delete from public.drive_request_events where request_id=%L',:'request_id'),'42501','audit cannot be deleted by Ops');

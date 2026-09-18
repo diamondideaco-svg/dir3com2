@@ -42,6 +42,7 @@ CREATE TABLE public.drive_request_context (
   supplier_currency text NOT NULL CHECK (supplier_currency IN ('USD','EGP')),
   trip jsonb NOT NULL,
   confirmed_vehicle text,
+  confirmed_vehicle_year integer CHECK (confirmed_vehicle_year IN (2025,2026,2027)),
   version integer NOT NULL DEFAULT 0
 );
 ALTER TABLE public.drive_request_context ENABLE ROW LEVEL SECURITY;
@@ -107,6 +108,8 @@ BEGIN
    OR coalesce(p_trip->>'phone','') !~ '^[+0-9 ()-]{7,30}$'
    OR p_trip->'acknowledged' IS DISTINCT FROM 'true'::jsonb
    OR coalesce(p_trip->>'currency','') NOT IN ('EGP','USD','SAR','EUR','AED')
+   OR coalesce(p_trip->>'minimumModelYear','') <> '2025'
+   OR p_trip->'acceptableModelYears' IS DISTINCT FROM '[2025,2026,2027]'::jsonb
    OR coalesce(length(p_trip->>'notes'),0)>1000
    OR coalesce(length(p_trip->>'specialRequest'),0)>500
    OR coalesce(p_trip->>'passengers','') !~ '^([1-9]|1[0-9]|20)$'
@@ -142,7 +145,7 @@ END $$;
 REVOKE ALL ON FUNCTION public.create_managed_drive_request(text,text,jsonb) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.create_managed_drive_request(text,text,jsonb) TO authenticated;
 
-CREATE FUNCTION public.review_managed_drive_request(p_request_id uuid,p_version integer,p_action text,p_vehicle text DEFAULT NULL,p_amount numeric DEFAULT NULL,p_currency text DEFAULT NULL,p_expires timestamptz DEFAULT NULL,p_note text DEFAULT NULL)
+CREATE FUNCTION public.review_managed_drive_request(p_request_id uuid,p_version integer,p_action text,p_vehicle text DEFAULT NULL,p_vehicle_year integer DEFAULT NULL,p_amount numeric DEFAULT NULL,p_currency text DEFAULT NULL,p_expires timestamptz DEFAULT NULL,p_note text DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE v_context public.drive_request_context%ROWTYPE; v_request public.marketplace_requests%ROWTYPE; v_status text;
 BEGIN
@@ -155,17 +158,17 @@ BEGIN
  IF v_request.status NOT IN ('request_submitted','under_review') OR p_action IS NULL OR p_action NOT IN ('review','confirm','decline') THEN RAISE EXCEPTION 'INVALID_TRANSITION' USING ERRCODE='22023'; END IF;
  IF p_action='review' AND v_request.status<>'request_submitted' THEN RAISE EXCEPTION 'INVALID_TRANSITION' USING ERRCODE='22023'; END IF;
  IF coalesce(length(p_note),0)>2000 THEN RAISE EXCEPTION 'INVALID_NOTE' USING ERRCODE='22023'; END IF;
- IF p_action='confirm' AND (v_request.status<>'under_review' OR coalesce(length(btrim(p_vehicle)),0) NOT BETWEEN 2 AND 200 OR p_amount IS NULL OR p_amount<=0 OR p_amount>99999999 OR p_currency IS NULL OR p_currency NOT IN ('EGP','USD','SAR','EUR','AED') OR p_expires IS NULL OR p_expires<=now() OR p_expires>v_request.requested_for) THEN RAISE EXCEPTION 'INVALID_CONFIRMATION' USING ERRCODE='22023'; END IF;
+ IF p_action='confirm' AND (v_request.status<>'under_review' OR coalesce(length(btrim(p_vehicle)),0) NOT BETWEEN 2 AND 200 OR p_vehicle_year IS NULL OR p_vehicle_year NOT IN (2025,2026,2027) OR p_amount IS NULL OR p_amount<=0 OR p_amount>99999999 OR p_currency IS NULL OR p_currency NOT IN ('EGP','USD','SAR','EUR','AED') OR p_expires IS NULL OR p_expires<=now() OR p_expires>v_request.requested_for) THEN RAISE EXCEPTION 'INVALID_CONFIRMATION' USING ERRCODE='22023'; END IF;
  v_status:=CASE p_action WHEN 'review' THEN 'under_review' WHEN 'confirm' THEN 'awaiting_customer_acceptance' ELSE 'declined' END;
  UPDATE public.marketplace_requests SET status=v_status, quote_amount=CASE WHEN p_action='confirm' THEN p_amount ELSE NULL END,
  quote_currency=CASE WHEN p_action='confirm' THEN p_currency ELSE NULL END,quote_expires_at=CASE WHEN p_action='confirm' THEN p_expires ELSE NULL END,
  next_action=CASE WHEN p_action='confirm' THEN 'payment_not_enabled' ELSE 'egypt_operations_review' END,updated_at=now() WHERE id=p_request_id;
- UPDATE public.drive_request_context SET confirmed_vehicle=CASE WHEN p_action='confirm' THEN p_vehicle ELSE NULL END, version=version+1 WHERE request_id=p_request_id;
+ UPDATE public.drive_request_context SET confirmed_vehicle=CASE WHEN p_action='confirm' THEN p_vehicle ELSE NULL END, confirmed_vehicle_year=CASE WHEN p_action='confirm' THEN p_vehicle_year ELSE NULL END, version=version+1 WHERE request_id=p_request_id;
  INSERT INTO public.drive_request_events(request_id,actor_user_id,country,action,previous_status,new_status,private_note)
  VALUES(p_request_id,auth.uid(),'EG',p_action,v_request.status,v_status,p_note);
  RETURN jsonb_build_object('status',v_status,'version',p_version+1);
 END $$;
-REVOKE ALL ON FUNCTION public.review_managed_drive_request(uuid,integer,text,text,numeric,text,timestamptz,text) FROM PUBLIC,anon,service_role;
-GRANT EXECUTE ON FUNCTION public.review_managed_drive_request(uuid,integer,text,text,numeric,text,timestamptz,text) TO authenticated;
+REVOKE ALL ON FUNCTION public.review_managed_drive_request(uuid,integer,text,text,integer,numeric,text,timestamptz,text) FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.review_managed_drive_request(uuid,integer,text,text,integer,numeric,text,timestamptz,text) TO authenticated;
 NOTIFY pgrst, 'reload schema';
 COMMIT;

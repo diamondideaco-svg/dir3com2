@@ -9,4 +9,8 @@ export const DRIVE_IMAGE_RIGHTS = [
   { id: 'mercedes-e200', file: 'Mercedes-Benz E 200 AVANTGARDE Sports (W213) front.jpg', author: 'Tokumeigakarinoaoshima', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' },
   { id: 'range-rover', file: 'Land Rover RANGE ROVER Autobiography P530 Standard-wheelbase (L460) front.jpg', author: 'Tokumeigakarinoaoshima', license: 'CC0', licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/' },
   { id: 'mercedes-gclass', file: 'Mercedes-Benz G 550 (W463) front.JPG', author: 'Tokumeigakarinoaoshima', license: 'CC0', licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/' },
-].map(item => ({ ...item, source: `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(item.file.replaceAll(' ', '_'))}`, retrieved: '2026-09-17', usage: 'DIR3COM vehicle model catalogue; commercial redistribution under stated license', changes: 'Wikimedia 1280px thumbnail; no content editing; CSS contain' }));
+].map(item => ({ ...item, source: `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(item.file.replaceAll(' ', '_'))}`, retrieved: '2026-09-17', usage: 'Archived source JPEG retained for provenance; not customer-facing after the 2025 catalogue refresh', changes: 'No longer displayed in the customer catalogue' }));
+
+export const DRIVE_CURRENT_IMAGE_PROVENANCE = [
+  'mercedes-e200-amg','jetour-t2','jetour-t1','jetour-x90','nissan-sunny','mercedes-e200','range-rover','mercedes-gclass',
+].map(id => ({ id, file: `${id}.webp`, method: 'Original DIR3COM-generated 2025 catalogue visualization', changes: 'Transparent vehicle cutout with a subtle contact shadow; optimized to WebP for customer delivery', externalPhoto: false }));

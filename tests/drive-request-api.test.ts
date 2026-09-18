@@ -4,11 +4,12 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import * as tripContract from '../lib/drive/request';
+import * as catalogContract from '../lib/drive/catalog';
 
 // Execute the real handler with only the database transport replaced in this test.
 const exports: Record<string, unknown> = {};
 const dependencies: Record<string, unknown> = {
-  'server-only': {}, './request': tripContract,
+  'server-only': {}, './request': tripContract, './catalog': catalogContract,
   'next/server': { NextResponse: { json: (body: unknown, init: ResponseInit) => Response.json(body, init) } },
 };
 runInNewContext(ts.transpileModule(readFileSync('lib/drive/request-server.ts','utf8'), {
@@ -17,11 +18,12 @@ runInNewContext(ts.transpileModule(readFileSync('lib/drive/request-server.ts','u
 const handler=exports.createDriveRequest as (db:unknown,body:unknown,key:string|null)=>Promise<Response>;
 const trip={pickup:'Cairo',dropoff:'Cairo hotel',pickupAt:'2099-10-12T12:00',returnAt:'2099-10-13T12:00',mode:'chauffeur',currency:'EGP',passengers:2,luggage:1,name:'Isolated QA',phone:'+201000000000',flightNumber:'',flightArrival:'',specialRequest:'',notes:'',acknowledged:true};
 const body={drive_offer_id:'safeerat-eg-jetour-t2',trip};
+const authoritativeTrip={...trip,minimumModelYear:2025,acceptableModelYears:[2025,2026,2027]};
 
 test('Drive API uses authenticated RPC and preserves submitted/replayed status without booking',async()=>{
   for(const replayed of [false,true]){
     let calls=0;
-    const db={async rpc(name:string,args:Record<string,unknown>){calls++;assert.equal(name,'create_managed_drive_request');assert.equal(args.p_offer_id,body.drive_offer_id);assert.equal(args.p_key,'isolated-request-intent');assert.deepEqual(args.p_trip,trip);assert.equal('user_id' in args,false);return {data:{reference:'REQ-ISOLATED',status:replayed?'under_review':'request_submitted',replayed},error:null};}};
+    const db={async rpc(name:string,args:Record<string,unknown>){calls++;assert.equal(name,'create_managed_drive_request');assert.equal(args.p_offer_id,body.drive_offer_id);assert.equal(args.p_key,'isolated-request-intent');assert.deepEqual(JSON.parse(JSON.stringify(args.p_trip)),authoritativeTrip);assert.equal('user_id' in args,false);return {data:{reference:'REQ-ISOLATED',status:replayed?'under_review':'request_submitted',replayed},error:null};}};
     const response=await handler(db,body,'isolated-request-intent');
     assert.equal(response.status,replayed?200:201);assert.equal(calls,1);
     const payload=await response.json();assert.equal(payload.request.status,replayed?'under_review':'request_submitted');
