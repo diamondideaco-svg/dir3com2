@@ -69,11 +69,12 @@ test('legacy customer request projection remains compatible before managed Drive
 });
 test('migration preserves legacy inventory, protects country audit and payment stop',()=>{
   const sql=readFileSync('supabase/migrations/20260916234223_managed_drive_request_boundary.sql','utf8');
+  const modelYearSql=readFileSync('supabase/migrations/20260918190000_drive_model_year_boundary.sql','utf8');
   assert.doesNotMatch(sql,/(?:UPDATE|DELETE FROM|INSERT INTO)\s+public\.(?:products|partners|bookings|payments)\b/i);
   assert.match(sql,/pg_advisory_xact_lock/);assert.match(sql,/require_operational_access\('operations:write','EG',false\)/);
   assert.match(sql,/ENABLE ROW LEVEL SECURITY/);assert.match(sql,/drive_payment_stop/);assert.match(sql,/drive_events_immutable/);
   assert.match(sql,/trip=p_trip/);assert.match(sql,/IDEMPOTENCY_CONFLICT/);
-  assert.match(sql,/acceptableModelYears/);assert.match(sql,/confirmed_vehicle_year/);assert.match(sql,/p_vehicle_year NOT IN \(2025,2026,2027\)/);
+  assert.match(modelYearSql,/acceptableModelYears/);assert.match(modelYearSql,/confirmed_vehicle_year/);assert.match(modelYearSql,/p_vehicle_year NOT IN \(2025,2026,2027\)/);
 });
 test('UI contains no active payment fields or fabricated hour packages',()=>{
   const ui=readFileSync('components/drive/DriveRequestReview.tsx','utf8');assert.match(ui,/Payment unavailable/);assert.match(ui,/<button disabled>/);assert.doesNotMatch(ui,/<input|stripe|tokenize|capture\(/i);

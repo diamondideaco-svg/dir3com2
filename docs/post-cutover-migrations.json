@@ -26,5 +26,9 @@
   {
     "path": "supabase/migrations/20260916234223_managed_drive_request_boundary.sql",
     "sha256": "8eab5b549439868f7f8df98ad034ae6dbc9b34c6cd3f0fc65f8e367cd9ca62d3"
+  },
+  {
+    "path": "supabase/migrations/20260918190000_drive_model_year_boundary.sql",
+    "sha256": "e01c8df768f9b548d455ecdc0daef5a611c0a9f8c6eee5778a60da3301d7c57d"
   }
 ]
