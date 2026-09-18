@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server';
 const PUBLIC_PATHS = ['/', '/about', '/contact', '/services', '/services/', '/marketplace', '/marketplace/preview', '/marketplace/provider-proof', '/dabra', '/terms', '/privacy', '/support', '/login', '/register', '/auth/signin', '/auth/callback', '/auth/verify-email'];
 const PUBLIC_CATEGORY_PATHS = ['/cars', '/hotels', '/experiences', '/concierge', '/offers', '/apartments', '/airport-transfers'];
 const PROTECTED_PREFIXES = ['/profile', '/my-account', '/my-bookings', '/my-documents', '/my-profile', '/my-wallet', '/my-requests', '/dashboard'];
+const PUBLIC_VEHICLE_ASSET_PATH = /^\/vehicles\/[a-z0-9-]+\.(?:avif|jpe?g|png|webp)$/;
 
 function isPublicPath(pathname: string) {
   // Native public discovery metadata; keep the exception exact, not a prefix.
@@ -15,7 +16,7 @@ function isPublicPath(pathname: string) {
   if (pathname.startsWith('/brand/')) return true;
   // Public managed-catalogue assets and deal pages; request/Operations routes
   // retain server-verified sessions and ownership/country authorization.
-  if (/^\/vehicles\/[a-z0-9-]+\.jpg$/.test(pathname)) return true;
+  if (PUBLIC_VEHICLE_ASSET_PATH.test(pathname)) return true;
   if (pathname.startsWith('/marketplace/drive/')) return true;
 
   if (
