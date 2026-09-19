@@ -13,6 +13,10 @@ export async function GET(request: Request) {
   if (!query) return Response.json({ status: 'invalid_search', cards: [] }, { status: 400, headers });
   const subjectHash = process.env.VERCEL_ENV === 'production' ? stayDemoRequestSubject(request) ?? undefined : undefined;
   const result = await searchStayDemo(query, process.env, subjectHash);
+  if (result.status === 'rate_limited' && (!Number.isInteger(result.retryAfterSeconds)
+    || result.retryAfterSeconds! < 1 || result.retryAfterSeconds! > 86400)) {
+    return Response.json({ status: 'unavailable', cards: [], retrievedAt: result.retrievedAt }, { status: 503, headers });
+  }
   return Response.json(result, { status: result.status === 'rate_limited' ? 429 : result.status === 'unavailable' ? 503 : 200,
-    headers: { ...headers, ...(result.status === 'rate_limited' ? { 'Retry-After': '2' } : {}) } });
+    headers: { ...headers, ...(result.status === 'rate_limited' ? { 'Retry-After': String(result.retryAfterSeconds) } : {}) } });
 }
