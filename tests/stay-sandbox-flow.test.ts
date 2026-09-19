@@ -32,7 +32,8 @@ function api(environment: Record<string, string | undefined> = env, fail = false
   let calls = 0;
   const server = load<{ createStayDemoSearch: (transport: () => Promise<StaySearchResult>, clock: () => number) => (query: contract.StayDemoQuery, e: typeof env) => Promise<contract.StayDemoResult> }>(
     'lib/marketplace/stay-demo-server.ts', { 'server-only': {}, './stay-demo': contract, './stay-demo-mode': mode,
-      '../travel/liteapi/stays': { searchLiteApiHotels: () => assert.fail('No real network in unit tests') } });
+      '../travel/liteapi/stays': { searchLiteApiHotels: () => assert.fail('No real network in unit tests') },
+      './stay-demo-global': { stayDemoGlobalGate: { acquire: () => assert.fail('Global gate is Production-only'), complete: () => undefined, release: () => undefined } } });
   const run = server.createStayDemoSearch(async () => {
     calls++;
     if (fail) throw Error('private transport error');
@@ -46,11 +47,13 @@ function api(environment: Record<string, string | undefined> = env, fail = false
     '@/lib/marketplace/stay-demo-mode': { stayDemoEnabled: () => mode.stayDemoEnabled(environment) },
     '@/lib/marketplace/stay-demo': { parseStayDemoQuery: (p: URLSearchParams) => contract.parseStayDemoQuery(p, now) },
     '@/lib/marketplace/stay-demo-server': { searchStayDemo: (q: contract.StayDemoQuery) => run(q, environment as typeof env) },
-  });
+    '@/lib/marketplace/stay-demo-global': { stayDemoRequestSubject: () => 'a'.repeat(64) },
+  }, { process: { env: environment } });
   const proof = load<{ GET: Get }>('app/api/marketplace/provider-proof/route.ts', {
     'next/server': { NextResponse: Response }, '../stay-sandbox/route': stay,
     '@/lib/marketplace/provider-proof-mode': { authorizeProviderProofRequest: () => false },
     '@/lib/marketplace/provider-proof': { runProviderProofSearch: () => assert.fail('Must not widen legacy provider access') },
+    '@/lib/marketplace/stay-demo-mode': { stayDemoEnabled: () => mode.stayDemoEnabled(environment) },
   }, { process: { env: environment } });
   return { get: proof.GET, stay: stay.GET, calls: () => calls };
 }
