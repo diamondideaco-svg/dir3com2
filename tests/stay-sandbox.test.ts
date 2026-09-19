@@ -104,10 +104,11 @@ test('Production uses distributed cache, global budget and lease release before 
   const production={...env,VERCEL_ENV:'production',DIR3COM_STAY_SANDBOX_PRODUCTION_ENABLED:'true',DIR3COM_STAY_SANDBOX_RATE_SALT:'s'.repeat(32)};
   let providerCalls=0,completed=0,released=0,decision:'cache'|'provider'|'rate_limited'|'unavailable'='cache';
   const cached:contract.StayDemoResult={status:'ok',cards:contract.stayDemoCards(response,'2026-09-19T00:00:00Z',2),retrievedAt:'2026-09-19T00:00:00Z'};
-  const gate={acquire:async()=>decision==='cache'?{decision,queryHash:'a'.repeat(64),value:cached}:{decision,queryHash:'a'.repeat(64)},complete:async()=>{completed++;},release:async()=>{released++;}};
+  const leaseToken='fc219f4c-438e-4405-a8b0-109d4a126a3c';
+  const gate={acquire:async()=>decision==='cache'?{decision,queryHash:'a'.repeat(64),value:cached}:{decision,queryHash:'a'.repeat(64),leaseToken,retryAfterSeconds:3600},complete:async(_query:string,token:string)=>{assert.equal(token,leaseToken);completed++;},release:async(_query:string,token:string)=>{assert.equal(token,leaseToken);released++;}};
   const run=serverFactory()(async()=>{providerCalls++;return response;},()=>now,gate);
   assert.equal((await run(query,production,'b'.repeat(64))).retrievedAt,cached.retrievedAt);assert.equal(providerCalls,0);
-  decision='rate_limited';assert.equal((await run(query,production,'b'.repeat(64))).status,'rate_limited');assert.equal(providerCalls,0);
+  decision='rate_limited';assert.equal((await run(query,production,'b'.repeat(64))).retryAfterSeconds,3600);assert.equal(providerCalls,0);
   decision='unavailable';assert.equal((await run(query,production,'b'.repeat(64))).status,'unavailable');assert.equal(providerCalls,0);
   decision='provider';assert.equal((await run(query,production,'b'.repeat(64))).status,'ok');assert.equal(providerCalls,1);assert.equal(completed,1);
   const failing=serverFactory()(async()=>{throw Error('provider failure');},()=>now,gate);
@@ -118,7 +119,7 @@ test('Production database failures fail closed and attempt cleanup without leaki
   const production={...env,VERCEL_ENV:'production',DIR3COM_STAY_SANDBOX_PRODUCTION_ENABLED:'true',DIR3COM_STAY_SANDBOX_RATE_SALT:'s'.repeat(32)};
   let released=0,providerCalls=0;
   const gate={
-    acquire:async()=>({decision:'provider',queryHash:'a'.repeat(64)}),
+    acquire:async()=>({decision:'provider',queryHash:'a'.repeat(64),leaseToken:'fc219f4c-438e-4405-a8b0-109d4a126a3c'}),
     complete:async()=>{throw Error('PRIVATE_CACHE_CONNECTION');},
     release:async()=>{released++;throw Error('PRIVATE_RELEASE_CONNECTION');},
   };
@@ -135,12 +136,12 @@ test('Production database failures fail closed and attempt cleanup without leaki
 });
 
 test('GET route enforces closed flag, validates input, and preserves controlled HTTP states',async()=>{
-  let enabled=false,calls=0,status:contract.StayDemoResult['status']='ok';
+  let enabled=false,calls=0,status:contract.StayDemoResult['status']='ok',retryAfterSeconds:unknown=20;
   const exported:Record<string,unknown>={};
   const imports:Record<string,unknown>={
     '@/lib/marketplace/stay-demo-mode':{stayDemoEnabled:()=>enabled},
     '@/lib/marketplace/stay-demo':{parseStayDemoQuery:(p:URLSearchParams)=>contract.parseStayDemoQuery(p,now)},
-    '@/lib/marketplace/stay-demo-server':{searchStayDemo:async()=>{calls++;return {status,cards:[],retrievedAt:new Date(now).toISOString()};}},
+    '@/lib/marketplace/stay-demo-server':{searchStayDemo:async()=>{calls++;return {status,cards:[],retrievedAt:new Date(now).toISOString(),retryAfterSeconds};}},
     '@/lib/marketplace/stay-demo-global':{stayDemoRequestSubject:()=> 'a'.repeat(64)},
   };
   runInNewContext(ts.transpileModule(readFileSync('app/api/marketplace/stay-sandbox/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
@@ -150,8 +151,15 @@ test('GET route enforces closed flag, validates input, and preserves controlled 
   assert.equal((await get(request)).status,403);assert.equal(calls,0);
   enabled=true;assert.equal((await get(new Request('https://example.invalid/'))).status,400);assert.equal(calls,0);
   assert.equal((await get(request)).status,200);
-  status='rate_limited';const busy=await get(request);assert.equal(busy.status,429);assert.equal(busy.headers.get('Retry-After'),'2');
+  status='rate_limited';
+  for(const seconds of [1,20,3599,3600,86399,86400]) {
+    retryAfterSeconds=seconds;const limited=await get(request);assert.equal(limited.status,429);assert.equal(limited.headers.get('Retry-After'),String(seconds));
+  }
+  for(const seconds of [undefined,0,-1,1.5,'20',86401,NaN]) {
+    retryAfterSeconds=seconds;const bad=await get(request);assert.equal(bad.status,503);assert.equal(bad.headers.get('Retry-After'),null);
+  }
   status='unavailable';const unavailable=await get(request);assert.equal(unavailable.status,503);assert.equal(unavailable.headers.get('Cache-Control'),'private, no-store');
+  assert.equal(unavailable.headers.get('Retry-After'),null);
 });
 test('public detail is exactly scoped; UI has no transaction endpoint, labels are bilingual',()=>{
   const ui=readFileSync('components/stay/StaySandbox.tsx','utf8');

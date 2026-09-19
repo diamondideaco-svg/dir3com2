@@ -1,0 +1,115 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+
+// Fixed local disposable PostgreSQL container only: no URL/env/Production target accepted.
+const container = 'dir3com-protected-ops-policy-20260909';
+const database = `stay_gate_test_${randomBytes(8).toString('hex')}`;
+assert.match(database, /^stay_gate_test_[a-f0-9]{16}$/);
+const args = db => ['exec', '-i', container, 'psql', '-X', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-Atq'];
+const sql = (input, db = database) => execFileSync('docker', args(db), { input, encoding: 'utf8', timeout: 60000, stdio: ['pipe','pipe','pipe'] }).trim();
+const asyncExec = promisify(execFile);
+const parallelSql = async input => {
+  const pending = asyncExec('docker', args(database), { encoding: 'utf8', timeout: 60000 });
+  pending.child.stdin.end(input);
+  return (await pending).stdout.trim();
+};
+const hash = value => createHash('sha256').update(String(value)).digest('hex');
+const literal = value => `'${String(value).replaceAll("'", "''")}'`;
+const acquire = (subject, query) => `SELECT public.acquire_public_stay_sandbox_slot('${hash(subject)}','${hash(query)}');`;
+const asService = statement => `SET ROLE service_role; ${statement}`;
+const get = (subject, query) => JSON.parse(sql(asService(acquire(subject, query))));
+const payload = JSON.stringify({status:'no_results',cards:[],retrievedAt:new Date().toISOString()});
+const complete = (query, token) => `SELECT public.complete_public_stay_sandbox_slot('${hash(query)}',${literal(token)}::uuid,${literal(payload)}::jsonb);`;
+const release = (query, token) => `SELECT public.release_public_stay_sandbox_slot('${hash(query)}',${literal(token)}::uuid);`;
+let checks = 0;
+const equal = (a,b,label) => { assert.deepEqual(a,b,label); checks++; console.log(`PASS ${label}`); };
+const truth = (value,label) => { assert.ok(value,label); checks++; console.log(`PASS ${label}`); };
+const denied = (statement,label) => {
+  try { sql(statement); } catch(error) { assert.match(String(error.stderr), /denied|does not exist|INVALID_STAY/); checks++; console.log(`PASS ${label}`); return; }
+  assert.fail(label);
+};
+const reset = () => sql(`TRUNCATE private.stay_sandbox_request_windows,private.stay_sandbox_provider_daily_usage,private.stay_sandbox_public_cache,private.stay_sandbox_query_leases;
+ UPDATE private.stay_sandbox_runtime_control SET enabled=true,requests_per_subject_hour=30,provider_calls_per_day=200;`);
+const migration = name => readFileSync(new URL(`../supabase/migrations/${name}`, import.meta.url),'utf8');
+let created=false;
+try {
+  assert.match(sql('SHOW server_version','postgres'),/^17\./);
+  for(const role of ['anon','authenticated','service_role']) {
+    if(sql(`SELECT count(*) FROM pg_roles WHERE rolname='${role}'`,'postgres')==='0') sql(`CREATE ROLE ${role} NOLOGIN`,'postgres');
+  }
+  sql(`CREATE DATABASE "${database}"`,'postgres');created=true;
+  sql(migration('20260919013000_public_stay_sandbox_global_controls.sql'));
+  equal(get('initial','initial').decision,'disabled','baseline defaults OFF');
+  reset();
+  get('old-a','legacy');
+  sql(`UPDATE private.stay_sandbox_query_leases SET lease_until=clock_timestamp()-interval '1 second'`);
+  get('old-b','legacy');
+  sql(asService(`SELECT public.release_public_stay_sandbox_slot('${hash('legacy')}');`));
+  equal(sql('SELECT count(*) FROM private.stay_sandbox_query_leases'),'0','baseline reproduces stale worker deleting successor lease');
+  sql(migration('20260919184218_public_stay_sandbox_lease_fencing.sql'));
+  sql(migration('20260919184218_public_stay_sandbox_lease_fencing.sql'));
+  equal(sql('SELECT enabled FROM private.stay_sandbox_runtime_control'),'t','forward replay preserves control state');
+  reset();
+  const a=get('a','same');
+  truth(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(a.lease_token),'random UUIDv4 lease capability');
+  const busy=get('b','same');equal(busy.decision,'busy','active lease coalesces');
+  truth(busy.retry_after_seconds>=1 && busy.retry_after_seconds<=20,'busy Retry-After bounds');
+  equal(sql(asService(release('same',randomUUID()))),'f','non-owner release denied');
+  equal(sql(asService(complete('same',randomUUID()))),'f','non-owner completion denied');
+  sql(`UPDATE private.stay_sandbox_query_leases SET lease_until=clock_timestamp()-interval '1 second' WHERE query_hash='${hash('same')}'`);
+  equal(sql(asService(complete('same',a.lease_token))),'f','expired completion denied');
+  const b=get('b','same');truth(b.lease_token!==a.lease_token,'successor receives fresh token');
+  const stale=await Promise.all([parallelSql(asService(release('same',a.lease_token))),parallelSql(asService(complete('same',a.lease_token)))]);
+  equal(stale,['f','f'],'concurrent stale completion/release denied');
+  equal(sql(`SELECT lease_token::text FROM private.stay_sandbox_query_leases WHERE query_hash='${hash('same')}'`),b.lease_token,'successor lease remains owned');
+  equal(sql('SELECT count(*) FROM private.stay_sandbox_public_cache'),'0','stale worker cannot write cache');
+  equal(sql(asService(complete('same',b.lease_token))),'t','owner completes successfully');
+  equal(sql(asService(complete('same',b.lease_token))),'f','duplicate completion denied');
+  equal(get('cache-reader','same').decision,'cache','legitimate cache remains usable');
+  equal(sql('SELECT provider_calls FROM private.stay_sandbox_provider_daily_usage'),'2','cache/stale calls consume no extra provider budget');
+  const c=get('c','kill');
+  sql('UPDATE private.stay_sandbox_runtime_control SET enabled=false');
+  equal(sql(asService(complete('kill',randomUUID()))),'f','OFF non-owner cannot clear lease');
+  equal(sql(`SELECT count(*) FROM private.stay_sandbox_query_leases WHERE query_hash='${hash('kill')}'`),'1','OFF preserves other owner');
+  equal(sql(asService(complete('kill',c.lease_token))),'f','OFF owner cannot publish result');
+  equal(sql(`SELECT count(*) FROM private.stay_sandbox_public_cache WHERE query_hash='${hash('kill')}'`),'0','OFF has no cached publication');
+  equal(get('off','off').decision,'disabled','kill switch blocks acquire');
+  for(const signature of ['complete_public_stay_sandbox_slot(text,jsonb)','release_public_stay_sandbox_slot(text)']) equal(sql(`SELECT to_regprocedure('public.${signature}') IS NULL`),'t','old unfenced RPC absent');
+  for(const role of ['anon','authenticated']) for(const statement of [acquire('x','y'),complete('same',a.lease_token),release('same',a.lease_token)]) denied(`SET ROLE ${role}; ${statement}`,`${role} RPC denied`);
+  denied(asService(`SELECT public.release_public_stay_sandbox_slot('${hash('same')}',NULL);`),'null token denied');
+  denied(asService(`SELECT public.complete_public_stay_sandbox_slot('${hash('same')}',NULL,'{}');`),'null complete token denied');
+  denied('SET ROLE service_role; SELECT * FROM private.stay_sandbox_query_leases','private capability table denied');
+  reset();
+  const herd=await Promise.all(Array.from({length:12},(_,i)=>parallelSql(asService(acquire(`herd-${i}`,'herd'))).then(JSON.parse)));
+  equal(herd.filter(x=>x.decision==='provider').length,1,'concurrent acquire grants exactly one owner');
+  equal(herd.filter(x=>x.decision==='busy').length,11,'remaining concurrent callers coalesce');
+  equal(sql('SELECT provider_calls FROM private.stay_sandbox_provider_daily_usage'),'1','herd spends one reservation');
+  const owner=herd.find(x=>x.decision==='provider');
+  const race=await Promise.all([parallelSql(asService(complete('herd',owner.lease_token))),parallelSql(asService(release('herd',owner.lease_token)))]);
+  equal(race.filter(x=>x==='t').length,1,'same-owner completion/release serialize exactly one success');
+  reset();
+  const hourly=await Promise.all(Array.from({length:40},(_,i)=>parallelSql(asService(acquire('hourly',`hourly-${i}`))).then(JSON.parse)));
+  equal(hourly.filter(x=>x.decision==='provider').length,30,'concurrent subject quota allows exactly 30');
+  equal(hourly.filter(x=>x.decision==='rate_limited').length,10,'concurrent subject quota denies remaining requests');
+  truth(hourly.filter(x=>x.decision==='rate_limited').every(x=>x.retry_after_seconds>=1&&x.retry_after_seconds<=3600),'hourly retry bounded by UTC reset');
+  reset();
+  sql("INSERT INTO private.stay_sandbox_provider_daily_usage VALUES((clock_timestamp() AT TIME ZONE 'UTC')::date,199)");
+  const daily=await Promise.all(Array.from({length:10},(_,i)=>parallelSql(asService(acquire(`daily-${i}`,`daily-${i}`))).then(JSON.parse)));
+  equal(daily.filter(x=>x.decision==='provider').length,1,'daily budget concurrent final slot exactly once');
+  equal(daily.filter(x=>x.decision==='daily_limit').length,9,'daily budget concurrent excess denied');
+  equal(sql('SELECT provider_calls FROM private.stay_sandbox_provider_daily_usage'),'200','daily cap not exceeded');
+  truth(daily.filter(x=>x.decision==='daily_limit').every(x=>x.retry_after_seconds>=1&&x.retry_after_seconds<=86400),'daily retry bounded by UTC midnight');
+  reset();
+  sql(`SET timezone='Asia/Kathmandu'; SET ROLE service_role; ${acquire('tz','tz')}`);
+  equal(sql(`SELECT window_start=date_trunc('hour',clock_timestamp(),'UTC') FROM private.stay_sandbox_request_windows WHERE subject_hash='${hash('tz')}'`),'t','fractional timezone still records UTC hour');
+  sql(`UPDATE private.stay_sandbox_request_windows SET request_count=30 WHERE subject_hash='${hash('tz')}'`);
+  const timed=JSON.parse(sql(`SET timezone='Asia/Kathmandu'; SET ROLE service_role; ${acquire('tz','tz')}`));
+  const expected=Number(sql("SELECT greatest(1,ceil(extract(epoch FROM date_trunc('hour',clock_timestamp(),'UTC')+interval '1 hour'-clock_timestamp()))::integer)"));
+  truth(Math.abs(timed.retry_after_seconds-expected)<=3,'Retry-After matches actual UTC hour reset');
+  console.log(`POSTGRESQL_17=PASS CHECKS=${checks} PRODUCTION_WRITES=0`);
+} finally {
+  if(created) sql(`DROP DATABASE "${database}"`,'postgres');
+}

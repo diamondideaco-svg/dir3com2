@@ -22,7 +22,7 @@ export type StayDemoCard = {
   rating: number | null; room: string; price: number; currency: string;
   provider: 'LiteAPI'; environment: 'sandbox'; availability: 'sandbox_available'; retrievedAt: string;
 };
-export type StayDemoResult = { status: 'ok' | 'no_results' | 'unavailable' | 'rate_limited'; cards: StayDemoCard[]; retrievedAt: string };
+export type StayDemoResult = { status: 'ok' | 'no_results' | 'unavailable' | 'rate_limited'; cards: StayDemoCard[]; retrievedAt: string; retryAfterSeconds?: number };
 
 export function isStayDemoResult(value: unknown): value is StayDemoResult {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;

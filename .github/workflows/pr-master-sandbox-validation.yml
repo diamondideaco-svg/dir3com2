@@ -69,6 +69,7 @@ jobs:
           done
           docker exec dir3com-protected-ops-policy-20260909 pg_isready -h 127.0.0.1 -U postgres
           node scripts/test-protected-operations-postgresql.mjs
+          node scripts/test-stay-sandbox-postgresql.mjs
 
       - name: Verification Documents Reconciliation (PostgreSQL 17)
         run: npm run test:customer-documents-postgresql

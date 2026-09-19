@@ -6,8 +6,8 @@ import { stayDemoGlobalGate, type StayDemoGlobalDecision } from './stay-demo-glo
 
 type GlobalGate = {
   acquire(query: StayDemoQuery, subjectHash: string): Promise<StayDemoGlobalDecision>;
-  complete(queryHash: string, value: StayDemoResult): Promise<void>;
-  release(queryHash: string): Promise<void>;
+  complete(queryHash: string, leaseToken: string, value: StayDemoResult): Promise<void>;
+  release(queryHash: string, leaseToken: string): Promise<void>;
 };
 
 // Bounded process cache/coalescing, never a claim of distributed account quota.
@@ -25,19 +25,19 @@ export function createStayDemoSearch(search = searchLiteApiHotels, clock = Date.
       try { access = await globalGate.acquire(query, subjectHash); }
       catch { return empty('unavailable'); }
       if (access.decision === 'cache') return access.value;
-      if (access.decision === 'rate_limited') return empty('rate_limited');
+      if (access.decision === 'rate_limited') return { ...empty('rate_limited'), retryAfterSeconds: access.retryAfterSeconds };
       if (access.decision !== 'provider') return empty('unavailable');
       try {
         const result = await search(stayDemoProviderInput(query), { timeoutMs: 12000, singleAttempt: true });
         const retrievedAt = new Date(clock()).toISOString();
         const cards = stayDemoCards(result, retrievedAt, query.rooms);
         const value: StayDemoResult = { status: result.status === 'ok' ? (result.sandbox !== true || result.provider !== 'liteapi' ? 'unavailable' : cards.length ? 'ok' : 'no_results') : result.status === 'no_results' ? 'no_results' : 'unavailable', cards, retrievedAt };
-        await globalGate.complete(access.queryHash, value);
+        await globalGate.complete(access.queryHash, access.leaseToken, value);
         return value;
       } catch {
         // Cleanup is best effort: a database outage must not escape as an error
         // containing provider/connection details. The bounded lease expires.
-        try { await globalGate.release(access.queryHash); } catch { /* fail closed */ }
+        try { await globalGate.release(access.queryHash, access.leaseToken); } catch { /* fail closed */ }
         return empty('unavailable');
       }
     }
@@ -45,7 +45,9 @@ export function createStayDemoSearch(search = searchLiteApiHotels, clock = Date.
     const cached = cache.get(key);
     if (cached && cached.until > clock()) return cached.value;
     const existing = pending.get(key); if (existing) return existing;
-    if (pending.size >= 1 || clock() - lastStart < 1000) return empty('rate_limited');
+    if (pending.size >= 1 || clock() - lastStart < 1000) {
+      return { ...empty('rate_limited'), retryAfterSeconds: pending.size >= 1 ? 12 : 1 };
+    }
     lastStart = clock();
     const work = (async () => {
       try {

@@ -34,5 +34,9 @@
   {
     "path": "supabase/migrations/20260919013000_public_stay_sandbox_global_controls.sql",
     "sha256": "4df3518ab74072936cf05d0f5b25328532c030ad0dd4342848364b12e93251a2"
+  },
+  {
+    "path": "supabase/migrations/20260919184218_public_stay_sandbox_lease_fencing.sql",
+    "sha256": "9bea852a0fce5c5f2d3749267d90ad89b0c33f22b744847e8fce515e6856daa2"
   }
 ]
