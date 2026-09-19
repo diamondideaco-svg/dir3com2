@@ -15,17 +15,20 @@ const query = contract.parseStayDemoQuery(params, now)!;
 const response: StaySearchResult = { provider:'liteapi', sandbox:true, status:'ok',hotels:[{id:'test-hotel',provider:'liteapi',name:'Unit hotel',address:'Unit address',rating:8.4,imageUrl:'javascript:alert(1)',rooms:[{id:'r',name:'Unit room',rates:[{id:'provider-offer',provider:'liteapi',roomName:'Room',currency:'SAR',totalAmount:'50',offerTotalAmount:'100',offerCurrency:'SAR',suggestedSellingAmount:'110',suggestedSellingCurrency:'SAR',refundable:false}]}]}] };
 function serverFactory() {
   const exported: Record<string, unknown> = {};
-  const imports: Record<string, unknown> = { 'server-only':{}, '../travel/liteapi/stays':{searchLiteApiHotels:()=>assert.fail('Network forbidden in unit test')}, './stay-demo-mode':mode, './stay-demo':contract };
+  const imports: Record<string, unknown> = { 'server-only':{}, '../travel/liteapi/stays':{searchLiteApiHotels:()=>assert.fail('Network forbidden in unit test')}, './stay-demo-mode':mode, './stay-demo':contract,
+    './stay-demo-global':{stayDemoGlobalGate:{acquire:()=>assert.fail('Global gate is Production-only'),complete:()=>undefined,release:()=>undefined}} };
   runInNewContext(ts.transpileModule(readFileSync('lib/marketplace/stay-demo-server.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
     {exports:exported,require:(id:string)=>{assert.ok(id in imports);return imports[id];},process});
-  return exported.createStayDemoSearch as (search:(...args:unknown[])=>Promise<StaySearchResult>, clock:()=>number)=>(q:typeof query,e:typeof env)=>Promise<contract.StayDemoResult>;
+  return exported.createStayDemoSearch as (search:(...args:unknown[])=>Promise<StaySearchResult>, clock:()=>number,gate?:unknown)=>(q:typeof query,e:Record<string,string|undefined>,subjectHash?:string)=>Promise<contract.StayDemoResult>;
 }
 test('default denied; exact LiteAPI Sandbox allowlist and flag required in every deployment',()=>{
   assert.equal(mode.stayDemoEnabled({}),false);
   assert.equal(mode.stayDemoEnabled(env),true);
   for(const patch of [{DIR3COM_STAY_SANDBOX_ENABLED:'false'},{DIR3COM_STAY_SANDBOX_PROVIDERS:'liteapi,duffel'},{LITEAPI_ENV:'production'},{LITEAPI_TEST_API_KEY:'live_unit'},{VERCEL_ENV:'unknown'}])assert.equal(mode.stayDemoEnabled({...env,...patch}),false);
   assert.equal(mode.stayDemoEnabled({...env,VERCEL_ENV:'production',DIR3COM_STAY_SANDBOX_ENABLED:undefined}),false);
-  assert.equal(mode.stayDemoEnabled({...env,VERCEL_ENV:'production'}),true);
+  assert.equal(mode.stayDemoEnabled({...env,VERCEL_ENV:'production'}),false);
+  assert.equal(mode.stayDemoEnabled({...env,VERCEL_ENV:'production',DIR3COM_STAY_SANDBOX_PRODUCTION_ENABLED:'true',DIR3COM_STAY_SANDBOX_RATE_SALT:'x'.repeat(32)}),true);
+  assert.equal(mode.stayDemoEnabled({...env,VERCEL_ENV:'production',DIR3COM_STAY_SANDBOX_PRODUCTION_ENABLED:'true',DIR3COM_STAY_SANDBOX_RATE_SALT:'short'}),false);
 });
 test('query validates real calendar, future dates, occupancy, bounds and destination aliases',()=>{
   assert.ok(query);
@@ -97,6 +100,20 @@ test('unexpected provider or non-Sandbox response is unavailable, never live inv
     assert.equal(result.status,'unavailable');assert.equal(result.cards.length,0);
   }
 });
+test('Production uses distributed cache, global budget and lease release before provider access',async()=>{
+  const production={...env,VERCEL_ENV:'production',DIR3COM_STAY_SANDBOX_PRODUCTION_ENABLED:'true',DIR3COM_STAY_SANDBOX_RATE_SALT:'s'.repeat(32)};
+  let providerCalls=0,completed=0,released=0,decision:'cache'|'provider'|'rate_limited'|'unavailable'='cache';
+  const cached:contract.StayDemoResult={status:'ok',cards:contract.stayDemoCards(response,'2026-09-19T00:00:00Z',2),retrievedAt:'2026-09-19T00:00:00Z'};
+  const gate={acquire:async()=>decision==='cache'?{decision,queryHash:'a'.repeat(64),value:cached}:{decision,queryHash:'a'.repeat(64)},complete:async()=>{completed++;},release:async()=>{released++;}};
+  const run=serverFactory()(async()=>{providerCalls++;return response;},()=>now,gate);
+  assert.equal((await run(query,production,'b'.repeat(64))).retrievedAt,cached.retrievedAt);assert.equal(providerCalls,0);
+  decision='rate_limited';assert.equal((await run(query,production,'b'.repeat(64))).status,'rate_limited');assert.equal(providerCalls,0);
+  decision='unavailable';assert.equal((await run(query,production,'b'.repeat(64))).status,'unavailable');assert.equal(providerCalls,0);
+  decision='provider';assert.equal((await run(query,production,'b'.repeat(64))).status,'ok');assert.equal(providerCalls,1);assert.equal(completed,1);
+  const failing=serverFactory()(async()=>{throw Error('provider failure');},()=>now,gate);
+  assert.equal((await failing(query,production,'b'.repeat(64))).status,'unavailable');assert.equal(released,1);
+  assert.equal((await run(query,production)).status,'unavailable','missing anonymous subject must fail closed');
+});
 test('GET route enforces closed flag, validates input, and preserves controlled HTTP states',async()=>{
   let enabled=false,calls=0,status:contract.StayDemoResult['status']='ok';
   const exported:Record<string,unknown>={};
@@ -104,9 +121,10 @@ test('GET route enforces closed flag, validates input, and preserves controlled 
     '@/lib/marketplace/stay-demo-mode':{stayDemoEnabled:()=>enabled},
     '@/lib/marketplace/stay-demo':{parseStayDemoQuery:(p:URLSearchParams)=>contract.parseStayDemoQuery(p,now)},
     '@/lib/marketplace/stay-demo-server':{searchStayDemo:async()=>{calls++;return {status,cards:[],retrievedAt:new Date(now).toISOString()};}},
+    '@/lib/marketplace/stay-demo-global':{stayDemoRequestSubject:()=> 'a'.repeat(64)},
   };
   runInNewContext(ts.transpileModule(readFileSync('app/api/marketplace/stay-sandbox/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
-    {exports:exported,require:(id:string)=>{assert.ok(id in imports);return imports[id];},URL,Response});
+    {exports:exported,require:(id:string)=>{assert.ok(id in imports);return imports[id];},URL,Response,process:{env:{}}});
   const get=exported.GET as (r:Request)=>Promise<Response>;
   const request=new Request(`https://example.invalid/api/marketplace/stay-sandbox?${params}`);
   assert.equal((await get(request)).status,403);assert.equal(calls,0);

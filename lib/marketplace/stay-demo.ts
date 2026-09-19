@@ -24,6 +24,31 @@ export type StayDemoCard = {
 };
 export type StayDemoResult = { status: 'ok' | 'no_results' | 'unavailable' | 'rate_limited'; cards: StayDemoCard[]; retrievedAt: string };
 
+export function isStayDemoResult(value: unknown): value is StayDemoResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  if (!['ok', 'no_results', 'unavailable', 'rate_limited'].includes(String(result.status))
+    || !Array.isArray(result.cards) || result.cards.length > 20
+    || typeof result.retrievedAt !== 'string' || !Number.isFinite(Date.parse(result.retrievedAt))) return false;
+  if ((result.status === 'ok') !== (result.cards.length > 0)) return false;
+  return result.cards.every((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+    const card = entry as Record<string, unknown>;
+    return typeof card.hotelId === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(card.hotelId)
+      && typeof card.offerId === 'string' && card.offerId.length > 0 && card.offerId.length <= 500
+      && typeof card.name === 'string' && card.name.trim().length > 0 && card.name.length <= 500
+      && (card.location === null || (typeof card.location === 'string' && card.location.length <= 500))
+      && (card.image === null || (typeof card.image === 'string' && card.image.startsWith('https://')))
+      && (card.rating === null || (typeof card.rating === 'number' && Number.isFinite(card.rating) && card.rating > 0 && card.rating <= 5))
+      && typeof card.room === 'string' && card.room.trim().length > 0 && card.room.length <= 500
+      && typeof card.price === 'number' && Number.isFinite(card.price) && card.price >= 0
+      && typeof card.currency === 'string' && /^[A-Z]{3}$/.test(card.currency)
+      && card.provider === 'LiteAPI' && card.environment === 'sandbox'
+      && card.availability === 'sandbox_available'
+      && typeof card.retrievedAt === 'string' && Number.isFinite(Date.parse(card.retrievedAt));
+  });
+}
+
 /** Preserve the existing service-family form contract when entering this Demo. */
 export function normalizeStayDemoSearch(search: string): string {
   const params = new URLSearchParams(search);

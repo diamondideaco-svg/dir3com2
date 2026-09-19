@@ -3,6 +3,7 @@ import { authorizeProviderProofRequest } from '@/lib/marketplace/provider-proof-
 import { runProviderProofSearch } from '@/lib/marketplace/provider-proof';
 import type { ProviderProofEnvironment, ProviderProofProvider } from '@/lib/marketplace/provider-proof-mode';
 import { GET as getStaySandbox } from '../stay-sandbox/route';
+import { stayDemoEnabled } from '@/lib/marketplace/stay-demo-mode';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,10 +19,8 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   if (url.searchParams.get('surface') === 'stay-sandbox') {
     // Alias only the existing Stay search. Never widen general provider proof or Production access.
-    const preview = process.env.VERCEL_ENV === 'preview'
-      || (!process.env.VERCEL_ENV && process.env.DIR3COM_STAY_SANDBOX_LOCAL === 'true');
     const providers = url.searchParams.getAll('provider');
-    if (!preview || url.searchParams.get('family') !== 'dir3-stay'
+    if (!stayDemoEnabled() || url.searchParams.get('family') !== 'dir3-stay'
       || url.searchParams.get('environment') !== 'sandbox' || providers.length !== 1 || providers[0] !== 'liteapi') {
       return NextResponse.json({ status: 'disabled', cards: [] }, { status: 403, headers: { 'Cache-Control': 'private, no-store' } });
     }
