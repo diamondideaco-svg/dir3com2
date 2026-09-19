@@ -19,7 +19,7 @@ export default async function MarketplacePage({
 
   if (family === 'dir3-drive') return <DriveMarketplace key={serializePageQuery(query)} initialSearch={serializePageQuery(query)} />;
 
-  if (family === 'dir3-stay' && !liteApiSandboxProof && query.inventory !== 'partners' && stayDemoEnabled()) {
+  if (family === 'dir3-stay' && query.inventory !== 'partners' && stayDemoEnabled()) {
     const search = normalizeStayDemoSearch(serializePageQuery(query));
     return <StaySandbox key={search} initialSearch={search}/>;
   }

@@ -46,6 +46,14 @@ AR RTL / EN LTR at 1449 and 390: no horizontal overflow (document width 1434/375
 
 Focused command: `node --import tsx --test tests/stay-sandbox.test.ts tests/liteapi-provider.test.ts tests/liteapi-hmac-auth.test.ts tests/liteapi-preview-truth.test.ts tests/marketplace-provider-proof.test.ts` — 62/62 pass. Provider unit tests use transport doubles only, never runtime inventory.
 
-## Rollback
+## Final-Preview regression correction
+
+Control Tower reproduced zero cards on the exact Preview URL containing `providerProof=liteapi` at SHA `3ec3c6538226d32262118c02f9ba3c6ded0f5117`. The SSR boolean selected the legacy catalogue client, which fetched `/api/services`; it did not invoke the provider-proof API. The deployment had the new Stay flags/key, not the separate legacy proof flags. Previous browser evidence covered the new Stay path and must not be treated as proof of this query variant.
+
+The legacy URL now selects the same Stay client and preserves submitted dates/search intent. Its Preview/local request reaches `/api/marketplace/provider-proof?surface=stay-sandbox` and delegates to the existing validated/cached Stay handler, never a second provider integration. This alias requires exactly LiteAPI, Sandbox and Stay; it denies Production even if Stay flags are set. The normal Stay endpoint and separate partner catalogue remain unchanged. No environment changes are needed. Search forms, filter URLs and detail links preserve the proof context.
+
+`tests/stay-sandbox-flow.test.ts` executes the real page selection, client effect, API dispatch, provider search/cache and card/detail rendering with only an isolated transport double. It covers the reported URL in AR/EN, 20-card cap, unavailable-without-fallback, closed gates, other-provider denial and unaffected ordinary Stay/Drive routing. Real-provider evidence still requires the final Preview browser, not these doubles.
+
+## Rollback procedure
 
 Disable only `DIR3COM_STAY_SANDBOX_ENABLED` in the affected environment under normal release authority. This returns Stay to its existing partner path and denies the Demo API/detail. No database rollback, inventory repair, migration or transaction reversal is necessary. No environment change or deployment should be inferred as approved from CI PASS.

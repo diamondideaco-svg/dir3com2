@@ -33,6 +33,8 @@ export function normalizeStayDemoSearch(search: string): string {
       params.set('destination', canonicalCity(city)?.en ?? city);
     }
     if (!params.has('adults') && params.has('guests')) params.set('adults', params.get('guests')!);
+  }
+  if (params.get('service') === 'stay' || params.get('providerProof') === 'liteapi') {
     if (!params.has('searched') && params.has('checkIn') && params.has('checkOut')) params.set('searched', '1');
   }
   return params.toString();

@@ -20,7 +20,13 @@ export default function StaySandbox({ initialSearch, hotelId }: { initialSearch:
     let active = true; const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 18000);
     queueMicrotask(() => { if (active) { setState('loading'); setResult(null); } });
-    fetch(`/api/marketplace/stay-sandbox?${query}`, { signal: controller.signal, cache: 'no-store' })
+    // Preserve the published Preview proof URL without entering the legacy catalogue client.
+    const proof = query.get('providerProof') === 'liteapi';
+    if (proof) {
+      query.set('surface', 'stay-sandbox'); query.set('family', 'dir3-stay');
+      query.set('provider', 'liteapi'); query.set('environment', 'sandbox');
+    }
+    fetch(`/api/marketplace/${proof ? 'provider-proof' : 'stay-sandbox'}?${query}`, { signal: controller.signal, cache: 'no-store' })
       .then(async response => {
         const data = await response.json();
         if (!active) return;
@@ -70,6 +76,7 @@ export default function StaySandbox({ initialSearch, hotelId }: { initialSearch:
       <Link href="/marketplace?family=dir3-stay&inventory=partners">{t('Browse published partner stays', 'تصفح إقامات الشركاء المنشورة')}</Link>
       <form className={styles.search} action="/marketplace" method="get">
         <input type="hidden" name="family" value="dir3-stay"/><input type="hidden" name="searched" value="1"/>
+        {params.get('providerProof') === 'liteapi' && <input type="hidden" name="providerProof" value="liteapi"/>}
         <label>{t('Destination', 'الوجهة')}<input name="destination" list="stay-destinations" defaultValue={params.get('destination') ?? 'Cairo'} required autoComplete="off"/></label>
         <datalist id="stay-destinations">{STAY_DESTINATIONS.map(d => <option key={d.city} value={d.city}>{d.ar}</option>)}</datalist>
         <label>{t('Check-in', 'الوصول')}<input type="date" name="checkIn" defaultValue={params.get('checkIn') ?? ''} required/></label>
