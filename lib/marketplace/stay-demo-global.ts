@@ -64,8 +64,12 @@ export function createStayDemoGlobalGate(client: RpcClient | null = supabaseAdmi
       return { decision: 'unavailable', queryHash };
     },
     async complete(queryHash: string, value: StayDemoResult): Promise<void> {
-      if (!client || !/^[a-f0-9]{64}$/.test(queryHash) || !isStayDemoResult(value)) return;
-      await client.rpc('complete_public_stay_sandbox_slot', { p_query_hash: queryHash, p_payload: value });
+      if (!client || !/^[a-f0-9]{64}$/.test(queryHash) || !isStayDemoResult(value)
+        || Buffer.byteLength(JSON.stringify(value), 'utf8') > 262144) {
+        throw new Error('STAY_SANDBOX_CACHE_UNAVAILABLE');
+      }
+      const { error } = await client.rpc('complete_public_stay_sandbox_slot', { p_query_hash: queryHash, p_payload: value });
+      if (error) throw new Error('STAY_SANDBOX_CACHE_UNAVAILABLE');
     },
     async release(queryHash: string): Promise<void> {
       if (!client || !/^[a-f0-9]{64}$/.test(queryHash)) return;

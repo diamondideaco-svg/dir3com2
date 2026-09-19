@@ -21,7 +21,9 @@ export function createStayDemoSearch(search = searchLiteApiHotels, clock = Date.
     if (!stayDemoEnabled(env)) return empty('unavailable');
     if (env.VERCEL_ENV === 'production') {
       if (!subjectHash) return empty('unavailable');
-      const access = await globalGate.acquire(query, subjectHash);
+      let access: StayDemoGlobalDecision;
+      try { access = await globalGate.acquire(query, subjectHash); }
+      catch { return empty('unavailable'); }
       if (access.decision === 'cache') return access.value;
       if (access.decision === 'rate_limited') return empty('rate_limited');
       if (access.decision !== 'provider') return empty('unavailable');
@@ -33,7 +35,9 @@ export function createStayDemoSearch(search = searchLiteApiHotels, clock = Date.
         await globalGate.complete(access.queryHash, value);
         return value;
       } catch {
-        await globalGate.release(access.queryHash);
+        // Cleanup is best effort: a database outage must not escape as an error
+        // containing provider/connection details. The bounded lease expires.
+        try { await globalGate.release(access.queryHash); } catch { /* fail closed */ }
         return empty('unavailable');
       }
     }

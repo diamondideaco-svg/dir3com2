@@ -31,6 +31,7 @@ function loadGlobal(responses: RpcResponse[]) {
       assert.fail(id);
     },
     process,
+    Buffer,
   });
   return { gate: (exported.createStayDemoGlobalGate as (client: unknown) => Gate)(client), exported, calls };
 }
@@ -68,7 +69,30 @@ test('only bounded normalized results are completed; failure releases lease', as
   const state=loadGlobal([{data:null,error:null},{data:null,error:null}]);
   await state.gate.complete('a'.repeat(64),cached);await state.gate.release('a'.repeat(64));
   assert.deepEqual(state.calls.map(call=>call.name),['complete_public_stay_sandbox_slot','release_public_stay_sandbox_slot']);
-  await state.gate.complete('bad',cached);assert.equal(state.calls.length,2);
+  await assert.rejects(state.gate.complete('bad',cached),/STAY_SANDBOX_CACHE_UNAVAILABLE/);assert.equal(state.calls.length,2);
+});
+
+test('opaque provider offer IDs and provider ratings survive distributed cache unchanged', async () => {
+  const value = structuredClone(cached);
+  value.cards[0].offerId = 'opaque-unit-only-'.repeat(150);
+  value.cards[0].rating = 8.4;
+  const state = loadGlobal([{ data:null,error:null }, { data:{ decision:'cache',payload:value },error:null }]);
+  await state.gate.complete('a'.repeat(64),value);
+  const hit = await state.gate.acquire(query,'b'.repeat(64));
+  assert.equal(state.calls[0].name,'complete_public_stay_sandbox_slot');
+  assert.equal(hit.decision,'cache');
+  assert.deepEqual(hit.value,value);
+  assert.equal(hit.value?.cards[0].offerId,value.cards[0].offerId);
+});
+
+test('cache failure is explicit and bounded without exposing database details', async () => {
+  const state=loadGlobal([{data:null,error:{message:'PRIVATE_CONNECTION_SECRET'}}]);
+  await assert.rejects(state.gate.complete('a'.repeat(64),cached), {message:'STAY_SANDBOX_CACHE_UNAVAILABLE'});
+  const oversized=structuredClone(cached);oversized.cards[0].offerId='x'.repeat(8193);
+  await assert.rejects(state.gate.complete('a'.repeat(64),oversized),/STAY_SANDBOX_CACHE_UNAVAILABLE/);
+  const large=structuredClone(cached);large.cards=Array.from({length:20},()=>({...cached.cards[0],image:'https://example.invalid/'+ 'x'.repeat(15000)}));
+  await assert.rejects(state.gate.complete('a'.repeat(64),large),/STAY_SANDBOX_CACHE_UNAVAILABLE/);
+  assert.equal(state.calls.length,1);
 });
 
 test('migration is service-role only, atomic, default-off and globally bounded', () => {

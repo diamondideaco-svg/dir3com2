@@ -114,6 +114,26 @@ test('Production uses distributed cache, global budget and lease release before 
   assert.equal((await failing(query,production,'b'.repeat(64))).status,'unavailable');assert.equal(released,1);
   assert.equal((await run(query,production)).status,'unavailable','missing anonymous subject must fail closed');
 });
+test('Production database failures fail closed and attempt cleanup without leaking details',async()=>{
+  const production={...env,VERCEL_ENV:'production',DIR3COM_STAY_SANDBOX_PRODUCTION_ENABLED:'true',DIR3COM_STAY_SANDBOX_RATE_SALT:'s'.repeat(32)};
+  let released=0,providerCalls=0;
+  const gate={
+    acquire:async()=>({decision:'provider',queryHash:'a'.repeat(64)}),
+    complete:async()=>{throw Error('PRIVATE_CACHE_CONNECTION');},
+    release:async()=>{released++;throw Error('PRIVATE_RELEASE_CONNECTION');},
+  };
+  const run=serverFactory()(async()=>{providerCalls++;return response;},()=>now,gate);
+  const result=await run(query,production,'b'.repeat(64));
+  assert.equal(result.status,'unavailable');assert.equal(result.cards.length,0);
+  assert.equal(released,1);assert.equal(providerCalls,1);
+  assert.doesNotMatch(JSON.stringify(result),/PRIVATE/);
+  const denied=serverFactory()(async()=>{providerCalls++;return response;},()=>now,{
+    ...gate,acquire:async()=>{throw Error('PRIVATE_ACQUIRE_CONNECTION');},
+  });
+  assert.equal((await denied(query,production,'b'.repeat(64))).status,'unavailable');
+  assert.equal(providerCalls,1);
+});
+
 test('GET route enforces closed flag, validates input, and preserves controlled HTTP states',async()=>{
   let enabled=false,calls=0,status:contract.StayDemoResult['status']='ok';
   const exported:Record<string,unknown>={};
