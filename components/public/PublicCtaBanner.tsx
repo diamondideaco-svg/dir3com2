@@ -1,4 +1,6 @@
+'use client';
 import Link from 'next/link';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { HiSparkles } from 'react-icons/hi2';
 import { ContentContainer, CtaBlock, SectionContainer } from '@/components/design-system';
 import { buttonVariants } from '@/components/ui/button';
@@ -9,6 +11,7 @@ type PublicCtaBannerProps = {
 };
 
 export default function PublicCtaBanner({ title, description }: PublicCtaBannerProps) {
+  const { language } = useLanguage();
   return (
     <SectionContainer className="py-10 lg:py-12">
       <ContentContainer>
@@ -25,8 +28,8 @@ export default function PublicCtaBanner({ title, description }: PublicCtaBannerP
               <div className="rounded-full border border-[color:var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm font-medium text-white/90">
                 درعك الحامي للسياحة.
               </div>
-              <Link href="/booking" className={buttonVariants({ variant: 'gold', size: 'lg' })}>
-                ابدأ رحلتك
+              <Link href="/marketplace" className={buttonVariants({ variant: 'gold', size: 'lg' })}>
+                {language === 'ar' ? 'استكشف السوق' : 'Explore Marketplace'}
               </Link>
               <Link href="/contact" className={buttonVariants({ variant: 'outline', size: 'lg' })}>
                 تواصل مع dir3com

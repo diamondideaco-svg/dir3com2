@@ -29,9 +29,11 @@ SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%
 SELECT pg_temp.ok((SELECT count(*)=0 FROM public.drive_request_events),'customer cannot read private audit notes');
 SELECT pg_temp.denied(format('update public.drive_request_context set supplier_amount=1 where request_id=%L',:'request_id'),'42501','customer cannot change rate');
 SELECT pg_temp.denied(format('select public.review_managed_drive_request(%L,0,%L)',:'request_id','review'),'42501','customer cannot confirm request');
+SELECT pg_temp.denied(format('select public.accept_managed_drive_quote(%L,0)',:'request_id'),'22023','owner cannot accept before an authoritative quote');
 SELECT set_config('request.jwt.claims',jsonb_build_object('sub',:'outsider','role','authenticated')::text,true);
 SELECT pg_temp.ok((SELECT count(*)=0 FROM public.drive_request_context WHERE request_id=:'request_id'),'cross-customer context isolated');
 SELECT pg_temp.ok((SELECT count(*)=0 FROM public.marketplace_requests WHERE id=:'request_id'),'cross-customer request isolated');
+SELECT pg_temp.denied(format('select public.accept_managed_drive_quote(%L,0)',:'request_id'),'42501','cross-owner acceptance denied before locking context');
 SELECT set_config('request.jwt.claims',jsonb_build_object('sub',:'operator','role','authenticated')::text,true);
 SELECT pg_temp.ok((SELECT count(*)=1 FROM public.drive_request_context WHERE request_id=:'request_id'),'Egypt Ops read');
 SELECT public.review_managed_drive_request(:'request_id',0,'review');
@@ -57,6 +59,24 @@ SELECT pg_temp.ok((SELECT count(*)=3 FROM public.drive_request_events WHERE requ
 SELECT pg_temp.denied(format('delete from public.drive_request_events where request_id=%L',:'request_id'),'42501','audit cannot be deleted by Ops');
 SELECT set_config('request.jwt.claims',jsonb_build_object('sub',:'customer','role','authenticated')::text,true);
 SELECT pg_temp.ok(public.create_managed_drive_request('safeerat-eg-jetour-t2','task147-idempotency-key',:'trip'::jsonb)->>'status'='awaiting_customer_acceptance','replay returns actual status');
+SELECT pg_temp.denied(format('select public.accept_managed_drive_quote(%L,1)',:'request_id'),'40001','acceptance stale version denied');
+RESET ROLE;
+UPDATE public.marketplace_requests SET quote_expires_at=now()-interval '1 second' WHERE id=:'request_id';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.denied(format('select public.accept_managed_drive_quote(%L,2)',:'request_id'),'22023','expired quote acceptance denied');
+RESET ROLE;
+UPDATE public.marketplace_requests SET quote_expires_at=now()+interval '1 day' WHERE id=:'request_id';
+UPDATE public.profiles SET status='inactive' WHERE id=:'customer';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.denied(format('select public.accept_managed_drive_quote(%L,2)',:'request_id'),'42501','inactive owner acceptance denied');
+RESET ROLE;
+UPDATE public.profiles SET status='active',deleted_at=now() WHERE id=:'customer';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.denied(format('select public.accept_managed_drive_quote(%L,2)',:'request_id'),'42501','deleted owner acceptance denied');
+RESET ROLE;
+UPDATE public.profiles SET deleted_at=NULL WHERE id=:'customer';
+SELECT pg_temp.ok((SELECT count(*)=3 FROM public.drive_request_events WHERE request_id=:'request_id'),'failed acceptance creates no audit event');
+SET LOCAL ROLE authenticated;
 SELECT public.accept_managed_drive_quote(:'request_id',2)->>'status' AS accepted_status \gset
 SELECT pg_temp.ok(:'accepted_status'='awaiting_payment','owner accepts final quote');
 SELECT pg_temp.ok((public.accept_managed_drive_quote(:'request_id',2)->>'replayed')::boolean,'accept retry is idempotent');

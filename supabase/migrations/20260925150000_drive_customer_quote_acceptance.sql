@@ -25,11 +25,16 @@ BEGIN
    OR NOT EXISTS (SELECT 1 FROM public.profiles WHERE id=auth.uid() AND status='active' AND deleted_at IS NULL)
  THEN RAISE EXCEPTION 'AUTH_REQUIRED' USING ERRCODE='42501'; END IF;
 
+ -- Match Operations: context first, request second. Filter ownership before locking,
+ -- then recheck it on the locked request; never serialize another owner's request.
+ SELECT * INTO v_context FROM public.drive_request_context c WHERE c.request_id=p_request_id
+   AND EXISTS (SELECT 1 FROM public.marketplace_requests r
+     WHERE r.id=c.request_id AND r.user_id=auth.uid() AND r.drive_offer_id IS NOT NULL)
+   FOR UPDATE OF c;
+ IF NOT FOUND THEN RAISE EXCEPTION 'REQUEST_NOT_FOUND' USING ERRCODE='42501'; END IF;
  SELECT * INTO v_request FROM public.marketplace_requests WHERE id=p_request_id FOR UPDATE;
  IF NOT FOUND OR v_request.user_id IS DISTINCT FROM auth.uid() OR v_request.drive_offer_id IS NULL
  THEN RAISE EXCEPTION 'REQUEST_NOT_FOUND' USING ERRCODE='42501'; END IF;
- SELECT * INTO v_context FROM public.drive_request_context WHERE request_id=p_request_id FOR UPDATE;
- IF NOT FOUND THEN RAISE EXCEPTION 'REQUEST_NOT_FOUND' USING ERRCODE='42501'; END IF;
 
  -- A lost response can be retried with the previous version without duplicating the event.
  IF v_request.status='awaiting_payment' AND v_context.customer_accepted_at IS NOT NULL THEN
@@ -52,6 +57,8 @@ BEGIN
  VALUES(p_request_id,auth.uid(),'EG','customer_accept',v_request.status,'awaiting_payment');
  RETURN jsonb_build_object('status','awaiting_payment','version',p_version+1,'replayed',false);
 END $$;
+COMMENT ON FUNCTION public.accept_managed_drive_quote(uuid,integer) IS
+  'Records owner approval of the displayed final price, vehicle/service summary and validity only. Not acceptance of unavailable cancellation/change terms, booking, payment or supplier confirmation.';
 REVOKE ALL ON FUNCTION public.accept_managed_drive_quote(uuid,integer) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.accept_managed_drive_quote(uuid,integer) TO authenticated;
 NOTIFY pgrst, 'reload schema';

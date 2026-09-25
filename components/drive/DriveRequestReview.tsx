@@ -30,7 +30,7 @@ export default function DriveRequestReview({ request }: { request: DriveRequestR
   const quoteReady = state === 'quote_ready';
   const accepted = state === 'ready_for_payment';
   const actionMessages: Record<string,[string,string]> = {
-    INVALID: ['يجب تأكيد مراجعة السعر والشروط.','Confirm that you reviewed the price and terms.'],
+    INVALID: ['يجب تأكيد مراجعة السعر وملخص الخدمة ومدة صلاحية العرض.','Confirm that you reviewed the price, service summary, and quote validity.'],
     INVALID_OR_EXPIRED: ['تعذر قبول العرض؛ حدّث الصفحة وتحقق من صلاحيته.','The quote could not be accepted. Refresh and check its validity.'],
     STALE: ['تغير الطلب؛ حدّث الصفحة قبل المحاولة.','The request changed. Refresh before trying again.'],
     FORBIDDEN: ['هذا الطلب غير متاح لهذا الحساب.','This request is not available to this account.'],
@@ -56,9 +56,9 @@ export default function DriveRequestReview({ request }: { request: DriveRequestR
     </div></section>
     {quoteReady && <form action={acceptAction} className={styles.payment}>
       <h2>{ar?'موافقة العميل':'Customer acceptance'}</h2>
-      <p>{ar?'راجع السعر النهائي والسيارة والشروط. موافقتك تحفظ قبول العرض فقط؛ لا تنشئ حجزًا ولا تنفذ دفعًا.':'Review the final price, vehicle, and terms. Acceptance only records your approval; it does not create a booking or charge.'}</p>
+      <p>{ar?'راجع السعر النهائي وملخص السيارة والخدمة ومدة صلاحية العرض المعروضة. موافقتك تحفظ قبول هذه المعلومات فقط؛ لا تنشئ حجزًا ولا تنفذ دفعًا ولا تشمل شروط التغيير والإلغاء غير المتوفرة.':'Review the displayed final price, vehicle/service summary, and quote validity. Acceptance only records your approval; it does not create a booking or charge and does not include unavailable change or cancellation terms.'}</p>
       <input type="hidden" name="requestId" value={request.id}/><input type="hidden" name="version" value={context.version}/>
-      <label className={styles.check}><input type="checkbox" name="acknowledged" value="yes" required/><span>{ar?'راجعت السعر النهائي والشروط وأوافق على الانتقال إلى خطوة الدفع عند تفعيلها.':'I reviewed the final price and terms and accept moving to payment when it becomes available.'}</span></label>
+      <label className={styles.check}><input type="checkbox" name="acknowledged" value="yes" required/><span>{ar?'أوافق على السعر النهائي وملخص السيارة والخدمة ومدة صلاحية العرض المعروضة فقط. أفهم أن هذا ليس حجزًا أو دفعًا.':'I approve only the displayed final price, vehicle/service summary, and quote validity. I understand this is not a booking or payment.'}</span></label>
       <button type="submit" disabled={accepting}>{accepting ? (ar?'جارٍ الحفظ...':'Saving...') : (ar?'قبول العرض النهائي':'Accept final quote')}</button>
       {acceptance && actionMessages[acceptance] && <p role="status">{actionMessages[acceptance][ar?0:1]}</p>}
     </form>}
