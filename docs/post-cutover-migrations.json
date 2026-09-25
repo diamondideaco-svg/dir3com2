@@ -38,5 +38,9 @@
   {
     "path": "supabase/migrations/20260919184218_public_stay_sandbox_lease_fencing.sql",
     "sha256": "9bea852a0fce5c5f2d3749267d90ad89b0c33f22b744847e8fce515e6856daa2"
+  },
+  {
+    "path": "supabase/migrations/20260925150000_drive_customer_quote_acceptance.sql",
+    "sha256": "6cd6fb8bd2336e7328b0de8286e041194eef13485ff93dc2f1f52a403ee74ecc"
   }
 ]
