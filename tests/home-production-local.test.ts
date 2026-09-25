@@ -106,10 +106,11 @@ test('Home utility controls stay inline while secondary pages link to their curr
   assert.match(css, /\.home :global\(\.home-utility-card--currency\) \{ grid-column:auto;/);
 });
 
-test('Home companies reuse the approved list and original text fallback in seamless opposing tracks', () => {
+test('External travel links use truthful labels in seamless opposing tracks', () => {
   const ticker = read('components/shared/PartnersTicker.tsx');
   assert.match(ticker, /homePresentation = false/);
-  assert.match(ticker, /'الشركات العالمية' : 'Global Companies'/);
+  assert.match(ticker, /'روابط سفر خارجية' : 'External travel links'/);
+  assert.match(ticker, /no partnership or payment acceptance is implied/);
   assert.match(ticker, /index % 2 === 0/);
   assert.match(ticker, /index % 2 === 1/);
   assert.match(ticker, /\[0, 1\]\.map/);
