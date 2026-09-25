@@ -57,7 +57,7 @@ export default function DriveRequestReview({ request }: { request: DriveRequestR
     {quoteReady && <form action={acceptAction} className={styles.payment}>
       <h2>{ar?'موافقة العميل':'Customer acceptance'}</h2>
       <p>{ar?'راجع السعر النهائي والسيارة والشروط. موافقتك تحفظ قبول العرض فقط؛ لا تنشئ حجزًا ولا تنفذ دفعًا.':'Review the final price, vehicle, and terms. Acceptance only records your approval; it does not create a booking or charge.'}</p>
-      <input type="hidden" name="requestId" value={request.id}/><input type="hidden" name="reference" value={request.request_reference}/><input type="hidden" name="version" value={context.version}/>
+      <input type="hidden" name="requestId" value={request.id}/><input type="hidden" name="version" value={context.version}/>
       <label className={styles.check}><input type="checkbox" name="acknowledged" value="yes" required/><span>{ar?'راجعت السعر النهائي والشروط وأوافق على الانتقال إلى خطوة الدفع عند تفعيلها.':'I reviewed the final price and terms and accept moving to payment when it becomes available.'}</span></label>
       <button type="submit" disabled={accepting}>{accepting ? (ar?'جارٍ الحفظ...':'Saving...') : (ar?'قبول العرض النهائي':'Accept final quote')}</button>
       {acceptance && actionMessages[acceptance] && <p role="status">{actionMessages[acceptance][ar?0:1]}</p>}
