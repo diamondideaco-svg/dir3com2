@@ -21,7 +21,8 @@ const copy = {
     services: [{ label: 'dir3 Drive', href: '/services/drive' }, { label: 'dir3 Stay', href: '/services/stay' }, { label: 'dir3 Concierge', href: '/services/concierge' }, { label: 'dir3 VIP', href: '/services/vip' }, { label: 'dir3 Fly', href: '/services/fly' }],
     contactTitle: 'تواصل معنا',
     appTitle: 'تطبيق dir3com',
-    appBody: 'احجز خدماتك بسهولة من خلال تطبيقنا المتوفر على:',
+    appBody: 'تطبيق dir3com قيد الإعداد وسيُعلن عند توفره رسميًا.',
+    comingSoon: 'قريبًا',
     rights: 'جميع الحقوق محفوظة © 2026 dir3com',
     sa: 'السعودية',
     eg: 'مصر',
@@ -33,7 +34,8 @@ const copy = {
     services: [{ label: 'dir3 Drive', href: '/services/drive' }, { label: 'dir3 Stay', href: '/services/stay' }, { label: 'dir3 Concierge', href: '/services/concierge' }, { label: 'dir3 VIP', href: '/services/vip' }, { label: 'dir3 Fly', href: '/services/fly' }],
     contactTitle: 'Contact',
     appTitle: 'dir3com App',
-    appBody: 'Book your services easily with our app, available on:',
+    appBody: 'The dir3com app is in preparation and will be announced when officially available.',
+    comingSoon: 'Coming soon',
     rights: '© 2026 dir3com. All rights reserved.',
     sa: 'Saudi Arabia',
     eg: 'Egypt',
@@ -74,8 +76,8 @@ export default function Footer() {
           <h2 className="text-lg font-bold text-[#e2b95f]">{t.appTitle}</h2>
           <p className="mt-3 text-sm leading-7 text-[#526173]">{t.appBody}</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <span className="inline-flex min-h-12 items-center gap-3 rounded-lg border border-[#c89536]/30 px-4 py-2"><FaGooglePlay size={23} /><span className="text-sm font-semibold">Google Play</span></span>
-            <span className="inline-flex min-h-12 items-center gap-3 rounded-lg border border-[#c89536]/30 px-4 py-2"><FaApple size={26} /><span className="text-sm font-semibold">App Store</span></span>
+            <span className="inline-flex min-h-12 items-center gap-3 rounded-lg border border-[#c89536]/30 px-4 py-2"><FaGooglePlay size={23} /><span className="text-sm font-semibold">Google Play · {t.comingSoon}</span></span>
+            <span className="inline-flex min-h-12 items-center gap-3 rounded-lg border border-[#c89536]/30 px-4 py-2"><FaApple size={26} /><span className="text-sm font-semibold">App Store · {t.comingSoon}</span></span>
           </div>
           <h2 className="mt-7 text-lg font-bold text-[#e2b95f]">{t.contactTitle}</h2>
           <div className="mt-3 grid gap-2 text-sm text-[#526173]">
