@@ -10,8 +10,6 @@ import { canonicalServices } from '@/lib/services/canonical';
 import homeStyles from '@/components/home/home-production.module.css';
 import HomeUtilities from '@/components/home/HomeUtilities';
 import StoriesCarousel from '@/components/shared/StoriesCarousel';
-import PartnersTicker from '@/components/shared/PartnersTicker';
-import { partners } from '@/lib/content/partners';
 import { travelStories } from '@/lib/content/travel-stories';
 
 export type ApprovedVisualKey = 'home' | 'drive' | 'fly' | 'concierge' | 'vip' | 'stay';
@@ -172,7 +170,6 @@ export default function ApprovedVisualPage({ page }: { page: ApprovedVisualKey }
         </div>
         <HomeUtilities homePresentation />
         <StoriesCarousel stories={travelStories} homeDiscovery />
-        <PartnersTicker partners={partners} homePresentation />
       </>}
     </main>
   );
