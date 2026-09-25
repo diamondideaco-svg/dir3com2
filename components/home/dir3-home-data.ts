@@ -4,14 +4,14 @@ export const homeCopy = {
   ar: {
     heroHighlights: [
       'تصميم عربي RTL أولاً',
-      'واجهة دفع محلية جاهزة',
+      'الدفع الإلكتروني قادم قريبًا',
       'مكونات قابلة لإعادة الاستخدام',
     ],
     trustBarItems: [
       'محمي بدرع dir3com',
       'تسعير واضح قبل أي خطوة',
       'إذا صار شيء... حنا معك',
-      'فلوسك محفوظة لين تقول: تم.',
+      'نعرض السعر النهائي بوضوح قبل موافقتك.',
     ],
     quickFilters: ['رحلات داخلية', 'فنادق', 'سيارات', 'تجارب', 'كونسيرج', 'عروض مختارة'],
     searchFields: [
@@ -25,17 +25,8 @@ export const homeCopy = {
       'نسّق سيارة مع استقبال مطار وخدمة كونسيرج',
       'رتّب برنامج سعودي بطابع مصري راقٍ',
     ],
-    shieldOffers: [
-      { id: 'offers', badge: 'DIR3 Shield Plus', title: 'عرض الحجز المطمئن', description: 'باقة تقدم أفضل الخدمات مع إظهار حالة الحماية والاعتماد قبل إتمام أي خطوة مالية.', price: 'من 2,450 ر.س' },
-      { id: 'arrival', badge: 'VIP Concierge', title: 'عرض الوصول التنفيذي', description: 'استقبال مطار، سيارة خاصة، ومتابعة رحلة مخصصة مع تغليف بصري جاهز للتفعيل التشغيلي لاحقاً.', price: 'من 3,900 ر.س' },
-      { id: 'weekend', badge: 'Saudi Escape', title: 'عرض نهاية الأسبوع', description: 'تجربة مركبة بين الإقامة والتنقل والترفيه مع إبراز رسائل الثقة ومرونة المراجعة.', price: 'من 1,850 ر.س' },
-    ],
-    partnerCards: [
-      { name: 'نخبة الضيافة', city: 'الرياض', specialty: 'إقامة وتجارب', score: 'Shield 96%' },
-      { name: 'مسارات الشرق', city: 'جدة', specialty: 'تنقلات ومطار', score: 'Shield 94%' },
-      { name: 'أفق الوادي', city: 'العلا', specialty: 'تجارب خاصة', score: 'Shield 97%' },
-      { name: 'دار النيل', city: 'القاهرة', specialty: 'امتدادات ثقافية', score: 'Shield 92%' },
-    ],
+    shieldOffers: [],
+    partnerCards: [],
     articleCards: [
       { title: 'كيف تصمم رحلة عربية فاخرة تبدأ بالثقة؟', category: 'دليل', readTime: '4 دقائق', description: 'نموذج محتوى جاهز لمكتبة dir3com يشرح كيف تتحول الثقة من فكرة إلى تجربة استخدام قابلة للقياس.' },
       { title: 'أفضل مسارات الضيافة بين الرياض والعلا', category: 'مقال', readTime: '6 دقائق', description: 'واجهة تحريرية تعرض الوجهات والعروض والخدمات بأسلوب يتوافق مع نفس الهوية البصرية.' },
@@ -55,14 +46,14 @@ export const homeCopy = {
   en: {
     heroHighlights: [
       'Arabic-first RTL design',
-      'Local payments ready',
+      'Online payments coming soon',
       'Reusable UI components',
     ],
     trustBarItems: [
       'Protected by dir3com Shield',
       'Transparent pricing before any step',
       "If something happens, we're with you",
-      'Your money stays protected until you confirm.',
+      'You review the final price before you accept.',
     ],
     quickFilters: ['Domestic trips', 'Hotels', 'Cars', 'Experiences', 'Concierge', 'Selected offers'],
     searchFields: [
@@ -76,17 +67,8 @@ export const homeCopy = {
       'Arrange a car with airport meet & concierge service',
       'Plan a Saudi itinerary with refined Egyptian character',
     ],
-    shieldOffers: [
-      { id: 'offers', badge: 'DIR3 Shield Plus', title: 'Protected booking offer', description: 'A package that highlights service quality, protection status, and approval before any financial step.', price: 'From SAR 2,450' },
-      { id: 'arrival', badge: 'VIP Concierge', title: 'Executive arrival offer', description: 'Airport meet & assist, private car, and a tailored itinerary with a visual shell ready for future operational activation.', price: 'From SAR 3,900' },
-      { id: 'weekend', badge: 'Saudi Escape', title: 'Weekend escape offer', description: 'A blended stay, transport, and leisure experience that keeps trust cues and review flexibility visible.', price: 'From SAR 1,850' },
-    ],
-    partnerCards: [
-      { name: 'Elite Hospitality', city: 'Riyadh', specialty: 'Stay & experiences', score: 'Shield 96%' },
-      { name: 'Eastern Routes', city: 'Jeddah', specialty: 'Transport & airport', score: 'Shield 94%' },
-      { name: 'Valley Horizon', city: 'AlUla', specialty: 'Private experiences', score: 'Shield 97%' },
-      { name: 'Nile House', city: 'Cairo', specialty: 'Cultural extensions', score: 'Shield 92%' },
-    ],
+    shieldOffers: [],
+    partnerCards: [],
     articleCards: [
       { title: 'How do you design a luxury Arabic journey that starts with trust?', category: 'Guide', readTime: '4 min', description: 'A content pattern for the dir3com library that explains how trust becomes a measurable user experience.' },
       { title: 'The best hospitality routes between Riyadh and AlUla', category: 'Article', readTime: '6 min', description: 'An editorial surface for destinations, offers, and services within the same visual identity.' },
@@ -136,7 +118,7 @@ export const travelTips = homeCopy.ar.travelTips;
 
 export const appFeatures = homeCopy.ar.appFeatures;
 
-export const paymentMethods = ['mada', 'Visa', 'Mastercard', 'STC Pay', 'Tabby', 'Tamara'];
+export const paymentMethods: readonly string[] = [];
 
 export const qrMatrix = [
   '111010101',
