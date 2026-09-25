@@ -19,7 +19,8 @@ export default function PartnersTicker({ partners, scope, homePresentation = fal
   if (homePresentation) {
     const rows = [visiblePartners.filter((_, index) => index % 2 === 0), visiblePartners.filter((_, index) => index % 2 === 1)].filter(row => row.length);
     return <section className={homeStyles.companies} aria-labelledby="home-companies-title" data-home-companies>
-      <h2 id="home-companies-title">{language === 'ar' ? 'الشركات العالمية' : 'Global Companies'}</h2>
+      <h2 id="home-companies-title">{language === 'ar' ? 'روابط سفر خارجية' : 'External travel links'}</h2>
+      <p>{language === 'ar' ? 'روابط مرجعية لمواقع مستقلة؛ عرضها لا يعني وجود شراكة أو قبول وسيلة دفع.' : 'Reference links to independent websites; display does not imply a partnership or accepted payment method.'}</p>
       {rows.map((row, rowIndex) => <div className={homeStyles.companyRow} key={rowIndex} data-company-row={rowIndex + 1} dir="ltr">
         <div className={homeStyles.companyTrack}>
           {[0, 1].map(copy => <div className={homeStyles.companyGroup} key={copy} aria-hidden={copy === 1 ? true : undefined} inert={copy === 1 ? true : undefined}>
@@ -33,10 +34,11 @@ export default function PartnersTicker({ partners, scope, homePresentation = fal
   }
 
   return (
-    <section aria-label="Global travel ecosystem" className="home-partners-section px-4 py-10 sm:px-6 lg:px-10">
+    <section aria-label={language === 'ar' ? 'روابط سفر خارجية' : 'External travel links'} className="home-partners-section px-4 py-10 sm:px-6 lg:px-10">
       <div className="home-partners-section__inner mb-5">
-        <p className="text-xs font-semibold tracking-[0.2em] text-[var(--home-gold)]">GLOBAL TRAVEL ECOSYSTEM</p>
-        <h2 className="mt-2 text-2xl font-semibold text-[var(--color-navy)]">منظومة السفر العالمية</h2>
+        <p className="text-xs font-semibold tracking-[0.2em] text-[var(--home-gold)]">EXTERNAL TRAVEL LINKS</p>
+        <h2 className="mt-2 text-2xl font-semibold text-[var(--color-navy)]">{language === 'ar' ? 'مواقع سفر مستقلة' : 'Independent travel websites'}</h2>
+        <p className="mt-2 text-sm text-[var(--color-muted)]">{language === 'ar' ? 'روابط مرجعية فقط؛ لا تعني شراكة أو قبول وسيلة دفع.' : 'Reference links only; no partnership or payment acceptance is implied.'}</p>
       </div>
       <div className="home-partners-marquee mx-auto max-w-7xl overflow-hidden">
         <div className="home-partners-track flex w-max gap-4">
