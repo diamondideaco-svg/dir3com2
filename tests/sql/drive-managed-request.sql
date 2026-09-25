@@ -53,10 +53,18 @@ SELECT pg_temp.denied(format('select public.review_managed_drive_request(%L,1,%L
 SELECT public.review_managed_drive_request(:'request_id',1,'confirm','Jetour T2 or similar',2025,250,'USD',now()+interval '1 day','QA private note');
 SELECT pg_temp.ok((SELECT confirmed_vehicle_year=2025 FROM public.drive_request_context WHERE request_id=:'request_id'),'confirmed model year preserved');
 SELECT pg_temp.ok((SELECT status='awaiting_customer_acceptance' AND payment_status='awaiting_payment' AND product_id IS NULL FROM public.marketplace_requests WHERE id=:'request_id'),'confirmed request is not BOOKING/payment');
-SELECT pg_temp.ok((SELECT count(*)=3 FROM public.drive_request_events WHERE request_id=:'request_id'),'all three actions audited');
+SELECT pg_temp.ok((SELECT count(*)=3 FROM public.drive_request_events WHERE request_id=:'request_id'),'three pre-acceptance actions audited');
 SELECT pg_temp.denied(format('delete from public.drive_request_events where request_id=%L',:'request_id'),'42501','audit cannot be deleted by Ops');
 SELECT set_config('request.jwt.claims',jsonb_build_object('sub',:'customer','role','authenticated')::text,true);
 SELECT pg_temp.ok(public.create_managed_drive_request('safeerat-eg-jetour-t2','task147-idempotency-key',:'trip'::jsonb)->>'status'='awaiting_customer_acceptance','replay returns actual status');
+SELECT public.accept_managed_drive_quote(:'request_id',2)->>'status' AS accepted_status \gset
+SELECT pg_temp.ok(:'accepted_status'='awaiting_payment','owner accepts final quote');
+SELECT pg_temp.ok((public.accept_managed_drive_quote(:'request_id',2)->>'replayed')::boolean,'accept retry is idempotent');
+SELECT pg_temp.ok((SELECT customer_accepted_at IS NOT NULL AND version=3 FROM public.drive_request_context WHERE request_id=:'request_id'),'acceptance timestamp and version saved');
+SELECT pg_temp.ok((SELECT status='awaiting_payment' AND payment_status='awaiting_payment' AND next_action='payment_not_enabled' FROM public.marketplace_requests WHERE id=:'request_id'),'acceptance stops before payment');
+SELECT pg_temp.ok((SELECT count(*)=4 FROM public.drive_request_events WHERE request_id=:'request_id'),'one customer acceptance event audited');
+SELECT pg_temp.ok((SELECT count(*)=0 FROM public.bookings),'no booking created');
+SELECT pg_temp.ok((SELECT count(*)=0 FROM public.payments),'no payment created');
 RESET ROLE;
 SELECT pg_temp.denied(format('update public.marketplace_requests set status=%L where id=%L','confirmed',:'request_id'),'23514','database rejects BOOKING state');
 SELECT pg_temp.denied(format('update public.marketplace_requests set payment_status=%L where id=%L','payment_verified',:'request_id'),'23514','database rejects payment claim');
