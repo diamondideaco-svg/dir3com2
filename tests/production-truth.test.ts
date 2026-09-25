@@ -7,7 +7,9 @@ test('public surfaces do not claim unavailable payments, escrow, apps, offers, o
   const contact = readFileSync('components/public/ContactPublicPage.tsx','utf8');
   const footer = readFileSync('components/layout/Footer.tsx','utf8');
   const approved = readFileSync('components/approved/ApprovedVisualPage.tsx','utf8');
-  for (const source of [home,contact,footer,approved]) assert.doesNotMatch(source,/payments ready|واجهة دفع محلية جاهزة|فلوسك محفوظة|money stays protected|hello@dir3com\.com/i);
+  const externalLinks = readFileSync('components/shared/PartnersTicker.tsx','utf8');
+  const linkCatalog = readFileSync('lib/content/partners.ts','utf8');
+  for (const source of [home,contact,footer,approved,externalLinks]) assert.doesNotMatch(source,/payments ready|واجهة دفع محلية جاهزة|فلوسك محفوظة|money stays protected|hello@dir3com\.com/i);
   assert.equal((home.match(/shieldOffers: \[\]/g) ?? []).length,2);
   assert.equal((home.match(/partnerCards: \[\]/g) ?? []).length,2);
   assert.match(home,/paymentMethods: readonly string\[\] = \[\]/);
@@ -17,6 +19,9 @@ test('public surfaces do not claim unavailable payments, escrow, apps, offers, o
   assert.match(approved,/href="\/marketplace">\{homeCopy\.marketplace\}<\/Link>/);
   assert.match(approved,/href={`\/marketplace\?family=dir3-\${page}`}/);
   assert.doesNotMatch(approved,/PartnersTicker|lib\/content\/partners/);
+  assert.match(externalLinks,/no partnership or payment acceptance is implied/);
+  assert.match(externalLinks,/لا تعني شراكة أو قبول وسيلة دفع/);
+  for (const id of ['visa','mastercard','mada']) assert.match(linkCatalog,new RegExp(`id: '${id}'[^\\n]+published: false`));
 });
 
 test('Drive acceptance remains a request boundary before payment and booking', () => {
