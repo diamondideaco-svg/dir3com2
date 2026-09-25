@@ -16,11 +16,11 @@ test('Home-only shell reuses approved logo/footer and the existing public Header
   assert.doesNotMatch(shell, /fetch\(|supabase|signOut|router\.push/);
 });
 
-test('Home retains the approved video, locale copy and real original CTA destinations', () => {
+test('Home retains the approved video, locale copy and truthful public CTA destinations', () => {
   assert.match(home, /src="\/brand\/home\/dir3com-home-hero.cropped.web.mp4"/);
   assert.ok(fs.existsSync('public/brand/home/dir3com-home-hero.web.mp4'));
   assert.ok(fs.existsSync('public/brand/home/dir3com-home-hero.cropped.web.mp4'));
-  assert.match(home, /href="\/login\?redirect=%2Fbooking&next=%2Fbooking"/);
+  assert.match(home, /href="\/marketplace">\{homeCopy\.marketplace\}<\/Link>/);
   assert.match(home, /href="#home-services-title"/);
   assert.doesNotMatch(home, /href="\/services"/);
   assert.match(home, /من فكرة السفرة/);
@@ -62,8 +62,8 @@ test('Home footer mirrors Contact/Services/Company only on desktop and preserves
 test('Home reuses service strips in the approved order without changing provider logic', () => {
   const utilities = home.indexOf('<HomeUtilities homePresentation />');
   const discovery = home.indexOf('<StoriesCarousel stories={travelStories} homeDiscovery />');
-  const companies = home.indexOf('<PartnersTicker partners={partners} homePresentation />');
-  assert.ok(utilities > home.indexOf('data-home-services') && discovery > utilities && companies > discovery);
+  assert.ok(utilities > home.indexOf('data-home-services') && discovery > utilities);
+  assert.doesNotMatch(home, /PartnersTicker|lib\/content\/partners/);
   assert.match(read('components/home/HomeUtilities.tsx'), /homePresentation = false/);
   for (const file of ['components/home/PlatformFoundationHome.tsx', 'components/services/ServicePageContent.tsx']) {
     const source = read(file);
