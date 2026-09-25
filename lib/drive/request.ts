@@ -22,5 +22,7 @@ export function validateDriveOfferRequest(offerId: unknown, trip: DriveTrip) {
 }
 export function driveRequestState(status: string, expires: string | null, now = Date.now()) {
   if (status === 'awaiting_customer_acceptance' && expires && Date.parse(expires) <= now) return 'expired';
-  return status === 'awaiting_customer_acceptance' ? 'confirmed_payment_pending' : status;
+  if (status === 'awaiting_customer_acceptance') return 'quote_ready';
+  if (status === 'awaiting_payment') return 'ready_for_payment';
+  return status;
 }
