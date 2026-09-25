@@ -29,8 +29,8 @@ const subjectOptions = [
 
 const contactCards = [
   { title: 'الهاتف', value: '0532867009', hint: 'متاح للرد والمتابعة', icon: FiPhoneCall },
-  { title: 'البريد', value: 'hello@dir3com.com', hint: 'تواصل منظم واستجابة واضحة', icon: FiMail },
-  { title: 'ضمان الدرع', value: 'الخدمة أولاً', hint: 'فلوسك محفوظة لين تقول: تم.', icon: FiCheckCircle },
+  { title: 'البريد', value: 'info@dir3com.com', hint: 'تواصل منظم واستجابة واضحة', icon: FiMail },
+  { title: 'وضوح الطلب', value: 'موافقتك أولاً', hint: 'نعرض السعر النهائي قبل أي التزام أو دفع.', icon: FiCheckCircle },
 ];
 
 export default function ContactPublicPage() {
