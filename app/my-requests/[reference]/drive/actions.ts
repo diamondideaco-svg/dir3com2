@@ -1,7 +1,6 @@
 'use server';
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { isMarketplaceRequestReference } from '@/lib/marketplace/customer-requests';
 
 export async function acceptDriveQuote(_previous: string, form: FormData): Promise<string> {
   const supabase = await createSupabaseServerClient();
@@ -9,10 +8,8 @@ export async function acceptDriveQuote(_previous: string, form: FormData): Promi
   if (!user) return 'UNAUTHORIZED';
 
   const requestId = String(form.get('requestId') ?? '');
-  const reference = String(form.get('reference') ?? '');
   const version = Number(form.get('version'));
-  if (!/^[a-f0-9-]{36}$/i.test(requestId) || !isMarketplaceRequestReference(reference)
-    || !Number.isInteger(version) || version < 0 || form.get('acknowledged') !== 'yes') return 'INVALID';
+  if (!/^[a-f0-9-]{36}$/i.test(requestId) || !Number.isInteger(version) || version < 0 || form.get('acknowledged') !== 'yes') return 'INVALID';
 
   const { error } = await supabase.rpc('accept_managed_drive_quote', {
     p_request_id: requestId,
@@ -24,6 +21,6 @@ export async function acceptDriveQuote(_previous: string, form: FormData): Promi
     if (error.code === '22023') return 'INVALID_OR_EXPIRED';
     return 'UNAVAILABLE';
   }
-  revalidatePath(`/my-requests/${reference}/drive`);
+  revalidatePath('/my-requests/[reference]/drive', 'page');
   return 'ACCEPTED';
 }
