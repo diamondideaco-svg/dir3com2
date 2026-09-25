@@ -16,6 +16,7 @@ test('public surfaces do not claim unavailable payments, escrow, apps, offers, o
   assert.doesNotMatch(approved,/احجز الآن|Book now|redirect=%2Fbooking|href="\/booking"/);
   assert.match(approved,/href="\/marketplace">\{homeCopy\.marketplace\}<\/Link>/);
   assert.match(approved,/href={`\/marketplace\?family=dir3-\${page}`}/);
+  assert.doesNotMatch(approved,/PartnersTicker|lib\/content\/partners/);
 });
 
 test('Drive acceptance remains a request boundary before payment and booking', () => {
