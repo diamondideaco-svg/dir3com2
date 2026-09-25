@@ -19,7 +19,7 @@ export type ApprovedVisualKey = 'home' | 'drive' | 'fly' | 'concierge' | 'vip' |
 const approvedHomeCopy = {
   ar: {
     journey: <>من فكرة السفرة ....<br />إلى سلامة الرجعة .</>,
-    book: 'احجز الآن',
+    marketplace: 'استكشف السوق',
     explore: 'استكشف',
     search: 'البحث',
     plan: 'خطط مع الدبرة',
@@ -28,7 +28,7 @@ const approvedHomeCopy = {
   },
   en: {
     journey: <>From planning the journey...<br />to returning safely.</>,
-    book: 'Book now',
+    marketplace: 'Explore marketplace',
     explore: 'Explore',
     search: 'Search',
     plan: 'Plan with DABRA',
@@ -121,7 +121,7 @@ export default function ApprovedVisualPage({ page }: { page: ApprovedVisualKey }
               <h1><span>dir3com</span></h1>
               <p>{homeCopy.journey}</p>
               <div className="approved-home-hero-actions">
-                <Link href="/login?redirect=%2Fbooking&next=%2Fbooking">{homeCopy.book}</Link>
+                <Link href="/marketplace">{homeCopy.marketplace}</Link>
                 <Link href="#home-services-title">{homeCopy.explore}</Link>
               </div>
               <div className={homeStyles.entry} data-home-search-entry>
@@ -145,9 +145,9 @@ export default function ApprovedVisualPage({ page }: { page: ApprovedVisualKey }
         )}
         {page !== 'home' ? (
           <Link
-            href="/booking"
+            href={`/marketplace?family=dir3-${page}`}
             className="approved-visual-hotspot approved-visual-hotspot--booking"
-            aria-label={language === 'ar' ? 'ابدأ رحلتك الآن' : 'Start your journey'}
+            aria-label={language === 'ar' ? 'استكشف خيارات الخدمة' : 'Explore service options'}
           />
         ) : null}
           </div>
