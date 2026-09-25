@@ -62,10 +62,10 @@ SELECT pg_temp.ok(:'accepted_status'='awaiting_payment','owner accepts final quo
 SELECT pg_temp.ok((public.accept_managed_drive_quote(:'request_id',2)->>'replayed')::boolean,'accept retry is idempotent');
 SELECT pg_temp.ok((SELECT customer_accepted_at IS NOT NULL AND version=3 FROM public.drive_request_context WHERE request_id=:'request_id'),'acceptance timestamp and version saved');
 SELECT pg_temp.ok((SELECT status='awaiting_payment' AND payment_status='awaiting_payment' AND next_action='payment_not_enabled' FROM public.marketplace_requests WHERE id=:'request_id'),'acceptance stops before payment');
+RESET ROLE;
 SELECT pg_temp.ok((SELECT count(*)=4 FROM public.drive_request_events WHERE request_id=:'request_id'),'one customer acceptance event audited');
 SELECT pg_temp.ok((SELECT count(*)=0 FROM public.bookings),'no booking created');
 SELECT pg_temp.ok((SELECT count(*)=0 FROM public.payments),'no payment created');
-RESET ROLE;
 SELECT pg_temp.denied(format('update public.marketplace_requests set status=%L where id=%L','confirmed',:'request_id'),'23514','database rejects BOOKING state');
 SELECT pg_temp.denied(format('update public.marketplace_requests set payment_status=%L where id=%L','payment_verified',:'request_id'),'23514','database rejects payment claim');
 ROLLBACK;
