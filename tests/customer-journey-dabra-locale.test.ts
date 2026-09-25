@@ -83,7 +83,7 @@ test('approved Home hero and CTAs render from the selected AR or EN locale', () 
   assert.match(source, /explore: 'Explore'/);
   assert.match(source, /const homeCopy = approvedHomeCopy\[language\]/);
   assert.match(source, /<p>\{homeCopy\.journey\}<\/p>/);
-  assert.match(source, />\{homeCopy\.book\}<\/Link>/);
+  assert.match(source, /href="\/marketplace">\{homeCopy\.marketplace\}<\/Link>/);
   assert.match(source, />\{homeCopy\.explore\}<\/Link>/);
 });
 
