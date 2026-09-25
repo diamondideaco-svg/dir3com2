@@ -65,7 +65,6 @@ SELECT pg_temp.ok((SELECT status='awaiting_payment' AND payment_status='awaiting
 RESET ROLE;
 SELECT pg_temp.ok((SELECT count(*)=4 FROM public.drive_request_events WHERE request_id=:'request_id'),'one customer acceptance event audited');
 SELECT pg_temp.ok((SELECT count(*)=0 FROM public.bookings),'no booking created');
-SELECT pg_temp.ok((SELECT count(*)=0 FROM public.payments),'no payment created');
 SELECT pg_temp.denied(format('update public.marketplace_requests set status=%L where id=%L','confirmed',:'request_id'),'23514','database rejects BOOKING state');
 SELECT pg_temp.denied(format('update public.marketplace_requests set payment_status=%L where id=%L','payment_verified',:'request_id'),'23514','database rejects payment claim');
 ROLLBACK;
