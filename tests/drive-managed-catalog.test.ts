@@ -55,7 +55,8 @@ test('airport requires flight details; chauffeur never stores irrelevant flight 
   assert.equal(parseDriveTrip({...trip,flightNumber:'MS123'},now).trip?.flightNumber,'');
 });
 test('request state is not BOOKING and expiry is truthful',()=>{
-  assert.equal(driveRequestState('awaiting_customer_acceptance','2026-09-17T07:00Z',now),'confirmed_payment_pending');
+  assert.equal(driveRequestState('awaiting_customer_acceptance','2026-09-17T07:00Z',now),'quote_ready');
+  assert.equal(driveRequestState('awaiting_payment',null,now),'ready_for_payment');
   assert.equal(driveRequestState('awaiting_customer_acceptance','2026-09-17T05:00Z',now),'expired');
   assert.equal(driveRequestState('request_submitted',null,now),'request_submitted');
 });
@@ -75,8 +76,11 @@ test('migration preserves legacy inventory, protects country audit and payment s
   assert.match(sql,/ENABLE ROW LEVEL SECURITY/);assert.match(sql,/drive_payment_stop/);assert.match(sql,/drive_events_immutable/);
   assert.match(sql,/trip=p_trip/);assert.match(sql,/IDEMPOTENCY_CONFLICT/);
   assert.match(modelYearSql,/acceptableModelYears/);assert.match(modelYearSql,/confirmed_vehicle_year/);assert.match(modelYearSql,/p_vehicle_year NOT IN \(2025,2026,2027\)/);
+  const acceptanceSql=readFileSync('supabase/migrations/20260925150000_drive_customer_quote_acceptance.sql','utf8');
+  assert.match(acceptanceSql,/v_request\.user_id IS DISTINCT FROM auth\.uid\(\)/);assert.match(acceptanceSql,/customer_accept/);assert.match(acceptanceSql,/status='awaiting_payment'/);
+  assert.match(acceptanceSql,/REVOKE ALL ON FUNCTION public\.accept_managed_drive_quote\(uuid,integer\) FROM PUBLIC,anon,service_role/);
 });
 test('UI contains no active payment fields or fabricated hour packages',()=>{
-  const ui=readFileSync('components/drive/DriveRequestReview.tsx','utf8');assert.match(ui,/Payment unavailable/);assert.match(ui,/<button disabled>/);assert.doesNotMatch(ui,/<input|stripe|tokenize|capture\(/i);
+  const ui=readFileSync('components/drive/DriveRequestReview.tsx','utf8');assert.match(ui,/Payment unavailable/);assert.match(ui,/<button disabled>/);assert.match(ui,/acceptDriveQuote/);assert.doesNotMatch(ui,/stripe|tokenize|capture\(/i);
   for(const file of ['DriveDeal','DriveMarketplace','DriveRequestReview'])assert.doesNotMatch(readFileSync(`components/drive/${file}.tsx`,'utf8'),/Representative image|صورة توضيحية|hourly|8 hours|12 hours/);
 });

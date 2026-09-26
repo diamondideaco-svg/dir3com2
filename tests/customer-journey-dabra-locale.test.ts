@@ -76,14 +76,14 @@ test('approved Home hero and CTAs render from the selected AR or EN locale', () 
   const source = read('components', 'approved', 'ApprovedVisualPage.tsx');
   assert.match(source, /const approvedHomeCopy =/);
   assert.match(source, /journey: <>من فكرة السفرة/);
-  assert.match(source, /book: 'احجز الآن'/);
+  assert.match(source, /marketplace: 'استكشف السوق'/);
   assert.match(source, /explore: 'استكشف'/);
   assert.match(source, /journey: <>From planning the journey/);
-  assert.match(source, /book: 'Book now'/);
+  assert.match(source, /marketplace: 'Explore marketplace'/);
   assert.match(source, /explore: 'Explore'/);
   assert.match(source, /const homeCopy = approvedHomeCopy\[language\]/);
   assert.match(source, /<p>\{homeCopy\.journey\}<\/p>/);
-  assert.match(source, />\{homeCopy\.book\}<\/Link>/);
+  assert.match(source, /href="\/marketplace">\{homeCopy\.marketplace\}<\/Link>/);
   assert.match(source, />\{homeCopy\.explore\}<\/Link>/);
 });
 

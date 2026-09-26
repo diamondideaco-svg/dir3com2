@@ -21,7 +21,7 @@ export const partners: readonly Partner[] = [
   { id: 'emirates', scope: 'global', name: 'Emirates', logo: '', href: 'https://www.emirates.com/', published: true },
   { id: 'qatar-airways', scope: 'global', name: 'Qatar Airways', logo: '', href: 'https://www.qatarairways.com/', published: true },
   { id: 'egyptair', scope: 'global', name: 'EgyptAir', logo: '', href: 'https://www.egyptair.com/', published: true },
-  { id: 'visa', scope: 'global', name: 'Visa', logo: '', href: 'https://www.visa.com/', published: true },
-  { id: 'mastercard', scope: 'global', name: 'Mastercard', logo: '', href: 'https://www.mastercard.com/', published: true },
-  { id: 'mada', scope: 'global', name: 'mada', logo: '', href: 'https://www.mada.com.sa/', published: true },
+  { id: 'visa', scope: 'global', name: 'Visa', logo: '', href: 'https://www.visa.com/', published: false },
+  { id: 'mastercard', scope: 'global', name: 'Mastercard', logo: '', href: 'https://www.mastercard.com/', published: false },
+  { id: 'mada', scope: 'global', name: 'mada', logo: '', href: 'https://www.mada.com.sa/', published: false },
 ];

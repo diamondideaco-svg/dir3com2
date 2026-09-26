@@ -1,4 +1,6 @@
+'use client';
 import Link from 'next/link';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { FiArrowLeft, FiShield } from 'react-icons/fi';
 import { HiSparkles } from 'react-icons/hi2';
 import { Badge, Chip, ContentContainer, HeroBlock, SectionContainer } from '@/components/design-system';
@@ -13,6 +15,7 @@ type PublicHeroProps = {
 };
 
 export default function PublicHero({ eyebrow, title, description, highlight, chips }: PublicHeroProps) {
+  const { language } = useLanguage();
   return (
     <SectionContainer className="relative isolate overflow-hidden pb-10 pt-8 lg:pb-14 lg:pt-12">
       <div className="absolute inset-x-0 top-0 -z-10 h-[460px] bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,0.2),transparent_30%),radial-gradient(circle_at_top_left,rgba(212,175,55,0.12),transparent_28%)]" />
@@ -27,8 +30,8 @@ export default function PublicHero({ eyebrow, title, description, highlight, chi
           </div>
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <Link href="/booking" className={buttonVariants({ variant: 'gold', size: 'lg' })}>
-              ابدأ رحلتك
+            <Link href="/marketplace" className={buttonVariants({ variant: 'gold', size: 'lg' })}>
+              {language === 'ar' ? 'استكشف السوق' : 'Explore Marketplace'}
               <FiArrowLeft />
             </Link>
             <a href="#dibrah" className={`${buttonVariants({ variant: 'outline', size: 'lg' })} focus-visible:ring-[var(--color-gold)]/50`}>

@@ -194,6 +194,8 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
   }) : 'view_details';
   const primaryAction = service_.marketplace_family && service_.marketplace_environment === 'production'
     ? catalogRequestAction(truthAction, service_.availability_status) : truthAction;
+  // Discovery only: legacy bookable metadata does not enable a public transaction.
+  const discoveryHref = service_.marketplace_family ? `/marketplace?family=dir3-${service_.marketplace_family}` : '/marketplace';
   const submitRequest = async () => {
     if (primaryAction !== 'request_to_confirm' && primaryAction !== 'request_quote') return;
     if (requestInFlight.current || requestState === 'sent') return;
@@ -304,7 +306,7 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
               </p>
               <div data-marketplace-critical-action className="mt-6 flex flex-wrap items-center gap-3">
                 {primaryAction === 'continue_to_booking' ? (
-                  <Link href={`/booking?product=${service_.slug ?? ''}`} className={buttonVariants({ variant: 'gold', size: 'lg' })}>{en ? 'Continue to booking' : 'متابعة الحجز'}</Link>
+                  <Link href={discoveryHref} className={buttonVariants({ variant: 'gold', size: 'lg' })}>{en ? 'Explore Marketplace' : 'استكشف السوق'}</Link>
                 ) : primaryAction === 'request_to_confirm' || primaryAction === 'request_quote' ? (
                   <button type="button" disabled={requestState === 'sending' || requestState === 'sent'} onClick={submitRequest} className={buttonVariants({ variant: 'gold', size: 'lg' })}>
                     {requestState === 'sent' ? (en ? 'Request submitted' : 'تم إرسال الطلب') : requestState === 'sending' ? (en ? 'Sending…' : 'جارٍ الإرسال…') : primaryAction === 'request_quote' ? (en ? 'Request a quote' : 'طلب عرض سعر') : (en ? 'Request confirmation' : 'طلب تأكيد')}
@@ -352,7 +354,7 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
               <div>
                 <p className="text-sm text-white/72">{en ? 'Recorded fulfilment status' : 'حالة التنفيذ المسجلة'}</p>
                 <p className="mt-4 text-2xl font-semibold leading-[1.5]">
-                  {service_.fulfilment_state === 'live_bookable' ? (en ? 'Available for direct booking' : 'متاح للحجز المباشر') :
+                  {service_.fulfilment_state === 'live_bookable' ? (en ? 'Browse options — booking and payment are not enabled' : 'استعرض الخيارات — الحجز والدفع غير مفعّلين') :
                     service_.fulfilment_state === 'verified_requestable' ? (en ? 'Confirmation request required' : 'يتطلب طلب تأكيد') :
                     service_.fulfilment_state === 'verified_quote' ? (en ? 'Quote request required' : 'يتطلب طلب عرض سعر') :
                     service_.fulfilment_state === 'unavailable' ? (en ? 'Currently unavailable' : 'غير متاح حاليًا') :
@@ -425,8 +427,8 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
         <SectionContainer>
           <ContentContainer>
             <SectionSurface>
-              <SectionTitle>{en ? 'Booking and payment' : 'الحجز والدفع'}</SectionTitle>
-              <SectionDescription>{en ? 'Final price, taxes, fees, and payment timing appear in the booking flow before any transaction.' : 'تظهر تفاصيل السعر والدفع النهائية في مسار الحجز قبل تنفيذ أي عملية.'}</SectionDescription>
+              <SectionTitle>{en ? 'Service options' : 'خيارات الخدمة'}</SectionTitle>
+              <SectionDescription>{en ? 'Explore current Marketplace options. Booking and payment are not enabled here; browsing does not reserve or confirm a service.' : 'استكشف خيارات السوق الحالية. الحجز والدفع غير مفعّلين هنا؛ التصفح لا يحجز خدمة أو يؤكدها.'}</SectionDescription>
               <div className="mt-5">
                 <PartnerComponent name={service_.supplier_name ?? (en ? products[0]?.partner?.name_en : products[0]?.partner?.name_ar) ?? (en ? 'Service provider' : 'مقدم الخدمة')} detail={service_.supplier_verified ? (en ? 'Verified local partner. Final availability follows the displayed confirmation flow.' : 'شريك محلي موثّق. يخضع التوفر النهائي لمسار التأكيد الموضح.') : (en ? 'Supplier status is shown exactly as recorded, without a verification claim.' : 'تظهر حالة المورد كما هي مسجلة دون ادعاء توثيق.')} />
               </div>
@@ -439,7 +441,7 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
         <SectionContainer className="py-8">
           <ContentContainer>
             {products.length ? (
-              <SectionTitle>{en ? 'Available booking options' : 'خيارات الحجز المتاحة'}</SectionTitle>
+              <SectionTitle>{en ? 'Recorded service options' : 'خيارات الخدمة المسجلة'}</SectionTitle>
             ) : null}
 
             {products.length ? (
@@ -458,8 +460,8 @@ export default function PublicServiceDetailClient({ slug, searchContext = {} }: 
                         <span className="me-1 text-xs text-[var(--color-muted)]">/ {unitLabel(product.unit_type, en)}</span>
                       </span>
                     </div>
-                    <Link href={`/booking?product=${product.slug ?? ''}`} className={`${buttonVariants({ variant: 'gold', size: 'default' })} mt-5 w-full`}>
-                      {en ? 'Book now' : 'احجز الآن'}
+                    <Link href={discoveryHref} className={`${buttonVariants({ variant: 'gold', size: 'default' })} mt-5 w-full`}>
+                      {en ? 'Explore Marketplace' : 'استكشف السوق'}
                     </Link>
                   </SectionSurface>
                 ))}
