@@ -205,7 +205,25 @@
   background: #f7f9fb;
   margin-top: 24px;
 }
+.browse { padding-top:24px; }
+.browse .search { margin:16px 0 24px; padding:20px; gap:12px; }
+.searchAction { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.secondary { grid-column:1/-1; border-top:1px solid #e3e7ec; padding-top:12px; }
+.secondary summary { cursor:pointer; min-height:32px; font-weight:600; }
+.secondaryFields { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; padding-block:12px 0; }
+.catalogueLabel { margin-block:16px; font-weight:600; }
+.discoveryCards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }
+.discoveryCards .card { display:flex; flex-direction:column; }
+.discoveryCards .cardBody { display:flex; flex-direction:column; flex:1; gap:8px; }
+.discoveryCards .button { margin-top:auto; }
+.discoveryCards .cardImage { height:190px; }
+.browse .cardBody ul { font-size:14px; line-height:1.65; }
+.browse .modelYear { font-size:14px; font-weight:500; }
+@media(max-width:1000px) { .discoveryCards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width: 760px) {
+  .discoveryCards { grid-template-columns:minmax(0,1fr); }
+  .secondaryFields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .searchAction { align-items:stretch; flex-direction:column; gap:8px; }
   .page {
     padding: 20px 16px 32px;
   }

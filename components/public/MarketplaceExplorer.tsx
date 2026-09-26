@@ -23,6 +23,7 @@ import {
   type MarketplaceSortKey,
 } from '@/lib/marketplace/data';
 import { isComingSoonMarketplaceFamily } from '@/lib/marketplace/launch-catalog';
+import MarketplaceNavigation from './MarketplaceNavigation';
 
 type MarketplaceExplorerProps = {
   initialSearch?: string;
@@ -180,7 +181,7 @@ export default function MarketplaceExplorer({
       <ContentContainer>
         <SectionHeading eyebrow={language === 'ar' ? 'السوق' : 'MARKETPLACE'} title={title ?? t.title} description={description ?? t.description} />
 
-        <nav aria-label={t.families} className="mt-6 flex flex-wrap gap-2">
+        {publicNormalization ? <MarketplaceNavigation family={family} search={initialSearch}/> : <nav aria-label={t.families} className="mt-6 flex flex-wrap gap-2">
           {[{ key: undefined, label: t.all }, ...marketplaceFamilyDefinitions.map((definition) => ({
             key: definition.key,
             label: definition.label[language],
@@ -199,7 +200,7 @@ export default function MarketplaceExplorer({
               </Link>
             );
           })}
-        </nav>
+        </nav>}
         {contextItems.length > 0 ? <p data-marketplace-context className="mt-4 break-words text-sm leading-7 text-[var(--color-muted)]">
           {language === 'ar' ? 'سياق البحث الوارد (ليس تأكيدًا للتوفر): ' : 'Incoming search context (not availability confirmation): '}
           {contextItems.join(' · ')}
@@ -304,7 +305,7 @@ export default function MarketplaceExplorer({
                 <p className="mt-1 text-xs text-[var(--color-muted)]">{option.count} {t.result}</p>
               </motion.button>
             ))}
-            {categoryBrowseItems.length === 0
+            {!publicNormalization && categoryBrowseItems.length === 0
               ? Array.from({ length: 2 }).map((_, index) => (
                   <div key={index} className="rounded-[22px] border border-dashed border-[var(--color-border)] bg-white/60 px-4 py-4 text-sm text-[var(--color-muted)]">
                     {t.categoriesPending}

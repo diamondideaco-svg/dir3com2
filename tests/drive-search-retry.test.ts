@@ -24,6 +24,7 @@ test('actual Drive form recovers from invalid dates when returning to the same U
     'next/navigation': { useRouter: () => ({ push: (url: string) => pushes.push(url) }) },
     '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language: 'en', direction: 'ltr' }) },
     '@/lib/drive/catalog': catalog, '@/lib/drive/search': search, './drive.module.css': { default: {} },
+    '@/components/public/MarketplaceNavigation': { default: () => null },
   };
   const exports: { default?: (props: { initialSearch: string }) => Element } = {};
   runInNewContext(ts.transpileModule(readFileSync('components/drive/DriveMarketplace.tsx', 'utf8'), {
@@ -49,4 +50,5 @@ test('actual Drive form recovers from invalid dates when returning to the same U
   assert.equal(dependencies[2], Number(beforeRetry) + 1, 'same search must trigger one reload');
   assert.equal(pushes.length, 1);
   assert.equal(new URL(pushes[0], 'https://local.invalid').searchParams.get('returnAt'), '2030-10-13T12:00');
+  assert.equal(new URL(pushes[0], 'https://local.invalid').searchParams.get('language'), 'en');
 });

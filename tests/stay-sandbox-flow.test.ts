@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import * as contract from '../lib/marketplace/stay-demo';
 import * as mode from '../lib/marketplace/stay-demo-mode';
 import type { StaySearchResult } from '../lib/travel/contracts';
+import * as discovery from '../lib/marketplace/discovery';
 
 const now = Date.parse('2026-09-19T00:00Z');
 const search = 'family=dir3-stay&providerProof=liteapi&destination=cairo&checkIn=2026-10-12&checkOut=2026-10-14';
@@ -60,25 +61,31 @@ function api(environment: Record<string, string | undefined> = env, fail = false
 
 function client(get: Get, language: 'ar' | 'en') {
   const states: unknown[] = []; let index = 0; let effect: (() => void | (() => void)) | undefined;
-  const requests: string[] = [];
+  const requests: string[] = []; const history: string[] = []; let dependencies: unknown[] = [];
   const Client = load<{ default: Component }>('components/stay/StaySandbox.tsx', {
     'react/jsx-runtime': jsx,
     react: { useState: (initial: unknown) => {
       const slot = index++; if (!(slot in states)) states[slot] = initial;
       return [states[slot], (v: unknown) => { states[slot] = typeof v === 'function' ? v(states[slot]) : v; }];
-    }, useEffect: (fn: () => void | (() => void)) => { effect = fn; } },
+    }, useEffect: (fn: () => void | (() => void), deps: unknown[]) => { effect = fn; dependencies = deps; } },
     'next/link': { default: (props: Record<string, unknown>) => { const dom = { ...props }; delete dom.prefetch; return createElement('a', dom); } },
     'next/image': { default: 'img' }, './stay-sandbox.module.css': { default: {} },
     '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language, direction: language === 'ar' ? 'rtl' : 'ltr' }) },
     '@/lib/marketplace/stay-demo': contract,
-  }, { AbortController, setTimeout, clearTimeout, queueMicrotask, fetch: (url: string) => {
+    '@/lib/marketplace/discovery': discovery,
+    '@/components/public/MarketplaceNavigation': { default: () => null },
+  }, { AbortController, setTimeout, clearTimeout, queueMicrotask,
+    window: { history: { replaceState: (_state: unknown, _title: string, url: string) => history.push(url) } },
+    FormData: class { constructor(private values: Record<string,string>) {} get(key: string) { return this.values[key]; } },
+    fetch: (url: string) => {
     requests.push(url); return get(new Request(`https://preview.invalid${url}`));
   } }).default;
-  const render = (props: Props) => { index = 0; return renderToStaticMarkup(Client(props)); };
-  return { Client, render, requests, async mount(props: Props) {
+  const tree = (props: Props) => { index = 0; return Client(props); };
+  const render = (props: Props) => renderToStaticMarkup(tree(props));
+  return { Client, render, tree, requests, history, dependencies: () => dependencies, async mount(props: Props) {
     render(props); const cleanup = effect!();
-    for (let i = 0; i < 20 && (states[1] === 'loading' || i === 0); i++) await new Promise(resolve => setImmediate(resolve));
-    assert.notEqual(states[1], 'loading', 'effect must settle, not hang');
+    for (let i = 0; i < 20 && (states[2] === 'loading' || i === 0); i++) await new Promise(resolve => setImmediate(resolve));
+    assert.notEqual(states[2], 'loading', 'effect must settle, not hang');
     const html = render(props); if (typeof cleanup === 'function') cleanup(); return html;
   } };
 }
@@ -137,6 +144,29 @@ test('normal Stay and partner/Drive routing remain separate; unsubmitted searche
   assert.notEqual((await page(ui.Client, search + '&inventory=partners')).type, ui.Client);
   assert.notEqual((await page(ui.Client, search, false)).type, ui.Client);
   assert.equal((await page(ui.Client, 'family=dir3-drive')).type, 'drive-marketplace');
+  assert.equal((await page(ui.Client, '')).type, 'drive-marketplace', 'public entry must expose the canonical nine-offer journey');
+  assert.notEqual((await page(ui.Client, 'q=hotel')).type, 'drive-marketplace', 'explicit legacy searches are preserved');
   const ordinary = await page(ui.Client, search.replace('&providerProof=liteapi', '&searched=1'));
   await ui.mount(ordinary.props); assert.match(ui.requests[0], /^\/api\/marketplace\/stay-sandbox\?/);
+});
+
+test('actual Stay filter submit updates results/detail URL without changing effect dependencies or fetching again', async () => {
+  const backend=api(); const ui=client(backend.get,'en'); const element=await page(ui.Client,search);
+  await ui.mount(element.props); const before=[...ui.dependencies()];
+  function descendants(value: unknown): ReactElement<Record<string,unknown>>[] {
+    if(Array.isArray(value)) return value.flatMap(descendants);
+    if(!value || typeof value!=='object' || !('props' in value)) return [];
+    const node=value as ReactElement<Record<string,unknown>>;
+    return [node,...descendants(node.props.children)];
+  }
+  const form=descendants(ui.tree(element.props)).find(node=>node.type==='form' && node.props.onSubmit)!;
+  assert.ok(form);
+  (form.props.onSubmit as (event:unknown)=>void)({preventDefault(){},currentTarget:{sort:'price-asc',hotelName:'Transport hotel 19',maxPrice:'200'}});
+  const html=ui.render(element.props);
+  assert.equal((html.match(/data-stay-hotel=/g)??[]).length,1);
+  assert.match(html,/data-stay-hotel="unit-19"/);
+  assert.match(html,/hotelName=Transport\+hotel\+19/);
+  assert.equal(ui.history.length,1); assert.match(ui.history[0],/checkIn=2026-10-12/);
+  assert.deepEqual([...ui.dependencies()],before);
+  assert.equal(ui.requests.length,1); assert.equal(backend.calls(),1);
 });
