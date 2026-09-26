@@ -7,6 +7,7 @@ import { FiSearch, FiArrowUpRight } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import ServiceSearchTable from '@/components/shared/ServiceSearchTable';
 import { canonicalServices } from '@/lib/services/canonical';
+import { serviceEntryHref, serviceEntryState } from '@/lib/marketplace/public-entry';
 import homeStyles from '@/components/home/home-production.module.css';
 import HomeUtilities from '@/components/home/HomeUtilities';
 import StoriesCarousel from '@/components/shared/StoriesCarousel';
@@ -159,9 +160,9 @@ export default function ApprovedVisualPage({ page }: { page: ApprovedVisualKey }
       {page === 'home' && <>
         <section className={homeStyles.services} aria-labelledby="home-services-title" data-home-services>
           <h2 id="home-services-title">{homeCopy.services}</h2>
-          <div className={homeStyles.serviceGrid}>{canonicalServices.map(service => <Link key={service.slug} href={`/services/${service.slug}`} className={homeStyles.service}>
+          <div className={homeStyles.serviceGrid}>{canonicalServices.map(service => <Link prefetch={false} key={service.slug} href={serviceEntryHref(service.slug)} className={homeStyles.service}>
             <Image src={service.hero} alt="" width={800} height={450} sizes="(max-width: 640px) 100vw, (max-width: 1050px) 50vw, 20vw" />
-            <div><h3>{service.name}</h3><p>{language === 'ar' ? service.descriptionAr : service.descriptionEn}</p><span>{homeCopy.explore}<FiArrowUpRight aria-hidden="true" /></span></div>
+            <div><h3>{service.name}</h3><p>{language === 'ar' ? service.descriptionAr : service.descriptionEn}</p><strong>{serviceEntryState(service.slug, language).label}</strong><span>{serviceEntryState(service.slug, language).comingSoon ? (language === 'ar' ? 'معلومات الخدمة' : 'Service information') : homeCopy.explore}<FiArrowUpRight aria-hidden="true" /></span></div>
           </Link>)}</div>
         </section>
         <div id="home-search-panel" ref={searchPanel} className={homeStyles.searchPanel} hidden={!searchOpen}>

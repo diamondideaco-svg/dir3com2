@@ -9,6 +9,7 @@ import { DRIVE_CURRENCIES, DRIVE_OFFERS, vehicleFor, vehicleTitle, vehicleClassL
 import { driveSearchParams, readDriveSearch, validateDriveSearch, type DriveSearch } from '@/lib/drive/search';
 import styles from './drive.module.css';
 import MarketplaceNavigation from '@/components/public/MarketplaceNavigation';
+import { validSearchDate } from '@/lib/marketplace/search-context';
 
 export type PricedDriveOffer = DriveOffer & { vehicle: VehicleMaster; price: { baseAmount: number | null; currency: string; total: null }; display: { amount: number | null; currency: string; asOf: string | null; converted: boolean }; conversionUnavailable: boolean };
 export const driveErrors: Record<string, [string, string]> = {
@@ -35,6 +36,8 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
   const [model, setModel] = useState('');
   const [capacity, setCapacity] = useState(0); const [bags, setBags] = useState(0);
   const searched = new URLSearchParams(initialSearch).get('searched') === '1';
+  const legacyPickup = validSearchDate(new URLSearchParams(initialSearch).get('pickupDate') ?? undefined);
+  const legacyReturn = validSearchDate(new URLSearchParams(initialSearch).get('returnDate') ?? undefined);
   useEffect(() => {
     if (!searched) return;
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 12000);
@@ -64,8 +67,8 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
     <form id="drive-search" className={styles.search} onSubmit={submit}>
       <label>{ar ? 'موقع الاستلام: مدينة، مطار، فندق أو عنوان' : 'Pickup: city, airport, hotel or address'}<input required maxLength={200} value={search.pickup} onChange={e=>update('pickup',e.target.value)} /></label>
       <label>{ar ? 'موقع تسليم مختلف (اختياري)' : 'Different drop-off (optional)'}<input maxLength={200} value={search.dropoff} onChange={e=>update('dropoff',e.target.value)} /></label>
-      <label>{ar ? 'موعد الاستلام — القاهرة' : 'Pickup date/time — Cairo'}<input required type="datetime-local" value={search.pickupAt} onChange={e=>update('pickupAt',e.target.value)} /></label>
-      <label>{ar ? 'موعد العودة / التسليم — القاهرة' : 'Return/drop-off — Cairo'}<input required type="datetime-local" value={search.returnAt} onChange={e=>update('returnAt',e.target.value)} /></label>
+      {legacyPickup && !new URLSearchParams(initialSearch).has('pickupAt') ? <fieldset><legend>{ar ? 'موعد الاستلام — القاهرة' : 'Pickup date/time — Cairo'}</legend><label>{ar ? 'تاريخ الاستلام' : 'Pickup date'}<input required type="date" value={search.pickupAt.split('T')[0] || legacyPickup} onChange={e=>update('pickupAt',`${e.target.value}T${search.pickupAt.split('T')[1] || ''}`)}/></label><label>{ar ? 'وقت الاستلام — القاهرة' : 'Pickup time — Cairo'}<input required type="time" value={search.pickupAt.split('T')[1] || ''} onChange={e=>update('pickupAt',`${search.pickupAt.split('T')[0] || legacyPickup}T${e.target.value}`)}/></label></fieldset> : <label>{ar ? 'موعد الاستلام — القاهرة' : 'Pickup date/time — Cairo'}<input required type="datetime-local" value={search.pickupAt} onChange={e=>update('pickupAt',e.target.value)} /></label>}
+      {legacyReturn && !new URLSearchParams(initialSearch).has('returnAt') ? <fieldset><legend>{ar ? 'موعد العودة / التسليم — القاهرة' : 'Return/drop-off — Cairo'}</legend><label>{ar ? 'تاريخ العودة' : 'Return date'}<input required type="date" value={search.returnAt.split('T')[0] || legacyReturn} onChange={e=>update('returnAt',`${e.target.value}T${search.returnAt.split('T')[1] || ''}`)}/></label><label>{ar ? 'وقت العودة — القاهرة' : 'Return time — Cairo'}<input required type="time" value={search.returnAt.split('T')[1] || ''} onChange={e=>update('returnAt',`${search.returnAt.split('T')[0] || legacyReturn}T${e.target.value}`)}/></label></fieldset> : <label>{ar ? 'موعد العودة / التسليم — القاهرة' : 'Return/drop-off — Cairo'}<input required type="datetime-local" value={search.returnAt} onChange={e=>update('returnAt',e.target.value)} /></label>}
       <div className={styles.searchAction}><p className={styles.muted}>{ar ? 'جميع المواعيد بتوقيت القاهرة. اطلب قبل الاستلام بست ساعات على الأقل.' : 'All times are Cairo time. Request at least six hours before pickup.'}</p><button type="submit" disabled={loading}>{ar ? 'ابحث' : 'Search'}</button></div>
       <details className={styles.secondary}><summary>{ar ? 'الخدمة والركاب والأمتعة والعملة' : 'Service, passengers, luggage and currency'}</summary><div className={styles.secondaryFields}>
       <label>{ar ? 'الخدمة' : 'Service'}<select value={search.mode} onChange={e=>update('mode',e.target.value)}><option value="chauffeur">{ar ? 'سيارة مع سائق' : 'Chauffeur service'}</option><option value="airport">{ar ? 'انتقال المطار' : 'Airport transfer'}</option></select></label>

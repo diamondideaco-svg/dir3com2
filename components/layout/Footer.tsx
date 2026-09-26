@@ -7,6 +7,7 @@ import { FaApple, FaFacebookF, FaGooglePlay, FaInstagram, FaLinkedinIn, FaTiktok
 import { FiGlobe, FiMail, FiPhoneCall } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { getOfficialSocialLinks } from '@/lib/config/social';
+import { publicServiceLink } from '@/lib/marketplace/public-entry';
 
 const socialIconByLabel: Record<string, ComponentType<{ size?: number }>> = {
   WhatsApp: FaWhatsapp, واتساب: FaWhatsapp, Instagram: FaInstagram, TikTok: FaTiktok,
@@ -69,7 +70,7 @@ export default function Footer() {
 
         <section>
           <h2 className="text-lg font-bold text-[#e2b95f]">{t.servicesTitle}</h2>
-          <div className="mt-4 grid gap-3 text-sm text-[#526173]">{t.services.map((item) => <Link key={item.href} href={item.href} className="hover:text-[#a66d10]">{item.label}</Link>)}</div>
+          <div className="mt-4 grid gap-3 text-sm text-[#526173]">{t.services.map(item => publicServiceLink(item.href, item.label, language)).map((item) => <Link prefetch={false} key={item.href} href={item.href} className="hover:text-[#a66d10]">{item.label}</Link>)}</div>
         </section>
 
         <section>

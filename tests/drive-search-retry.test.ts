@@ -5,6 +5,7 @@ import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import * as catalog from '../lib/drive/catalog';
 import * as search from '../lib/drive/search';
+import * as context from '../lib/marketplace/search-context';
 
 type Element = { type: unknown; props: Record<string, unknown> };
 test('actual Drive form recovers from invalid dates when returning to the same URL search', () => {
@@ -24,6 +25,7 @@ test('actual Drive form recovers from invalid dates when returning to the same U
     'next/navigation': { useRouter: () => ({ push: (url: string) => pushes.push(url) }) },
     '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language: 'en', direction: 'ltr' }) },
     '@/lib/drive/catalog': catalog, '@/lib/drive/search': search, './drive.module.css': { default: {} },
+    '@/lib/marketplace/search-context': context,
     '@/components/public/MarketplaceNavigation': { default: () => null },
   };
   const exports: { default?: (props: { initialSearch: string }) => Element } = {};

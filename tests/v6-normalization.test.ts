@@ -37,11 +37,17 @@ test('AR and EN canonical chrome renders real links, transparent logo, language 
     const footer = renderToStaticMarkup(createElement(exports.CustomerFooter));
     const imageFooter = renderToStaticMarkup(createElement(exports.CustomerFooter, { surface: 'image' }));
     const linkedFooter = renderToStaticMarkup(createElement(exports.CustomerFooter, { servicesOverviewAccess: true }));
-    for (const markup of [footer, linkedFooter]) {
+    for (const [markup, publicEntry] of [[footer, false], [linkedFooter, true]] as const) {
       const headings = [...markup.matchAll(/<h2>(.*?)<\/h2>/g)].map(match => match[1].replace(/<[^>]*>/g, ''));
       assert.deepEqual(headings, language === 'ar' ? ['عن الشركة', 'خدماتنا', 'تواصل معنا'] : ['Company', 'Services', 'Contact us']);
       for (const family of ['drive', 'stay', 'concierge', 'vip', 'fly']) {
-        assert.equal(markup.split(`href="/services/${family}"`).length - 1, 1);
+        const href = publicEntry && !['fly', 'concierge'].includes(family)
+          ? `/marketplace?family=dir3-${family}${family === 'vip' ? '&amp;service=vip' : ''}` : `/services/${family}`;
+        assert.equal(markup.split(`href="${href}"`).length - 1, 1);
+      }
+      if (publicEntry) {
+        assert.match(markup, /Sandbox Demo/);
+        assert.equal(markup.split(language === 'ar' ? 'قريبًا' : 'Coming soon').length - 1, 2);
       }
     }
     assert.doesNotMatch(footer, /href="\/services"/);
@@ -153,18 +159,17 @@ test('footer owns its direction, contact grid, social axis and single-column mob
 
 test('Services stays secondary while Home and all family searches preserve direct discovery', () => {
   const home = read('components/approved/ApprovedVisualPage.tsx');
-  assert.match(home, /href={`\/services\/\$\{service.slug\}`}/);
+  assert.match(home, /href=\{serviceEntryHref\(service.slug\)\}/);
   assert.doesNotMatch(home, /href="\/services"/);
   const family = read('components/services/ServicePageContent.tsx');
   assert.match(family, /href={`\/marketplace\?family=dir3-\$\{service\}`}/);
   assert.doesNotMatch(family, /href="\/services"/);
   const search = read('components/shared/ServiceSearchTable.tsx');
-  for (const branch of ['directDrive', 'familyMarketplace']) {
-    const block = search.slice(search.indexOf(`if (${branch}) {`)).split('\n    }')[0];
-    assert.ok(block.includes('router.push(`/marketplace?${params.toString()}`)'));
-    assert.doesNotMatch(block, /router.push\([^\n]*\/services/);
-  }
-  for (const key of ['stay', 'fly', 'concierge', 'vip']) {
+  assert.match(search, /router.push\(serviceEntryHref\(selected.key, params\)\)/);
+  assert.match(search, /if \(entry.comingSoon\) return/);
+  assert.doesNotMatch(search, /router.push\([^\n]*\/services/);
+  for (const key of ['drive', 'stay']) assert.match(read(`app/services/${key}/page.tsx`), new RegExp(`redirect\\(serviceEntryHref\\('${key}',`));
+  for (const key of ['fly', 'concierge', 'vip']) {
     assert.match(read(`app/services/${key}/page.tsx`), new RegExp(`service="${key}"[^>]*familyMarketplace`));
   }
   assert.match(read('app/services/page.tsx'), /return <ServicesOverview \/>/);

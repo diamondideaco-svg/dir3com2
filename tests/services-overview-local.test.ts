@@ -26,12 +26,12 @@ test('cards use exactly five canonical families, original content/assets and one
   assert.match(overview, /canonicalServices.map\(service/);
   assert.match(overview, /src=\{service.hero\}/);
   assert.match(overview, /ar \? service.descriptionAr : service.descriptionEn/);
-  assert.equal((overview.match(/href={`\/services\/\$\{service.slug\}`}/g) ?? []).length, 1);
+  assert.equal((overview.match(/href=\{serviceEntryHref\(service.slug\)\}/g) ?? []).length, 1);
   for (const service of canonicalServices) {
     assert.ok(fs.existsSync(`app/services/${service.slug}/page.tsx`));
     assert.ok(fs.existsSync(`public${service.hero}`));
   }
-  assert.match(read('components/approved/ApprovedVisualPage.tsx'), /href={`\/services\/\$\{service.slug\}`}/);
+  assert.match(read('components/approved/ApprovedVisualPage.tsx'), /href=\{serviceEntryHref\(service.slug\)\}/);
 });
 
 test('removed route sections remain available as unmodified reusable components', () => {

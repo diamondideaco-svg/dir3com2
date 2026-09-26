@@ -12,7 +12,7 @@ test('Drive simplifies the actual family component without deleting shared marke
   assert.match(content, /const familyMaster = directDrive \|\| familyMarketplace/);
   const excluded = content.slice(content.indexOf('{!familyMaster && <>'), content.indexOf('</>}'));
   for (const marker of ['<HomeUtilities', 'drive-master-products', '<StoriesCarousel', '<PartnersTicker']) assert.ok(excluded.includes(marker));
-  assert.match(read('app/services/drive/page.tsx'), /<ServicePageContent service="drive" stories=\{\[\]\} \/>/);
+  assert.match(read('app/services/drive/page.tsx'), /redirect\(serviceEntryHref\('drive',/);
   assert.doesNotMatch(read('app/services/drive/page.tsx'), /getTravelStoriesFeed/);
   for (const file of ['HomeUtilities', '../shared/StoriesCarousel', '../shared/PartnersTicker']) {
     const path = file === 'HomeUtilities' ? 'components/home/HomeUtilities.tsx' : `components/home/${file}.tsx`;
@@ -46,14 +46,14 @@ test('approved Drive real form retains Enter/native bounds and original direct M
   assert.match(search, /driveMarketplace = false/);
   assert.match(search, /driveMarketplace && initialService === 'drive'/);
   assert.match(search, /const directMarketplace = directDrive \|\| familyMarketplace/);
-  assert.match(search, /const FieldsContainer = directMarketplace \? 'form' : 'div'/);
-  assert.match(search, /onSubmit=\{directMarketplace \? \(event\) => \{\s*event.preventDefault\(\)/);
-  assert.match(search, /noValidate=\{directMarketplace && selected.key === 'stay' \? true : undefined\}/);
-  assert.match(search, /type=\{directMarketplace \? 'submit' : 'button'\}/);
-  assert.equal((search.match(/required=\{directMarketplace \|\| undefined\}/g) ?? []).length, 4);
+  assert.match(search, /const FieldsContainer = 'form'/);
+  assert.match(search, /onSubmit=\{\(event\) => \{\s*event.preventDefault\(\)/);
+  assert.match(search, /noValidate=\{selected.key === 'stay' \? true : undefined\}/);
+  assert.match(search, /type="submit"/);
+  assert.equal((search.match(/<select required|^\s+required$/gm) ?? []).length, 4);
   assert.match(search, /for \(const field of selected.fields\) params.set\(field.name, submissionValues\[field.name\]\)/);
-  assert.match(search, /if \(directDrive\) \{[\s\S]*params.set\('family', 'dir3-drive'\)[\s\S]*router.push\(`\/marketplace\?\$\{params.toString\(\)\}`\);\s*return;/);
-  assert.match(search, /router.push\(`\/services\/\$\{selected.key\}\?\$\{params.toString\(\)\}`\)/);
+  assert.match(search, /router.push\(serviceEntryHref\(selected.key, params\)\)/);
+  assert.doesNotMatch(search, /router.push\(`\/services\//);
   assert.match(search, /directMarketplace \? <h2[\s\S]*: <div className="service-search-table__tabs"/);
 });
 
