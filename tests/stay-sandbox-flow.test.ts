@@ -9,12 +9,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import * as contract from '../lib/marketplace/stay-demo';
 import * as mode from '../lib/marketplace/stay-demo-mode';
 import type { StaySearchResult } from '../lib/travel/contracts';
+import * as discovery from '../lib/marketplace/discovery';
 
 const now = Date.parse('2026-09-19T00:00Z');
 const search = 'family=dir3-stay&providerProof=liteapi&destination=cairo&checkIn=2026-10-12&checkOut=2026-10-14';
 const env = { VERCEL_ENV: 'preview', DIR3COM_STAY_SANDBOX_ENABLED: 'true', DIR3COM_STAY_SANDBOX_PROVIDERS: 'liteapi', LITEAPI_ENV: 'sandbox', LITEAPI_TEST_API_KEY: 'sand_unit_only' };
 type Get = (r: Request) => Promise<Response>;
-type Props = { initialSearch: string; hotelId?: string };
+type Props = { initialSearch: string; hotelId?: string; nationalities: discovery.NationalityChoices };
 type Component = (p: Props) => ReactElement;
 
 function load<T>(file: string, imports: Record<string, unknown>, globals: Record<string, unknown> = {}): T {
@@ -58,27 +59,33 @@ function api(environment: Record<string, string | undefined> = env, fail = false
   return { get: proof.GET, stay: stay.GET, calls: () => calls };
 }
 
-function client(get: Get, language: 'ar' | 'en') {
+function client(get: Get, language: 'ar' | 'en', clientDiscovery: typeof discovery = discovery) {
   const states: unknown[] = []; let index = 0; let effect: (() => void | (() => void)) | undefined;
-  const requests: string[] = [];
+  const requests: string[] = []; const history: string[] = []; let dependencies: unknown[] = [];
   const Client = load<{ default: Component }>('components/stay/StaySandbox.tsx', {
     'react/jsx-runtime': jsx,
     react: { useState: (initial: unknown) => {
       const slot = index++; if (!(slot in states)) states[slot] = initial;
       return [states[slot], (v: unknown) => { states[slot] = typeof v === 'function' ? v(states[slot]) : v; }];
-    }, useEffect: (fn: () => void | (() => void)) => { effect = fn; } },
+    }, useEffect: (fn: () => void | (() => void), deps: unknown[]) => { effect = fn; dependencies = deps; } },
     'next/link': { default: (props: Record<string, unknown>) => { const dom = { ...props }; delete dom.prefetch; return createElement('a', dom); } },
     'next/image': { default: 'img' }, './stay-sandbox.module.css': { default: {} },
     '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language, direction: language === 'ar' ? 'rtl' : 'ltr' }) },
     '@/lib/marketplace/stay-demo': contract,
-  }, { AbortController, setTimeout, clearTimeout, queueMicrotask, fetch: (url: string) => {
+    '@/lib/marketplace/discovery': clientDiscovery,
+    '@/components/public/MarketplaceNavigation': { default: () => null },
+  }, { AbortController, setTimeout, clearTimeout, queueMicrotask,
+    window: { history: { replaceState: (_state: unknown, _title: string, url: string) => history.push(url) } },
+    FormData: class { constructor(private values: Record<string,string>) {} get(key: string) { return this.values[key]; } },
+    fetch: (url: string) => {
     requests.push(url); return get(new Request(`https://preview.invalid${url}`));
   } }).default;
-  const render = (props: Props) => { index = 0; return renderToStaticMarkup(Client(props)); };
-  return { Client, render, requests, async mount(props: Props) {
+  const tree = (props: Props) => { index = 0; return Client(props); };
+  const render = (props: Props) => renderToStaticMarkup(tree(props));
+  return { Client, render, tree, requests, history, dependencies: () => dependencies, async mount(props: Props) {
     render(props); const cleanup = effect!();
-    for (let i = 0; i < 20 && (states[1] === 'loading' || i === 0); i++) await new Promise(resolve => setImmediate(resolve));
-    assert.notEqual(states[1], 'loading', 'effect must settle, not hang');
+    for (let i = 0; i < 20 && (states[2] === 'loading' || i === 0); i++) await new Promise(resolve => setImmediate(resolve));
+    assert.notEqual(states[2], 'loading', 'effect must settle, not hang');
     const html = render(props); if (typeof cleanup === 'function') cleanup(); return html;
   } };
 }
@@ -92,6 +99,7 @@ async function page(Client: Component, initial: string, enabled = true) {
     '@/lib/marketplace/data': { isMarketplaceFamilyKey: (s: string) => ['dir3-stay', 'dir3-drive'].includes(s) },
     '@/lib/marketplace/search-context': { serializePageQuery: (q: Record<string, string>) => new URLSearchParams(q).toString() },
     '@/lib/marketplace/stay-demo-mode': { stayDemoEnabled: () => enabled }, '@/lib/marketplace/stay-demo': contract,
+    '@/lib/marketplace/discovery': discovery,
   }).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(initial))) });
 }
 
@@ -137,6 +145,61 @@ test('normal Stay and partner/Drive routing remain separate; unsubmitted searche
   assert.notEqual((await page(ui.Client, search + '&inventory=partners')).type, ui.Client);
   assert.notEqual((await page(ui.Client, search, false)).type, ui.Client);
   assert.equal((await page(ui.Client, 'family=dir3-drive')).type, 'drive-marketplace');
+  assert.equal((await page(ui.Client, '')).type, 'drive-marketplace', 'public entry must expose the canonical nine-offer journey');
+  assert.notEqual((await page(ui.Client, 'q=hotel')).type, 'drive-marketplace', 'explicit legacy searches are preserved');
   const ordinary = await page(ui.Client, search.replace('&providerProof=liteapi', '&searched=1'));
   await ui.mount(ordinary.props); assert.match(ui.requests[0], /^\/api\/marketplace\/stay-sandbox\?/);
+});
+
+test('actual Stay filter submit updates results/detail URL without changing effect dependencies or fetching again', async () => {
+  const backend=api(); const ui=client(backend.get,'en'); const element=await page(ui.Client,search);
+  await ui.mount(element.props); const before=[...ui.dependencies()];
+  function descendants(value: unknown): ReactElement<Record<string,unknown>>[] {
+    if(Array.isArray(value)) return value.flatMap(descendants);
+    if(!value || typeof value!=='object' || !('props' in value)) return [];
+    const node=value as ReactElement<Record<string,unknown>>;
+    return [node,...descendants(node.props.children)];
+  }
+  const form=descendants(ui.tree(element.props)).find(node=>node.type==='form' && node.props.onSubmit)!;
+  assert.ok(form);
+  (form.props.onSubmit as (event:unknown)=>void)({preventDefault(){},currentTarget:{sort:'price-asc',hotelName:'Transport hotel 19',maxPrice:'200'}});
+  const html=ui.render(element.props);
+  assert.equal((html.match(/data-stay-hotel=/g)??[]).length,1);
+  assert.match(html,/data-stay-hotel="unit-19"/);
+  assert.match(html,/hotelName=Transport\+hotel\+19/);
+  assert.equal(ui.history.length,1); assert.match(ui.history[0],/checkIn=2026-10-12/);
+  assert.deepEqual([...ui.dependencies()],before);
+  assert.equal(ui.requests.length,1); assert.equal(backend.calls(),1);
+});
+
+for (const query of ['query=hotel', `query=${encodeURIComponent('فندق')}`, 'q=hotel', 'category=hotel', 'service=stay']) {
+  test(`explicit search retains Explorer and its original context: ${query}`, async () => {
+    const backend = api(); const ui = client(backend.stay, 'en');
+    const element = await page(ui.Client, query);
+    const explorer = (element as unknown as ReactElement<{ children: ReactElement<Props> }>).props.children;
+    assert.equal(explorer.type, 'legacy-catalogue');
+    assert.equal(explorer.props.initialSearch, query);
+    assert.equal(backend.calls(), 0);
+    assert.equal((await page(ui.Client, `family=dir3-drive&${query}`)).type, 'drive-marketplace');
+    assert.equal((await page(ui.Client, `family=dir3-stay&${query}`)).type, ui.Client);
+  });
+}
+
+for (const language of ['ar', 'en'] as const) test(`nationality SSR and initial client options use the same serialized snapshot in ${language}`, async () => {
+  const backend = api(); const serverUi = client(backend.stay, language);
+  const element = await page(serverUi.Client, 'family=dir3-stay&nationality=EG');
+  const props = JSON.parse(JSON.stringify(element.props)) as Props;
+  const browserUi = client(backend.stay, language, { ...discovery,
+    nationalityOptions: () => assert.fail('Client must not regenerate runtime-dependent names or ordering'),
+  });
+  const options = (html: string) => html.match(/<select name="nationality"[\s\S]*?<\/select>/)![0];
+  assert.equal(options(serverUi.render(element.props)), options(browserUi.render(props)));
+  for (const locale of ['ar', 'en'] as const) {
+    assert.deepEqual(props.nationalities[locale], discovery.nationalityOptions(locale));
+    assert.equal(new Set(props.nationalities[locale].map(c => c.code)).size, 245);
+  }
+  assert.match(options(browserUi.render(props)), /value="EG" selected=""/);
+  assert.match(options(browserUi.render(props)), language === 'ar' ? /مصر/ : /Egypt/);
+  assert.equal(backend.calls(), 0);
+  assert.doesNotMatch(readFileSync('components/stay/StaySandbox.tsx', 'utf8'), /suppressHydrationWarning/);
 });

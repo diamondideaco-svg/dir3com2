@@ -6,6 +6,7 @@ import DriveMarketplace from '@/components/drive/DriveMarketplace';
 import StaySandbox from '@/components/stay/StaySandbox';
 import { stayDemoEnabled } from '@/lib/marketplace/stay-demo-mode';
 import { normalizeStayDemoSearch } from '@/lib/marketplace/stay-demo';
+import { nationalityOptions } from '@/lib/marketplace/discovery';
 
 export default async function MarketplacePage({
   searchParams,
@@ -17,11 +18,12 @@ export default async function MarketplacePage({
   const family = isMarketplaceFamilyKey(requested) ? requested : undefined;
   const liteApiSandboxProof = family === 'dir3-stay' && query.providerProof === 'liteapi';
 
-  if (family === 'dir3-drive') return <DriveMarketplace key={serializePageQuery(query)} initialSearch={serializePageQuery(query)} />;
+  // Preserve explicit legacy searches; the unfiltered entry exposes the canonical Drive catalogue.
+  if (family === 'dir3-drive' || (!requested && !query.query && !query.q && !query.category && !query.service)) return <DriveMarketplace key={serializePageQuery(query)} initialSearch={serializePageQuery(query)} discovery={!family} />;
 
   if (family === 'dir3-stay' && query.inventory !== 'partners' && stayDemoEnabled()) {
     const search = normalizeStayDemoSearch(serializePageQuery(query));
-    return <StaySandbox key={search} initialSearch={search}/>;
+    return <StaySandbox key={search} initialSearch={search} nationalities={{ ar: nationalityOptions('ar'), en: nationalityOptions('en') }}/>;
   }
 
   return (
