@@ -127,6 +127,7 @@ function LoginContent() {
             provider: 'google',
             options: {
                 redirectTo: buildOAuthCallbackUrl(window.location.origin, requestedDestination ? redirectTo : null),
+                queryParams: { prompt: 'select_account' },
                 skipBrowserRedirect: true,
             },
         });

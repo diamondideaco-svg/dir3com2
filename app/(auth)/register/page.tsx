@@ -102,6 +102,7 @@ export default function RegisterPage() {
                 provider: 'google',
                 options: {
                     redirectTo: buildOAuthCallbackUrl(window.location.origin, getPostLoginDestination(null)),
+                    queryParams: { prompt: 'select_account' },
                     skipBrowserRedirect: true,
                 },
             });
