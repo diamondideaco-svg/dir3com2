@@ -8,6 +8,7 @@ import { FiCloud, FiDollarSign, FiGlobe, FiGrid, FiMenu, FiMoon, FiSearch, FiSun
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import LogoutButton from '@/components/auth/LogoutButton';
 import { getRolePostLoginDestination } from '@/lib/auth/redirect';
+import { publicServiceLink } from '@/lib/marketplace/public-entry';
 
 const copy = {
   ar: {
@@ -71,6 +72,7 @@ export default function Header({ logo, onHomeSearch }: { logo?: ReactNode; onHom
   const pathname = usePathname();
   const { language, direction, toggleLanguage } = useLanguage();
   const t = copy[language];
+  const navigation = t.nav.map(item => publicServiceLink(item.href, item.label, language));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dark, setDark] = useState(false);
   const [largeText, setLargeText] = useState(false);
@@ -139,10 +141,10 @@ export default function Header({ logo, onHomeSearch }: { logo?: ReactNode; onHom
 
         <nav aria-label={t.menu} className="hidden min-w-0 flex-1 items-center justify-center xl:flex">
           <div className="flex items-center justify-center gap-5 xl:gap-7">
-            {t.nav.map((item) => {
+            {navigation.map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
-                <Link key={item.href} href={item.href} className={`whitespace-nowrap border-b-2 px-0.5 py-2 text-sm font-semibold transition ${active ? 'border-[#c89536] text-[#a66d10]' : 'border-transparent text-[#2a2118] hover:border-[#d4af37]/45 hover:text-[#a66d10]'}`}>
+                <Link prefetch={false} key={item.href} href={item.href} className={`border-b-2 px-0.5 py-2 text-sm font-semibold transition ${active ? 'border-[#c89536] text-[#a66d10]' : 'border-transparent text-[#2a2118] hover:border-[#d4af37]/45 hover:text-[#a66d10]'}`}>
                   {item.label}
                 </Link>
               );
@@ -175,7 +177,7 @@ export default function Header({ logo, onHomeSearch }: { logo?: ReactNode; onHom
       {mobileOpen ? (
         <div className="border-t border-[#d4af37]/20 bg-[#fffdf9] px-4 py-4 xl:hidden">
           <nav className="mx-auto grid max-w-7xl gap-2" aria-label={t.menu}>
-            {t.nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className="rounded-xl border border-[#d4af37]/15 bg-white px-4 py-3 text-sm font-semibold text-[#2a2118]">{item.label}</Link>)}
+            {navigation.map((item) => <Link prefetch={false} key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className="rounded-xl border border-[#d4af37]/15 bg-white px-4 py-3 text-sm font-semibold text-[#2a2118]">{item.label}</Link>)}
             <div className="mt-2 flex flex-wrap gap-2 md:hidden">
               {onHomeSearch ? <button type="button" onClick={openHomeSearch} className={utilityClass} aria-label={t.search} aria-controls="home-search-panel"><FiSearch /></button> : <Link href="/marketplace" className={utilityClass} aria-label={t.search}><FiSearch /></Link>}
               <Link href={onHomeSearch ? '#home-weather' : '/#home-weather'} onClick={onHomeSearch ? () => setMobileOpen(false) : undefined} className={utilityClass} aria-label={t.weather}><FiCloud /></Link>

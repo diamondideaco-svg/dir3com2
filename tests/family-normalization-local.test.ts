@@ -18,7 +18,8 @@ for (const [family, fields] of Object.entries(contracts)) {
     const definition = search.slice(search.indexOf(`key: '${family}'`)).split('    ],')[0];
     assert.deepEqual([...definition.matchAll(/name: '([^']+)'/g)].map(m => m[1]), fields);
     const route = read(`app/services/${family}/page.tsx`);
-    assert.match(route, new RegExp(`<ServicePageContent service="${family}" stories=\\{\\[\\]\\} familyMarketplace`));
+    if (family === 'stay') assert.match(route, /redirect\(serviceEntryHref\('stay',/);
+    else assert.match(route, new RegExp(`<ServicePageContent service="${family}" stories=\\{\\[\\]\\} familyMarketplace`));
     assert.doesNotMatch(route, /getTravelStoriesFeed|supabase|fetch\(/);
     assert.match(read('components/layout/SiteShell.tsx'), new RegExp(`'/services/${family}'`));
   });
@@ -38,9 +39,10 @@ test('family master reuses locked Drive styling and suppresses generic sections 
 test('all opted-in family searches preserve input context and use the canonical Marketplace filter without a Services detour', () => {
   assert.match(search, /familyMarketplace = false/);
   assert.match(search, /for \(const field of selected.fields\) params.set\(field.name, submissionValues\[field.name\]\)/);
-  assert.match(search, /if \(familyMarketplace\) \{\s*params.set\('family', `dir3-\$\{selected.key\}`\);[\s\S]*?router.push\(`\/marketplace\?\$\{params.toString\(\)\}`\);\s*return;/);
+  assert.match(search, /router.push\(serviceEntryHref\(selected.key, params\)\)/);
+  assert.match(search, /if \(entry.comingSoon\) return/);
   assert.match(content, /href={`\/marketplace\?family=dir3-\$\{service\}`}/);
-  assert.match(search, /router.push\(`\/services\/\$\{selected.key\}\?\$\{params.toString\(\)\}`\)/);
+  assert.doesNotMatch(search, /router.push\(`\/services\//);
   assert.doesNotMatch(search, /confirmed|guaranteed|payment|setInventory/);
 });
 
@@ -48,7 +50,7 @@ test('Stay normalizes rooms before submission without bypassing validation of ot
   for (const value of ['', '0', '-1', '1.5', 'NaN']) assert.equal(normalizeStayRooms(value), 1);
   for (const value of ['1','2','12','13']) assert.equal(normalizeStayRooms(value), Number(value));
   assert.match(search, /submissionValues.rooms = String\(normalizeStayRooms\(values.rooms\)\)/);
-  assert.match(search, /noValidate=\{directMarketplace && selected.key === 'stay' \? true : undefined\}/);
+  assert.match(search, /noValidate=\{selected.key === 'stay' \? true : undefined\}/);
   assert.match(search, /input:not\(\[data-normalized-rooms\]\), select/);
   assert.match(search, /for \(const control of controls\) if \(!control.reportValidity\(\)\) return/);
   assert.match(search, /data-normalized-rooms=\{selected.key === 'stay' && field.name === 'rooms' \? true : undefined\}/);

@@ -35,6 +35,8 @@
   font-size: 0.9rem;
   min-width: 0;
 }
+.search fieldset { min-width:0; border:0; padding:0; }
+.search legend { font-size:0.9rem; margin-bottom:7px; }
 .page input,
 .page select,
 .page textarea {

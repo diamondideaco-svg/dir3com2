@@ -10,6 +10,7 @@ import { partners } from '@/lib/content/partners';
 import type { PartnerScope } from '@/lib/content/partners';
 import type { TravelStory, TravelStoryService } from '@/lib/content/travel-stories';
 import { getCanonicalService } from '@/lib/services/canonical';
+import { serviceEntryHref, serviceEntryState } from '@/lib/marketplace/public-entry';
 import driveStyles from './drive-family.module.css';
 
 type ServicePageConfig = {
@@ -72,6 +73,7 @@ export function ServicePageContent({ service, stories, familyMarketplace = false
   const familyMaster = directDrive || familyMarketplace;
   const page = servicePages[service];
   const canonicalPage = getCanonicalService(service);
+  const entry = serviceEntryState(service, language);
   const related = relatedServices.filter((item) => item.key !== service);
 
   return (
@@ -82,14 +84,14 @@ export function ServicePageContent({ service, stories, familyMarketplace = false
             <p className="text-xs font-semibold tracking-[0.22em] text-[var(--home-gold)]">{page.eyebrow}</p>
             <h1 className="mt-4 text-4xl font-semibold leading-tight sm:text-6xl">{page.title[language]}</h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-[#5d6672]">{language === 'ar' ? canonicalPage?.descriptionAr : canonicalPage?.descriptionEn}</p>
-            <div className="mt-7 flex flex-wrap gap-3">
+            {entry.comingSoon ? <p role="status" className="mt-7 font-semibold">{entry.label} — {language === 'ar' ? 'البحث والطلبات غير متاحة حاليًا.' : 'Search and requests are not available yet.'}</p> : <div className="mt-7 flex flex-wrap gap-3">
               <a href="#service-search" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[var(--home-gold)] px-6 py-3 font-semibold text-white">
                 {language === 'ar' ? 'ابدأ البحث' : 'Start search'} <FiArrowUpLeft />
               </a>
               <a href={`/marketplace?family=dir3-${service}`} className="inline-flex min-h-12 items-center gap-2 rounded-full border border-[var(--home-gold)] px-6 py-3 font-semibold text-[var(--color-navy)]">
                 {language === 'ar' ? `تصفح سوق ${page.eyebrow}` : `Browse ${page.eyebrow} marketplace`} <FiArrowUpLeft />
               </a>
-            </div>
+            </div>}
           </div>
           <div className="drive-master-hero__image">
             <img src={page.heroImage} alt={page.eyebrow} className="drive-master-hero__asset" />
@@ -97,7 +99,7 @@ export function ServicePageContent({ service, stories, familyMarketplace = false
         </div>
       </section>
 
-      {directDrive ? <ServiceSearchTable initialService="drive" driveMarketplace /> : <ServiceSearchTable initialService={service} familyMarketplace={familyMarketplace} />}
+      {!entry.comingSoon && (directDrive ? <ServiceSearchTable initialService="drive" driveMarketplace /> : <ServiceSearchTable initialService={service} familyMarketplace={familyMarketplace} />)}
       {!familyMaster && <>
       <HomeUtilities />
 
@@ -108,13 +110,13 @@ export function ServicePageContent({ service, stories, familyMarketplace = false
           <div className="drive-core-services mt-6">
             {related.map((item) => (
               <article key={item.href} className="drive-core-service-card">
-                <a href={item.href} className="drive-core-service-card__media" aria-label={item.title}>
+                <a href={serviceEntryHref(item.key)} className="drive-core-service-card__media" aria-label={item.title}>
                   <img src={item.image} alt={item.title} />
                 </a>
                 <div className="drive-core-service-card__body">
                   <h3>{item.title}</h3>
                   <p>{language === 'ar' ? getCanonicalService(item.key)?.descriptionAr : getCanonicalService(item.key)?.descriptionEn}</p>
-                  <a href={item.href} className="drive-core-service-card__cta">{language === 'ar' ? 'عرض الخدمات' : 'Explore services'} <FiArrowUpLeft /></a>
+                  <p>{serviceEntryState(item.key, language).label}</p><a href={serviceEntryHref(item.key)} className="drive-core-service-card__cta">{serviceEntryState(item.key, language).comingSoon ? (language === 'ar' ? 'معلومات الخدمة' : 'Service information') : (language === 'ar' ? 'عرض الخدمات' : 'Explore services')} <FiArrowUpLeft /></a>
                 </div>
               </article>
             ))}

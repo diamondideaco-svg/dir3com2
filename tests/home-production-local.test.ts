@@ -43,7 +43,7 @@ test('existing five canonical services immediately follow the hero, with no inve
   assert.ok(home.indexOf('data-home-services') > home.indexOf('approved-visual-frame'));
   assert.ok(home.indexOf('data-home-services') < home.indexOf('<div id="home-search-panel"'));
   assert.match(home, /canonicalServices.map\(service/);
-  assert.match(home, /href={`\/services\/\$\{service.slug\}`}/);
+  assert.match(home, /href=\{serviceEntryHref\(service.slug\)\}/);
   assert.match(home, /service.descriptionAr : service.descriptionEn/);
   for (const service of canonicalServices) assert.ok(fs.existsSync(`public${service.hero}`));
 });

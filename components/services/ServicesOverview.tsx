@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { canonicalServices } from '@/lib/services/canonical';
+import { serviceEntryHref, serviceEntryState } from '@/lib/marketplace/public-entry';
 import styles from './services-overview.module.css';
 
 export default function ServicesOverview() {
@@ -22,8 +23,9 @@ export default function ServicesOverview() {
         <div data-dabra-avoid>
           <h2>{service.name}</h2>
           <p>{ar ? service.descriptionAr : service.descriptionEn}</p>
-          <Link href={`/services/${service.slug}`} aria-label={`${ar ? 'اكتشف الخدمة' : 'Explore service'} — ${service.name}`}>
-            {ar ? 'اكتشف الخدمة' : 'Explore service'}<span aria-hidden="true">{ar ? '←' : '→'}</span>
+          <strong>{serviceEntryState(service.slug, language).label}</strong>
+          <Link prefetch={false} href={serviceEntryHref(service.slug)} aria-label={`${ar ? 'اكتشف الخدمة' : 'Explore service'} — ${service.name} — ${serviceEntryState(service.slug, language).label}`}>
+            {serviceEntryState(service.slug, language).comingSoon ? (ar ? 'معلومات الخدمة' : 'Service information') : (ar ? 'اكتشف الخدمة' : 'Explore service')}<span aria-hidden="true">{ar ? '←' : '→'}</span>
           </Link>
         </div>
       </article>)}
