@@ -6,9 +6,9 @@ import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { STAY_DEMO_NOTICE, STAY_DESTINATIONS, filterStayDemoCards, parseStayDemoQuery, type StayDemoCard, type StayDemoResult } from '@/lib/marketplace/stay-demo';
 import styles from './stay-sandbox.module.css';
 import MarketplaceNavigation from '@/components/public/MarketplaceNavigation';
-import { nationalityOptions, stayFilterSearch } from '@/lib/marketplace/discovery';
+import { stayFilterSearch, type NationalityChoices } from '@/lib/marketplace/discovery';
 
-export default function StaySandbox({ initialSearch, hotelId }: { initialSearch: string; hotelId?: string }) {
+export default function StaySandbox({ initialSearch, hotelId, nationalities }: { initialSearch: string; hotelId?: string; nationalities: NationalityChoices }) {
   const { language, direction } = useLanguage(); const ar = language === 'ar';
   const t = (en: string, arabic: string) => ar ? arabic : en;
   const [filterSearch, setFilterSearch] = useState(initialSearch);
@@ -100,7 +100,7 @@ export default function StaySandbox({ initialSearch, hotelId }: { initialSearch:
         <div className={styles.guestFields}>
         <label>{t('Adults', 'البالغون')}<input type="number" name="adults" min="1" max="9" defaultValue={params.get('adults') ?? '2'} required/></label>
         <label>{t('Rooms', 'الغرف')}<input type="number" name="rooms" min="1" max="4" defaultValue={params.get('rooms') ?? '1'} required/></label>
-        <label>{t('Guest nationality', 'جنسية الضيف')}<select name="nationality" defaultValue={params.get('nationality') ?? ''} required><option value="" disabled>{t('Select nationality', 'اختر الجنسية')}</option>{nationalityOptions(language).map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</select></label>
+        <label>{t('Guest nationality', 'جنسية الضيف')}<select name="nationality" defaultValue={params.get('nationality') ?? ''} required><option value="" disabled>{t('Select nationality', 'اختر الجنسية')}</option>{nationalities[language].map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</select></label>
         <label>{t('Currency', 'العملة')}<select name="currency" defaultValue={params.get('currency') ?? 'SAR'}>{['SAR','USD','EGP','EUR','AED'].map(c => <option key={c}>{c}</option>)}</select></label>
         </div>
         <div className={styles.help}><p>{t('Adults only · up to 9 adults, 4 rooms and 30 nights.', 'للبالغين فقط · حتى 9 بالغين و4 غرف و30 ليلة.')}</p><details><summary>{t('How guests are allocated', 'كيف يتم توزيع الضيوف')}</summary><p>{t('Adults are allocated evenly across rooms, with any remainder in the first rooms.', 'يُوزّع البالغون بالتساوي على الغرف وتُضاف الزيادة إلى الغرف الأولى.')}</p></details></div>

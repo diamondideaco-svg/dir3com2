@@ -14,7 +14,11 @@ export function discoveryHref(family: MarketplaceFamilyKey | undefined, current:
   return `/marketplace${params.size ? `?${params}` : ''}`;
 }
 
-/** Reuse registration's country source; selection never depends on language/location. */
+export type NationalityChoices = Record<'ar' | 'en', { code: string; label: string }[]>;
+
+/** Compute in the server page and serialize both languages to the client.
+ * ICU names/collation can differ by runtime; never regenerate options during hydration.
+ * Reuse registration's country source; selection never depends on language/location. */
 export function nationalityOptions(language: 'ar' | 'en') {
   const names = new Intl.DisplayNames([language], { type: 'region' });
   return registerCountries.map(code => ({ code, label: names.of(code) ?? code }))
