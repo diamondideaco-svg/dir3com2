@@ -14,6 +14,7 @@ import * as stay from '../lib/marketplace/stay-demo';
 import * as rooms from '../lib/services/search-state';
 import * as drive from '../lib/drive/search';
 import * as catalog from '../lib/drive/catalog';
+import { filterMarketplaceServices, type MarketplaceService } from '../lib/marketplace/data';
 
 type Node = ReactElement<Record<string, unknown>>;
 function nodes(value: unknown): Node[] {
@@ -82,6 +83,31 @@ test('Drive date-only handoff preserves dates without inventing time or passing 
   assert.equal(p.get('pickup'),'Cairo');assert.equal(p.get('dropoff'),'Giza');assert.equal(p.get('pickupDate'),'2026-10-12');assert.equal(p.get('passengers'),'3');
   assert.equal(p.get('pickupAt'),null);assert.equal(p.get('searched'),null);
   assert.equal(drive.validateDriveSearch(drive.readDriveSearch(p)), 'INVALID_LOCAL_TIME');
+});
+
+for (const inventory of ['', '&inventory=partners']) test(`Stay receiving catalogue preserves party filtering ${inventory || '(demo disabled)'}`,()=>{
+  const source = new URLSearchParams(`service=stay&country=EG&city=cairo&checkIn=2026-12-12&checkOut=2026-12-14&rooms=2&guests=3${inventory}`);
+  const params = new URL(entry.serviceEntryHref('stay', source), 'https://unit.invalid').searchParams;
+  const filters = context.initialContextFilters(context.readSearchContext(params), 'dir3-stay');
+  assert.equal(filters.travelers, '3');
+  assert.equal(filters.checkIn, '2026-12-12');
+  assert.equal(filters.checkOut, '2026-12-14');
+  assert.equal(params.get('rooms'), '2');
+  // Isolated filter inputs only: never persisted or exposed as inventory.
+  const capacityOnly = [2, 3].map(maxGuests => ({ id: String(maxGuests), maxGuests,
+    family: 'dir3-stay', destination: 'cairo' } as MarketplaceService));
+  assert.deepEqual(filterMarketplaceServices(capacityOnly, { ...filters, family: 'dir3-stay' }).map(item => item.id), ['3']);
+  assert.equal(params.get('service'), null);
+  assert.equal(params.get('nationality'), null);
+  assert.equal(new URLSearchParams(stay.normalizeStayDemoSearch(params.toString())).get('searched'), null);
+});
+
+test('Stay party mapping uses explicit adults consistently and rejects ambiguous/invalid counts',()=>{
+  for (const [input, expected] of [['guests=3&adults=4', '4'], ['guests=3&guests=4', null], ['guests=0', null], ['adults=3.5', null]] as const) {
+    const p = new URL(entry.serviceEntryHref('stay', new URLSearchParams(input)), 'https://unit.invalid').searchParams;
+    assert.equal(p.get('travelers'), expected);
+    assert.equal(p.get('searched'), null);
+  }
 });
 
 for(const service of ['drive','stay'] as const) test(`actual legacy ${service} route redirects only to safe canonical prefill`,async()=>{

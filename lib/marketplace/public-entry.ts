@@ -1,6 +1,6 @@
 import { resolveCanonicalServiceSlug, type CanonicalServiceSlug } from '../services/canonical';
 import { isComingSoonMarketplaceFamily } from './launch-catalog';
-import { canonicalCity, familyContextFields, validSearchDate } from './search-context';
+import { canonicalCity, familyContextFields, partySize, validSearchDate } from './search-context';
 
 /** Public navigation reuses launch truth; these labels never grant provider access. */
 export function serviceEntryState(service: CanonicalServiceSlug, language: 'ar' | 'en') {
@@ -46,6 +46,10 @@ export function serviceEntryHref(service: CanonicalServiceSlug, source = new URL
       params.set('destination', canonicalCity(city)?.en ?? city);
     }
     if (!params.has('adults') && params.has('guests')) params.set('adults', params.get('guests')!);
+    // Both Stay recipients need the party size. Do not restore service=stay:
+    // that legacy marker would turn a dated Sandbox prefill into an automatic search.
+    const travelers = partySize(params.get('adults') ?? undefined);
+    if (travelers) params.set('travelers', String(travelers));
   } else {
     params.set('service', service);
   }
