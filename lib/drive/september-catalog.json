@@ -1,0 +1,218 @@
+{
+  "version": "managed-eg-20260927-v1",
+  "rows": [
+    {
+      "sourceRow": 4,
+      "vehicleId": "mercedes-v250",
+      "offerId": "managed-eg-mercedes-v250",
+      "make": "Mercedes-Benz",
+      "model": "V 250",
+      "ar": "مرسيدس V 250",
+      "vehicleClass": "Luxury",
+      "body": "mpv",
+      "modelYears": [
+        2025
+      ],
+      "dailyCents": 27500,
+      "airportCents": 13750
+    },
+    {
+      "sourceRow": 5,
+      "vehicleId": "mercedes-v300",
+      "offerId": "managed-eg-mercedes-v300",
+      "make": "Mercedes-Benz",
+      "model": "V 300",
+      "ar": "مرسيدس V 300",
+      "vehicleClass": "Luxury",
+      "body": "mpv",
+      "modelYears": [
+        2025,
+        2026,
+        2027
+      ],
+      "dailyCents": 44000,
+      "airportCents": 22000
+    },
+    {
+      "sourceRow": 8,
+      "vehicleId": "kia-sportage",
+      "offerId": "managed-eg-kia-sportage",
+      "make": "Kia",
+      "model": "Sportage",
+      "ar": "كيا سبورتاج",
+      "vehicleClass": "SUV",
+      "body": "suv",
+      "modelYears": [
+        2026
+      ],
+      "dailyCents": 13200,
+      "airportCents": 6600
+    },
+    {
+      "sourceRow": 11,
+      "vehicleId": "hyundai-accent",
+      "offerId": "managed-eg-hyundai-accent",
+      "make": "Hyundai",
+      "model": "Accent",
+      "ar": "هيونداي أكسنت",
+      "vehicleClass": "Economy",
+      "body": "sedan",
+      "modelYears": [
+        2026
+      ],
+      "dailyCents": 6600,
+      "airportCents": 3300
+    },
+    {
+      "sourceRow": 12,
+      "vehicleId": "jetour-t2",
+      "offerId": "safeerat-eg-jetour-t2",
+      "make": "Jetour",
+      "model": "T2",
+      "ar": "جيتور T2",
+      "vehicleClass": "SUV",
+      "body": "suv",
+      "modelYears": [
+        2026,
+        2027
+      ],
+      "dailyCents": 16500,
+      "airportCents": 8250
+    },
+    {
+      "sourceRow": 13,
+      "vehicleId": "jetour-x70",
+      "offerId": "managed-eg-jetour-x70",
+      "make": "Jetour",
+      "model": "X70",
+      "ar": "جيتور X70",
+      "vehicleClass": "SUV",
+      "body": "suv",
+      "modelYears": [
+        2026
+      ],
+      "dailyCents": 8800,
+      "airportCents": 4400
+    },
+    {
+      "sourceRow": 14,
+      "vehicleId": "jetour-x90",
+      "offerId": "safeerat-eg-jetour-x90",
+      "make": "Jetour",
+      "model": "X90",
+      "ar": "جيتور X90",
+      "vehicleClass": "SUV",
+      "body": "suv",
+      "modelYears": [
+        2026
+      ],
+      "dailyCents": 11000,
+      "airportCents": 5500
+    },
+    {
+      "sourceRow": 15,
+      "vehicleId": "soueast-s05",
+      "offerId": "managed-eg-soueast-s05",
+      "make": "Soueast",
+      "model": "S05",
+      "ar": "سوايست S05",
+      "vehicleClass": "SUV",
+      "body": "suv",
+      "modelYears": [
+        2026
+      ],
+      "dailyCents": 8800,
+      "airportCents": 4400
+    },
+    {
+      "sourceRow": 16,
+      "vehicleId": "soueast-s09",
+      "offerId": "managed-eg-soueast-s09",
+      "make": "Soueast",
+      "model": "S09",
+      "ar": "سوايست S09",
+      "vehicleClass": "SUV",
+      "body": "suv",
+      "modelYears": [
+        2026
+      ],
+      "dailyCents": 11000,
+      "airportCents": 5500
+    },
+    {
+      "sourceRow": 17,
+      "vehicleId": "soueast-s07",
+      "offerId": "managed-eg-soueast-s07",
+      "make": "Soueast",
+      "model": "S07",
+      "ar": "سوايست S07",
+      "vehicleClass": "SUV",
+      "body": "suv",
+      "modelYears": [
+        2026
+      ],
+      "dailyCents": 8800,
+      "airportCents": 4400
+    },
+    {
+      "sourceRow": 19,
+      "vehicleId": "range-rover-sport",
+      "offerId": "managed-eg-range-rover-sport",
+      "make": "Land Rover",
+      "model": "Range Rover Sport",
+      "ar": "رينج روفر سبورت",
+      "vehicleClass": "Premium SUV",
+      "body": "suv",
+      "modelYears": [
+        2025
+      ],
+      "dailyCents": 66000,
+      "airportCents": 33000
+    },
+    {
+      "sourceRow": 20,
+      "vehicleId": "nissan-sunny",
+      "offerId": "safeerat-eg-nissan-sunny",
+      "make": "Nissan",
+      "model": "Sunny",
+      "ar": "نيسان صني",
+      "vehicleClass": "Economy",
+      "body": "sedan",
+      "modelYears": [
+        2025
+      ],
+      "dailyCents": 6600,
+      "airportCents": 3300
+    },
+    {
+      "sourceRow": 24,
+      "vehicleId": "toyota-land-cruiser",
+      "offerId": "managed-eg-toyota-land-cruiser",
+      "make": "Toyota",
+      "model": "Land Cruiser",
+      "ar": "تويوتا لاند كروزر",
+      "vehicleClass": "Premium SUV",
+      "body": "suv",
+      "modelYears": [
+        2025
+      ],
+      "dailyCents": 49500,
+      "airportCents": 24750
+    },
+    {
+      "sourceRow": 25,
+      "vehicleId": "cadillac-escalade",
+      "offerId": "managed-eg-cadillac-escalade",
+      "make": "Cadillac",
+      "model": "Escalade",
+      "ar": "كاديلاك إسكاليد",
+      "vehicleClass": "Premium SUV",
+      "body": "suv",
+      "modelYears": [
+        2026
+      ],
+      "dailyCents": 110000,
+      "airportCents": 55000
+    }
+  ]
+}

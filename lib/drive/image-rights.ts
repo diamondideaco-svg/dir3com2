@@ -19,3 +19,7 @@ export const DRIVE_CURRENT_IMAGE_PROVENANCE = [
   changes: 'Deep metallic green body, transparent cutout; independent asset for the existing Range Rover 2025 listing. Does not represent Range Rover Sport or guarantee supplied color or trim.',
   externalPhoto: false,
 }]);
+
+// Task #167: original generated assets. Public model references were used only for shape checking.
+export const SEPTEMBER_IMAGE_IDS = ['mercedes-v250','mercedes-v300','kia-sportage','hyundai-accent','jetour-x70','soueast-s05','soueast-s07','soueast-s09','range-rover-sport','toyota-land-cruiser','cadillac-escalade'] as const;
+DRIVE_CURRENT_IMAGE_PROVENANCE.push(...SEPTEMBER_IMAGE_IDS.map(id => ({ id, file: `${id}.webp`, method: 'Original DIR3COM-generated 2025+ model catalogue asset (Task #167)', changes: 'Transparent cutout; WebP delivery; model/color/trim subject to Operations confirmation', externalPhoto: false })));

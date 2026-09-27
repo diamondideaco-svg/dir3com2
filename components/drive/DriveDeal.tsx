@@ -44,12 +44,12 @@ export default function DriveDeal({ offerId, initialSearch }: { offerId: string;
     inFlight.current=true;setSending(true);setError('');
     try{
       const session=await identify();if(!session)return;
-      const body=JSON.stringify({drive_offer_id:offerId,trip:parsed.trip});
+      const body=JSON.stringify({drive_offer_id:offerId,catalog_version:offer.version,trip:parsed.trip});
       const key=await marketplaceRequestAttemptKey(attempt.current,session.user.id,body,()=>sessionStorage);
       const response=await fetch('/api/marketplace/requests',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`,'Idempotency-Key':key},body,signal:AbortSignal.timeout(20000)});
       const payload=await response.json();
       if(response.status===401){try{sessionStorage.setItem(draftKey,JSON.stringify(trip));}catch{}window.location.assign(buildMarketplaceLoginHandoff(`/marketplace/drive/${offerId}?${initialSearch}`));return;}
-      if(!response.ok)throw new Error(String(response.status));
+      if(!response.ok)throw new Error(payload.error==='CATALOG_CHANGED'?'CATALOG_CHANGED':String(response.status));
       setReference(payload.request.request_reference);try{sessionStorage.removeItem(draftKey);}catch{}
     }catch(reason){setError(reason instanceof Error?reason.message:'UNAVAILABLE');}finally{inFlight.current=false;setSending(false);}
   }
@@ -57,7 +57,7 @@ export default function DriveDeal({ offerId, initialSearch }: { offerId: string;
   return <section className={styles.page} dir={direction}><Link href={`/marketplace?${initialSearch}`}>{ar?'العودة إلى النتائج':'Back to results'}</Link><h1>{vehicleTitle(vehicle,language)}</h1>
     <ol className={styles.steps}><li>{ar?'التفاصيل':'Deal details'}</li><li>{ar?'← بيانات الرحلة':'→ Trip details'}</li><li>{ar?'← مراجعة الطلب':'→ Review request'}</li></ol>
     {error&&<p role="alert" className={styles.error}>{errorText}{!priced&&<button onClick={()=>setPriceRetry(value=>value+1)}>{ar?'إعادة تحميل السعر':'Retry price loading'}</button>}</p>}
-    <div className={styles.fields}><section className={styles.panel}><Image src={vehicle.image} alt={vehicleTitle(vehicle,language)} width={800} height={500} className={styles.gallery}/><p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language)}</p><p>{vehicleClassLabel(vehicle.vehicleClass,language)}</p><DriveInclusions ar={ar}/><p>{ar?'تؤكد العمليات السعة والطراز أو الفئة المكافئة، على ألا يقل الموديل عن 2025.':'Operations confirms capacity and the vehicle or equivalent class, with model year 2025 or newer.'}</p><Link href="/marketplace/drive/image-credits">{ar?'مصدر الصور':'Image provenance'}</Link></section>
+    <div className={styles.fields}><section className={styles.panel}><Image src={vehicle.image} alt={vehicleTitle(vehicle,language)} width={800} height={500} className={styles.gallery}/><p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language, vehicle)}</p><p>{vehicleClassLabel(vehicle.vehicleClass,language)}</p><DriveInclusions ar={ar}/><p>{ar?'تؤكد العمليات السعة والطراز أو الفئة المكافئة، على ألا يقل الموديل عن 2025.':'Operations confirms capacity and the vehicle or equivalent class, with model year 2025 or newer.'}</p><Link href="/marketplace/drive/image-credits">{ar?'مصدر الصور':'Image provenance'}</Link></section>
       <section className={styles.panel}><h2>{ar?'ملخص الرحلة':'Trip summary'}</h2><dl><dt>{ar?'الاستلام':'Pickup'}</dt><dd>{trip.pickup}</dd><dt>{ar?'التسليم':'Drop-off'}</dt><dd>{trip.dropoff||trip.pickup}</dd><dt>{ar?'الموعد':'Dates'}</dt><dd dir="ltr">{trip.pickupAt.replace('T',' ')} → {trip.returnAt.replace('T',' ')}</dd></dl><p>Africa/Cairo</p>{priced&&<DrivePrice offer={priced} ar={ar}/>}<p>{ar?'شروط التغيير والإلغاء غير محددة؛ تؤكد قبل الالتزام.':'Change and cancellation terms are not supplied; confirm them before committing.'}</p><p className={styles.badge}>{ar?'طلب للتأكيد — ليس حجزًا':'Request to confirm — not a booking'}</p>{step===0&&<button disabled={!priced||priced.price.baseAmount===null||Boolean(validateDriveSearch(trip))} onClick={select}>{ar?'اختر هذه السيارة':'Select this vehicle'}</button>}</section></div>
     {step===1&&!reference&&<form className={styles.panel} onSubmit={review}><h2>{ar?'بيانات العميل والرحلة':'Customer and trip details'}</h2><p>{email}</p><div className={styles.fields}>
       <label>{ar?'الاسم':'Name'}<input required maxLength={120} value={trip.name} onChange={e=>change('name',e.target.value)}/></label><label>{ar?'الهاتف':'Phone'}<input type="tel" required maxLength={30} value={trip.phone} onChange={e=>change('phone',e.target.value)}/></label>

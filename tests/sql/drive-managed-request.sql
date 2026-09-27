@@ -15,7 +15,7 @@ INSERT INTO public.team_access_grants(email,job_title,access_level,country_scope
 SELECT jsonb_build_object('pickup','Cairo airport','dropoff','Cairo hotel','pickupAt',to_char((now()+interval '2 days') AT TIME ZONE 'Africa/Cairo','YYYY-MM-DD"T"HH24:MI'),'returnAt',to_char((now()+interval '3 days') AT TIME ZONE 'Africa/Cairo','YYYY-MM-DD"T"HH24:MI'),'mode','chauffeur','passengers',2,'luggage',1,'currency','EGP','name','QA Customer','phone','+201000000000','flightNumber','','flightArrival','','notes','','specialRequest','','acknowledged',true,'minimumModelYear',2025,'acceptableModelYears',jsonb_build_array(2025,2026,2027))::text AS trip \gset
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',jsonb_build_object('sub',:'customer','role','authenticated')::text,true);
-SELECT public.create_managed_drive_request('safeerat-eg-jetour-t2','task147-idempotency-key',:'trip'::jsonb)->>'reference' AS reference \gset
+SELECT public.create_managed_drive_request('safeerat-eg-jetour-t2','task147-idempotency-key',:'trip'::jsonb,'managed-eg-20260927-v1')->>'reference' AS reference \gset
 SELECT id AS request_id FROM public.marketplace_requests WHERE request_reference=:'reference' \gset
 SELECT pg_temp.ok((SELECT count(*)=1 FROM public.marketplace_requests WHERE request_reference=:'reference'),'one owner REQ');
 SELECT pg_temp.ok((public.create_managed_drive_request('safeerat-eg-jetour-t2','task147-idempotency-key',:'trip'::jsonb)->>'replayed')::boolean,'identical retry replay');
@@ -23,7 +23,8 @@ SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%
 SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%L::jsonb)','safeerat-eg-jetour-t2','task147-missing-ack',jsonb_set(:'trip'::jsonb,'{acknowledged}','false')),'22023','missing acknowledgement rejected');
 SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%L::jsonb)','safeerat-eg-jetour-t2','task147-old-model',jsonb_set(:'trip'::jsonb,'{minimumModelYear}','2024')),'22023','model older than 2025 rejected');
 SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%L::jsonb)','safeerat-eg-jetour-t2','task147-too-soon',jsonb_set(:'trip'::jsonb,'{pickupAt}',to_jsonb(to_char((now()+interval '5 hours') AT TIME ZONE 'Africa/Cairo','YYYY-MM-DD"T"HH24:MI')))),'22023','six-hour rule at database');
-SELECT pg_temp.ok((SELECT supplier_amount=100 AND supplier_currency='USD' FROM public.drive_request_context WHERE request_id=:'request_id'),'supplier original amount/currency snapshot');
+SELECT pg_temp.ok((SELECT supplier_amount=165 AND supplier_currency='USD' FROM public.drive_request_context WHERE request_id=:'request_id'),'approved catalogue amount/currency snapshot');
+SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%L::jsonb,%L)','safeerat-eg-jetour-t2','task167-stale-price',:'trip','safeerat-eg-20260916-v1'),'40001','stale catalogue price rejected');
 SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%L::jsonb)','safeerat-eg-jetour-t2','task147-dst-arrival',:'trip'::jsonb || '{"mode":"airport","flightNumber":"MS123","flightArrival":"2027-04-30T00:30"}'::jsonb),'22023','airport DST gap rejected at RPC');
 SELECT pg_temp.denied(format('select public.create_managed_drive_request(%L,%L,%L::jsonb)','safeerat-eg-jetour-t2','task147-bad-flight',:'trip'::jsonb || '{"mode":"airport","flightNumber":"<script>","flightArrival":"2027-05-01T12:00"}'::jsonb),'22023','invalid flight identifier rejected at RPC');
 SELECT pg_temp.ok((SELECT count(*)=0 FROM public.drive_request_events),'customer cannot read private audit notes');

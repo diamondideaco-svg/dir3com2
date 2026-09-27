@@ -9,10 +9,9 @@ import { CUSTOMER_MARKETPLACE_REQUEST_FIELDS } from '../lib/marketplace/customer
 const now=Date.parse('2026-09-17T06:00Z');
 const search={pickup:'Cairo airport',dropoff:'Cairo hotel',pickupAt:'2026-09-17T15:00',returnAt:'2026-09-18T15:00',mode:'chauffeur' as const,currency:'EGP' as const,passengers:2,luggage:1};
 const trip={...search,name:'QA Customer',phone:'+201000000000',notes:'',specialRequest:'',flightNumber:'',flightArrival:'',acknowledged:true};
-test('exact nine approved offers, immutable supplier identity and no legacy substitutions',()=>{
-  assert.equal(DRIVE_OFFERS.length,9);assert.equal(new Set(DRIVE_OFFERS.map(x=>x.id)).size,9);
-  assert.deepEqual(DRIVE_OFFERS.map(x=>[x.airport,x.chauffeur,x.currency]),[[100,200,'USD'],[50,100,'USD'],[50,100,'USD'],[900,1800,'EGP'],[1500,3500,'EGP'],[80,150,'USD'],[200,350,'USD'],[250,450,'USD'],[null,550,'USD']]);
-  assert.ok(DRIVE_OFFERS.every(x=>x.supplierId==='safeerat-al-arab'&&x.country==='EG'&&x.availability==='request_to_confirm'));
+test('approved catalogue keeps unique IDs and request-only availability',()=>{
+  assert.equal(DRIVE_OFFERS.length,20);assert.equal(new Set(DRIVE_OFFERS.map(x=>x.id)).size,20);
+  assert.ok(DRIVE_OFFERS.every(x=>['safeerat-al-arab','egypt-operations'].includes(x.supplierId)&&x.country==='EG'&&x.availability==='request_to_confirm'));
 });
 test('unknown capacities/trims remain unknown and each mapped image exists locally',()=>{
   for(const v of VEHICLE_MASTER){

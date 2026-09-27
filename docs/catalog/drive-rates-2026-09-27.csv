@@ -1,28 +1,28 @@
-row,source_name,source_years,higher_USD,markup_percent,proposed_USD,existing_candidate,notes
-1,Mercedes E200,21 - 22 - 2…,170,10,187.00,mercedes-e200,Final year clipped; do not also overwrite AMG Line
-2,Mercedes S500,22 / 23,500,10,550.00,,
-3,Mercedes G-Class,22 - 23,550,10,605.00,mercedes-gclass,
-4,Mercedes V250,22 to 25,250,10,275.00,,
-5,Mercedes V300,25 - 26 - 27,400,10,440.00,,
-6,Kia carval,26,200,10,220.00,,Confirm model spelling; possible Carnival
-7,Kia K4,22 - 23,85,10,93.50,,Confirm model/year combination
-8,Kia Sportage,26,120,10,132.00,,
-9,Hyundai cn7,22 / 23,70,10,77.00,,Confirm customer-facing model name
-10,Hyundai tuycan,22 / 25,100,10,110.00,,Confirm model spelling; possible Tucson
-11,Hyundai accent,22 / 26,60,10,66.00,,
-12,Jetour T2,26 / 27,150,10,165.00,jetour-t2,
-13,Jetour X70,26,80,10,88.00,,
-14,Jetour X90,26,100,10,110.00,jetour-x90,Existing offer is EGP; use new USD price without inventing FX
-15,Soueast S05,26,80,10,88.00,,
-16,Soueast S09,26,100,10,110.00,,
-17,Soueast S07,26,80,10,88.00,,
-18,Range Rover,22,280,10,308.00,range-rover,Does not identify Range Rover 2025
-19,Range Rover Sport,24 - 25,600,10,660.00,,Distinct model; do not map onto full-size Range Rover 2025
-20,Nissan Sunny,22 / 25,60,10,66.00,nissan-sunny,Existing offer is EGP; use new USD price without inventing FX
-21,Nissan Patrol,22 - 23,400,10,440.00,,
-22,Nissan [model not stated],26,700,10,770.00,,Blank model cell; do not assume Patrol
-23,Land Cruiser,20 - 21,350,10,385.00,,
-24,Land Cruiser,22 - 23 - 24 - 25,450,10,495.00,,Keep separate from older Land Cruiser rate row
-25,Escalade,26,1000,10,1100.00,,
-26,H1,not stated,150,10,165.00,,Model year missing
-27,Hiace,not stated,150,10,165.00,,Model year missing
+row,sourceName,sourceYears,approvedHigherUSD,proposedCustomerUSDCents,proposedAirportUSDCents,status,mappedVehicleId,eligibleModelYears
+"1","Mercedes E200","21 - 22 - 2…","170","18700","9350","held_source_model_or_year_confirmation","",""
+"2","Mercedes S500","22 / 23","500","55000","27500","held_source_model_or_year_confirmation","",""
+"3","Mercedes G-Class","22 - 23","550","60500","30250","held_source_model_or_year_confirmation","",""
+"4","Mercedes V250","22 to 25","250","27500","13750","mapped_2025_plus_pending_release_gates","mercedes-v250","2025"
+"5","Mercedes V300","25 - 26 - 27","400","44000","22000","mapped_2025_plus_pending_release_gates","mercedes-v300","2025,2026,2027"
+"6","Kia carval","26","200","22000","11000","held_source_model_or_year_confirmation","",""
+"7","Kia K4","22 - 23","85","9350","4675","held_source_model_or_year_confirmation","",""
+"8","Kia Sportage","26","120","13200","6600","mapped_2025_plus_pending_release_gates","kia-sportage","2026"
+"9","Hyundai cn7","22 / 23","70","7700","3850","held_source_model_or_year_confirmation","",""
+"10","Hyundai tuycan","22 / 25","100","11000","5500","held_source_model_or_year_confirmation","",""
+"11","Hyundai accent","22 / 26","60","6600","3300","mapped_2025_plus_pending_release_gates","hyundai-accent","2026"
+"12","Jetour T2","26 / 27","150","16500","8250","mapped_2025_plus_pending_release_gates","jetour-t2","2026,2027"
+"13","Jetour X70","26","80","8800","4400","mapped_2025_plus_pending_release_gates","jetour-x70","2026"
+"14","Jetour X90","26","100","11000","5500","mapped_2025_plus_pending_release_gates","jetour-x90","2026"
+"15","Soueast S05","26","80","8800","4400","mapped_2025_plus_pending_release_gates","soueast-s05","2026"
+"16","Soueast S09","26","100","11000","5500","mapped_2025_plus_pending_release_gates","soueast-s09","2026"
+"17","Soueast S07","26","80","8800","4400","mapped_2025_plus_pending_release_gates","soueast-s07","2026"
+"18","Range Rover","22","280","30800","15400","held_source_model_or_year_confirmation","",""
+"19","Range Rover Sport","24 - 25","600","66000","33000","mapped_2025_plus_pending_release_gates","range-rover-sport","2025"
+"20","Nissan Sunny","22 / 25","60","6600","3300","mapped_2025_plus_pending_release_gates","nissan-sunny","2025"
+"21","Nissan Patrol","22 - 23","400","44000","22000","held_source_model_or_year_confirmation","",""
+"22","Nissan [model not stated]","26","700","77000","38500","held_source_model_or_year_confirmation","",""
+"23","Land Cruiser","20 - 21","350","38500","19250","held_source_model_or_year_confirmation","",""
+"24","Land Cruiser","22 - 23 - 24 - 25","450","49500","24750","mapped_2025_plus_pending_release_gates","toyota-land-cruiser","2025"
+"25","Escalade","26","1000","110000","55000","mapped_2025_plus_pending_release_gates","cadillac-escalade","2026"
+"26","H1","not stated","150","16500","8250","held_source_model_or_year_confirmation","",""
+"27","Hiace","not stated","150","16500","8250","held_source_model_or_year_confirmation","",""
