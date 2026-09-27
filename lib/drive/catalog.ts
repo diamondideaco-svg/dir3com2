@@ -17,7 +17,7 @@ export type VehicleMaster = {
 const master = (id: string, make: string, model: string, ar: string, vehicleClass: VehicleClass, body: 'sedan' | 'suv', year: number | null = null, trim: string | null = null): VehicleMaster => ({
   id, make, model, ar, en: `${make} ${model}${year ? ` ${year}` : ''}${trim ? ` ${trim}` : ''}`,
   vehicleClass, body, year, trim, passengers: null, luggage: null, doors: null, airConditioning: null,
-  image: `/vehicles/${id === 'range-rover-2025' ? 'range-rover' : id}.webp`, exactModelGuaranteed: false,
+  image: `/vehicles/${id}.webp`, exactModelGuaranteed: false,
 });
 export const VEHICLE_MASTER: readonly VehicleMaster[] = [
   master('mercedes-e200-amg', 'Mercedes-Benz', 'E 200', 'مرسيدس E 200 AMG Line', 'Luxury', 'sedan', null, 'AMG Line'),

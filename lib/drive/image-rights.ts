@@ -13,4 +13,9 @@ export const DRIVE_IMAGE_RIGHTS = [
 
 export const DRIVE_CURRENT_IMAGE_PROVENANCE = [
   'mercedes-e200-amg','jetour-t2','jetour-t1','jetour-x90','nissan-sunny','mercedes-e200','range-rover','mercedes-gclass',
-].map(id => ({ id, file: `${id}.webp`, method: 'Original DIR3COM-generated 2025 catalogue visualization', changes: 'Transparent vehicle cutout with a subtle contact shadow; optimized to WebP for customer delivery', externalPhoto: false }));
+].map(id => ({ id, file: `${id}.webp`, method: 'Original DIR3COM-generated 2025 catalogue visualization', changes: 'Transparent vehicle cutout with a subtle contact shadow; optimized to WebP for customer delivery', externalPhoto: false })).concat([{
+  id: 'range-rover-2025', file: 'range-rover-2025.webp',
+  method: 'AI color variation of the existing DIR3COM-generated Range Rover catalogue visualization, 2026-09-27',
+  changes: 'Deep metallic green body, transparent cutout; independent asset for the existing Range Rover 2025 listing. Does not represent Range Rover Sport or guarantee supplied color or trim.',
+  externalPhoto: false,
+}]);
