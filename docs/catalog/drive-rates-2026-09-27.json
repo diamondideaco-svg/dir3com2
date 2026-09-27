@@ -13,9 +13,10 @@
     "fuelIncluded": true,
     "driverIncluded": true,
     "confirmedBy": "CEO, 2026-09-27",
-    "airportRateIncluded": false,
+    "airportRateIncluded": true,
     "extraDistanceRate": null,
-    "overtimeRate": null
+    "overtimeRate": null,
+    "airportRateIncludedMeaning": "Airport prices derived separately at 50%; not bundled into daily service"
   },
   "publicationBlockers": [
     "Source includes pre-2025 years; prior public minimum is 2025",
@@ -41,7 +42,8 @@
       "proposedCustomerUSDCents": 18700,
       "existingVehicleCandidate": "mercedes-e200",
       "notes": "Final year clipped; do not also overwrite AMG Line",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 9350
     },
     {
       "row": 2,
@@ -56,7 +58,8 @@
       "proposedCustomerUSDCents": 55000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 27500
     },
     {
       "row": 3,
@@ -71,7 +74,8 @@
       "proposedCustomerUSDCents": 60500,
       "existingVehicleCandidate": "mercedes-gclass",
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 30250
     },
     {
       "row": 4,
@@ -86,7 +90,8 @@
       "proposedCustomerUSDCents": 27500,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 13750
     },
     {
       "row": 5,
@@ -101,7 +106,8 @@
       "proposedCustomerUSDCents": 44000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 22000
     },
     {
       "row": 6,
@@ -115,7 +121,8 @@
       "proposedCustomerUSDCents": 22000,
       "existingVehicleCandidate": null,
       "notes": "Confirm model spelling; possible Carnival",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 11000
     },
     {
       "row": 7,
@@ -129,7 +136,8 @@
       "proposedCustomerUSDCents": 9350,
       "existingVehicleCandidate": null,
       "notes": "Confirm model/year combination",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 4675
     },
     {
       "row": 8,
@@ -143,7 +151,8 @@
       "proposedCustomerUSDCents": 13200,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 6600
     },
     {
       "row": 9,
@@ -158,7 +167,8 @@
       "proposedCustomerUSDCents": 7700,
       "existingVehicleCandidate": null,
       "notes": "Confirm customer-facing model name",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 3850
     },
     {
       "row": 10,
@@ -173,7 +183,8 @@
       "proposedCustomerUSDCents": 11000,
       "existingVehicleCandidate": null,
       "notes": "Confirm model spelling; possible Tucson",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 5500
     },
     {
       "row": 11,
@@ -188,7 +199,8 @@
       "proposedCustomerUSDCents": 6600,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 3300
     },
     {
       "row": 12,
@@ -203,7 +215,8 @@
       "proposedCustomerUSDCents": 16500,
       "existingVehicleCandidate": "jetour-t2",
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 8250
     },
     {
       "row": 13,
@@ -218,7 +231,8 @@
       "proposedCustomerUSDCents": 8800,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 4400
     },
     {
       "row": 14,
@@ -233,7 +247,8 @@
       "proposedCustomerUSDCents": 11000,
       "existingVehicleCandidate": "jetour-x90",
       "notes": "Existing offer is EGP; use new USD price without inventing FX",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 5500
     },
     {
       "row": 15,
@@ -248,7 +263,8 @@
       "proposedCustomerUSDCents": 8800,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 4400
     },
     {
       "row": 16,
@@ -263,7 +279,8 @@
       "proposedCustomerUSDCents": 11000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 5500
     },
     {
       "row": 17,
@@ -278,7 +295,8 @@
       "proposedCustomerUSDCents": 8800,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 4400
     },
     {
       "row": 18,
@@ -293,7 +311,8 @@
       "proposedCustomerUSDCents": 30800,
       "existingVehicleCandidate": "range-rover",
       "notes": "Does not identify Range Rover 2025",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 15400
     },
     {
       "row": 19,
@@ -308,7 +327,8 @@
       "proposedCustomerUSDCents": 66000,
       "existingVehicleCandidate": null,
       "notes": "Distinct model; do not map onto full-size Range Rover 2025",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 33000
     },
     {
       "row": 20,
@@ -323,7 +343,8 @@
       "proposedCustomerUSDCents": 6600,
       "existingVehicleCandidate": "nissan-sunny",
       "notes": "Existing offer is EGP; use new USD price without inventing FX",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 3300
     },
     {
       "row": 21,
@@ -338,7 +359,8 @@
       "proposedCustomerUSDCents": 44000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 22000
     },
     {
       "row": 22,
@@ -353,7 +375,8 @@
       "proposedCustomerUSDCents": 77000,
       "existingVehicleCandidate": null,
       "notes": "Blank model cell; do not assume Patrol",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 38500
     },
     {
       "row": 23,
@@ -368,7 +391,8 @@
       "proposedCustomerUSDCents": 38500,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 19250
     },
     {
       "row": 24,
@@ -383,7 +407,8 @@
       "proposedCustomerUSDCents": 49500,
       "existingVehicleCandidate": null,
       "notes": "Keep separate from older Land Cruiser rate row",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 24750
     },
     {
       "row": 25,
@@ -398,7 +423,8 @@
       "proposedCustomerUSDCents": 110000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 55000
     },
     {
       "row": 26,
@@ -413,7 +439,8 @@
       "proposedCustomerUSDCents": 16500,
       "existingVehicleCandidate": null,
       "notes": "Model year missing",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 8250
     },
     {
       "row": 27,
@@ -428,7 +455,13 @@
       "proposedCustomerUSDCents": 16500,
       "existingVehicleCandidate": null,
       "notes": "Model year missing",
-      "status": "pending_model_year_and_catalogue_reconciliation"
+      "status": "pending_model_year_and_catalogue_reconciliation",
+      "proposedAirportUSDCents": 8250
     }
-  ]
+  ],
+  "airportPricing": {
+    "rule": "50% of final marked-up daily USD price; no second markup",
+    "percentageOfFinalDaily": 50,
+    "confirmedBy": "CEO, 2026-09-27 16:15 Asia/Riyadh"
+  }
 }
