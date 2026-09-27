@@ -24,10 +24,11 @@ An existing request is recovered before checking catalogue version. A new reques
 ## Verification
 
 - Focused catalogue, request/API, retry and public-entry suite: 37/37 PASS.
+- Migration baseline/cutover/target suite: 55/55 PASS, plus `check-migration-baseline.mjs` PASS. The first cloud run exposed a missing forward-registry entry; the exact new SQL path/SHA-256 was registered without changing historical baselines, checks or archived bytes.
 - In-memory PostgreSQL (PGlite) execution of the actual migration and RPC: PASS. Checked twenty offers, all fourteen exact daily/airport pairs, 24-hour metadata, stale version rejection, recovery of a request created before migration, one event per request, current-version retry, airport amount, Operations naming and function/table privileges.
 - `npm run typecheck`, `npm run lint` (zero errors, 23 existing warnings), `npm run build`, `git diff --check`: PASS. Build uses a local-only inert Supabase URL/key for public UI rendering, not Production credentials or authenticated QA evidence.
 - Existing Docker/PostgreSQL regression harness updated so this migration runs after its Drive dependencies and expects the new authoritative T2 rate. Full Docker/RLS integration is not rerun; the embedded test does not claim that coverage.
-- Public browser results, details and image rendering are verified separately; evidence is recorded in Task #167. No authenticated request, external supplier search or commercial transaction is executed by this UI check.
+- Frozen-build public browser AR/EN at 1440px and 390px: PASS, twenty cards and all twenty images loaded, Sport details, no overflow and zero page errors. Sport daily660 USD/airport330 USD. Machine-readable results and two mobile screenshots are committed. No authenticated request, external supplier search or commercial transaction was executed. Browser/application evidence is reused for the final registry/document-only correction; application and image bytes are unchanged.
 - Independent functional/security review, exact-SHA cloud CI and Preview remain release gates. Self-checks are not independent approval.
 
 ## Coordinated publication and recovery
