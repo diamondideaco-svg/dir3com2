@@ -5,8 +5,13 @@ export const LEGACY_DRIVE_CATALOG_VERSION = 'safeerat-eg-20260916-v1';
 export const DRIVE_COUNTRY = 'EG';
 export const DRIVE_TIME_ZONE = 'Africa/Cairo';
 export const DRIVE_CURRENCIES = ['EGP', 'USD', 'SAR', 'EUR', 'AED'] as const;
-export const DRIVE_MODEL_YEARS = [2025, 2026, 2027] as const;
+export const LEGACY_DRIVE_MODEL_YEARS = [2025, 2026, 2027] as const;
+export const DRIVE_MODEL_YEARS = [2022, 2023, 2024, 2025, 2026, 2027] as const;
 export const DRIVE_MIN_MODEL_YEAR = DRIVE_MODEL_YEARS[0];
+/** An old client's identical retry must retain its original request contract. */
+export function driveRequestModelYears(catalogVersion: unknown): readonly number[] {
+  return catalogVersion === DRIVE_CATALOG_VERSION ? DRIVE_MODEL_YEARS : LEGACY_DRIVE_MODEL_YEARS;
+}
 export type DriveCurrency = typeof DRIVE_CURRENCIES[number];
 export type DriveMode = 'airport' | 'chauffeur';
 export type VehicleClass = 'Economy' | 'Sedan' | 'SUV' | 'Luxury' | 'Premium SUV';
@@ -19,7 +24,7 @@ export type VehicleMaster = {
 const master = (id: string, make: string, model: string, ar: string, vehicleClass: VehicleClass, body: VehicleMaster['body'], year: number | null = null, trim: string | null = null): VehicleMaster => ({
   id, make, model, ar, en: `${make} ${model}${year ? ` ${year}` : ''}${trim ? ` ${trim}` : ''}`,
   vehicleClass, body, year, trim, passengers: null, luggage: null, doors: null, airConditioning: null,
-  image: `/vehicles/${id}.webp`, exactModelGuaranteed: false,
+  image: `/vehicles/${id}.webp`, exactModelGuaranteed: false, modelYears: LEGACY_DRIVE_MODEL_YEARS,
 });
 const legacyVehicles: readonly VehicleMaster[] = [
   master('mercedes-e200-amg', 'Mercedes-Benz', 'E 200', 'مرسيدس E 200 AMG Line', 'Luxury', 'sedan', null, 'AMG Line'),
@@ -74,7 +79,7 @@ export function vehicleClassLabel(value: VehicleClass, language: 'ar' | 'en') {
   const ar: Record<VehicleClass, string> = { Economy: 'اقتصادية', Sedan: 'سيدان', SUV: 'رياضية متعددة الاستخدامات', Luxury: 'فاخرة', 'Premium SUV': 'رياضية فاخرة متعددة الاستخدامات' };
   return language === 'ar' ? ar[value] : value;
 }
-export function vehicleYearAvailabilityLabel(language: 'ar' | 'en', vehicle?: VehicleMaster) {
+export function vehicleYearAvailabilityLabel(language: 'ar' | 'en', vehicle?: Pick<VehicleMaster, 'modelYears'>) {
   const years = (vehicle?.modelYears ?? DRIVE_MODEL_YEARS).join(' / ');
   return language === 'ar' ? `موديل ${years} — حسب التوفر أو ما يماثلها` : `Model year ${years} — subject to availability or similar`;
 }

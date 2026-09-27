@@ -1,0 +1,17 @@
+{
+  "method": "Built-in image generation; three original assets; transparent_background=true",
+  "prompts": [
+    {
+      "id": "mercedes-s500",
+      "prompt": "Use case: product-mockup. Asset type: original DIR3COM vehicle catalogue cutout. Subject: 2022 Mercedes-Benz S500 W223 long luxury sedan, obsidian black metallic. Create an original realistic studio vehicle visualization, NOT a copy of any existing photograph. One complete vehicle in front three-quarter view facing left, centered with ample transparent margin, horizontal 3:2 composition. Body, tires, mirrors fully visible. Soft natural studio lighting, sharp realistic metal/glass/rubber, subtle small contact shadow only. True transparent background; no floor plane, no scenery, no people, no captions, no watermark, no registration digits. Correct model generation geometry."
+    },
+    {
+      "id": "hyundai-elantra-cn7",
+      "prompt": "Use case: product-mockup. Asset type: original DIR3COM vehicle catalogue cutout. Subject: 2022 Hyundai Elantra CN7 seventh generation sedan, pre-facelift angular grille (not the 2024 facelift), clean silver metallic. Create an original realistic studio vehicle visualization, NOT a copy of any existing photograph. One complete vehicle in front three-quarter view facing left, centered with ample transparent margin, horizontal 3:2 composition. Body, tires, mirrors fully visible. Soft natural studio lighting, sharp realistic metal/glass/rubber, subtle small contact shadow only. True transparent background; no floor plane, no scenery, no people, no captions, no watermark, no registration digits. Correct model generation geometry."
+    },
+    {
+      "id": "nissan-patrol",
+      "prompt": "Use case: product-mockup. Asset type: original DIR3COM vehicle catalogue cutout. Subject: 2022 Nissan Patrol Y62 facelift full size SUV with correct C-shaped headlights and wide V-motion grille (not the Y63), pearl white. Create an original realistic studio vehicle visualization, NOT a copy of any existing photograph. One complete vehicle in front three-quarter view facing left, centered with ample transparent margin, horizontal 3:2 composition. Body, tires, mirrors fully visible. Soft natural studio lighting, sharp realistic metal/glass/rubber, subtle small contact shadow only. True transparent background; no floor plane, no scenery, no people, no captions, no watermark, no registration digits. Correct model generation geometry."
+    }
+  ]
+}

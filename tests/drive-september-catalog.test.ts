@@ -5,6 +5,7 @@ import {execFileSync} from 'node:child_process';
 import {DRIVE_OFFERS, VEHICLE_MASTER, DRIVE_CATALOG_VERSION, journeyPrice, vehicleYearAvailabilityLabel} from '../lib/drive/catalog';
 import data from '../lib/drive/september-catalog.json';
 import source from '../docs/catalog/drive-rates-2026-09-27.json';
+import {savedDriveModelYears} from '../lib/drive/record';
 
 test('approved high USD price plus 10% once; airport exactly half, in integer cents',()=>{
   assert.equal(source.rows.length,27);
@@ -25,21 +26,21 @@ test('approved high USD price plus 10% once; airport exactly half, in integer ce
     assert.equal(journeyPrice(offer,'chauffeur').total,null);
   }
 });
-test('14 reconciled rows plus six untouched legacy offers; ambiguous rows never become inventory',()=>{
-  assert.equal(data.rows.length,14);assert.equal(DRIVE_OFFERS.length,20);
-  assert.equal(new Set(DRIVE_OFFERS.map(o=>o.id)).size,20);
-  assert.deepEqual(data.rows.map(r=>r.sourceRow),[4,5,8,11,12,13,14,15,16,17,19,20,24,25]);
-  assert.ok(data.rows.every(r=>r.modelYears.every(y=>y>=2025&&y<=2027)));
+test('20 reconciled rows plus three untouched legacy offers; ambiguous rows never become inventory',()=>{
+  assert.equal(data.rows.length,20);assert.equal(DRIVE_OFFERS.length,23);
+  assert.equal(new Set(DRIVE_OFFERS.map(o=>o.id)).size,23);
+  assert.deepEqual(data.rows.map(r=>r.sourceRow),[1,2,3,4,5,8,9,11,12,13,14,15,16,17,18,19,20,21,24,25]);
+  assert.ok(data.rows.every(r=>r.modelYears.every(y=>y>=2022&&y<=2027)));
   assert.ok(DRIVE_OFFERS.every(o=>o.availability==='request_to_confirm'));
   const legacy=DRIVE_OFFERS.filter(o=>o.supplierId==='safeerat-al-arab');
   assert.deepEqual(legacy.map(o=>[o.vehicleId,o.airport,o.chauffeur,o.currency]),[
-    ['mercedes-e200-amg',100,200,'USD'],['jetour-t1',50,100,'USD'],['mercedes-e200',80,150,'USD'],
-    ['range-rover',200,350,'USD'],['range-rover-2025',250,450,'USD'],['mercedes-gclass',null,550,'USD'],
+    ['mercedes-e200-amg',100,200,'USD'],['jetour-t1',50,100,'USD'],
+    ['range-rover-2025',250,450,'USD'],
   ]);
   const sport=VEHICLE_MASTER.find(v=>v.id==='range-rover-sport')!;
   assert.notEqual(sport.image,VEHICLE_MASTER.find(v=>v.id==='range-rover-2025')!.image);
-  assert.match(vehicleYearAvailabilityLabel('en',sport),/2025 —/);
-  assert.doesNotMatch(vehicleYearAvailabilityLabel('en',sport),/2026|2027|2024/);
+  assert.match(vehicleYearAvailabilityLabel('en',sport),/2024 \/ 2025 —/);
+  assert.doesNotMatch(vehicleYearAvailabilityLabel('en',sport),/2026|2027|2023/);
 });
 test('database release generated from same prices and safe ordering preserves retry and commercial boundaries',()=>{
   const path='supabase/migrations/20260927223137_drive_september27_managed_catalog.sql';
@@ -51,4 +52,11 @@ test('database release generated from same prices and safe ordering preserves re
   assert.match(before,/CATALOG_BASELINE_CHANGED/);assert.match(before,/NEW_OFFER_ID_ALREADY_EXISTS/);
   assert.doesNotMatch(before,/(?:UPDATE|DELETE FROM|INSERT INTO)\s+public\.(?:products|partners|bookings|payments)\b/i);
   assert.match(before,/REVOKE ALL ON FUNCTION public.create_managed_drive_request\(text,text,jsonb,text\) FROM PUBLIC,anon,service_role/);
+});
+test('Operations and customer review use saved years, never downgrade an old request promise',()=>{
+  const saved=(minimumModelYear:number,acceptableModelYears:number[])=>({minimumModelYear,acceptableModelYears});
+  assert.deepEqual(savedDriveModelYears(saved(2025,[2025,2026,2027])),[2025,2026,2027]);
+  assert.deepEqual(savedDriveModelYears(saved(2022,[2022,2023,2024,2025,2026,2027])),[2022,2023,2024,2025,2026,2027]);
+  assert.deepEqual(savedDriveModelYears(saved(2025,[2021,2022,2024,2025,2028])),[2025]);
+  assert.deepEqual(savedDriveModelYears({}),[2025,2026,2027]);
 });

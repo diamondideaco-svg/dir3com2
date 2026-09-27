@@ -78,6 +78,33 @@
       "asset": "public/vehicles/cadillac-escalade.webp",
       "externalPhotoReused": false,
       "reviewStatus": "visual_model_family_checked; exact regional trim/year not a supplied vehicle guarantee"
+    },
+    {
+      "id": "mercedes-s500",
+      "generationFile": "exec-a4d95f87-746a-4051-a11f-7627f308514d.png",
+      "asset": "public/vehicles/mercedes-s500.webp",
+      "date": "2026-09-28",
+      "depictedGeneration": "2022 model family",
+      "externalPhotoReused": false,
+      "reviewStatus": "Original transparent model-family visualization; not a guarantee of supplied color, trim or physical unit"
+    },
+    {
+      "id": "hyundai-elantra-cn7",
+      "generationFile": "exec-6bb2cb3a-43a7-4384-8ce5-cb8fff9b635e.png",
+      "asset": "public/vehicles/hyundai-elantra-cn7.webp",
+      "date": "2026-09-28",
+      "depictedGeneration": "2022 model family",
+      "externalPhotoReused": false,
+      "reviewStatus": "Original transparent model-family visualization; not a guarantee of supplied color, trim or physical unit"
+    },
+    {
+      "id": "nissan-patrol",
+      "generationFile": "exec-76455cb5-10d0-4980-8843-4ac87f4eac41.png",
+      "asset": "public/vehicles/nissan-patrol.webp",
+      "date": "2026-09-28",
+      "depictedGeneration": "2022 model family",
+      "externalPhotoReused": false,
+      "reviewStatus": "Original transparent model-family visualization; not a guarantee of supplied color, trim or physical unit"
     }
   ],
   "geometryReferences": [

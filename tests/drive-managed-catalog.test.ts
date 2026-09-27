@@ -10,7 +10,7 @@ const now=Date.parse('2026-09-17T06:00Z');
 const search={pickup:'Cairo airport',dropoff:'Cairo hotel',pickupAt:'2026-09-17T15:00',returnAt:'2026-09-18T15:00',mode:'chauffeur' as const,currency:'EGP' as const,passengers:2,luggage:1};
 const trip={...search,name:'QA Customer',phone:'+201000000000',notes:'',specialRequest:'',flightNumber:'',flightArrival:'',acknowledged:true};
 test('approved catalogue keeps unique IDs and request-only availability',()=>{
-  assert.equal(DRIVE_OFFERS.length,20);assert.equal(new Set(DRIVE_OFFERS.map(x=>x.id)).size,20);
+  assert.equal(DRIVE_OFFERS.length,23);assert.equal(new Set(DRIVE_OFFERS.map(x=>x.id)).size,23);
   assert.ok(DRIVE_OFFERS.every(x=>['safeerat-al-arab','egypt-operations'].includes(x.supplierId)&&x.country==='EG'&&x.availability==='request_to_confirm'));
 });
 test('unknown capacities/trims remain unknown and each mapped image exists locally',()=>{
@@ -21,12 +21,12 @@ test('unknown capacities/trims remain unknown and each mapped image exists local
     assert.match(vehicleTitle(v,'en'),/or similar$/);assert.match(vehicleTitle(v,'ar'),/أو ما يماثلها$/);
   }
   assert.equal(VEHICLE_MASTER.filter(v=>v.year!==null).length,1);
-  assert.equal(DRIVE_MIN_MODEL_YEAR,2025);assert.deepEqual(DRIVE_MODEL_YEARS,[2025,2026,2027]);
+  assert.equal(DRIVE_MIN_MODEL_YEAR,2022);assert.deepEqual(DRIVE_MODEL_YEARS,[2022,2023,2024,2025,2026,2027]);
   assert.match(vehicleYearAvailabilityLabel('ar'),/2025 \/ 2026 \/ 2027/);assert.match(vehicleYearAvailabilityLabel('en'),/subject to availability or similar/);
 });
-test('price truth: no invented total or G-Class airport rate',()=>{
+test('price truth: no invented total; G-Class airport follows the newly approved half-day rate',()=>{
   for(const offer of DRIVE_OFFERS){assert.equal(journeyPrice(offer,'chauffeur').total,null);assert.equal(journeyPrice(offer,'chauffeur').baseAmount,offer.chauffeur);}
-  assert.equal(validateDriveOfferRequest(DRIVE_OFFERS[8].id,{...trip,mode:'airport'}),null);
+  assert.equal(validateDriveOfferRequest(DRIVE_OFFERS[8].id,{...trip,mode:'airport'})?.airport,302.5);
 });
 test('six-hour boundary is Cairo-local, inclusive to the minute',()=>{
   assert.equal(validateDriveSearch(search,now),null);

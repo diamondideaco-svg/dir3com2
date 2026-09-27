@@ -23,3 +23,6 @@ export const DRIVE_CURRENT_IMAGE_PROVENANCE = [
 // Task #167: original generated assets. Public model references were used only for shape checking.
 export const SEPTEMBER_IMAGE_IDS = ['mercedes-v250','mercedes-v300','kia-sportage','hyundai-accent','jetour-x70','soueast-s05','soueast-s07','soueast-s09','range-rover-sport','toyota-land-cruiser','cadillac-escalade'] as const;
 DRIVE_CURRENT_IMAGE_PROVENANCE.push(...SEPTEMBER_IMAGE_IDS.map(id => ({ id, file: `${id}.webp`, method: 'Original DIR3COM-generated 2025+ model catalogue asset (Task #167)', changes: 'Transparent cutout; WebP delivery; model/color/trim subject to Operations confirmation', externalPhoto: false })));
+
+// CEO extension to 2022+ years, 2026-09-28. Original model-family visualizations.
+DRIVE_CURRENT_IMAGE_PROVENANCE.push(...['mercedes-s500','hyundai-elantra-cn7','nissan-patrol'].map(id => ({ id, file: `${id}.webp`, method: 'Original DIR3COM-generated 2022 model-family asset (Task #167)', changes: 'Transparent cutout; WebP delivery; supplied vehicle/color/trim confirmed by Operations', externalPhoto: false })));

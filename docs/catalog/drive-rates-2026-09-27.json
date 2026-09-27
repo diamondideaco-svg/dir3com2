@@ -18,7 +18,7 @@
     "airportBundledWithDaily": false
   },
   "publicationBlockers": [
-    "13 unmapped source rows remain held for model/year clarification; not imported",
+    "7 source rows await model/year clarification or are below 2022; these do not block the 20 reconciled rows",
     "Public release requires exact-SHA Preview and independent review; local verification is recorded in drive-september27-release.md"
   ],
   "preserveExisting": [
@@ -40,8 +40,12 @@
       "proposedCustomerUSDCents": 18700,
       "existingVehicleCandidate": "mercedes-e200",
       "notes": "Final year clipped; do not also overwrite AMG Line",
-      "status": "held_source_model_or_year_confirmation",
-      "proposedAirportUSDCents": 9350
+      "status": "mapped_2022_plus_pending_release_gates",
+      "proposedAirportUSDCents": 9350,
+      "mappedVehicleId": "mercedes-e200",
+      "eligibleModelYears": [
+        2022
+      ]
     },
     {
       "row": 2,
@@ -56,8 +60,13 @@
       "proposedCustomerUSDCents": 55000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "held_source_model_or_year_confirmation",
-      "proposedAirportUSDCents": 27500
+      "status": "mapped_2022_plus_pending_release_gates",
+      "proposedAirportUSDCents": 27500,
+      "mappedVehicleId": "mercedes-s500",
+      "eligibleModelYears": [
+        2022,
+        2023
+      ]
     },
     {
       "row": 3,
@@ -72,8 +81,13 @@
       "proposedCustomerUSDCents": 60500,
       "existingVehicleCandidate": "mercedes-gclass",
       "notes": "",
-      "status": "held_source_model_or_year_confirmation",
-      "proposedAirportUSDCents": 30250
+      "status": "mapped_2022_plus_pending_release_gates",
+      "proposedAirportUSDCents": 30250,
+      "mappedVehicleId": "mercedes-gclass",
+      "eligibleModelYears": [
+        2022,
+        2023
+      ]
     },
     {
       "row": 4,
@@ -88,10 +102,13 @@
       "proposedCustomerUSDCents": 27500,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 13750,
       "mappedVehicleId": "mercedes-v250",
       "eligibleModelYears": [
+        2022,
+        2023,
+        2024,
         2025
       ]
     },
@@ -108,7 +125,7 @@
       "proposedCustomerUSDCents": 44000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 22000,
       "mappedVehicleId": "mercedes-v300",
       "eligibleModelYears": [
@@ -159,7 +176,7 @@
       "proposedCustomerUSDCents": 13200,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 6600,
       "mappedVehicleId": "kia-sportage",
       "eligibleModelYears": [
@@ -178,9 +195,15 @@
       "markupPercent": 10,
       "proposedCustomerUSDCents": 7700,
       "existingVehicleCandidate": null,
-      "notes": "Confirm customer-facing model name",
-      "status": "held_source_model_or_year_confirmation",
-      "proposedAirportUSDCents": 3850
+      "notes": "CN7 identifies Hyundai Elantra; 2022/2023 kept from supplier sheet, not inferred from a newer brochure.",
+      "status": "mapped_2022_plus_pending_release_gates",
+      "proposedAirportUSDCents": 3850,
+      "mappedVehicleId": "hyundai-elantra-cn7",
+      "eligibleModelYears": [
+        2022,
+        2023
+      ],
+      "normalizationEvidence": "Hyundai official CN7 ELANTRA brochure: https://www.hyundai.com/content/dam/hyundai/middle-east/ar/data/marketing/brochure/product/elantra-2023/Hyundai_CN7_PE_ELANTRA_K3_LHD_AR_REV7.pdf"
     },
     {
       "row": 10,
@@ -211,10 +234,11 @@
       "proposedCustomerUSDCents": 6600,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 3300,
       "mappedVehicleId": "hyundai-accent",
       "eligibleModelYears": [
+        2022,
         2026
       ]
     },
@@ -231,7 +255,7 @@
       "proposedCustomerUSDCents": 16500,
       "existingVehicleCandidate": "jetour-t2",
       "notes": "",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 8250,
       "mappedVehicleId": "jetour-t2",
       "eligibleModelYears": [
@@ -252,7 +276,7 @@
       "proposedCustomerUSDCents": 8800,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 4400,
       "mappedVehicleId": "jetour-x70",
       "eligibleModelYears": [
@@ -272,7 +296,7 @@
       "proposedCustomerUSDCents": 11000,
       "existingVehicleCandidate": "jetour-x90",
       "notes": "Existing offer is EGP; use new USD price without inventing FX",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 5500,
       "mappedVehicleId": "jetour-x90",
       "eligibleModelYears": [
@@ -292,7 +316,7 @@
       "proposedCustomerUSDCents": 8800,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 4400,
       "mappedVehicleId": "soueast-s05",
       "eligibleModelYears": [
@@ -312,7 +336,7 @@
       "proposedCustomerUSDCents": 11000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 5500,
       "mappedVehicleId": "soueast-s09",
       "eligibleModelYears": [
@@ -332,7 +356,7 @@
       "proposedCustomerUSDCents": 8800,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 4400,
       "mappedVehicleId": "soueast-s07",
       "eligibleModelYears": [
@@ -352,8 +376,12 @@
       "proposedCustomerUSDCents": 30800,
       "existingVehicleCandidate": "range-rover",
       "notes": "Does not identify Range Rover 2025",
-      "status": "held_source_model_or_year_confirmation",
-      "proposedAirportUSDCents": 15400
+      "status": "mapped_2022_plus_pending_release_gates",
+      "proposedAirportUSDCents": 15400,
+      "mappedVehicleId": "range-rover",
+      "eligibleModelYears": [
+        2022
+      ]
     },
     {
       "row": 19,
@@ -368,10 +396,11 @@
       "proposedCustomerUSDCents": 66000,
       "existingVehicleCandidate": null,
       "notes": "Distinct model; do not map onto full-size Range Rover 2025",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 33000,
       "mappedVehicleId": "range-rover-sport",
       "eligibleModelYears": [
+        2024,
         2025
       ]
     },
@@ -388,10 +417,11 @@
       "proposedCustomerUSDCents": 6600,
       "existingVehicleCandidate": "nissan-sunny",
       "notes": "Existing offer is EGP; use new USD price without inventing FX",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 3300,
       "mappedVehicleId": "nissan-sunny",
       "eligibleModelYears": [
+        2022,
         2025
       ]
     },
@@ -408,8 +438,13 @@
       "proposedCustomerUSDCents": 44000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "held_source_model_or_year_confirmation",
-      "proposedAirportUSDCents": 22000
+      "status": "mapped_2022_plus_pending_release_gates",
+      "proposedAirportUSDCents": 22000,
+      "mappedVehicleId": "nissan-patrol",
+      "eligibleModelYears": [
+        2022,
+        2023
+      ]
     },
     {
       "row": 22,
@@ -440,7 +475,7 @@
       "proposedCustomerUSDCents": 38500,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "held_source_model_or_year_confirmation",
+      "status": "held_source_years_2020_2021_below_approved_2022",
       "proposedAirportUSDCents": 19250
     },
     {
@@ -456,10 +491,13 @@
       "proposedCustomerUSDCents": 49500,
       "existingVehicleCandidate": null,
       "notes": "Keep separate from older Land Cruiser rate row",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 24750,
       "mappedVehicleId": "toyota-land-cruiser",
       "eligibleModelYears": [
+        2022,
+        2023,
+        2024,
         2025
       ]
     },
@@ -476,7 +514,7 @@
       "proposedCustomerUSDCents": 110000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "mapped_2025_plus_pending_release_gates",
+      "status": "mapped_2022_plus_pending_release_gates",
       "proposedAirportUSDCents": 55000,
       "mappedVehicleId": "cadillac-escalade",
       "eligibleModelYears": [
@@ -521,5 +559,10 @@
     "percentageOfFinalDaily": 50,
     "confirmedBy": "CEO, 2026-09-27 16:15 Asia/Riyadh"
   },
-  "operationsOwner": "Egypt Operations — no supplier assignment or supplier confirmation implied"
+  "operationsOwner": "Egypt Operations — no supplier assignment or supplier confirmation implied",
+  "minimumModelYearApproval": {
+    "minimum": 2022,
+    "date": "2026-09-28",
+    "authority": "CEO — include 2024, 2023 and 2022; existing request promises remain unchanged"
+  }
 }

@@ -1,42 +1,48 @@
-# Task #167 — catalogue/data release record
+# Task #167 / PR #168 — Drive catalogue release record
 
-Date: 2026-09-27. Implementation owner: Codex — ChatGPT Work Mode, directly authorized by the user. Independent reviewer: unassigned; no independent approval claimed.
+Updated 2026-09-28 (Asia/Riyadh). Owner: Codex — ChatGPT Work Mode, directly assigned by the CEO. Independent reviewer requested: Codex Desktop; no review completion or direct Desktop delivery is claimed.
 
-Branch: `feat/drive-catalog-september27`. Starting HEAD: `f2c2b505cbd1e4f4674d734a49b05006903ca0c7`. Original base: `c8c91f33f3ea017bf09f0d4ee32747c0aae425b9`. Final SHA and PR are recorded in Task #167 after commit.
+Branch `feat/drive-catalog-september27`; base `c8c91f33f3ea017bf09f0d4ee32747c0aae425b9`; this delta starts at `f7ce91f8c65124f68df935dd3d318bbb715b5c41`. Final SHA is recorded in Task #167 and PR #168 after push. Same branch/PR; no other workstream edited.
 
-## Customer-visible result
+## Customer result
 
-- Twenty Drive offers: fourteen reconciled source rows (three repriced existing IDs and eleven new IDs), plus six unmatched legacy offers preserved unchanged.
-- Daily USD price = higher source price × 1.10 once. Airport reception = half the marked-up daily price. Exact amounts, source years and withheld rows are in `drive-rates-2026-09-27.md` and its JSON/CSV register.
-- New daily rates cover a 24-hour period, driver, fuel and 120km. Continuous driving, unspecified extras and automatic final trip totals are not promised. The six unchanged legacy rates are not assigned a new 24-hour service contract.
-- New/repriced offers are coordinated by Egypt Operations. The source did not establish a supplier identity; they are not attributed to Safeerat. Abu Al-Hana product records are not edited.
-- Public years are the source's eligible 2025+ years only. Thirteen ambiguous or pre-2025 rows remain withheld; they do not block the fourteen reconciled rows from review. No unknown capacity, luggage count, trim or live availability is invented.
-- Eleven new transparent WebP images plus retained approved model assets. Full-size Range Rover 2025 has its separate green asset; Range Rover Sport has a separate red asset. Generation records and limits are in `drive-image-generation-2026-09-27.json` and `drive-image-provenance-2026-09-27.md`.
+The CEO now accepts 2022, 2023 and 2024 as well as the existing newer years. Twenty source rows are reconciled: six existing offers repriced, fourteen new offers, plus three unchanged legacy offers = **23 offers**. Six additional rows were recovered by this year-policy update. Source years are not relabelled. E200 uses the legible 2022 only; the clipped final year is not guessed. CN7 is normalized to Hyundai Elantra, with an official Hyundai source recorded in the JSON register.
 
-## Database and request integrity
+Daily USD = higher source row price × 1.10 once. Airport reception = 50% of that final price. Reconciled daily services cover 24 hours, driver, fuel and 120km. Continuous driver duty, excess charges and automatic final totals are not inferred. AMG Line, T1 and full-size Range Rover 2025 retain their prior rates/contract. The other full-size Range Rover and Range Rover Sport remain distinct listings/images. New rates are coordinated by Egypt Operations; supplier identity is not guessed. Abu Al-Hana products are untouched.
 
-`lib/drive/september-catalog.json` and `20260927223137_drive_september27_managed_catalog.sql` are generated from the same reconciled prices. The migration updates only three established offer rows, adds eleven offers, extends the allowed source and service-period metadata, and replaces the create-request RPC with a compatible optional catalogue-version argument.
+Seven rows remain separately recorded and do not block the twenty eligible rows: Kia “carval” (model spelling), Kia K4 2022/23 (model/generation), Hyundai “tuycan” (model spelling), unnamed Nissan 2026, Land Cruiser 2020/21 (below the newly approved minimum), H1 and Hiace (missing years). This is missing source information, not a reason to fabricate inventory.
 
-The migration aborts if the three prior rates/version/source differ or new IDs already exist. It does not overwrite independent edits. Existing requests, context snapshots, events, products, partners, bookings and payments are not migrated or repriced.
+Three new original transparent WebP images depict S500 W223, Elantra CN7 and Patrol Y62 model families. Fourteen generated images now supplement the retained approved assets. The latest three generation prompts/IDs are recorded. No rental-company photos copied; generated visualization is not proof of an exact physical vehicle, trim or color. Existing approved images remain unchanged.
 
-An existing request is recovered before checking catalogue version. A new request based on stale catalogue pricing is rejected with `CATALOG_CHANGED`; the browser asks the customer to reload and review the price. Missing version remains compatible with unchanged legacy offers. Database permission restrictions remain in place. No booking, payment or supplier confirmation is introduced.
+## Request/data integrity
 
-## Verification
+Catalogue version `managed-eg-20260928-v2`. The application JSON and the guarded SQL migration share the same twenty price pairs. The unpublished Task167 migration is updated in-place; historical migrations are untouched and the forward-registry hash matches.
 
-- Focused catalogue, request/API, retry and public-entry suite: 37/37 PASS.
-- Migration baseline/cutover/target suite: 55/55 PASS, plus `check-migration-baseline.mjs` PASS. The first cloud run exposed a missing forward-registry entry; the exact new SQL path/SHA-256 was registered without changing historical baselines, checks or archived bytes.
-- In-memory PostgreSQL (PGlite) execution of the actual migration and RPC: PASS. Checked twenty offers, all fourteen exact daily/airport pairs, 24-hour metadata, stale version rejection, recovery of a request created before migration, one event per request, current-version retry, airport amount, Operations naming and function/table privileges.
-- `npm run typecheck`, `npm run lint` (zero errors, 23 existing warnings), `npm run build`, `git diff --check`: PASS. Build uses a local-only inert Supabase URL/key for public UI rendering, not Production credentials or authenticated QA evidence.
-- Existing Docker/PostgreSQL regression harness updated so this migration runs after its Drive dependencies and expects the new authoritative T2 rate. Full Docker/RLS integration is not rerun; the embedded test does not claim that coverage.
-- Frozen-build public browser AR/EN at 1440px and 390px: PASS, twenty cards and all twenty images loaded, Sport details, no overflow and zero page errors. Sport daily660 USD/airport330 USD. Machine-readable results and two mobile screenshots are committed. No authenticated request, external supplier search or commercial transaction was executed. Browser/application evidence is reused for the final registry/document-only correction; application and image bytes are unchanged.
-- Independent functional/security review, exact-SHA cloud CI and Preview remain release gates. Self-checks are not independent approval.
+The migration fails before overwriting independently modified baseline rates or colliding new IDs. It updates six offers and inserts fourteen; it does not modify products, partners, existing requests, quotes, bookings or payments. It expands permitted confirmation years but verifies each confirmation against the year contract already saved on that request.
+
+- New requests from this catalogue carry minimum 2022 / accepted 2022–2027; the database validates the policy and version.
+- Older requests retain their original 2025–2027 promise and original amount. Their retries return the existing request before current-version validation.
+- The three unchanged legacy offers retain their original 2025–2027 policy.
+- Stale new requests get `CATALOG_CHANGED`; no unseen updated price is silently accepted.
+- Customer review and Operations derive their year labels/options from the saved request, not today's catalogue.
+- Six-hour eligibility, authenticated/country-scoped authority, immutable audit and no-booking/payment boundaries remain enforced.
+
+## Verification and limits
+
+Focused catalogue/request/retry/public-entry baseline: 38/38 PASS, followed by 8/8 affected final tests (39 unique tests including the added saved-year test). Final Typecheck PASS; Lint 0 errors/23 existing warnings; Build and Diff PASS. Migration baseline/cutover/target 55/55 and manifest check PASS.
+
+The actual migration and create/review RPCs executed in isolated in-memory PostgreSQL (PGlite): 23 offers, twenty exact daily/airport rate pairs, 24-hour metadata, stale-version rejection, old/new replay, old 2025 request rejecting 2022/23/24, new request accepting 2022, 2021 rejection, one event per confirmation and no booking/payment. The fixture stubs operational authority; full Supabase RLS coverage is not claimed. The repository Docker/Postgres harness is updated for the new version/policy and remains a cloud gate.
+
+Frozen-build public browser AR/EN × 1440/390 PASS: 23 cards and 23 images loaded, Patrol detail/year labels, no horizontal overflow, zero page errors. Patrol daily440 USD and airport220 USD. Evidence: `drive-browser-years-2026-09-28.json` and `drive-years-detail-{ar,en}-390.png`. An earlier start before build completion failed; the completed-build verification above is the accepted run. No authenticated request, provider search or commercial transaction was performed in browser QA.
+
+Self-review used the React checklist for deterministic derived year labels/options, unchanged hook order, authenticated server action and SQL authority. This is not independent approval. Exact-SHA CI/Preview and independent functional/security review must be recorded separately. Governance currently accepts only Desktop/VS Code implementation identities; Work Mode ownership is recorded honestly and the workflow is unchanged.
 
 ## Coordinated publication and recovery
 
-1. Obtain exact-SHA independent review and required cloud/Preview gates. The governance workflow currently accepts Desktop/VS Code implementation identities only; record the direct Work Mode assignment honestly rather than impersonating either surface or weakening the workflow.
-2. In an authorized release window, record current catalogue rows and release version read-only. Confirm the migration baseline and its exact SQL against the reviewed commit. Preserve the snapshot securely for recovery.
-3. Apply only this reviewed migration, then promote the matching application version. The database version check deliberately refuses repriced requests from an older browser during the short transition; it must not silently accept an unseen new price.
-4. Verify the same fourteen price pairs, the six unchanged offers, source/currency/service-period fields, public images and Arabic/English desktop/mobile. Preserve the existing six-hour request rule and request-versus-booking boundary.
-5. If recovery is needed, stop promotion. Do not delete offers referenced by requests or rewrite historical quotes. Use a separately reviewed forward recovery: retain additive schema/RPC compatibility, deactivate newly introduced offers, restore the recorded three prior catalogue rows/version, and restore the matching app release. Existing request snapshots remain immutable.
+1. Resolve the exact-SHA independent review/cloud gates and the honest ownership/governance mismatch.
+2. In an authorized release window, record the six existing catalogue rows/version read-only, confirm reviewed SQL/hash and preserve the snapshot securely.
+3. Apply only the reviewed Task167 migration, then promote its matching application. The version guard rejects stale-price requests during the transition.
+4. Verify twenty price pairs, three unchanged offers, original currencies/service terms, year policies and images. Keep the six-hour and request-versus-booking boundaries.
+5. Recovery must be a reviewed forward change: deactivate new offers without deleting referenced records, restore the six snapshotted prior offer values/version and matching app, keep additive RPC compatibility and historical request contracts. Do not rewrite existing quotes or requests.
 
-Production migration, commercial data update, merge and deployment have **not** been performed by this implementation. WhatsApp Task #166 and its branch are untouched.
+**Production migration / business-data mutation / merge / deploy: NONE.** Prepared SQL and local proof are not a Production publication claim. WhatsApp #166 is separate and untouched.

@@ -11,29 +11,35 @@ ALTER TABLE public.drive_managed_offers ADD CONSTRAINT drive_managed_offers_supp
 ALTER TABLE public.drive_managed_offers ADD COLUMN daily_period_hours integer
  CHECK(daily_period_hours IS NULL OR daily_period_hours=24);
 
--- Fail before overwriting an independently edited rate. Six unmatched legacy offers stay intact.
+-- Fail before overwriting an independently edited rate. Three unmatched legacy offers stay intact.
 DO $$ BEGIN
  IF (SELECT count(*) FROM public.drive_managed_offers o JOIN
   (VALUES ('safeerat-eg-jetour-t2',50::numeric,100::numeric,'USD'),
-   ('safeerat-eg-jetour-x90',1500,3500,'EGP'),('safeerat-eg-nissan-sunny',900,1800,'EGP'))
+   ('safeerat-eg-jetour-x90',1500,3500,'EGP'),('safeerat-eg-nissan-sunny',900,1800,'EGP'),
+   ('safeerat-eg-mercedes-e200',80,150,'USD'),('safeerat-eg-range-rover',200,350,'USD'),
+   ('safeerat-eg-mercedes-gclass',NULL,550,'USD'))
   expected(id,airport,daily,currency) ON o.id=expected.id
   WHERE o.version='safeerat-eg-20260916-v1' AND o.active AND o.supplier_source='safeerat-al-arab'
-   AND o.airport_amount=expected.airport AND o.daily_amount=expected.daily
-   AND o.supplier_currency=expected.currency) <> 3 THEN
+   AND o.airport_amount IS NOT DISTINCT FROM expected.airport AND o.daily_amount=expected.daily
+   AND o.supplier_currency=expected.currency) <> 6 THEN
   RAISE EXCEPTION 'CATALOG_BASELINE_CHANGED';
  END IF;
  IF EXISTS(SELECT 1 FROM public.drive_managed_offers WHERE id IN
-  ('managed-eg-mercedes-v250','managed-eg-mercedes-v300','managed-eg-kia-sportage','managed-eg-hyundai-accent','managed-eg-jetour-x70','managed-eg-soueast-s05','managed-eg-soueast-s09','managed-eg-soueast-s07','managed-eg-range-rover-sport','managed-eg-toyota-land-cruiser','managed-eg-cadillac-escalade')) THEN
+  ('managed-eg-mercedes-s500','managed-eg-mercedes-v250','managed-eg-mercedes-v300','managed-eg-kia-sportage','managed-eg-hyundai-elantra-cn7','managed-eg-hyundai-accent','managed-eg-jetour-x70','managed-eg-soueast-s05','managed-eg-soueast-s09','managed-eg-soueast-s07','managed-eg-range-rover-sport','managed-eg-nissan-patrol','managed-eg-toyota-land-cruiser','managed-eg-cadillac-escalade')) THEN
   RAISE EXCEPTION 'NEW_OFFER_ID_ALREADY_EXISTS';
  END IF;
 END $$;
 
 INSERT INTO public.drive_managed_offers(id,vehicle_id,country,supplier_source,airport_amount,daily_amount,supplier_currency,version,daily_period_hours)
-SELECT v.id,v.vehicle,'EG','egypt-operations',v.airport,v.daily,'USD','managed-eg-20260927-v1',24
+SELECT v.id,v.vehicle,'EG','egypt-operations',v.airport,v.daily,'USD','managed-eg-20260928-v2',24
 FROM (VALUES
+('safeerat-eg-mercedes-e200','mercedes-e200',93.50,187.00),
+('managed-eg-mercedes-s500','mercedes-s500',275.00,550.00),
+('safeerat-eg-mercedes-gclass','mercedes-gclass',302.50,605.00),
 ('managed-eg-mercedes-v250','mercedes-v250',137.50,275.00),
 ('managed-eg-mercedes-v300','mercedes-v300',220.00,440.00),
 ('managed-eg-kia-sportage','kia-sportage',66.00,132.00),
+('managed-eg-hyundai-elantra-cn7','hyundai-elantra-cn7',38.50,77.00),
 ('managed-eg-hyundai-accent','hyundai-accent',33.00,66.00),
 ('safeerat-eg-jetour-t2','jetour-t2',82.50,165.00),
 ('managed-eg-jetour-x70','jetour-x70',44.00,88.00),
@@ -41,8 +47,10 @@ FROM (VALUES
 ('managed-eg-soueast-s05','soueast-s05',44.00,88.00),
 ('managed-eg-soueast-s09','soueast-s09',55.00,110.00),
 ('managed-eg-soueast-s07','soueast-s07',44.00,88.00),
+('safeerat-eg-range-rover','range-rover',154.00,308.00),
 ('managed-eg-range-rover-sport','range-rover-sport',330.00,660.00),
 ('safeerat-eg-nissan-sunny','nissan-sunny',33.00,66.00),
+('managed-eg-nissan-patrol','nissan-patrol',220.00,440.00),
 ('managed-eg-toyota-land-cruiser','toyota-land-cruiser',247.50,495.00),
 ('managed-eg-cadillac-escalade','cadillac-escalade',550.00,1100.00)
 ) AS v(id,vehicle,airport,daily)
@@ -70,6 +78,10 @@ BEGIN
  END IF;
  SELECT * INTO v_offer FROM public.drive_managed_offers WHERE id=p_offer_id AND active FOR SHARE;
  IF NOT FOUND THEN RAISE EXCEPTION 'OFFER_UNAVAILABLE' USING ERRCODE='22023'; END IF;
+ -- Replay already returned above: old REQs remain recoverable across a catalogue release.
+ IF coalesce(p_catalog_version,'safeerat-eg-20260916-v1') IS DISTINCT FROM v_offer.version THEN
+  RAISE EXCEPTION 'CATALOG_CHANGED' USING ERRCODE='40001';
+ END IF;
  IF (p_trip->>'mode') IS NULL OR p_trip->>'mode' NOT IN ('airport','chauffeur')
    OR coalesce(length(btrim(p_trip->>'pickup')),0) NOT BETWEEN 2 AND 200
    OR coalesce(length(btrim(p_trip->>'dropoff')),0) NOT BETWEEN 2 AND 200
@@ -78,8 +90,8 @@ BEGIN
    OR coalesce(p_trip->>'phone','') !~ '^[+0-9 ()-]{7,30}$'
    OR p_trip->'acknowledged' IS DISTINCT FROM 'true'::jsonb
    OR coalesce(p_trip->>'currency','') NOT IN ('EGP','USD','SAR','EUR','AED')
-   OR coalesce(p_trip->>'minimumModelYear','') <> '2025'
-   OR p_trip->'acceptableModelYears' IS DISTINCT FROM '[2025,2026,2027]'::jsonb
+   OR coalesce(p_trip->>'minimumModelYear','') <> (CASE WHEN p_catalog_version='managed-eg-20260928-v2' THEN '2022' ELSE '2025' END)
+   OR p_trip->'acceptableModelYears' IS DISTINCT FROM (CASE WHEN p_catalog_version='managed-eg-20260928-v2' THEN '[2022,2023,2024,2025,2026,2027]'::jsonb ELSE '[2025,2026,2027]'::jsonb END)
    OR coalesce(length(p_trip->>'notes'),0)>1000
    OR coalesce(length(p_trip->>'specialRequest'),0)>500
    OR coalesce(p_trip->>'passengers','') !~ '^([1-9]|1[0-9]|20)$'
@@ -102,10 +114,6 @@ BEGIN
     OR (v_arrival-interval '1 hour') AT TIME ZONE 'Africa/Cairo'=v_arrival AT TIME ZONE 'Africa/Cairo'
     THEN RAISE EXCEPTION 'INVALID_FLIGHT_TIME' USING ERRCODE='22023'; END IF;
  END IF;
- -- Replay already returned above: old REQs remain recoverable across a catalogue release.
- IF coalesce(p_catalog_version,'safeerat-eg-20260916-v1') IS DISTINCT FROM v_offer.version THEN
-  RAISE EXCEPTION 'CATALOG_CHANGED' USING ERRCODE='40001';
- END IF;
  v_amount:=CASE WHEN p_trip->>'mode'='airport' THEN v_offer.airport_amount ELSE v_offer.daily_amount END;
  IF v_amount IS NULL THEN RAISE EXCEPTION 'RATE_UNAVAILABLE' USING ERRCODE='22023'; END IF;
  INSERT INTO public.marketplace_requests (request_reference,user_id,drive_offer_id,request_type,requested_for,traveller_count,customer_brief,marketplace_family,supplier_name,service_name,next_action)
@@ -118,6 +126,39 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.create_managed_drive_request(text,text,jsonb,text) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.create_managed_drive_request(text,text,jsonb,text) TO authenticated;
+
+
+-- Add newly authorized years without rewriting any saved request promise.
+ALTER TABLE public.drive_request_context DROP CONSTRAINT drive_request_context_confirmed_vehicle_year_check;
+ALTER TABLE public.drive_request_context ADD CONSTRAINT drive_request_context_confirmed_vehicle_year_check
+ CHECK(confirmed_vehicle_year IN (2022,2023,2024,2025,2026,2027));
+CREATE OR REPLACE FUNCTION public.review_managed_drive_request(p_request_id uuid,p_version integer,p_action text,p_vehicle text DEFAULT NULL,p_vehicle_year integer DEFAULT NULL,p_amount numeric DEFAULT NULL,p_currency text DEFAULT NULL,p_expires timestamptz DEFAULT NULL,p_note text DEFAULT NULL)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE v_context public.drive_request_context%ROWTYPE; v_request public.marketplace_requests%ROWTYPE; v_status text;
+BEGIN
+ IF auth.uid() IS NULL OR current_setting('role',true) IS DISTINCT FROM 'authenticated' THEN RAISE EXCEPTION 'AUTH_REQUIRED' USING ERRCODE='42501'; END IF;
+ PERFORM public.require_operational_access('operations:write','EG',false);
+ SELECT * INTO v_context FROM public.drive_request_context WHERE request_id=p_request_id FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'REQUEST_NOT_FOUND' USING ERRCODE='P0002'; END IF;
+ SELECT * INTO v_request FROM public.marketplace_requests WHERE id=p_request_id FOR UPDATE;
+ IF v_context.version IS DISTINCT FROM p_version THEN RAISE EXCEPTION 'STALE_REQUEST' USING ERRCODE='40001'; END IF;
+ IF v_request.status NOT IN ('request_submitted','under_review') OR p_action IS NULL OR p_action NOT IN ('review','confirm','decline') THEN RAISE EXCEPTION 'INVALID_TRANSITION' USING ERRCODE='22023'; END IF;
+ IF p_action='review' AND v_request.status<>'request_submitted' THEN RAISE EXCEPTION 'INVALID_TRANSITION' USING ERRCODE='22023'; END IF;
+ IF coalesce(length(p_note),0)>2000 THEN RAISE EXCEPTION 'INVALID_NOTE' USING ERRCODE='22023'; END IF;
+ IF p_action='confirm' AND (v_request.status<>'under_review' OR coalesce(length(btrim(p_vehicle)),0) NOT BETWEEN 2 AND 200 OR p_vehicle_year IS NULL OR p_vehicle_year NOT IN (2022,2023,2024,2025,2026,2027)
+  OR NOT coalesce(v_context.trip->'acceptableModelYears','[2025,2026,2027]'::jsonb) @> jsonb_build_array(p_vehicle_year)
+  OR p_vehicle_year < coalesce((v_context.trip->>'minimumModelYear')::integer,2025) OR p_amount IS NULL OR p_amount<=0 OR p_amount>99999999 OR p_currency IS NULL OR p_currency NOT IN ('EGP','USD','SAR','EUR','AED') OR p_expires IS NULL OR p_expires<=now() OR p_expires>v_request.requested_for) THEN RAISE EXCEPTION 'INVALID_CONFIRMATION' USING ERRCODE='22023'; END IF;
+ v_status:=CASE p_action WHEN 'review' THEN 'under_review' WHEN 'confirm' THEN 'awaiting_customer_acceptance' ELSE 'declined' END;
+ UPDATE public.marketplace_requests SET status=v_status, quote_amount=CASE WHEN p_action='confirm' THEN p_amount ELSE NULL END,
+ quote_currency=CASE WHEN p_action='confirm' THEN p_currency ELSE NULL END,quote_expires_at=CASE WHEN p_action='confirm' THEN p_expires ELSE NULL END,
+ next_action=CASE WHEN p_action='confirm' THEN 'payment_not_enabled' ELSE 'egypt_operations_review' END,updated_at=now() WHERE id=p_request_id;
+ UPDATE public.drive_request_context SET confirmed_vehicle=CASE WHEN p_action='confirm' THEN p_vehicle ELSE NULL END, confirmed_vehicle_year=CASE WHEN p_action='confirm' THEN p_vehicle_year ELSE NULL END, version=version+1 WHERE request_id=p_request_id;
+ INSERT INTO public.drive_request_events(request_id,actor_user_id,country,action,previous_status,new_status,private_note)
+ VALUES(p_request_id,auth.uid(),'EG',p_action,v_request.status,v_status,p_note);
+ RETURN jsonb_build_object('status',v_status,'version',p_version+1);
+END $$;
+REVOKE ALL ON FUNCTION public.review_managed_drive_request(uuid,integer,text,text,integer,numeric,text,timestamptz,text) FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.review_managed_drive_request(uuid,integer,text,text,integer,numeric,text,timestamptz,text) TO authenticated;
 
 
 NOTIFY pgrst,'reload schema';

@@ -1,6 +1,53 @@
 {
-  "version": "managed-eg-20260927-v1",
+  "version": "managed-eg-20260928-v2",
   "rows": [
+    {
+      "sourceRow": 1,
+      "vehicleId": "mercedes-e200",
+      "offerId": "safeerat-eg-mercedes-e200",
+      "make": "Mercedes-Benz",
+      "model": "E 200",
+      "ar": "مرسيدس E 200",
+      "vehicleClass": "Luxury",
+      "body": "sedan",
+      "modelYears": [
+        2022
+      ],
+      "dailyCents": 18700,
+      "airportCents": 9350
+    },
+    {
+      "sourceRow": 2,
+      "vehicleId": "mercedes-s500",
+      "offerId": "managed-eg-mercedes-s500",
+      "make": "Mercedes-Benz",
+      "model": "S 500",
+      "ar": "مرسيدس S 500",
+      "vehicleClass": "Luxury",
+      "body": "sedan",
+      "modelYears": [
+        2022,
+        2023
+      ],
+      "dailyCents": 55000,
+      "airportCents": 27500
+    },
+    {
+      "sourceRow": 3,
+      "vehicleId": "mercedes-gclass",
+      "offerId": "safeerat-eg-mercedes-gclass",
+      "make": "Mercedes-Benz",
+      "model": "G-Class",
+      "ar": "مرسيدس G-Class",
+      "vehicleClass": "Premium SUV",
+      "body": "suv",
+      "modelYears": [
+        2022,
+        2023
+      ],
+      "dailyCents": 60500,
+      "airportCents": 30250
+    },
     {
       "sourceRow": 4,
       "vehicleId": "mercedes-v250",
@@ -11,6 +58,9 @@
       "vehicleClass": "Luxury",
       "body": "mpv",
       "modelYears": [
+        2022,
+        2023,
+        2024,
         2025
       ],
       "dailyCents": 27500,
@@ -49,6 +99,22 @@
       "airportCents": 6600
     },
     {
+      "sourceRow": 9,
+      "vehicleId": "hyundai-elantra-cn7",
+      "offerId": "managed-eg-hyundai-elantra-cn7",
+      "make": "Hyundai",
+      "model": "Elantra CN7",
+      "ar": "هيونداي إلنترا CN7",
+      "vehicleClass": "Sedan",
+      "body": "sedan",
+      "modelYears": [
+        2022,
+        2023
+      ],
+      "dailyCents": 7700,
+      "airportCents": 3850
+    },
+    {
       "sourceRow": 11,
       "vehicleId": "hyundai-accent",
       "offerId": "managed-eg-hyundai-accent",
@@ -58,6 +124,7 @@
       "vehicleClass": "Economy",
       "body": "sedan",
       "modelYears": [
+        2022,
         2026
       ],
       "dailyCents": 6600,
@@ -155,6 +222,21 @@
       "airportCents": 4400
     },
     {
+      "sourceRow": 18,
+      "vehicleId": "range-rover",
+      "offerId": "safeerat-eg-range-rover",
+      "make": "Land Rover",
+      "model": "Range Rover",
+      "ar": "رينج روفر",
+      "vehicleClass": "Premium SUV",
+      "body": "suv",
+      "modelYears": [
+        2022
+      ],
+      "dailyCents": 30800,
+      "airportCents": 15400
+    },
+    {
       "sourceRow": 19,
       "vehicleId": "range-rover-sport",
       "offerId": "managed-eg-range-rover-sport",
@@ -164,6 +246,7 @@
       "vehicleClass": "Premium SUV",
       "body": "suv",
       "modelYears": [
+        2024,
         2025
       ],
       "dailyCents": 66000,
@@ -179,10 +262,27 @@
       "vehicleClass": "Economy",
       "body": "sedan",
       "modelYears": [
+        2022,
         2025
       ],
       "dailyCents": 6600,
       "airportCents": 3300
+    },
+    {
+      "sourceRow": 21,
+      "vehicleId": "nissan-patrol",
+      "offerId": "managed-eg-nissan-patrol",
+      "make": "Nissan",
+      "model": "Patrol",
+      "ar": "نيسان باترول",
+      "vehicleClass": "Premium SUV",
+      "body": "suv",
+      "modelYears": [
+        2022,
+        2023
+      ],
+      "dailyCents": 44000,
+      "airportCents": 22000
     },
     {
       "sourceRow": 24,
@@ -194,6 +294,9 @@
       "vehicleClass": "Premium SUV",
       "body": "suv",
       "modelYears": [
+        2022,
+        2023,
+        2024,
         2025
       ],
       "dailyCents": 49500,
