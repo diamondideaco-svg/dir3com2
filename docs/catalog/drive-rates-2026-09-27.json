@@ -5,9 +5,19 @@
   "rule": "max(source row prices) + 10%, applied once to this sheet; never compounded onto prior markup",
   "publicationStatus": "NOT_PUBLISHED",
   "supplierIdentity": null,
-  "serviceBasis": null,
+  "serviceBasis": {
+    "mode": "chauffeur",
+    "pricingUnit": "day",
+    "durationHours": 24,
+    "includedKm": 120,
+    "fuelIncluded": true,
+    "driverIncluded": true,
+    "confirmedBy": "CEO, 2026-09-27",
+    "airportRateIncluded": false,
+    "extraDistanceRate": null,
+    "overtimeRate": null
+  },
   "publicationBlockers": [
-    "Source does not specify airport/chauffeur service or pricing unit",
     "Source includes pre-2025 years; prior public minimum is 2025",
     "Confirm uncertain model names, unnamed Nissan 2026, clipped or absent years",
     "No explicit supplier identity in supplied sheet; existing supplier must not be assumed"
@@ -31,7 +41,7 @@
       "proposedCustomerUSDCents": 18700,
       "existingVehicleCandidate": "mercedes-e200",
       "notes": "Final year clipped; do not also overwrite AMG Line",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 2,
@@ -46,7 +56,7 @@
       "proposedCustomerUSDCents": 55000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 3,
@@ -61,7 +71,7 @@
       "proposedCustomerUSDCents": 60500,
       "existingVehicleCandidate": "mercedes-gclass",
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 4,
@@ -76,7 +86,7 @@
       "proposedCustomerUSDCents": 27500,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 5,
@@ -91,7 +101,7 @@
       "proposedCustomerUSDCents": 44000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 6,
@@ -105,7 +115,7 @@
       "proposedCustomerUSDCents": 22000,
       "existingVehicleCandidate": null,
       "notes": "Confirm model spelling; possible Carnival",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 7,
@@ -119,7 +129,7 @@
       "proposedCustomerUSDCents": 9350,
       "existingVehicleCandidate": null,
       "notes": "Confirm model/year combination",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 8,
@@ -133,7 +143,7 @@
       "proposedCustomerUSDCents": 13200,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 9,
@@ -148,7 +158,7 @@
       "proposedCustomerUSDCents": 7700,
       "existingVehicleCandidate": null,
       "notes": "Confirm customer-facing model name",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 10,
@@ -163,7 +173,7 @@
       "proposedCustomerUSDCents": 11000,
       "existingVehicleCandidate": null,
       "notes": "Confirm model spelling; possible Tucson",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 11,
@@ -178,7 +188,7 @@
       "proposedCustomerUSDCents": 6600,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 12,
@@ -193,7 +203,7 @@
       "proposedCustomerUSDCents": 16500,
       "existingVehicleCandidate": "jetour-t2",
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 13,
@@ -208,7 +218,7 @@
       "proposedCustomerUSDCents": 8800,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 14,
@@ -223,7 +233,7 @@
       "proposedCustomerUSDCents": 11000,
       "existingVehicleCandidate": "jetour-x90",
       "notes": "Existing offer is EGP; use new USD price without inventing FX",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 15,
@@ -238,7 +248,7 @@
       "proposedCustomerUSDCents": 8800,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 16,
@@ -253,7 +263,7 @@
       "proposedCustomerUSDCents": 11000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 17,
@@ -268,7 +278,7 @@
       "proposedCustomerUSDCents": 8800,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 18,
@@ -283,7 +293,7 @@
       "proposedCustomerUSDCents": 30800,
       "existingVehicleCandidate": "range-rover",
       "notes": "Does not identify Range Rover 2025",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 19,
@@ -298,7 +308,7 @@
       "proposedCustomerUSDCents": 66000,
       "existingVehicleCandidate": null,
       "notes": "Distinct model; do not map onto full-size Range Rover 2025",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 20,
@@ -313,7 +323,7 @@
       "proposedCustomerUSDCents": 6600,
       "existingVehicleCandidate": "nissan-sunny",
       "notes": "Existing offer is EGP; use new USD price without inventing FX",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 21,
@@ -328,7 +338,7 @@
       "proposedCustomerUSDCents": 44000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 22,
@@ -343,7 +353,7 @@
       "proposedCustomerUSDCents": 77000,
       "existingVehicleCandidate": null,
       "notes": "Blank model cell; do not assume Patrol",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 23,
@@ -358,7 +368,7 @@
       "proposedCustomerUSDCents": 38500,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 24,
@@ -373,7 +383,7 @@
       "proposedCustomerUSDCents": 49500,
       "existingVehicleCandidate": null,
       "notes": "Keep separate from older Land Cruiser rate row",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 25,
@@ -388,7 +398,7 @@
       "proposedCustomerUSDCents": 110000,
       "existingVehicleCandidate": null,
       "notes": "",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 26,
@@ -403,7 +413,7 @@
       "proposedCustomerUSDCents": 16500,
       "existingVehicleCandidate": null,
       "notes": "Model year missing",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     },
     {
       "row": 27,
@@ -418,7 +428,7 @@
       "proposedCustomerUSDCents": 16500,
       "existingVehicleCandidate": null,
       "notes": "Model year missing",
-      "status": "pending_service_basis_and_year_policy"
+      "status": "pending_model_year_and_catalogue_reconciliation"
     }
   ]
 }
