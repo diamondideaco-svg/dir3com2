@@ -111,10 +111,43 @@ test('optional model classifier has no web tools, no private records, and valida
    assert.equal(String(url),'https://api.openai.com/v1/chat/completions');
    const payload=JSON.parse(String(init?.body));assert.equal(payload.tools,undefined);assert.equal(payload.messages.length,2);
    assert.equal(payload.messages[1].content,'show work queue');assert.equal(payload.model,'test-model');
+   assert.equal(payload.max_tokens,700);assert.equal(payload.temperature,0);
+   assert.equal(payload.max_completion_tokens,undefined);assert.equal(payload.reasoning_effort,undefined);
    return Response.json({choices:[{message:{content}}]});
   };
   assert.equal((await planInternalAgentTool('show work queue')).tool,'operations');
   content='{"tool":"executive","role":"ceo"}';assert.equal((await planInternalAgentTool('show work queue')).status,'invalid');
+ }finally{
+  globalThis.fetch=originalFetch;
+  for(const [key,value]of Object.entries({DABRA_INTERNAL_AI_ENABLED:before.enabled,OPENAI_API_KEY:before.key,DABRA_INTERNAL_AI_MODEL:before.model}))if(value===undefined)delete process.env[key];else process.env[key]=value;
+ }
+});
+
+test('approved GPT-5 classifier uses bounded compatible parameters without retries or web tools',async()=>{
+ const before={enabled:process.env.DABRA_INTERNAL_AI_ENABLED,key:process.env.OPENAI_API_KEY,model:process.env.DABRA_INTERNAL_AI_MODEL};
+ const originalFetch=globalThis.fetch;
+ try{
+  process.env.DABRA_INTERNAL_AI_ENABLED='true';process.env.OPENAI_API_KEY='qa-placeholder';
+  let calls=0;
+  globalThis.fetch=async(url,init)=>{
+   calls++;
+   assert.equal(String(url),'https://api.openai.com/v1/chat/completions');
+   const payload=JSON.parse(String(init?.body));
+   assert.equal(payload.max_tokens,undefined);assert.equal(payload.temperature,undefined);
+   assert.equal(payload.max_completion_tokens,700);assert.equal(payload.reasoning_effort,'minimal');
+   assert.equal(payload.tools,undefined);assert.equal(payload.messages.length,2);
+   assert.equal(payload.messages[1].content.length,500);
+   assert.ok(init?.signal);
+   return Response.json({choices:[{message:{content:'{"tool":"my_requests"}'}}]});
+  };
+  for(const model of ['gpt-5','gpt-5-2025-08-07','gpt-5-mini','gpt-5-nano']){
+   process.env.DABRA_INTERNAL_AI_MODEL=model;
+   assert.deepEqual(await planInternalAgentTool('x'.repeat(600)),{tool:'my_requests',status:'ok'});
+  }
+  assert.equal(calls,4);
+  globalThis.fetch=async()=>{calls++;return Response.json({error:{code:'invalid_request_error'}},{status:400});};
+  assert.deepEqual(await planInternalAgentTool('hello'),{tool:null,status:'unavailable'});
+  assert.equal(calls,5,'a rejected classifier request is not retried');
  }finally{
   globalThis.fetch=originalFetch;
   for(const [key,value]of Object.entries({DABRA_INTERNAL_AI_ENABLED:before.enabled,OPENAI_API_KEY:before.key,DABRA_INTERNAL_AI_MODEL:before.model}))if(value===undefined)delete process.env[key];else process.env[key]=value;
