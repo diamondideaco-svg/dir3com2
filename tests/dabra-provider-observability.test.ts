@@ -345,7 +345,10 @@ test('telemetry insert failure cannot suppress a provider fallback', async () =>
 
 test('public internal catalogue route does not schedule nonexistent external provider attempts', () => {
   const route = readFileSync(new URL('../app/api/ai2/chat/route.ts', import.meta.url), 'utf8');
-  assert.match(route, /buildPlatformAssistantResponse/);
+  const agent = readFileSync(new URL('../lib/dabra/agent.ts', import.meta.url), 'utf8');
+  assert.match(route, /runInternalAgent/);
+  assert.match(agent, /intent\.tool === 'discover'[\s\S]*buildPlatformAssistantResponse/);
+  assert.doesNotMatch(agent, /buildAI2ChatResponse|DabraTravelOrchestrator|scheduleProviderAttempt/);
   assert.doesNotMatch(route, /buildAI2ChatResponse|DabraTravelOrchestrator|scheduleProviderAttempt/);
 });
 

@@ -57,7 +57,9 @@ test('signed-out DABRA is public discovery and persona names are presentation-on
 
 test('locale changes remount the session and abort stale assistant work', () => {
   const floating = read('components/layout/FloatingDibrah.tsx');
-  assert.match(floating, /<FloatingDibrahSession key=\{language\} language=\{language\}/);
+  assert.ok(floating.includes('key={`${language}:${identityRevision}`} language={language}'));
+  assert.match(floating, /onAuthStateChange/);
+  assert.match(floating, /subscription\.unsubscribe\(\)/);
   assert.match(floating, /chatAbortRef\.current\?\.abort\(\)/);
   assert.match(floating, /controller\.signal\.aborted \|\| activeRequestIdRef\.current !== requestId/);
   assert.match(floating, /fetch\('\/api\/services\?view=assistant', \{ cache: 'no-store', signal: controller\.signal \}\)/);
