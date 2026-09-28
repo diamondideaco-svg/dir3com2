@@ -45,6 +45,7 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   { path: '/provider-portal', audience: 'partner', protected: true, discoverability: 'contextual', parent: '/partner-portal' },
 
   { path: '/admin', audience: 'admin', protected: true, discoverability: 'direct' },
+  { path: '/admin/operations/contact', audience: 'admin', protected: true, discoverability: 'direct', parent: '/admin' },
   { path: '/admin/operations/drive', audience: 'admin', protected: true, discoverability: 'direct', parent: '/admin' },
   ...['dashboard', 'bookings', 'categories', 'pricing', 'partners', 'customers', 'products', 'assignment', 'finance', 'operations', 'verification', 'audit', 'events', 'notifications', 'shield'].map((slug) => ({ path: `/admin/${slug}`, audience: 'admin' as const, protected: true, discoverability: 'direct' as const, parent: '/admin' })),
   { path: '/admin/team', audience: 'ceo', protected: true, discoverability: 'direct', parent: '/admin' },
@@ -77,7 +78,7 @@ export const partnerNavigationItems = [
 
 export type ProtectedNavigationItem = {
   href: string;
-  key: 'dashboard' | 'executive' | 'bookings' | 'categories' | 'pricing' | 'partners' | 'customers' | 'products' | 'assignment' | 'finance' | 'operations' | 'driveOperations' | 'verification' | 'audit' | 'events' | 'notifications' | 'shield' | 'vipEgypt';
+  key: 'dashboard' | 'executive' | 'bookings' | 'categories' | 'pricing' | 'partners' | 'customers' | 'products' | 'assignment' | 'finance' | 'operations' | 'driveOperations' | 'contactInbox' | 'verification' | 'audit' | 'events' | 'notifications' | 'shield' | 'vipEgypt';
   globalOnly?: boolean;
   permission?: TeamPermission;
 };
@@ -94,6 +95,7 @@ export const protectedNavigationItems: readonly ProtectedNavigationItem[] = [
   { href: '/admin/assignment', key: 'assignment', globalOnly: true },
   { href: '/admin/finance', key: 'finance', globalOnly: true },
   { href: '/admin/operations', key: 'operations', globalOnly: true },
+  { href: '/admin/operations/contact', key: 'contactInbox', permission: 'operations:read' },
   { href: '/admin/operations/drive', key: 'driveOperations', permission: 'operations:read' },
   { href: '/admin/verification', key: 'verification', globalOnly: true },
   { href: '/admin/audit', key: 'audit', globalOnly: true },

@@ -1,44 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { sanitizeMessage, sanitizeText } from '@/lib/security/validation';
-import { logServerError, logServerEvent } from '@/lib/security/safe-logger';
+import { createHash, createHmac } from 'node:crypto';
+import { supabaseAdmin } from '@/lib/supabase/server';
+import { handleContact } from '@/lib/contact/handler';
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { name, email, phone, subject, message } = body;
-
-    const sanitizedName = sanitizeText(name, '');
-    const sanitizedEmail = sanitizeText(email, '');
-    sanitizeText(phone, '');
-    const sanitizedSubject = sanitizeText(subject, '');
-    const sanitizedMessage = sanitizeMessage(message, '');
-
-    if (!sanitizedName || !sanitizedEmail || !sanitizedSubject || !sanitizedMessage) {
-      return NextResponse.json(
-        { error: 'جميع الحقول المطلوبة يجب تعبئتها' },
-        { status: 400 }
-      );
+export const runtime = 'nodejs';
+export async function POST(request: Request) {
+  return handleContact(request, async (input, key) => {
+    const secret = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseAdmin || !secret) return { kind: 'unavailable' };
+    const { data, error } = await supabaseAdmin.rpc('receive_contact_enquiry', {
+      p_key: key,
+      p_fingerprint: createHash('sha256').update(JSON.stringify(input)).digest('hex'),
+      p_sender_hash: createHmac('sha256', secret).update(input.email).digest('hex'),
+      p_input: input,
+    });
+    if (error || !data) return { kind: 'unavailable' };
+    if (data.kind === 'saved' && typeof data.reference === 'string') {
+      return { kind: 'saved', reference: data.reference, replay: data.replay === true };
     }
-
-    if (!sanitizedEmail.includes('@') || !sanitizedEmail.includes('.')) {
-      return NextResponse.json(
-        { error: 'صيغة البريد الإلكتروني غير صالحة' },
-        { status: 400 }
-      );
-    }
-
-    // Validation is not delivery. No durable inbox or sender is connected yet.
-    logServerEvent('api.contact.delivery_unavailable');
-
-    return NextResponse.json(
-      { code: 'CONTACT_DELIVERY_UNAVAILABLE', error: 'لم تُرسل رسالتك ولم تُحفظ. خدمة استقبال الرسائل غير متاحة حالياً؛ احتفظ بنص الرسالة.' },
-      { status: 503, headers: { 'Cache-Control': 'no-store' } }
-    );
-  } catch (error) {
-    logServerError('api.contact.request_failed', error);
-    return NextResponse.json(
-      { error: 'حدث خطأ في الخادم' },
-      { status: 500 }
-    );
-  }
+    if (data.kind === 'limited' || data.kind === 'conflict') return { kind: data.kind };
+    return { kind: 'unavailable' };
+  });
 }

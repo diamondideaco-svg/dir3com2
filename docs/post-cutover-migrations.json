@@ -52,5 +52,11 @@
     "task": "#172",
     "production_apply_authorized": false,
     "path": "supabase/migrations/20260928121156_drive_price_reduction_15_percent.sql"
+  },
+  {
+    "path": "supabase/migrations/20260928234244_contact_durable_inbox.sql",
+    "sha256": "e4423dea048f3e045c9dda94d88f57ab0615512c9e1ca89bab24985b88e4fec1",
+    "task": "#174",
+    "production_apply_authorized": false
   }
 ]
