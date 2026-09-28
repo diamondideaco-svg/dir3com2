@@ -83,6 +83,7 @@ test('invalid JSON message type is a 400, never a server exception',async()=>{
 });
 
 test('unlisted makes and model codes do not return misleading matches',()=>{
+ assert.ok(offers('car in 2 hours Cairo USD 2026-12-12').length > 0);
  assert.equal(offers('BMW car in Cairo').length,0);assert.equal(offers('Jetour X999 in Cairo').length,0);
  assert.equal(offers('رينج روفر سبورت القاهرة')[0].id,'managed-eg-range-rover-sport');
 });

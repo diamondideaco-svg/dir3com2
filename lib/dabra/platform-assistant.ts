@@ -61,7 +61,7 @@ export function findPlatformDriveOffers(message: string): DriveOffer[] {
   }));
   const modelTokens = [...new Set(DRIVE_OFFERS.map(o => normalizePlatformQuery(vehicleFor(o).model)))];
   const models = modelTokens.filter(model => new RegExp(`(?:^|[^a-z0-9])${model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s*')}(?:$|[^a-z0-9])`).test(text));
-  const requestedCodes = text.match(/\b[a-z]{1,3}\s*\d{1,4}\b/g) ?? [];
+  const requestedCodes = text.match(/\b(?:[a-z]{1,3}\d{1,3}|[tesvghx]\s+\d{1,3})\b/g) ?? [];
   if (requestedCodes.some(code => !modelTokens.some(model => model.replace(/\s/g,'').includes(code.replace(/\s/g,''))))) return [];
   const longestModels = models.filter(model => !models.some(other => other !== model && other.includes(model)));
   const airport = /airport|المطار/.test(text);

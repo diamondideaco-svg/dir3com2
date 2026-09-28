@@ -1,0 +1,21 @@
+.results {
+  color: #0f172a;
+  min-width: 0;
+}
+.notice { grid-column: 1 / -1; color: #475569; line-height: 1.7; }
+.results article { min-width: 0; }
+.results article p { color: #334155; line-height: 1.7; margin: .6rem 0; }
+.results article .price { color: #0f172a; font-weight: 700; }
+.action {
+  display: inline-flex;
+  margin-top: .5rem;
+  padding: .6rem .8rem;
+  border: 1px solid #b58a22;
+  border-radius: .6rem;
+  color: #172538;
+  background: #f8edc8;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.action:focus-visible { outline: 3px solid #172538; outline-offset: 3px; }

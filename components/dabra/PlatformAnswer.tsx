@@ -9,10 +9,10 @@ export function platformLinkAllowed(href: string) {
 }
 export default function PlatformAnswer({ text }: { text: string }) {
   const pieces = text.split(/(\[[^\]\n]{1,100}\]\(\/[^)\s]{1,1500}\))/g);
-  return <>{pieces.map((piece, i) => {
+  return <span style={{ whiteSpace: 'pre-line' }}>{pieces.map((piece, i) => {
     const match = piece.match(/^\[([^\]\n]+)\]\((\/[^)\s]+)\)$/);
     return match && platformLinkAllowed(match[2])
-      ? <a key={i} href={match[2]} className="font-semibold underline underline-offset-4" style={{ overflowWrap: 'anywhere' }}>{match[1]}</a>
+      ? <a key={i} href={match[2]} className="font-semibold underline underline-offset-4" style={{ overflowWrap: 'anywhere' }}><bdi>{match[1]}</bdi></a>
       : <Fragment key={i}>{piece}</Fragment>;
-  })}</>;
+  })}</span>;
 }
