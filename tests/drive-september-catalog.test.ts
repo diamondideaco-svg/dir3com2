@@ -26,11 +26,14 @@ test('approved high USD price plus 10% once; airport exactly half, in integer ce
     assert.equal(journeyPrice(offer,'chauffeur').total,null);
   }
 });
-test('20 reconciled rows plus three untouched legacy offers; ambiguous rows never become inventory',()=>{
-  assert.equal(data.rows.length,20);assert.equal(DRIVE_OFFERS.length,23);
-  assert.equal(new Set(DRIVE_OFFERS.map(o=>o.id)).size,23);
-  assert.deepEqual(data.rows.map(r=>r.sourceRow),[1,2,3,4,5,8,9,11,12,13,14,15,16,17,18,19,20,21,24,25]);
-  assert.ok(data.rows.every(r=>r.modelYears.every(y=>y>=2022&&y<=2027)));
+test('all 27 CEO-approved rows included; no year or missing field excludes an offer',()=>{
+  assert.equal(data.rows.length,27);assert.equal(DRIVE_OFFERS.length,30);
+  assert.equal(new Set(DRIVE_OFFERS.map(o=>o.id)).size,30);
+  assert.deepEqual(data.rows.map(r=>r.sourceRow),Array.from({length:27},(_,i)=>i+1));
+  assert.deepEqual(data.rows.find(r=>r.sourceRow===23)!.modelYears,[2020,2021]);
+  assert.deepEqual(data.rows.find(r=>r.sourceRow===26)!.modelYears,[]);
+  assert.deepEqual(data.rows.find(r=>r.sourceRow===27)!.modelYears,[]);
+  assert.ok(source.rows.every(r=>r.status==='accepted_all_years_pending_release_gates'));
   assert.ok(DRIVE_OFFERS.every(o=>o.availability==='request_to_confirm'));
   const legacy=DRIVE_OFFERS.filter(o=>o.supplierId==='safeerat-al-arab');
   assert.deepEqual(legacy.map(o=>[o.vehicleId,o.airport,o.chauffeur,o.currency]),[
@@ -57,6 +60,7 @@ test('Operations and customer review use saved years, never downgrade an old req
   const saved=(minimumModelYear:number,acceptableModelYears:number[])=>({minimumModelYear,acceptableModelYears});
   assert.deepEqual(savedDriveModelYears(saved(2025,[2025,2026,2027])),[2025,2026,2027]);
   assert.deepEqual(savedDriveModelYears(saved(2022,[2022,2023,2024,2025,2026,2027])),[2022,2023,2024,2025,2026,2027]);
-  assert.deepEqual(savedDriveModelYears(saved(2025,[2021,2022,2024,2025,2028])),[2025]);
+  assert.deepEqual(savedDriveModelYears(saved(2025,[2021,2022,2024,2025,2028])),[2025,2028]);
+  assert.equal(savedDriveModelYears({minimumModelYear:null,acceptableModelYears:null}),null);
   assert.deepEqual(savedDriveModelYears({}),[2025,2026,2027]);
 });

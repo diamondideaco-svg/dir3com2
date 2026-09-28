@@ -28,7 +28,7 @@ await db.exec(year.slice(year.indexOf('CREATE OR REPLACE FUNCTION public.create_
 const trip={pickup:'Cairo',dropoff:'Giza',name:'Isolated QA',phone:'+201000000000',acknowledged:true,currency:'USD',minimumModelYear:2025,acceptableModelYears:[2025,2026,2027],
  passengers:2,luggage:1,pickupAt:'2099-01-12T12:00',returnAt:'2099-01-13T12:00',mode:'chauffeur',notes:'',specialRequest:'',flightNumber:'',flightArrival:''};
 async function call(key,version,mode='chauffeur') {
- const versionTrip=version===data.version?{...trip,minimumModelYear:2022,acceptableModelYears:[2022,2023,2024,2025,2026,2027]}:trip;
+ const versionTrip=version===data.version?{...trip,minimumModelYear:null,acceptableModelYears:null}:trip;
  const payload=mode==='airport'?{...versionTrip,mode,flightNumber:'QA123',flightArrival:'2099-01-12T11:00'}:versionTrip;
  await db.exec('SET ROLE authenticated');
  try{return (await db.query('SELECT public.create_managed_drive_request($1,$2,$3::jsonb,$4) AS result',['safeerat-eg-jetour-t2',key,JSON.stringify(payload),version])).rows[0].result;}
@@ -38,7 +38,7 @@ await db.exec('SET ROLE authenticated');
 await db.query('SELECT public.create_managed_drive_request($1,$2,$3::jsonb)',['safeerat-eg-jetour-t2','task167-legacy-request',JSON.stringify(trip)]);
 await db.exec('RESET ROLE');
 await db.exec(migration);
-assert.equal((await db.query('SELECT count(*)::int AS n FROM public.drive_managed_offers')).rows[0].n,23);
+assert.equal((await db.query('SELECT count(*)::int AS n FROM public.drive_managed_offers')).rows[0].n,30);
 for(const row of data.rows){
  const result=(await db.query('SELECT * FROM public.drive_managed_offers WHERE id=$1',[row.offerId])).rows[0];
  assert.equal(Number(result.daily_amount)*100,row.dailyCents);assert.equal(Number(result.airport_amount)*100,row.airportCents);
@@ -59,7 +59,7 @@ assert.equal((await db.query("SELECT has_function_privilege('anon','public.creat
 assert.equal((await db.query("SELECT has_table_privilege('authenticated','public.drive_managed_offers','UPDATE') AS allowed")).rows[0].allowed,false);
 const saved=(await db.query('SELECT r.id,c.trip FROM public.marketplace_requests r JOIN public.drive_request_context c ON c.request_id=r.id ORDER BY c.supplier_amount')).rows;
 const old=saved.find(r=>r.trip.minimumModelYear===2025);
-const current=saved.find(r=>r.trip.minimumModelYear===2022);
+const current=saved.find(r=>r.trip.minimumModelYear===null);
 async function review(id,version,action,year=null){
  await db.exec('SET ROLE authenticated');
  try{return await db.query("SELECT public.review_managed_drive_request($1,$2,$3,'Equivalent approved vehicle',$4,250,'USD',now()+interval '1 day','Isolated QA')",[id,version,action,year]);}
@@ -67,12 +67,19 @@ async function review(id,version,action,year=null){
 }
 await review(old.id,0,'review');await review(current.id,0,'review');
 for(const year of [2021,2022,2023,2024]) await assert.rejects(review(old.id,1,'confirm',year),e=>e.code==='22023');
-await assert.rejects(review(current.id,1,'confirm',2021),e=>e.code==='22023');
-await review(current.id,1,'confirm',2022);await review(old.id,1,'confirm',2025);
-assert.equal((await db.query('SELECT confirmed_vehicle_year FROM public.drive_request_context WHERE request_id=$1',[current.id])).rows[0].confirmed_vehicle_year,2022);
+await assert.rejects(review(current.id,1,'confirm',999),e=>e.code==='22023');
+await review(current.id,1,'confirm',2020);await review(old.id,1,'confirm',2025);
+assert.equal((await db.query('SELECT confirmed_vehicle_year FROM public.drive_request_context WHERE request_id=$1',[current.id])).rows[0].confirmed_vehicle_year,2020);
 assert.equal((await db.query('SELECT confirmed_vehicle_year FROM public.drive_request_context WHERE request_id=$1',[old.id])).rows[0].confirmed_vehicle_year,2025);
 assert.equal((await db.query("SELECT count(*)::int AS n FROM public.drive_request_events WHERE action='confirm'")).rows[0].n,2);
 assert.equal((await call('task167-legacy-request',null)).replayed,true);
 assert.equal((await db.query("SELECT count(*)::int AS n FROM public.marketplace_requests WHERE status='awaiting_customer_acceptance' AND next_action='payment_not_enabled'")).rows[0].n,2);
+// No hidden year floor: old or unspecified years all work for newly approved requests.
+for (const vehicleYear of [1990,2021,null]) {
+ const created=await call('task167-any-year-'+String(vehicleYear),data.version);
+ const id=(await db.query('SELECT id FROM public.marketplace_requests WHERE request_reference=$1',[created.reference])).rows[0].id;
+ await review(id,0,'review');await review(id,1,'confirm',vehicleYear);
+ assert.equal((await db.query('SELECT confirmed_vehicle_year FROM public.drive_request_context WHERE request_id=$1',[id])).rows[0].confirmed_vehicle_year,vehicleYear);
+}
 await db.close();
-console.log('PASS: isolated PostgreSQL migration, 23 offers/20 exact rates, old/new retry, new 2022 confirmation, old 2025 promise preserved, 2021 rejected, one audit per confirmation, no booking/payment. No external DB used.');
+console.log('PASS: isolated PostgreSQL migration, 30 offers/27 exact rates, old/new retry, all-years and unspecified-year confirmation, old 2025 promise preserved, invalid year syntax rejected, one audit per confirmation, no booking/payment. No external DB used.');

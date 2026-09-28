@@ -6,18 +6,22 @@ export const DRIVE_COUNTRY = 'EG';
 export const DRIVE_TIME_ZONE = 'Africa/Cairo';
 export const DRIVE_CURRENCIES = ['EGP', 'USD', 'SAR', 'EUR', 'AED'] as const;
 export const LEGACY_DRIVE_MODEL_YEARS = [2025, 2026, 2027] as const;
-export const DRIVE_MODEL_YEARS = [2022, 2023, 2024, 2025, 2026, 2027] as const;
-export const DRIVE_MIN_MODEL_YEAR = DRIVE_MODEL_YEARS[0];
+export const DRIVE_MIN_MODEL_YEAR = null; // CEO accepts all source years, including unspecified.
+export function validDriveModelYear(year: number | null) {
+  return year === null || (Number.isInteger(year) && year >= 1000 && year <= 9999);
+}
 /** An old client's identical retry must retain its original request contract. */
-export function driveRequestModelYears(catalogVersion: unknown): readonly number[] {
-  return catalogVersion === DRIVE_CATALOG_VERSION ? DRIVE_MODEL_YEARS : LEGACY_DRIVE_MODEL_YEARS;
+export function driveRequestModelYears(catalogVersion: unknown): readonly number[] | null {
+  if (catalogVersion === DRIVE_CATALOG_VERSION) return null;
+  if (catalogVersion === 'managed-eg-20260928-v2') return [2022,2023,2024,2025,2026,2027];
+  return LEGACY_DRIVE_MODEL_YEARS;
 }
 export type DriveCurrency = typeof DRIVE_CURRENCIES[number];
 export type DriveMode = 'airport' | 'chauffeur';
-export type VehicleClass = 'Economy' | 'Sedan' | 'SUV' | 'Luxury' | 'Premium SUV';
+export type VehicleClass = 'Economy' | 'Sedan' | 'SUV' | 'Luxury' | 'Premium SUV' | 'Other';
 export type VehicleMaster = {
   id: string; make: string; model: string; ar: string; en: string;
-  vehicleClass: VehicleClass; body: 'sedan' | 'suv' | 'mpv'; modelYears?: readonly number[]; year: number | null; trim: string | null;
+  vehicleClass: VehicleClass; body: 'sedan' | 'suv' | 'mpv' | 'unknown'; modelYears?: readonly number[] | null; year: number | null; trim: string | null;
   passengers: number | null; luggage: number | null; doors: number | null; airConditioning: boolean | null;
   image: string; exactModelGuaranteed: boolean;
 };
@@ -46,14 +50,14 @@ const rates = [[100, 200, 'USD'], [50, 100, 'USD'], [50, 100, 'USD'], [900, 1800
   [1500, 3500, 'EGP'], [80, 150, 'USD'], [200, 350, 'USD'], [250, 450, 'USD'], [null, 550, 'USD']] as const;
 const legacyOffers: readonly DriveOffer[] = legacyVehicles.map((vehicle, index) => ({
   id: `safeerat-eg-${vehicle.id}`, vehicleId: vehicle.id, supplierId: 'safeerat-al-arab', country: 'EG',
-  version: LEGACY_DRIVE_CATALOG_VERSION, dailyPeriodHours: null,
+  version: DRIVE_CATALOG_VERSION, dailyPeriodHours: null,
   airport: rates[index][0], chauffeur: rates[index][1], currency: rates[index][2],
   availability: 'request_to_confirm', chauffeurIncluded: true, includedKm: 120, fuelIncluded: true,
 }));
 
 const updatedVehicles: readonly VehicleMaster[] = september.rows.map(row => ({
   ...master(row.vehicleId, row.make, row.model, row.ar, row.vehicleClass as VehicleClass, row.body as VehicleMaster['body']),
-  modelYears: row.modelYears,
+  modelYears: row.modelYears, image: row.image,
 }));
 export const VEHICLE_MASTER: readonly VehicleMaster[] = [
   ...legacyVehicles.map(v => updatedVehicles.find(u => u.id === v.id) ?? v),
@@ -76,11 +80,12 @@ export function vehicleTitle(vehicle: VehicleMaster, language: 'ar' | 'en') {
   return vehicle[language] + (vehicle.exactModelGuaranteed ? '' : language === 'ar' ? ' أو ما يماثلها' : ' or similar');
 }
 export function vehicleClassLabel(value: VehicleClass, language: 'ar' | 'en') {
-  const ar: Record<VehicleClass, string> = { Economy: 'اقتصادية', Sedan: 'سيدان', SUV: 'رياضية متعددة الاستخدامات', Luxury: 'فاخرة', 'Premium SUV': 'رياضية فاخرة متعددة الاستخدامات' };
+  const ar: Record<VehicleClass, string> = { Economy: 'اقتصادية', Sedan: 'سيدان', SUV: 'رياضية متعددة الاستخدامات', Luxury: 'فاخرة', 'Premium SUV': 'رياضية فاخرة متعددة الاستخدامات', Other: 'التفاصيل تؤكدها العمليات' };
   return language === 'ar' ? ar[value] : value;
 }
 export function vehicleYearAvailabilityLabel(language: 'ar' | 'en', vehicle?: Pick<VehicleMaster, 'modelYears'>) {
-  const years = (vehicle?.modelYears ?? DRIVE_MODEL_YEARS).join(' / ');
+  const years = (vehicle?.modelYears ?? []).join(' / ');
+  if (!years) return language === 'ar' ? 'سنة الموديل حسب التوفر — تؤكدها العمليات' : 'Model year subject to availability — confirmed by Operations';
   return language === 'ar' ? `موديل ${years} — حسب التوفر أو ما يماثلها` : `Model year ${years} — subject to availability or similar`;
 }
 export function supplierRate(offer: DriveOffer, mode: DriveMode) { return offer[mode]; }

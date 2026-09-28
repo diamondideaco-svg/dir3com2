@@ -1,11 +1,12 @@
 import type { DriveTrip } from './request';
-import { DRIVE_MODEL_YEARS, LEGACY_DRIVE_MODEL_YEARS } from './catalog';
-export type PersistedDriveTrip = DriveTrip & { minimumModelYear: number; acceptableModelYears: readonly number[] };
+import { validDriveModelYear, LEGACY_DRIVE_MODEL_YEARS } from './catalog';
+export type PersistedDriveTrip = DriveTrip & { minimumModelYear: number | null; acceptableModelYears: readonly number[] | null };
 /** Read the saved promise, never the current catalogue, for an existing REQ. */
-export function savedDriveModelYears(trip: Partial<Pick<PersistedDriveTrip, 'minimumModelYear' | 'acceptableModelYears'>>): readonly number[] {
+export function savedDriveModelYears(trip: Partial<Pick<PersistedDriveTrip, 'minimumModelYear' | 'acceptableModelYears'>>): readonly number[] | null {
+  if (trip.minimumModelYear === null && trip.acceptableModelYears === null) return null;
   const minimum = trip.minimumModelYear ?? 2025;
   const years: readonly number[] = Array.isArray(trip.acceptableModelYears) ? trip.acceptableModelYears : LEGACY_DRIVE_MODEL_YEARS;
-  return DRIVE_MODEL_YEARS.filter(year => year >= minimum && years.includes(year));
+  return years.filter(year => validDriveModelYear(year) && year >= minimum);
 }
 export type DriveRequestRecord = {
   id: string; request_reference: string; drive_offer_id: string; status: string;

@@ -4,20 +4,20 @@ Prepared, NOT published. Owner: Codex — ChatGPT Work Mode. Branch: feat/drive-
 
 Daily = highest source USD price + 10% once. Airport reception = 50% of final daily rate. Daily service covers a 24-hour period including driver, fuel and 120km; continuous driver duty and extra-distance charges are not promised. Airport is a separate service. Final journey total remains subject to Operations confirmation.
 
-20 rows mapped to supplied 2022+ years under the CEO approval of 2026-09-28; seven unresolved or pre-2022 rows remain separate without delaying eligible rows. Source years are never relabelled as newer inventory. Three unmatched existing approved offers remain unchanged. Existing REQs retain their original year promise. Row 1 uses only the legible 2022 year; its clipped year is not guessed. CN7 is normalized to Hyundai Elantra, consistent with Hyundai official CN7 documentation. Abu Al-Hana products are untouched. New and repriced offers belong to Egypt Operations; no supplier is inferred.
+All 27 supplied source rows are accepted. No minimum year applies; 2020/2021 and missing years remain eligible. Three unmatched existing offers keep their prices, making 30 offers total. Missing names/years are preserved as unknown, never grounds to exclude a row. Existing REQs keep their originally agreed year promise. E200 includes the legible 2021/2022; the clipped year is not invented. CN7 is normalized to Hyundai Elantra. Carval→Carnival, Tuycan→Tucson and the blank Nissan row→Patrol are documented editorial inferences from spelling/table continuity; raw source names and years are preserved, not claimed as newly supplier-confirmed facts. Abu Al-Hana products are untouched. New and repriced offers belong to Egypt Operations; no supplier is inferred.
 
 | Row | Source model | Source years | Daily USD | Airport USD | Eligible years |
 |---:|---|---|---:|---:|---|
-| 1 | Mercedes E200 | 21 - 22 - 2… | 187.00 | 93.50 | 2022 |
+| 1 | Mercedes E200 | 21 - 22 - 2… | 187.00 | 93.50 | 2021 / 2022 |
 | 2 | Mercedes S500 | 22 / 23 | 550.00 | 275.00 | 2022 / 2023 |
 | 3 | Mercedes G-Class | 22 - 23 | 605.00 | 302.50 | 2022 / 2023 |
 | 4 | Mercedes V250 | 22 to 25 | 275.00 | 137.50 | 2022 / 2023 / 2024 / 2025 |
 | 5 | Mercedes V300 | 25 - 26 - 27 | 440.00 | 220.00 | 2025 / 2026 / 2027 |
-| 6 | Kia carval | 26 | 220.00 | 110.00 | HELD |
-| 7 | Kia K4 | 22 - 23 | 93.50 | 46.75 | HELD |
+| 6 | Kia carval | 26 | 220.00 | 110.00 | 2026 |
+| 7 | Kia K4 | 22 - 23 | 93.50 | 46.75 | 2022 / 2023 |
 | 8 | Kia Sportage | 26 | 132.00 | 66.00 | 2026 |
 | 9 | Hyundai cn7 | 22 / 23 | 77.00 | 38.50 | 2022 / 2023 |
-| 10 | Hyundai tuycan | 22 / 25 | 110.00 | 55.00 | HELD |
+| 10 | Hyundai tuycan | 22 / 25 | 110.00 | 55.00 | 2022 / 2025 |
 | 11 | Hyundai accent | 22 / 26 | 66.00 | 33.00 | 2022 / 2026 |
 | 12 | Jetour T2 | 26 / 27 | 165.00 | 82.50 | 2026 / 2027 |
 | 13 | Jetour X70 | 26 | 88.00 | 44.00 | 2026 |
@@ -29,11 +29,11 @@ Daily = highest source USD price + 10% once. Airport reception = 50% of final da
 | 19 | Range Rover Sport | 24 - 25 | 660.00 | 330.00 | 2024 / 2025 |
 | 20 | Nissan Sunny | 22 / 25 | 66.00 | 33.00 | 2022 / 2025 |
 | 21 | Nissan Patrol | 22 - 23 | 440.00 | 220.00 | 2022 / 2023 |
-| 22 | Nissan [model not stated] | 26 | 770.00 | 385.00 | HELD |
-| 23 | Land Cruiser | 20 - 21 | 385.00 | 192.50 | HELD |
+| 22 | Nissan [model not stated] | 26 | 770.00 | 385.00 | 2026 |
+| 23 | Land Cruiser | 20 - 21 | 385.00 | 192.50 | 2020 / 2021 |
 | 24 | Land Cruiser | 22 - 23 - 24 - 25 | 495.00 | 247.50 | 2022 / 2023 / 2024 / 2025 |
 | 25 | Escalade | 26 | 1100.00 | 550.00 | 2026 |
-| 26 | H1 | not stated | 165.00 | 82.50 | HELD |
-| 27 | Hiace | not stated | 165.00 | 82.50 | HELD |
+| 26 | H1 | not stated | 165.00 | 82.50 | Not specified — accepted |
+| 27 | Hiace | not stated | 165.00 | 82.50 | Not specified — accepted |
 
 Images are original generated catalogue assets. Model-specific generation review and transparent-background checks precede release; no copied rental-company photographs. Model/color/trim are not guaranteed physical inventory.

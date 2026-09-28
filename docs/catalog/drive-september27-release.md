@@ -1,48 +1,51 @@
 # Task #167 / PR #168 — Drive catalogue release record
 
-Updated 2026-09-28 (Asia/Riyadh). Owner: Codex — ChatGPT Work Mode, directly assigned by the CEO. Independent reviewer requested: Codex Desktop; no review completion or direct Desktop delivery is claimed.
+Updated 2026-09-28 (UTC). Owner: Codex — ChatGPT Work Mode, directly assigned by the CEO. Independent reviewer requested: Codex Desktop. No direct Desktop receipt or completed independent review is claimed.
 
-Branch `feat/drive-catalog-september27`; base `c8c91f33f3ea017bf09f0d4ee32747c0aae425b9`; this delta starts at `f7ce91f8c65124f68df935dd3d318bbb715b5c41`. Final SHA is recorded in Task #167 and PR #168 after push. Same branch/PR; no other workstream edited.
+Branch `feat/drive-catalog-september27`; base `c8c91f33f3ea017bf09f0d4ee32747c0aae425b9`; this correction starts at `633494c2f7ae7cc78de9b9d3cc4c5617d05ea533`. Final SHA is recorded in Task #167 and PR #168 after push. Same branch/PR and isolated worktree.
 
-## Customer result
+## Authoritative customer instruction and result
 
-The CEO now accepts 2022, 2023 and 2024 as well as the existing newer years. Twenty source rows are reconciled: six existing offers repriced, fourteen new offers, plus three unchanged legacy offers = **23 offers**. Six additional rows were recovered by this year-policy update. Source years are not relabelled. E200 uses the legible 2022 only; the clipped final year is not guessed. CN7 is normalized to Hyundai Elantra, with an official Hyundai source recorded in the JSON register.
+The CEO explicitly accepts **every supplied vehicle and every model year**, including 2020/2021 and unspecified years. This supersedes the earlier 2025 and 2022 eligibility minima. **All 27 source rows are accepted; zero rows withheld.** Six existing offers are repriced and twenty-one added; with three financially unchanged offers, the catalogue contains **30 offers**.
 
-Daily USD = higher source row price × 1.10 once. Airport reception = 50% of that final price. Reconciled daily services cover 24 hours, driver, fuel and 120km. Continuous driver duty, excess charges and automatic final totals are not inferred. AMG Line, T1 and full-size Range Rover 2025 retain their prior rates/contract. The other full-size Range Rover and Range Rover Sport remain distinct listings/images. New rates are coordinated by Egypt Operations; supplier identity is not guessed. Abu Al-Hana products are untouched.
+E200 preserves the legible 2021/2022; a clipped final year is not guessed. Land Cruiser 2020/2021 is a distinct offer from the later Land Cruiser. H1 and Hiace remain accepted with unspecified years. Raw source names/years remain in the register. Editorial normalization reads Carval as Carnival, Tuycan as Tucson, and the blank Nissan row as continuation of Patrol from the preceding row. These are explicit inferences from the submitted table, not a new supplier confirmation. K4 source years 2022/2023 remain unchanged; its image is a current model-family representation, not independent authentication of those years. CN7 retains its previously documented normalization to Elantra.
 
-Seven rows remain separately recorded and do not block the twenty eligible rows: Kia “carval” (model spelling), Kia K4 2022/23 (model/generation), Hyundai “tuycan” (model spelling), unnamed Nissan 2026, Land Cruiser 2020/21 (below the newly approved minimum), H1 and Hiace (missing years). This is missing source information, not a reason to fabricate inventory.
+Daily USD = higher source row price × 1.10 once. Airport reception = 50% of the final daily rate. The 27 reconciled daily services include 24 hours, driver, fuel and 120km. Continuous driver duty, excess charges and a final trip total are not invented. AMG Line, T1 and the existing full-size Range Rover 2025 retain their previous financial/service terms. All 30 current offers use the unrestricted-year request policy. Egypt Operations coordinates the new rates; supplier identity is not guessed. Abu Al-Hana products and WhatsApp #166 are untouched.
 
-Three new original transparent WebP images depict S500 W223, Elantra CN7 and Patrol Y62 model families. Fourteen generated images now supplement the retained approved assets. The latest three generation prompts/IDs are recorded. No rental-company photos copied; generated visualization is not proof of an exact physical vehicle, trim or color. Existing approved images remain unchanged.
+## Images and source limits
 
-## Request/data integrity
+The CEO rejected the covered-vehicle placeholder. It has been removed from both public files and catalogue mappings. **All 30 listings now have 30 distinct uncovered images.** Ten assets were replaced or added during this visual correction: Carnival, K4, Tucson, Patrol Y63, Egyptian Sunny N17, E200, E200 AMG Line, G-Class, T1 and T2. Remaining assets were reviewed together and retained. All images face left in a front three-quarter view on a transparent background; each is 1536×1024, fully decodable, with positive subject margins. Distinct Range Rover/Sport colors and generations remain.
 
-Catalogue version `managed-eg-20260928-v2`. The application JSON and the guarded SQL migration share the same twenty price pairs. The unpublished Task167 migration is updated in-place; historical migrations are untouched and the forward-registry hash matches.
+Patrol and K4 draft geometry was corrected using manufacturer shape references; an invented engine badge was removed. Egyptian Sunny uses N17 rather than the newer global N18. Model names inferred from spelling/table continuation are recorded in the source register. The K4 source-year discrepancy is retained as supplied rather than being silently rewritten; its image is representative of the model family, not proof of an exact 2022/2023 unit.
 
-The migration fails before overwriting independently modified baseline rates or colliding new IDs. It updates six offers and inserts fourteen; it does not modify products, partners, existing requests, quotes, bookings or payments. It expands permitted confirmation years but verifies each confirmation against the year contract already saved on that request.
+Evidence: `drive-image-quality-2026-09-28.json` records generation IDs, prompts and reference URLs; `drive-image-audit-2026-09-28.{json,jpg}` records all 30 local files, hashes, transparency/dimensions and the visual contact sheet. Manufacturer reference photos were used for shape checking, not shipped as public assets. Generated catalogue art does not guarantee exclusive rights or an exact physical vehicle's year, trim or color; “or similar” and Operations confirmation remain.
 
-- New requests from this catalogue carry minimum 2022 / accepted 2022–2027; the database validates the policy and version.
-- Older requests retain their original 2025–2027 promise and original amount. Their retries return the existing request before current-version validation.
-- The three unchanged legacy offers retain their original 2025–2027 policy.
-- Stale new requests get `CATALOG_CHANGED`; no unseen updated price is silently accepted.
-- Customer review and Operations derive their year labels/options from the saved request, not today's catalogue.
-- Six-hour eligibility, authenticated/country-scoped authority, immutable audit and no-booking/payment boundaries remain enforced.
+## Request and database integrity
 
-## Verification and limits
+Catalogue version `managed-eg-20260928-v3`. Application JSON and the guarded unpublished migration contain all 27 identical price pairs. Historical migrations are untouched; the forward-registry hash matches. Baseline protection covers all nine existing catalogue rows; collisions or unexpected prior values stop the migration before overwrite. Six are repriced, three receive only the new catalogue version, and twenty-one are inserted. Existing requests, quotes, partners, products, bookings and payments are not rewritten.
 
-Focused catalogue/request/retry/public-entry baseline: 38/38 PASS, followed by 8/8 affected final tests (39 unique tests including the added saved-year test). Final Typecheck PASS; Lint 0 errors/23 existing warnings; Build and Diff PASS. Migration baseline/cutover/target 55/55 and manifest check PASS.
+- New requests store explicit JSON null for both year constraints: no year eligibility floor or finite year allowlist. Missing year does not prevent request or Operations confirmation. A supplied year is validated only as a four-digit integer.
+- Operations can enter any year or leave it unspecified for these new requests.
+- Historical requests preserve their saved year promise and original price. Older 2025–2027 requests cannot be silently downgraded. Compatibility with the intermediate 2022–2027 request shape is retained.
+- Replay returns the saved request before the current-version check; an old price cannot create a new request silently.
+- Six-hour eligibility, authenticated customer ownership, country-scoped Operations authority, audit uniqueness and no-booking/payment boundaries remain.
 
-The actual migration and create/review RPCs executed in isolated in-memory PostgreSQL (PGlite): 23 offers, twenty exact daily/airport rate pairs, 24-hour metadata, stale-version rejection, old/new replay, old 2025 request rejecting 2022/23/24, new request accepting 2022, 2021 rejection, one event per confirmation and no booking/payment. The fixture stubs operational authority; full Supabase RLS coverage is not claimed. The repository Docker/Postgres harness is updated for the new version/policy and remains a cloud gate.
+## Verification
 
-Frozen-build public browser AR/EN × 1440/390 PASS: 23 cards and 23 images loaded, Patrol detail/year labels, no horizontal overflow, zero page errors. Patrol daily440 USD and airport220 USD. Evidence: `drive-browser-years-2026-09-28.json` and `drive-years-detail-{ar,en}-390.png`. An earlier start before build completion failed; the completed-build verification above is the accepted run. No authenticated request, provider search or commercial transaction was performed in browser QA.
+Current delta: 22/22 focused catalogue/request tests; Typecheck PASS; Lint 0 errors/23 existing warnings; Build and Diff PASS. Migration baseline/cutover/target checks 55/55 and manifest verification PASS. Previously accepted unchanged public-entry/retry evidence is retained without broad repetition.
 
-Self-review used the React checklist for deterministic derived year labels/options, unchanged hook order, authenticated server action and SQL authority. This is not independent approval. Exact-SHA CI/Preview and independent functional/security review must be recorded separately. Governance currently accepts only Desktop/VS Code implementation identities; Work Mode ownership is recorded honestly and the workflow is unchanged.
+The actual migration and create/review RPCs executed in isolated in-memory PostgreSQL (PGlite): 30 offers, 27 exact price pairs, stale-version rejection, old/new replay, new request confirmations for 1990/2020/2021 and an unspecified year, invalid year syntax rejection, one event per confirmation and no booking/payment. Historical 2025 promises remain enforced. The isolated fixture stubs operational authority; it is not full Supabase RLS coverage. The repository Docker/Postgres harness is updated and remains a cloud gate.
+
+The all-years frozen-build local public browser evidence is recorded separately in `drive-browser-all-years-2026-09-28.json`: AR/EN at 1440/390, all 30 cards/images, Land Cruiser 2020/2021 and unspecified-year H1 details, zero overflow/page errors. Land Cruiser 2020 daily385/airport192.50 USD; H1 daily165/airport82.50 USD. No authenticated browser request, provider call or business mutation was performed.
+
+The image/name-only final browser follow-up passed AR/EN at1440/390: all30 unique image paths loaded, no covered asset, no overflow/page errors, and detail/airport amounts unchanged. Evidence: `drive-browser-image-final-2026-09-28.json` and `drive-card-final-{ar,en}-390.png`. Final focused22/22, typecheck/lint/build/diff also passed. database/RPC evidence is reused because SQL and request logic did not change. Independent review and exact-SHA CI/Preview/Sandbox remain separate release gates. Self-checking is not independent approval. Governance currently accepts only Desktop/VS Code implementation identities; actual Work Mode ownership is recorded and that workflow has not been weakened or bypassed.
 
 ## Coordinated publication and recovery
 
-1. Resolve the exact-SHA independent review/cloud gates and the honest ownership/governance mismatch.
-2. In an authorized release window, record the six existing catalogue rows/version read-only, confirm reviewed SQL/hash and preserve the snapshot securely.
-3. Apply only the reviewed Task167 migration, then promote its matching application. The version guard rejects stale-price requests during the transition.
-4. Verify twenty price pairs, three unchanged offers, original currencies/service terms, year policies and images. Keep the six-hour and request-versus-booking boundaries.
-5. Recovery must be a reviewed forward change: deactivate new offers without deleting referenced records, restore the six snapshotted prior offer values/version and matching app, keep additive RPC compatibility and historical request contracts. Do not rewrite existing quotes or requests.
+1. Complete exact-SHA independent review/cloud gates and resolve the honest ownership/governance mismatch.
+2. Record the nine current catalogue rows/version read-only in the authorized release window; verify reviewed SQL/hash.
+3. Apply only this reviewed migration and promote its matching app. Version checks reject stale new requests during transition.
+4. Verify all 27 price pairs, three unchanged financial contracts, 30 displayed offers, unrestricted new-request years, historical request promises and images.
+5. Recovery is a reviewed forward change: deactivate new offers without deleting referenced rows, restore the nine snapshotted prior catalogue rows/version and matching app; preserve additive RPC compatibility and historical requests/quotes.
 
-**Production migration / business-data mutation / merge / deploy: NONE.** Prepared SQL and local proof are not a Production publication claim. WhatsApp #166 is separate and untouched.
+**Production migration / business-data mutation / merge / deploy: NONE.** Prepared SQL and local proof are not a Production publication claim.

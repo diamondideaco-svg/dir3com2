@@ -17,29 +17,34 @@ DO $$ BEGIN
   (VALUES ('safeerat-eg-jetour-t2',50::numeric,100::numeric,'USD'),
    ('safeerat-eg-jetour-x90',1500,3500,'EGP'),('safeerat-eg-nissan-sunny',900,1800,'EGP'),
    ('safeerat-eg-mercedes-e200',80,150,'USD'),('safeerat-eg-range-rover',200,350,'USD'),
-   ('safeerat-eg-mercedes-gclass',NULL,550,'USD'))
+   ('safeerat-eg-mercedes-gclass',NULL,550,'USD'),
+   ('safeerat-eg-mercedes-e200-amg',100,200,'USD'),('safeerat-eg-jetour-t1',50,100,'USD'),
+   ('safeerat-eg-range-rover-2025',250,450,'USD'))
   expected(id,airport,daily,currency) ON o.id=expected.id
   WHERE o.version='safeerat-eg-20260916-v1' AND o.active AND o.supplier_source='safeerat-al-arab'
    AND o.airport_amount IS NOT DISTINCT FROM expected.airport AND o.daily_amount=expected.daily
-   AND o.supplier_currency=expected.currency) <> 6 THEN
+   AND o.supplier_currency=expected.currency) <> 9 THEN
   RAISE EXCEPTION 'CATALOG_BASELINE_CHANGED';
  END IF;
  IF EXISTS(SELECT 1 FROM public.drive_managed_offers WHERE id IN
-  ('managed-eg-mercedes-s500','managed-eg-mercedes-v250','managed-eg-mercedes-v300','managed-eg-kia-sportage','managed-eg-hyundai-elantra-cn7','managed-eg-hyundai-accent','managed-eg-jetour-x70','managed-eg-soueast-s05','managed-eg-soueast-s09','managed-eg-soueast-s07','managed-eg-range-rover-sport','managed-eg-nissan-patrol','managed-eg-toyota-land-cruiser','managed-eg-cadillac-escalade')) THEN
+  ('managed-eg-mercedes-s500','managed-eg-mercedes-v250','managed-eg-mercedes-v300','managed-eg-kia-carval','managed-eg-kia-k4','managed-eg-kia-sportage','managed-eg-hyundai-elantra-cn7','managed-eg-hyundai-tuycan','managed-eg-hyundai-accent','managed-eg-jetour-x70','managed-eg-soueast-s05','managed-eg-soueast-s09','managed-eg-soueast-s07','managed-eg-range-rover-sport','managed-eg-nissan-patrol','managed-eg-nissan-source-2026','managed-eg-toyota-land-cruiser-2020','managed-eg-toyota-land-cruiser','managed-eg-cadillac-escalade','managed-eg-hyundai-h1','managed-eg-toyota-hiace')) THEN
   RAISE EXCEPTION 'NEW_OFFER_ID_ALREADY_EXISTS';
  END IF;
 END $$;
 
 INSERT INTO public.drive_managed_offers(id,vehicle_id,country,supplier_source,airport_amount,daily_amount,supplier_currency,version,daily_period_hours)
-SELECT v.id,v.vehicle,'EG','egypt-operations',v.airport,v.daily,'USD','managed-eg-20260928-v2',24
+SELECT v.id,v.vehicle,'EG','egypt-operations',v.airport,v.daily,'USD','managed-eg-20260928-v3',24
 FROM (VALUES
 ('safeerat-eg-mercedes-e200','mercedes-e200',93.50,187.00),
 ('managed-eg-mercedes-s500','mercedes-s500',275.00,550.00),
 ('safeerat-eg-mercedes-gclass','mercedes-gclass',302.50,605.00),
 ('managed-eg-mercedes-v250','mercedes-v250',137.50,275.00),
 ('managed-eg-mercedes-v300','mercedes-v300',220.00,440.00),
+('managed-eg-kia-carval','kia-carval',110.00,220.00),
+('managed-eg-kia-k4','kia-k4',46.75,93.50),
 ('managed-eg-kia-sportage','kia-sportage',66.00,132.00),
 ('managed-eg-hyundai-elantra-cn7','hyundai-elantra-cn7',38.50,77.00),
+('managed-eg-hyundai-tuycan','hyundai-tuycan',55.00,110.00),
 ('managed-eg-hyundai-accent','hyundai-accent',33.00,66.00),
 ('safeerat-eg-jetour-t2','jetour-t2',82.50,165.00),
 ('managed-eg-jetour-x70','jetour-x70',44.00,88.00),
@@ -51,12 +56,20 @@ FROM (VALUES
 ('managed-eg-range-rover-sport','range-rover-sport',330.00,660.00),
 ('safeerat-eg-nissan-sunny','nissan-sunny',33.00,66.00),
 ('managed-eg-nissan-patrol','nissan-patrol',220.00,440.00),
+('managed-eg-nissan-source-2026','nissan-source-2026',385.00,770.00),
+('managed-eg-toyota-land-cruiser-2020','toyota-land-cruiser-2020',192.50,385.00),
 ('managed-eg-toyota-land-cruiser','toyota-land-cruiser',247.50,495.00),
-('managed-eg-cadillac-escalade','cadillac-escalade',550.00,1100.00)
+('managed-eg-cadillac-escalade','cadillac-escalade',550.00,1100.00),
+('managed-eg-hyundai-h1','hyundai-h1',82.50,165.00),
+('managed-eg-toyota-hiace','toyota-hiace',82.50,165.00)
 ) AS v(id,vehicle,airport,daily)
 ON CONFLICT(id) DO UPDATE SET airport_amount=excluded.airport_amount,daily_amount=excluded.daily_amount,
  supplier_currency=excluded.supplier_currency,supplier_source=excluded.supplier_source,
  version=excluded.version,daily_period_hours=excluded.daily_period_hours;
+
+-- Existing prices/source/terms stay unchanged; new requests also adopt the all-years policy.
+UPDATE public.drive_managed_offers SET version='managed-eg-20260928-v3'
+ WHERE id IN ('safeerat-eg-mercedes-e200-amg','safeerat-eg-jetour-t1','safeerat-eg-range-rover-2025');
 
 -- Separate version argument leaves trip payload/idempotent retry equality unchanged.
 DROP FUNCTION public.create_managed_drive_request(text,text,jsonb);
@@ -90,8 +103,8 @@ BEGIN
    OR coalesce(p_trip->>'phone','') !~ '^[+0-9 ()-]{7,30}$'
    OR p_trip->'acknowledged' IS DISTINCT FROM 'true'::jsonb
    OR coalesce(p_trip->>'currency','') NOT IN ('EGP','USD','SAR','EUR','AED')
-   OR coalesce(p_trip->>'minimumModelYear','') <> (CASE WHEN p_catalog_version='managed-eg-20260928-v2' THEN '2022' ELSE '2025' END)
-   OR p_trip->'acceptableModelYears' IS DISTINCT FROM (CASE WHEN p_catalog_version='managed-eg-20260928-v2' THEN '[2022,2023,2024,2025,2026,2027]'::jsonb ELSE '[2025,2026,2027]'::jsonb END)
+   OR p_trip->'minimumModelYear' IS DISTINCT FROM (CASE WHEN p_catalog_version='managed-eg-20260928-v3' THEN 'null'::jsonb ELSE '2025'::jsonb END)
+   OR p_trip->'acceptableModelYears' IS DISTINCT FROM (CASE WHEN p_catalog_version='managed-eg-20260928-v3' THEN 'null'::jsonb ELSE '[2025,2026,2027]'::jsonb END)
    OR coalesce(length(p_trip->>'notes'),0)>1000
    OR coalesce(length(p_trip->>'specialRequest'),0)>500
    OR coalesce(p_trip->>'passengers','') !~ '^([1-9]|1[0-9]|20)$'
@@ -131,7 +144,7 @@ GRANT EXECUTE ON FUNCTION public.create_managed_drive_request(text,text,jsonb,te
 -- Add newly authorized years without rewriting any saved request promise.
 ALTER TABLE public.drive_request_context DROP CONSTRAINT drive_request_context_confirmed_vehicle_year_check;
 ALTER TABLE public.drive_request_context ADD CONSTRAINT drive_request_context_confirmed_vehicle_year_check
- CHECK(confirmed_vehicle_year IN (2022,2023,2024,2025,2026,2027));
+ CHECK(confirmed_vehicle_year IS NULL OR confirmed_vehicle_year BETWEEN 1000 AND 9999);
 CREATE OR REPLACE FUNCTION public.review_managed_drive_request(p_request_id uuid,p_version integer,p_action text,p_vehicle text DEFAULT NULL,p_vehicle_year integer DEFAULT NULL,p_amount numeric DEFAULT NULL,p_currency text DEFAULT NULL,p_expires timestamptz DEFAULT NULL,p_note text DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE v_context public.drive_request_context%ROWTYPE; v_request public.marketplace_requests%ROWTYPE; v_status text;
@@ -145,9 +158,12 @@ BEGIN
  IF v_request.status NOT IN ('request_submitted','under_review') OR p_action IS NULL OR p_action NOT IN ('review','confirm','decline') THEN RAISE EXCEPTION 'INVALID_TRANSITION' USING ERRCODE='22023'; END IF;
  IF p_action='review' AND v_request.status<>'request_submitted' THEN RAISE EXCEPTION 'INVALID_TRANSITION' USING ERRCODE='22023'; END IF;
  IF coalesce(length(p_note),0)>2000 THEN RAISE EXCEPTION 'INVALID_NOTE' USING ERRCODE='22023'; END IF;
- IF p_action='confirm' AND (v_request.status<>'under_review' OR coalesce(length(btrim(p_vehicle)),0) NOT BETWEEN 2 AND 200 OR p_vehicle_year IS NULL OR p_vehicle_year NOT IN (2022,2023,2024,2025,2026,2027)
-  OR NOT coalesce(v_context.trip->'acceptableModelYears','[2025,2026,2027]'::jsonb) @> jsonb_build_array(p_vehicle_year)
-  OR p_vehicle_year < coalesce((v_context.trip->>'minimumModelYear')::integer,2025) OR p_amount IS NULL OR p_amount<=0 OR p_amount>99999999 OR p_currency IS NULL OR p_currency NOT IN ('EGP','USD','SAR','EUR','AED') OR p_expires IS NULL OR p_expires<=now() OR p_expires>v_request.requested_for) THEN RAISE EXCEPTION 'INVALID_CONFIRMATION' USING ERRCODE='22023'; END IF;
+ IF p_action='confirm' AND (v_request.status<>'under_review' OR coalesce(length(btrim(p_vehicle)),0) NOT BETWEEN 2 AND 200 OR (p_vehicle_year IS NOT NULL AND p_vehicle_year NOT BETWEEN 1000 AND 9999)
+  OR (NOT (v_context.trip->'minimumModelYear' IS NOT DISTINCT FROM 'null'::jsonb
+    AND v_context.trip->'acceptableModelYears' IS NOT DISTINCT FROM 'null'::jsonb)
+   AND (p_vehicle_year IS NULL
+    OR NOT coalesce(v_context.trip->'acceptableModelYears','[2025,2026,2027]'::jsonb) @> jsonb_build_array(p_vehicle_year)
+    OR p_vehicle_year < coalesce((v_context.trip->>'minimumModelYear')::integer,2025))) OR p_amount IS NULL OR p_amount<=0 OR p_amount>99999999 OR p_currency IS NULL OR p_currency NOT IN ('EGP','USD','SAR','EUR','AED') OR p_expires IS NULL OR p_expires<=now() OR p_expires>v_request.requested_for) THEN RAISE EXCEPTION 'INVALID_CONFIRMATION' USING ERRCODE='22023'; END IF;
  v_status:=CASE p_action WHEN 'review' THEN 'under_review' WHEN 'confirm' THEN 'awaiting_customer_acceptance' ELSE 'declined' END;
  UPDATE public.marketplace_requests SET status=v_status, quote_amount=CASE WHEN p_action='confirm' THEN p_amount ELSE NULL END,
  quote_currency=CASE WHEN p_action='confirm' THEN p_currency ELSE NULL END,quote_expires_at=CASE WHEN p_action='confirm' THEN p_expires ELSE NULL END,

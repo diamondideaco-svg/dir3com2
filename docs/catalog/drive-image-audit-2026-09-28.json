@@ -1,0 +1,605 @@
+{
+  "result": "PASS:30 unique assets,1536x1024,alpha background,positive margins,all files decodable",
+  "images": [
+    {
+      "id": "mercedes-e200",
+      "file": "public/vehicles/mercedes-e200.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        44,
+        220,
+        1493,
+        837
+      ],
+      "bytes": 145590,
+      "sha256": "f946495ec50d57be97e80652af9b9a55252e9b6434490cfdf9e4c47d7bc10642"
+    },
+    {
+      "id": "mercedes-s500",
+      "file": "public/vehicles/mercedes-s500.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        37,
+        220,
+        1505,
+        852
+      ],
+      "bytes": 150114,
+      "sha256": "3e93097b90b1087dad7f5c35e815a57080c9434cba91b0a4d65893a060aa1167"
+    },
+    {
+      "id": "mercedes-gclass",
+      "file": "public/vehicles/mercedes-gclass.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        27,
+        120,
+        1511,
+        931
+      ],
+      "bytes": 191708,
+      "sha256": "430152aa59ecaf1f385bd1c0a66f503780affc0e7710d697768f9f6c601f3cf7"
+    },
+    {
+      "id": "mercedes-v250",
+      "file": "public/vehicles/mercedes-v250.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        36,
+        128,
+        1509,
+        888
+      ],
+      "bytes": 179566,
+      "sha256": "e578b4d0f01d7ed4c913193f0db0a54b84744d3ba105abbe3885f64abb3b6104"
+    },
+    {
+      "id": "mercedes-v300",
+      "file": "public/vehicles/mercedes-v300.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        27,
+        149,
+        1519,
+        896
+      ],
+      "bytes": 192642,
+      "sha256": "51c639081f6713c5501eeab861a851c36cac1ff1d83ab0a8f0dce81894377ea6"
+    },
+    {
+      "id": "kia-carval",
+      "file": "public/vehicles/kia-carval.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        36,
+        165,
+        1499,
+        864
+      ],
+      "bytes": 168768,
+      "sha256": "6468e5b704414af7dff535e81efc8c12c38497fef15c112f28c93e7155bb05e9"
+    },
+    {
+      "id": "kia-k4",
+      "file": "public/vehicles/kia-k4.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        31,
+        228,
+        1499,
+        795
+      ],
+      "bytes": 128004,
+      "sha256": "45bdb368515ff89840ccf34d46531eba89d362d53ba0652da33c7971abfb20e7"
+    },
+    {
+      "id": "kia-sportage",
+      "file": "public/vehicles/kia-sportage.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        56,
+        120,
+        1494,
+        878
+      ],
+      "bytes": 175326,
+      "sha256": "9f0188eaddab649f464509bb22d2d50feb593d67baf0a55bfe7fe7ad5bec2969"
+    },
+    {
+      "id": "hyundai-elantra-cn7",
+      "file": "public/vehicles/hyundai-elantra-cn7.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        30,
+        216,
+        1508,
+        856
+      ],
+      "bytes": 146822,
+      "sha256": "0968adc7155dbbfa367c1a85befd9fa045e26612fd1887e09a05c6e941f4c372"
+    },
+    {
+      "id": "hyundai-tuycan",
+      "file": "public/vehicles/hyundai-tuycan.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        28,
+        137,
+        1508,
+        903
+      ],
+      "bytes": 194662,
+      "sha256": "0909b97a30b31e84680256f764f2b61c8c5e1ac41982a6dac064c780a0a05727"
+    },
+    {
+      "id": "hyundai-accent",
+      "file": "public/vehicles/hyundai-accent.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        26,
+        157,
+        1509,
+        847
+      ],
+      "bytes": 169906,
+      "sha256": "a2209bb408169ee783e7e2818f23f45ecc5fb38cf7442ba52c5bb1916029936e"
+    },
+    {
+      "id": "jetour-t2",
+      "file": "public/vehicles/jetour-t2.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        29,
+        99,
+        1523,
+        911
+      ],
+      "bytes": 189744,
+      "sha256": "9dd2c57cf49a16a4ccf122de92d70789175e6fc421b4585eb8737713ae45693b"
+    },
+    {
+      "id": "jetour-x70",
+      "file": "public/vehicles/jetour-x70.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        41,
+        147,
+        1494,
+        889
+      ],
+      "bytes": 188920,
+      "sha256": "e46e346dcfbfcfeff0bc6372c2c9fd7da2e9641cf34f644bb3935ede68644316"
+    },
+    {
+      "id": "jetour-x90",
+      "file": "public/vehicles/jetour-x90.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        16,
+        144,
+        1519,
+        911
+      ],
+      "bytes": 139662,
+      "sha256": "90088e5e9f7b4033676e3d565000b0420c8c96f47557544e669a07361cf21e64"
+    },
+    {
+      "id": "soueast-s05",
+      "file": "public/vehicles/soueast-s05.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        78,
+        173,
+        1473,
+        880
+      ],
+      "bytes": 183624,
+      "sha256": "d684f4b6788c0adb0180699e31a579c6bb331594c266d4f1fdeae886248cdbf5"
+    },
+    {
+      "id": "soueast-s09",
+      "file": "public/vehicles/soueast-s09.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        62,
+        179,
+        1499,
+        920
+      ],
+      "bytes": 204694,
+      "sha256": "fa43a04121d8cdf7110ce8c7587b12744934cfd90f876926725dbc5a3880f449"
+    },
+    {
+      "id": "soueast-s07",
+      "file": "public/vehicles/soueast-s07.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        62,
+        169,
+        1476,
+        879
+      ],
+      "bytes": 178626,
+      "sha256": "8639bf91b442113be76c0911b3c47c09fda5e5c08c5abc0af97bbd886b51aa6f"
+    },
+    {
+      "id": "range-rover",
+      "file": "public/vehicles/range-rover.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        37,
+        120,
+        1495,
+        912
+      ],
+      "bytes": 147774,
+      "sha256": "6e3ff03fac97e93126903e52f0b1c8f52b3d3102d0cdbae655331accca76a9b7"
+    },
+    {
+      "id": "range-rover-sport",
+      "file": "public/vehicles/range-rover-sport.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        41,
+        167,
+        1489,
+        869
+      ],
+      "bytes": 171990,
+      "sha256": "678c4019d9143fadffa6453e6093de89c7f83be8302048fab1a4064bb2b5b64a"
+    },
+    {
+      "id": "nissan-sunny",
+      "file": "public/vehicles/nissan-sunny.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        87,
+        179,
+        1463,
+        887
+      ],
+      "bytes": 146866,
+      "sha256": "754f3bacff718da660d013096f38c4555a6a0aa7f274f718950964458c5ec089"
+    },
+    {
+      "id": "nissan-patrol",
+      "file": "public/vehicles/nissan-patrol.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        41,
+        141,
+        1504,
+        908
+      ],
+      "bytes": 158982,
+      "sha256": "7e5c5a3c3627432789c54d969862d7ded9dfc21ab657f0976ed574d440e90203"
+    },
+    {
+      "id": "nissan-source-2026",
+      "file": "public/vehicles/nissan-source-2026.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        42,
+        154,
+        1493,
+        912
+      ],
+      "bytes": 223762,
+      "sha256": "6759fb9ca35d84441ef2a21c8fa64bcd7a6e2d4b27d0a4e054977494a751eb5f"
+    },
+    {
+      "id": "toyota-land-cruiser-2020",
+      "file": "public/vehicles/toyota-land-cruiser-2020.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        31,
+        114,
+        1498,
+        910
+      ],
+      "bytes": 177546,
+      "sha256": "7b16eec20e4ce34a5432eb8893eb4c70dbaadc3f0b4bc768bd16bc8a484f96c1"
+    },
+    {
+      "id": "toyota-land-cruiser",
+      "file": "public/vehicles/toyota-land-cruiser.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        30,
+        148,
+        1512,
+        891
+      ],
+      "bytes": 184022,
+      "sha256": "9cb2085c8e51f9b03b040e95a7b54821a462bddbd13e2edcd808550ecb1e8537"
+    },
+    {
+      "id": "cadillac-escalade",
+      "file": "public/vehicles/cadillac-escalade.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        48,
+        151,
+        1497,
+        900
+      ],
+      "bytes": 199548,
+      "sha256": "fcb71e17dfab4cfa46823c6e5809c145a5fa52777135e9332234c9318b9eeb17"
+    },
+    {
+      "id": "hyundai-h1",
+      "file": "public/vehicles/hyundai-h1.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        66,
+        138,
+        1490,
+        876
+      ],
+      "bytes": 146264,
+      "sha256": "1548ab38e1d80912732dcd1a56bd39e085e39218fae14b466e40b48a23a04304"
+    },
+    {
+      "id": "toyota-hiace",
+      "file": "public/vehicles/toyota-hiace.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        44,
+        141,
+        1507,
+        915
+      ],
+      "bytes": 153710,
+      "sha256": "bebd6cb549893815acd19a200c3ab3f0a8f4a72e06398693f66ba84afd03694b"
+    },
+    {
+      "id": "mercedes-e200-amg",
+      "file": "public/vehicles/mercedes-e200-amg.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        32,
+        207,
+        1490,
+        849
+      ],
+      "bytes": 160418,
+      "sha256": "346cbe785b785c34130afe3618ac61e9c5489b50f16182dd0711e46105514e05"
+    },
+    {
+      "id": "jetour-t1",
+      "file": "public/vehicles/jetour-t1.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        33,
+        110,
+        1501,
+        924
+      ],
+      "bytes": 162376,
+      "sha256": "75b1874ef7dc948c7ffc3595877a7a3745cda1f0c38dfabc42387e89b26e31ac"
+    },
+    {
+      "id": "range-rover-2025",
+      "file": "public/vehicles/range-rover-2025.webp",
+      "size": [
+        1536,
+        1024
+      ],
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "subjectBounds32": [
+        36,
+        119,
+        1496,
+        908
+      ],
+      "bytes": 180208,
+      "sha256": "1681cfb00b2588d8b6669d6334df84731f96bef4a1ca1216842cfaed6d933dbe"
+    }
+  ]
+}

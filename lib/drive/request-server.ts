@@ -13,7 +13,7 @@ export async function createDriveRequest(supabase: SupabaseClient, body: Record<
   const offer = validateDriveOfferRequest(body.drive_offer_id, parsed.trip);
   if (!offer) return NextResponse.json({ error: 'OFFER_UNAVAILABLE' }, { status: 409 });
   const modelYears = driveRequestModelYears(body.catalog_version);
-  const authoritativeTrip = { ...parsed.trip, minimumModelYear: modelYears[0], acceptableModelYears: [...modelYears] };
+  const authoritativeTrip = { ...parsed.trip, minimumModelYear: modelYears?.[0] ?? null, acceptableModelYears: modelYears ? [...modelYears] : null };
   const { data, error } = await supabase.rpc('create_managed_drive_request', { p_offer_id: body.drive_offer_id, p_key: key, p_trip: authoritativeTrip, p_catalog_version: typeof body.catalog_version === 'string' && body.catalog_version.length <= 100 ? body.catalog_version : null });
   if (error) {
     if (error.code === '40001') return NextResponse.json({ error: 'CATALOG_CHANGED' }, { status: 409 });

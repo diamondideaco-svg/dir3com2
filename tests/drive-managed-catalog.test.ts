@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { DRIVE_MIN_MODEL_YEAR, DRIVE_MODEL_YEARS, DRIVE_OFFERS, VEHICLE_MASTER, journeyPrice, vehicleTitle, vehicleYearAvailabilityLabel } from '../lib/drive/catalog';
+import { DRIVE_MIN_MODEL_YEAR, validDriveModelYear, DRIVE_OFFERS, VEHICLE_MASTER, journeyPrice, vehicleTitle, vehicleYearAvailabilityLabel } from '../lib/drive/catalog';
 import { cairoInstant, readDriveSearch, driveSearchParams, validateDriveSearch } from '../lib/drive/search';
 import { parseDriveTrip, driveRequestState, validateDriveOfferRequest } from '../lib/drive/request';
 import { CUSTOMER_MARKETPLACE_REQUEST_FIELDS } from '../lib/marketplace/customer-requests';
@@ -10,7 +10,7 @@ const now=Date.parse('2026-09-17T06:00Z');
 const search={pickup:'Cairo airport',dropoff:'Cairo hotel',pickupAt:'2026-09-17T15:00',returnAt:'2026-09-18T15:00',mode:'chauffeur' as const,currency:'EGP' as const,passengers:2,luggage:1};
 const trip={...search,name:'QA Customer',phone:'+201000000000',notes:'',specialRequest:'',flightNumber:'',flightArrival:'',acknowledged:true};
 test('approved catalogue keeps unique IDs and request-only availability',()=>{
-  assert.equal(DRIVE_OFFERS.length,23);assert.equal(new Set(DRIVE_OFFERS.map(x=>x.id)).size,23);
+  assert.equal(DRIVE_OFFERS.length,30);assert.equal(new Set(DRIVE_OFFERS.map(x=>x.id)).size,30);
   assert.ok(DRIVE_OFFERS.every(x=>['safeerat-al-arab','egypt-operations'].includes(x.supplierId)&&x.country==='EG'&&x.availability==='request_to_confirm'));
 });
 test('unknown capacities/trims remain unknown and each mapped image exists locally',()=>{
@@ -21,8 +21,8 @@ test('unknown capacities/trims remain unknown and each mapped image exists local
     assert.match(vehicleTitle(v,'en'),/or similar$/);assert.match(vehicleTitle(v,'ar'),/أو ما يماثلها$/);
   }
   assert.equal(VEHICLE_MASTER.filter(v=>v.year!==null).length,1);
-  assert.equal(DRIVE_MIN_MODEL_YEAR,2022);assert.deepEqual(DRIVE_MODEL_YEARS,[2022,2023,2024,2025,2026,2027]);
-  assert.match(vehicleYearAvailabilityLabel('ar'),/2025 \/ 2026 \/ 2027/);assert.match(vehicleYearAvailabilityLabel('en'),/subject to availability or similar/);
+  assert.equal(DRIVE_MIN_MODEL_YEAR,null); for(const year of [1990,2000,2010,2020,2021,2022,2025,2028,null]) assert.equal(validDriveModelYear(year),true);
+  assert.match(vehicleYearAvailabilityLabel('ar'),/حسب التوفر/);assert.match(vehicleYearAvailabilityLabel('en'),/subject to availability/);
 });
 test('price truth: no invented total; G-Class airport follows the newly approved half-day rate',()=>{
   for(const offer of DRIVE_OFFERS){assert.equal(journeyPrice(offer,'chauffeur').total,null);assert.equal(journeyPrice(offer,'chauffeur').baseAmount,offer.chauffeur);}

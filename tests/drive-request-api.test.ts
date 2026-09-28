@@ -18,7 +18,7 @@ runInNewContext(ts.transpileModule(readFileSync('lib/drive/request-server.ts','u
 const handler=exports.createDriveRequest as (db:unknown,body:unknown,key:string|null)=>Promise<Response>;
 const trip={pickup:'Cairo',dropoff:'Cairo hotel',pickupAt:'2099-10-12T12:00',returnAt:'2099-10-13T12:00',mode:'chauffeur',currency:'EGP',passengers:2,luggage:1,name:'Isolated QA',phone:'+201000000000',flightNumber:'',flightArrival:'',specialRequest:'',notes:'',acknowledged:true};
 const body={drive_offer_id:'safeerat-eg-jetour-t2',catalog_version:catalogContract.DRIVE_CATALOG_VERSION,trip};
-const authoritativeTrip={...trip,minimumModelYear:2022,acceptableModelYears:[2022,2023,2024,2025,2026,2027]};
+const authoritativeTrip={...trip,minimumModelYear:null,acceptableModelYears:null};
 
 test('Drive API uses authenticated RPC and preserves submitted/replayed status without booking',async()=>{
   for(const replayed of [false,true]){
