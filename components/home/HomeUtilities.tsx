@@ -42,8 +42,9 @@ const copy = {
     live: 'سعر صرف مرجعي',
     stale: 'آخر قيمة متاحة',
     map: 'موقع الوجهة',
-    mapDescription: 'افتح خريطة الرياض واستكشف نقطة البداية لرحلتك.',
+    mapDescription: 'اختر وجهتك لفتحها في خرائط Google.',
     openMap: 'افتح الخريطة',
+    mapDestination: 'المدينة أو الوجهة',
     support: 'الدبرة',
     supportDescription: 'مساعد السفر الذكي من dir3com.',
     openSupport: 'اسأل الدبرة',
@@ -68,8 +69,9 @@ const copy = {
     live: 'Reference exchange rate',
     stale: 'Latest available value',
     map: 'Destination map',
-    mapDescription: 'Open Riyadh in Maps and explore a starting point for your trip.',
+    mapDescription: 'Choose a destination to open in Google Maps.',
     openMap: 'Open map',
+    mapDestination: 'City or destination',
     support: 'DABRA Travel Assistant',
     supportDescription: 'dir3com smart travel assistant.',
     openSupport: 'Ask DABRA',
@@ -90,6 +92,8 @@ export default function HomeUtilities({ homePresentation = false }: { homePresen
   const t = copy[language];
   const [weather, setWeather] = useState<RuntimeWeather | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
+  const [mapDestination, setMapDestination] = useState<string | null>(null);
+  const mapQuery = (mapDestination ?? weather?.cityLabel ?? '').trim();
   const [amount, setAmount] = useState('100');
   const [from, setFrom] = useState<Currency>('USD');
   const [to, setTo] = useState<Currency>('SAR');
@@ -190,7 +194,8 @@ export default function HomeUtilities({ homePresentation = false }: { homePresen
             <div className="home-utility-card__icon"><FiMapPin /></div>
             <h3>{t.map}</h3>
             <p className="home-utility-card__description">{t.mapDescription}</p>
-            <a className="home-utility-link" href="https://www.google.com/maps/search/?api=1&query=Riyadh%2C%20Saudi%20Arabia" target="_blank" rel="noreferrer noopener"><FiCompass />{t.openMap}<FiArrowUpLeft /></a>
+            <label className="home-utility-field"><span>{t.mapDestination}</span><input maxLength={200} value={mapDestination ?? weather?.cityLabel ?? ''} onChange={event => setMapDestination(event.target.value)} /></label>
+            <a className="home-utility-link" href={mapQuery ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}` : undefined} aria-disabled={!mapQuery} target="_blank" rel="noreferrer noopener"><FiCompass />{t.openMap}<FiArrowUpLeft /></a>
           </article>
         </div>
 

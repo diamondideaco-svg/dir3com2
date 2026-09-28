@@ -104,3 +104,7 @@ independent review must cover this added currency/weather delta too.
 Display-only changes use `displayCurrency` in the URL, separately from the original provider/search `currency`. Drive/Stay details, back links, and family navigation retain that preference without changing provider search/filter semantics. Login handoff saves the current trip draft under the destination URL's draft key. The obsolete My Bookings launcher payload assertion now includes the approved currency preference; no auth/booking behavior was removed.
 
 Actual Preview evidence on the currency implementation: T2 USD 140.25 rendered SAR 525.94 and EGP 7,264.67 using reference rates dated 2026-09-28. This is not a Production release or independent review.
+
+### Destination map correction
+
+The Home map no longer hardcodes Riyadh. It defaults to the runtime weather city, accepts a customer-entered destination, and opens the fixed Google Maps search URL only on an explicit link click. The UI identifies Google Maps; there is no automatic external search, geolocation permission, embedded map, Places autocomplete, routing estimate or booking capability. Existing weather Preview response was Cairo 32°C/clear.
