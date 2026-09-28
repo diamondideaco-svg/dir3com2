@@ -12,7 +12,7 @@ The operational procedure is `docs/CODEX_OPERATIONS.md`. Every engineering chang
 
 ## Operating Roles
 
-The authoritative coordinator is the ChatGPT conversation named **مهندس المشروع — Control Tower**. It assigns work, records the owner and reviewer, tracks the PR and current SHA, and recommends MERGE, RETURN FOR FIX, or BLOCKED. It does not compete with implementation agents by editing the same task.
+The authoritative coordinator is the ChatGPT conversation named **مهندس المشروع — Control Tower**. It assigns work, records the owner and reviewer, tracks the PR and current SHA, and recommends MERGE, RETURN FOR FIX, or BLOCKED. It does not compete with implementation agents by editing the same task. When the CEO explicitly assigns implementation to Work Mode, record that implementation identity separately; coordination or self-checks are never independent approval.
 
 Each working surface must use exactly one of these identities:
 
@@ -31,6 +31,15 @@ Each working surface must use exactly one of these identities:
 - Fixes findings on its own PR.
 - Reviews Codex Desktop work only after Desktop provides a fixed commit SHA and while remaining read-only.
 - Must not edit a branch or PR currently owned by Codex Desktop.
+
+### Codex — ChatGPT Work Mode — Assigned Implementation
+
+- May own implementation when explicitly assigned by the CEO/Control Tower and recorded in the Codex Task with branch, isolated worktree, PR and exact SHA.
+- Uses the exact implementation identity `Codex — ChatGPT Work Mode`; must not claim Desktop or VS Code identity.
+- Owns its assigned branch and fixes; must not edit a task simultaneously owned by another surface.
+- Requires a different read-only functional reviewer (Codex Desktop or VS Code Codex) and separate security coverage appropriate to the change. Codex Security remains available for specialized security review.
+- Is not added to the automated independent-reviewer allowlist. Self-checks and Control Tower coordination do not approve its own implementation.
+- Retains all existing exact-SHA, verification and explicit merge/Production authorization requirements.
 
 ### VS Code Chat — Lightweight Assistant
 

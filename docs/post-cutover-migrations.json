@@ -42,5 +42,9 @@
   {
     "path": "supabase/migrations/20260925150000_drive_customer_quote_acceptance.sql",
     "sha256": "ed9e7bc32eae692b87f385451585d6befb09fd2a99ab5bf312df793578f43943"
+  },
+  {
+    "path": "supabase/migrations/20260927223137_drive_september27_managed_catalog.sql",
+    "sha256": "10e45050fc16eeb7394d3d2af4e45fcf53cfa96693cbd9b0b6c64e13c99d8ea0"
   }
 ]

@@ -1,0 +1,27 @@
+{
+  "method": "Built-in image generation, transparent background",
+  "images": [
+    {
+      "id": "toyota-land-cruiser-2020",
+      "generationFile": "exec-51f79eb0-561a-4011-b804-de2b69192227.png",
+      "asset": "public/vehicles/toyota-land-cruiser-2020.webp",
+      "prompt": "Original vehicle catalogue studio product image for dir3com: 2020 Toyota Land Cruiser 200 Series SUV, correct late-facelift J200 geometry, pearl white. Isolated full vehicle, front three-quarter facing left, centered horizontal3:2, all wheels/mirrors visible, soft studio lighting. True transparent background including margins; no floor or gradients behind the subject, no scenery, no people, no text, no watermark, no license plate characters. Small contact shadow only. Never copy a photograph.",
+      "externalPhotoReused": false
+    },
+    {
+      "id": "hyundai-h1",
+      "generationFile": "exec-66baa336-a2e7-4bbd-b4a0-745a0b9e22b1.png",
+      "asset": "public/vehicles/hyundai-h1.webp",
+      "prompt": "Original vehicle catalogue studio product image for dir3com: Hyundai H-1 Grand Starex passenger van, metallic silver, standard model-family styling without any year label. Isolated full vehicle, front three-quarter facing left, centered horizontal3:2, all wheels/mirrors visible, soft studio lighting. True transparent background including margins; no floor or gradients behind the subject, no scenery, no people, no text, no watermark, no license plate characters. Small contact shadow only. Never copy a photograph.",
+      "externalPhotoReused": false
+    },
+    {
+      "id": "toyota-hiace",
+      "generationFile": "exec-496aadd0-174f-4212-aea6-e165097b05ae.png",
+      "asset": "public/vehicles/toyota-hiace.webp",
+      "prompt": "Original vehicle catalogue studio product image for dir3com: Toyota Hiace passenger van H200, white, standard model-family styling without any year label. Isolated full vehicle, front three-quarter facing left, centered horizontal3:2, all wheels/mirrors visible, soft studio lighting. True transparent background including margins; no floor or gradients behind the subject, no scenery, no people, no text, no watermark, no license plate characters. Small contact shadow only. Never copy a photograph.",
+      "externalPhotoReused": false
+    }
+  ],
+  "rejectedAsset": "source-model-unconfirmed: rejected by CEO and removed; never published to Production"
+}

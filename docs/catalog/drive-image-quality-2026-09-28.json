@@ -1,0 +1,128 @@
+{
+  "date": "2026-09-28",
+  "purpose": "Replace rejected covered-vehicle placeholder and audit all 30 car images",
+  "images": [
+    {
+      "id": "kia-carval",
+      "generationFile": "exec-1e7671bc-9242-4723-8c0d-79553a5484ee.png",
+      "asset": "public/vehicles/kia-carval.webp",
+      "prompt": "Create an original premium car-rental catalogue product image for DIR3COM: 2026 Kia Carnival KA4 facelift passenger MPV, pearl white, correct broad black grille, slim vertical modern headlamps, long sliding-door MPV body. Entire vehicle fully uncovered and unobstructed. Front three-quarter view, nose pointing LEFT, rear extending RIGHT; camera level near headlights, 70mm product lens. Horizontal 3:2 canvas. Center car with consistent 5% side margins, all wheels and mirrors visible, straight wheels, realistic proportions and clean body surfaces, soft neutral studio lighting. TRUE transparent alpha background, no scenery, floor plane, horizon or gradients, tiny natural contact shadow only. No cover, cloth, people, text, watermark, dealer marks or license-plate characters. High-end photorealistic original render, never copy an external photo. Image is a representative model-family catalogue asset, not a photo of a particular supplier unit."
+    },
+    {
+      "id": "kia-k4",
+      "generationFile": "exec-aa403a39-92cc-41cb-96d9-957dd9b2e79f.png",
+      "asset": "public/vehicles/kia-k4.webp",
+      "prompt": "Premium original DIR3COM vehicle catalogue asset. Whole uncovered vehicle front three-quarter view pointing LEFT, with rear on RIGHT. Frame on horizontal 3:2 canvas, 5% clean margins, all wheels/mirrors visible, straight wheels, soft neutral studio light, TRUE transparent background and tiny contact shadow. No scenery, no floor plane, no people, no text, no cloth, no license plate letters. Precise realistic proportions. Manufacturer image is shape reference only. Make a NEW original photorealistic graphite Kia K4 product render from a front three-quarter angle, NOT this side view. Preserve the K4 distinctive fastback shape, triangular rear pillar and HIDDEN rear-door handles up by the rear window, T-shaped thin headlights. Do not invent two conventional handles per side. Factory wheels, no source pixels reused. "
+    },
+    {
+      "id": "hyundai-tuycan",
+      "generationFile": "exec-cd7bd0cb-23f3-46d1-a56a-2a16b7b8e43e.png",
+      "asset": "public/vehicles/hyundai-tuycan.webp",
+      "prompt": "Create an original premium car-rental catalogue product image for DIR3COM: Hyundai Tucson NX4 facelift compact SUV, metallic deep teal, precise parametric wing-shaped grille with integrated geometric daytime lights, clean muscular wheel arches. Entire vehicle fully uncovered and unobstructed. Front three-quarter view, nose pointing LEFT, rear extending RIGHT; camera level near headlights, 70mm product lens. Horizontal 3:2 canvas. Center car with consistent 5% side margins, all wheels and mirrors visible, straight wheels, realistic proportions and clean body surfaces, soft neutral studio lighting. TRUE transparent alpha background, no scenery, floor plane, horizon or gradients, tiny natural contact shadow only. No cover, cloth, people, text, watermark, dealer marks or license-plate characters. High-end photorealistic original render, never copy an external photo. Image is a representative model-family catalogue asset, not a photo of a particular supplier unit."
+    },
+    {
+      "id": "nissan-source-2026",
+      "generationFile": "exec-b1c5c09b-9dec-448c-9788-7385dd0d8bfa.png",
+      "asset": "public/vehicles/nissan-source-2026.webp",
+      "prompt": "Premium original DIR3COM vehicle catalogue asset. Whole uncovered vehicle front three-quarter view pointing LEFT, with rear on RIGHT. Frame on horizontal 3:2 canvas, 5% clean margins, all wheels/mirrors visible, straight wheels, soft neutral studio light, TRUE transparent background and tiny contact shadow. No scenery, no floor plane, no people, no text, no cloth, no license plate letters. Precise realistic proportions. Use the manufacturer reference only to understand the correct Y63 vehicle geometry, especially the grille and segmented double-C headlamps. Create a NEW original photorealistic product render of a 2026 Nissan Patrol Y63, dark navy blue with black roof; change camera perspective, paint, lighting and framing from the reference. The old Y62 has a different grille; match this reference's newer Y63 body. No source background/pixels or photograph copied. ",
+      "geometryGenerationFile": "exec-57b3fec9-6050-4d84-aee5-85970b20f4d8.png",
+      "finalEdit": "Remove invented V8T engine badge; no supplied engine specification claimed."
+    },
+    {
+      "id": "nissan-sunny",
+      "generationFile": "exec-8fd3657b-0b8d-44f1-b6f6-e1bc4cd59dfc.png",
+      "asset": "public/vehicles/nissan-sunny.webp",
+      "prompt": "Premium original DIR3COM vehicle catalogue asset. Whole uncovered vehicle front three-quarter view pointing LEFT, with rear on RIGHT. Frame on horizontal 3:2 canvas, 5% clean margins, all wheels/mirrors visible, straight wheels, soft neutral studio light, TRUE transparent background and tiny contact shadow. No scenery, no floor plane, no people, no text, no cloth, no license plate letters. Precise realistic proportions. Use the manufacturer's Egyptian Sunny N17 reference only for geometry. Create a NEW original studio render of Egyptian-market Nissan Sunny N17 facelift, light silver, realistic rounded compact-sedan proportions and older large swept headlights. This is NOT the newer global Versa N18. Change lighting and perspective; no source pixels/background reused. "
+    },
+    {
+      "id": "mercedes-e200",
+      "generationFile": "exec-f6b2cced-9b5d-4272-a10a-73aa6933ef60.png",
+      "asset": "public/vehicles/mercedes-e200.webp",
+      "prompt": "Premium original DIR3COM vehicle catalogue asset. Whole uncovered vehicle front three-quarter view pointing LEFT, with rear on RIGHT. Frame on horizontal 3:2 canvas, 5% clean margins, all wheels/mirrors visible, straight wheels, soft neutral studio light, TRUE transparent background and tiny contact shadow. No scenery, no floor plane, no people, no text, no cloth, no license plate letters. Precise realistic proportions. Create a pearl white 2021/2022 Mercedes-Benz E 200 W213 FACELIFT sedan in standard Avantgarde form, correct W213 headlights, conventional body-colored door handles, elegant twin-bar grille with Mercedes star. NOT the W214 released in 2023; avoid the black panel joining the grille to headlights and flush door handles. "
+    },
+    {
+      "id": "mercedes-e200-amg",
+      "generationFile": "exec-1edfd86f-e10e-40b0-810d-a3b75c006cc2.png",
+      "asset": "public/vehicles/mercedes-e200-amg.webp",
+      "prompt": "Premium original DIR3COM vehicle catalogue asset. Whole uncovered vehicle front three-quarter view pointing LEFT, with rear on RIGHT. Frame on horizontal 3:2 canvas, 5% clean margins, all wheels/mirrors visible, straight wheels, soft neutral studio light, TRUE transparent background and tiny contact shadow. No scenery, no floor plane, no people, no text, no cloth, no license plate letters. Precise realistic proportions. Edit this existing original DIR3COM catalogue car: retain black metallic paint and E-Class AMG Line trim, but rotate the vehicle view so its FRONT faces LEFT instead of right. Re-render physical viewpoint and retain correctly oriented badges, do not mirror lettering. "
+    },
+    {
+      "id": "mercedes-gclass",
+      "generationFile": "exec-71f32910-2c33-4240-be1d-cc0bb7007822.png",
+      "asset": "public/vehicles/mercedes-gclass.webp",
+      "prompt": "Premium original DIR3COM vehicle catalogue asset. Whole uncovered vehicle front three-quarter view pointing LEFT, with rear on RIGHT. Frame on horizontal 3:2 canvas, 5% clean margins, all wheels/mirrors visible, straight wheels, soft neutral studio light, TRUE transparent background and tiny contact shadow. No scenery, no floor plane, no people, no text, no cloth, no license plate letters. Precise realistic proportions. Edit this existing original DIR3COM G-Class catalogue car: retain the dark graphite paint, boxy body, grille and wheel design, but rotate its FRONT to point LEFT instead of right. Re-render actual viewpoint and retain correctly oriented badges, no mirrored text. "
+    },
+    {
+      "id": "jetour-t1",
+      "generationFile": "exec-e4a24d61-3a53-408f-86ac-f59d678e9f53.png",
+      "asset": "public/vehicles/jetour-t1.webp",
+      "prompt": "Premium original DIR3COM vehicle catalogue asset. Whole uncovered vehicle front three-quarter view pointing LEFT, with rear on RIGHT. Frame on horizontal 3:2 canvas, 5% clean margins, all wheels/mirrors visible, straight wheels, soft neutral studio light, TRUE transparent background and tiny contact shadow. No scenery, no floor plane, no people, no text, no cloth, no license plate letters. Precise realistic proportions. Edit the existing original DIR3COM Jetour T1 catalogue car: retain its silver paint, body and T1 front/grille, but rotate its FRONT to point LEFT instead of right. Re-render perspective, keep JETOUR lettering correctly oriented, no mirrored text. "
+    },
+    {
+      "id": "jetour-t2",
+      "generationFile": "exec-49ba7c93-a008-4d35-aaf4-6a7361c41f21.png",
+      "asset": "public/vehicles/jetour-t2.webp",
+      "prompt": "Rotate original T2 to front three-quarter LEFT, retaining beige paint and accents; transparent background; readable JETOUR lettering."
+    },
+    {
+      "id": "jetour-x90",
+      "generationFile": "exec-7bfb93a9-7e53-444e-8f65-00a64eb79c3f.png",
+      "asset": "public/vehicles/jetour-x90.webp",
+      "prompt": "Precise object edit using original catalogue asset and Range Rover Sport as orientation reference only: rotate front three-quarter viewpoint to nose LEFT, rear RIGHT; retain target model, paint, wheels and trim; readable unmirrored badges; full car, straight wheels, transparent1536x1024 canvas.",
+      "tool": "built-in image_gen",
+      "reason": "CEO identified missed right-facing assets after earlier visual review."
+    },
+    {
+      "id": "range-rover",
+      "generationFile": "exec-5d848af7-d304-4949-83c0-afed15d0ba5c.png",
+      "asset": "public/vehicles/range-rover.webp",
+      "prompt": "Precise object edit using original catalogue asset and Range Rover Sport as orientation reference only: rotate front three-quarter viewpoint to nose LEFT, rear RIGHT; retain target model, paint, wheels and trim; readable unmirrored badges; full car, straight wheels, transparent1536x1024 canvas.",
+      "tool": "built-in image_gen",
+      "reason": "CEO identified missed right-facing assets after earlier visual review."
+    },
+    {
+      "id": "range-rover-2025",
+      "generationFile": "exec-cf8b61ec-926b-4e36-a311-49820b85f54e.png",
+      "asset": "public/vehicles/range-rover-2025.webp",
+      "prompt": "Precise object edit using original catalogue asset and Range Rover Sport as orientation reference only: rotate front three-quarter viewpoint to nose LEFT, rear RIGHT; retain target model, paint, wheels and trim; readable unmirrored badges; full car, straight wheels, transparent1536x1024 canvas.",
+      "tool": "built-in image_gen",
+      "reason": "CEO identified missed right-facing assets after earlier visual review."
+    }
+  ],
+  "references": [
+    {
+      "url": "https://www.budget.com/en/cars/rental-car-sizes",
+      "use": "Presentation/class-or-similar comparison; no photos copied"
+    },
+    {
+      "url": "https://www.kia.com/nmc/en/showroom/carnival/features.html",
+      "use": "Model-family reference"
+    },
+    {
+      "url": "https://www.kia.com/nmc/en/showroom/k4/features.html",
+      "use": "K4 shape, hidden rear handle and lamp reference; source years remain user-supplied, not independently authenticated"
+    },
+    {
+      "url": "https://www.hyundai.com/worldwide/en/suv/tucson-2023/design",
+      "use": "Tucson NX4 model-family reference"
+    },
+    {
+      "url": "https://www.nissan-me.com/experience-nissan/news-and-events/latestnews/nissan-unveils-iconic-new-patrol.html",
+      "use": "Y63 shape reference; external photo not shipped"
+    },
+    {
+      "url": "https://en.nissan.com.eg/vehicles/new/sunny/design.html",
+      "use": "Egypt N17 shape reference; external photo not shipped"
+    }
+  ],
+  "limits": "Generated catalogue representation and 'or similar' are not guarantees of a particular supplied year/trim/color. No third-party original photo is shipped.",
+  "orientationCorrection": {
+    "date": "2026-09-28",
+    "affected": [
+      "jetour-x90",
+      "range-rover",
+      "range-rover-2025"
+    ],
+    "priorClaimCorrection": "Previous all-left-facing statement was incorrect for these three assets. Corrected after CEO observation; all30 reviewed again on contact sheet."
+  }
+}

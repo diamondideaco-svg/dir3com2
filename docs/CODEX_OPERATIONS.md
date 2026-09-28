@@ -1,6 +1,6 @@
 # DIR3COM Codex Operations
 
-This document extends the governance introduced by PR #86. It is the operating procedure for ChatGPT Control Tower, Codex Desktop, VS Code Codex, and VS Code Chat.
+This document extends the governance introduced by PR #86 and PR #115. It is the operating procedure for ChatGPT Control Tower, Codex Desktop, VS Code Codex, assigned Codex Work Mode implementation, and VS Code Chat.
 
 ## One source of work truth
 
@@ -25,10 +25,17 @@ Chats are working surfaces, not the permanent system of record. Important decisi
 | ChatGPT — Control Tower | prioritizes, assigns owner and reviewer, prevents overlap, consolidates evidence, and recommends the final action |
 | Codex Desktop — Engineer A | primary complex implementation and fixes on its own branch |
 | VS Code Codex — Engineer B | separate implementation or independent review of a fixed Desktop SHA |
+| Codex — ChatGPT Work Mode | explicitly assigned implementation on its own task branch/worktree; requires a different independent reviewer |
 | VS Code Chat — Lightweight Assistant | small bounded reads, explanations, focused checks, and low-cost support only |
 | Codex Security | specialized security review when access is available; never silently assumed |
 
 One pull request has one implementation owner. The owner and reviewer must be different surfaces.
+
+Work Mode uses the literal implementation identity `Codex — ChatGPT Work Mode`, not a Desktop/IDE alias. Its assignment must be recorded in the Task. Control Tower may coordinate that work but may not count coordination or the owner's self-checks as independent review. Functional review remains with Desktop/VS Code; security coverage is recorded separately. Work Mode is not an allowed independent-reviewer identity.
+
+### Work Mode identity amendment — 2026-09-28
+
+For Task #167 / PR #168, the CEO instructed continuation after the documented proposal to admit the actual Work Mode implementation identity. This amendment adds that one owner to the workflow, issue form and PR template. It does not waive a failed check, change the reviewer allowlist, grant merge/Production authority, or turn earlier reviews into approval of a later SHA. The policy change itself requires an independent delta review. All existing Task/PR/branch/full-SHA matching and owner/reviewer separation checks remain enforced.
 
 ## Task lifecycle
 
@@ -70,6 +77,7 @@ The **Codex Governance Gate** workflow validates pull request metadata without e
 
 - the Task is not a verifiable GitHub issue whose title starts with `[Codex Task]`, or it points to a pull request;
 - owner, reviewer, branch, target SHA, or verdict is missing;
+- the implementation owner is not exactly `Codex Desktop`, `VS Code Codex`, or `Codex — ChatGPT Work Mode`, or the reviewer is outside its existing Desktop/VS Code/Codex Security allowlist;
 - owner and reviewer are identical;
 - the declared branch differs from the actual pull request branch;
 - the target SHA differs from the actual pull request head;

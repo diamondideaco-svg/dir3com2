@@ -1,0 +1,117 @@
+{
+  "method": "Built-in image generation",
+  "date": "2026-09-27",
+  "images": [
+    {
+      "id": "mercedes-v250",
+      "generationFile": "exec-f4301612-ad4d-447b-926c-c2ed8d8f119b.png",
+      "asset": "public/vehicles/mercedes-v250.webp",
+      "externalPhotoReused": false,
+      "reviewStatus": "visual_model_family_checked; exact regional trim/year not a supplied vehicle guarantee"
+    },
+    {
+      "id": "mercedes-v300",
+      "generationFile": "exec-a804eaf3-a3af-4e01-98e0-987451707129.png",
+      "asset": "public/vehicles/mercedes-v300.webp",
+      "externalPhotoReused": false,
+      "reviewStatus": "visual_model_family_checked; exact regional trim/year not a supplied vehicle guarantee"
+    },
+    {
+      "id": "kia-sportage",
+      "generationFile": "exec-e9e6c9e1-e423-4b6b-890b-47ea276718ad.png",
+      "asset": "public/vehicles/kia-sportage.webp",
+      "externalPhotoReused": false,
+      "reviewStatus": "visual_model_family_checked; exact regional trim/year not a supplied vehicle guarantee"
+    },
+    {
+      "id": "soueast-s05",
+      "generationFile": "exec-a79f9486-55c9-49a3-b99d-79ed823f07cd.png",
+      "asset": "public/vehicles/soueast-s05.webp",
+      "externalPhotoReused": false,
+      "reviewStatus": "visual_model_family_checked; exact regional trim/year not a supplied vehicle guarantee"
+    },
+    {
+      "id": "soueast-s07",
+      "generationFile": "exec-b5f07dd3-beff-4c24-a3af-65e9aa6110c6.png",
+      "asset": "public/vehicles/soueast-s07.webp",
+      "externalPhotoReused": false,
+      "reviewStatus": "visual_model_family_checked; exact regional trim/year not a supplied vehicle guarantee"
+    },
+    {
+      "id": "soueast-s09",
+      "generationFile": "exec-6958d959-d423-46f0-98e8-c49019a420ae.png",
+      "asset": "public/vehicles/soueast-s09.webp",
+      "externalPhotoReused": false,
+      "reviewStatus": "visual_model_family_checked; exact regional trim/year not a supplied vehicle guarantee"
+    },
+    {
+      "id": "hyundai-accent",
+      "generationFile": "exec-b304ce07-338b-4271-b28d-fb10df8ad3d1.png",
+      "asset": "public/vehicles/hyundai-accent.webp",
+      "externalPhotoReused": false,
+      "reviewStatus": "visual_model_family_checked; exact regional trim/year not a supplied vehicle guarantee"
+    },
+    {
+      "id": "jetour-x70",
+      "generationFile": "exec-e24b1706-e967-4aa3-a8f7-331a7d38b01b.png",
+      "asset": "public/vehicles/jetour-x70.webp",
+      "externalPhotoReused": false,
+      "reviewStatus": "visual_model_family_checked; exact regional trim/year not a supplied vehicle guarantee"
+    },
+    {
+      "id": "range-rover-sport",
+      "generationFile": "exec-928d51e5-8b72-4f96-872b-61787ada6266.png",
+      "asset": "public/vehicles/range-rover-sport.webp",
+      "externalPhotoReused": false,
+      "reviewStatus": "visual_model_family_checked; exact regional trim/year not a supplied vehicle guarantee"
+    },
+    {
+      "id": "toyota-land-cruiser",
+      "generationFile": "exec-cc2a5790-1f87-4a07-8ef7-f8ae3bb62359.png",
+      "asset": "public/vehicles/toyota-land-cruiser.webp",
+      "externalPhotoReused": false,
+      "reviewStatus": "visual_model_family_checked; exact regional trim/year not a supplied vehicle guarantee"
+    },
+    {
+      "id": "cadillac-escalade",
+      "generationFile": "exec-bd7b117b-ab14-4dd5-a5b7-a34e5c7f0916.png",
+      "asset": "public/vehicles/cadillac-escalade.webp",
+      "externalPhotoReused": false,
+      "reviewStatus": "visual_model_family_checked; exact regional trim/year not a supplied vehicle guarantee"
+    },
+    {
+      "id": "mercedes-s500",
+      "generationFile": "exec-a4d95f87-746a-4051-a11f-7627f308514d.png",
+      "asset": "public/vehicles/mercedes-s500.webp",
+      "date": "2026-09-28",
+      "depictedGeneration": "2022 model family",
+      "externalPhotoReused": false,
+      "reviewStatus": "Original transparent model-family visualization; not a guarantee of supplied color, trim or physical unit"
+    },
+    {
+      "id": "hyundai-elantra-cn7",
+      "generationFile": "exec-6bb2cb3a-43a7-4384-8ce5-cb8fff9b635e.png",
+      "asset": "public/vehicles/hyundai-elantra-cn7.webp",
+      "date": "2026-09-28",
+      "depictedGeneration": "2022 model family",
+      "externalPhotoReused": false,
+      "reviewStatus": "Original transparent model-family visualization; not a guarantee of supplied color, trim or physical unit"
+    },
+    {
+      "id": "nissan-patrol",
+      "generationFile": "exec-76455cb5-10d0-4980-8843-4ac87f4eac41.png",
+      "asset": "public/vehicles/nissan-patrol.webp",
+      "date": "2026-09-28",
+      "depictedGeneration": "2022 model family",
+      "externalPhotoReused": false,
+      "reviewStatus": "Original transparent model-family visualization; not a guarantee of supplied color, trim or physical unit"
+    }
+  ],
+  "geometryReferences": [
+    "https://www.soueast-motor.com/s05/",
+    "https://www.soueast-motor.com/s07/",
+    "https://www.soueast-motor.com/s09/",
+    "https://www.mercedes-benz.com.eg/en/passengercars/models/van/v-class/overview.html"
+  ],
+  "promptSummary": "One full 2025+ named model vehicle, front three-quarter, nose left, genuine transparency, soft studio light, no people/scenery/watermark. Soueast and V-Class referenced current official body geometry; original composition, paint and lighting. V-Class grille corrected to latest facelift. Range Rover Sport explicitly L461, Land Cruiser J300, Accent BN7, Sportage facelift NQ5."
+}

@@ -22,6 +22,7 @@ body:
       options:
         - Codex Desktop
         - VS Code Codex
+        - Codex — ChatGPT Work Mode
     validations:
       required: true
   - type: dropdown

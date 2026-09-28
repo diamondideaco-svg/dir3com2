@@ -49,7 +49,7 @@ jobs:
             const verdict = prField('Verdict').toUpperCase();
             const failures = [];
 
-            const allowedOwners = ['Codex Desktop', 'VS Code Codex'];
+            const allowedOwners = ['Codex Desktop', 'VS Code Codex', 'Codex — ChatGPT Work Mode'];
             const allowedReviewers = ['Codex Desktop', 'VS Code Codex', 'Codex Security'];
             const allowedVerdicts = ['IN_PROGRESS', 'REVIEW', 'PASS', 'FAIL', 'BLOCKED'];
 
@@ -83,7 +83,7 @@ jobs:
               }
             }
 
-            if (!allowedOwners.includes(owner)) failures.push('Implementation owner must be Codex Desktop or VS Code Codex.');
+            if (!allowedOwners.includes(owner)) failures.push('Implementation owner must be Codex Desktop, VS Code Codex, or Codex — ChatGPT Work Mode.');
             if (!allowedReviewers.includes(reviewer)) failures.push('Independent reviewer must be Codex Desktop, VS Code Codex, or Codex Security.');
             if (owner && reviewer && owner === reviewer) failures.push('Implementation owner and independent reviewer must be different.');
             if (branch !== pr.head.ref) failures.push('Declared Branch must equal actual head branch: ' + pr.head.ref);

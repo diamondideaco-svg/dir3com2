@@ -13,4 +13,25 @@ export const DRIVE_IMAGE_RIGHTS = [
 
 export const DRIVE_CURRENT_IMAGE_PROVENANCE = [
   'mercedes-e200-amg','jetour-t2','jetour-t1','jetour-x90','nissan-sunny','mercedes-e200','range-rover','mercedes-gclass',
-].map(id => ({ id, file: `${id}.webp`, method: 'Original DIR3COM-generated 2025 catalogue visualization', changes: 'Transparent vehicle cutout with a subtle contact shadow; optimized to WebP for customer delivery', externalPhoto: false }));
+].map(id => ({ id, file: `${id}.webp`, method: 'Original DIR3COM-generated 2025 catalogue visualization', changes: 'Transparent vehicle cutout with a subtle contact shadow; optimized to WebP for customer delivery', externalPhoto: false })).concat([{
+  id: 'range-rover-2025', file: 'range-rover-2025.webp',
+  method: 'AI color variation of the existing DIR3COM-generated Range Rover catalogue visualization, 2026-09-27',
+  changes: 'Deep metallic green body, transparent cutout; independent asset for the existing Range Rover 2025 listing. Does not represent Range Rover Sport or guarantee supplied color or trim.',
+  externalPhoto: false,
+}]);
+
+// Task #167: original generated assets. Public model references were used only for shape checking.
+export const SEPTEMBER_IMAGE_IDS = ['mercedes-v250','mercedes-v300','kia-sportage','hyundai-accent','jetour-x70','soueast-s05','soueast-s07','soueast-s09','range-rover-sport','toyota-land-cruiser','cadillac-escalade'] as const;
+DRIVE_CURRENT_IMAGE_PROVENANCE.push(...SEPTEMBER_IMAGE_IDS.map(id => ({ id, file: `${id}.webp`, method: 'Original DIR3COM-generated 2025+ model catalogue asset (Task #167)', changes: 'Transparent cutout; WebP delivery; model/color/trim subject to Operations confirmation', externalPhoto: false })));
+
+// CEO extension to 2022+ years, 2026-09-28. Original model-family visualizations.
+DRIVE_CURRENT_IMAGE_PROVENANCE.push(...['mercedes-s500','hyundai-elantra-cn7','nissan-patrol'].map(id => ({ id, file: `${id}.webp`, method: 'Original DIR3COM-generated 2022 model-family asset (Task #167)', changes: 'Transparent cutout; WebP delivery; supplied vehicle/color/trim confirmed by Operations', externalPhoto: false })));
+
+DRIVE_CURRENT_IMAGE_PROVENANCE.push(...['toyota-land-cruiser-2020','hyundai-h1','toyota-hiace'].map(id => ({ id, file: `${id}.webp`, method: 'Original DIR3COM-generated model-family asset', changes: 'Transparent WebP; source year is not inferred from the image; no external photo reused', externalPhoto: false })));
+
+// CEO image correction, 2026-09-28. Covered placeholder rejected and removed.
+for (const id of ["kia-carval", "kia-k4", "hyundai-tuycan", "nissan-source-2026", "nissan-sunny", "mercedes-e200", "mercedes-e200-amg", "mercedes-gclass", "jetour-t1", "jetour-t2"]) {
+  const provenance = { id, file: `${id}.webp`, method: 'Original generated model-family image / existing original image perspective correction, Task #167', changes: 'Uncovered front three-quarter LEFT, transparent WebP; shape reference only, no external source photo shipped; no exact supplier-year/trim/color guarantee', externalPhoto: false };
+  const index = DRIVE_CURRENT_IMAGE_PROVENANCE.findIndex(item => item.id === id);
+  if (index >= 0) DRIVE_CURRENT_IMAGE_PROVENANCE[index] = provenance; else DRIVE_CURRENT_IMAGE_PROVENANCE.push(provenance);
+}
