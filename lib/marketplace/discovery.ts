@@ -7,7 +7,7 @@ export const discoveryFamilies: readonly MarketplaceFamilyKey[] = ['dir3-drive',
 export function discoveryHref(family: MarketplaceFamilyKey | undefined, current: MarketplaceFamilyKey | undefined, search: string) {
   const source = new URLSearchParams(search);
   const params = family && family === current ? source : new URLSearchParams();
-  if (!family || family !== current) for (const key of ['language', 'currency', 'destination']) {
+  if (!family || family !== current) for (const key of ['language', 'currency', 'displayCurrency', 'destination']) {
     const value = source.get(key); if (value) params.set(key, value);
   }
   if (family) params.set('family', family); else params.delete('family');

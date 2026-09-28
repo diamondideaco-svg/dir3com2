@@ -16,6 +16,8 @@ import styles from './drive.module.css';
 export default function DriveDeal({ offerId, initialSearch }: { offerId: string; initialSearch: string }) {
   const { language, direction } = useLanguage(); const ar=language==='ar'; const offer=driveOffer(offerId)!; const vehicle=vehicleFor(offer);
   const { currency } = useDisplayCurrency();
+  const displayParams = new URLSearchParams(initialSearch); displayParams.set('displayCurrency', currency);
+  const displaySearch = displayParams.toString();
   const [step,setStep]=useState(0); const [error,setError]=useState(''); const [sending,setSending]=useState(false); const inFlight=useRef(false); const attempt=useRef({nonce:null as string|null});
   const [priceRetry,setPriceRetry]=useState(0);
   const [priced,setPriced]=useState<PricedDriveOffer|null>(null); const [reference,setReference]=useState(''); const [email,setEmail]=useState('');
@@ -32,7 +34,7 @@ export default function DriveDeal({ offerId, initialSearch }: { offerId: string;
   function review(event:FormEvent){event.preventDefault();const parsed=parseDriveTrip({...trip,currency,acknowledged:true});if(parsed.error){setError(parsed.error);return;}setError('');setStep(2);}
   async function identify(){
     const {data:{session},error:sessionError}=await supabase.auth.getSession();
-    const goLogin=()=>{try{sessionStorage.setItem(draftKey,JSON.stringify(trip));}catch{}window.location.assign(buildMarketplaceLoginHandoff(`/marketplace/drive/${offerId}?${initialSearch}`));};
+    const goLogin=()=>{try{sessionStorage.setItem(`drive-draft:${offerId}:${displaySearch}`,JSON.stringify({...trip,currency}));}catch{}window.location.assign(buildMarketplaceLoginHandoff(`/marketplace/drive/${offerId}?${displaySearch}`));};
     if(sessionError||!session){goLogin();return null;}
     const response=await fetch('/api/auth/session-identity',{cache:'no-store',headers:{Authorization:`Bearer ${session.access_token}`},signal:AbortSignal.timeout(12000)});
     const identity=await response.json();
@@ -50,13 +52,13 @@ export default function DriveDeal({ offerId, initialSearch }: { offerId: string;
       const key=await marketplaceRequestAttemptKey(attempt.current,session.user.id,body,()=>sessionStorage);
       const response=await fetch('/api/marketplace/requests',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`,'Idempotency-Key':key},body,signal:AbortSignal.timeout(20000)});
       const payload=await response.json();
-      if(response.status===401){try{sessionStorage.setItem(draftKey,JSON.stringify(trip));}catch{}window.location.assign(buildMarketplaceLoginHandoff(`/marketplace/drive/${offerId}?${initialSearch}`));return;}
+      if(response.status===401){try{sessionStorage.setItem(`drive-draft:${offerId}:${displaySearch}`,JSON.stringify({...trip,currency}));}catch{}window.location.assign(buildMarketplaceLoginHandoff(`/marketplace/drive/${offerId}?${displaySearch}`));return;}
       if(!response.ok)throw new Error(payload.error==='CATALOG_CHANGED'?'CATALOG_CHANGED':String(response.status));
       setReference(payload.request.request_reference);try{sessionStorage.removeItem(draftKey);}catch{}
     }catch(reason){setError(reason instanceof Error?reason.message:'UNAVAILABLE');}finally{inFlight.current=false;setSending(false);}
   }
   const errorText=driveErrors[error]?.[ar?0:1]??(error==='CONTACT_OR_ACK_REQUIRED'?(ar?'تحقق من بيانات الاتصال وأقر بأن الطلب ليس حجزًا.':'Check your contact details and acknowledge that this is not a booking.') : error==='FLIGHT_DETAILS_REQUIRED'?(ar?'أدخل رقم الرحلة ووقت الوصول الصحيح.':'Enter flight number and valid arrival time.') : error==='409'?(ar?'تغير الطلب؛ راجع البيانات قبل إعادة المحاولة.':'Request conflict; review the details before retrying.') : error==='403'?(ar?'هذا الحساب غير مخول بإرسال الطلب.':'This account cannot submit the request.') : error==='400'?(ar?'تحقق من البيانات والمواعيد.':'Check the details and dates.') : ar?'تعذر إتمام الإجراء. لم نؤكد حجزًا أو دفعًا؛ يمكنك إعادة المحاولة.':'Unable to complete the action. No booking or payment is confirmed; you can retry.');
-  return <section className={styles.page} dir={direction}><Link href={`/marketplace?${initialSearch}`}>{ar?'العودة إلى النتائج':'Back to results'}</Link><h1>{vehicleTitle(vehicle,language)}</h1>
+  return <section className={styles.page} dir={direction}><Link href={`/marketplace?${displaySearch}`}>{ar?'العودة إلى النتائج':'Back to results'}</Link><h1>{vehicleTitle(vehicle,language)}</h1>
     <ol className={styles.steps}><li>{ar?'التفاصيل':'Deal details'}</li><li>{ar?'← بيانات الرحلة':'→ Trip details'}</li><li>{ar?'← مراجعة الطلب':'→ Review request'}</li></ol>
     {error&&<p role="alert" className={styles.error}>{errorText}{!priced&&<button onClick={()=>setPriceRetry(value=>value+1)}>{ar?'إعادة تحميل السعر':'Retry price loading'}</button>}</p>}
     <div className={styles.fields}><section className={styles.panel}><Image src={vehicle.image} alt={vehicleTitle(vehicle,language)} width={800} height={500} className={styles.gallery}/><p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language, vehicle)}</p><p>{vehicleClassLabel(vehicle.vehicleClass,language)}</p><DriveInclusions ar={ar}/><p>{ar?'تؤكد العمليات السيارة أو الفئة المكافئة والسعة والسعر النهائي.':'Operations confirms the vehicle or equivalent class, capacity and final price.'}</p><Link href="/marketplace/drive/image-credits">{ar?'مصدر الصور':'Image provenance'}</Link></section>

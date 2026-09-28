@@ -34,6 +34,8 @@ export function DriveInclusions({ ar }: { ar: boolean }) { return <ul><li>{ar ? 
 export default function DriveMarketplace({ initialSearch, discovery = false }: { initialSearch: string; discovery?: boolean }) {
   const { language, direction } = useLanguage(); const ar = language === 'ar'; const router = useRouter();
   const { currency, setCurrency } = useDisplayCurrency();
+  const displayParams = new URLSearchParams(initialSearch); displayParams.set('displayCurrency', currency);
+  const displaySearch = displayParams.toString();
   const [search, setSearch] = useState<DriveSearch>(() => readDriveSearch(new URLSearchParams(initialSearch)));
   const [offers, setOffers] = useState<PricedDriveOffer[]>([]); const [loading, setLoading] = useState(() => new URLSearchParams(initialSearch).get('searched') === '1'); const [error, setError] = useState(''); const [retry, setRetry] = useState(0);
   const [vehicleClass, setVehicleClass] = useState(''); const [make, setMake] = useState(''); const [sort, setSort] = useState('recommended');
@@ -70,7 +72,7 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
     && (!capacity || (offer.vehicle.passengers !== null && offer.vehicle.passengers >= capacity)) && (!bags || (offer.vehicle.luggage !== null && offer.vehicle.luggage >= bags)))
     .sort((a,b) => sort === 'class' ? a.vehicle.vehicleClass.localeCompare(b.vehicle.vehicleClass) : 0);
   return <section className={`${styles.page} ${styles.browse}`} dir={direction}>
-    <MarketplaceNavigation family={discovery ? undefined : 'dir3-drive'} search={initialSearch}/>
+    <MarketplaceNavigation family={discovery ? undefined : 'dir3-drive'} search={displaySearch}/>
     <h1>{discovery ? (ar ? 'ابدأ رحلتك من هنا' : 'Start your journey here') : (ar ? 'تنقّل براحة في مصر' : 'Travel comfortably in Egypt')}</h1><p>{ar ? 'سيارة مع سائق ووقود حتى 120 كم، ودعم فريق العمليات المحلي.' : 'A chauffeur, fuel up to 120 km, and regional Operations support.'}</p>
     <form id="drive-search" className={styles.search} onSubmit={submit}>
       <label>{ar ? 'موقع الاستلام: مدينة، مطار، فندق أو عنوان' : 'Pickup: city, airport, hotel or address'}<input required maxLength={200} value={search.pickup} onChange={e=>update('pickup',e.target.value)} /></label>
@@ -103,7 +105,7 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
         <p className={styles.muted}>{ar?'لم تحدد الإجماليات أو السعات بعد؛ لن نفترض قيمًا للمقارنة.':'Totals and capacities are not yet confirmed; no values are assumed for comparison.'}</p>
       </aside><section className={styles.cards}><div className={styles.row}><p>{visible.length} {ar?'نتيجة':'results'}</p><label>{ar?'الترتيب':'Sort'}<select value={sort} onChange={e=>setSort(e.target.value)}><option value="recommended">{ar?'ترتيب الكتالوج':'Recommended catalogue order'}</option><option value="class">{ar?'فئة السيارة':'Vehicle class'}</option><option disabled>{ar?'الأقل إجماليًا — بعد التأكيد':'Lowest total — after confirmation'}</option><option disabled>{ar?'الأعلى إجماليًا — بعد التأكيد':'Highest total — after confirmation'}</option></select></label></div>
         {visible.length===0 && <p>{ar?'لا توجد عروض تطابق هذه المعلومات الموثقة.':'No offers match these verified criteria.'}</p>}
-        {visible.map(offer=><article className={styles.card} key={offer.id}><Image className={styles.cardImage} src={offer.vehicle.image} alt={vehicleTitle(offer.vehicle,language)} width={500} height={300}/><div className={styles.cardBody}><h2>{vehicleTitle(offer.vehicle,language)}</h2><p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language, offer.vehicle)}</p><span className={styles.badge}>{ar?'طلب للتأكيد':'Request to confirm'}</span><p>{vehicleClassLabel(offer.vehicle.vehicleClass,language)}</p><DriveInclusions ar={ar}/><DrivePrice offer={offer} ar={ar}/>{offer.price.baseAmount===null?<p>{ar?'لم يقدّم المورد سعر انتقال المطار لهذا الطراز.':'The supplier has not provided an airport rate for this model.'}</p>:<Link className={styles.button} href={`/marketplace/drive/${offer.id}?${initialSearch}`}>{ar?'عرض التفاصيل':'View deal'}</Link>}</div></article>)}
+        {visible.map(offer=><article className={styles.card} key={offer.id}><Image className={styles.cardImage} src={offer.vehicle.image} alt={vehicleTitle(offer.vehicle,language)} width={500} height={300}/><div className={styles.cardBody}><h2>{vehicleTitle(offer.vehicle,language)}</h2><p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language, offer.vehicle)}</p><span className={styles.badge}>{ar?'طلب للتأكيد':'Request to confirm'}</span><p>{vehicleClassLabel(offer.vehicle.vehicleClass,language)}</p><DriveInclusions ar={ar}/><DrivePrice offer={offer} ar={ar}/>{offer.price.baseAmount===null?<p>{ar?'لم يقدّم المورد سعر انتقال المطار لهذا الطراز.':'The supplier has not provided an airport rate for this model.'}</p>:<Link className={styles.button} href={`/marketplace/drive/${offer.id}?${displaySearch}`}>{ar?'عرض التفاصيل':'View deal'}</Link>}</div></article>)}
       </section></div></>}
     <p className={styles.credits}><Link href="/marketplace/drive/image-credits">{ar?'حقوق الصور':'Image credits'}</Link></p>
   </section>;

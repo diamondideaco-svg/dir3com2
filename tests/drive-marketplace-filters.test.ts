@@ -36,7 +36,7 @@ const offers: PricedDriveOffer[] = catalog.DRIVE_OFFERS.map(offer => ({
   display: { amount: offer.chauffeur, currency: offer.currency, asOf: null, converted: false }, conversionUnavailable: false,
 }));
 
-async function mount(language: 'ar' | 'en', response: PricedDriveOffer[]) {
+async function mount(language: 'ar' | 'en', response: PricedDriveOffer[], selectedCurrency = 'USD') {
   const states: unknown[] = []; let cursor = 0; let effect: (() => (() => void)) | undefined;
   let dependencies: unknown[] = []; let fetches = 0;
   const jsx = (type: unknown, props: Record<string, unknown>, key?: string) => ({ type, props, key });
@@ -51,7 +51,7 @@ async function mount(language: 'ar' | 'en', response: PricedDriveOffer[]) {
     },
     'react/jsx-runtime': { jsx, jsxs: jsx }, 'next/image': 'image', 'next/link': 'link',
     'next/navigation': { useRouter: () => ({ push: () => assert.fail('Filtering must not navigate') }) },
-    '@/components/currency/useDisplayCurrency': { useDisplayCurrency: () => ({ currency: 'USD', setCurrency: () => undefined }) },
+    '@/components/currency/useDisplayCurrency': { useDisplayCurrency: () => ({ currency: selectedCurrency, setCurrency: () => undefined }) },
     '@/components/currency/CurrencyPrice': { default: 'currency-price' },
     '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language, direction: language === 'ar' ? 'rtl' : 'ltr' }) },
     '@/lib/drive/catalog': catalog, '@/lib/drive/search': search, './drive.module.css': { default: {} },
@@ -116,5 +116,19 @@ for (const language of ['ar', 'en'] as const) {
     assert.deepEqual(options(control(empty.tree, makeLabel)).map(option => option.value), ['']);
     assert.deepEqual(options(control(empty.tree, classLabel)).map(option => option.value), ['']);
     assert.equal(cardIds(empty.tree).length, 0);
+  });
+}
+
+for (const currency of ['SAR', 'EGP']) {
+  test(`Drive detail handoff preserves ${currency} without changing source query or repeating search`, async () => {
+    const ui = await mount('en', offers, currency);
+    const links = all(ui.tree).filter(node => String(node.props.href).startsWith('/marketplace/drive/') && String(node.props.href).includes('?'));
+    assert.ok(links.length > 0);
+    for (const link of links) {
+      const params = new URL(String(link.props.href), 'https://qa.invalid').searchParams;
+      assert.equal(params.get('displayCurrency'), currency);
+      assert.equal(params.get('currency'), 'USD');
+    }
+    assert.equal(ui.fetches(), 1);
   });
 }

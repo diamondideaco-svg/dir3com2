@@ -98,3 +98,9 @@ no claim of a completed maps API integration.
 FX network calls are fixed-host numeric reference-data calls only. DABRA still
 has no external web search, model web tools, or competitor referrals. Final
 independent review must cover this added currency/weather delta too.
+
+### Currency navigation follow-up
+
+Display-only changes use `displayCurrency` in the URL, separately from the original provider/search `currency`. Drive/Stay details, back links, and family navigation retain that preference without changing provider search/filter semantics. Login handoff saves the current trip draft under the destination URL's draft key. The obsolete My Bookings launcher payload assertion now includes the approved currency preference; no auth/booking behavior was removed.
+
+Actual Preview evidence on the currency implementation: T2 USD 140.25 rendered SAR 525.94 and EGP 7,264.67 using reference rates dated 2026-09-28. This is not a Production release or independent review.

@@ -5,7 +5,8 @@ import { parseDisplayCurrency, type DisplayCurrency, type FxSnapshot } from '@/l
 const KEY = 'dir3com-display-currency';
 const EVENT = 'dir3com-currency-change';
 function readCurrency(): DisplayCurrency {
-  const query = parseDisplayCurrency(new URLSearchParams(window.location.search).get('currency'));
+  const params = new URLSearchParams(window.location.search);
+  const query = parseDisplayCurrency(params.get('displayCurrency')) ?? parseDisplayCurrency(params.get('currency'));
   if (query) return query;
   try { return parseDisplayCurrency(localStorage.getItem(KEY)) ?? 'SAR'; } catch { return 'SAR'; }
 }
@@ -16,7 +17,7 @@ function subscribe(listener: () => void) {
 export function setDisplayCurrency(value: string) {
   const currency = parseDisplayCurrency(value); if (!currency) return;
   try { localStorage.setItem(KEY, currency); } catch { /* Session preference still works in the URL. */ }
-  const url = new URL(window.location.href); url.searchParams.set('currency', currency);
+  const url = new URL(window.location.href); url.searchParams.set('displayCurrency', currency);
   window.history.replaceState(null, '', url.pathname + url.search + url.hash);
   window.dispatchEvent(new Event(EVENT));
 }

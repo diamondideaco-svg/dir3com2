@@ -46,16 +46,18 @@ export default function StaySandbox({ initialSearch, hotelId, nationalities }: {
   const allCards = result?.cards ?? [];
   const cards = filterStayDemoCards(allCards, params);
   const selected = hotelId ? allCards.find(c => c.hotelId === hotelId) : undefined;
-  const listHref = `/marketplace?${params}`;
+  const displayParams = new URLSearchParams(params); displayParams.set('displayCurrency', displayCurrency);
+  const listHref = `/marketplace?${displayParams}`;
   const price = (card: StayDemoCard) => <CurrencyPrice amount={card.price} sourceCurrency={card.currency} language={ar ? 'ar' : 'en'} />;
-  const detailHref = (card: StayDemoCard) => `/marketplace/stay-sandbox/${encodeURIComponent(card.hotelId)}?${params}`;
+  const detailHref = (card: StayDemoCard) => `/marketplace/stay-sandbox/${encodeURIComponent(card.hotelId)}?${displayParams}`;
   function filter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const updated = stayFilterSearch(filterSearch, { sort: String(data.get('sort') ?? ''), hotelName: String(data.get('hotelName') ?? ''), maxPrice: String(data.get('maxPrice') ?? '') });
     setFilterSearch(updated);
     // Presentation-only filters reuse the returned cards; no navigation/provider call.
-    window.history.replaceState(null, '', `/marketplace?${updated}`);
+    const displayUpdated = new URLSearchParams(updated); displayUpdated.set('displayCurrency', displayCurrency);
+    window.history.replaceState(null, '', `/marketplace?${displayUpdated}`);
   }
   function cardContent(card: StayDemoCard, detail = false) {
     return <>
@@ -80,7 +82,7 @@ export default function StaySandbox({ initialSearch, hotelId, nationalities }: {
     </>;
   }
   return <section className={styles.page} dir={direction}>
-    <MarketplaceNavigation family="dir3-stay" search={filterSearch}/>
+    <MarketplaceNavigation family="dir3-stay" search={displayParams.toString()}/>
     <p id="sandbox-boundary" className={styles.notice}>{STAY_DEMO_NOTICE[language]}</p>
     {hotelId ? <>
       <Link href={listHref}>{t('Back to results', 'العودة للنتائج')}</Link>
