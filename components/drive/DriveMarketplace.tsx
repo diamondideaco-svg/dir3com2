@@ -36,7 +36,8 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
   const [search, setSearch] = useState<DriveSearch>(() => readDriveSearch(new URLSearchParams(initialSearch)));
   const [offers, setOffers] = useState<PricedDriveOffer[]>([]); const [loading, setLoading] = useState(() => new URLSearchParams(initialSearch).get('searched') === '1'); const [error, setError] = useState(''); const [retry, setRetry] = useState(0);
   const [vehicleClass, setVehicleClass] = useState(''); const [make, setMake] = useState(''); const [sort, setSort] = useState('recommended');
-  const [model, setModel] = useState('');
+  const selectedOffer = DRIVE_OFFERS.find(o => o.id === new URLSearchParams(initialSearch).get('offer'));
+  const [model, setModel] = useState(selectedOffer?.vehicleId ?? '');
   const [capacity, setCapacity] = useState(0); const [bags, setBags] = useState(0);
   const searched = new URLSearchParams(initialSearch).get('searched') === '1';
   const legacyPickup = validSearchDate(new URLSearchParams(initialSearch).get('pickupDate') ?? undefined);
@@ -59,6 +60,7 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
     const sameSearch = params.toString() === driveSearchParams(readDriveSearch(new URLSearchParams(initialSearch))).toString();
     setError('');
     if (searched && sameSearch) setRetry(value => value + 1);
+    if (selectedOffer) params.set('offer', selectedOffer.id);
     params.set('family','dir3-drive'); params.set('searched','1'); params.set('language',language); router.push(`/marketplace?${params}`);
   }
   const availableMakes = [...new Set(offers.map(offer => offer.vehicle.make))];
@@ -84,7 +86,7 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
     </form>
     {error && <div role="alert" className={styles.error}>{driveErrors[error]?.[ar ? 0 : 1] ?? (ar ? 'تعذر تحميل النتائج. حاول مجددًا.' : 'Unable to load results. Please retry.')}<button onClick={()=>setRetry(value=>value+1)}>{ar ? 'إعادة المحاولة' : 'Retry'}</button></div>}
     {loading && <p role="status">{ar ? 'جارٍ البحث…' : 'Searching…'}</p>}
-    {!searched && <><p className={styles.catalogueLabel}>{DRIVE_OFFERS.length} {ar ? 'خيارات Drive في مصر · التوفر بطلب التأكيد' : 'Drive options in Egypt · availability on request'}</p><section className={styles.discoveryCards}>{DRIVE_OFFERS.map(offer=>{const vehicle=vehicleFor(offer);return <article className={styles.card} key={offer.id}><Image className={styles.cardImage} src={vehicle.image} alt={vehicleTitle(vehicle,language)} width={500} height={300}/><div className={styles.cardBody}><h2>{vehicleTitle(vehicle,language)}</h2><p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language, vehicle)}</p><p className={styles.badge}>{ar ? 'طلب للتأكيد' : 'Request to confirm'}</p><DriveInclusions ar={ar}/><p className={styles.price}>{offer.chauffeur} {offer.currency} / {ar ? 'يوم مع سائق' : 'chauffeur day'}</p><a className={styles.button} href="#drive-search">{ar ? 'اختر مواعيد الرحلة' : 'Choose trip dates'}</a></div></article>;})}</section></>}
+    {!searched && <><p className={styles.catalogueLabel}>{DRIVE_OFFERS.length} {ar ? 'خيارات Drive في مصر · التوفر بطلب التأكيد' : 'Drive options in Egypt · availability on request'}</p><section className={styles.discoveryCards}>{DRIVE_OFFERS.filter(o => !selectedOffer || o.id === selectedOffer.id).map(offer=>{const vehicle=vehicleFor(offer);return <article className={styles.card} key={offer.id}><Image className={styles.cardImage} src={vehicle.image} alt={vehicleTitle(vehicle,language)} width={500} height={300}/><div className={styles.cardBody}><h2>{vehicleTitle(vehicle,language)}</h2><p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language, vehicle)}</p><p className={styles.badge}>{ar ? 'طلب للتأكيد' : 'Request to confirm'}</p><DriveInclusions ar={ar}/><p className={styles.price}>{offer.chauffeur} {offer.currency} / {ar ? 'يوم مع سائق' : 'chauffeur day'}</p><a className={styles.button} href="#drive-search">{ar ? 'اختر مواعيد الرحلة' : 'Choose trip dates'}</a></div></article>;})}</section></>}
     {searched && !loading && !error && <>
       <div className={`${styles.summary} ${styles.row}`}><span>{readDriveSearch(new URLSearchParams(initialSearch)).pickup} · {readDriveSearch(new URLSearchParams(initialSearch)).pickupAt.replace('T',' ')} · {ar ? 'بتوقيت القاهرة' : 'Cairo time'}</span><a href="#drive-search">{ar ? 'تعديل البحث' : 'Modify search'}</a></div>
       <div className={styles.grid}><aside className={styles.filters}>

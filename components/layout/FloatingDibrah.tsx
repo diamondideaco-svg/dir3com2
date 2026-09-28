@@ -1,5 +1,7 @@
 'use client';
 
+import PlatformAnswer from '@/components/dabra/PlatformAnswer';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -492,7 +494,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
                         : 'ml-auto border border-[#dcc58e] bg-[#f4e6bd] text-[#14243a]'
                     }`}
                   >
-                    {message.content}
+                    {message.role === 'assistant' ? <PlatformAnswer text={message.content} /> : message.content}
                   </div>
                 ))}
               </div>

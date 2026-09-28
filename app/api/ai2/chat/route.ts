@@ -1,16 +1,9 @@
-import { after, NextRequest, NextResponse } from 'next/server';
-import { buildAI2ChatResponse, type AI2ChatAccountContext, type AI2ChatTurn } from '@/lib/ai2/runtime/chat';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { DabraTravelOrchestrator } from '@/lib/ai2/orchestration';
-import { TravelProviderError } from '@/lib/travel/errors';
+import { NextRequest, NextResponse } from 'next/server';
+import { buildPlatformAssistantResponse } from '@/lib/dabra/platform-assistant';
+type AI2ChatTurn = { role: 'user' | 'assistant'; content: string };
 import { createDabraAssistantTextResponse } from '@/lib/dabra/chat-response-contract';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
-import { DABRA_LOCALE_ERROR, parseDabraLocale, type DabraLocale } from '@/lib/dabra/locale-contract';
-import { ensureDabraResponseLocale } from '@/lib/dabra/response-language';
-import {
-  createDabraProviderAttemptAfterResponseScheduler,
-} from '@/lib/ai2/observability/provider-attempts';
-
+import { DABRA_LOCALE_ERROR, parseDabraLocale } from '@/lib/dabra/locale-contract';
 export const dynamic = 'force-dynamic';
 
 type AI2ChatRequest = {
@@ -23,31 +16,9 @@ type AI2ChatRequest = {
 
 type ParsedChatRequest = { body: AI2ChatRequest | null; attachmentCount: number; attachmentError: boolean };
 
-type AI2RequestIdentity = {
-  account?: AI2ChatAccountContext;
-  scope?: { ownerId: string; tenantId: string };
-};
-
 const MAX_HISTORY_TURNS = 8;
 const MAX_TURN_LENGTH = 500;
 const MAX_ATTACHMENTS = 3;
-const scheduleProviderAttempt = createDabraProviderAttemptAfterResponseScheduler(after);
-
-async function buildLocaleSafeResponse(
-  message: string,
-  history: AI2ChatTurn[],
-  account: AI2ChatAccountContext | undefined,
-  locale: DabraLocale,
-) {
-  const response = await buildAI2ChatResponse(message, history, account, locale, scheduleProviderAttempt);
-  return ensureDabraResponseLocale(response, locale, async (invalidAnswer) => {
-    const repairInstruction = locale === 'ar'
-      ? `أعد صياغة النص التالي بالعربية فقط مع إبقاء أسماء المدن والمطارات والعلامات التجارية كما هي. لا تضف معلومات جديدة:\n\n${invalidAnswer.slice(0, 1500)}`
-      : `Rewrite the following text in English only, preserving city, airport, and brand names. Do not add new information:\n\n${invalidAnswer.slice(0, 1500)}`;
-    return buildAI2ChatResponse(repairInstruction, [], account, locale, scheduleProviderAttempt);
-  });
-}
-
 async function parseChatRequest(request: NextRequest): Promise<ParsedChatRequest> {
   const contentType = request.headers.get('content-type')?.toLowerCase() ?? '';
   if (!contentType.startsWith('multipart/form-data')) {
@@ -95,38 +66,8 @@ function sanitizeHistory(raw: AI2ChatRequest['history']): AI2ChatTurn[] {
     .map((entry) => ({ role: entry.role as AI2ChatTurn['role'], content: entry.content.trim().slice(0, MAX_TURN_LENGTH) }));
 }
 
-function hasSupabaseSessionCookie(request: NextRequest) {
-  return request.cookies.getAll().some((cookie) => cookie.name.includes('auth-token') || cookie.name.startsWith('sb-'));
-}
-
-// V7: zero added latency for the anonymous path; only resolves a session (and only a safe display name) when a plausible auth cookie is present.
-async function resolveSafeRequestIdentity(request: NextRequest): Promise<AI2RequestIdentity> {
-  if (!hasSupabaseSessionCookie(request)) return {};
-
-  try {
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return {};
-
-    const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
-    const name = [metadata.full_name_ar, metadata.full_name, metadata.name].find(
-      (value): value is string => typeof value === 'string' && value.trim().length > 0,
-    );
-    const tenantId = [metadata.tenant_id, metadata.organization_id].find((value): value is string => typeof value === 'string' && value.trim().length > 0) ?? user.id;
-    return {
-      account: { displayName: name ? name.trim().slice(0, 60) : null },
-      scope: { ownerId: user.id, tenantId: tenantId.slice(0, 128) },
-    };
-  } catch {
-    return {};
-  }
-}
-
 export async function POST(request: NextRequest) {
-  // Public floating DABRA chat: no auth/pilot lookup on this hot path, general
-  // conversational inference must never require pilot authorization.
+  // Public discovery is read-only. Submission uses the existing authenticated REQ flow.
   const parsed = await parseChatRequest(request);
   const { body } = parsed;
   const locale = parseDabraLocale(body?.locale) ?? (/[؀-ۿ]/u.test(body?.message ?? '') ? 'ar' : 'en');
@@ -147,7 +88,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid attachment.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const message = body?.message?.trim().slice(0, MAX_TURN_LENGTH);
+  const message = typeof body?.message === 'string' ? body.message.trim().slice(0, MAX_TURN_LENGTH) : '';
+
   const modelMessage = message && parsed.attachmentCount
     ? `${message}\n\n${locale === 'ar' ? `[أرفق المستخدم ${parsed.attachmentCount} ملفًا تحقق الخادم من سلامة نوعه. محتوى الملفات غير مُرسل إلى مزود الذكاء الاصطناعي، فلا تدّعِ قراءته.]` : `[The user attached ${parsed.attachmentCount} server-validated file(s). Their contents are not sent to the AI provider, so do not claim to have read them.]`}`
     : message ?? '';
@@ -170,44 +112,7 @@ export async function POST(request: NextRequest) {
   }
 
   const history = sanitizeHistory(body?.history);
-  const identity = await resolveSafeRequestIdentity(request);
-  if (body?.mode === 'travel-plan' && !identity.scope) {
-    if (body.stream === true) {
-      return createDabraAssistantTextResponse(null, { status: 401, fallback: DABRA_LOCALE_ERROR[locale] });
-    }
-    return NextResponse.json(
-      { error: 'Authentication is required for user-scoped travel planning.' },
-      { status: 401, headers: { 'Cache-Control': 'no-store' } },
-    );
-  }
-  if (body?.mode === 'travel-plan' && identity.scope) {
-    let travel;
-    try {
-      travel = await new DabraTravelOrchestrator().orchestrate(modelMessage, identity.scope);
-    } catch (error) {
-      if (error instanceof TravelProviderError && error.code === 'INVALID_TRAVELER_COUNT') {
-        if (body.stream === true) {
-          return createDabraAssistantTextResponse(null, { status: 400, fallback: DABRA_LOCALE_ERROR[locale] });
-        }
-        return NextResponse.json(
-          { error: 'Traveler counts are invalid.' },
-          { status: 400, headers: { 'Cache-Control': 'no-store' } },
-        );
-      }
-      throw error;
-    }
-    const response = await buildLocaleSafeResponse(modelMessage, history, identity.account, locale);
-    if (body.stream === true) return createDabraAssistantTextResponse(response);
-    return NextResponse.json({ ...response, travel }, { headers: { 'Cache-Control': 'no-store' } });
-  }
-
-  const response = await buildLocaleSafeResponse(modelMessage, history, identity.account, locale);
-  if (body?.stream === true) {
-    return createDabraAssistantTextResponse(response);
-  }
-  return NextResponse.json(response, {
-    headers: {
-      'Cache-Control': 'no-store',
-    },
-  });
+  const response = buildPlatformAssistantResponse(modelMessage, history, locale);
+  if (body?.stream === true) return createDabraAssistantTextResponse(response);
+  return NextResponse.json(response, { headers: { 'Cache-Control': 'no-store' } });
 }
