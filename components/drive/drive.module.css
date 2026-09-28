@@ -170,6 +170,16 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
+.quoteFields {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin-block: 20px;
+}
+.quoteFields legend {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
 .check {
   flex-direction: row !important;
   align-items: flex-start;
