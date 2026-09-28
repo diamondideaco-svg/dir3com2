@@ -8,6 +8,10 @@ export async function verifyDrivePriceRelease({execute, scalar}) {
  const rates=JSON.parse(read('lib/drive/current-prices.json'));
  const migration=read('supabase/migrations/20260928121156_drive_price_reduction_15_percent.sql');
  for (const p of baseline.before.partnerProducts) await execute(`INSERT INTO public.products(id,name_ar,name_en,slug,country,marketplace_family,status,base_price,currency,lifecycle_version) VALUES('${p.id}','اختبار','Isolated QA','qa-${p.id}','EG','drive','published',${p.beforeCents}/100.0,'${p.currency}',${p.version})`);
+ // The real baseline deliberately creates every inserted product as synthetic draft.
+ // This fixture models the already published, non-synthetic rows captured read-only;
+ // never disable a trigger or change the release migration to accommodate fixtures.
+ for (const p of baseline.before.partnerProducts) await execute(`UPDATE public.products SET synthetic=false,status='published' WHERE id='${p.id}'`);
  const v=x=>x===null?'NULL':String(x/100);
  for (const a of availability) await execute(`INSERT INTO public.product_availability(id,product_id,city,currency,price,weekend_price,seasonal_price,discount_percent,capacity,booked_count) VALUES('${a.id}','${a.productId}','Cairo','${a.currency}',${v(a.priceCents)},${v(a.weekendCents)},${v(a.seasonalCents)},${a.discountPercent},7,2)`);
  const oldRequests=await scalar('SELECT coalesce(jsonb_agg(to_jsonb(c) ORDER BY request_id),\'[]\')::text FROM public.drive_request_context c');
