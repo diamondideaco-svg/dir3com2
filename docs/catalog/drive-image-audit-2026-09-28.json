@@ -19,7 +19,9 @@
         837
       ],
       "bytes": 145590,
-      "sha256": "f946495ec50d57be97e80652af9b9a55252e9b6434490cfdf9e4c47d7bc10642"
+      "sha256": "f946495ec50d57be97e80652af9b9a55252e9b6434490cfdf9e4c47d7bc10642",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "mercedes-s500",
@@ -39,7 +41,9 @@
         852
       ],
       "bytes": 150114,
-      "sha256": "3e93097b90b1087dad7f5c35e815a57080c9434cba91b0a4d65893a060aa1167"
+      "sha256": "3e93097b90b1087dad7f5c35e815a57080c9434cba91b0a4d65893a060aa1167",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "mercedes-gclass",
@@ -59,7 +63,9 @@
         931
       ],
       "bytes": 191708,
-      "sha256": "430152aa59ecaf1f385bd1c0a66f503780affc0e7710d697768f9f6c601f3cf7"
+      "sha256": "430152aa59ecaf1f385bd1c0a66f503780affc0e7710d697768f9f6c601f3cf7",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "mercedes-v250",
@@ -79,7 +85,9 @@
         888
       ],
       "bytes": 179566,
-      "sha256": "e578b4d0f01d7ed4c913193f0db0a54b84744d3ba105abbe3885f64abb3b6104"
+      "sha256": "e578b4d0f01d7ed4c913193f0db0a54b84744d3ba105abbe3885f64abb3b6104",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "mercedes-v300",
@@ -99,7 +107,9 @@
         896
       ],
       "bytes": 192642,
-      "sha256": "51c639081f6713c5501eeab861a851c36cac1ff1d83ab0a8f0dce81894377ea6"
+      "sha256": "51c639081f6713c5501eeab861a851c36cac1ff1d83ab0a8f0dce81894377ea6",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "kia-carval",
@@ -119,7 +129,9 @@
         864
       ],
       "bytes": 168768,
-      "sha256": "6468e5b704414af7dff535e81efc8c12c38497fef15c112f28c93e7155bb05e9"
+      "sha256": "6468e5b704414af7dff535e81efc8c12c38497fef15c112f28c93e7155bb05e9",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "kia-k4",
@@ -139,7 +151,9 @@
         795
       ],
       "bytes": 128004,
-      "sha256": "45bdb368515ff89840ccf34d46531eba89d362d53ba0652da33c7971abfb20e7"
+      "sha256": "45bdb368515ff89840ccf34d46531eba89d362d53ba0652da33c7971abfb20e7",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "kia-sportage",
@@ -159,7 +173,9 @@
         878
       ],
       "bytes": 175326,
-      "sha256": "9f0188eaddab649f464509bb22d2d50feb593d67baf0a55bfe7fe7ad5bec2969"
+      "sha256": "9f0188eaddab649f464509bb22d2d50feb593d67baf0a55bfe7fe7ad5bec2969",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "hyundai-elantra-cn7",
@@ -179,7 +195,9 @@
         856
       ],
       "bytes": 146822,
-      "sha256": "0968adc7155dbbfa367c1a85befd9fa045e26612fd1887e09a05c6e941f4c372"
+      "sha256": "0968adc7155dbbfa367c1a85befd9fa045e26612fd1887e09a05c6e941f4c372",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "hyundai-tuycan",
@@ -199,7 +217,9 @@
         903
       ],
       "bytes": 194662,
-      "sha256": "0909b97a30b31e84680256f764f2b61c8c5e1ac41982a6dac064c780a0a05727"
+      "sha256": "0909b97a30b31e84680256f764f2b61c8c5e1ac41982a6dac064c780a0a05727",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "hyundai-accent",
@@ -219,7 +239,9 @@
         847
       ],
       "bytes": 169906,
-      "sha256": "a2209bb408169ee783e7e2818f23f45ecc5fb38cf7442ba52c5bb1916029936e"
+      "sha256": "a2209bb408169ee783e7e2818f23f45ecc5fb38cf7442ba52c5bb1916029936e",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "jetour-t2",
@@ -239,7 +261,9 @@
         911
       ],
       "bytes": 189744,
-      "sha256": "9dd2c57cf49a16a4ccf122de92d70789175e6fc421b4585eb8737713ae45693b"
+      "sha256": "9dd2c57cf49a16a4ccf122de92d70789175e6fc421b4585eb8737713ae45693b",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "jetour-x70",
@@ -259,7 +283,9 @@
         889
       ],
       "bytes": 188920,
-      "sha256": "e46e346dcfbfcfeff0bc6372c2c9fd7da2e9641cf34f644bb3935ede68644316"
+      "sha256": "e46e346dcfbfcfeff0bc6372c2c9fd7da2e9641cf34f644bb3935ede68644316",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "jetour-x90",
@@ -273,13 +299,15 @@
         254
       ],
       "subjectBounds32": [
-        16,
-        144,
-        1519,
-        911
+        32,
+        145,
+        1507,
+        897
       ],
-      "bytes": 139662,
-      "sha256": "90088e5e9f7b4033676e3d565000b0420c8c96f47557544e669a07361cf21e64"
+      "bytes": 181880,
+      "sha256": "b4f2c066535a1cfac0263fd280eae29e8204d993513164fc19a35caf344892f5",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "soueast-s05",
@@ -299,7 +327,9 @@
         880
       ],
       "bytes": 183624,
-      "sha256": "d684f4b6788c0adb0180699e31a579c6bb331594c266d4f1fdeae886248cdbf5"
+      "sha256": "d684f4b6788c0adb0180699e31a579c6bb331594c266d4f1fdeae886248cdbf5",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "soueast-s09",
@@ -319,7 +349,9 @@
         920
       ],
       "bytes": 204694,
-      "sha256": "fa43a04121d8cdf7110ce8c7587b12744934cfd90f876926725dbc5a3880f449"
+      "sha256": "fa43a04121d8cdf7110ce8c7587b12744934cfd90f876926725dbc5a3880f449",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "soueast-s07",
@@ -339,7 +371,9 @@
         879
       ],
       "bytes": 178626,
-      "sha256": "8639bf91b442113be76c0911b3c47c09fda5e5c08c5abc0af97bbd886b51aa6f"
+      "sha256": "8639bf91b442113be76c0911b3c47c09fda5e5c08c5abc0af97bbd886b51aa6f",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "range-rover",
@@ -353,13 +387,15 @@
         254
       ],
       "subjectBounds32": [
-        37,
-        120,
-        1495,
-        912
+        39,
+        156,
+        1502,
+        882
       ],
-      "bytes": 147774,
-      "sha256": "6e3ff03fac97e93126903e52f0b1c8f52b3d3102d0cdbae655331accca76a9b7"
+      "bytes": 179618,
+      "sha256": "d482cc47bf619d0643fde53cb4962b08c78cf24ad85c84ec2d12d58152255756",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "range-rover-sport",
@@ -379,7 +415,9 @@
         869
       ],
       "bytes": 171990,
-      "sha256": "678c4019d9143fadffa6453e6093de89c7f83be8302048fab1a4064bb2b5b64a"
+      "sha256": "678c4019d9143fadffa6453e6093de89c7f83be8302048fab1a4064bb2b5b64a",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "nissan-sunny",
@@ -399,7 +437,9 @@
         887
       ],
       "bytes": 146866,
-      "sha256": "754f3bacff718da660d013096f38c4555a6a0aa7f274f718950964458c5ec089"
+      "sha256": "754f3bacff718da660d013096f38c4555a6a0aa7f274f718950964458c5ec089",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "nissan-patrol",
@@ -419,7 +459,9 @@
         908
       ],
       "bytes": 158982,
-      "sha256": "7e5c5a3c3627432789c54d969862d7ded9dfc21ab657f0976ed574d440e90203"
+      "sha256": "7e5c5a3c3627432789c54d969862d7ded9dfc21ab657f0976ed574d440e90203",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "nissan-source-2026",
@@ -439,7 +481,9 @@
         912
       ],
       "bytes": 223762,
-      "sha256": "6759fb9ca35d84441ef2a21c8fa64bcd7a6e2d4b27d0a4e054977494a751eb5f"
+      "sha256": "6759fb9ca35d84441ef2a21c8fa64bcd7a6e2d4b27d0a4e054977494a751eb5f",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "toyota-land-cruiser-2020",
@@ -459,7 +503,9 @@
         910
       ],
       "bytes": 177546,
-      "sha256": "7b16eec20e4ce34a5432eb8893eb4c70dbaadc3f0b4bc768bd16bc8a484f96c1"
+      "sha256": "7b16eec20e4ce34a5432eb8893eb4c70dbaadc3f0b4bc768bd16bc8a484f96c1",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "toyota-land-cruiser",
@@ -479,7 +525,9 @@
         891
       ],
       "bytes": 184022,
-      "sha256": "9cb2085c8e51f9b03b040e95a7b54821a462bddbd13e2edcd808550ecb1e8537"
+      "sha256": "9cb2085c8e51f9b03b040e95a7b54821a462bddbd13e2edcd808550ecb1e8537",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "cadillac-escalade",
@@ -499,7 +547,9 @@
         900
       ],
       "bytes": 199548,
-      "sha256": "fcb71e17dfab4cfa46823c6e5809c145a5fa52777135e9332234c9318b9eeb17"
+      "sha256": "fcb71e17dfab4cfa46823c6e5809c145a5fa52777135e9332234c9318b9eeb17",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "hyundai-h1",
@@ -519,7 +569,9 @@
         876
       ],
       "bytes": 146264,
-      "sha256": "1548ab38e1d80912732dcd1a56bd39e085e39218fae14b466e40b48a23a04304"
+      "sha256": "1548ab38e1d80912732dcd1a56bd39e085e39218fae14b466e40b48a23a04304",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "toyota-hiace",
@@ -539,7 +591,9 @@
         915
       ],
       "bytes": 153710,
-      "sha256": "bebd6cb549893815acd19a200c3ab3f0a8f4a72e06398693f66ba84afd03694b"
+      "sha256": "bebd6cb549893815acd19a200c3ab3f0a8f4a72e06398693f66ba84afd03694b",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "mercedes-e200-amg",
@@ -559,7 +613,9 @@
         849
       ],
       "bytes": 160418,
-      "sha256": "346cbe785b785c34130afe3618ac61e9c5489b50f16182dd0711e46105514e05"
+      "sha256": "346cbe785b785c34130afe3618ac61e9c5489b50f16182dd0711e46105514e05",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "jetour-t1",
@@ -579,7 +635,9 @@
         924
       ],
       "bytes": 162376,
-      "sha256": "75b1874ef7dc948c7ffc3595877a7a3745cda1f0c38dfabc42387e89b26e31ac"
+      "sha256": "75b1874ef7dc948c7ffc3595877a7a3745cda1f0c38dfabc42387e89b26e31ac",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     },
     {
       "id": "range-rover-2025",
@@ -593,13 +651,24 @@
         254
       ],
       "subjectBounds32": [
-        36,
-        119,
-        1496,
-        908
+        35,
+        131,
+        1504,
+        895
       ],
-      "bytes": 180208,
-      "sha256": "1681cfb00b2588d8b6669d6334df84731f96bef4a1ca1216842cfaed6d933dbe"
+      "bytes": 201510,
+      "sha256": "e6fe4ed4d0fe6dd0c94e6a0e927fd590258f2e377cb448d25fd880d6a3a399b1",
+      "frontDirection": "left",
+      "orientationReview": "visual contact sheet 2026-09-28 after CEO correction"
     }
-  ]
+  ],
+  "orientationReview": {
+    "corrected": [
+      "jetour-x90",
+      "range-rover",
+      "range-rover-2025"
+    ],
+    "priorAllLeftClaimWasIncorrect": true,
+    "all30ReviewedAgain": true
+  }
 }

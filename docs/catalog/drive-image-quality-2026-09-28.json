@@ -63,6 +63,30 @@
       "generationFile": "exec-49ba7c93-a008-4d35-aaf4-6a7361c41f21.png",
       "asset": "public/vehicles/jetour-t2.webp",
       "prompt": "Rotate original T2 to front three-quarter LEFT, retaining beige paint and accents; transparent background; readable JETOUR lettering."
+    },
+    {
+      "id": "jetour-x90",
+      "generationFile": "exec-7bfb93a9-7e53-444e-8f65-00a64eb79c3f.png",
+      "asset": "public/vehicles/jetour-x90.webp",
+      "prompt": "Precise object edit using original catalogue asset and Range Rover Sport as orientation reference only: rotate front three-quarter viewpoint to nose LEFT, rear RIGHT; retain target model, paint, wheels and trim; readable unmirrored badges; full car, straight wheels, transparent1536x1024 canvas.",
+      "tool": "built-in image_gen",
+      "reason": "CEO identified missed right-facing assets after earlier visual review."
+    },
+    {
+      "id": "range-rover",
+      "generationFile": "exec-5d848af7-d304-4949-83c0-afed15d0ba5c.png",
+      "asset": "public/vehicles/range-rover.webp",
+      "prompt": "Precise object edit using original catalogue asset and Range Rover Sport as orientation reference only: rotate front three-quarter viewpoint to nose LEFT, rear RIGHT; retain target model, paint, wheels and trim; readable unmirrored badges; full car, straight wheels, transparent1536x1024 canvas.",
+      "tool": "built-in image_gen",
+      "reason": "CEO identified missed right-facing assets after earlier visual review."
+    },
+    {
+      "id": "range-rover-2025",
+      "generationFile": "exec-cf8b61ec-926b-4e36-a311-49820b85f54e.png",
+      "asset": "public/vehicles/range-rover-2025.webp",
+      "prompt": "Precise object edit using original catalogue asset and Range Rover Sport as orientation reference only: rotate front three-quarter viewpoint to nose LEFT, rear RIGHT; retain target model, paint, wheels and trim; readable unmirrored badges; full car, straight wheels, transparent1536x1024 canvas.",
+      "tool": "built-in image_gen",
+      "reason": "CEO identified missed right-facing assets after earlier visual review."
     }
   ],
   "references": [
@@ -91,5 +115,14 @@
       "use": "Egypt N17 shape reference; external photo not shipped"
     }
   ],
-  "limits": "Generated catalogue representation and 'or similar' are not guarantees of a particular supplied year/trim/color. No third-party original photo is shipped."
+  "limits": "Generated catalogue representation and 'or similar' are not guarantees of a particular supplied year/trim/color. No third-party original photo is shipped.",
+  "orientationCorrection": {
+    "date": "2026-09-28",
+    "affected": [
+      "jetour-x90",
+      "range-rover",
+      "range-rover-2025"
+    ],
+    "priorClaimCorrection": "Previous all-left-facing statement was incorrect for these three assets. Corrected after CEO observation; all30 reviewed again on contact sheet."
+  }
 }

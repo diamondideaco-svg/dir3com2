@@ -49,3 +49,7 @@ The image/name-only final browser follow-up passed AR/EN at1440/390: all30 uniqu
 5. Recovery is a reviewed forward change: deactivate new offers without deleting referenced rows, restore the nine snapshotted prior catalogue rows/version and matching app; preserve additive RPC compatibility and historical requests/quotes.
 
 **Production migration / business-data mutation / merge / deploy: NONE.** Prepared SQL and local proof are not a Production publication claim.
+
+## Follow-up: direction correction after CEO observation
+
+The prior claim that all30 images faced left was incorrect: Jetour X90 and the beige/green full-size Range Rovers faced right. Only these three image assets were re-rendered facing left, preserving paint/model/trim with readable non-mirrored lettering. All30 images were visually reviewed again in the updated contact sheet; alpha,1536×1024 dimensions, unique hashes and positive subject margins verified. No application/SQL/pricing changes. Prior browser evidence covers layout/loading before this asset-only delta; no new Browser PASS is claimed. Final review target is updated on Task/PR after push.
