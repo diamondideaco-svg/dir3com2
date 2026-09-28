@@ -27,11 +27,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    logServerEvent('api.contact.request_received');
+    // Validation is not delivery. No durable inbox or sender is connected yet.
+    logServerEvent('api.contact.delivery_unavailable');
 
     return NextResponse.json(
-      { message: 'تم إرسال الرسالة بنجاح' },
-      { status: 200 }
+      { code: 'CONTACT_DELIVERY_UNAVAILABLE', error: 'لم تُرسل رسالتك ولم تُحفظ. خدمة استقبال الرسائل غير متاحة حالياً؛ احتفظ بنص الرسالة.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
     logServerError('api.contact.request_failed', error);
