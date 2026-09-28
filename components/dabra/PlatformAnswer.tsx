@@ -4,7 +4,8 @@ import { Fragment } from 'react';
 export function platformLinkAllowed(href: string) {
   if (!href.startsWith('/') || href.startsWith('//') || /[\\\s\u0000-\u001f]/.test(href)) return false;
   const url = new URL(href, 'https://dir3com.com');
-  return ['/marketplace', '/services', '/my-requests', '/my-account'].includes(url.pathname)
+  if (url.pathname === '/' && url.hash === '#home-map' && !url.search) return true;
+  return ['/marketplace', '/services', '/my-requests', '/my-account', '/support', '/admin/operations/drive'].includes(url.pathname)
     && [...url.searchParams.keys()].every(k => ['family','language','currency','destination','pickup','pickupAt','returnAt','pickupDate','returnDate','checkIn','checkOut','adults','travelers','passengers','mode','offer'].includes(k));
 }
 export default function PlatformAnswer({ text }: { text: string }) {

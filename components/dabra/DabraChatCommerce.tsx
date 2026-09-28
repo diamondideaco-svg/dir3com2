@@ -148,6 +148,7 @@ export default function DabraChatCommerce() {
   const identityRequestRef = useRef(0);
   const lifecycleRef = useRef(0);
   const chatInFlightRef = useRef(false);
+  const privateConversationRef = useRef(false);
   const chatAbortRef = useRef<AbortController | null>(null);
   const marketplaceRequestRef = useRef(0);
   const marketplaceAbortRef = useRef<AbortController | null>(null);
@@ -224,6 +225,7 @@ export default function DabraChatCommerce() {
   useEffect(() => {
     let active = true;
     function detachSensitiveState() {
+      privateConversationRef.current = false;
       invalidateActiveRequests();
       setStorageHydrated(false);
       setPersistenceContext(null);
@@ -314,6 +316,10 @@ export default function DabraChatCommerce() {
   useEffect(() => {
     if (!persistenceContext || !storageHydrated) return;
     const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
+    if (privateConversationRef.current) {
+      storage.removeItem(storageKey(persistenceContext.ownerId, 'context'));
+      return;
+    }
     storage.setItem(storageKey(persistenceContext.ownerId, 'context'), JSON.stringify(createPersisted(messages.slice(-20), persistenceContext.ownerId)));
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: 'smooth' });
   }, [persistenceContext, storageHydrated, messages]);
@@ -458,6 +464,8 @@ export default function DabraChatCommerce() {
         body: form,
         signal: controller.signal,
       });
+      if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
+      if (response.headers.get('X-DABRA-Private-Context') === '1') privateConversationRef.current = true;
       await consumeDabraChatResponse(response, (visibleAnswer) => {
         if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
         setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));

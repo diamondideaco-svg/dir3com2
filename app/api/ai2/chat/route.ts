@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildPlatformAssistantResponse, platformCurrency, platformContext, platformFamilies } from '@/lib/dabra/platform-assistant';
+import { platformCurrency, platformContext, platformFamilies } from '@/lib/dabra/platform-assistant';
 type AI2ChatTurn = { role: 'user' | 'assistant'; content: string };
 import { createDabraAssistantTextResponse } from '@/lib/dabra/chat-response-contract';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 import { DABRA_LOCALE_ERROR, parseDabraLocale } from '@/lib/dabra/locale-contract';
 import { getCurrencySnapshot } from '@/lib/currency/service';
 import { parseDisplayCurrency } from '@/lib/currency/display';
+import { agentIntent, type AgentContext } from '@/lib/dabra/agent-contract';
+import { runInternalAgent } from '@/lib/dabra/agent';
 export const dynamic = 'force-dynamic';
 
 type AI2ChatRequest = {
@@ -115,12 +117,34 @@ export async function POST(request: NextRequest) {
   }
 
   const history = sanitizeHistory(body?.history);
-  if (body?.currency !== undefined && !parseDisplayCurrency(body.currency)) return NextResponse.json({ error: 'Invalid currency.' }, { status: 400 });
+  if (body?.currency !== undefined && !parseDisplayCurrency(body.currency)) return NextResponse.json({ error: 'Invalid currency.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
+  let intent = agentIntent(message);
+  let agentContext: AgentContext = { role: 'guest', readRequests: async () => ({ kind: 'authentication_required' }) };
+  const inferenceEnabled = process.env.DABRA_INTERNAL_AI_ENABLED === 'true';
+  const publicUtility = ['weather', 'currency', 'maps'].includes(intent.tool);
+  if ((intent.tool !== 'discover' && !publicUtility) || inferenceEnabled) {
+    const { resolveAgentContext } = await import('@/lib/dabra/agent-context');
+    agentContext = await resolveAgentContext(request);
+  }
+  let understanding: string = 'internal-rules';
+  // Only authenticated ambiguity uses the optional classifier. It cannot read
+  // records, grant roles or generate customer-facing facts/actions.
+  if (inferenceEnabled && agentContext.role !== 'guest' && intent.tool === 'discover' && !platformFamilies(message).length) {
+    const { planInternalAgentTool } = await import('@/lib/dabra/agent-planner');
+    const planned = await planInternalAgentTool(message);
+    understanding = planned.status;
+    if (planned.tool) intent = { ...intent, tool: planned.tool };
+  }
   const context = platformContext(modelMessage, history);
   const currency = parseDisplayCurrency(body?.currency) ?? platformCurrency(context);
-  const needsRates = currency && (platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
+  const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
   const snapshot = needsRates ? await getCurrencySnapshot() : null;
-  const response = buildPlatformAssistantResponse(modelMessage, history, locale, undefined, undefined, currency ? { currency, snapshot } : undefined);
-  if (body?.stream === true) return createDabraAssistantTextResponse(response);
-  return NextResponse.json(response, { headers: { 'Cache-Control': 'no-store' } });
+  const response = await runInternalAgent({ message: modelMessage, history, locale, context: agentContext, intent,
+    pricing: currency ? { currency, snapshot } : undefined });
+  if (body?.stream === true) {
+    const streamed = createDabraAssistantTextResponse(response);
+    if (intent.tool !== 'discover') streamed.headers.set('X-DABRA-Private-Context', '1');
+    return streamed;
+  }
+  return NextResponse.json({ ...response, understanding }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
