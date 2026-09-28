@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildPlatformAssistantResponse } from '@/lib/dabra/platform-assistant';
+import { buildPlatformAssistantResponse, platformCurrency, platformContext, platformFamilies } from '@/lib/dabra/platform-assistant';
 type AI2ChatTurn = { role: 'user' | 'assistant'; content: string };
 import { createDabraAssistantTextResponse } from '@/lib/dabra/chat-response-contract';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 import { DABRA_LOCALE_ERROR, parseDabraLocale } from '@/lib/dabra/locale-contract';
+import { getCurrencySnapshot } from '@/lib/currency/service';
+import { parseDisplayCurrency } from '@/lib/currency/display';
 export const dynamic = 'force-dynamic';
 
 type AI2ChatRequest = {
   message?: string;
+  currency?: string;
   history?: Array<{ role?: string; content?: string }>;
   mode?: 'chat' | 'travel-plan';
   stream?: boolean;
@@ -38,7 +41,7 @@ async function parseChatRequest(request: NextRequest): Promise<ParsedChatRequest
     const mode = modeValue === 'chat' || modeValue === 'travel-plan' ? modeValue : undefined;
     const localeValue = form.get('locale');
     const locale = parseDabraLocale(localeValue);
-    const body: AI2ChatRequest = { message: String(form.get('message') ?? ''), history, stream, mode, locale: locale ?? undefined };
+    const body: AI2ChatRequest = { currency: typeof form.get('currency') === 'string' ? String(form.get('currency')) : undefined, message: String(form.get('message') ?? ''), history, stream, mode, locale: locale ?? undefined };
     const files = form.getAll('attachment');
     if (files.length > MAX_ATTACHMENTS || files.some((item) => !(item instanceof File))) return { body, attachmentCount: 0, attachmentError: true };
     const seen = new Set<string>();
@@ -112,7 +115,12 @@ export async function POST(request: NextRequest) {
   }
 
   const history = sanitizeHistory(body?.history);
-  const response = buildPlatformAssistantResponse(modelMessage, history, locale);
+  if (body?.currency !== undefined && !parseDisplayCurrency(body.currency)) return NextResponse.json({ error: 'Invalid currency.' }, { status: 400 });
+  const context = platformContext(modelMessage, history);
+  const currency = parseDisplayCurrency(body?.currency) ?? platformCurrency(context);
+  const needsRates = currency && (platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
+  const snapshot = needsRates ? await getCurrencySnapshot() : null;
+  const response = buildPlatformAssistantResponse(modelMessage, history, locale, undefined, undefined, currency ? { currency, snapshot } : undefined);
   if (body?.stream === true) return createDabraAssistantTextResponse(response);
   return NextResponse.json(response, { headers: { 'Cache-Control': 'no-store' } });
 }

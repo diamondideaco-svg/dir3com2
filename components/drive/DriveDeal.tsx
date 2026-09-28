@@ -1,5 +1,6 @@
 'use client';
 import Image from 'next/image';
+import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import Link from 'next/link';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
@@ -14,6 +15,7 @@ import styles from './drive.module.css';
 
 export default function DriveDeal({ offerId, initialSearch }: { offerId: string; initialSearch: string }) {
   const { language, direction } = useLanguage(); const ar=language==='ar'; const offer=driveOffer(offerId)!; const vehicle=vehicleFor(offer);
+  const { currency } = useDisplayCurrency();
   const [step,setStep]=useState(0); const [error,setError]=useState(''); const [sending,setSending]=useState(false); const inFlight=useRef(false); const attempt=useRef({nonce:null as string|null});
   const [priceRetry,setPriceRetry]=useState(0);
   const [priced,setPriced]=useState<PricedDriveOffer|null>(null); const [reference,setReference]=useState(''); const [email,setEmail]=useState('');
@@ -27,7 +29,7 @@ export default function DriveDeal({ offerId, initialSearch }: { offerId: string;
     return()=>{active=false;controller.abort();clearTimeout(timer);};
   },[initialSearch,offerId,draftKey,priceRetry]);
   const change=(key:keyof DriveTrip,value:string|number|boolean)=>setTrip(current=>({...current,[key]:value}));
-  function review(event:FormEvent){event.preventDefault();const parsed=parseDriveTrip({...trip,acknowledged:true});if(parsed.error){setError(parsed.error);return;}setError('');setStep(2);}
+  function review(event:FormEvent){event.preventDefault();const parsed=parseDriveTrip({...trip,currency,acknowledged:true});if(parsed.error){setError(parsed.error);return;}setError('');setStep(2);}
   async function identify(){
     const {data:{session},error:sessionError}=await supabase.auth.getSession();
     const goLogin=()=>{try{sessionStorage.setItem(draftKey,JSON.stringify(trip));}catch{}window.location.assign(buildMarketplaceLoginHandoff(`/marketplace/drive/${offerId}?${initialSearch}`));};
@@ -40,7 +42,7 @@ export default function DriveDeal({ offerId, initialSearch }: { offerId: string;
   }
   async function select(){try{if(await identify()){setStep(1);setError('');}}catch{setError('UNAVAILABLE');}}
   async function submit(){
-    if(inFlight.current||reference)return;const parsed=parseDriveTrip(trip);if(parsed.error){setError(parsed.error);return;}
+    if(inFlight.current||reference)return;const parsed=parseDriveTrip({...trip,currency});if(parsed.error){setError(parsed.error);return;}
     inFlight.current=true;setSending(true);setError('');
     try{
       const session=await identify();if(!session)return;

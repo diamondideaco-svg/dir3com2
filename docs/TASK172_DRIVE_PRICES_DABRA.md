@@ -67,3 +67,34 @@ Independent functional/security review and exact Preview browser evidence remain
 release gates. Implementation self-checks do not count as independent review.
 Do not reuse prior independent approvals as coverage for this diff.
 WhatsApp PR #171 and Google PR #164 are not changed or blocked by this branch.
+
+## Selected currency correction
+
+The CEO clarified that entered currency is the source price, not a forced customer
+display currency. Header, Home search, managed Drive, partner Explorer, Stay form,
+DABRA cards and chat now share SAR/USD/EGP/EUR/AED selection. Selection persists
+locally and in the current URL; server and initial client markup both use the
+same default before hydration. The original amount/currency remain authoritative.
+Chat receives only the currency code, never a client-provided exchange rate.
+
+The previous Frankfurter v1 basket required currencies outside ECB coverage, the
+Home converter was explicitly disabled and /api/currency did not exist. Use the
+existing Frankfurter provider's v2 daily reference basket, per
+https://frankfurter.dev/ . There is no new subscription or key. Cache one verified
+USD basket for ten minutes, share in-flight requests, and back off failures for
+30 seconds. Missing/invalid/duplicate/future/older-than-seven-day rows fail closed.
+Removed hardcoded fallback exchange rates. On failure the card remains visible
+in its ORIGINAL currency with an explicit conversion-unavailable message. Never
+relabel source amounts as converted. The displayed conversion is not a payment,
+settlement, availability or final Operations quote. Currency changes alone do
+not execute a Stay provider search.
+
+Weather inspection found an invalid current-variable `time` in the existing
+Open-Meteo request; time is already returned automatically. Removed that variable
+and stopped null observations becoming zero. Maps remains the existing explicit
+Google Maps link to Riyadh; there is no integrated pickup map/location lookup and
+no claim of a completed maps API integration.
+
+FX network calls are fixed-host numeric reference-data calls only. DABRA still
+has no external web search, model web tools, or competitor referrals. Final
+independent review must cover this added currency/weather delta too.

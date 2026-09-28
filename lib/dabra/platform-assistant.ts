@@ -2,6 +2,12 @@ import { DRIVE_OFFERS, vehicleFor, vehicleTitle, type DriveOffer } from '../driv
 import { serviceEntryHref } from '../marketplace/public-entry';
 import { cairoInstant } from '../drive/search';
 
+import { displayPrice, parseDisplayCurrency, type DisplayCurrency, type FxSnapshot } from '../currency/display';
+export type PlatformPricing = { currency: DisplayCurrency; snapshot: FxSnapshot | null };
+export function platformCurrency(message: string) {
+  const text = normalizePlatformQuery(message);
+  return parseDisplayCurrency(text.match(/\b(usd|sar|egp|eur|aed)\b/)?.[1] ?? (/دولار|\$/.test(text) ? 'USD' : /ريال/.test(text) ? 'SAR' : /جنيه/.test(text) ? 'EGP' : /يورو/.test(text) ? 'EUR' : /درهم/.test(text) ? 'AED' : ''));
+}
 type Locale = 'ar' | 'en';
 type Turn = { role: 'user' | 'assistant'; content: string };
 export type PlatformFamily = 'drive' | 'stay' | 'fly' | 'concierge' | 'vip';
@@ -27,13 +33,13 @@ export function platformContext(message: string, history: Turn[] = []) {
   const prior = history.filter(t => t.role === 'user').slice(-4).reverse().find(t => platformFamilies(t.content).length);
   return current.length || !prior ? message : `${prior.content.slice(0, 500)}\n${message}`;
 }
-export function platformEntry(family: PlatformFamily, message: string, locale: Locale) {
+export function platformEntry(family: PlatformFamily, message: string, locale: Locale, displayCurrency?: DisplayCurrency) {
   const text = normalizePlatformQuery(message);
   const params = new URLSearchParams({ language: locale });
   const cities = [['cairo', 'القاهره'], ['giza', 'الجيزه'], ['riyadh', 'الرياض'], ['jeddah', 'جده'], ['dubai', 'دبي'], ['alexandria', 'الاسكندريه']] as const;
   const city = cities.find(([en, ar]) => text.includes(en) || text.includes(ar));
   if (city) params.set('destination', city[0]);
-  const currency = text.match(/\b(usd|sar|egp|eur|aed)\b/)?.[1]?.toUpperCase() ?? (/دولار/.test(text) ? 'USD' : /ريال/.test(text) ? 'SAR' : /جنيه/.test(text) ? 'EGP' : undefined);
+  const currency = displayCurrency ?? platformCurrency(message);
   if (currency) params.set('currency', currency);
   const dates = text.match(/\d{4}-\d{2}-\d{2}(?:t\d{2}:\d{2})?/g) ?? [];
   if (family === 'drive') {
@@ -50,7 +56,7 @@ export function platformEntry(family: PlatformFamily, message: string, locale: L
 }
 
 /** Approved rate catalogue, never live supplier availability. No network or transaction side effects. */
-export function findPlatformDriveOffers(message: string): DriveOffer[] {
+export function findPlatformDriveOffers(message: string, pricing?: PlatformPricing): DriveOffer[] {
   const text = normalizePlatformQuery(message);
   if (/riyadh|jeddah|dubai|الرياض|جده|دبي/.test(text) && !/cairo|giza|القاهره|الجيزه|egypt|مصر/.test(text)) return [];
   if (/\b(bmw|tesla|audi|honda)\b|بي ام|تسلا|اودي|هوندا/.test(text)) return [];
@@ -66,20 +72,24 @@ export function findPlatformDriveOffers(message: string): DriveOffer[] {
   const longestModels = models.filter(model => !models.some(other => other !== model && other.includes(model)));
   const airport = /airport|المطار/.test(text);
   const budget = text.match(/(?:under|below|max(?:imum)?|اقل من|حد اقصي|ميزانيه)\s*\$?\s*(\d+(?:\.\d{1,2})?)/)?.[1];
-  const usdBudget = budget && /\$|usd|دولار/.test(text) ? Number(budget) : undefined;
+  const budgetCurrency = platformCurrency(message) ?? pricing?.currency ?? 'USD';
+  const maxBudget = budget ? Number(budget) : undefined;
   return DRIVE_OFFERS.filter(o => {
     const vehicle = vehicleFor(o), price = airport ? o.airport : o.chauffeur;
     return price !== null && (!matchingMakes.length || matchingMakes.includes(vehicle.make))
       && (!longestModels.length || longestModels.includes(normalizePlatformQuery(vehicle.model)))
-      && (usdBudget === undefined || (o.currency === 'USD' && price <= usdBudget));
+      && (maxBudget === undefined || (() => { const converted = displayPrice(price, o.currency, budgetCurrency, pricing?.snapshot); return !converted.unavailable && converted.amount <= maxBudget; })());
   }).sort((a, b) => {
     const direction = /expensive|highest|اغلي|الاعلي/.test(text) ? -1 : 1;
-    return direction * ((airport ? a.airport! : a.chauffeur) - (airport ? b.airport! : b.chauffeur)) || a.id.localeCompare(b.id);
+    const target = pricing?.currency ?? budgetCurrency;
+    const left = displayPrice(airport ? a.airport! : a.chauffeur, a.currency, target, pricing?.snapshot);
+    const right = displayPrice(airport ? b.airport! : b.chauffeur, b.currency, target, pricing?.snapshot);
+    return (left.currency === right.currency ? direction * (left.amount - right.amount) : left.currency.localeCompare(right.currency)) || a.id.localeCompare(b.id);
   });
 }
 
 /** Public DABRA uses platform capabilities only. Environment flags cannot enable a web fallback. */
-export function buildPlatformAssistantResponse(message: string, history: Turn[] = [], locale: Locale = 'ar', now = Date.now(), familyOverride?: PlatformFamily) {
+export function buildPlatformAssistantResponse(message: string, history: Turn[] = [], locale: Locale = 'ar', now = Date.now(), familyOverride?: PlatformFamily, pricing?: PlatformPricing) {
   const context = platformContext(message, history), text = normalizePlatformQuery(context), current = normalizePlatformQuery(message);
   const ar = locale === 'ar';
   const families = familyOverride ? [familyOverride] : platformFamilies(context);
@@ -93,16 +103,21 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
   } else {
     if (!families.length && /trip|itinerary|رحله|برنامج|خطه سفر/.test(current)) families.push('drive', 'stay');
     for (const family of families) {
-      const href = platformEntry(family, context, locale);
+      const href = platformEntry(family, context, locale, pricing?.currency);
       if (family === 'drive') {
-        const offers = findPlatformDriveOffers(context), airport = /airport|المطار/.test(text);
+        const offers = findPlatformDriveOffers(context, pricing), airport = /airport|المطار/.test(text);
         const pickup = new URL(href, 'https://dir3com.com').searchParams.get('pickupAt');
         const instant = pickup ? cairoInstant(pickup) : null;
         const tooSoon = (instant !== null && instant < now + 6 * 3600000) || /(?:after|in)\s*[1-5]\s*hours?|بعد\s*(?:ساعه|ساعتين|[1-5]\s*ساعات)/.test(current);
         if (tooSoon) lines.push(ar ? 'الموعد أقرب من 6 ساعات؛ اختر موعدًا بعد 6 ساعات على الأقل حتى تقبل المنصة إنشاء الطلب.' : 'Pickup is less than 6 hours away. Choose a pickup at least 6 hours ahead to submit a request.');
         if (offers.length) {
           lines.push(ar ? `هذه أسعار كتالوج dir3com في مصر، والتوفر تؤكده العمليات (${offers.length} خيارًا مطابقًا):` : `These are dir3com catalogue rates in Egypt, with availability confirmed by Operations (${offers.length} matching options):`);
-          for (const offer of offers.slice(0, 3)) lines.push(link(`${vehicleTitle(vehicleFor(offer), locale)}: ${(airport ? offer.airport! : offer.chauffeur).toFixed(2)} ${offer.currency} / ${airport ? (ar ? 'استقبال مطار' : 'airport transfer') : (ar ? 'يوم' : 'day')}`, `${href}&offer=${encodeURIComponent(offer.id)}`));
+          for (const offer of offers.slice(0, 3)) {
+            const price = displayPrice(airport ? offer.airport! : offer.chauffeur, offer.currency, pricing?.currency ?? platformCurrency(context) ?? offer.currency, pricing?.snapshot);
+            lines.push(link(`${vehicleTitle(vehicleFor(offer), locale)}: ${price.amount.toFixed(2)} ${price.currency} / ${airport ? (ar ? 'استقبال مطار' : 'airport transfer') : (ar ? 'يوم' : 'day')}`, `${href}&offer=${encodeURIComponent(offer.id)}`));
+          }
+          if (pricing?.snapshot && pricing.currency !== 'USD') lines.push(ar ? `تحويل للعرض بتاريخ ${pricing.snapshot.asOf}؛ سعر الطلب النهائي تؤكده العمليات.` : `Display conversion as of ${pricing.snapshot.asOf}; Operations confirms the final quote.`);
+          else if (pricing && !pricing.snapshot && offers.some(o => o.currency !== pricing.currency)) lines.push(ar ? 'تعذر جلب سعر الصرف؛ الأسعار بعملة المصدر، وليست بالعملة المختارة.' : 'Exchange rates are unavailable; prices are in source currency, not the selected currency.');
           lines.push(ar ? 'السعر المعروض للسيارة، وليس إجمالي الرحلة. اليوم يشمل السائق والبنزين و120 كم؛ تؤكد العمليات الإجمالي والمواصفات.' : 'Shown rates are per vehicle, not a trip total. A day includes driver, fuel and 120 km; Operations confirms the total and vehicle details.');
         } else lines.push(ar ? 'لم أجد سيارة مطابقة ضمن الكتالوج الحالي. غيّر الطراز أو الميزانية، أو راجع خيارات مصر.' : 'No car matches the current catalogue. Adjust the model or budget, or review Egypt options.');
         lines.push(link(ar ? 'اختيار السيارة وإكمال مواعيد الطلب' : 'Choose a car and complete request dates', href));
@@ -113,7 +128,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
         lines.push(ar ? `${family === 'fly' ? 'الطيران' : 'الكونسيرج'} قيد التجهيز داخل dir3com. أستطيع الآن ترتيب التنقل في مصر واستكشاف الإقامة من المنصة.` : `${family === 'fly' ? 'Fly' : 'Concierge'} is coming soon inside dir3com. I can help with Egypt transport and Stay discovery now.`, link(ar ? 'الخدمات داخل المنصة' : 'Services inside dir3com', '/services'));
       } else lines.push(ar ? 'راجع عروض VIP المنشورة داخل المنصة. تفاصيل الخدمة والسعر والتوفر تتحدد في العرض ومراجعة العمليات.' : 'Review published VIP options inside dir3com. The listing and Operations review determine details, price and availability.', link(ar ? 'استكشاف VIP' : 'Explore VIP', href));
     }
-    if (!lines.length) lines.push(ar ? 'أنا الدبرة، مساعدك داخل dir3com. أقدر أعرض سيارات مصر وأسعارها، أو أفتح بحث الفنادق، أو أوصلك لمتابعة طلبك. أي خدمة ومدينة تريد؟' : 'I’m DABRA, your assistant inside dir3com. I can show Egypt cars and rates, open hotel search, or help you follow your request. Which service and city do you need?', link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntry('drive', context, locale)), link(ar ? 'بحث الإقامة' : 'Stay search', platformEntry('stay', context, locale)), link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
+    if (!lines.length) lines.push(ar ? 'أنا الدبرة، مساعدك داخل dir3com. أقدر أعرض سيارات مصر وأسعارها، أو أفتح بحث الفنادق، أو أوصلك لمتابعة طلبك. أي خدمة ومدينة تريد؟' : 'I’m DABRA, your assistant inside dir3com. I can show Egypt cars and rates, open hotel search, or help you follow your request. Which service and city do you need?', link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntry('drive', context, locale, pricing?.currency)), link(ar ? 'بحث الإقامة' : 'Stay search', platformEntry('stay', context, locale, pricing?.currency)), link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
   }
   return { answer: lines.join('\n\n'), sources: [{ sourceId: 'dir3com-platform', sourceName: 'dir3com catalogue and service journeys', sourceType: 'internal' as const }], language: locale, groundingStatus: 'grounded' as const, provider: 'local' as const, retrievalMode: 'internal-catalog' as const };
 }

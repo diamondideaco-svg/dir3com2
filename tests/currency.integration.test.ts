@@ -18,16 +18,7 @@ test.afterEach(() => {
 
 test("currency conversion success from provider", async () => {
   global.fetch = (async () =>
-    json({
-      date: "2026-08-13",
-      rates: {
-        USD: 1,
-        SAR: 3.75,
-        EGP: 48,
-        EUR: 0.92,
-        AED: 3.67,
-      },
-    })) as typeof fetch;
+    json(Object.entries({SAR:3.75,EGP:48,EUR:0.92,AED:3.67}).map(([quote,rate])=>({base:'USD',quote,rate,date:new Date().toISOString().slice(0,10)})))) as typeof fetch;
 
   const result = await convertCurrency({ amount: 100, sourceCurrency: "USD", targetCurrency: "SAR" });
   assert.equal(result.ok, true);

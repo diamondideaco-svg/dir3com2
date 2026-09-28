@@ -67,9 +67,7 @@ test('supplier pricing is preserved while display currency converts through the 
   const originalFetch = globalThis.fetch;
   try {
     clearCurrencyCacheForTests();
-    globalThis.fetch = (async () => new Response(JSON.stringify({
-      date: '2026-09-12', rates: { USD: 1, SAR: 3.75, EGP: 50, EUR: 0.9, AED: 3.67 },
-    }), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch;
+    globalThis.fetch = (async () => new Response(JSON.stringify(Object.entries({SAR:3.75,EGP:50,EUR:0.9,AED:3.67}).map(([quote,rate])=>({base:'USD',quote,rate,date:new Date().toISOString().slice(0,10)}))), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch;
     const [converted] = await applyDisplayPricing([service], 'SAR');
     assert.equal(converted?.supplierPriceAmount, 250);
     assert.equal(converted?.supplierPriceCurrency, 'USD');

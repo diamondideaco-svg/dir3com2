@@ -1,6 +1,8 @@
 'use client';
 
 import Image from 'next/image';
+import CurrencyPrice from '@/components/currency/CurrencyPrice';
+import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,10 +23,8 @@ export const driveErrors: Record<string, [string, string]> = {
   INVALID_TRAVELLERS: ['تحقق من عدد الركاب والأمتعة.', 'Check passenger and luggage counts.'],
 };
 export function DrivePrice({ offer, ar }: { offer: PricedDriveOffer; ar: boolean }) {
-  return <div><p className={styles.price}>{offer.display.amount === null ? (ar ? 'الخدمة غير متاحة بهذا السعر' : 'Rate not supplied for this service') : `${offer.display.amount.toLocaleString(ar ? 'ar-EG' : 'en-GB')} ${offer.display.currency}`}</p>
+  return <div><p className={styles.price}>{offer.display.amount === null ? (ar ? 'الخدمة غير متاحة بهذا السعر' : 'Rate not supplied for this service') : <CurrencyPrice amount={offer.price.baseAmount!} sourceCurrency={offer.price.currency} language={ar ? 'ar' : 'en'} />}</p>
     <p className={styles.muted}>{ar ? 'السعر الأساسي للخدمة' : 'Original service base rate'}: {offer.price.baseAmount ?? '—'} {offer.price.currency}</p>
-    {offer.conversionUnavailable && <p className={styles.muted}>{ar ? 'التحويل غير متاح؛ يظهر السعر بعملة المورد.' : 'Conversion unavailable; supplier currency shown.'}</p>}
-    {offer.display.converted && <p className={styles.muted}>{ar ? 'تحويل للعرض فقط بتاريخ' : 'Display conversion as of'} {offer.display.asOf}</p>}
     {offer.price.unit && <p>{offer.price.unit === 'day' ? (ar ? 'لليوم' : 'Per day') : (ar ? 'لاستقبال المطار' : 'Per airport reception')}</p>}
     {offer.price.dailyPeriodHours === 24 && <p>{ar ? 'اليوم فترة 24 ساعة؛ لا يعني قيادة متواصلة.' : 'A day covers 24 hours; continuous driving is not included.'}</p>}
     <p>{ar ? 'الإجمالي النهائي تؤكده العمليات' : 'Final total confirmed by Operations'}</p></div>;
@@ -33,6 +33,7 @@ export function DriveInclusions({ ar }: { ar: boolean }) { return <ul><li>{ar ? 
 
 export default function DriveMarketplace({ initialSearch, discovery = false }: { initialSearch: string; discovery?: boolean }) {
   const { language, direction } = useLanguage(); const ar = language === 'ar'; const router = useRouter();
+  const { currency, setCurrency } = useDisplayCurrency();
   const [search, setSearch] = useState<DriveSearch>(() => readDriveSearch(new URLSearchParams(initialSearch)));
   const [offers, setOffers] = useState<PricedDriveOffer[]>([]); const [loading, setLoading] = useState(() => new URLSearchParams(initialSearch).get('searched') === '1'); const [error, setError] = useState(''); const [retry, setRetry] = useState(0);
   const [vehicleClass, setVehicleClass] = useState(''); const [make, setMake] = useState(''); const [sort, setSort] = useState('recommended');
@@ -55,8 +56,8 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
   }, [initialSearch, searched, retry]);
   const update = (key: keyof DriveSearch, value: string | number) => setSearch(current => ({ ...current, [key]: value }));
   function submit(event: FormEvent) {
-    event.preventDefault(); const invalid = validateDriveSearch(search); if (invalid) { setError(invalid); return; }
-    const params = driveSearchParams(search);
+    event.preventDefault(); const invalid = validateDriveSearch({ ...search, currency }); if (invalid) { setError(invalid); return; }
+    const params = driveSearchParams({ ...search, currency });
     const sameSearch = params.toString() === driveSearchParams(readDriveSearch(new URLSearchParams(initialSearch))).toString();
     setError('');
     if (searched && sameSearch) setRetry(value => value + 1);
@@ -81,12 +82,12 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
       <label>{ar ? 'الخدمة' : 'Service'}<select value={search.mode} onChange={e=>update('mode',e.target.value)}><option value="chauffeur">{ar ? 'سيارة مع سائق' : 'Chauffeur service'}</option><option value="airport">{ar ? 'انتقال المطار' : 'Airport transfer'}</option></select></label>
       <label>{ar ? 'الركاب' : 'Passengers'}<input type="number" min={1} max={20} required value={search.passengers} onChange={e=>update('passengers',Number(e.target.value))} /></label>
       <label>{ar ? 'قطع الأمتعة' : 'Luggage'}<input type="number" min={0} max={20} required value={search.luggage} onChange={e=>update('luggage',Number(e.target.value))} /></label>
-      <label>{ar ? 'عملة العرض' : 'Display currency'}<select value={search.currency} onChange={e=>update('currency',e.target.value)}>{DRIVE_CURRENCIES.map(currency=><option key={currency}>{currency}</option>)}</select></label>
+      <label>{ar ? 'عملة العرض' : 'Display currency'}<select value={currency} onChange={e=>{setCurrency(e.target.value);update('currency',e.target.value);}}>{DRIVE_CURRENCIES.map(currency=><option key={currency}>{currency}</option>)}</select></label>
       </div></details>
     </form>
     {error && <div role="alert" className={styles.error}>{driveErrors[error]?.[ar ? 0 : 1] ?? (ar ? 'تعذر تحميل النتائج. حاول مجددًا.' : 'Unable to load results. Please retry.')}<button onClick={()=>setRetry(value=>value+1)}>{ar ? 'إعادة المحاولة' : 'Retry'}</button></div>}
     {loading && <p role="status">{ar ? 'جارٍ البحث…' : 'Searching…'}</p>}
-    {!searched && <><p className={styles.catalogueLabel}>{selectedOffer ? 1 : DRIVE_OFFERS.length} {ar ? 'خيارات Drive في مصر · التوفر بطلب التأكيد' : 'Drive options in Egypt · availability on request'}</p><section className={styles.discoveryCards}>{DRIVE_OFFERS.filter(o => !selectedOffer || o.id === selectedOffer.id).map(offer=>{const vehicle=vehicleFor(offer);return <article className={styles.card} key={offer.id}><Image className={styles.cardImage} src={vehicle.image} alt={vehicleTitle(vehicle,language)} width={500} height={300}/><div className={styles.cardBody}><h2>{vehicleTitle(vehicle,language)}</h2><p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language, vehicle)}</p><p className={styles.badge}>{ar ? 'طلب للتأكيد' : 'Request to confirm'}</p><DriveInclusions ar={ar}/><p className={styles.price}>{offer.chauffeur} {offer.currency} / {ar ? 'يوم مع سائق' : 'chauffeur day'}</p><a className={styles.button} href="#drive-search">{ar ? 'اختر مواعيد الرحلة' : 'Choose trip dates'}</a></div></article>;})}</section></>}
+    {!searched && <><p className={styles.catalogueLabel}>{selectedOffer ? 1 : DRIVE_OFFERS.length} {ar ? 'خيارات Drive في مصر · التوفر بطلب التأكيد' : 'Drive options in Egypt · availability on request'}</p><section className={styles.discoveryCards}>{DRIVE_OFFERS.filter(o => !selectedOffer || o.id === selectedOffer.id).map(offer=>{const vehicle=vehicleFor(offer);return <article className={styles.card} key={offer.id}><Image className={styles.cardImage} src={vehicle.image} alt={vehicleTitle(vehicle,language)} width={500} height={300}/><div className={styles.cardBody}><h2>{vehicleTitle(vehicle,language)}</h2><p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language, vehicle)}</p><p className={styles.badge}>{ar ? 'طلب للتأكيد' : 'Request to confirm'}</p><DriveInclusions ar={ar}/><p className={styles.price}><CurrencyPrice amount={search.mode === 'airport' && offer.airport !== null ? offer.airport : offer.chauffeur} sourceCurrency={offer.currency} language={language} /> / {search.mode === 'airport' && offer.airport !== null ? (ar ? 'استقبال مطار' : 'airport transfer') : (ar ? 'يوم مع سائق' : 'chauffeur day')}</p><a className={styles.button} href="#drive-search">{ar ? 'اختر مواعيد الرحلة' : 'Choose trip dates'}</a></div></article>;})}</section></>}
     {searched && !loading && !error && <>
       <div className={`${styles.summary} ${styles.row}`}><span>{readDriveSearch(new URLSearchParams(initialSearch)).pickup} · {readDriveSearch(new URLSearchParams(initialSearch)).pickupAt.replace('T',' ')} · {ar ? 'بتوقيت القاهرة' : 'Cairo time'}</span><a href="#drive-search">{ar ? 'تعديل البحث' : 'Modify search'}</a></div>
       <div className={styles.grid}><aside className={styles.filters}>

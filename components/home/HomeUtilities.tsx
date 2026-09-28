@@ -39,7 +39,7 @@ const copy = {
     to: 'إلى',
     convert: 'تحويل',
     conversionUnavailable: 'التسعير غير متاح حاليًا',
-    live: 'مباشر',
+    live: 'سعر صرف مرجعي',
     stale: 'آخر قيمة متاحة',
     map: 'موقع الوجهة',
     mapDescription: 'افتح خريطة الرياض واستكشف نقطة البداية لرحلتك.',
@@ -65,7 +65,7 @@ const copy = {
     to: 'To',
     convert: 'Convert',
     conversionUnavailable: 'Conversion is currently unavailable',
-    live: 'Live',
+    live: 'Reference exchange rate',
     stale: 'Latest available value',
     map: 'Destination map',
     mapDescription: 'Open Riyadh in Maps and explore a starting point for your trip.',
@@ -117,8 +117,6 @@ export default function HomeUtilities({ homePresentation = false }: { homePresen
   }, [language]);
 
   async function convert() {
-    // Home has no live converter endpoint yet. Keep service-route behavior unchanged.
-    if (homePresentation) return;
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       setConversionState('error');
@@ -130,7 +128,7 @@ export default function HomeUtilities({ homePresentation = false }: { homePresen
     try {
       const response = await fetch(`/api/currency?from=${from}&to=${to}&amount=${encodeURIComponent(String(numericAmount))}`, { cache: 'no-store' });
       const payload = (await response.json()) as CurrencyResponse;
-      if (!response.ok || !payload.quote || typeof payload.quote.convertedAmount !== 'number') throw new Error(payload.error ?? 'conversion_failed');
+      if (!response.ok || !payload.ok || !payload.quote || typeof payload.quote.convertedAmount !== 'number') throw new Error(payload.error ?? 'conversion_failed');
       setConverted(payload.quote.convertedAmount);
       setRate(typeof payload.quote.rate === 'number' ? payload.quote.rate : null);
       setIsStale(Boolean(payload.quote.stale));
@@ -175,10 +173,10 @@ export default function HomeUtilities({ homePresentation = false }: { homePresen
               <label className="home-utility-field"><span>{t.amount}</span><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} aria-label={t.amount} /></label>
               <label className="home-utility-field"><span>{t.from}</span><select value={from} onChange={(event) => setFrom(event.target.value as Currency)} aria-label={t.from}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label>
               <label className="home-utility-field"><span>{t.to}</span><select value={to} onChange={(event) => setTo(event.target.value as Currency)} aria-label={t.to}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label>
-              <button type="button" className="home-utility-action" onClick={convert} disabled={homePresentation || conversionState === 'loading'} aria-describedby={homePresentation ? 'home-currency-status' : undefined}>{conversionState === 'loading' ? '...' : t.convert}</button>
+              <button type="button" className="home-utility-action" onClick={convert} disabled={conversionState === 'loading'} aria-describedby={homePresentation ? 'home-currency-status' : undefined}>{conversionState === 'loading' ? '...' : t.convert}</button>
             </div>
             <p id={homePresentation ? 'home-currency-status' : undefined} className={`home-utility-card__result ${conversionState === 'error' ? 'home-utility-card__result--error' : ''}`} aria-live="polite">
-              {homePresentation ? t.currencyDeferred : conversionState === 'ready' && converted !== null ? `${converted.toFixed(2)} ${to}${rate ? ` · 1 ${from} = ${rate.toFixed(4)} ${to}` : ''}` : conversionState === 'error' ? t.conversionUnavailable : `${amount || '0'} ${from} → ${to}`}
+              {conversionState === 'ready' && converted !== null ? `${converted.toFixed(2)} ${to}${rate ? ` · 1 ${from} = ${rate.toFixed(4)} ${to}` : ''}` : conversionState === 'error' ? t.conversionUnavailable : `${amount || '0'} ${from} → ${to}`}
             </p>
           </article>
 

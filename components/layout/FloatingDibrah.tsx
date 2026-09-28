@@ -1,5 +1,6 @@
 'use client';
 
+import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import PlatformAnswer from '@/components/dabra/PlatformAnswer';
 
 import Image from 'next/image';
@@ -108,6 +109,7 @@ export default function FloatingDibrah({ launcherIdentity, desktopIdentity }: { 
 
 function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: { language: 'ar' | 'en'; launcherIdentity?: ReactNode; desktopIdentity?: DesktopIdentity }) {
   const t = floatingCopy[language];
+  const { currency } = useDisplayCurrency();
   const positionStorageKey = `${DIBRAH_POSITION_STORAGE_KEY}:${language}`;
   const pathname = usePathname();
   const controlRef = useRef<HTMLDivElement | null>(null);
@@ -415,7 +417,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
         method: 'POST',
         signal: controller.signal,
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: trimmed, history: historyForRequest, locale: micLanguage }),
+        body: JSON.stringify({ message: trimmed, history: historyForRequest, locale: micLanguage, currency }),
       });
       const payload = (await response.json().catch(() => ({}))) as { answer?: string; error?: string };
       if (controller.signal.aborted || activeRequestIdRef.current !== requestId) return;
@@ -445,7 +447,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
         window.requestAnimationFrame(() => draftRef.current?.focus());
       }
     }
-  }, [draft, sending, messages, micLanguage, t]);
+  }, [draft, sending, messages, micLanguage, currency, t]);
 
   return (
     <div

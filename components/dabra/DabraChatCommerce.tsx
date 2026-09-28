@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import type { MarketplaceService } from '@/lib/marketplace/data';
 import { supabase } from '@/lib/supabase/client';
 import { consumeDabraChatResponse } from '@/lib/dabra/chat-response-contract';
+import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { DABRA_LOCALE_ERROR } from '@/lib/dabra/locale-contract';
 import { DABRA_APPROVED_VOICE, getApprovedDabraPlaybackCopy, getApprovedDabraVoiceCopy } from '@/lib/dabra/approved-voice';
@@ -100,6 +101,7 @@ function publicItemsToServices(items: Array<Record<string, unknown>>): Marketpla
 
 export default function DabraChatCommerce() {
   const { language, direction } = useLanguage();
+  const { currency } = useDisplayCurrency();
   const t = dabraCopy[language];
   const approvedVoiceCopy = getApprovedDabraVoiceCopy(language);
   const approvedPlaybackCopy = getApprovedDabraPlaybackCopy(language);
@@ -369,6 +371,7 @@ export default function DabraChatCommerce() {
       }
       setPlatformQuery(null);
       const params = toMarketplaceSearchParams(parsed, 12);
+      params.set('currency', currency);
       // The canonical family contract is equivalent to params.set('family', activeTab).
       const response = await fetch(`/api/public/marketplace/items?${params.toString().replace('query=', 'q=')}`, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error('marketplace');
@@ -447,6 +450,7 @@ export default function DabraChatCommerce() {
       form.set('history', JSON.stringify(messages.map(({ role, text: content }) => ({ role, content }))));
       form.set('stream', 'true');
       form.set('locale', language);
+      form.set('currency', currency);
       for (const item of pendingAttachments) form.append('attachment', item.file, item.safeName);
       const response = await fetch('/api/ai2/chat', {
         method: 'POST',
