@@ -1,6 +1,6 @@
 # Task #167 / PR #168 — Drive catalogue release record
 
-Updated 2026-09-28 (UTC). Owner: Codex — ChatGPT Work Mode, directly assigned by the CEO. Independent reviewer requested: Codex Desktop. No direct Desktop receipt or completed independent review is claimed.
+Updated 2026-09-28 (UTC). Owner: Codex — ChatGPT Work Mode, directly assigned by the CEO. Independent reviewer: Codex Desktop; ACK and baseline review are recorded in Task #167. The review returned F01 (filter coverage); the latest correction below still requires independent delta re-review.
 
 Branch `feat/drive-catalog-september27`; base `c8c91f33f3ea017bf09f0d4ee32747c0aae425b9`; this correction starts at `633494c2f7ae7cc78de9b9d3cc4c5617d05ea533`. Final SHA is recorded in Task #167 and PR #168 after push. Same branch/PR and isolated worktree.
 
@@ -53,3 +53,16 @@ The image/name-only final browser follow-up passed AR/EN at1440/390: all30 uniqu
 ## Follow-up: direction correction after CEO observation
 
 The prior claim that all30 images faced left was incorrect: Jetour X90 and the beige/green full-size Range Rovers faced right. Only these three image assets were re-rendered facing left, preserving paint/model/trim with readable non-mirrored lettering. All30 images were visually reviewed again in the updated contact sheet; alpha,1536×1024 dimensions, unique hashes and positive subject margins verified. No application/SQL/pricing changes. Prior browser evidence covers layout/loading before this asset-only delta; no new Browser PASS is claimed. Final review target is updated on Task/PR after push.
+
+
+## F01 correction — make and vehicle-class coverage
+
+Delta base: `9dcd34a71defc070864c1975b09ef91c0e9489b0`. Final correction SHA is recorded on Task #167 / PR #168 after push. The baseline independent review is [Task comment5861508428](https://github.com/diamondideaco-svg/dir3com2/issues/167#issuecomment-5861508428); reviewer ACK is comment5861354154. Its sealed security scan remains evidence for608bf2 only; the three image-direction fixes were independently accepted as the9dcd addendum.
+
+Drive make/class choices now derive from the unfiltered returned offers, retaining existing labels and the All option. This includes nine makes (Kia, Hyundai, Soueast, Toyota and Cadillac were missing) and six classes (Other was missing). Active filters do not shrink their own option lists or trigger another search. Filtering, catalogue, prices, years, SQL, authorization and all30 images are otherwise unchanged.
+
+Four new regression cases execute the actual component's controls and rendered-card filtering in AR/EN, covering the complete30-offer catalogue and partial/empty responses. They failed against the old hardcoded lists. Combined filters/search-retry/managed-catalogue suite:19/19 PASS. Typecheck, lint (0errors/23prior warnings), production build and diff check PASS.
+
+Local frozen-build browser: AR/EN at1440/390; every returned make/class selected and card IDs compared to the actual API response. All30 offers remain reachable; Toyota+Other yields Hiace; reset restores30; filtering creates0additional searches;0page errors/overflow. Evidence: `drive-filter-review-2026-09-28.json`, bound to the component blob. This is local evidence, not a new cloud Preview/Production PASS. No provider, authentication or transaction journey was repeated.
+
+Independent reviewer: review only this component/test/evidence delta and append bounded functional/security-impact findings to the final SHA; retain the formally sealed security baseline and accepted image/SQL/request evidence without a broad rescan. Final-SHA cloud gates remain separate. Governance still excludes the truthful Work Mode implementation owner; no identity substitution or workflow change was made. No Production migration/data mutation/merge/deploy.

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
-import { DRIVE_CURRENCIES, DRIVE_OFFERS, vehicleFor, vehicleTitle, vehicleClassLabel, vehicleYearAvailabilityLabel, type VehicleClass, type DriveOffer, type VehicleMaster } from '@/lib/drive/catalog';
+import { DRIVE_CURRENCIES, DRIVE_OFFERS, vehicleFor, vehicleTitle, vehicleClassLabel, vehicleYearAvailabilityLabel, type DriveOffer, type VehicleMaster } from '@/lib/drive/catalog';
 import { driveSearchParams, readDriveSearch, validateDriveSearch, type DriveSearch } from '@/lib/drive/search';
 import styles from './drive.module.css';
 import MarketplaceNavigation from '@/components/public/MarketplaceNavigation';
@@ -61,6 +61,8 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
     if (searched && sameSearch) setRetry(value => value + 1);
     params.set('family','dir3-drive'); params.set('searched','1'); params.set('language',language); router.push(`/marketplace?${params}`);
   }
+  const availableMakes = [...new Set(offers.map(offer => offer.vehicle.make))];
+  const availableClasses = [...new Set(offers.map(offer => offer.vehicle.vehicleClass))];
   const visible = offers.filter(offer => (!vehicleClass || offer.vehicle.vehicleClass === vehicleClass) && (!make || offer.vehicle.make === make) && (!model || offer.vehicle.id === model)
     && (!capacity || (offer.vehicle.passengers !== null && offer.vehicle.passengers >= capacity)) && (!bags || (offer.vehicle.luggage !== null && offer.vehicle.luggage >= bags)))
     .sort((a,b) => sort === 'class' ? a.vehicle.vehicleClass.localeCompare(b.vehicle.vehicleClass) : 0);
@@ -87,8 +89,8 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
       <div className={`${styles.summary} ${styles.row}`}><span>{readDriveSearch(new URLSearchParams(initialSearch)).pickup} · {readDriveSearch(new URLSearchParams(initialSearch)).pickupAt.replace('T',' ')} · {ar ? 'بتوقيت القاهرة' : 'Cairo time'}</span><a href="#drive-search">{ar ? 'تعديل البحث' : 'Modify search'}</a></div>
       <div className={styles.grid}><aside className={styles.filters}>
         <h2>{ar ? 'تصفية النتائج' : 'Filter results'}</h2>
-        <label>{ar ? 'فئة السيارة' : 'Vehicle class'}<select value={vehicleClass} onChange={e=>setVehicleClass(e.target.value)}><option value="">{ar?'الكل':'All'}</option>{['Economy','Sedan','SUV','Luxury','Premium SUV'].map(c=><option key={c} value={c}>{vehicleClassLabel(c as VehicleClass,language)}</option>)}</select></label>
-        <label>{ar ? 'العلامة' : 'Make'}<select value={make} onChange={e=>setMake(e.target.value)}><option value="">{ar?'الكل':'All'}</option>{['Mercedes-Benz','Jetour','Nissan','Land Rover'].map(c=><option key={c}>{c}</option>)}</select></label>
+        <label>{ar ? 'فئة السيارة' : 'Vehicle class'}<select value={vehicleClass} onChange={e=>setVehicleClass(e.target.value)}><option value="">{ar?'الكل':'All'}</option>{availableClasses.map(c=><option key={c} value={c}>{vehicleClassLabel(c,language)}</option>)}</select></label>
+        <label>{ar ? 'العلامة' : 'Make'}<select value={make} onChange={e=>setMake(e.target.value)}><option value="">{ar?'الكل':'All'}</option>{availableMakes.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
         <label>{ar?'الطراز':'Model'}<select value={model} onChange={e=>setModel(e.target.value)}><option value="">{ar?'الكل':'All'}</option>{DRIVE_OFFERS.map(item=>{const v=vehicleFor(item);return <option key={v.id} value={v.id}>{v[language]}</option>;})}</select></label>
         <label>{ar ? 'سعة ركاب موثّقة' : 'Verified passenger capacity'}<select value={capacity} onChange={e=>setCapacity(Number(e.target.value))}><option value={0}>{ar?'الكل':'All'}</option>{[2,4,6].map(c=><option key={c} value={c}>{c}+</option>)}</select></label>
         <label>{ar ? 'سعة أمتعة موثّقة' : 'Verified luggage capacity'}<select value={bags} onChange={e=>setBags(Number(e.target.value))}><option value={0}>{ar?'الكل':'All'}</option>{[1,2,3].map(c=><option key={c} value={c}>{c}+</option>)}</select></label>
