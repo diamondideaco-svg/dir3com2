@@ -33,6 +33,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Governance identity and traceability regression
+        run: node --test tests/codex-governance.test.mjs
+
       - name: Active migration chain and immutable archive guard
         run: |
           node --test tests/migration-baseline.test.mjs tests/production-baseline-contract.test.mjs tests/migration-cutover.test.mjs tests/baseline-adoption.test.mjs tests/sandbox-database-target.test.mjs

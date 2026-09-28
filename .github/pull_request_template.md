@@ -1,7 +1,7 @@
 ## Control Tower Record
 
 - Task: #<!-- required Codex Task issue number; PR numbers are rejected -->
-- Implementation owner: <!-- Codex Desktop | VS Code Codex -->
+- Implementation owner: <!-- Codex Desktop | VS Code Codex | Codex — ChatGPT Work Mode -->
 - Independent reviewer: <!-- Codex Desktop | VS Code Codex | Codex Security; must differ from owner -->
 - Branch: <!-- exact PR head branch -->
 - Target SHA: <!-- exact 40-character current PR head SHA -->
