@@ -26,7 +26,7 @@ test('unknown capacities/trims remain unknown and each mapped image exists local
 });
 test('price truth: no invented total; G-Class airport follows the newly approved half-day rate',()=>{
   for(const offer of DRIVE_OFFERS){assert.equal(journeyPrice(offer,'chauffeur').total,null);assert.equal(journeyPrice(offer,'chauffeur').baseAmount,offer.chauffeur);}
-  assert.equal(validateDriveOfferRequest(DRIVE_OFFERS[8].id,{...trip,mode:'airport'})?.airport,302.5);
+  assert.equal(validateDriveOfferRequest(DRIVE_OFFERS[8].id,{...trip,mode:'airport'})?.airport,257.13);
 });
 test('six-hour boundary is Cairo-local, inclusive to the minute',()=>{
   assert.equal(validateDriveSearch(search,now),null);

@@ -1,0 +1,247 @@
+{
+  "version": "managed-eg-20260928-v4",
+  "previousVersion": "managed-eg-20260928-v3",
+  "reductionPercent": 15,
+  "offers": [
+    {
+      "id": "managed-eg-cadillac-escalade",
+      "currency": "USD",
+      "dailyCents": 93500,
+      "airportCents": 46750,
+      "beforeDailyCents": 110000,
+      "beforeAirportCents": 55000
+    },
+    {
+      "id": "managed-eg-hyundai-accent",
+      "currency": "USD",
+      "dailyCents": 5610,
+      "airportCents": 2805,
+      "beforeDailyCents": 6600,
+      "beforeAirportCents": 3300
+    },
+    {
+      "id": "managed-eg-hyundai-elantra-cn7",
+      "currency": "USD",
+      "dailyCents": 6545,
+      "airportCents": 3273,
+      "beforeDailyCents": 7700,
+      "beforeAirportCents": 3850
+    },
+    {
+      "id": "managed-eg-hyundai-h1",
+      "currency": "USD",
+      "dailyCents": 14025,
+      "airportCents": 7013,
+      "beforeDailyCents": 16500,
+      "beforeAirportCents": 8250
+    },
+    {
+      "id": "managed-eg-hyundai-tuycan",
+      "currency": "USD",
+      "dailyCents": 9350,
+      "airportCents": 4675,
+      "beforeDailyCents": 11000,
+      "beforeAirportCents": 5500
+    },
+    {
+      "id": "managed-eg-jetour-x70",
+      "currency": "USD",
+      "dailyCents": 7480,
+      "airportCents": 3740,
+      "beforeDailyCents": 8800,
+      "beforeAirportCents": 4400
+    },
+    {
+      "id": "managed-eg-kia-carval",
+      "currency": "USD",
+      "dailyCents": 18700,
+      "airportCents": 9350,
+      "beforeDailyCents": 22000,
+      "beforeAirportCents": 11000
+    },
+    {
+      "id": "managed-eg-kia-k4",
+      "currency": "USD",
+      "dailyCents": 7948,
+      "airportCents": 3974,
+      "beforeDailyCents": 9350,
+      "beforeAirportCents": 4675
+    },
+    {
+      "id": "managed-eg-kia-sportage",
+      "currency": "USD",
+      "dailyCents": 11220,
+      "airportCents": 5610,
+      "beforeDailyCents": 13200,
+      "beforeAirportCents": 6600
+    },
+    {
+      "id": "managed-eg-mercedes-s500",
+      "currency": "USD",
+      "dailyCents": 46750,
+      "airportCents": 23375,
+      "beforeDailyCents": 55000,
+      "beforeAirportCents": 27500
+    },
+    {
+      "id": "managed-eg-mercedes-v250",
+      "currency": "USD",
+      "dailyCents": 23375,
+      "airportCents": 11688,
+      "beforeDailyCents": 27500,
+      "beforeAirportCents": 13750
+    },
+    {
+      "id": "managed-eg-mercedes-v300",
+      "currency": "USD",
+      "dailyCents": 37400,
+      "airportCents": 18700,
+      "beforeDailyCents": 44000,
+      "beforeAirportCents": 22000
+    },
+    {
+      "id": "managed-eg-nissan-patrol",
+      "currency": "USD",
+      "dailyCents": 37400,
+      "airportCents": 18700,
+      "beforeDailyCents": 44000,
+      "beforeAirportCents": 22000
+    },
+    {
+      "id": "managed-eg-nissan-source-2026",
+      "currency": "USD",
+      "dailyCents": 65450,
+      "airportCents": 32725,
+      "beforeDailyCents": 77000,
+      "beforeAirportCents": 38500
+    },
+    {
+      "id": "managed-eg-range-rover-sport",
+      "currency": "USD",
+      "dailyCents": 56100,
+      "airportCents": 28050,
+      "beforeDailyCents": 66000,
+      "beforeAirportCents": 33000
+    },
+    {
+      "id": "managed-eg-soueast-s05",
+      "currency": "USD",
+      "dailyCents": 7480,
+      "airportCents": 3740,
+      "beforeDailyCents": 8800,
+      "beforeAirportCents": 4400
+    },
+    {
+      "id": "managed-eg-soueast-s07",
+      "currency": "USD",
+      "dailyCents": 7480,
+      "airportCents": 3740,
+      "beforeDailyCents": 8800,
+      "beforeAirportCents": 4400
+    },
+    {
+      "id": "managed-eg-soueast-s09",
+      "currency": "USD",
+      "dailyCents": 9350,
+      "airportCents": 4675,
+      "beforeDailyCents": 11000,
+      "beforeAirportCents": 5500
+    },
+    {
+      "id": "managed-eg-toyota-hiace",
+      "currency": "USD",
+      "dailyCents": 14025,
+      "airportCents": 7013,
+      "beforeDailyCents": 16500,
+      "beforeAirportCents": 8250
+    },
+    {
+      "id": "managed-eg-toyota-land-cruiser",
+      "currency": "USD",
+      "dailyCents": 42075,
+      "airportCents": 21038,
+      "beforeDailyCents": 49500,
+      "beforeAirportCents": 24750
+    },
+    {
+      "id": "managed-eg-toyota-land-cruiser-2020",
+      "currency": "USD",
+      "dailyCents": 32725,
+      "airportCents": 16363,
+      "beforeDailyCents": 38500,
+      "beforeAirportCents": 19250
+    },
+    {
+      "id": "safeerat-eg-jetour-t1",
+      "currency": "USD",
+      "dailyCents": 8500,
+      "airportCents": 4250,
+      "beforeDailyCents": 10000,
+      "beforeAirportCents": 5000
+    },
+    {
+      "id": "safeerat-eg-jetour-t2",
+      "currency": "USD",
+      "dailyCents": 14025,
+      "airportCents": 7013,
+      "beforeDailyCents": 16500,
+      "beforeAirportCents": 8250
+    },
+    {
+      "id": "safeerat-eg-jetour-x90",
+      "currency": "USD",
+      "dailyCents": 9350,
+      "airportCents": 4675,
+      "beforeDailyCents": 11000,
+      "beforeAirportCents": 5500
+    },
+    {
+      "id": "safeerat-eg-mercedes-e200",
+      "currency": "USD",
+      "dailyCents": 15895,
+      "airportCents": 7948,
+      "beforeDailyCents": 18700,
+      "beforeAirportCents": 9350
+    },
+    {
+      "id": "safeerat-eg-mercedes-e200-amg",
+      "currency": "USD",
+      "dailyCents": 17000,
+      "airportCents": 8500,
+      "beforeDailyCents": 20000,
+      "beforeAirportCents": 10000
+    },
+    {
+      "id": "safeerat-eg-mercedes-gclass",
+      "currency": "USD",
+      "dailyCents": 51425,
+      "airportCents": 25713,
+      "beforeDailyCents": 60500,
+      "beforeAirportCents": 30250
+    },
+    {
+      "id": "safeerat-eg-nissan-sunny",
+      "currency": "USD",
+      "dailyCents": 5610,
+      "airportCents": 2805,
+      "beforeDailyCents": 6600,
+      "beforeAirportCents": 3300
+    },
+    {
+      "id": "safeerat-eg-range-rover",
+      "currency": "USD",
+      "dailyCents": 26180,
+      "airportCents": 13090,
+      "beforeDailyCents": 30800,
+      "beforeAirportCents": 15400
+    },
+    {
+      "id": "safeerat-eg-range-rover-2025",
+      "currency": "USD",
+      "dailyCents": 38250,
+      "airportCents": 21250,
+      "beforeDailyCents": 45000,
+      "beforeAirportCents": 25000
+    }
+  ]
+}

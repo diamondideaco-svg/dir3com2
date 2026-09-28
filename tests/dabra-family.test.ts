@@ -173,7 +173,9 @@ test('floating DABRA defaults AR left and EN right and avoids critical mobile PD
   assert.match(floating, /window\.visualViewport/);
   assert.match(floating, /language === 'ar' \? 'sm:left-5' : 'sm:right-5'/);
   assert.match(floating, /data-marketplace-critical-action/);
-  assert.match(floating, /<FloatingDibrahSession key=\{language\} language=\{language\}/);
+  assert.ok(floating.includes('key={`${language}:${identityRevision}`} language={language}'));
+  assert.match(floating, /supabase\.auth\.onAuthStateChange/);
+  assert.match(floating, /subscription\.unsubscribe\(\)/);
   assert.match(floating, /chatAbortRef\.current\?\.abort\(\)/);
   assert.match(floating, /signal: controller\.signal/);
   assert.match(floating, /activeRequestIdRef\.current !== requestId/);

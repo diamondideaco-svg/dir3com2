@@ -73,11 +73,11 @@ test('Home reuses service strips in the approved order without changing provider
   }
 });
 
-test('Home exposes truthful deferred currency and destination-context time without inventing providers', () => {
+test('Home uses the shared converter and retains destination-context time', () => {
   const utilities = read('components/home/HomeUtilities.tsx');
-  assert.match(utilities, /if \(homePresentation\) return;/);
-  assert.match(utilities, /disabled=\{homePresentation \|\| conversionState === 'loading'\}/);
-  assert.match(utilities, /homePresentation \? t.currencyDeferred/);
+  assert.doesNotMatch(utilities, /if \(homePresentation\) return;/);
+  assert.match(utilities, /disabled=\{conversionState === 'loading'\}/);
+  assert.match(utilities, /!payload.ok/);
   assert.match(utilities, /Currency conversion is currently unavailable/);
   assert.match(utilities, /تحويل العملات غير متاح حاليًا/);
   assert.match(utilities, /homePresentation \? <article id="home-local-time"/);
@@ -91,7 +91,7 @@ test('Home exposes truthful deferred currency and destination-context time witho
 
 test('Home utility controls stay inline while secondary pages link to their current Home locations', () => {
   const header = read('components/layout/Header.tsx');
-  for (const target of ['weather', 'currency']) {
+  for (const target of ['weather']) {
     assert.equal(header.split(`onHomeSearch ? '#home-${target}' : '/#home-${target}'`).length - 1, 2);
   }
   assert.equal((header.match(/onClick=\{openHomeSearch\}/g) ?? []).length, 2);

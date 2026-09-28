@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { FiCompass, FiFilter } from 'react-icons/fi';
@@ -54,7 +55,6 @@ const copy = {
 const destinationValues = ['all','saudi-arabia','egypt','riyadh','jeddah','makkah','madinah','dammam','khobar','abha','taif','alula','neom','cairo','giza','alexandria','hurghada','sharm-el-sheikh','luxor','aswan','marsa-alam','new-alamein'];
 const sortValues: MarketplaceSortKey[] = ['recommended','featured','popular','price-low','price-high','name'];
 const displayCurrencyValues = ['SAR', 'USD', 'EGP', 'EUR', 'AED'] as const;
-type DisplayCurrency = (typeof displayCurrencyValues)[number];
 const categoryCopy: Record<MarketplacePageCategory, { ar: string; en: string }> = {
   cars: { ar: 'السيارات', en: 'Cars' }, hotels: { ar: 'الفنادق', en: 'Hotels' }, apartments: { ar: 'الشقق', en: 'Apartments' },
   'airport-transfers': { ar: 'النقل من وإلى المطار', en: 'Airport transfers' }, concierge: { ar: 'الكونسيرج', en: 'Concierge' }, experiences: { ar: 'التجارب', en: 'Experiences' }, offers: { ar: 'العروض', en: 'Offers' },
@@ -90,7 +90,7 @@ export default function MarketplaceExplorer({
   const [query, setQuery] = useState(initialQuery);
   const [collection, setCollection] = useState<MarketplaceCollectionKey>(defaultCollection);
   const [sort, setSort] = useState<MarketplaceSortKey>(sortOptions.some(option => option.value === initialUrlParams.get('sort')) ? initialUrlParams.get('sort') as MarketplaceSortKey : 'recommended');
-  const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>('SAR');
+  const { currency: displayCurrency, setCurrency: setDisplayCurrency } = useDisplayCurrency();
   const [category, setCategory] = useState<MarketplacePageCategory | 'all'>(defaultCategory ?? 'all');
   const [page, setPage] = useState(1);
   const [advancedFilters, setAdvancedFilters] = useState({
@@ -239,7 +239,7 @@ export default function MarketplaceExplorer({
                   <SelectField
                     label={t.currency}
                     value={displayCurrency}
-                    onChange={(next) => setDisplayCurrency(next as DisplayCurrency)}
+                    onChange={(next) => setDisplayCurrency(next)}
                     options={displayCurrencyValues.map((value) => ({ value, label: `${value} — ${t.currencyOptions[value]}` }))}
                   />
                 </div>

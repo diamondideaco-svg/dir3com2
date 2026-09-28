@@ -1,0 +1,119 @@
+[
+  {
+    "id": "05956635-0454-4c39-b3ba-536f53d04461",
+    "currency": "EGP",
+    "productId": "ec0a1b39-685a-455f-9247-e77227f10a8d",
+    "priceCents": null,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  },
+  {
+    "id": "12b0751f-2903-4d72-9b82-9d3dd5a84238",
+    "currency": "SAR",
+    "productId": "5326200a-a0ce-4021-9c0f-77a9756f3365",
+    "priceCents": 75000,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  },
+  {
+    "id": "15619b81-32a1-4747-a884-4cf8affb2463",
+    "currency": "EGP",
+    "productId": "86ed339b-8945-40fa-bc04-4a142c5d755e",
+    "priceCents": null,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  },
+  {
+    "id": "2c31fd77-8fa7-4323-bf2c-1c6191471f6c",
+    "currency": "EGP",
+    "productId": "0a2f5f91-c53c-49e7-9b27-bb4e8728faf0",
+    "priceCents": null,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  },
+  {
+    "id": "3f6cf843-77d7-4001-ac22-722741eab4d4",
+    "currency": "SAR",
+    "productId": "6bbf035f-7d7b-4cf3-8ccd-b82570e37b21",
+    "priceCents": 75000,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  },
+  {
+    "id": "8f094111-d5b9-4e36-a839-4cbc46f91e93",
+    "currency": "SAR",
+    "productId": "e65694b7-09f4-4bd0-875a-4b239187e402",
+    "priceCents": 75000,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  },
+  {
+    "id": "bb9c9793-b6f0-4dda-9809-ca96079717cb",
+    "currency": "SAR",
+    "productId": "06c334a0-d4a9-49ad-bc19-3018a24e8c0c",
+    "priceCents": 75000,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  },
+  {
+    "id": "bcf1a451-c396-4316-9d95-66c4cb5a0bae",
+    "currency": "SAR",
+    "productId": "6d0b1992-9bdd-4ff9-b141-84b07a3c5a5f",
+    "priceCents": 75000,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  },
+  {
+    "id": "bddc5eee-670f-4165-be7d-0998d91ad89b",
+    "currency": "SAR",
+    "productId": "2de05514-e1f9-4182-b119-341d1233167a",
+    "priceCents": 75000,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  },
+  {
+    "id": "cd48709b-4d46-4cd9-948f-fddff629029a",
+    "currency": "SAR",
+    "productId": "55bf6423-9623-4181-a2bb-9946a71585c7",
+    "priceCents": 75000,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  },
+  {
+    "id": "d7e45b23-9200-4e26-b6e4-abfd34cf9b43",
+    "currency": "SAR",
+    "productId": "dba01f1d-cd4b-40d9-9b95-2d978ac6f74a",
+    "priceCents": 75000,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  },
+  {
+    "id": "f4ff4997-7607-49cd-91a7-f700e64d30d6",
+    "currency": "SAR",
+    "productId": "39b5beba-b875-4c9b-a5e5-c9a3276c85c8",
+    "priceCents": 75000,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  },
+  {
+    "id": "f6162e4d-7c6f-4da1-8449-ece954389e15",
+    "currency": "SAR",
+    "productId": "75a81586-0b41-48f7-9c5b-70947bd038c8",
+    "priceCents": 75000,
+    "weekendCents": null,
+    "seasonalCents": null,
+    "discountPercent": 0
+  }
+]

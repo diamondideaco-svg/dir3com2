@@ -61,7 +61,7 @@ test('one existing launcher receives Concierge presentation only on the exact My
   const runtime = readFileSync(new URL('../components/layout/FloatingDibrah.tsx', import.meta.url), 'utf8');
   assert.ok(runtime.includes('desktopIdentity={desktopIdentity}'));
   assert.equal((runtime.match(/id="dibrah"/g) || []).length, 1);
-  assert.ok(runtime.includes('body: JSON.stringify({ message: trimmed, history: historyForRequest, locale: micLanguage })'));
+  assert.ok(runtime.includes('body: JSON.stringify({ message: trimmed, history: historyForRequest, locale: micLanguage, currency })'));
   assert.doesNotMatch(runtime.slice(runtime.indexOf('const sendDraft'), runtime.indexOf('\n  return (', runtime.indexOf('const sendDraft'))), /desktopIdentity/);
   assert.ok(runtime.includes('DABRA never books, pays, cancels, refunds, or performs irreversible actions on its own.'));
   assert.ok(runtime.includes('launcherIdentity ?? <span'));

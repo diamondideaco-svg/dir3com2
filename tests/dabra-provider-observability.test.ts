@@ -343,11 +343,13 @@ test('telemetry insert failure cannot suppress a provider fallback', async () =>
   }
 });
 
-test('production route registers telemetry through the supported Next after-response primitive', () => {
+test('public internal catalogue route does not schedule nonexistent external provider attempts', () => {
   const route = readFileSync(new URL('../app/api/ai2/chat/route.ts', import.meta.url), 'utf8');
-  assert.match(route, /import \{ after, NextRequest, NextResponse \} from 'next\/server'/);
-  assert.match(route, /createDabraProviderAttemptAfterResponseScheduler\(after\)/);
-  assert.doesNotMatch(route, /void\s+recordDabraProviderAttempt|\.then\([\s\S]*recordDabraProviderAttempt/);
+  const agent = readFileSync(new URL('../lib/dabra/agent.ts', import.meta.url), 'utf8');
+  assert.match(route, /runInternalAgent/);
+  assert.match(agent, /intent\.tool === 'discover'[\s\S]*buildPlatformAssistantResponse/);
+  assert.doesNotMatch(agent, /buildAI2ChatResponse|DabraTravelOrchestrator|scheduleProviderAttempt/);
+  assert.doesNotMatch(route, /buildAI2ChatResponse|DabraTravelOrchestrator|scheduleProviderAttempt/);
 });
 
 test('attempt allow-list rejects prompt, answer, PII, secret and provider body fields', () => {

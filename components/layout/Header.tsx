@@ -1,10 +1,11 @@
 'use client';
 
 import Image from 'next/image';
+import CurrencySelector from '@/components/currency/CurrencySelector';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
-import { FiCloud, FiDollarSign, FiGlobe, FiGrid, FiMenu, FiMoon, FiSearch, FiSun, FiType, FiX } from 'react-icons/fi';
+import { FiCloud, FiGlobe, FiGrid, FiMenu, FiMoon, FiSearch, FiSun, FiType, FiX } from 'react-icons/fi';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import LogoutButton from '@/components/auth/LogoutButton';
 import { getRolePostLoginDestination } from '@/lib/auth/redirect';
@@ -155,7 +156,7 @@ export default function Header({ logo, onHomeSearch }: { logo?: ReactNode; onHom
         <div className="ms-auto hidden shrink-0 items-center gap-1.5 md:flex" role="group" aria-label={language === 'ar' ? 'أدوات العرض' : 'Display controls'}>
           {onHomeSearch ? <button type="button" onClick={openHomeSearch} className={utilityClass} aria-label={t.search} aria-controls="home-search-panel"><FiSearch /></button> : <Link href="/marketplace" className={utilityClass} aria-label={t.search}><FiSearch /></Link>}
           <Link href={onHomeSearch ? '#home-weather' : '/#home-weather'} className={utilityClass} aria-label={t.weather}><FiCloud /></Link>
-          <Link href={onHomeSearch ? '#home-currency' : '/#home-currency'} className={utilityClass} aria-label={t.currency}><FiDollarSign /></Link>
+          <CurrencySelector language={language} className={utilityClass} />
           <button type="button" onClick={toggleLanguage} className={utilityClass} aria-label={language === 'ar' ? 'التبديل إلى الإنجليزية' : 'Switch to Arabic'}><FiGlobe /><span className="ms-1">{language === 'ar' ? 'EN' : 'AR'}</span></button>
           <button type="button" onClick={toggleTheme} className={utilityClass} aria-label={t.theme} aria-pressed={dark}>{dark ? <FiSun /> : <FiMoon />}</button>
           <button type="button" onClick={toggleTextSize} className={utilityClass} aria-label={t.accessibility} aria-pressed={largeText}><FiType /></button>
@@ -181,7 +182,7 @@ export default function Header({ logo, onHomeSearch }: { logo?: ReactNode; onHom
             <div className="mt-2 flex flex-wrap gap-2 md:hidden">
               {onHomeSearch ? <button type="button" onClick={openHomeSearch} className={utilityClass} aria-label={t.search} aria-controls="home-search-panel"><FiSearch /></button> : <Link href="/marketplace" className={utilityClass} aria-label={t.search}><FiSearch /></Link>}
               <Link href={onHomeSearch ? '#home-weather' : '/#home-weather'} onClick={onHomeSearch ? () => setMobileOpen(false) : undefined} className={utilityClass} aria-label={t.weather}><FiCloud /></Link>
-              <Link href={onHomeSearch ? '#home-currency' : '/#home-currency'} onClick={onHomeSearch ? () => setMobileOpen(false) : undefined} className={utilityClass} aria-label={t.currency}><FiDollarSign /></Link>
+              <CurrencySelector language={language} className={utilityClass} />
               <button type="button" onClick={toggleLanguage} className={utilityClass} aria-label={language === 'ar' ? 'التبديل إلى الإنجليزية' : 'Switch to Arabic'}><FiGlobe /> {language === 'ar' ? 'EN' : 'AR'}</button>
               <button type="button" onClick={toggleTheme} className={utilityClass} aria-label={t.theme} aria-pressed={dark}>{dark ? <FiSun /> : <FiMoon />}</button>
               <button type="button" onClick={toggleTextSize} className={utilityClass} aria-label={t.accessibility} aria-pressed={largeText}>{largeText ? <FiType /> : <FiType />}</button>

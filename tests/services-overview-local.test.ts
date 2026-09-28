@@ -77,12 +77,12 @@ test('anonymous sitemap access does not exempt private routes or similarly named
   }
 });
 
-test('header links no longer target removed Services sections; no new utility implementation', () => {
+test('header links avoid removed Services sections and expose the shared currency selector', () => {
   const header = read('components/layout/Header.tsx');
   assert.doesNotMatch(header, /\/services#(?:service-search|home-weather|home-currency)/);
   assert.equal((header.match(/<Link href="\/marketplace" className=\{utilityClass\}/g) ?? []).length, 2);
   assert.equal(header.split("onHomeSearch ? '#home-weather' : '/#home-weather'").length - 1, 2);
-  assert.equal(header.split("onHomeSearch ? '#home-currency' : '/#home-currency'").length - 1, 2);
+  assert.equal((header.match(/<CurrencySelector language=\{language\}/g) ?? []).length, 2);
 });
 
 test('responsive cards and optional DABRA retain accessible links and existing consent-gated launcher', () => {

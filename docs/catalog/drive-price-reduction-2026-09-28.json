@@ -1,0 +1,388 @@
+{
+  "task": 172,
+  "authorizedAt": "2026-09-28",
+  "rule": "Each current daily and airport rate * 0.85 once, rounded to cents; preserve prior quotes.",
+  "before": {
+    "offers": [
+      {
+        "id": "managed-eg-cadillac-escalade",
+        "currency": "USD",
+        "dailyCents": 110000,
+        "airportCents": 55000
+      },
+      {
+        "id": "managed-eg-hyundai-accent",
+        "currency": "USD",
+        "dailyCents": 6600,
+        "airportCents": 3300
+      },
+      {
+        "id": "managed-eg-hyundai-elantra-cn7",
+        "currency": "USD",
+        "dailyCents": 7700,
+        "airportCents": 3850
+      },
+      {
+        "id": "managed-eg-hyundai-h1",
+        "currency": "USD",
+        "dailyCents": 16500,
+        "airportCents": 8250
+      },
+      {
+        "id": "managed-eg-hyundai-tuycan",
+        "currency": "USD",
+        "dailyCents": 11000,
+        "airportCents": 5500
+      },
+      {
+        "id": "managed-eg-jetour-x70",
+        "currency": "USD",
+        "dailyCents": 8800,
+        "airportCents": 4400
+      },
+      {
+        "id": "managed-eg-kia-carval",
+        "currency": "USD",
+        "dailyCents": 22000,
+        "airportCents": 11000
+      },
+      {
+        "id": "managed-eg-kia-k4",
+        "currency": "USD",
+        "dailyCents": 9350,
+        "airportCents": 4675
+      },
+      {
+        "id": "managed-eg-kia-sportage",
+        "currency": "USD",
+        "dailyCents": 13200,
+        "airportCents": 6600
+      },
+      {
+        "id": "managed-eg-mercedes-s500",
+        "currency": "USD",
+        "dailyCents": 55000,
+        "airportCents": 27500
+      },
+      {
+        "id": "managed-eg-mercedes-v250",
+        "currency": "USD",
+        "dailyCents": 27500,
+        "airportCents": 13750
+      },
+      {
+        "id": "managed-eg-mercedes-v300",
+        "currency": "USD",
+        "dailyCents": 44000,
+        "airportCents": 22000
+      },
+      {
+        "id": "managed-eg-nissan-patrol",
+        "currency": "USD",
+        "dailyCents": 44000,
+        "airportCents": 22000
+      },
+      {
+        "id": "managed-eg-nissan-source-2026",
+        "currency": "USD",
+        "dailyCents": 77000,
+        "airportCents": 38500
+      },
+      {
+        "id": "managed-eg-range-rover-sport",
+        "currency": "USD",
+        "dailyCents": 66000,
+        "airportCents": 33000
+      },
+      {
+        "id": "managed-eg-soueast-s05",
+        "currency": "USD",
+        "dailyCents": 8800,
+        "airportCents": 4400
+      },
+      {
+        "id": "managed-eg-soueast-s07",
+        "currency": "USD",
+        "dailyCents": 8800,
+        "airportCents": 4400
+      },
+      {
+        "id": "managed-eg-soueast-s09",
+        "currency": "USD",
+        "dailyCents": 11000,
+        "airportCents": 5500
+      },
+      {
+        "id": "managed-eg-toyota-hiace",
+        "currency": "USD",
+        "dailyCents": 16500,
+        "airportCents": 8250
+      },
+      {
+        "id": "managed-eg-toyota-land-cruiser",
+        "currency": "USD",
+        "dailyCents": 49500,
+        "airportCents": 24750
+      },
+      {
+        "id": "managed-eg-toyota-land-cruiser-2020",
+        "currency": "USD",
+        "dailyCents": 38500,
+        "airportCents": 19250
+      },
+      {
+        "id": "safeerat-eg-jetour-t1",
+        "currency": "USD",
+        "dailyCents": 10000,
+        "airportCents": 5000
+      },
+      {
+        "id": "safeerat-eg-jetour-t2",
+        "currency": "USD",
+        "dailyCents": 16500,
+        "airportCents": 8250
+      },
+      {
+        "id": "safeerat-eg-jetour-x90",
+        "currency": "USD",
+        "dailyCents": 11000,
+        "airportCents": 5500
+      },
+      {
+        "id": "safeerat-eg-mercedes-e200",
+        "currency": "USD",
+        "dailyCents": 18700,
+        "airportCents": 9350
+      },
+      {
+        "id": "safeerat-eg-mercedes-e200-amg",
+        "currency": "USD",
+        "dailyCents": 20000,
+        "airportCents": 10000
+      },
+      {
+        "id": "safeerat-eg-mercedes-gclass",
+        "currency": "USD",
+        "dailyCents": 60500,
+        "airportCents": 30250
+      },
+      {
+        "id": "safeerat-eg-nissan-sunny",
+        "currency": "USD",
+        "dailyCents": 6600,
+        "airportCents": 3300
+      },
+      {
+        "id": "safeerat-eg-range-rover",
+        "currency": "USD",
+        "dailyCents": 30800,
+        "airportCents": 15400
+      },
+      {
+        "id": "safeerat-eg-range-rover-2025",
+        "currency": "USD",
+        "dailyCents": 45000,
+        "airportCents": 25000
+      }
+    ],
+    "partnerProducts": [
+      {
+        "id": "06c334a0-d4a9-49ad-bc19-3018a24e8c0c",
+        "name": "JETOUR T2 Dark/Black — Al Hana Group",
+        "version": 1,
+        "currency": "SAR",
+        "beforeCents": 75000
+      },
+      {
+        "id": "0a2f5f91-c53c-49e7-9b27-bb4e8728faf0",
+        "name": "Mercedes E200",
+        "version": 3,
+        "currency": "USD",
+        "beforeCents": 25000
+      },
+      {
+        "id": "2de05514-e1f9-4182-b119-341d1233167a",
+        "name": "JETOUR T2 Green — Al Hana Group",
+        "version": 1,
+        "currency": "SAR",
+        "beforeCents": 30000
+      },
+      {
+        "id": "39b5beba-b875-4c9b-a5e5-c9a3276c85c8",
+        "name": "JETOUR T2 White — Al Hana Group",
+        "version": 1,
+        "currency": "SAR",
+        "beforeCents": 75000
+      },
+      {
+        "id": "5326200a-a0ce-4021-9c0f-77a9756f3365",
+        "name": "Kia Carnival White/Silver — Al Hana Group",
+        "version": 1,
+        "currency": "SAR",
+        "beforeCents": 75000
+      },
+      {
+        "id": "55bf6423-9623-4181-a2bb-9946a71585c7",
+        "name": "JETOUR T2 Gray A — Al Hana Group",
+        "version": 1,
+        "currency": "SAR",
+        "beforeCents": 75000
+      },
+      {
+        "id": "6bbf035f-7d7b-4cf3-8ccd-b82570e37b21",
+        "name": "JETOUR T2 Gray B — Al Hana Group",
+        "version": 1,
+        "currency": "SAR",
+        "beforeCents": 75000
+      },
+      {
+        "id": "6d0b1992-9bdd-4ff9-b141-84b07a3c5a5f",
+        "name": "Kia Sportage White — Al Hana Group",
+        "version": 1,
+        "currency": "SAR",
+        "beforeCents": 75000
+      },
+      {
+        "id": "75a81586-0b41-48f7-9c5b-70947bd038c8",
+        "name": "Hyundai Elantra Blue — Al Hana Group",
+        "version": 1,
+        "currency": "SAR",
+        "beforeCents": 75000
+      },
+      {
+        "id": "86ed339b-8945-40fa-bc04-4a142c5d755e",
+        "name": "Hyundai cn7 2021",
+        "version": 1,
+        "currency": "SAR",
+        "beforeCents": 17000
+      },
+      {
+        "id": "dba01f1d-cd4b-40d9-9b95-2d978ac6f74a",
+        "name": "Kia Carnival Gray — Al Hana Group",
+        "version": 1,
+        "currency": "SAR",
+        "beforeCents": 75000
+      },
+      {
+        "id": "e65694b7-09f4-4bd0-875a-4b239187e402",
+        "name": "Range Rover Sport Black — Al Hana Group",
+        "version": 1,
+        "currency": "SAR",
+        "beforeCents": 75000
+      },
+      {
+        "id": "ec0a1b39-685a-455f-9247-e77227f10a8d",
+        "name": "Mercedes G500",
+        "version": 4,
+        "currency": "USD",
+        "beforeCents": 40000
+      }
+    ]
+  },
+  "partnerAfter": [
+    {
+      "id": "06c334a0-d4a9-49ad-bc19-3018a24e8c0c",
+      "name": "JETOUR T2 Dark/Black — Al Hana Group",
+      "version": 1,
+      "currency": "SAR",
+      "beforeCents": 75000,
+      "afterCents": 63750
+    },
+    {
+      "id": "0a2f5f91-c53c-49e7-9b27-bb4e8728faf0",
+      "name": "Mercedes E200",
+      "version": 3,
+      "currency": "USD",
+      "beforeCents": 25000,
+      "afterCents": 21250
+    },
+    {
+      "id": "2de05514-e1f9-4182-b119-341d1233167a",
+      "name": "JETOUR T2 Green — Al Hana Group",
+      "version": 1,
+      "currency": "SAR",
+      "beforeCents": 30000,
+      "afterCents": 25500
+    },
+    {
+      "id": "39b5beba-b875-4c9b-a5e5-c9a3276c85c8",
+      "name": "JETOUR T2 White — Al Hana Group",
+      "version": 1,
+      "currency": "SAR",
+      "beforeCents": 75000,
+      "afterCents": 63750
+    },
+    {
+      "id": "5326200a-a0ce-4021-9c0f-77a9756f3365",
+      "name": "Kia Carnival White/Silver — Al Hana Group",
+      "version": 1,
+      "currency": "SAR",
+      "beforeCents": 75000,
+      "afterCents": 63750
+    },
+    {
+      "id": "55bf6423-9623-4181-a2bb-9946a71585c7",
+      "name": "JETOUR T2 Gray A — Al Hana Group",
+      "version": 1,
+      "currency": "SAR",
+      "beforeCents": 75000,
+      "afterCents": 63750
+    },
+    {
+      "id": "6bbf035f-7d7b-4cf3-8ccd-b82570e37b21",
+      "name": "JETOUR T2 Gray B — Al Hana Group",
+      "version": 1,
+      "currency": "SAR",
+      "beforeCents": 75000,
+      "afterCents": 63750
+    },
+    {
+      "id": "6d0b1992-9bdd-4ff9-b141-84b07a3c5a5f",
+      "name": "Kia Sportage White — Al Hana Group",
+      "version": 1,
+      "currency": "SAR",
+      "beforeCents": 75000,
+      "afterCents": 63750
+    },
+    {
+      "id": "75a81586-0b41-48f7-9c5b-70947bd038c8",
+      "name": "Hyundai Elantra Blue — Al Hana Group",
+      "version": 1,
+      "currency": "SAR",
+      "beforeCents": 75000,
+      "afterCents": 63750
+    },
+    {
+      "id": "86ed339b-8945-40fa-bc04-4a142c5d755e",
+      "name": "Hyundai cn7 2021",
+      "version": 1,
+      "currency": "SAR",
+      "beforeCents": 17000,
+      "afterCents": 14450
+    },
+    {
+      "id": "dba01f1d-cd4b-40d9-9b95-2d978ac6f74a",
+      "name": "Kia Carnival Gray — Al Hana Group",
+      "version": 1,
+      "currency": "SAR",
+      "beforeCents": 75000,
+      "afterCents": 63750
+    },
+    {
+      "id": "e65694b7-09f4-4bd0-875a-4b239187e402",
+      "name": "Range Rover Sport Black — Al Hana Group",
+      "version": 1,
+      "currency": "SAR",
+      "beforeCents": 75000,
+      "afterCents": 63750
+    },
+    {
+      "id": "ec0a1b39-685a-455f-9247-e77227f10a8d",
+      "name": "Mercedes G500",
+      "version": 4,
+      "currency": "USD",
+      "beforeCents": 40000,
+      "afterCents": 34000
+    }
+  ]
+}

@@ -35,6 +35,8 @@ export type OpenAICompatibleParams = {
   retryCount: number;
   preferredModels: string[];
   extraHeaders?: Record<string, string>;
+  // Opt-in for the bounded GPT-5 classifier; legacy provider bodies stay unchanged.
+  chatProfile?: 'gpt-5-classifier';
 };
 
 export const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
@@ -314,8 +316,9 @@ async function callChatCompletions(
           { role: 'system', content: params.prompt },
           { role: 'user', content: params.message },
         ],
-        temperature: 0,
-        max_tokens: 700,
+        ...(params.chatProfile === 'gpt-5-classifier'
+          ? { max_completion_tokens: 700, reasoning_effort: 'minimal' }
+          : { temperature: 0, max_tokens: 700 }),
       }),
     });
 

@@ -26,7 +26,7 @@ test("runtime route returns weather and fx payload", async () => {
     if (url.includes("open-meteo")) {
       return json({ current: { temperature_2m: 33, weather_code: 0, time: "2026-08-13T10:00:00Z" } });
     }
-    return json({ date: "2026-08-13", rates: { USD: 1, SAR: 3.75, EGP: 48, EUR: 0.92, AED: 3.67 } });
+    return json(Object.entries({SAR:3.75,EGP:48,EUR:0.92,AED:3.67}).map(([quote,rate])=>({base:'USD',quote,rate,date:new Date().toISOString().slice(0,10)})));
   }) as typeof fetch;
 
   const response = await GET(new NextRequest("http://localhost/api/public/runtime?lang=en&currency=SAR"));

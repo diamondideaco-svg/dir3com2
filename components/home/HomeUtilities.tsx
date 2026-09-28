@@ -39,11 +39,12 @@ const copy = {
     to: 'إلى',
     convert: 'تحويل',
     conversionUnavailable: 'التسعير غير متاح حاليًا',
-    live: 'مباشر',
+    live: 'سعر صرف مرجعي',
     stale: 'آخر قيمة متاحة',
     map: 'موقع الوجهة',
-    mapDescription: 'افتح خريطة الرياض واستكشف نقطة البداية لرحلتك.',
+    mapDescription: 'اختر وجهتك لفتحها في خرائط Google.',
     openMap: 'افتح الخريطة',
+    mapDestination: 'المدينة أو الوجهة',
     support: 'الدبرة',
     supportDescription: 'مساعد السفر الذكي من dir3com.',
     openSupport: 'اسأل الدبرة',
@@ -65,11 +66,12 @@ const copy = {
     to: 'To',
     convert: 'Convert',
     conversionUnavailable: 'Conversion is currently unavailable',
-    live: 'Live',
+    live: 'Reference exchange rate',
     stale: 'Latest available value',
     map: 'Destination map',
-    mapDescription: 'Open Riyadh in Maps and explore a starting point for your trip.',
+    mapDescription: 'Choose a destination to open in Google Maps.',
     openMap: 'Open map',
+    mapDestination: 'City or destination',
     support: 'DABRA Travel Assistant',
     supportDescription: 'dir3com smart travel assistant.',
     openSupport: 'Ask DABRA',
@@ -90,6 +92,8 @@ export default function HomeUtilities({ homePresentation = false }: { homePresen
   const t = copy[language];
   const [weather, setWeather] = useState<RuntimeWeather | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
+  const [mapDestination, setMapDestination] = useState<string | null>(null);
+  const mapQuery = (mapDestination ?? weather?.cityLabel ?? '').trim();
   const [amount, setAmount] = useState('100');
   const [from, setFrom] = useState<Currency>('USD');
   const [to, setTo] = useState<Currency>('SAR');
@@ -117,8 +121,6 @@ export default function HomeUtilities({ homePresentation = false }: { homePresen
   }, [language]);
 
   async function convert() {
-    // Home has no live converter endpoint yet. Keep service-route behavior unchanged.
-    if (homePresentation) return;
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       setConversionState('error');
@@ -130,7 +132,7 @@ export default function HomeUtilities({ homePresentation = false }: { homePresen
     try {
       const response = await fetch(`/api/currency?from=${from}&to=${to}&amount=${encodeURIComponent(String(numericAmount))}`, { cache: 'no-store' });
       const payload = (await response.json()) as CurrencyResponse;
-      if (!response.ok || !payload.quote || typeof payload.quote.convertedAmount !== 'number') throw new Error(payload.error ?? 'conversion_failed');
+      if (!response.ok || !payload.ok || !payload.quote || typeof payload.quote.convertedAmount !== 'number') throw new Error(payload.error ?? 'conversion_failed');
       setConverted(payload.quote.convertedAmount);
       setRate(typeof payload.quote.rate === 'number' ? payload.quote.rate : null);
       setIsStale(Boolean(payload.quote.stale));
@@ -175,10 +177,10 @@ export default function HomeUtilities({ homePresentation = false }: { homePresen
               <label className="home-utility-field"><span>{t.amount}</span><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} aria-label={t.amount} /></label>
               <label className="home-utility-field"><span>{t.from}</span><select value={from} onChange={(event) => setFrom(event.target.value as Currency)} aria-label={t.from}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label>
               <label className="home-utility-field"><span>{t.to}</span><select value={to} onChange={(event) => setTo(event.target.value as Currency)} aria-label={t.to}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label>
-              <button type="button" className="home-utility-action" onClick={convert} disabled={homePresentation || conversionState === 'loading'} aria-describedby={homePresentation ? 'home-currency-status' : undefined}>{conversionState === 'loading' ? '...' : t.convert}</button>
+              <button type="button" className="home-utility-action" onClick={convert} disabled={conversionState === 'loading'} aria-describedby={homePresentation ? 'home-currency-status' : undefined}>{conversionState === 'loading' ? '...' : t.convert}</button>
             </div>
             <p id={homePresentation ? 'home-currency-status' : undefined} className={`home-utility-card__result ${conversionState === 'error' ? 'home-utility-card__result--error' : ''}`} aria-live="polite">
-              {homePresentation ? t.currencyDeferred : conversionState === 'ready' && converted !== null ? `${converted.toFixed(2)} ${to}${rate ? ` · 1 ${from} = ${rate.toFixed(4)} ${to}` : ''}` : conversionState === 'error' ? t.conversionUnavailable : `${amount || '0'} ${from} → ${to}`}
+              {conversionState === 'ready' && converted !== null ? `${converted.toFixed(2)} ${to}${rate ? ` · 1 ${from} = ${rate.toFixed(4)} ${to}` : ''}` : conversionState === 'error' ? t.conversionUnavailable : `${amount || '0'} ${from} → ${to}`}
             </p>
           </article>
 
@@ -192,7 +194,8 @@ export default function HomeUtilities({ homePresentation = false }: { homePresen
             <div className="home-utility-card__icon"><FiMapPin /></div>
             <h3>{t.map}</h3>
             <p className="home-utility-card__description">{t.mapDescription}</p>
-            <a className="home-utility-link" href="https://www.google.com/maps/search/?api=1&query=Riyadh%2C%20Saudi%20Arabia" target="_blank" rel="noreferrer noopener"><FiCompass />{t.openMap}<FiArrowUpLeft /></a>
+            <label className="home-utility-field"><span>{t.mapDestination}</span><input maxLength={200} value={mapDestination ?? weather?.cityLabel ?? ''} onChange={event => setMapDestination(event.target.value)} /></label>
+            <a className="home-utility-link" href={mapQuery ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}` : undefined} aria-disabled={!mapQuery} target="_blank" rel="noreferrer noopener"><FiCompass />{t.openMap}<FiArrowUpLeft /></a>
           </article>
         </div>
 

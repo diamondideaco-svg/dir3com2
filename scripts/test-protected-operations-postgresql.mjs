@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { verifyDrivePriceRelease } from './verify-drive-price-release.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -70,8 +71,10 @@ try {
   const managedDriveModelYear = files.find(file => file.endsWith('_drive_model_year_boundary.sql'));
   const managedDriveAcceptance = files.find(file => file.endsWith('_drive_customer_quote_acceptance.sql'));
   const managedDriveSeptember = files.find(file => file.endsWith('_drive_september27_managed_catalog.sql'));
+  // CEO-specific 43-row price release has its own isolated rollback/replay fixture.
+  const priceRelease = files.find(file => file.endsWith('_drive_price_reduction_15_percent.sql'));
   assert.ok(migration);
-  for (const file of files.filter(file => file !== migration && file !== managedDrive && file !== managedDriveModelYear && file !== managedDriveAcceptance && file !== managedDriveSeptember)) sql(read(`supabase/migrations/${file}`));
+  for (const file of files.filter(file => file !== priceRelease && file !== migration && file !== managedDrive && file !== managedDriveModelYear && file !== managedDriveAcceptance && file !== managedDriveSeptember)) sql(read(`supabase/migrations/${file}`));
   // Fixtures are inserted only in our disposable database; no captured user data.
   for (const [id, role] of [[ceo,'admin'],[admin,'admin'],[staff,'staff'],[customer,'customer'],[partner,'partner']]) {
     sql(`INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES('${id}','${id}@example.invalid','{}');
@@ -150,6 +153,7 @@ try {
   denied(ceo,"SELECT public.has_operational_access('admin:full',NULL,true)",/permission denied/,'service_role');
   equal(actor(ceo,'SELECT public.is_admin_actor()','service_role'), 'f', 'service actor cannot impersonate CEO authority');
   equal(sql("SELECT has_function_privilege('service_role','public.transition_marketplace_request(uuid,text,text,jsonb)','EXECUTE')"),'t','intentional system transition boundary preserved');
+  await verifyDrivePriceRelease({execute: async statement=>sql(statement), scalar: async statement=>{ const result=sql(statement); return result==='t'?'true':result==='f'?'false':result; }});
   console.log(`POSTGRESQL_17=PASS CHECKS=${checks} PRODUCTION_WRITES=0`);
 } catch (error) {
   console.error(String(error.stderr || error.stack || error).slice(0,6000)); process.exitCode = 1;
