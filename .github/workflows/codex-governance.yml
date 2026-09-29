@@ -53,7 +53,9 @@ jobs:
               actualSha: pr.head.sha,
               prNumber: pr.number,
               taskTitle: taskRecord.title || '',
-              taskIsPullRequest: Boolean(taskRecord.pull_request)
+              taskIsPullRequest: Boolean(taskRecord.pull_request),
+              repoOwner: context.repo.owner,
+              repoName: context.repo.repo
             });
             const summary = [
               '## Codex Control Tower Record', '',

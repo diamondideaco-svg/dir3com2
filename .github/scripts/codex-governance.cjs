@@ -12,12 +12,12 @@ function prField(body, label) {
 }
 function issueField(body, label) {
   const lines = (body || '').split(/\r?\n/);
-  const heading = '## ' + label;
-  const indexes = lines.flatMap((line, index) => line.trim().toLowerCase() === heading.toLowerCase() ? [index] : []);
+  const headings = ['## ' + label, '### ' + label].map(value => value.toLowerCase());
+  const indexes = lines.flatMap((line, index) => headings.includes(line.trim().toLowerCase()) ? [index] : []);
   if (indexes.length !== 1) return '';
   const section = [];
   for (const line of lines.slice(indexes[0] + 1)) {
-    if (/^##\s+/.test(line.trim())) break;
+    if (/^#{2,3}\s+/.test(line.trim())) break;
     if (line.trim()) section.push(line.trim());
   }
   return section.length === 1 ? section[0] : '';
@@ -30,7 +30,9 @@ function validate(input) {
   if (!/^#[0-9]+$/.test(record.Task)) failures.push('Task must reference exactly one GitHub Codex Task issue as #number.');
   if (input.taskIsPullRequest) failures.push('Task must reference a GitHub issue, not a pull request.');
   if (!input.taskTitle.startsWith('[Codex Task]')) failures.push('Task issue title must start with [Codex Task].');
-  if (issueField(input.issueBody, 'Pull request') !== '#' + input.prNumber) failures.push('Task Pull request must match the current PR number.');
+  const taskPr = issueField(input.issueBody, 'Pull request');
+  const validTaskPrs = ['#' + input.prNumber, 'https://github.com/' + input.repoOwner + '/' + input.repoName + '/pull/' + input.prNumber];
+  if (!validTaskPrs.includes(taskPr)) failures.push('Task Pull request must match the current PR number or canonical URL.');
   for (const label of ['Implementation owner','Independent reviewer','Branch','Current target SHA','Base SHA','Worktree','Last verified result','Next action']) {
     const prLabel = label === 'Current target SHA' ? 'Target SHA' : label;
     if (issueField(input.issueBody, label) !== record[prLabel]) failures.push('Task ' + prLabel + ' must match the PR record.');
