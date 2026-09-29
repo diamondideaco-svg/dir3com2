@@ -92,7 +92,7 @@ export default function StaySandbox({ initialSearch, hotelId, nationalities }: {
     </> : <>
       <h1>{t('Find your stay', 'ابحث عن إقامتك')}</h1>
       <p>{t('Choose your destination and dates to explore test hotel availability. These results cannot be booked.', 'اختر الوجهة والتواريخ لاستكشاف إتاحة الفنادق التجريبية. لا يمكن حجز هذه النتائج.')}</p>
-      <Link href="/marketplace?family=dir3-stay&inventory=partners">{t('Browse published partner stays', 'تصفح إقامات الشركاء المنشورة')}</Link>
+      <Link href="/marketplace?family=dir3-stay&inventory=partners">{t('Check partner Stay listings', 'تحقق من قوائم إقامات الشركاء')}</Link>
       <form className={styles.search} action="/marketplace" method="get">
         <input type="hidden" name="family" value="dir3-stay"/><input type="hidden" name="searched" value="1"/>
         <input type="hidden" name="language" value={language}/>
