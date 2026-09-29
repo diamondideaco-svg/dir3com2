@@ -11,4 +11,6 @@ assert(validate({...valid,prBody:prBody.replace('- Worktree: GitHub connector is
 assert(validate({...valid,prBody:prBody.replace('VS Code Codex','Codex — ChatGPT Work Mode')}).failures.some(x=>x.includes('must be different')));
 assert(validate({...valid,actualBranch:'wrong'}).failures.some(x=>x.includes('actual PR head branch')));
 assert(validate({...valid,actualSha:'c'.repeat(40)}).failures.some(x=>x.includes('actual PR head SHA')));
-console.log('Codex continuity governance: 5/5 PASS');
+assert(validate({...valid,prBody:prBody + '\n- Verdict: PASS'}).failures.some(x=>x.includes('Verdict')));
+assert(validate({...valid,issueBody:issueBody.replace('## Worktree\nGitHub connector isolated branch','## Worktree\n')}).failures.some(x=>x.includes('Worktree')));
+console.log('Codex continuity governance: 7/7 PASS');

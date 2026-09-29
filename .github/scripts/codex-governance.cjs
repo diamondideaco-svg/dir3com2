@@ -6,15 +6,21 @@ const ALLOWED_VERDICTS = ['IN_PROGRESS', 'REVIEW', 'PASS', 'FAIL', 'BLOCKED'];
 
 function prField(body, label) {
   const prefix = '- ' + label + ':';
-  const line = (body || '').split(/\r?\n/).find(item => item.trim().toLowerCase().startsWith(prefix.toLowerCase()));
-  return line ? line.trim().slice(prefix.length).trim() : '';
+  const matches = (body || '').split(/\r?\n/).filter(item => item.trim().toLowerCase().startsWith(prefix.toLowerCase()));
+  if (matches.length !== 1) return '';
+  return matches[0].trim().slice(prefix.length).trim();
 }
 function issueField(body, label) {
   const lines = (body || '').split(/\r?\n/);
   const heading = '## ' + label;
-  const index = lines.findIndex(line => line.trim().toLowerCase() === heading.toLowerCase());
-  if (index < 0) return '';
-  return (lines.slice(index + 1).find(line => line.trim()) || '').trim();
+  const indexes = lines.flatMap((line, index) => line.trim().toLowerCase() === heading.toLowerCase() ? [index] : []);
+  if (indexes.length !== 1) return '';
+  const section = [];
+  for (const line of lines.slice(indexes[0] + 1)) {
+    if (/^##\s+/.test(line.trim())) break;
+    if (line.trim()) section.push(line.trim());
+  }
+  return section.length === 1 ? section[0] : '';
 }
 function validate(input) {
   const labels = ['Task','Implementation owner','Independent reviewer','Branch','Target SHA','Base SHA','Worktree','Last verified result','Next action','Verdict'];
