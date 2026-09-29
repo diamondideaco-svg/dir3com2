@@ -29,8 +29,8 @@ function validate(input) {
     const prLabel = label === 'Current target SHA' ? 'Target SHA' : label;
     if (issueField(input.issueBody, label) !== record[prLabel]) failures.push('Task ' + label + ' must match the PR record.');
   }
-  if (!ALLOWED_OWNERS.includes(record['Implementation owner'])) failures.push('Implementation owner is not allowed.');
-  if (!ALLOWED_REVIEWERS.includes(record['Independent reviewer'])) failures.push('Independent reviewer is not allowed.');
+  if (!ALLOWED_OWNERS.includes(record['Implementation owner'])) failures.push('Implementation owner must be Codex Desktop, VS Code Codex, or Codex — ChatGPT Work Mode.');
+  if (!ALLOWED_REVIEWERS.includes(record['Independent reviewer'])) failures.push('Independent reviewer must be Codex Desktop, VS Code Codex, or Codex Security.');
   if (record['Implementation owner'] === record['Independent reviewer']) failures.push('Implementation owner and independent reviewer must be different.');
   if (record.Branch !== input.actualBranch) failures.push('Declared Branch must equal actual PR head branch: ' + input.actualBranch);
   if (!/^[0-9a-f]{40}$/i.test(record['Target SHA'])) failures.push('Target SHA must be a full 40-character commit SHA.');

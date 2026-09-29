@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 
@@ -12,16 +13,21 @@ const source = block.split('\n').map(line => line.replace(/^ {12}/, '')).join('\
 const sha = 'a'.repeat(40);
 const branch = 'feat/governance-fixture';
 const workMode = 'Codex — ChatGPT Work Mode';
+const loadValidator = createRequire(new URL('../package.json', import.meta.url));
 
 function records(owner = workMode, reviewer = 'Codex Desktop') {
   return {
     pr: { number: 168, head: { ref: branch, sha }, body: [
       '## Control Tower Record', '- Task: #167', `- Implementation owner: ${owner}`,
-      `- Independent reviewer: ${reviewer}`, `- Branch: ${branch}`, `- Target SHA: ${sha}`, '- Verdict: REVIEW',
+      `- Independent reviewer: ${reviewer}`, `- Branch: ${branch}`, `- Target SHA: ${sha}`,
+      `- Base SHA: ${'b'.repeat(40)}`, '- Worktree: /tmp/governance-fixture',
+      '- Last verified result: focused checks pass', '- Next action: reviewer checks exact SHA', '- Verdict: REVIEW',
     ].join('\n') },
     issue: { title: '[Codex Task] Isolated governance fixture', body: [
       '## Implementation owner', owner, '## Independent reviewer', reviewer,
       '## Branch', branch, '## Current target SHA', sha, '## Pull request', '#168',
+      '## Base SHA', 'b'.repeat(40), '## Worktree', '/tmp/governance-fixture',
+      '## Last verified result', 'focused checks pass', '## Next action', 'reviewer checks exact SHA',
     ].join('\n') },
   };
 }
@@ -29,6 +35,10 @@ function records(owner = workMode, reviewer = 'Codex Desktop') {
 async function validate(input = records(), unavailable = false) {
   const failures = []; const queries = []; const summaries = [];
   await runInNewContext(`(async () => {\n${source}\n})()`, {
+    require(path) {
+      assert.equal(path, './.github/scripts/codex-governance.cjs');
+      return loadValidator('./.github/scripts/codex-governance.cjs');
+    },
     context: { payload: { pull_request: input.pr }, repo: { owner: 'fixture-owner', repo: 'fixture-repo' } },
     github: { rest: { issues: { async get(query) {
       queries.push({ ...query });
