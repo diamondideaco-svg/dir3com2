@@ -49,6 +49,18 @@ For Task #167 / PR #168, the CEO instructed continuation after the documented pr
 8. **MERGE** — Only after required gates pass and explicit merge authorization exists.
 9. **RELEASE** — Production deployment, migrations, or live-data changes require separate explicit authorization.
 
+## Conversation recovery protocol
+
+When a chat is full, replaced, compacted, or loses context, the incoming surface must not reconstruct the task from memory. It must:
+
+1. Read `AGENTS.md`, this procedure, the active Codex Task, the linked PR, and the current branch/HEAD/status.
+2. Emit the Mandatory continuity bootstrap record from `AGENTS.md`.
+3. Compare the Task and PR values for owner, reviewer, branch, base SHA, target SHA, worktree, last verified result, next action, and verdict.
+4. Treat repository/runtime evidence as newer than chat narrative. Preserve explicit approved decisions unless current evidence disproves them.
+5. Stop on missing or contradictory state. Correct the authoritative Task/PR record before any implementation or review.
+
+A handoff is complete only when the receiving surface acknowledges the same Task, branch, exact HEAD, scope, and next action. Writing an instruction in another chat does not prove receipt. Until an acknowledgement or repository evidence exists, the receiving surface is `UNVERIFIED` and no work may be attributed to it.
+
 ## Handoff contract
 
 Every handoff must include:

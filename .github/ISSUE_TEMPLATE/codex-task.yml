@@ -52,11 +52,41 @@ body:
     validations:
       required: true
   - type: input
+    id: base_sha
+    attributes:
+      label: Base SHA
+      description: Exact 40-character base commit used to start the task.
+      placeholder: 40-character base commit SHA
+    validations:
+      required: true
+  - type: input
+    id: worktree
+    attributes:
+      label: Worktree
+      description: Exact local worktree path or GitHub connector isolated branch.
+      placeholder: /absolute/path or GitHub connector isolated branch
+    validations:
+      required: true
+  - type: input
     id: target_sha
     attributes:
       label: Current target SHA
       description: Use TBD before the first commit; review requires the exact 40-character SHA.
       placeholder: 40-character commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: last_verified_result
+    attributes:
+      label: Last verified result
+      description: Most recent result proven from repository, CI, runtime, or review evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: next_action
+    attributes:
+      label: Next action
+      description: One concrete action and its owner.
     validations:
       required: true
   - type: textarea

@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { validate } = require('../.github/scripts/codex-governance.cjs');
+const sha = 'a'.repeat(40), base = 'b'.repeat(40);
+const prBody = '- Task: #180\n- Implementation owner: Codex — ChatGPT Work Mode\n- Independent reviewer: VS Code Codex\n- Branch: chore/codex-continuity-recovery\n- Target SHA: ' + sha + '\n- Base SHA: ' + base + '\n- Worktree: GitHub connector isolated branch\n- Last verified result: policy tests pass\n- Next action: VS Code Codex reviews exact SHA\n- Verdict: REVIEW';
+const issueBody = '## Implementation owner\nCodex — ChatGPT Work Mode\n## Independent reviewer\nVS Code Codex\n## Branch\nchore/codex-continuity-recovery\n## Pull request\n#181\n## Base SHA\n' + base + '\n## Worktree\nGitHub connector isolated branch\n## Current target SHA\n' + sha + '\n## Last verified result\npolicy tests pass\n## Next action\nVS Code Codex reviews exact SHA';
+const valid = { prBody, issueBody, actualBranch:'chore/codex-continuity-recovery', actualSha:sha, prNumber:181, taskTitle:'[Codex Task] continuity', taskIsPullRequest:false };
+assert.deepEqual(validate(valid).failures, []);
+assert(validate({...valid,prBody:prBody.replace('- Worktree: GitHub connector isolated branch\n','')}).failures.some(x=>x.includes('Worktree')));
+assert(validate({...valid,prBody:prBody.replace('VS Code Codex','Codex — ChatGPT Work Mode')}).failures.some(x=>x.includes('must be different')));
+assert(validate({...valid,actualBranch:'wrong'}).failures.some(x=>x.includes('actual PR head branch')));
+assert(validate({...valid,actualSha:'c'.repeat(40)}).failures.some(x=>x.includes('actual PR head SHA')));
+console.log('Codex continuity governance: 5/5 PASS');
