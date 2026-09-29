@@ -5,6 +5,10 @@
 - Independent reviewer: <!-- Codex Desktop | VS Code Codex | Codex Security; must differ from owner -->
 - Branch: <!-- exact PR head branch -->
 - Target SHA: <!-- exact 40-character current PR head SHA -->
+- Base SHA: <!-- exact 40-character task base SHA -->
+- Worktree: <!-- exact worktree path or GitHub connector isolated branch -->
+- Last verified result: <!-- concise evidence-backed checkpoint -->
+- Next action: <!-- one concrete action and owner -->
 - Verdict: <!-- lifecycle state: IN_PROGRESS | REVIEW | PASS | FAIL | BLOCKED -->
 
 > Any new commit invalidates the recorded review and requires updating Target SHA plus independent re-review.

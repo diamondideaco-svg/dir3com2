@@ -10,6 +10,33 @@ These instructions apply to every Codex surface working in this repository: Desk
 
 The operational procedure is `docs/CODEX_OPERATIONS.md`. Every engineering change must have one authoritative **Codex Task** GitHub issue and the pull request must carry the matching Control Tower record.
 
+## Mandatory continuity bootstrap
+
+A fresh or replacement conversation must recover state from GitHub and the repository before planning, editing, reviewing, or delegating. Chat history is never sufficient by itself.
+
+Start every continuation with this record:
+
+```text
+DATE =
+IDENTITY =
+WORKTREE =
+BRANCH =
+BASE SHA =
+ACTUAL HEAD =
+GIT STATUS =
+ACTIVE TASK =
+PULL REQUEST =
+IMPLEMENTATION OWNER =
+INDEPENDENT REVIEWER =
+EXPECTED RESULT =
+LAST VERIFIED RESULT =
+NEXT ACTION =
+BR86 + PR115 GATE =
+VERDICT = CONTINUE / STOP
+```
+
+Verify the values against the current Codex Task, PR, branch, and repository state. Mark any value that cannot be observed as `UNVERIFIED`. If a required value is missing, contradictory, or assigned to another owner, use `VERDICT = STOP`; do not guess, create a replacement branch, or repeat implementation. Record the corrected state in the Task before continuing.
+
 ## Operating Roles
 
 The authoritative coordinator is the ChatGPT conversation named **مهندس المشروع — Control Tower**. It assigns work, records the owner and reviewer, tracks the PR and current SHA, and recommends MERGE, RETURN FOR FIX, or BLOCKED. It does not compete with implementation agents by editing the same task. When the CEO explicitly assigns implementation to Work Mode, record that implementation identity separately; coordination or self-checks are never independent approval.
