@@ -5,10 +5,11 @@ const ALLOWED_REVIEWERS = ['Codex Desktop', 'VS Code Codex', 'Codex Security'];
 const ALLOWED_VERDICTS = ['IN_PROGRESS', 'REVIEW', 'PASS', 'FAIL', 'BLOCKED'];
 
 function prField(body, label) {
-  const prefix = '- ' + label + ':';
-  const matches = (body || '').split(/\r?\n/).filter(item => item.trim().toLowerCase().startsWith(prefix.toLowerCase()));
+  const prefixes = ['- ' + label + ':', '* ' + label + ':'].map(value => value.toLowerCase());
+  const matches = (body || '').split(/\r?\n/).map(item => item.trim()).filter(item => prefixes.some(prefix => item.toLowerCase().startsWith(prefix)));
   if (matches.length !== 1) return '';
-  return matches[0].trim().slice(prefix.length).trim();
+  const separator = matches[0].indexOf(':');
+  return separator >= 0 ? matches[0].slice(separator + 1).trim() : '';
 }
 function issueField(body, label) {
   const lines = (body || '').split(/\r?\n/);

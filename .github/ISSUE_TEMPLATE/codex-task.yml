@@ -75,14 +75,14 @@ body:
       placeholder: 40-character commit SHA
     validations:
       required: true
-  - type: textarea
+  - type: input
     id: last_verified_result
     attributes:
       label: Last verified result
       description: Most recent result proven from repository, CI, runtime, or review evidence.
     validations:
       required: true
-  - type: textarea
+  - type: input
     id: next_action
     attributes:
       label: Next action

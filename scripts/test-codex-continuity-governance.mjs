@@ -16,4 +16,5 @@ assert(validate({...valid,issueBody:issueBody.replace('## Worktree\nGitHub conne
 const canonicalIssue = issueBody.replace('#181', 'https://github.com/diamondideaco-svg/dir3com2/pull/181');
 assert.deepEqual(validate({...valid,issueBody:canonicalIssue}).failures, []);
 assert.deepEqual(validate({...valid,issueBody:issueBody.replaceAll('## ', '### ')}).failures, []);
-console.log('Codex continuity governance: 9/9 PASS');
+assert.deepEqual(validate({...valid,prBody:prBody.replaceAll('- ', '* ')}).failures, []);
+console.log('Codex continuity governance: 10/10 PASS');
