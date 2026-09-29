@@ -17,4 +17,6 @@ const canonicalIssue = issueBody.replace('#181', 'https://github.com/diamondidea
 assert.deepEqual(validate({...valid,issueBody:canonicalIssue}).failures, []);
 assert.deepEqual(validate({...valid,issueBody:issueBody.replaceAll('## ', '### ')}).failures, []);
 assert.deepEqual(validate({...valid,prBody:prBody.replaceAll('- ', '* ')}).failures, []);
-console.log('Codex continuity governance: 10/10 PASS');
+assert.deepEqual(validate({...valid,prBody:prBody.replaceAll('- ', '-   ')}).failures, []);
+assert(validate({...valid,issueBody:issueBody.replace('## Current verdict\nREVIEW','## Current verdict\nBLOCKED')}).failures.some(x=>x.includes('Task Verdict')));
+console.log('Codex continuity governance: 12/12 PASS');

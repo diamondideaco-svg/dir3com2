@@ -5,11 +5,11 @@ const ALLOWED_REVIEWERS = ['Codex Desktop', 'VS Code Codex', 'Codex Security'];
 const ALLOWED_VERDICTS = ['IN_PROGRESS', 'REVIEW', 'PASS', 'FAIL', 'BLOCKED'];
 
 function prField(body, label) {
-  const prefixes = ['- ' + label + ':', '* ' + label + ':'].map(value => value.toLowerCase());
-  const matches = (body || '').split(/\r?\n/).map(item => item.trim()).filter(item => prefixes.some(prefix => item.toLowerCase().startsWith(prefix)));
-  if (matches.length !== 1) return '';
-  const separator = matches[0].indexOf(':');
-  return separator >= 0 ? matches[0].slice(separator + 1).trim() : '';
+  const matches = (body || '').split(/\r?\n/).flatMap(line => {
+    const match = line.trim().match(/^[-*]\s*([^:]+):\s*(.*)$/);
+    return match && match[1].trim().toLowerCase() === label.toLowerCase() ? [match[2].trim()] : [];
+  });
+  return matches.length === 1 ? matches[0] : '';
 }
 function issueField(body, label) {
   const lines = (body || '').split(/\r?\n/);
@@ -34,8 +34,8 @@ function validate(input) {
   const taskPr = issueField(input.issueBody, 'Pull request');
   const validTaskPrs = ['#' + input.prNumber, 'https://github.com/' + input.repoOwner + '/' + input.repoName + '/pull/' + input.prNumber];
   if (!validTaskPrs.includes(taskPr)) failures.push('Task Pull request must match the current PR number or canonical URL.');
-  for (const label of ['Implementation owner','Independent reviewer','Branch','Current target SHA','Base SHA','Worktree','Last verified result','Next action']) {
-    const prLabel = label === 'Current target SHA' ? 'Target SHA' : label;
+  for (const label of ['Implementation owner','Independent reviewer','Branch','Current target SHA','Base SHA','Worktree','Last verified result','Next action','Current verdict']) {
+    const prLabel = label === 'Current target SHA' ? 'Target SHA' : label === 'Current verdict' ? 'Verdict' : label;
     if (issueField(input.issueBody, label) !== record[prLabel]) failures.push('Task ' + prLabel + ' must match the PR record.');
   }
   if (!ALLOWED_OWNERS.includes(record['Implementation owner'])) failures.push('Implementation owner must be Codex Desktop, VS Code Codex, or Codex — ChatGPT Work Mode.');
