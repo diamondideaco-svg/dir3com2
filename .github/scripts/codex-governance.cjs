@@ -27,7 +27,7 @@ function validate(input) {
   if (issueField(input.issueBody, 'Pull request') !== '#' + input.prNumber) failures.push('Task Pull request must match the current PR number.');
   for (const label of ['Implementation owner','Independent reviewer','Branch','Current target SHA','Base SHA','Worktree','Last verified result','Next action']) {
     const prLabel = label === 'Current target SHA' ? 'Target SHA' : label;
-    if (issueField(input.issueBody, label) !== record[prLabel]) failures.push('Task ' + label + ' must match the PR record.');
+    if (issueField(input.issueBody, label) !== record[prLabel]) failures.push('Task ' + prLabel + ' must match the PR record.');
   }
   if (!ALLOWED_OWNERS.includes(record['Implementation owner'])) failures.push('Implementation owner must be Codex Desktop, VS Code Codex, or Codex — ChatGPT Work Mode.');
   if (!ALLOWED_REVIEWERS.includes(record['Independent reviewer'])) failures.push('Independent reviewer must be Codex Desktop, VS Code Codex, or Codex Security.');
