@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout trusted validator
         uses: actions/checkout@v4
+      - name: Test continuity validator
+        run: node scripts/test-codex-continuity-governance.mjs
       - name: Validate pull request handoff metadata
         uses: actions/github-script@v7
         with:
