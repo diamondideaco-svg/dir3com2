@@ -27,7 +27,7 @@ function records(owner = workMode, reviewer = 'Codex Desktop') {
       '## Implementation owner', owner, '## Independent reviewer', reviewer,
       '## Branch', branch, '## Current target SHA', sha, '## Pull request', '#168',
       '## Base SHA', 'b'.repeat(40), '## Worktree', '/tmp/governance-fixture',
-      '## Last verified result', 'focused checks pass', '## Next action', 'reviewer checks exact SHA',
+      '## Last verified result', 'focused checks pass', '## Next action', 'reviewer checks exact SHA', '## Current verdict', 'REVIEW',
     ].join('\n') },
   };
 }
