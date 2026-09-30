@@ -3,9 +3,25 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DABRA_APPROVED_VOICE, getApprovedDabraVoiceCopy } from '@/lib/dabra/approved-voice';
+import { AI2_DABRA_CHARACTER_BIBLE, AI2_DABRA_GLOBAL_WEB_PROMPT, AI2_DABRA_INTERNAL_SYSTEM_PROMPT } from '@/lib/ai2/prompt/contract';
 
 const root = process.cwd();
 const chat = fs.readFileSync(path.join(root, 'components', 'dabra', 'DabraChatCommerce.tsx'), 'utf8');
+
+test('canonical persona derives its voice identity from the approved source without claiming activation', () => {
+  const voice = AI2_DABRA_CHARACTER_BIBLE.identity.voiceProfile;
+  for (const value of [DABRA_APPROVED_VOICE.design, DABRA_APPROVED_VOICE.sourceFile, DABRA_APPROVED_VOICE.dynamicEngine]) {
+    assert.ok(voice.includes(value));
+  }
+  assert.match(voice, /only when the approved server voice is available/);
+  assert.match(voice, /must never claim playback or voice activation occurred/);
+  assert.match(voice, /No device or substitute voice is permitted/);
+  for (const prompt of [AI2_DABRA_INTERNAL_SYSTEM_PROMPT, AI2_DABRA_GLOBAL_WEB_PROMPT]) {
+    assert.ok(prompt.includes(voice));
+    assert.doesNotMatch(prompt, /الدَّبْرَة 4/);
+    assert.ok(!prompt.includes(DABRA_APPROVED_VOICE.voiceId));
+  }
+});
 
 test('approved DABRA voice identity is pinned to the human-approved master fingerprint', () => {
   assert.equal(DABRA_APPROVED_VOICE.design, 'DABRA Voice Design V1');
