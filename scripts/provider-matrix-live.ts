@@ -11,8 +11,6 @@ import { buildAI2ChatResponse } from '@/lib/ai2/runtime/chat';
 import { callXAIWebSearch, discoverXAIModel } from '@/lib/ai2/runtime/xai-web';
 import { AI2_DABRA_GLOBAL_WEB_PROMPT } from '@/lib/ai2/prompt/contract';
 
-loadEnvConfig(process.cwd());
-
 type ProviderFinalStatus = 'PASS' | 'FAIL_CODE' | 'WAIT_AUTH' | 'EXTERNAL_BLOCKER';
 type EvidenceCell = 'PASS' | 'FAIL' | 'WAIT_AUTH' | 'NOT_RUN' | 'NOT_APPLICABLE' | 'EXTERNAL_BLOCKER' | 'ATTEMPTED_FAIL';
 
@@ -202,8 +200,8 @@ function runTargetedTests(name: string): EvidenceCell {
   return result.status === 0 ? 'PASS' : 'FAIL';
 }
 
-async function runFallbackCheck(provider: string): Promise<'PASS' | 'FAIL'> {
-  const envNames = ['OPENAI_API_KEY','GOOGLE_GENERATIVE_AI_API_KEY','ANTHROPIC_API_KEY','XAI_API_KEY','DEEPSEEK_API_KEY','QWEN_API_KEY','DASHSCOPE_API_KEY','MISTRAL_API_KEY','DABRA_GLOBAL_WEB_ENABLED','DABRA_AI_PROVIDER','DABRA_PROVIDER_FALLBACK_ENABLED'];
+export async function runFallbackCheck(provider: string): Promise<'PASS' | 'FAIL'> {
+  const envNames = ['OPENAI_API_KEY','GOOGLE_GENERATIVE_AI_API_KEY','GEMINI_API_KEY','ANTHROPIC_API_KEY','XAI_API_KEY','DEEPSEEK_API_KEY','QWEN_API_KEY','DASHSCOPE_API_KEY','MISTRAL_API_KEY','DABRA_GLOBAL_WEB_ENABLED','DABRA_AI_PROVIDER','DABRA_PROVIDER_FALLBACK_ENABLED'];
   const previous = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
   const originalFetch = globalThis.fetch;
   const primary = provider.toLowerCase();
@@ -364,6 +362,7 @@ async function runProvider(name: string): Promise<ProviderMatrixRow> {
 }
 
 async function main() {
+  loadEnvConfig(process.cwd());
   const providers = ['OpenAI', 'Gemini', 'Anthropic', 'xAI', 'DeepSeek', 'Qwen', 'Mistral'];
   const rows: ProviderMatrixRow[] = [];
 
@@ -371,7 +370,12 @@ async function main() {
     rows.push(await runProvider(provider));
   }
 
-  console.log(JSON.stringify(rows, null, 2));
+  console.log(JSON.stringify({ scope: 'Direct adapters and legacy buildAI2ChatResponse only; NOT proof of /api/ai2/chat', rows }, null, 2));
+  process.exitCode = matrixExitCode(rows);
+}
+
+export function matrixExitCode(rows: ProviderMatrixRow[]) {
+  return rows.length === 7 && rows.every(row => resolveFinalStatus({ ...row })['Final Status'] === 'PASS') ? 0 : 1;
 }
 
 function isDirectExecution(): boolean {
@@ -380,5 +384,5 @@ function isDirectExecution(): boolean {
 }
 
 if (isDirectExecution()) {
-  void main();
+  void main().catch(() => { console.error('PROVIDER_MATRIX_FAILED'); process.exitCode = 1; });
 }
