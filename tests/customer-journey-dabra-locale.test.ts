@@ -110,7 +110,8 @@ test('DABRA client binds UI, request, history boundary, recognition, and speech 
   assert.match(source, /useLanguage\(\)/);
   assert.match(source, /form\.set\('locale', language\)/);
   assert.match(source, /language === 'ar' \? 'ar-SA' : 'en-US'/);
-  assert.match(source, /setMessages\(\[welcomeMessage\(language\)\]\)/);
+  assert.match(source, /setMessages\(current => conversationForLocale\(current, welcomeMessage\(language\)\)\)/);
+  assert.match(source, /invalidateActiveRequests\(\)/);
   assert.match(source, /dir={direction} lang={language}/);
   assert.match(source, /Preparing your secure session/);
   assert.match(source, /Quick actions/);

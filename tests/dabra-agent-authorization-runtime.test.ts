@@ -142,11 +142,15 @@ test('approved GPT-5 classifier uses bounded compatible parameters without retri
   };
   for(const model of ['gpt-5','gpt-5-2025-08-07','gpt-5-mini','gpt-5-nano']){
    process.env.DABRA_INTERNAL_AI_MODEL=model;
-   assert.deepEqual(await planInternalAgentTool('x'.repeat(600)),{tool:'my_requests',status:'ok'});
+   const result = await planInternalAgentTool('x'.repeat(600));
+   assert.equal(result.tool, 'my_requests'); assert.equal(result.status, 'ok');
+   assert.deepEqual(result.attempts, [{ provider: 'openai', model, outcome: 'ok' }]);
   }
   assert.equal(calls,4);
   globalThis.fetch=async()=>{calls++;return Response.json({error:{code:'invalid_request_error'}},{status:400});};
-  assert.deepEqual(await planInternalAgentTool('hello'),{tool:null,status:'unavailable'});
+  const rejected = await planInternalAgentTool('hello');
+  assert.equal(rejected.tool, null); assert.equal(rejected.status, 'unavailable');
+  assert.equal(rejected.attempts?.[0].outcome, 'invalid_request');
   assert.equal(calls,5,'a rejected classifier request is not retried');
  }finally{
   globalThis.fetch=originalFetch;

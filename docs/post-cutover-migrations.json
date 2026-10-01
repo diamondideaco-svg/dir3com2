@@ -58,5 +58,11 @@
     "sha256": "e4423dea048f3e045c9dda94d88f57ab0615512c9e1ca89bab24985b88e4fec1",
     "task": "#174",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20260930232429_partner_request_owner_boundary.sql",
+    "sha256": "8a7cc4e83ccc30b0654bc86dfd83ed017bfef85216457e32fca4a0abfeb448c3",
+    "task": "#182",
+    "production_apply_authorized": false
   }
 ]

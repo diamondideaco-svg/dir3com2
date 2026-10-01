@@ -6,7 +6,7 @@ export function platformLinkAllowed(href: string) {
   const url = new URL(href, 'https://dir3com.com');
   if (url.pathname === '/' && url.hash === '#home-map' && !url.search) return true;
   return ['/marketplace', '/services', '/my-requests', '/my-account', '/support', '/admin/operations/drive'].includes(url.pathname)
-    && [...url.searchParams.keys()].every(k => ['family','language','currency','destination','pickup','pickupAt','returnAt','pickupDate','returnDate','checkIn','checkOut','adults','travelers','passengers','mode','offer'].includes(k));
+    && [...url.searchParams.keys()].every(k => ['family','language','currency','destination','pickup','pickupAt','returnAt','pickupDate','returnDate','checkIn','checkOut','adults','travelers','rooms','passengers','mode','offer'].includes(k));
 }
 export default function PlatformAnswer({ text }: { text: string }) {
   const pieces = text.split(/(\[[^\]\n]{1,100}\]\(\/[^)\s]{1,1500}\))/g);

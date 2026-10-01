@@ -2,7 +2,7 @@
 
 import PlatformAnswer from '@/components/dabra/PlatformAnswer';
 import PlatformResults from '@/components/dabra/PlatformResults';
-import { platformFamilies, platformContext, type PlatformFamily } from '@/lib/dabra/platform-assistant';
+import { platformFamilies, platformContext, platformCurrency, type PlatformFamily } from '@/lib/dabra/platform-assistant';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FiArrowLeft, FiCheck, FiChevronDown, FiClock, FiHeart, FiMapPin, FiMessageCircle, FiMic, FiMicOff, FiPaperclip, FiSearch, FiSend, FiShoppingBag, FiSliders, FiStopCircle, FiVolume2, FiX } from 'react-icons/fi';
@@ -13,6 +13,7 @@ import { consumeDabraChatResponse } from '@/lib/dabra/chat-response-contract';
 import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { DABRA_LOCALE_ERROR } from '@/lib/dabra/locale-contract';
+import { conversationForLocale } from '@/lib/dabra/conversation-locale';
 import { DABRA_APPROVED_VOICE, getApprovedDabraPlaybackCopy, getApprovedDabraVoiceCopy } from '@/lib/dabra/approved-voice';
 import { buildDabraWhatsAppHandoff, openDabraWhatsAppHandoff } from '@/lib/dabra/whatsapp-handoff';
 import { planDabraVoicePlayback, runDabraVoicePlayback } from '@/lib/dabra/voice-segmentation';
@@ -101,7 +102,7 @@ function publicItemsToServices(items: Array<Record<string, unknown>>): Marketpla
 
 export default function DabraChatCommerce() {
   const { language, direction } = useLanguage();
-  const { currency } = useDisplayCurrency();
+  const { currency, setCurrency } = useDisplayCurrency();
   const t = dabraCopy[language];
   const approvedVoiceCopy = getApprovedDabraVoiceCopy(language);
   const approvedPlaybackCopy = getApprovedDabraPlaybackCopy(language);
@@ -163,13 +164,12 @@ export default function DabraChatCommerce() {
     if (previousLanguageRef.current === language) return;
     previousLanguageRef.current = language;
     invalidateActiveRequests();
-    setMessages([welcomeMessage(language)]);
-    setInput('');
+    setMessages(current => conversationForLocale(current, welcomeMessage(language)));
     setAttachments([]);
     setAttachmentError('');
     setVoiceStatus('idle');
     setVoicePlaybackPartial(false);
-  // The locale boundary intentionally starts a fresh visible/chat history so an old-locale turn cannot leak into the next answer.
+  // Abort old-locale streams; preserve this identity's trip. Server response locale is explicit.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language]);
 
@@ -434,6 +434,8 @@ export default function DabraChatCommerce() {
   async function sendMessage(text = input) {
     const message = text.trim() || (attachments.length ? t.attachmentPrompt : '');
     if (!message || chatInFlightRef.current || !identityResolved) return;
+    const requestedCurrency = platformCurrency(message) ?? currency;
+    if (requestedCurrency !== currency) setCurrency(requestedCurrency);
     stopVoicePlayback();
     setVoicePlaybackPartial(false);
     chatInFlightRef.current = true;
@@ -456,7 +458,7 @@ export default function DabraChatCommerce() {
       form.set('history', JSON.stringify(messages.map(({ role, text: content }) => ({ role, content }))));
       form.set('stream', 'true');
       form.set('locale', language);
-      form.set('currency', currency);
+      form.set('currency', requestedCurrency);
       for (const item of pendingAttachments) form.append('attachment', item.file, item.safeName);
       const response = await fetch('/api/ai2/chat', {
         method: 'POST',

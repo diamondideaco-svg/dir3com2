@@ -127,12 +127,14 @@ export async function POST(request: NextRequest) {
     agentContext = await resolveAgentContext(request);
   }
   let understanding: string = 'internal-rules';
+  let understandingProvider: string | undefined;
   // Only authenticated ambiguity uses the optional classifier. It cannot read
   // records, grant roles or generate customer-facing facts/actions.
   if (inferenceEnabled && agentContext.role !== 'guest' && intent.tool === 'discover' && !platformFamilies(message).length) {
     const { planInternalAgentTool } = await import('@/lib/dabra/agent-planner');
     const planned = await planInternalAgentTool(message);
     understanding = planned.status;
+    understandingProvider = planned.status === 'ok' ? planned.provider : undefined;
     if (planned.tool) intent = { ...intent, tool: planned.tool };
   }
   const context = platformContext(modelMessage, history);
@@ -143,8 +145,10 @@ export async function POST(request: NextRequest) {
     pricing: currency ? { currency, snapshot } : undefined });
   if (body?.stream === true) {
     const streamed = createDabraAssistantTextResponse(response);
+    streamed.headers.set('X-DABRA-Understanding', understanding);
+    if (understandingProvider) streamed.headers.set('X-DABRA-Understanding-Provider', understandingProvider);
     if (intent.tool !== 'discover') streamed.headers.set('X-DABRA-Private-Context', '1');
     return streamed;
   }
-  return NextResponse.json({ ...response, understanding }, { headers: { 'Cache-Control': 'private, no-store' } });
+  return NextResponse.json({ ...response, understanding, understandingProvider }, { headers: { 'Cache-Control': 'private, no-store' } });
 }

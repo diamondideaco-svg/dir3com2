@@ -43,6 +43,9 @@ type GeminiWebCallParams = {
   model?: string;
   apiKey: string;
   timeoutMs?: number;
+  // Internal intent classification must not invoke web retrieval.
+  webSearch?: boolean;
+  singleAttempt?: boolean;
 };
 
 type GeminiErrorPayload = {
@@ -152,7 +155,7 @@ async function executeRequest(params: GeminiWebCallParams, model: string, timeou
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: params.prompt }] },
         contents: [{ role: 'user', parts: [{ text: params.message }] }],
-        tools: [{ google_search: {} }],
+        ...(params.webSearch === false ? {} : { tools: [{ google_search: {} }] }),
         generationConfig: { maxOutputTokens: 1024 },
       }),
     });
@@ -210,11 +213,11 @@ export async function callGeminiGoogleSearch(params: GeminiWebCallParams): Promi
   const remainingMs = () => Math.max(0, deadlineAt - Date.now());
   const model = normalizeModel(params.model ?? process.env.DABRA_GEMINI_MODEL);
   let result = await executeRequest(params, model, remainingMs());
-  if (!result.ok && (result.errorCategory === 'timeout' || result.errorCategory === 'upstream_error')) {
+  if (!params.singleAttempt && !result.ok && (result.errorCategory === 'timeout' || result.errorCategory === 'upstream_error')) {
     if (remainingMs() <= 0) return { ...result, errorCategory: 'timeout' };
     result = await executeRequest(params, model, remainingMs());
   }
-  if (!result.ok && result.errorCategory === 'model_not_found') {
+  if (!params.singleAttempt && !result.ok && result.errorCategory === 'model_not_found') {
     if (remainingMs() <= 0) return { ...result, errorCategory: 'timeout' };
     const fallback = await discoverFallbackModel(params.apiKey, remainingMs());
     if (fallback && fallback !== model && remainingMs() > 0) result = await executeRequest(params, fallback, remainingMs());

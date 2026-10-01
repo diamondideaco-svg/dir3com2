@@ -1,12 +1,16 @@
 import { DRIVE_OFFERS, vehicleFor, vehicleTitle, type DriveOffer } from '../drive/catalog';
 import { serviceEntryHref } from '../marketplace/public-entry';
 import { cairoInstant } from '../drive/search';
+import { validSearchDate } from '../marketplace/search-context';
+import { withoutNegativeActions } from './intent-constraints';
 
 import { displayPrice, parseDisplayCurrency, type DisplayCurrency, type FxSnapshot } from '../currency/display';
 export type PlatformPricing = { currency: DisplayCurrency; snapshot: FxSnapshot | null };
 export function platformCurrency(message: string) {
   const text = normalizePlatformQuery(message);
-  return parseDisplayCurrency(text.match(/\b(usd|sar|egp|eur|aed)\b/)?.[1] ?? (/دولار|\$/.test(text) ? 'USD' : /ريال/.test(text) ? 'SAR' : /جنيه/.test(text) ? 'EGP' : /يورو/.test(text) ? 'EUR' : /درهم/.test(text) ? 'AED' : ''));
+  const latest = [...text.matchAll(/\b(?:usd|sar|egp|eur|aed)\b|دولار|\$|ريال|جنيه|يورو|درهم/g)].at(-1)?.[0] ?? '';
+  const aliases: Record<string, string> = { دولار: 'USD', '$': 'USD', ريال: 'SAR', جنيه: 'EGP', يورو: 'EUR', درهم: 'AED' };
+  return parseDisplayCurrency(aliases[latest] ?? latest);
 }
 type Locale = 'ar' | 'en';
 type Turn = { role: 'user' | 'assistant'; content: string };
@@ -28,20 +32,57 @@ export function platformFamilies(message: string): PlatformFamily[] {
   return (Object.keys(familyTerms) as PlatformFamily[]).filter(f => familyTerms[f].test(text));
 }
 export function platformContext(message: string, history: Turn[] = []) {
-  const current = platformFamilies(message);
-  // Only a bounded user turn can supply omitted preferences. Assistant text is never authority.
-  const prior = history.filter(t => t.role === 'user').slice(-4).reverse().find(t => platformFamilies(t.content).length);
-  return current.length || !prior ? message : `${prior.content.slice(0, 500)}\n${message}`;
+  // Carry only bounded user preferences, never assistant assertions or account data.
+  // New explicit preferences override old ones, including when the user names a family.
+  const turns = [...history.filter(t => t.role === 'user').slice(-4).map(t => t.content.slice(0, 500)), message];
+  const reset = turns.findLastIndex(turn => /new trip|start over|رحله جديده|ابدا من جديد/.test(normalizePlatformQuery(turn)));
+  const relevant = turns.slice(Math.max(0, reset));
+  const preferences = relevant.map(turn => tripPreferences(normalizePlatformQuery(turn)));
+  const current = preferences.at(-1)!;
+  const previous = preferences.slice(0, -1).reverse();
+  const carry: string[] = [];
+  if (!platformFamilies(message).length) {
+    const prior = relevant.slice(0, -1).reverse().find(turn => platformFamilies(turn).length);
+    // Retain catalogue refinements (model/budget), but never private/request text.
+    if (prior && !/\bREQ-|طلباتي|my requests|operations|\bceo\b/i.test(prior)) carry.push(prior);
+  }
+  if (!current.city) { const city = previous.find(p => p.city)?.city; if (city) carry.push(city); }
+  if (!current.hasDates) { const dates = previous.find(p => p.hasDates)?.dates; if (dates?.length) carry.push(dates.join(' ')); }
+  if (!current.party) { const party = previous.find(p => p.party)?.party; if (party) carry.push(`${party} adults`); }
+  if (!current.rooms) { const rooms = previous.find(p => p.rooms)?.rooms; if (rooms) carry.push(`${rooms} rooms`); }
+  if (!platformCurrency(message)) {
+    const currency = relevant.slice(0, -1).reverse().map(platformCurrency).find(Boolean);
+    if (currency) carry.push(currency);
+  }
+  return [...carry, message].join('\n');
+}
+
+const months = ['january|يناير', 'february|فبراير', 'march|مارس', 'april|ابريل', 'may|مايو', 'june|يونيو', 'july|يوليو', 'august|اغسطس', 'september|سبتمبر', 'october|اكتوبر', 'november|نوفمبر', 'december|ديسمبر'];
+function tripPreferences(text: string) {
+  const cities = [['cairo', 'القاهره'], ['giza', 'الجيزه'], ['riyadh', 'الرياض'], ['jeddah', 'جده'], ['dubai', 'دبي'], ['alexandria', 'الاسكندريه']] as const;
+  const city = cities.map(([en, ar]) => ({ name: en, index: Math.max(text.lastIndexOf(en), text.lastIndexOf(ar)) }))
+    .filter(item => item.index >= 0).sort((a, b) => b.index - a.index)[0]?.name;
+  const iso = [...text.matchAll(/\b\d{4}-\d{2}-\d{2}(?:t\d{2}:\d{2})?\b/g)];
+  const range = [...text.matchAll(new RegExp(`(?:^|\\s)(\\d{1,2})\\s*(?:to|through|until|الي|حتي|[-–])\\s*(\\d{1,2})\\s+(${months.join('|')})\\s+(\\d{4})(?=\\s|[.,،]|$)`, 'g'))].at(-1);
+  const month = range ? months.findIndex(names => names.split('|').includes(range[3])) + 1 : 0;
+  const dates = range && (range.index ?? 0) > (iso.at(-1)?.index ?? -1)
+    ? [range[1], range[2]].map(day => `${range[4]}-${String(month).padStart(2, '0')}-${day.padStart(2, '0')}`)
+    : iso.slice(-2).map(match => match[0]);
+  const safeDates = dates.filter(date => validSearchDate(date.slice(0, 10)) && (!date.includes('t') || /t(?:[01]\d|2[0-3]):[0-5]\d$/.test(date)));
+  const parties = [...text.matchAll(/(?:^|\s)([1-9]\d?)\s*(?:adults?|people|passengers?|بالغ(?:ين|ان)?|اشخاص|مسافر(?:ين|ان)?)(?=\s|[.,،]|$)/g)];
+  const numericParty = parties.at(-1)?.[1];
+  const party = numericParty && Number(numericParty) <= 20 ? numericParty : /(?:لشخصين|شخصين|بالغين|two adults)/.test(text) ? '2' : undefined;
+  const roomMatches = [...text.matchAll(/(?:^|\s)([1-8])\s*(?:rooms?|غرف(?:ه)?)(?=\s|[.,،]|$)/g)];
+  const rooms = roomMatches.at(-1)?.[1] ?? (/\bone room\b|غرفه واحده/.test(text) ? '1' : undefined);
+  return { city, dates: safeDates.length === dates.length ? safeDates : [], hasDates: iso.length > 0 || Boolean(range), party, rooms };
 }
 export function platformEntry(family: PlatformFamily, message: string, locale: Locale, displayCurrency?: DisplayCurrency) {
   const text = normalizePlatformQuery(message);
   const params = new URLSearchParams({ language: locale });
-  const cities = [['cairo', 'القاهره'], ['giza', 'الجيزه'], ['riyadh', 'الرياض'], ['jeddah', 'جده'], ['dubai', 'دبي'], ['alexandria', 'الاسكندريه']] as const;
-  const city = cities.find(([en, ar]) => text.includes(en) || text.includes(ar));
-  if (city) params.set('destination', city[0]);
+  const { city, dates, party, rooms } = tripPreferences(text);
+  if (city) params.set('destination', city);
   const currency = displayCurrency ?? platformCurrency(message);
   if (currency) params.set('currency', currency);
-  const dates = text.match(/\d{4}-\d{2}-\d{2}(?:t\d{2}:\d{2})?/g) ?? [];
   if (family === 'drive') {
     if (dates[0]) params.set(dates[0].includes('t') ? 'pickupAt' : 'pickupDate', dates[0].replace('t', 'T'));
     if (dates[1]) params.set(dates[1].includes('t') ? 'returnAt' : 'returnDate', dates[1].replace('t', 'T'));
@@ -49,16 +90,17 @@ export function platformEntry(family: PlatformFamily, message: string, locale: L
   } else if (family === 'stay') {
     if (dates[0]) params.set('checkIn', dates[0].slice(0, 10));
     if (dates[1]) params.set('checkOut', dates[1].slice(0, 10));
+    if (rooms) params.set('rooms', rooms);
   }
-  const pax = text.match(/\b([1-9]\d?)\s*(?:adults?|people|passengers?|بالغ|اشخاص|مسافر)/)?.[1];
-  if (pax && Number(pax) <= 20) params.set(family === 'stay' ? 'adults' : 'passengers', pax);
+  if (party) params.set(family === 'stay' ? 'adults' : 'passengers', party);
   return serviceEntryHref(family, params);
 }
 
 /** Approved rate catalogue, never live supplier availability. No network or transaction side effects. */
 export function findPlatformDriveOffers(message: string, pricing?: PlatformPricing): DriveOffer[] {
   const text = normalizePlatformQuery(message);
-  if (/riyadh|jeddah|dubai|الرياض|جده|دبي/.test(text) && !/cairo|giza|القاهره|الجيزه|egypt|مصر/.test(text)) return [];
+  // The latest explicit destination wins over carried conversation context.
+  if (['riyadh', 'jeddah', 'dubai'].includes(tripPreferences(text).city ?? '')) return [];
   if (/\b(bmw|tesla|audi|honda)\b|بي ام|تسلا|اودي|هوندا/.test(text)) return [];
   const makes = [...new Set(DRIVE_OFFERS.map(o => vehicleFor(o).make))];
   const matchingMakes = makes.filter(make => DRIVE_OFFERS.some(o => {
@@ -90,7 +132,7 @@ export function findPlatformDriveOffers(message: string, pricing?: PlatformPrici
 
 /** Public DABRA uses platform capabilities only. Environment flags cannot enable a web fallback. */
 export function buildPlatformAssistantResponse(message: string, history: Turn[] = [], locale: Locale = 'ar', now = Date.now(), familyOverride?: PlatformFamily, pricing?: PlatformPricing) {
-  const context = platformContext(message, history), text = normalizePlatformQuery(context), current = normalizePlatformQuery(message);
+  const context = platformContext(message, history), text = normalizePlatformQuery(context), current = withoutNegativeActions(normalizePlatformQuery(message));
   const ar = locale === 'ar';
   const families = familyOverride ? [familyOverride] : platformFamilies(context);
   const link = (label: string, href: string) => `[${label}](${href})`;
