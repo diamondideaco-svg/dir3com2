@@ -39,6 +39,7 @@ export type MarketplaceSnapshot = {
   source: MarketplaceDataSource;
   hasRealData: boolean;
   generatedAt: string;
+  sourceHealth: 'available' | 'unavailable';
 };
 
 export function summarizeMarketplacePageProvenance(items: MarketplaceService[]) {
@@ -115,6 +116,7 @@ export async function getMarketplaceSnapshot(): Promise<MarketplaceSnapshot> {
 
     return {
       services,
+      sourceHealth: 'available',
       source,
       hasRealData,
       generatedAt: new Date().toISOString(),
@@ -122,6 +124,7 @@ export async function getMarketplaceSnapshot(): Promise<MarketplaceSnapshot> {
   } catch {
     return {
       services: createMarketplaceFallbackServices(),
+      sourceHealth: 'unavailable',
       source: 'fallback',
       hasRealData: false,
       generatedAt: new Date().toISOString(),
@@ -248,6 +251,7 @@ export async function queryMarketplace(apiQuery: MarketplaceApiQuery, context: M
     services: result.items,
     meta: {
       source: snapshot.source,
+      sourceHealth: snapshot.sourceHealth,
       ...provenance,
       providerSearchLimited: providerResult.limited,
       total: result.total,

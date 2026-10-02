@@ -1,25 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getMarketplaceAssistantContext, queryMarketplace, sanitizeMarketplaceQuery } from '@/lib/marketplace/server';
-import { createSupabaseRequestClient } from '@/lib/supabase/server';
-
-type AuthenticationResolver = typeof createSupabaseRequestClient;
-
-export async function resolveMarketplaceRequestContext(
-    request: NextRequest,
-    resolveAuthentication: AuthenticationResolver = createSupabaseRequestClient,
-) {
-    let userId: string | null = null;
-    try {
-        userId = (await resolveAuthentication(request))?.user.id ?? null;
-    } catch {
-        userId = null;
-    }
-
-    return {
-        anonymous: !userId,
-        clientKey: userId ? `authenticated:${userId}` : 'anonymous',
-    };
-}
+import { resolveMarketplaceRequestContext } from '@/lib/marketplace/request-context';
 
 export async function GET(request: NextRequest) {
     try {
