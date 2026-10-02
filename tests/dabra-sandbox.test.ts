@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { isTrustedSandboxAutomation, normalizeString, toClientErrorMessage } from '@/app/api/ai2/sandbox/route';
+import { isTrustedSandboxAutomation, normalizeString, toClientErrorMessage } from '@/lib/ai2/sandbox/http-helpers';
 import {
   SandboxError,
   assertCompleteAvailabilityWindow,

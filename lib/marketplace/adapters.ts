@@ -78,7 +78,7 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
     const [
       { data: servicesData, error: servicesError },
       { data: productsData, error: productsError },
-      { data: categoriesData, error: categoriesError },
+      { data: categoriesData },
     ] = await Promise.all([
       applyPublicServiceFilters(supabaseAdmin.from('services').select(servicesSelect))
         .eq('products.synthetic', false)
@@ -91,7 +91,8 @@ export const supabaseMarketplaceAdapter: MarketplaceProviderAdapter = {
       applyPublicCategoryFilters(supabaseAdmin.from('product_categories').select('id,slug,name_en,name_ar')),
     ]);
 
-    if (servicesError && productsError && categoriesError) {
+    // Category metadata cannot establish inventory health when both inventory reads fail.
+    if (servicesError && productsError) {
       return null;
     }
 
