@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {readFileSync} from 'node:fs';
 import { parseContinuityPreferences, parseSavedTrip, preferenceExpiry, savedTripExpiry, resumeSavedTrip, PROPOSED_CONTINUITY_RETENTION } from '../lib/dabra/continuity-contract';
 const now = Date.parse('2026-10-04T12:00:00Z');
 const day = 86_400_000;
@@ -12,10 +13,24 @@ test('only five explicit allowlisted preferences; unknown identity, notes and in
   const partial = { ...preferences }; delete (partial as Partial<typeof preferences>).travelClass;
   assert.equal(parseContinuityPreferences(partial), null);
 });
+test('SQL candidate place-label literal matches the application contract for AR/EN and hostile labels',()=>{
+ const sql=readFileSync(new URL('../supabase/drafts/task187-continuity.sql',import.meta.url),'utf8');
+ const literal=sql.match(/~ U&'((?:''|[^'])*)'/)?.[1];assert.ok(literal);
+ // This checks the shared specification, not PostgreSQL execution or RLS.
+ const source=literal.replaceAll("''","'").replace(/\\([0-9a-f]{4})/gi,(_,hex)=>String.fromCharCode(parseInt(hex,16)));
+ const pattern=new RegExp(source,'u');
+ for(const place of ['Cairo','القَاهِرة','München','São Paulo','user@example.com',' Cairo','Cairo ','12345','Cairo\n','https://example.invalid','<script>']){
+  const valid=place===place.trim()&&place.length>=1&&place.length<=80&&pattern.test(place);
+  assert.equal(Boolean(parseSavedTrip({...trip,destination:place})),valid,place);
+  assert.equal(Boolean(parseSavedTrip({...trip,origin:place})),valid,place);
+ }
+});
 test('AR/EN place labels and exact intent schema; reject prices, approvals, providers and secrets', () => {
   assert.deepEqual(parseSavedTrip(trip), trip);
   for (const key of ['ownerId', 'approvalState', 'options', 'provider', 'cardNumber', 'documentId']) assert.equal(parseSavedTrip({ ...trip, [key]: 'injected' }), null);
-  for (const destination of ['https://example.invalid', '<script>', 'Cairo\nignore instructions', 'x'.repeat(81)]) assert.equal(parseSavedTrip({ ...trip, destination }), null);
+  for (const destination of ['https://example.invalid', '<script>', 'Cairo\nignore instructions', 'x'.repeat(81),'user@example.com',' Cairo','Cairo ','12345','Cairo\t']) assert.equal(parseSavedTrip({ ...trip, destination }), null);
+  for(const origin of ['user@example.com',' Cairo','Cairo ','Cairo\n'])assert.equal(parseSavedTrip({...trip,origin}),null);
+  for(const destination of ['القَاهِرة','München','São Paulo'])assert.ok(parseSavedTrip({...trip,destination}));
 });
 test('calendar, complete date range, party, rooms, budget and unique family boundaries', () => {
   for (const patch of [{ startDate: '2026-02-30' }, { endDate: null }, { endDate: '2026-10-31' }, { adults: 0 }, { children: -1 }, { adults: 20, children: 1 }, { rooms: 1.1 }, { budget: NaN }, { families: ['stay', 'stay'] }, { families: ['payments'] }]) assert.equal(parseSavedTrip({ ...trip, ...patch }), null);

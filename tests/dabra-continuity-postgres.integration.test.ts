@@ -76,6 +76,10 @@ test('real disposable PostgreSQL continuity: durability, ownership, CAS, replay 
   await t.test('direct RPC validates null actions, explicit consent, schema and authority fields',async()=>{
    for(const value of [{...payload,consent:null},{...payload,preferences:{...prefs,replyLanguage:null}}, {...payload,trip:{...trip,currency:null}}, {...payload,trip:{...trip,families:[null]}}, {...payload,trip:{...trip,approval:'APPROVED'}}, {...payload,ownerId:ownerB}])await denied(()=>mutate('save',saved!,value),'22023');
    await denied(()=>mutate(null,saved!),'22023');
+   for(const destination of ['user@example.com',' Cairo','Cairo ','Cairo\n','12345','x'.repeat(81)])await denied(()=>mutate('save',saved!,{...payload,trip:{...trip,destination}}),'22023');
+   for(const origin of ['user@example.com',' Cairo','Cairo ','Cairo\t'])await denied(()=>mutate('save',saved!,{...payload,trip:{...trip,origin}}),'22023');
+   await denied(()=>mutate('save',saved!,{...payload,trip:{...trip,destination:'x'.repeat(5000)}}),'22023');
+   for(const destination of ['القَاهِرة','München','São Paulo']){const result=await admin.query('select public.dabra_continuity_trip_valid($1::jsonb) as valid',[JSON.stringify({...trip,destination})]);assert.equal(result.rows[0].valid,true);}
   });
   await t.test('two concurrent saves have exactly one winner',async()=>{
    const other=await connect();await other.query('set role authenticated');await setOwner(other,ownerA);

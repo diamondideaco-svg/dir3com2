@@ -47,10 +47,13 @@ function choice<T extends string>(value: unknown, choices: readonly T[]): value 
 function count(value: unknown, min: number, max: number): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
 }
+// Explicit BMP ranges shared verbatim with the SQL candidate. Supports AR/EN
+// labels and common Latin accents without locale-dependent POSIX classes.
+export const CONTINUITY_PLACE_PATTERN = /^[A-Za-zÀ-ÖØ-öø-ſء-غف-يٱ-ۓ][A-Za-zÀ-ÖØ-öø-ſء-غف-يٱ-ۓ\u0300-\u036f\u064b-\u065f\u0670\u06d6-\u06dc\u06df-\u06e4\u06e7-\u06e8\u06ea-\u06ed0-9٠-٩۰-۹ .,''()-]*$/u;
 function place(value: unknown): value is string {
   // Bounded place labels, not transcripts, URLs, identifiers, or arbitrary notes.
   return typeof value === 'string' && value === value.trim() && value.length >= 1 && value.length <= 80
-    && /^[\p{L}\p{M}][\p{L}\p{M}\p{N} .,'’()-]*$/u.test(value);
+    && CONTINUITY_PLACE_PATTERN.test(value);
 }
 export function continuityDate(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;

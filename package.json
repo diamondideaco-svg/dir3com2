@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test:dabra-continuity": "node --import tsx --test tests/dabra-continuity-contract.test.ts tests/dabra-continuity-api.test.ts tests/dabra-continuity-requests.test.ts tests/dabra-continuity-ui.test.ts",
+    "test:dabra-continuity": "node --import tsx --test tests/dabra-continuity-contract.test.ts tests/dabra-continuity-api.test.ts tests/dabra-continuity-requests.test.ts tests/dabra-continuity-ui.test.ts tests/dabra-continuity-context.test.ts",
     "test:dabra-continuity-postgresql": "node --import tsx --test tests/dabra-continuity-postgres.integration.test.ts",
     "lint": "eslint .",
     "seed:sandbox": "node scripts/sandbox/synthetic-dataset.mjs seed",

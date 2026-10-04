@@ -3,6 +3,8 @@
 import PlatformAnswer from '@/components/dabra/PlatformAnswer';
 import DabraContinuity from '@/components/dabra/DabraContinuity';
 import type { ContinuityPreferences, SavedTrip } from '@/lib/dabra/continuity-contract';
+import {ContinuityContext} from '@/lib/dabra/continuity-context';
+import {parseContinuitySnapshot,type ContinuitySnapshot} from '@/lib/dabra/continuity-service';
 import PlatformResults from '@/components/dabra/PlatformResults';
 import { platformFamilies, platformContext, platformCurrency, type PlatformFamily } from '@/lib/dabra/platform-assistant';
 
@@ -134,6 +136,12 @@ export default function DabraChatCommerce() {
   const [showCart, setShowCart] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [continuityPreferences, setContinuityPreferences] = useState<ContinuityPreferences | null>(null);
+  const [continuityDraft,setContinuityDraft]=useState<string|null>(null);
+  const continuityContextRef=useRef(new ContinuityContext());
+  const continuitySnapshotRef=useRef<ContinuitySnapshot|null>(null);
+  const continuityCurrencyRef=useRef<{before:typeof currency;applied:typeof currency}|null>(null);
+  const currentCurrencyRef=useRef(currency);
+  useEffect(()=>{currentCurrencyRef.current=currency;},[currency]);
   const [compareMode, setCompareMode] = useState(false);
   const [requestedFor, setRequestedFor] = useState('');
   const [travellerCount, setTravellerCount] = useState(1);
@@ -161,20 +169,7 @@ export default function DabraChatCommerce() {
   const voiceGenerationRef = useRef(0);
   const languageRef = useRef(language);
   const previousLanguageRef = useRef(language);
-  languageRef.current = language;
-
-  useEffect(() => {
-    if (previousLanguageRef.current === language) return;
-    previousLanguageRef.current = language;
-    invalidateActiveRequests();
-    setMessages(current => conversationForLocale(current, welcomeMessage(language)));
-    setAttachments([]);
-    setAttachmentError('');
-    setVoiceStatus('idle');
-    setVoicePlaybackPartial(false);
-  // Abort old-locale streams; preserve this identity's trip. Server response locale is explicit.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language]);
+  useEffect(()=>{languageRef.current=language;},[language]);
 
   function stopVoiceResources() {
     voiceGenerationRef.current += 1;
@@ -228,6 +223,9 @@ export default function DabraChatCommerce() {
   useEffect(() => {
     let active = true;
     function detachSensitiveState() {
+      const appliedCurrency=continuityCurrencyRef.current;
+      if(appliedCurrency&&currentCurrencyRef.current===appliedCurrency.applied){currentCurrencyRef.current=appliedCurrency.before;setCurrency(appliedCurrency.before);}
+      continuityContextRef.current.clear([]);continuitySnapshotRef.current=null;continuityCurrencyRef.current=null;setContinuityDraft(null);
       setContinuityPreferences(null);
       privateConversationRef.current = false;
       invalidateActiveRequests();
@@ -324,13 +322,14 @@ export default function DabraChatCommerce() {
       storage.removeItem(storageKey(persistenceContext.ownerId, 'context'));
       return;
     }
-    storage.setItem(storageKey(persistenceContext.ownerId, 'context'), JSON.stringify(createPersisted(messages.slice(-20), persistenceContext.ownerId)));
+    storage.setItem(storageKey(persistenceContext.ownerId, 'context'), JSON.stringify(createPersisted(continuityContextRef.current.independent(messages).slice(-20), persistenceContext.ownerId)));
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: 'smooth' });
   }, [persistenceContext, storageHydrated, messages]);
 
   useEffect(() => {
     if (!persistenceContext || !storageHydrated) return;
     const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
+    if(continuityContextRef.current.lease){storage.removeItem(storageKey(persistenceContext.ownerId,'cart'));return;}
     storage.setItem(storageKey(persistenceContext.ownerId, 'cart'), JSON.stringify(createPersisted(cart, persistenceContext.ownerId)));
   }, [persistenceContext, storageHydrated, cart]);
 
@@ -359,6 +358,7 @@ export default function DabraChatCommerce() {
   }, [cart, visibleServices]);
 
   async function searchMarketplace(message: string, familyOverride = activeTab) {
+    if(!await ensureContinuityFresh())return;
     const normalizedQuery = message.trim();
     if (!normalizedQuery && !familyOverride) return;
     const requestId = ++marketplaceRequestRef.current;
@@ -436,7 +436,12 @@ export default function DabraChatCommerce() {
   }
 
   async function sendMessage(text = input) {
-    const message = text.trim() || (attachments.length ? t.attachmentPrompt : '');
+    if(chatInFlightRef.current||!identityResolved)return;
+    if(!await ensureContinuityFresh())return;
+    const context=continuityContextRef.current;
+    const draft=context.draft;
+    const explicitText=text.trim();
+    const message = explicitText || draft || (attachments.length ? t.attachmentPrompt : '');
     if (!message || chatInFlightRef.current || !identityResolved) return;
     const requestedCurrency = platformCurrency(message) ?? currency;
     if (requestedCurrency !== currency) setCurrency(requestedCurrency);
@@ -454,12 +459,15 @@ export default function DabraChatCommerce() {
     setAttachmentError('');
     setCart((current) => applyScopedHotelChange(current, message));
     const assistantId = makeId();
-    setMessages((current) => [...current, { id: makeId(), role: 'user', text: message }, { id: assistantId, role: 'assistant', text: '' }]);
+    const userId=makeId();const seed:Message|null=draft&&explicitText?{id:makeId(),role:'user',text:draft}:null;
+    if(context.lease){context.tag(assistantId);if(seed)context.tag(seed.id);else if(draft&&!explicitText)context.tag(userId);}
+    context.draft=null;setContinuityDraft(null);
+    setMessages((current) => [...current,...(seed?[seed]:[]), { id:userId, role: 'user', text: message }, { id: assistantId, role: 'assistant', text: '' }]);
     setVoiceStatus('processing');
     try {
       const form = new FormData();
       form.set('message', message);
-      form.set('history', JSON.stringify(messages.map(({ role, text: content }) => ({ role, content }))));
+      form.set('history', JSON.stringify([...messages,...(seed?[seed]:[])].map(({ role, text: content }) => ({ role, content }))));
       form.set('stream', 'true');
       form.set('locale', continuityPreferences?.replyLanguage ?? language);
       form.set('currency', requestedCurrency);
@@ -489,7 +497,7 @@ export default function DabraChatCommerce() {
         chatInFlightRef.current = false;
         setChatInFlight(false);
         setVoiceStatus('idle');
-        if (!controller.signal.aborted && marketplaceGeneration === marketplaceRequestRef.current) void searchMarketplace(message);
+        if (!controller.signal.aborted && marketplaceGeneration === marketplaceRequestRef.current) void searchMarketplace(seed?`${seed.text} ${message}`:message);
       }
     }
   }
@@ -670,36 +678,83 @@ export default function DabraChatCommerce() {
   }
 
   function forgetContinuityContext() {
-    invalidateActiveRequests();
+    const context=continuityContextRef.current;const hadContext=Boolean(context.lease);
+    if(hadContext)invalidateActiveRequests();
     setContinuityPreferences(null);
-    setInput('');
-    setCart([]);
-    setServices([]);
-    setPlatformQuery(null);
-    setLastMarketplaceQuery('');
-    setCompareMode(false);
-    setRequestState('idle');
-    setRequestReference('');
-    setMessages([welcomeMessage(language)]);
-    privateConversationRef.current = false;
+    setContinuityDraft(null);
+    const previousCurrency=continuityCurrencyRef.current;continuityCurrencyRef.current=null;
+    if(previousCurrency&&currentCurrencyRef.current===previousCurrency.applied){currentCurrencyRef.current=previousCurrency.before;setCurrency(previousCurrency.before);}
+    // Keep independently typed text, messages, favorites and attachments.
+    const independent=context.forget();setMessages(current=>independent(current));
+    if(hadContext){setCart([]);setServices([]);setPlatformQuery(null);setLastMarketplaceQuery('');setCompareMode(false);setRequestState('idle');setRequestReference('');
+      if(persistenceContext){const storage=persistenceContext.storage==='local'?window.localStorage:window.sessionStorage;storage.removeItem(storageKey(persistenceContext.ownerId,'context'));storage.removeItem(storageKey(persistenceContext.ownerId,'cart'));}}
   }
 
-  function applyContinuityPreferences(preferences: ContinuityPreferences | null) {
+  useEffect(() => {
+    if (previousLanguageRef.current === language) return;
+    previousLanguageRef.current = language;
+    invalidateActiveRequests();
+    setMessages(current => conversationForLocale(current, welcomeMessage(language)));
+    setAttachments([]);
+    setAttachmentError('');
+    setVoiceStatus('idle');
+    setVoicePlaybackPartial(false);
+  // Abort old-locale streams; preserve this identity's trip. Server response locale is explicit.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language]);
+
+  function observeContinuityState(state:ContinuitySnapshot|null){
+    if(!continuityContextRef.current.isFresh(persistenceContext?.ownerId??'',state))forgetContinuityContext();
+    continuitySnapshotRef.current=state;
+  }
+
+  async function ensureContinuityFresh(force=false){
+    if(!force&&!continuityContextRef.current.lease)return true;
+    const lifecycle=lifecycleRef.current;
+    try{const response=await fetch('/api/dabra/continuity',{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(8_000)});
+      const body=await response.json();if(lifecycle!==lifecycleRef.current)return false;
+      const state=response.ok&&body.enabled===true&&body.ownerId===persistenceContext?.ownerId?parseContinuitySnapshot(body.state):null;
+      if(!continuityContextRef.current.isFresh(persistenceContext?.ownerId??'',state)){forgetContinuityContext();continuitySnapshotRef.current=state;return false;}
+      continuitySnapshotRef.current=state;return true;
+    }catch{if(lifecycle===lifecycleRef.current)forgetContinuityContext();return false;}
+  }
+
+  function setAppliedContinuityPreferences(preferences: ContinuityPreferences | null) {
+    if(!preferences){forgetContinuityContext();return;}
+    const state=continuitySnapshotRef.current;if(!state||!persistenceContext)return;
+    continuityContextRef.current.capture(persistenceContext.ownerId,state,true,Boolean(continuityContextRef.current.lease?.trip));
     setContinuityPreferences(preferences);
-    if (preferences) setCurrency(preferences.displayCurrency);
+    if(!continuityCurrencyRef.current)continuityCurrencyRef.current={before:currentCurrencyRef.current,applied:preferences.displayCurrency};
+    else continuityCurrencyRef.current.applied=preferences.displayCurrency;
+    setCurrency(preferences.displayCurrency);
   }
 
-  function resumeContinuityTrip(trip: SavedTrip, preferences: ContinuityPreferences | null) {
+  async function applyContinuityPreferences(preferences:ContinuityPreferences|null){
+    if(!preferences){forgetContinuityContext();return;}
+    if(!await ensureContinuityFresh(true))return;
+    const state=continuitySnapshotRef.current;
+    if(!state?.consentEnabled||Date.parse(state.preferencesExpiresAt??'')<=Date.now()||JSON.stringify(state.preferences)!==JSON.stringify(preferences))return;
+    setAppliedContinuityPreferences(preferences);
+  }
+
+  async function resumeContinuityTrip(trip: SavedTrip, preferences: ContinuityPreferences | null) {
     // Stage intent for explicit user confirmation. No chat, search or provider call here.
+    if(!await ensureContinuityFresh(true))return;
+    const refreshed=continuitySnapshotRef.current;
+    if(!refreshed?.consentEnabled||Date.parse(refreshed.tripExpiresAt??'')<=Date.now()||JSON.stringify(refreshed.trip)!==JSON.stringify(trip)
+      ||(preferences&&JSON.stringify(refreshed.preferences)!==JSON.stringify(preferences)))return;
     forgetContinuityContext();
-    applyContinuityPreferences(preferences);
+    const state=continuitySnapshotRef.current;if(!state||!persistenceContext)return;
+    setAppliedContinuityPreferences(preferences);
+    continuityContextRef.current.capture(persistenceContext.ownerId,state,Boolean(preferences),true);
+    setCart([]);setServices([]);setPlatformQuery(null);setLastMarketplaceQuery('');setCompareMode(false);setRequestState('idle');setRequestReference('');
     setTravellerCount(trip.adults + trip.children);
     setRequestedFor('');
     const summary = [trip.families.join(' '), trip.destination, trip.origin ? `from ${trip.origin}` : '',
       trip.startDate ?? '', trip.endDate ?? '', `${trip.adults} adults`, `${trip.children} children`, `${trip.rooms} rooms`,
       trip.budget ? `${trip.budget} ${trip.currency}` : trip.currency,
       preferences ? `${preferences.travelClass}; ${preferences.lodgingStyle}; ${preferences.itineraryPace}` : ''];
-    setInput(summary.filter(Boolean).join(' '));
+    const draft=summary.filter(Boolean).join(' ');continuityContextRef.current.draft=draft;setContinuityDraft(draft);
   }
 
   return (
@@ -721,7 +776,7 @@ export default function DabraChatCommerce() {
 
       {identityResolved && persistenceContext?.ownerId.startsWith('user:') &&
         <DabraContinuity key={persistenceContext.ownerId} ownerId={persistenceContext.ownerId} language={language}
-          onResume={resumeContinuityTrip} onApply={applyContinuityPreferences} onForget={forgetContinuityContext} />}
+          onResume={resumeContinuityTrip} onApply={applyContinuityPreferences} onForget={forgetContinuityContext} onState={observeContinuityState} />}
 
       <CollaborativeTripCapabilities phase="planning" />
 
@@ -757,8 +812,9 @@ export default function DabraChatCommerce() {
             <button type="button" className="dabra-composer-icon" aria-label={t.attach} disabled={!identityResolved} onClick={() => attachmentRef.current?.click()}><FiPaperclip /></button>
             <button type="button" className="dabra-composer-icon" aria-label={t.enableVoice} disabled={!identityResolved || chatInFlight} onClick={toggleVoice}><FiMic /></button>
             <input value={input} disabled={!identityResolved} maxLength={500} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void sendMessage(); }} placeholder={identityResolved ? t.placeholder : t.securePlaceholder} aria-label={t.messageLabel} />
-            <button type="button" className="dabra-send" aria-label={t.send} onClick={() => void sendMessage()} disabled={!identityResolved || (!input.trim() && !attachments.length) || chatInFlight}><FiSend /></button>
+            <button type="button" className="dabra-send" aria-label={t.send} onClick={() => void sendMessage()} disabled={!identityResolved || (!input.trim() && !continuityDraft && !attachments.length) || chatInFlight}><FiSend /></button>
           </div>
+          {continuityDraft&&<p role="status">{language==='ar'?'نية الرحلة المحفوظة، بانتظار تأكيد الإرسال:':'Saved trip intent, awaiting your confirmation to send:'} {continuityDraft}</p>}
           {attachments.length > 0 && <div className="dabra-attachment-list" aria-label={t.selectedAttachments}>{attachments.map((item) => <div className={cn('dabra-attachment-status', item.status === 'error' && 'is-error')} key={item.id}><span>{item.safeName} · {(item.file.size / 1024 / 1024).toFixed(1)} MB · {item.status === 'uploading' ? t.uploading : item.status === 'error' ? item.error : t.ready}</span><button type="button" disabled={chatInFlight} onClick={() => removeAttachment(item.id)} aria-label={`${t.remove} ${item.safeName}`}><FiX /></button></div>)}</div>}
           {attachmentError && <div className="dabra-attachment-status is-error" role="alert">{attachmentError}</div>}
           <div className="dabra-quick-actions" aria-label={t.quick}>{quickActionIds.map((action, index) => <button type="button" key={action} disabled={!identityResolved || chatInFlight} onClick={() => applyQuickAction(action)}>{t.quickActions[index]}</button>)}</div>

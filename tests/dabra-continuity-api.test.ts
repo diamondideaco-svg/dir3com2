@@ -45,7 +45,7 @@ test('streamed and declared oversized bodies are rejected without RPC',async()=>
 test('mutation sends no client-controlled actor and responses are private',async()=>{
  const f=fixture();const response=await f.route.POST(request());assert.equal(response.status,200);assert.match(response.headers.get('cache-control')!,/private, no-store/);
  assert.deepEqual(JSON.parse(JSON.stringify(f.calls)),[{name:'dabra_continuity_mutate',args:{p_action:'revoke',p_revision:0,p_generation:0,p_mutation:mutation.mutationId,p_payload:{}}}]);
- assert.deepEqual(await response.json(),{enabled:true,state:snapshot});
+ assert.deepEqual(await response.json(),{enabled:true,ownerId:'user:verified-user',state:snapshot});
 });
 test('conflicts, invalid data and internal database errors use safe status and messages',async()=>{
  for(const [code,status] of [['40001',409],['22023',400],['42501',503]] as const){const f=fixture();f.io.error={code,message:'private SQL and credentials'};const response=await f.route.POST(request());assert.equal(response.status,status);assert.doesNotMatch(JSON.stringify(await response.json()),/private SQL|credentials/);}

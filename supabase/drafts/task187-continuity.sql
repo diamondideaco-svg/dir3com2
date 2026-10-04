@@ -69,6 +69,15 @@ begin
  and p->>'itineraryPace' in('relaxed','balanced','active'),false);
 exception when others then return false;
 end $$;
+-- Same explicit character ranges as CONTINUITY_PLACE_PATTERN. Collation C
+-- avoids locale-dependent alphabetic classes; supported labels are AR/EN with
+-- common Latin accents. Raw notes, identifiers, URLs and surrounding spaces fail.
+create function public.dabra_continuity_place_valid(p text) returns boolean
+language sql immutable set search_path=pg_catalog as $$
+ select coalesce(length(p) between 1 and 80 and p=btrim(p)
+ and (p collate "C") ~ U&'^[A-Za-zÀ-ÖØ-öø-ſء-غف-يٱ-ۓ][A-Za-zÀ-ÖØ-öø-ſء-غف-يٱ-ۓ\0300-\036f\064b-\065f\0670\06d6-\06dc\06df-\06e4\06e7-\06e8\06ea-\06ed0-9٠-٩۰-۹ .,''()-]*$',false)
+$$;
+revoke all on function public.dabra_continuity_place_valid(text) from public,anon,authenticated;
 create function public.dabra_continuity_trip_valid(p jsonb) returns boolean
 language plpgsql immutable set search_path=pg_catalog as $$
 declare start_day date;end_day date;f text; seen text[]:='{}';
@@ -76,10 +85,9 @@ begin
  if jsonb_typeof(p)<>'object' or (select count(*) from jsonb_object_keys(p))<>11
  or not(p ?& array['id','origin','destination','startDate','endDate','adults','children','rooms','budget','currency','families'])
  or jsonb_typeof(p->'id')<>'string' or (p->>'id') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
- or jsonb_typeof(p->'destination')<>'string' or length(p->>'destination') not between 1 and 80
- or (p->>'destination') ~ '[[:cntrl:]:<>/\\]' or trim(p->>'destination')<>(p->>'destination')
+ or jsonb_typeof(p->'destination')<>'string' or not public.dabra_continuity_place_valid(p->>'destination')
  then return false;end if;
- if p->'origin'<>'null'::jsonb and (jsonb_typeof(p->'origin')<>'string' or length(p->>'origin') not between 1 and 80 or (p->>'origin') ~ '[[:cntrl:]:<>/\\]') then return false;end if;
+ if p->'origin'<>'null'::jsonb and (jsonb_typeof(p->'origin')<>'string' or not public.dabra_continuity_place_valid(p->>'origin')) then return false;end if;
  if (p->'startDate'='null'::jsonb)<>(p->'endDate'='null'::jsonb) then return false;end if;
  if p->'startDate'<>'null'::jsonb then
   if jsonb_typeof(p->'startDate')<>'string' or jsonb_typeof(p->'endDate')<>'string' or (p->>'startDate') !~ '^\d{4}-\d{2}-\d{2}$' or (p->>'endDate') !~ '^\d{4}-\d{2}-\d{2}$' then return false;end if;
@@ -125,7 +133,7 @@ declare actor uuid:=public.dabra_continuity_actor(); r public.dabra_account_cont
  receipt public.dabra_continuity_receipts; policy public.dabra_continuity_policy;
  fingerprint text; expiry timestamptz; new_trip jsonb;
 begin
- if p_action is null or p_action not in('save','clear_preferences','delete_trip','revoke') or p_revision is null or p_revision<0 or p_generation is null or p_generation<0 or p_mutation is null or p_payload is null or jsonb_typeof(p_payload)<>'object'
+ if p_action is null or p_action not in('save','clear_preferences','delete_trip','revoke') or p_revision is null or p_revision<0 or p_generation is null or p_generation<0 or p_mutation is null or p_payload is null or jsonb_typeof(p_payload)<>'object' or octet_length(p_payload::text)>4096
  then raise exception 'CONTINUITY_INVALID' using errcode='22023';end if;
  fingerprint:=encode(sha256(convert_to(jsonb_build_object('action',p_action,'revision',p_revision,'generation',p_generation,'payload',p_payload)::text,'UTF8')),'hex');
  insert into public.dabra_account_continuity(owner_id) values(actor) on conflict do nothing;
