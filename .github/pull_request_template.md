@@ -2,9 +2,16 @@
 
 - Task: #<!-- required Codex Task issue number; PR numbers are rejected -->
 - Implementation owner: <!-- Codex Desktop | VS Code Codex | Codex — ChatGPT Work Mode -->
-- Independent reviewer: <!-- Codex Desktop | VS Code Codex | Codex Security; must differ from owner -->
+- Independent reviewer: <!-- Codex Desktop | VS Code Codex | Codex Security | Codex — ChatGPT Work Mode | ChatGPT Work Model; Work Mode requires separate non-author session receipt -->
+- Implementation session: <!-- full session UUID; required when reviewer uses Work Mode name -->
+- Reviewer session: <!-- different full session UUID; required when reviewer uses Work Mode name -->
+- Reviewer receipt: <!-- numeric exact-artifact non-author receipt comment ID on Task; required for Work Mode -->
 - Branch: <!-- exact PR head branch -->
 - Target SHA: <!-- exact 40-character current PR head SHA -->
+- Base SHA: <!-- exact 40-character task base SHA -->
+- Worktree: <!-- exact worktree path or GitHub connector isolated branch -->
+- Last verified result: <!-- concise evidence-backed checkpoint -->
+- Next action: <!-- one concrete action and owner -->
 - Verdict: <!-- lifecycle state: IN_PROGRESS | REVIEW | PASS | FAIL | BLOCKED -->
 
 > Any new commit invalidates the recorded review and requires updating Target SHA plus independent re-review.
@@ -51,7 +58,7 @@ Skipped or blocked checks, with reason:
 
 - [ ] Implementation review completed on the exact Target SHA
 - [ ] Independent security review completed when risk requires it
-- [ ] Implementation owner and independent reviewer are different
+- [ ] Implementation owner and reviewer are separate non-author sessions; required Work Mode receipt verified
 - [ ] Unresolved risks are listed below
 - [ ] This PR does not assume CI PASS authorizes merge or production deployment
 

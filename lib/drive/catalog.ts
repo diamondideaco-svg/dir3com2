@@ -1,6 +1,7 @@
 /** Task #147 legacy offers + Task #167 approved Operations rates. Not live availability. */
 import september from './september-catalog.json';
-export const DRIVE_CATALOG_VERSION = september.version;
+import currentPrices from './current-prices.json';
+export const DRIVE_CATALOG_VERSION = currentPrices.version;
 export const LEGACY_DRIVE_CATALOG_VERSION = 'safeerat-eg-20260916-v1';
 export const DRIVE_COUNTRY = 'EG';
 export const DRIVE_TIME_ZONE = 'Africa/Cairo';
@@ -12,7 +13,7 @@ export function validDriveModelYear(year: number | null) {
 }
 /** An old client's identical retry must retain its original request contract. */
 export function driveRequestModelYears(catalogVersion: unknown): readonly number[] | null {
-  if (catalogVersion === DRIVE_CATALOG_VERSION) return null;
+  if (catalogVersion === DRIVE_CATALOG_VERSION || catalogVersion === september.version) return null;
   if (catalogVersion === 'managed-eg-20260928-v2') return [2022,2023,2024,2025,2026,2027];
   return LEGACY_DRIVE_MODEL_YEARS;
 }
@@ -72,7 +73,11 @@ const updatedOffers: readonly DriveOffer[] = september.rows.map(row => ({
 export const DRIVE_OFFERS: readonly DriveOffer[] = [
   ...legacyOffers.map(v => updatedOffers.find(u => u.id === v.id) ?? v),
   ...updatedOffers.filter(v => !legacyOffers.some(old => old.id === v.id)),
-];
+].map(offer => {
+  const price = currentPrices.offers.find(row => row.id === offer.id);
+  if (!price || price.currency !== offer.currency) throw new Error('DRIVE_PRICE_CATALOG_MISMATCH');
+  return { ...offer, chauffeur: price.dailyCents / 100, airport: price.airportCents / 100 };
+});
 
 export function driveOffer(id: unknown) { return DRIVE_OFFERS.find(offer => offer.id === id); }
 export function vehicleFor(offer: DriveOffer) { return VEHICLE_MASTER.find(vehicle => vehicle.id === offer.vehicleId)!; }

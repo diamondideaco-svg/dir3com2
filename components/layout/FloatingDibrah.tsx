@@ -1,5 +1,9 @@
 'use client';
 
+import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
+import PlatformAnswer from '@/components/dabra/PlatformAnswer';
+import { supabase } from '@/lib/supabase/client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -99,13 +103,21 @@ function detectConversationLanguage(text: string, fallback: 'ar' | 'en' = 'ar'):
 
 export default function FloatingDibrah({ launcherIdentity, desktopIdentity }: { launcherIdentity?: ReactNode; desktopIdentity?: DesktopIdentity } = {}) {
   const { language } = useLanguage();
+  const [identityRevision, setIdentityRevision] = useState(0);
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event !== 'INITIAL_SESSION') setIdentityRevision(value => value + 1);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
   // A locale is a conversation boundary. Remount atomically, including history,
   // drafts, speech callbacks, errors and request refs, even for AR -> EN -> AR.
-  return <FloatingDibrahSession key={language} language={language} launcherIdentity={launcherIdentity} desktopIdentity={desktopIdentity} />;
+  return <FloatingDibrahSession key={`${language}:${identityRevision}`} language={language} launcherIdentity={launcherIdentity} desktopIdentity={desktopIdentity} />;
 }
 
 function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: { language: 'ar' | 'en'; launcherIdentity?: ReactNode; desktopIdentity?: DesktopIdentity }) {
   const t = floatingCopy[language];
+  const { currency } = useDisplayCurrency();
   const positionStorageKey = `${DIBRAH_POSITION_STORAGE_KEY}:${language}`;
   const pathname = usePathname();
   const controlRef = useRef<HTMLDivElement | null>(null);
@@ -413,7 +425,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
         method: 'POST',
         signal: controller.signal,
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: trimmed, history: historyForRequest, locale: micLanguage }),
+        body: JSON.stringify({ message: trimmed, history: historyForRequest, locale: micLanguage, currency }),
       });
       const payload = (await response.json().catch(() => ({}))) as { answer?: string; error?: string };
       if (controller.signal.aborted || activeRequestIdRef.current !== requestId) return;
@@ -443,7 +455,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
         window.requestAnimationFrame(() => draftRef.current?.focus());
       }
     }
-  }, [draft, sending, messages, micLanguage, t]);
+  }, [draft, sending, messages, micLanguage, currency, t]);
 
   return (
     <div
@@ -492,7 +504,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
                         : 'ml-auto border border-[#dcc58e] bg-[#f4e6bd] text-[#14243a]'
                     }`}
                   >
-                    {message.content}
+                    {message.role === 'assistant' ? <PlatformAnswer text={message.content} /> : message.content}
                   </div>
                 ))}
               </div>

@@ -70,6 +70,8 @@ function client(get: Get, language: 'ar' | 'en', clientDiscovery: typeof discove
     }, useEffect: (fn: () => void | (() => void), deps: unknown[]) => { effect = fn; dependencies = deps; } },
     'next/link': { default: (props: Record<string, unknown>) => { const dom = { ...props }; delete dom.prefetch; return createElement('a', dom); } },
     'next/image': { default: 'img' }, './stay-sandbox.module.css': { default: {} },
+    '@/components/currency/useDisplayCurrency': { useDisplayCurrency: () => ({ currency: 'SAR', setCurrency: () => undefined }) },
+    '@/components/currency/CurrencyPrice': { default: ({ amount, sourceCurrency }: { amount: number; sourceCurrency: string }) => createElement('span', null, amount + ' ' + sourceCurrency) },
     '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language, direction: language === 'ar' ? 'rtl' : 'ltr' }) },
     '@/lib/marketplace/stay-demo': contract,
     '@/lib/marketplace/discovery': clientDiscovery,

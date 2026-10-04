@@ -31,6 +31,8 @@ import {
   deriveAuthCell,
   mapRuntimeResultToCell,
   resolveFinalStatus,
+  runFallbackCheck,
+  matrixExitCode,
   type ProviderMatrixRow,
 } from '@/scripts/provider-matrix-live';
 
@@ -276,4 +278,28 @@ test('matrix final status treats attempted routing and missing discovery as fail
   const resolvedWait = resolveFinalStatus(waitAuth);
   assert.equal(resolvedWait['Final Status'], 'WAIT_AUTH');
   assert.equal(resolvedWait.Blocker.startsWith('KEY_INVALID_OR_MISSING:'), true);
+});
+
+test('matrix fallback isolates both Gemini key aliases and restores caller environment', async () => {
+  const previous = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = 'isolated-alias-placeholder';
+  try {
+    for (const provider of ['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral']) {
+      assert.equal(await runFallbackCheck(provider), 'PASS', provider);
+      assert.equal(process.env.GEMINI_API_KEY, 'isolated-alias-placeholder');
+    }
+  } finally {
+    if (previous === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = previous;
+  }
+});
+
+test('matrix exit code rejects failures, missing rows and stale final-status claims', () => {
+  const rows = ['OpenAI', 'Gemini', 'Anthropic', 'xAI', 'DeepSeek', 'Qwen', 'Mistral'].map(Provider => ({ ...makeRow(), Provider }));
+  assert.equal(matrixExitCode(rows), 0);
+  assert.equal(matrixExitCode([]), 1);
+  assert.equal(matrixExitCode(rows.slice(1)), 1);
+  for (const value of ['FAIL', 'NOT_RUN', 'ATTEMPTED_FAIL', 'WAIT_AUTH', 'EXTERNAL_BLOCKER'] as const) {
+    const changed = rows.map(row => ({ ...row })); changed[0]['DABRA Routing'] = value;
+    assert.equal(matrixExitCode(changed), 1);
+  }
 });

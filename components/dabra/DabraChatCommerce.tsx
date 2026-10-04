@@ -1,13 +1,19 @@
 'use client';
 
+import PlatformAnswer from '@/components/dabra/PlatformAnswer';
+import PlatformResults from '@/components/dabra/PlatformResults';
+import { platformFamilies, platformContext, platformCurrency, type PlatformFamily } from '@/lib/dabra/platform-assistant';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FiArrowLeft, FiCheck, FiChevronDown, FiClock, FiHeart, FiMapPin, FiMessageCircle, FiMic, FiMicOff, FiPaperclip, FiSearch, FiSend, FiShoppingBag, FiSliders, FiStopCircle, FiVolume2, FiX } from 'react-icons/fi';
 import { cn } from '@/lib/utils';
 import type { MarketplaceService } from '@/lib/marketplace/data';
 import { supabase } from '@/lib/supabase/client';
 import { consumeDabraChatResponse } from '@/lib/dabra/chat-response-contract';
+import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { DABRA_LOCALE_ERROR } from '@/lib/dabra/locale-contract';
+import { conversationForLocale } from '@/lib/dabra/conversation-locale';
 import { DABRA_APPROVED_VOICE, getApprovedDabraPlaybackCopy, getApprovedDabraVoiceCopy } from '@/lib/dabra/approved-voice';
 import { buildDabraWhatsAppHandoff, openDabraWhatsAppHandoff } from '@/lib/dabra/whatsapp-handoff';
 import { planDabraVoicePlayback, runDabraVoicePlayback } from '@/lib/dabra/voice-segmentation';
@@ -96,6 +102,7 @@ function publicItemsToServices(items: Array<Record<string, unknown>>): Marketpla
 
 export default function DabraChatCommerce() {
   const { language, direction } = useLanguage();
+  const { currency, setCurrency } = useDisplayCurrency();
   const t = dabraCopy[language];
   const approvedVoiceCopy = getApprovedDabraVoiceCopy(language);
   const approvedPlaybackCopy = getApprovedDabraPlaybackCopy(language);
@@ -106,6 +113,7 @@ export default function DabraChatCommerce() {
   const [voicePlaybackPartial, setVoicePlaybackPartial] = useState(false);
   const [approvedVoiceAvailable, setApprovedVoiceAvailable] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<string | undefined>();
+  const [platformQuery, setPlatformQuery] = useState<{ query: string; family: PlatformFamily } | null>(null);
   const [services, setServices] = useState<MarketplaceService[]>([]);
   const [marketplaceQuery, setMarketplaceQuery] = useState('');
   const [lastMarketplaceQuery, setLastMarketplaceQuery] = useState('');
@@ -141,6 +149,7 @@ export default function DabraChatCommerce() {
   const identityRequestRef = useRef(0);
   const lifecycleRef = useRef(0);
   const chatInFlightRef = useRef(false);
+  const privateConversationRef = useRef(false);
   const chatAbortRef = useRef<AbortController | null>(null);
   const marketplaceRequestRef = useRef(0);
   const marketplaceAbortRef = useRef<AbortController | null>(null);
@@ -155,13 +164,12 @@ export default function DabraChatCommerce() {
     if (previousLanguageRef.current === language) return;
     previousLanguageRef.current = language;
     invalidateActiveRequests();
-    setMessages([welcomeMessage(language)]);
-    setInput('');
+    setMessages(current => conversationForLocale(current, welcomeMessage(language)));
     setAttachments([]);
     setAttachmentError('');
     setVoiceStatus('idle');
     setVoicePlaybackPartial(false);
-  // The locale boundary intentionally starts a fresh visible/chat history so an old-locale turn cannot leak into the next answer.
+  // Abort old-locale streams; preserve this identity's trip. Server response locale is explicit.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language]);
 
@@ -217,6 +225,7 @@ export default function DabraChatCommerce() {
   useEffect(() => {
     let active = true;
     function detachSensitiveState() {
+      privateConversationRef.current = false;
       invalidateActiveRequests();
       setStorageHydrated(false);
       setPersistenceContext(null);
@@ -307,6 +316,10 @@ export default function DabraChatCommerce() {
   useEffect(() => {
     if (!persistenceContext || !storageHydrated) return;
     const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
+    if (privateConversationRef.current) {
+      storage.removeItem(storageKey(persistenceContext.ownerId, 'context'));
+      return;
+    }
     storage.setItem(storageKey(persistenceContext.ownerId, 'context'), JSON.stringify(createPersisted(messages.slice(-20), persistenceContext.ownerId)));
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: 'smooth' });
   }, [persistenceContext, storageHydrated, messages]);
@@ -353,7 +366,18 @@ export default function DabraChatCommerce() {
     setResultState('idle');
     try {
       const parsed = parseDabraMarketplaceQuery(normalizedQuery, familyOverride as Parameters<typeof parseDabraMarketplaceQuery>[1]);
+      const context = platformContext(normalizedQuery, messages.map(({ role, text: content }) => ({ role, content })));
+      const families = platformFamilies(context);
+      const selected = familyOverride ? familyOverride.replace('dir3-', '') : families[0];
+      if (selected && ['drive', 'stay', 'fly', 'concierge', 'vip'].includes(selected)) {
+        setPlatformQuery({ query: context, family: selected as PlatformFamily });
+        setServices([]);
+        setResultState('idle');
+        return;
+      }
+      setPlatformQuery(null);
       const params = toMarketplaceSearchParams(parsed, 12);
+      params.set('currency', currency);
       // The canonical family contract is equivalent to params.set('family', activeTab).
       const response = await fetch(`/api/public/marketplace/items?${params.toString().replace('query=', 'q=')}`, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error('marketplace');
@@ -410,6 +434,8 @@ export default function DabraChatCommerce() {
   async function sendMessage(text = input) {
     const message = text.trim() || (attachments.length ? t.attachmentPrompt : '');
     if (!message || chatInFlightRef.current || !identityResolved) return;
+    const requestedCurrency = platformCurrency(message) ?? currency;
+    if (requestedCurrency !== currency) setCurrency(requestedCurrency);
     stopVoicePlayback();
     setVoicePlaybackPartial(false);
     chatInFlightRef.current = true;
@@ -432,6 +458,7 @@ export default function DabraChatCommerce() {
       form.set('history', JSON.stringify(messages.map(({ role, text: content }) => ({ role, content }))));
       form.set('stream', 'true');
       form.set('locale', language);
+      form.set('currency', requestedCurrency);
       for (const item of pendingAttachments) form.append('attachment', item.file, item.safeName);
       const response = await fetch('/api/ai2/chat', {
         method: 'POST',
@@ -439,6 +466,8 @@ export default function DabraChatCommerce() {
         body: form,
         signal: controller.signal,
       });
+      if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
+      if (response.headers.get('X-DABRA-Private-Context') === '1') privateConversationRef.current = true;
       await consumeDabraChatResponse(response, (visibleAnswer) => {
         if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
         setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));
@@ -665,7 +694,7 @@ export default function DabraChatCommerce() {
             {messages.map((message) => (
               <div key={message.id} className={cn('dabra-message', message.role === 'user' ? 'dabra-message-user' : 'dabra-message-assistant')}>
                 {message.role === 'assistant' && <span className="dabra-mini-avatar" aria-hidden="true">{language === 'ar' ? 'د' : 'D'}</span>}
-                <p>{message.text}</p>
+                <p>{message.role === 'assistant' ? <PlatformAnswer text={message.text} /> : message.text}</p>
               </div>
             ))}
           </div>
@@ -698,13 +727,14 @@ export default function DabraChatCommerce() {
           <div className="dabra-results-header"><div><span className="dabra-kicker">{t.market}</span><h2>{t.options}</h2></div><button type="button" className="dabra-cart-button" onClick={() => setShowCart(true)} aria-label={t.openBag}><FiShoppingBag /><b>{cart.length}</b></button></div>
           <div className="dabra-tabs" role="tablist" aria-label={t.marketSections}>{tabValues.map((value, index) => <button type="button" role="tab" aria-selected={activeTab === value} className={cn(activeTab === value && 'active')} key={t.tabs[index]} onClick={() => { setActiveTab(value); void searchMarketplace(marketplaceQuery, value); }}>{t.tabs[index]}</button>)}</div>
           <form className="dabra-marketplace-search" onSubmit={(event) => { event.preventDefault(); void searchMarketplace(marketplaceQuery); }}><label className="sr-only" htmlFor="dabra-marketplace-query">{t.searchMarket}</label><input id="dabra-marketplace-query" value={marketplaceQuery} onChange={(event) => setMarketplaceQuery(event.target.value)} placeholder={t.searchPlaceholder} maxLength={200} /><button type="submit" disabled={!marketplaceQuery.trim() && !activeTab} aria-label={t.search}><FiSearch /></button></form>
-          <div className="dabra-filter-row"><button type="button" aria-pressed={availabilityOnly} onClick={() => setAvailabilityOnly((value) => !value)}><FiSliders /> {t.availableOnly}</button><button type="button" aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly((value) => !value)}><FiHeart /> {t.saved}</button><label><span className="sr-only">{t.sort}</span><select value={resultSort} onChange={(event) => setResultSort(event.target.value as DabraResultSort)}><option value="recommended">{t.sortOptions[0]}</option><option value="price-low">{t.sortOptions[1]}</option><option value="price-high">{t.sortOptions[2]}</option><option value="comfort">{t.sortOptions[3]}</option><option value="closest">{t.sortOptions[4]}</option></select><FiChevronDown aria-hidden="true" /></label><button type="button" onClick={() => setCompareMode((value) => !value)}>{compareMode ? t.endCompare : t.compare}</button></div>
+          {!platformQuery && <div className="dabra-filter-row"><button type="button" aria-pressed={availabilityOnly} onClick={() => setAvailabilityOnly((value) => !value)}><FiSliders /> {t.availableOnly}</button><button type="button" aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly((value) => !value)}><FiHeart /> {t.saved}</button><label><span className="sr-only">{t.sort}</span><select value={resultSort} onChange={(event) => setResultSort(event.target.value as DabraResultSort)}><option value="recommended">{t.sortOptions[0]}</option><option value="price-low">{t.sortOptions[1]}</option><option value="price-high">{t.sortOptions[2]}</option><option value="comfort">{t.sortOptions[3]}</option><option value="closest">{t.sortOptions[4]}</option></select><FiChevronDown aria-hidden="true" /></label><button type="button" onClick={() => setCompareMode((value) => !value)}>{compareMode ? t.endCompare : t.compare}</button></div>}
 
           {loading && <div className="dabra-state"><span className="dabra-spinner" /><p>{t.loading}</p></div>}
           {!loading && resultState === 'empty' && <div className="dabra-state"><FiMapPin /><p>{t.empty}</p></div>}
           {!loading && resultState === 'error' && <div className="dabra-state"><FiX /><p>{t.marketError}</p></div>}
-          {!loading && resultState === 'idle' && services.length === 0 && <div className="dabra-state dabra-state-welcome"><FiArrowLeft /><p>{t.marketWelcome}</p></div>}
+          {!loading && !platformQuery && resultState === 'idle' && services.length === 0 && <div className="dabra-state dabra-state-welcome"><FiArrowLeft /><p>{t.marketWelcome}</p></div>}
 
+          {!loading && platformQuery && <PlatformResults query={platformQuery.query} family={platformQuery.family} language={language} />}
           {!loading && recommendationDecisions.length > 0 && <div className="dabra-recommendations"><div className="dabra-section-label">{t.recommendation}</div>{recommendationDecisions.map(({ service, badge, why }) => <ProductCard key={service.id} language={language} service={service} badge={badge} why={why} inCart={cart.some((item) => item.id === service.id)} favorite={favorites.includes(service.id)} onCart={() => toggleCart(service)} onFavorite={() => toggleFavorite(service.id)} compare={compareMode} />)}</div>}
           {compareMode && comparisonServices.length > 1 && <ComparisonTable language={language} services={comparisonServices} />}
           {alternatives.length > 0 && <div className="dabra-other-results"><div className="dabra-section-label">{t.alternatives}</div>{alternatives.map((service) => <ProductCard key={service.id} language={language} service={service} catalogOnly={!recommendationEligible(service)} inCart={cart.some((item) => item.id === service.id)} favorite={favorites.includes(service.id)} onCart={() => toggleCart(service)} onFavorite={() => toggleFavorite(service.id)} compare={compareMode} />)}</div>}

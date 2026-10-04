@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiCalendar, FiChevronDown, FiChevronUp, FiFlag, FiMapPin, FiSearch, FiUsers } from 'react-icons/fi';
+import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { canonicalCountries, citiesForCountry, todayIsoDate } from '@/lib/services/coverage';
 import { normalizeStayRooms } from '@/lib/services/search-state';
@@ -139,6 +140,7 @@ export default function ServiceSearchTable({ initialService = 'drive', driveMark
   const directMarketplace = directDrive || familyMarketplace;
   const FieldsContainer = 'form';
   const { language, direction } = useLanguage();
+  const { currency, setCurrency } = useDisplayCurrency();
   const router = useRouter();
   const t = copy[language];
   const today = useMemo(() => todayIsoDate(), []);
@@ -211,7 +213,7 @@ export default function ServiceSearchTable({ initialService = 'drive', driveMark
       }
     }
 
-    const params = new URLSearchParams({ language, currency: values.currency || (selected.key === 'drive' ? 'EGP' : 'SAR') });
+    const params = new URLSearchParams({ language, currency });
     for (const field of selected.fields) params.set(field.name, submissionValues[field.name]);
     router.push(serviceEntryHref(selected.key, params));
   }
@@ -310,7 +312,7 @@ export default function ServiceSearchTable({ initialService = 'drive', driveMark
                 </label>
               );
             })}
-            <label className="service-search-table__field"><span>{language === 'ar' ? 'عملة العرض' : 'Display currency'}</span><select value={values.currency || (selected.key === 'drive' ? 'EGP' : 'SAR')} onChange={event => setValues(previous => ({ ...previous, currency: event.target.value }))}>{['EGP','SAR','USD','EUR','AED'].map(currency => <option key={currency}>{currency}</option>)}</select></label>
+            <label className="service-search-table__field"><span>{language === 'ar' ? 'عملة العرض' : 'Display currency'}</span><select value={currency} onChange={event => setCurrency(event.target.value)}>{['EGP','SAR','USD','EUR','AED'].map(currency => <option key={currency}>{currency}</option>)}</select></label>
             <button type="submit" className="service-search-table__submit">
               <FiSearch aria-hidden="true" />
               {language === 'ar' ? 'متابعة إلى البحث' : 'Continue to search'}

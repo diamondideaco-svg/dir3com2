@@ -1,169 +1,75 @@
 'use client';
-
-import { useState } from 'react';
-import { FiCheckCircle, FiMail, FiPhoneCall, FiSend } from 'react-icons/fi';
-import { ContentContainer, SectionContainer, SelectField, TextAreaField, TextField } from '@/components/design-system';
+import { useRef, useState } from 'react';
+import { useLanguage } from '@/components/i18n/LanguageProvider';
+import { ContentContainer, SectionContainer } from '@/components/design-system';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PublicHero from '@/components/public/PublicHero';
-import PublicStats from '@/components/public/PublicStats';
-
-type ContactStatus = {
-  type: 'success' | 'error' | null;
-  message: string;
-};
-
-const contactStats = [
-  { label: 'الهاتف الرسمي', value: '0532867009' },
-  { label: 'زمن الاستجابة', value: '24h' },
-  { label: 'لغة التجربة', value: 'Arabic RTL' },
-];
-
-const subjectOptions = [
-  { value: '', label: 'اختر الموضوع' },
-  { value: 'booking', label: 'استفسار عن حجز' },
-  { value: 'service', label: 'استفسار عن خدمة' },
-  { value: 'partnership', label: 'طلب شراكة' },
-  { value: 'other', label: 'أخرى' },
-];
-
-const contactCards = [
-  { title: 'الهاتف', value: '0532867009', hint: 'متاح للرد والمتابعة', icon: FiPhoneCall },
-  { title: 'البريد', value: 'info@dir3com.com', hint: 'تواصل منظم واستجابة واضحة', icon: FiMail },
-  { title: 'وضوح الطلب', value: 'موافقتك أولاً', hint: 'نعرض السعر النهائي قبل أي التزام أو دفع.', icon: FiCheckCircle },
-];
-
+const empty = { name: '', email: '', phone: '', subject: '', message: '', country: '' };
 export default function ContactPublicPage() {
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [status, setStatus] = useState<ContactStatus>({ type: null, message: '' });
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsSubmitting(true);
-    setStatus({ type: null, message: '' });
-
+  const { language } = useLanguage(); const ar = language === 'ar';
+  const [form, setForm] = useState(empty);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ reference?: string; error?: string } | null>(null);
+  const attempt = useRef<{ payload: string; key: string } | null>(null);
+  const submitting = useRef(false);
+  const copy = (arabic: string, english: string) => ar ? arabic : english;
+  const update = (key: keyof typeof empty, value: string) => setForm(previous => ({ ...previous, [key]: value }));
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (submitting.current) return;
+    submitting.current = true; setBusy(true); setResult(null);
     try {
-      const response = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'حدث خطأ غير متوقع');
+      const payload = JSON.stringify(form);
+      if (attempt.current?.payload !== payload) attempt.current = { payload, key: crypto.randomUUID() };
+      const response = await fetch('/api/contact', { method: 'POST', headers: {
+        'Content-Type': 'application/json', 'Idempotency-Key': attempt.current.key,
+      }, body: payload });
+      const body = await response.json();
+      if (!response.ok || body.status !== 'received' || typeof body.reference !== 'string') {
+        setResult({ error: body.code || 'CONTACT_DELIVERY_UNAVAILABLE' }); return;
       }
-
-      setStatus({ type: 'success', message: 'تم إرسال رسالتك بنجاح. سيتواصل معك فريق dir3com قريباً.' });
-      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
-    } catch (error) {
-      setStatus({
-        type: 'error',
-        message: error instanceof Error ? error.message : 'تعذر إرسال الرسالة حالياً.',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="page-stack-shell">
-      <PublicHero
-        eyebrow="CONTACT DIR3COM"
-        title="تواصل معنا"
-        description=""
-        highlight=""
-        chips={['0532867009', 'dir3com.com', 'Response Ready']}
-      />
-      <PublicStats stats={contactStats} />
-
-      <SectionContainer className="py-8 lg:py-10">
-        <ContentContainer className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-          <Card className="bg-white/84">
-            <CardHeader>
-              <CardTitle className="text-3xl">أرسل رسالتك</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {status.type && (
-                <div className={`mb-5 rounded-[22px] border px-4 py-4 text-sm ${status.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
-                  {status.message}
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <TextField
-                    label="الاسم الكامل"
-                    required
-                    value={formData.name}
-                    onChange={(value) => setFormData((prev) => ({ ...prev, name: value }))}
-                    placeholder="اكتب اسمك"
-                  />
-                  <TextField
-                    label="البريد الإلكتروني"
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(value) => setFormData((prev) => ({ ...prev, email: value }))}
-                    placeholder="name@example.com"
-                  />
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <TextField
-                    label="الهاتف"
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))}
-                    placeholder="05xxxxxxxx"
-                  />
-                  <SelectField
-                    label="الموضوع"
-                    required
-                    value={formData.subject}
-                    onChange={(value) => setFormData((prev) => ({ ...prev, subject: value }))}
-                    options={subjectOptions}
-                  />
-                </div>
-
-                <TextAreaField
-                  label="الرسالة"
-                  required
-                  value={formData.message}
-                  onChange={(value) => setFormData((prev) => ({ ...prev, message: value }))}
-                  rows={6}
-                  placeholder="اكتب تفاصيل طلبك"
-                />
-
-                <Button type="submit" variant="gold" size="lg" disabled={isSubmitting} className="w-full sm:w-auto">
-                  <FiSend />
-                  {isSubmitting ? 'جاري الإرسال...' : 'إرسال الرسالة'}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-5">
-            {contactCards.map(({ title, value, hint, icon: Icon }) => (
-              <Card key={title} className="bg-white/84">
-                <CardContent className="flex items-center gap-4 p-6">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--color-surface)] text-[var(--color-gold)]">
-                    <Icon size={22} />
-                  </span>
-                  <div>
-                    <p className="text-lg font-semibold text-[var(--color-navy)]">{title}</p>
-                    <p className="mt-1 text-sm font-medium text-[var(--color-navy)]">{value}</p>
-                    <p className="mt-1 text-sm text-[var(--color-muted)]">{hint}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </ContentContainer>
-      </SectionContainer>
-
-    </div>
-  );
+      setResult({ reference: body.reference }); setForm(empty); attempt.current = null;
+    } catch { setResult({ error: 'CONTACT_DELIVERY_UNAVAILABLE' }); }
+    finally { submitting.current = false; setBusy(false); }
+  }
+  const fieldClass = 'mt-2 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3 text-slate-900';
+  return <div className="page-stack-shell" dir={ar ? 'rtl' : 'ltr'}>
+    <PublicHero eyebrow="CONTACT DIR3COM" title={copy('تواصل معنا', 'Contact us')}
+      description={copy('أرسل استفسارك إلى فريق العمليات واحتفظ برقم الاستلام.', 'Send your enquiry to Operations and keep your receipt reference.')}
+      highlight="" chips={['dir3com.com']} />
+    <SectionContainer className="py-8"><ContentContainer className="max-w-3xl">
+      <Card><CardHeader><CardTitle>{copy('رسالتك لفريق العمليات', 'Your message to Operations')}</CardTitle></CardHeader>
+        <CardContent>
+          <p className="mb-5 text-sm">{copy('استلام الرسالة لا يعني حجزًا أو دفعًا، ولا يؤكد إرسال بريد أو واتساب. لا ترسل كلمات مرور أو بيانات دفع.', 'A receipt is not a booking or payment and does not confirm email or WhatsApp delivery. Do not send passwords or payment details.')}</p>
+          {result && <div role={result.error ? 'alert' : 'status'} className="mb-5 break-words rounded-xl border p-4">
+            {result.reference ? <>{copy('حُفظت رسالتك في صندوق العمليات. رقم الاستلام:', 'Your message was saved in the Operations inbox. Receipt:')} <span dir="ltr" className="block break-all">{result.reference}</span></>
+              : result.error === 'CONTACT_RATE_LIMITED' ? copy('وصلت الرسائل إلى الحد المسموح. احتفظ بنصك وحاول بعد ساعة.', 'The message limit has been reached. Keep your text and try again in an hour.')
+              : result.error === 'CONTACT_INVALID' ? copy('راجع الحقول المطلوبة وصيغة البريد وحدود النص.', 'Check required fields, email format and text limits.')
+              : copy('تعذر تأكيد استلام الرسالة. احتفظ بالنص وأعد المحاولة بنفس البيانات؛ لن تتكرر الرسالة عند إعادة المحاولة.', 'We could not confirm receipt. Keep your text and retry with the same details; retries of this submission are deduplicated.')}
+          </div>}
+          <form onSubmit={submit} className="space-y-4">
+            <fieldset disabled={busy} className="min-w-0 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label>{copy('الاسم', 'Name')}<input required maxLength={120} autoComplete="name" className={fieldClass} value={form.name} onChange={e => update('name', e.target.value)} /></label>
+                <label>{copy('البريد الإلكتروني', 'Email')}<input required type="email" maxLength={254} autoComplete="email" dir="ltr" className={fieldClass} value={form.email} onChange={e => update('email', e.target.value)} /></label>
+                <label>{copy('الهاتف (اختياري)', 'Phone (optional)')}<input type="tel" maxLength={32} autoComplete="tel" dir="ltr" className={fieldClass} value={form.phone} onChange={e => update('phone', e.target.value)} /></label>
+                <label>{copy('بلد الخدمة', 'Service country')}<select required className={fieldClass} value={form.country} onChange={e => update('country', e.target.value)}>
+                  <option value="">{copy('اختر البلد', 'Choose country')}</option>
+                  <option value="EG">{copy('مصر', 'Egypt')}</option><option value="SA">{copy('السعودية', 'Saudi Arabia')}</option>
+                  <option value="AE">{copy('الإمارات', 'UAE')}</option><option value="OTHER">{copy('أخرى / استفسار عام', 'Other / general enquiry')}</option>
+                </select></label>
+              </div>
+              <label className="block">{copy('الموضوع', 'Subject')}<select required className={fieldClass} value={form.subject} onChange={e => update('subject', e.target.value)}>
+                <option value="">{copy('اختر الموضوع', 'Choose subject')}</option>
+                <option value="booking">{copy('استفسار عن حجز', 'Booking enquiry')}</option><option value="service">{copy('استفسار عن خدمة', 'Service enquiry')}</option>
+                <option value="partnership">{copy('شراكة', 'Partnership')}</option><option value="other">{copy('أخرى', 'Other')}</option>
+              </select></label>
+              <label className="block">{copy('الرسالة', 'Message')}<textarea required rows={6} maxLength={2000} className={fieldClass} value={form.message} onChange={e => update('message', e.target.value)} /></label>
+              <Button type="submit" variant="gold" disabled={busy}>{busy ? copy('جارٍ الحفظ…', 'Saving…') : copy('إرسال الرسالة', 'Submit message')}</Button>
+            </fieldset>
+          </form>
+        </CardContent>
+      </Card>
+    </ContentContainer></SectionContainer>
+  </div>;
 }

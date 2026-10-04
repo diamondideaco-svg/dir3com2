@@ -40,7 +40,8 @@ test('customer launcher reuses canonical chat including locale reset and safety 
   const shell = read('components/v6/Chrome.tsx'), chat = read('components/layout/FloatingDibrah.tsx');
   assert.match(shell, /viewer && path !== '\/my-account' && <div className=\{styles.customerLauncher\}/);
   assert.match(shell, /FloatingDibrah launcherIdentity=\{<DabraCompact/);
-  assert.match(chat, /FloatingDibrahSession key=\{language\}/);
+  assert.ok(chat.includes('key={`${language}:${identityRevision}`} language={language}'));
+  assert.match(chat, /onAuthStateChange/);
   assert.match(chat, /launcherIdentity \?\?/);
   assert.match(chat, /DIBRAH_POLICY_ACCEPTED_KEY/);
   assert.match(chat, /chatAbortRef\.current\?\.abort\(\)/);

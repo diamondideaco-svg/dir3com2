@@ -24,7 +24,7 @@ export function createDabraAssistantTextResponse(
 ): Response {
   const answer = approvedAssistantAnswer(payload) ?? options.fallback ?? DABRA_SAFE_EMPTY_ANSWER;
   const encoder = new TextEncoder();
-  const chunks = answer.match(/.{1,24}(?:\s|$)|.{1,24}/gu) ?? [answer];
+  const chunks = answer.match(/[\s\S]{1,24}/gu) ?? [answer];
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));

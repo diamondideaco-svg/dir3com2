@@ -1,4 +1,6 @@
 'use client';
+import CurrencyPrice from '@/components/currency/CurrencyPrice';
+import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import { useEffect, useState, type FormEvent } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -11,6 +13,7 @@ import { stayFilterSearch, type NationalityChoices } from '@/lib/marketplace/dis
 export default function StaySandbox({ initialSearch, hotelId, nationalities }: { initialSearch: string; hotelId?: string; nationalities: NationalityChoices }) {
   const { language, direction } = useLanguage(); const ar = language === 'ar';
   const t = (en: string, arabic: string) => ar ? arabic : en;
+  const { currency: displayCurrency, setCurrency } = useDisplayCurrency();
   const [filterSearch, setFilterSearch] = useState(initialSearch);
   const params = new URLSearchParams(filterSearch);
   const searched = params.get('searched') === '1';
@@ -43,16 +46,18 @@ export default function StaySandbox({ initialSearch, hotelId, nationalities }: {
   const allCards = result?.cards ?? [];
   const cards = filterStayDemoCards(allCards, params);
   const selected = hotelId ? allCards.find(c => c.hotelId === hotelId) : undefined;
-  const listHref = `/marketplace?${params}`;
-  const price = (card: StayDemoCard) => new Intl.NumberFormat(ar ? 'ar' : 'en', { style:'currency', currency:card.currency }).format(card.price);
-  const detailHref = (card: StayDemoCard) => `/marketplace/stay-sandbox/${encodeURIComponent(card.hotelId)}?${params}`;
+  const displayParams = new URLSearchParams(params); displayParams.set('displayCurrency', displayCurrency);
+  const listHref = `/marketplace?${displayParams}`;
+  const price = (card: StayDemoCard) => <CurrencyPrice amount={card.price} sourceCurrency={card.currency} language={ar ? 'ar' : 'en'} />;
+  const detailHref = (card: StayDemoCard) => `/marketplace/stay-sandbox/${encodeURIComponent(card.hotelId)}?${displayParams}`;
   function filter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const updated = stayFilterSearch(filterSearch, { sort: String(data.get('sort') ?? ''), hotelName: String(data.get('hotelName') ?? ''), maxPrice: String(data.get('maxPrice') ?? '') });
     setFilterSearch(updated);
     // Presentation-only filters reuse the returned cards; no navigation/provider call.
-    window.history.replaceState(null, '', `/marketplace?${updated}`);
+    const displayUpdated = new URLSearchParams(updated); displayUpdated.set('displayCurrency', displayCurrency);
+    window.history.replaceState(null, '', `/marketplace?${displayUpdated}`);
   }
   function cardContent(card: StayDemoCard, detail = false) {
     return <>
@@ -77,7 +82,7 @@ export default function StaySandbox({ initialSearch, hotelId, nationalities }: {
     </>;
   }
   return <section className={styles.page} dir={direction}>
-    <MarketplaceNavigation family="dir3-stay" search={filterSearch}/>
+    <MarketplaceNavigation family="dir3-stay" search={displayParams.toString()}/>
     <p id="sandbox-boundary" className={styles.notice}>{STAY_DEMO_NOTICE[language]}</p>
     {hotelId ? <>
       <Link href={listHref}>{t('Back to results', 'العودة للنتائج')}</Link>
@@ -101,7 +106,7 @@ export default function StaySandbox({ initialSearch, hotelId, nationalities }: {
         <label>{t('Adults', 'البالغون')}<input type="number" name="adults" min="1" max="9" defaultValue={params.get('adults') ?? '2'} required/></label>
         <label>{t('Rooms', 'الغرف')}<input type="number" name="rooms" min="1" max="4" defaultValue={params.get('rooms') ?? '1'} required/></label>
         <label>{t('Guest nationality', 'جنسية الضيف')}<select name="nationality" defaultValue={params.get('nationality') ?? ''} required><option value="" disabled>{t('Select nationality', 'اختر الجنسية')}</option>{nationalities[language].map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</select></label>
-        <label>{t('Currency', 'العملة')}<select name="currency" defaultValue={params.get('currency') ?? 'SAR'}>{['SAR','USD','EGP','EUR','AED'].map(c => <option key={c}>{c}</option>)}</select></label>
+        <label>{t('Currency', 'العملة')}<select name="currency" value={displayCurrency} onChange={event => setCurrency(event.target.value)}>{['SAR','USD','EGP','EUR','AED'].map(c => <option key={c}>{c}</option>)}</select></label>
         </div>
         <div className={styles.help}><p>{t('Adults only · up to 9 adults, 4 rooms and 30 nights.', 'للبالغين فقط · حتى 9 بالغين و4 غرف و30 ليلة.')}</p><details><summary>{t('How guests are allocated', 'كيف يتم توزيع الضيوف')}</summary><p>{t('Adults are allocated evenly across rooms, with any remainder in the first rooms.', 'يُوزّع البالغون بالتساوي على الغرف وتُضاف الزيادة إلى الغرف الأولى.')}</p></details></div>
       </form>

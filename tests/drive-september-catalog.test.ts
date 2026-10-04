@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {DRIVE_OFFERS, VEHICLE_MASTER, DRIVE_CATALOG_VERSION, journeyPrice, vehicleYearAvailabilityLabel} from '../lib/drive/catalog';
 import data from '../lib/drive/september-catalog.json';
+import currentPrices from '../lib/drive/current-prices.json';
 import source from '../docs/catalog/drive-rates-2026-09-27.json';
 import {savedDriveModelYears} from '../lib/drive/record';
 
@@ -17,8 +18,8 @@ test('approved high USD price plus 10% once; airport exactly half, in integer ce
   for(const row of data.rows){
     const original=source.rows.find(r=>r.row===row.sourceRow)!;
     const offer=DRIVE_OFFERS.find(o=>o.id===row.offerId)!;
-    assert.equal(offer.chauffeur*100,original.proposedCustomerUSDCents);
-    assert.equal(offer.airport!*100,original.proposedAirportUSDCents);
+    assert.equal(Math.round(offer.chauffeur*100),Math.round(original.proposedCustomerUSDCents*0.85));
+    assert.equal(Math.round(offer.airport!*100),currentPrices.offers.find(r=>r.id===offer.id)!.airportCents);
     assert.equal(offer.currency,'USD');assert.equal(offer.supplierId,'egypt-operations');
     assert.equal(offer.dailyPeriodHours,24);assert.equal(offer.version,DRIVE_CATALOG_VERSION);
     assert.equal(journeyPrice(offer,'chauffeur').dailyPeriodHours,24);
@@ -37,8 +38,8 @@ test('all 27 CEO-approved rows included; no year or missing field excludes an of
   assert.ok(DRIVE_OFFERS.every(o=>o.availability==='request_to_confirm'));
   const legacy=DRIVE_OFFERS.filter(o=>o.supplierId==='safeerat-al-arab');
   assert.deepEqual(legacy.map(o=>[o.vehicleId,o.airport,o.chauffeur,o.currency]),[
-    ['mercedes-e200-amg',100,200,'USD'],['jetour-t1',50,100,'USD'],
-    ['range-rover-2025',250,450,'USD'],
+    ['mercedes-e200-amg',85,170,'USD'],['jetour-t1',42.5,85,'USD'],
+    ['range-rover-2025',212.5,382.5,'USD'],
   ]);
   const sport=VEHICLE_MASTER.find(v=>v.id==='range-rover-sport')!;
   assert.notEqual(sport.image,VEHICLE_MASTER.find(v=>v.id==='range-rover-2025')!.image);

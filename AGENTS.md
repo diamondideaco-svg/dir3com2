@@ -10,6 +10,33 @@ These instructions apply to every Codex surface working in this repository: Desk
 
 The operational procedure is `docs/CODEX_OPERATIONS.md`. Every engineering change must have one authoritative **Codex Task** GitHub issue and the pull request must carry the matching Control Tower record.
 
+## Mandatory continuity bootstrap
+
+A fresh or replacement conversation must recover state from GitHub and the repository before planning, editing, reviewing, or delegating. Chat history is never sufficient by itself.
+
+Start every continuation with this record:
+
+```text
+DATE =
+IDENTITY =
+WORKTREE =
+BRANCH =
+BASE SHA =
+ACTUAL HEAD =
+GIT STATUS =
+ACTIVE TASK =
+PULL REQUEST =
+IMPLEMENTATION OWNER =
+INDEPENDENT REVIEWER =
+EXPECTED RESULT =
+LAST VERIFIED RESULT =
+NEXT ACTION =
+BR86 + PR115 GATE =
+VERDICT = CONTINUE / STOP
+```
+
+Verify the values against the current Codex Task, PR, branch, and repository state. Mark any value that cannot be observed as `UNVERIFIED`. If a required value is missing, contradictory, or assigned to another owner, use `VERDICT = STOP`; do not guess, create a replacement branch, or repeat implementation. Record the corrected state in the Task before continuing.
+
 ## Operating Roles
 
 The authoritative coordinator is the ChatGPT conversation named **مهندس المشروع — Control Tower**. It assigns work, records the owner and reviewer, tracks the PR and current SHA, and recommends MERGE, RETURN FOR FIX, or BLOCKED. It does not compete with implementation agents by editing the same task. When the CEO explicitly assigns implementation to Work Mode, record that implementation identity separately; coordination or self-checks are never independent approval.
@@ -37,8 +64,8 @@ Each working surface must use exactly one of these identities:
 - May own implementation when explicitly assigned by the CEO/Control Tower and recorded in the Codex Task with branch, isolated worktree, PR and exact SHA.
 - Uses the exact implementation identity `Codex — ChatGPT Work Mode`; must not claim Desktop or VS Code identity.
 - Owns its assigned branch and fixes; must not edit a task simultaneously owned by another surface.
-- Requires a different read-only functional reviewer (Codex Desktop or VS Code Codex) and separate security coverage appropriate to the change. Codex Security remains available for specialized security review.
-- Is not added to the automated independent-reviewer allowlist. Self-checks and Control Tower coordination do not approve its own implementation.
+- Requires a different read-only functional reviewer (Codex Desktop, VS Code Codex, or an explicitly assigned separate Work Mode session) and separate security coverage appropriate to the change. Codex Security remains available for specialized security review.
+- May review under its truthful name `Codex — ChatGPT Work Mode` or displayed `ChatGPT Work Model` only with an explicit Control Tower assignment, different implementation/reviewer session IDs, and a fetched exact-artifact receipt stating no authorship. Matching or different surface labels never prove session independence; owner self-checks and Control Tower coordination do not approve implementation.
 - Retains all existing exact-SHA, verification and explicit merge/Production authorization requirements.
 
 ### VS Code Chat — Lightweight Assistant
@@ -53,7 +80,7 @@ A surface must state its identity, task, branch, PR, owner/reviewer role, and ta
 
 ## Cross-Review Protocol
 
-- One PR has one implementation owner. Reviewers do not modify the owner's branch.
+- One PR has one implementation owner. Reviewers do not modify the owner's branch. A Work Mode reviewer must be a separate session that did not implement or fix the reviewed artifact; same-session or author review is prohibited even under another display name.
 - Codex Desktop and VS Code Codex may review each other, but never while both are editing the same PR.
 - Every review records the exact commit SHA. A code change invalidates earlier approvals until the reviewers evaluate the new SHA.
 - The implementation owner receives findings, applies fixes, publishes a new SHA, and requests re-review.

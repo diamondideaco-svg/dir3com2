@@ -28,7 +28,7 @@ await db.exec(year.slice(year.indexOf('CREATE OR REPLACE FUNCTION public.create_
 const trip={pickup:'Cairo',dropoff:'Giza',name:'Isolated QA',phone:'+201000000000',acknowledged:true,currency:'USD',minimumModelYear:2025,acceptableModelYears:[2025,2026,2027],
  passengers:2,luggage:1,pickupAt:'2099-01-12T12:00',returnAt:'2099-01-13T12:00',mode:'chauffeur',notes:'',specialRequest:'',flightNumber:'',flightArrival:''};
 async function call(key,version,mode='chauffeur') {
- const versionTrip=version===data.version?{...trip,minimumModelYear:null,acceptableModelYears:null}:trip;
+ const versionTrip=[data.version,'managed-eg-20260928-v4'].includes(version)?{...trip,minimumModelYear:null,acceptableModelYears:null}:trip;
  const payload=mode==='airport'?{...versionTrip,mode,flightNumber:'QA123',flightArrival:'2099-01-12T11:00'}:versionTrip;
  await db.exec('SET ROLE authenticated');
  try{return (await db.query('SELECT public.create_managed_drive_request($1,$2,$3::jsonb,$4) AS result',['safeerat-eg-jetour-t2',key,JSON.stringify(payload),version])).rows[0].result;}
@@ -80,6 +80,18 @@ for (const vehicleYear of [1990,2021,null]) {
  const id=(await db.query('SELECT id FROM public.marketplace_requests WHERE request_reference=$1',[created.reference])).rows[0].id;
  await review(id,0,'review');await review(id,1,'confirm',vehicleYear);
  assert.equal((await db.query('SELECT confirmed_vehicle_year FROM public.drive_request_context WHERE request_id=$1',[id])).rows[0].confirmed_vehicle_year,vehicleYear);
+}
+if (process.env.TASK172_PRICE_RELEASE === '1') {
+ await db.exec(`CREATE TABLE public.products(id uuid PRIMARY KEY,name_ar text,name_en text,slug text,country text,marketplace_family text,status text,base_price numeric,currency text,lifecycle_version int,deleted_at timestamptz,synthetic boolean DEFAULT false,updated_at timestamptz);
+ CREATE TABLE public.product_availability(id uuid PRIMARY KEY,product_id uuid,city text,currency text,price numeric,weekend_price numeric,seasonal_price numeric,discount_percent numeric,capacity int,booked_count int);
+ CREATE TABLE public.system_events(event_name text,entity_type text,entity_id text,payload jsonb,source text);`);
+ const {verifyDrivePriceRelease}=await import('./verify-drive-price-release.mjs');
+ await verifyDrivePriceRelease({execute:statement=>db.exec(statement),scalar:async statement=>String(Object.values((await db.query(statement)).rows[0])[0])});
+ const fresh=await call('task172-new-price','managed-eg-20260928-v4');
+ assert.equal((await call('task172-new-price','managed-eg-20260928-v4')).replayed,true);
+ assert.equal((await call('task167-current-request',data.version)).replayed,true);
+ assert.equal(Number((await db.query('SELECT c.supplier_amount FROM public.drive_request_context c JOIN public.marketplace_requests r ON r.id=c.request_id WHERE r.request_reference=$1',[fresh.reference])).rows[0].supplier_amount),140.25);
+ await assert.rejects(call('task172-stale-new',data.version),e=>e.code==='40001');
 }
 await db.close();
 console.log('PASS: isolated PostgreSQL migration, 30 offers/27 exact rates, old/new retry, all-years and unspecified-year confirmation, old 2025 promise preserved, invalid year syntax rejected, one audit per confirmation, no booking/payment. No external DB used.');

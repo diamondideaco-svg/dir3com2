@@ -19,7 +19,7 @@ export function serviceEntryState(service: CanonicalServiceSlug, language: 'ar' 
 export function serviceEntryHref(service: CanonicalServiceSlug, source = new URLSearchParams()) {
   if (isComingSoonMarketplaceFamily(`dir3-${service}`)) return `/services/${service}`;
   const params = new URLSearchParams({ family: `dir3-${service}` });
-  const fields = [...familyContextFields[service], 'language', 'currency', 'destination', 'query', 'q',
+  const fields = [...familyContextFields[service], 'language', 'currency', 'displayCurrency', 'destination', 'query', 'q',
     ...(service === 'drive' ? ['pickup','dropoff','pickupAt','returnAt','mode','luggage'] : []),
     ...(service === 'stay' ? ['adults','nationality','inventory'] : [])];
   for (const field of fields) {
@@ -27,7 +27,7 @@ export function serviceEntryHref(service: CanonicalServiceSlug, source = new URL
     if (values.length !== 1 || !values[0] || values[0].length > 200 || /[\u0000-\u001f\u007f]/.test(values[0])) continue;
     const value = values[0];
     if (field === 'language' && !['ar','en'].includes(value)) continue;
-    if (field === 'currency' && !['SAR','USD','EGP','EUR','AED'].includes(value)) continue;
+    if ((field === 'currency' || field === 'displayCurrency') && !['SAR','USD','EGP','EUR','AED'].includes(value)) continue;
     if (field === 'nationality' && !/^[A-Z]{2}$/.test(value)) continue;
     if (field === 'inventory' && value !== 'partners') continue;
     if (/Date$|^check(In|Out)$/.test(field) && !validSearchDate(value)) continue;

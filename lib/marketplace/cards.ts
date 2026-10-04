@@ -99,13 +99,13 @@ function normalizeCurrency(value: unknown): string {
 
 function normalizePrice(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
-    return Math.round(value);
+    return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 
   if (typeof value === 'string' && value.trim()) {
     const parsed = Number(value.replace(/[^0-9.\-]/g, ''));
     if (Number.isFinite(parsed) && parsed >= 0) {
-      return Math.round(parsed);
+      return Math.round((parsed + Number.EPSILON) * 100) / 100;
     }
   }
 

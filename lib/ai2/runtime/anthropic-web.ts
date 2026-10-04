@@ -49,6 +49,7 @@ type AnthropicWebCallParams = {
   model?: string;
   apiKey: string;
   timeoutMs?: number;
+  singleAttempt?: boolean;
 };
 
 const PREFERRED_MODELS = [
@@ -312,7 +313,7 @@ export async function callAnthropicMessagesWeb(params: AnthropicWebCallParams): 
 
   if (remainingMs() <= 0) return { ok: false, answer: '', citations: [], errorCategory: 'timeout', model };
   let result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, remainingMs());
-  if (!result.ok && (result.errorCategory === 'timeout' || result.errorCategory === 'upstream_error')) {
+  if (!params.singleAttempt && !result.ok && (result.errorCategory === 'timeout' || result.errorCategory === 'upstream_error')) {
     if (remainingMs() <= 0) return { ...result, errorCategory: 'timeout' };
     result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, remainingMs());
   }

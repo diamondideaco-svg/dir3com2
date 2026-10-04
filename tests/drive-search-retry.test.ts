@@ -23,6 +23,8 @@ test('actual Drive form recovers from invalid dates when returning to the same U
   const modules: Record<string, unknown> = {
     react, 'react/jsx-runtime': { jsx, jsxs: jsx }, 'next/image': 'image', 'next/link': 'link',
     'next/navigation': { useRouter: () => ({ push: (url: string) => pushes.push(url) }) },
+    '@/components/currency/useDisplayCurrency': { useDisplayCurrency: () => ({ currency: 'USD', setCurrency: () => undefined }) },
+    '@/components/currency/CurrencyPrice': { default: 'currency-price' },
     '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language: 'en', direction: 'ltr' }) },
     '@/lib/drive/catalog': catalog, '@/lib/drive/search': search, './drive.module.css': { default: {} },
     '@/lib/marketplace/search-context': context,
