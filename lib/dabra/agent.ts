@@ -1,3 +1,4 @@
+import { renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
 import { agentIntent, agentRequestStatus, type AgentContext, type AgentIntent, type AgentRequest } from './agent-contract';
 import { buildPlatformAssistantResponse, type PlatformPricing } from './platform-assistant';
 import { normalizePlatformQuery } from './platform-assistant';
@@ -13,8 +14,8 @@ type Input = {
 /** The model can select a read tool. Facts, permissions, links and replies stay server-owned. */
 export async function runInternalAgent({ message, locale, history, context, pricing, intent = agentIntent(message) }: Input) {
   const ar = locale === 'ar';
-  const link = (label: string, href: string) => `[${label}](${href})`;
-  const text: string[] = [];
+  const link = serverReplyLink;
+  const text = serverReplySegments();
   let state = 'guidance';
   let sourceId = 'dir3com-platform';
   const supportLink = link(ar ? 'الدعم داخل المنصة' : 'Platform support', '/support');
@@ -101,5 +102,5 @@ export async function runInternalAgent({ message, locale, history, context, pric
       text.push(ar ? 'هذه قراءة للحالة أو مسودة فقط؛ لم يتم قبول عرض أو تأكيد مورد أو حجز أو دفع أو إرسال رسالة.' : 'This is a state read or draft only; no quote acceptance, supplier confirmation, booking, payment or message was executed.');
     }
   }
-  return { answer: text.join('\n\n'), sources: [{ sourceId, sourceName: sourceId === 'dir3com-authorized-requests' ? 'Authorized DIR3COM request records' : sourceId === 'dir3com-weather' ? 'DIR3COM weather tool / Open-Meteo' : sourceId === 'dir3com-currency' ? 'DIR3COM currency tool / Frankfurter' : 'dir3com service journeys', sourceType: 'internal' as const }], language: locale, groundingStatus: state === 'unavailable' ? 'fallback-no-source' as const : 'grounded' as const, provider: 'local' as const, retrievalMode: 'internal-tools' as const, agent: { role: context.role, tool: intent.tool, state, mutations: 0 } };
+  return { answer: renderServerReply(text.segments, locale, message, state === 'unavailable' ? 'unavailable' : 'read_only'), sources: [{ sourceId, sourceName: sourceId === 'dir3com-authorized-requests' ? 'Authorized DIR3COM request records' : sourceId === 'dir3com-weather' ? 'DIR3COM weather tool / Open-Meteo' : sourceId === 'dir3com-currency' ? 'DIR3COM currency tool / Frankfurter' : 'dir3com service journeys', sourceType: 'internal' as const }], language: locale, groundingStatus: state === 'unavailable' ? 'fallback-no-source' as const : 'grounded' as const, provider: 'local' as const, retrievalMode: 'internal-tools' as const, agent: { role: context.role, tool: intent.tool, state, mutations: 0 } };
 }

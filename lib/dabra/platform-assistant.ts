@@ -1,3 +1,5 @@
+import { AI2_DABRA_CONVERSATION_COPY } from '../ai2/prompt/contract';
+import { conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
 import { DRIVE_OFFERS, vehicleFor, vehicleTitle, type DriveOffer } from '../drive/catalog';
 import { serviceEntryHref } from '../marketplace/public-entry';
 import { cairoInstant } from '../drive/search';
@@ -32,6 +34,19 @@ export function platformFamilies(message: string): PlatformFamily[] {
   return (Object.keys(familyTerms) as PlatformFamily[]).filter(f => familyTerms[f].test(text));
 }
 export function platformContext(message: string, history: Turn[] = []) {
+  // Replay contextual USER answers in order, so an accepted bare count has the
+  // same preference semantics as a qualified count on subsequent refinements.
+  // The bounded transcript is not mutated and assistant assertions are never facts.
+  const reconstructed: Turn[] = [];
+  for (const turn of history.slice(-8)) {
+    const content = turn.content.slice(0, 500);
+    reconstructed.push({ role: turn.role, content: turn.role === 'user' ? contextualStayGuests(content, reconstructed) ?? content : content });
+  }
+  return preferenceContext(contextualStayGuests(message, reconstructed) ?? message, reconstructed);
+}
+
+/** Merge already reconstructed user preferences; no recursive transcript replay. */
+function preferenceContext(message: string, history: Turn[]) {
   // Carry only bounded user preferences, never assistant assertions or account data.
   // New explicit preferences override old ones, including when the user names a family.
   const turns = [...history.filter(t => t.role === 'user').slice(-4).map(t => t.content.slice(0, 500)), message];
@@ -55,6 +70,25 @@ export function platformContext(message: string, history: Turn[] = []) {
     if (currency) carry.push(currency);
   }
   return [...carry, message].join('\n');
+}
+
+/** A bare count is a preference only immediately after the missing Stay guest question. */
+function contextualStayGuests(message: string, history: Turn[]): string | null {
+  const number = normalizePlatformQuery(message);
+  if (!/^[1-9]\d?$/.test(number) || Number(number) > 20) return null;
+  const recent = history.slice(-8);
+  const question = recent.at(-1);
+  const user = recent.at(-2);
+  if (question?.role !== 'assistant' || user?.role !== 'user') return null;
+  const lastLine = question.content.trim().split(/\n\s*\n/).at(-1);
+  if (![AI2_DABRA_CONVERSATION_COPY.ar.guestsQuestion, AI2_DABRA_CONVERSATION_COPY.en.guestsQuestion].some(copy => copy === lastLine)) return null;
+  if (/\breq-|my requests|my bookings|operations|executive|\bceo\b|طلباتي|حجوزاتي|عمليات|الغاء|استرد|payment|\bpay\b/.test(normalizePlatformQuery(user.content))) return null;
+  // Assistant text only signals conversational position. Recheck family and missing
+  // preference from bounded USER context; it supplies no factual/account authority.
+  const prior = preferenceContext(user.content, recent.slice(0, -2));
+  const families = platformFamilies(prior), preferences = tripPreferences(normalizePlatformQuery(prior));
+  if (families.length !== 1 || families[0] !== 'stay' || !preferences.city || preferences.dates.length !== 2 || preferences.party) return null;
+  return `${number} adults`;
 }
 
 const months = ['january|يناير', 'february|فبراير', 'march|مارس', 'april|ابريل', 'may|مايو', 'june|يونيو', 'july|يوليو', 'august|اغسطس', 'september|سبتمبر', 'october|اكتوبر', 'november|نوفمبر', 'december|ديسمبر'];
@@ -135,9 +169,11 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
   const context = platformContext(message, history), text = normalizePlatformQuery(context), current = withoutNegativeActions(normalizePlatformQuery(message));
   const ar = locale === 'ar';
   const families = familyOverride ? [familyOverride] : platformFamilies(context);
-  const link = (label: string, href: string) => `[${label}](${href})`;
-  const lines: string[] = [];
-  if (/cancel|refund|الغاء|الغي|استرد|حجوزاتي|طلباتي|my requests|my bookings|حاله طلبي|حالة الطلب/.test(current)) {
+  const link = serverReplyLink;
+  const lines = serverReplySegments();
+  const smallTalk = familyOverride ? null : conversationReply(message, history, locale);
+  if (smallTalk) lines.push(smallTalk);
+  else if (/cancel|refund|الغاء|الغي|استرد|حجوزاتي|طلباتي|my requests|my bookings|حاله طلبي|حالة الطلب/.test(current)) {
     lines.push(ar ? 'تابع حالة طلبك أو عرض العمليات من حسابك. افتح الطلب المحدد للمراجعة؛ لا أعدّل أو ألغي طلبًا من المحادثة.' : 'Review your request and the Operations offer in your account. Open the specific request; chat does not change or cancel it.');
     lines.push(link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
   } else if (/pay|payment|ادفع|دفع|تحويل|كاش/.test(current) && !families.length) {
@@ -170,7 +206,18 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
         lines.push(ar ? `${family === 'fly' ? 'الطيران' : 'الكونسيرج'} قيد التجهيز داخل dir3com. أستطيع الآن ترتيب التنقل في مصر واستكشاف الإقامة من المنصة.` : `${family === 'fly' ? 'Fly' : 'Concierge'} is coming soon inside dir3com. I can help with Egypt transport and Stay discovery now.`, link(ar ? 'الخدمات داخل المنصة' : 'Services inside dir3com', '/services'));
       } else lines.push(ar ? 'راجع عروض VIP المنشورة داخل المنصة. تفاصيل الخدمة والسعر والتوفر تتحدد في العرض ومراجعة العمليات.' : 'Review published VIP options inside dir3com. The listing and Operations review determine details, price and availability.', link(ar ? 'استكشاف VIP' : 'Explore VIP', href));
     }
-    if (!lines.length) lines.push(ar ? 'أنا الدبرة، مساعدك داخل dir3com. أقدر أعرض سيارات مصر وأسعارها، أو أفتح بحث الفنادق، أو أوصلك لمتابعة طلبك. أي خدمة ومدينة تريد؟' : 'I’m DABRA, your assistant inside dir3com. I can show Egypt cars and rates, open hotel search, or help you follow your request. Which service and city do you need?', link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntry('drive', context, locale, pricing?.currency)), link(ar ? 'بحث الإقامة' : 'Stay search', platformEntry('stay', context, locale, pricing?.currency)), link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
+    const copy = AI2_DABRA_CONVERSATION_COPY[locale];
+    if (!lines.length) {
+      if (!history.slice(-8).some(turn => turn.role === 'assistant')) lines.push(copy.identity);
+      lines.push(copy.serviceQuestion);
+      lines.push(link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntry('drive', context, locale, pricing?.currency)), link(ar ? 'بحث الإقامة' : 'Stay search', platformEntry('stay', context, locale, pricing?.currency)), link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
+    } else if (families.length === 1 && (families[0] === 'drive' || families[0] === 'stay')) {
+      const preferences = tripPreferences(text);
+      // Ask for only the next missing preference, using bounded user context.
+      if (!preferences.city) lines.push(copy.cityQuestion);
+      else if (preferences.dates.length < 2) lines.push(copy.datesQuestion);
+      else if (families[0] === 'stay' && !preferences.party) lines.push(copy.guestsQuestion);
+    }
   }
-  return { answer: lines.join('\n\n'), sources: [{ sourceId: 'dir3com-platform', sourceName: 'dir3com catalogue and service journeys', sourceType: 'internal' as const }], language: locale, groundingStatus: 'grounded' as const, provider: 'local' as const, retrievalMode: 'internal-catalog' as const };
+  return { answer: renderServerReply(lines.segments, locale, message), sources: [{ sourceId: 'dir3com-platform', sourceName: 'dir3com catalogue and service journeys', sourceType: 'internal' as const }], language: locale, groundingStatus: 'grounded' as const, provider: 'local' as const, retrievalMode: 'internal-catalog' as const };
 }
