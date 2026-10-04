@@ -454,7 +454,8 @@ export default function DabraChatCommerce() {
     const controller = new AbortController();
     chatAbortRef.current = controller;
     const pendingAttachments = attachments;
-    setInput('');
+    // A fresh continuity read can outlive a new edit in the composer.
+    setInput(current=>current===text?'':current);
     setAttachments((current) => current.map((item) => ({ ...item, status: 'uploading', error: undefined })));
     setAttachmentError('');
     setCart((current) => applyScopedHotelChange(current, message));
