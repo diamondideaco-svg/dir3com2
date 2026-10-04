@@ -36,7 +36,8 @@ export function platformFamilies(message: string): PlatformFamily[] {
 export function platformContext(message: string, history: Turn[] = []) {
   // Carry only bounded user preferences, never assistant assertions or account data.
   // New explicit preferences override old ones, including when the user names a family.
-  const turns = [...history.filter(t => t.role === 'user').slice(-4).map(t => t.content.slice(0, 500)), message];
+  const effectiveMessage = contextualStayGuests(message, history) ?? message;
+  const turns = [...history.filter(t => t.role === 'user').slice(-4).map(t => t.content.slice(0, 500)), effectiveMessage];
   const reset = turns.findLastIndex(turn => /new trip|start over|رحله جديده|ابدا من جديد/.test(normalizePlatformQuery(turn)));
   const relevant = turns.slice(Math.max(0, reset));
   const preferences = relevant.map(turn => tripPreferences(normalizePlatformQuery(turn)));
@@ -56,7 +57,26 @@ export function platformContext(message: string, history: Turn[] = []) {
     const currency = relevant.slice(0, -1).reverse().map(platformCurrency).find(Boolean);
     if (currency) carry.push(currency);
   }
-  return [...carry, message].join('\n');
+  return [...carry, effectiveMessage].join('\n');
+}
+
+/** A bare count is a preference only immediately after the missing Stay guest question. */
+function contextualStayGuests(message: string, history: Turn[]): string | null {
+  const number = normalizePlatformQuery(message);
+  if (!/^[1-9]\d?$/.test(number) || Number(number) > 20) return null;
+  const recent = history.slice(-8);
+  const question = recent.at(-1);
+  const user = recent.at(-2);
+  if (question?.role !== 'assistant' || user?.role !== 'user') return null;
+  const lastLine = question.content.trim().split(/\n\s*\n/).at(-1);
+  if (![AI2_DABRA_CONVERSATION_COPY.ar.guestsQuestion, AI2_DABRA_CONVERSATION_COPY.en.guestsQuestion].some(copy => copy === lastLine)) return null;
+  if (/\breq-|my requests|my bookings|operations|executive|\bceo\b|طلباتي|حجوزاتي|عمليات|الغاء|استرد|payment|\bpay\b/.test(normalizePlatformQuery(user.content))) return null;
+  // Assistant text only signals conversational position. Recheck family and missing
+  // preference from bounded USER context; it supplies no factual/account authority.
+  const prior = platformContext(user.content, recent.slice(0, -2));
+  const families = platformFamilies(prior), preferences = tripPreferences(normalizePlatformQuery(prior));
+  if (families.length !== 1 || families[0] !== 'stay' || !preferences.city || preferences.dates.length !== 2 || preferences.party) return null;
+  return `${number} adults`;
 }
 
 const months = ['january|يناير', 'february|فبراير', 'march|مارس', 'april|ابريل', 'may|مايو', 'june|يونيو', 'july|يوليو', 'august|اغسطس', 'september|سبتمبر', 'october|اكتوبر', 'november|نوفمبر', 'december|ديسمبر'];

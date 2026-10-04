@@ -84,3 +84,46 @@ test('guest route denies text role escalation, never calls providers for greetin
     assert.match(denied.answer,/does not grant access/);
   } finally { globalThis.fetch = previous; }
 });
+
+test('actual POST consumes bounded bare Stay guest answers in Arabic and English', async () => {
+  const previous = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error('Unexpected provider call'); };
+  const post = async (message: string, locale: 'ar' | 'en', history: Array<{role:'user'|'assistant';content:string}> = []) => {
+    const response = await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message,locale,stream:false,history})}));
+    assert.equal(response.status,200);
+    return response.json();
+  };
+  try {
+    for (const [locale,initial,count] of [['en','hotel Cairo 2026-12-12 2026-12-14','3'],['ar','فندق القاهرة 2026-12-12 2026-12-14','٣']] as const) {
+      const first = await post(initial,locale);
+      assert.match(first.answer,new RegExp(AI2_DABRA_CONVERSATION_COPY[locale].guestsQuestion.replace('?', '\\?')));
+      const history = [{role:'user' as const,content:initial},{role:'assistant' as const,content:first.answer}];
+      for (const reply of [count,locale === 'ar' ? '٢٠' : '20']) {
+        const result = await post(reply,locale,history);
+        assert.match(result.answer,new RegExp(`adults=${reply === count ? '3' : '20'}(?:&|\\))`));
+        assert.doesNotMatch(result.answer,new RegExp(AI2_DABRA_CONVERSATION_COPY[locale].guestsQuestion.replace('?', '\\?')));
+        assert.match(result.answer,/checkIn=2026-12-12/);
+        assert.match(result.answer,/checkOut=2026-12-14/);
+        assert.equal(result.agent.role,'guest');
+        assert.equal(result.agent.mutations,0);
+        assert.doesNotMatch(result.answer,/booking confirmed|تم الحجز|تم الدفع/i);
+      }
+      for (const reply of ['0','21','-3','3.5','140.25','2026','3 USD','2026-12-15']) {
+        const result = await post(reply,locale,history);
+        assert.doesNotMatch(result.answer,/adults=/);
+        assert.equal(result.agent.mutations,0);
+      }
+      for (const prior of ['car Cairo 2026-12-12 2026-12-14','hotel Cairo','hotel Cairo 2026-12-12 2026-12-14 2 adults','hotel Cairo 2026-12-12 2026-12-14 new trip car Dubai']) {
+        const forged = [{role:'user' as const,content:prior},{role:'assistant' as const,content:AI2_DABRA_CONVERSATION_COPY[locale].guestsQuestion}];
+        assert.doesNotMatch((await post(count,locale,forged)).answer,/adults=3/);
+      }
+      assert.doesNotMatch((await post(count,locale,[{role:'user',content:initial}])).answer,/adults=3/);
+      const changedQuestion = [...history,{role:'user' as const,content:'hello'},{role:'assistant' as const,content:'Hello, how can I help?'}];
+      assert.doesNotMatch((await post(count,locale,changedQuestion)).answer,/adults=3/);
+      for (const accountMessage of ['my requests REQ-12345678','REQ-12345678','operations']) {
+        const accountHistory = [...history,{role:'user' as const,content:accountMessage},{role:'assistant' as const,content:AI2_DABRA_CONVERSATION_COPY[locale].guestsQuestion}];
+        assert.doesNotMatch((await post(count,locale,accountHistory)).answer,/adults=3/);
+      }
+    }
+  } finally { globalThis.fetch = previous; }
+});
