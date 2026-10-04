@@ -7,7 +7,7 @@ let connectPeer;
 if (process.env.DRIVE_WHATSAPP_TEST_DATABASE_URL) {
  const url = new URL(process.env.DRIVE_WHATSAPP_TEST_DATABASE_URL);
  assert.ok(['postgres:', 'postgresql:'].includes(url.protocol) && ['127.0.0.1', 'localhost'].includes(url.hostname)
-  && url.port === '5432' && url.pathname === '/dir3com_test' && !url.search, 'Only the explicit local CI fixture is allowed');
+  && ['5432', '54339'].includes(url.port) && url.pathname === '/dir3com_test' && !url.search, 'Only the explicit local CI fixture is allowed');
  const { Client } = await import('pg');
  const admin = new Client({ connectionString: url.toString() }); await admin.connect();
  const name = 'drive_wa_test_' + randomBytes(8).toString('hex');
@@ -201,5 +201,108 @@ try {
    equal(starts.filter(x => x.rows[0].result).length, 1, 'concurrent send intent wins once');
   } finally { await a.end(); await b.end(); }
  }
+ // Current candidate forward migration, not merely the historical Twilio baseline.
+ const forwardPath = fs.readdirSync('supabase/migrations').find(name => name.endsWith('_drive_whatsapp_kapso_operations_created.sql'));
+ assert.ok(forwardPath);
+ const forward = read('supabase/migrations/' + forwardPath);
+ await db.exec(forward);
+ equal(await scalar('SELECT operations_created_enabled FROM drive_notification_private.settings'), false, 'category disabled by default');
+ equal(await scalar('SELECT operations_recipient_user_id IS NULL AND cardinality(operations_template_languages)=0 FROM drive_notification_private.settings'), true, 'no recipient or template invented');
+ await db.exec(forward);
+ equal(await scalar('SELECT operations_created_enabled FROM drive_notification_private.settings'), false, 'forward replay remains disabled');
+ await clear(); await request('kapso-disabled-category');
+ equal(await scalar('SELECT count(*)::int FROM drive_notification_private.outbox'), 0, 'old capture switch does not enable new category');
+ await db.query("UPDATE drive_notification_private.settings SET operations_created_enabled=true,operations_recipient_user_id=$1,operations_template_languages=ARRAY['ar']", [operations]);
+ await db.query("UPDATE drive_notification_private.subscriptions SET language='en' WHERE user_id=$1", [operations]);
+ await request('kapso-wrong-language');
+ equal(await scalar('SELECT count(*)::int FROM drive_notification_private.outbox'), 0, 'unapproved language cannot capture');
+ await db.query("UPDATE drive_notification_private.subscriptions SET language='ar' WHERE user_id=$1", [operations]);
+ // Another eligible EG manager still must not receive this single-recipient rollout.
+ await db.query("UPDATE public.team_access_grants SET country_scope=ARRAY['EG'] WHERE invited_user_id=$1", [foreignOperations]);
+ const selected = await request('kapso-selected-operations');
+ equal(await scalar('SELECT count(*)::int FROM drive_notification_private.outbox'), 1, 'only selected recipient, no customer or second eligible manager');
+ equal(await scalar('SELECT recipient_user_id FROM drive_notification_private.outbox'), operations, 'configured recipient is authoritative');
+ equal((await request('kapso-selected-operations')).replayed, true, 'request replay kept');
+ equal(await scalar('SELECT count(*)::int FROM drive_notification_private.outbox'), 1, 'single-category request retry dedup');
+ const selectedId = await requestId(selected.reference);
+ await asUser(operations, "SELECT public.review_managed_drive_request($1,0,'review')", [selectedId]);
+ equal(await scalar('SELECT count(*)::int FROM drive_notification_private.outbox'), 1, 'review category not activated');
+ await asUser(operations, "SELECT public.review_managed_drive_request($1,1,'confirm','QA vehicle',NULL,150,'USD',now()+interval '1 day',NULL)", [selectedId]);
+ await asUser(customer, 'SELECT public.accept_managed_drive_quote($1,2)', [selectedId]);
+ equal(await scalar('SELECT count(*)::int FROM drive_notification_private.outbox'), 1, 'quote and acceptance categories remain closed');
+ equal(await scalar('SELECT next_action FROM public.marketplace_requests WHERE id=$1', [selectedId]), 'payment_not_enabled', 'Kapso scope does not enable payment/booking');
+ row=await claim(); equal(await service('begin_kapso_drive_whatsapp($1,$2,$3)',[row.id,row.token,'10000000000166']),false,'superseded request suppressed');
+ // Force failure after the capture trigger to prove atomic request/event/outbox rollback.
+ await clear();
+ const snapshot=await scalar("SELECT jsonb_build_array((SELECT count(*) FROM marketplace_requests),(SELECT count(*) FROM drive_request_events),(SELECT count(*) FROM drive_notification_private.outbox))");
+ await db.exec("CREATE FUNCTION public.task166_fail_after_capture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'ISOLATED_ROLLBACK'; END $$; CREATE TRIGGER zz_task166_fail AFTER INSERT ON public.drive_request_events FOR EACH ROW EXECUTE FUNCTION public.task166_fail_after_capture();");
+ await assert.rejects(request('kapso-atomic-rollback'),/ISOLATED_ROLLBACK/); checks++;
+ equal(await scalar("SELECT jsonb_build_array((SELECT count(*) FROM marketplace_requests),(SELECT count(*) FROM drive_request_events),(SELECT count(*) FROM drive_notification_private.outbox))"),snapshot,'after-capture failure rolls back request/event/outbox atomically');
+ await db.exec('DROP TRIGGER zz_task166_fail ON public.drive_request_events; DROP FUNCTION public.task166_fail_after_capture();');
+ const kapsoBegin = row => service('begin_kapso_drive_whatsapp($1,$2,$3)',[row.id,row.token,'10000000000166']);
+ const kapsoReceipt = (row,state,message='wamid.ISOLATED166',sender='10000000000166',phone=row.phone) => service('record_kapso_drive_whatsapp_receipt($1,$2,$3,$4,$5)',[message,sender,phone,state,null]);
+ await request('kapso-receipt-binding'); row=await claim();
+ equal(await kapsoBegin({...row,token:other}),false,'Kapso wrong lease denied');
+ equal(await kapsoBegin(row),true,'Kapso intent binds sender once');
+ equal(await kapsoBegin(row),false,'Kapso intent cannot repeat');
+ equal(await scalar('SELECT provider_phone_number_id FROM drive_notification_private.outbox WHERE id=$1',[row.id]),'10000000000166','sender durable before network');
+ equal(await kapsoReceipt(row,'delivered'),false,'early callback without durable WAMID must retry');
+ equal(await finish(row,'accepted',sid(19)),false,'Twilio SID cannot complete Kapso attempt');
+ equal(await finish(row,'accepted','wamid.ISOLATED166'),true,'Kapso accepted WAMID durable');
+ equal(await kapsoReceipt(row,'delivered','wamid.ISOLATED166','10000000000999'),false,'foreign sender cannot reconcile message');
+ equal(await kapsoReceipt(row,'delivered','wamid.ISOLATED166','10000000000166','+10000000099'),false,'foreign recipient cannot reconcile message');
+ equal(await kapsoReceipt(row,'delivered','wamid.UNBOUND'),false,'unbound message cannot correlate by phone');
+ equal(await kapsoReceipt(row,'delivered'),true,'signed bound delivery reconciles');
+ await kapsoReceipt(row,'sent'); await kapsoReceipt(row,'failed'); await kapsoReceipt(row,'delivered');
+ equal(await state(row),'delivered','Kapso out-of-order/duplicate receipts cannot downgrade');
+ await kapsoReceipt(row,'read'); await kapsoReceipt(row,'sent');
+ equal(await state(row),'read','Kapso read never regresses');
+ equal(await scalar('SELECT count(*)::int FROM drive_notification_private.receipts WHERE outbox_id=$1',[row.id]),4,'Kapso state receipts dedup in database');
+ await clear(); await request('kapso-consent-revoked'); row=await claim();
+ await db.query('UPDATE drive_notification_private.subscriptions SET enabled=false WHERE user_id=$1',[operations]);
+ equal(await kapsoBegin(row),false,'Kapso rechecks consent after capture/claim');
+ await db.query('UPDATE drive_notification_private.subscriptions SET enabled=true WHERE user_id=$1',[operations]);
+ await clear(); await request('kapso-authority-revoked'); row=await claim();
+ await db.query("UPDATE public.team_access_grants SET country_scope=ARRAY['SA'] WHERE invited_user_id=$1",[operations]);
+ equal(await kapsoBegin(row),false,'Kapso rechecks EG authority after claim');
+ await db.query("UPDATE public.team_access_grants SET country_scope=ARRAY['EG'] WHERE invited_user_id=$1",[operations]);
+ await clear(); await request('kapso-recipient-changed'); row=await claim();
+ await db.query('UPDATE drive_notification_private.settings SET operations_recipient_user_id=$1',[foreignOperations]);
+ equal(await kapsoBegin(row),false,'recipient rollout rechecked before intent');
+ await db.query('UPDATE drive_notification_private.settings SET operations_recipient_user_id=$1',[operations]);
+ await clear(); await request('kapso-category-kill'); row=await claim();
+ await db.exec('UPDATE drive_notification_private.settings SET operations_created_enabled=false');
+ equal(await kapsoBegin(row),false,'category kill switch rechecked after claim'); equal(await claim(),null,'disabled category cannot claim');
+ await db.exec('UPDATE drive_notification_private.settings SET operations_created_enabled=true,operations_template_languages=ARRAY[]::text[]');
+ equal(await kapsoBegin(row),false,'template language gate rechecked after claim');
+ await db.exec("UPDATE drive_notification_private.settings SET operations_template_languages=ARRAY['ar']");
+ await clear(); await request('kapso-unknown-after-crash'); row=await claim(); equal(await kapsoBegin(row),true,'intent before ambiguous crash');
+ await db.query("UPDATE drive_notification_private.outbox SET lease_until=now()-interval '1 second' WHERE id=$1",[row.id]);
+ equal(await claim(),null,'Kapso send crash never reclaimed'); equal(await state(row),'unknown','Kapso expired intent explicitly unknown');
+ equal(await kapsoReceipt(row,'sent','wamid.NO_RESPONSE'),false,'lost HTTP WAMID requires manual reconciliation, no guessing');
+ equal(await claim(),null,'unknown no blind resend');
+ await clear(); await request('kapso-budget-one'); row=await claim();
+ await db.exec('UPDATE drive_notification_private.settings SET daily_limit=1');
+ equal(await kapsoBegin(row),true,'Kapso global budget debited'); await finish(row,'unknown',null,'SEND_OUTCOME_UNKNOWN');
+ await request('kapso-budget-two'); const kapsoLimited=await claim();
+ equal(await kapsoBegin(kapsoLimited),false,'Kapso daily budget caps next request');
+ equal(await scalar('SELECT budget_used FROM drive_notification_private.settings'),1,'one debit for ambiguous send');
+ for(const role of ['anon','authenticated']) for(const fn of ['begin_kapso_drive_whatsapp(uuid,uuid,text)','record_kapso_drive_whatsapp_receipt(text,text,text,text,text)'])
+  equal(await scalar('SELECT has_function_privilege($1,$2,$3)',[role,'public.'+fn,'EXECUTE']),false,role+' Kapso RPC denied');
+ equal(await scalar("SELECT has_table_privilege('service_role','drive_notification_private.outbox','UPDATE')"),false,'Kapso direct privileged table update still denied');
+ equal(await scalar("SELECT count(*)::int FROM pg_class c JOIN pg_namespace n ON c.relnamespace=n.oid WHERE n.nspname='drive_notification_private' AND c.relkind='r' AND c.relrowsecurity"),4,'forward retains all RLS');
+ if(connectPeer){
+  await clear(); await request('kapso-concurrent-worker');
+  const a=await connectPeer(); const b=await connectPeer();
+  try{
+   await a.query('SET ROLE service_role'); await b.query('SET ROLE service_role');
+   const claims=await Promise.all([a.query('SELECT public.claim_drive_whatsapp() AS result'),b.query('SELECT public.claim_drive_whatsapp() AS result')]);
+   equal(claims.filter(x=>x.rows[0].result!==null).length,1,'two workers claim one selected recipient only once');
+   const selected=claims.find(x=>x.rows[0].result!==null).rows[0].result;
+   const starts=await Promise.all([a.query('SELECT public.begin_kapso_drive_whatsapp($1,$2,$3) AS result',[selected.id,selected.token,'10000000000166']),b.query('SELECT public.begin_kapso_drive_whatsapp($1,$2,$3) AS result',[selected.id,selected.token,'10000000000166'])]);
+   equal(starts.filter(x=>x.rows[0].result).length,1,'two Kapso send intents win exactly once');
+  }finally{await a.end();await b.end();}
+ }
+
  console.log(`PASS ${checks} isolated PostgreSQL assertions (${connectPeer ? 'PostgreSQL with two-connection concurrency' : 'PGlite, sequential'}); no remote database or provider calls`);
 } finally { await db.close(); }

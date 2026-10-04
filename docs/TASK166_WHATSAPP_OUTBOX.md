@@ -1,65 +1,46 @@
-# Task #166: Drive WhatsApp delivery
+# Task166: single-category Kapso Drive notification
 
-Owner: Codex — ChatGPT Work Mode. Branch: `fix/drive-whatsapp-status-notifications`.
-Base: `f095853ca112e03c394af9b54ba2004500922a79`. Independent review is required; owner checks are not independent approval.
+Owner: Codex — ChatGPT Work Mode, session `01a10735-bdbf-7d63-b129-58c753b2f34f`. Existing branch `fix/drive-whatsapp-status-notifications`, PR171. Ordered master `61d0f1b59e1619c00829cc081f3f30d3df389d52` is locally integrated. Independent functional and distinct security review require a separate non-author session and the exact candidate SHA.
 
-## Release state
+## Current scope and defaults
 
-This is disabled-by-default implementation, not live-delivery proof. No provider requests, account changes, migrations on a remote project or real messages were performed during development. No paid dependency or new subscription is introduced. The existing Operations UI still truthfully says automatic WhatsApp is unavailable. Keep that wording until an authorized activation with real delivery evidence.
+Only `operations.created` for a newly committed managed Egypt Drive request is in scope. Guest quotation chat does not create an authenticated saved request. `REQ != BOOKING != PAYMENT`. The existing core event/outbox, authority checks, consent records, lease tokens, durable send intent and UTC daily budget are reused. No second backend, backfill, enrollment, scheduler or customer-facing claim of automatic delivery is added.
 
-The last provider inspection, recorded in Task #166 comment 5858917089 on 27 September, found no WhatsApp sender or templates and Twilio compliance rejection 18602/18603/18604. Correct company registration, address and representative evidence is the external onboarding gate. A linked WhatsApp Web session does not replace an approved API sender.
+The original registered outbox migration is immutable. Forward migration `20261004233934_drive_whatsapp_kapso_operations_created.sql` adds disabled category gating, one approved Operations recipient UUID and an explicit language allowlist. Both capture and claim require that recipient and language. Begin-send rechecks category, recipient, language, current consent/contact, active profile, EG grant, request state, freshness, kill switch and budget. It persists the Kapso phone-number ID before network access. This migration does not set a recipient or enable any switch. A later deployment must apply the original outbox migration before this forward, with separate approval; no remote application is included here.
 
-## What is implemented
+The existing POST worker `/api/internal/drive-whatsapp/dispatch` now uses Kapso, with no Twilio fallback. Old Twilio helper tests and signed receipt route remain for historical compatibility; those are not the current worker transport or evidence of Kapso approval.
 
-- An AFTER INSERT trigger on authoritative `drive_request_events` captures eligible recipients in the same transaction. No historical backfill. The migration leaves capture and sending off and creates no subscriptions.
-- Recipient subscriptions require documented opt-in and verified E.164 contact. The service provisioning process, not an unauthenticated form, is responsible for that evidence. Do not infer consent from `acknowledged` or a supplied phone number. National-format numbers must be explicitly verified/normalized before enrollment; no guessed country prefix.
-- Customer identity and contact are checked against the saved request. Operations eligibility is checked against active profile and explicit regional grants at capture and again before sending. Background delivery deliberately requires an explicit grant even for a CEO. Disabled contacts, reassignment, revoked roles, different countries, stale states, expired quotes and past pickups cannot dispatch.
-- Unique event/channel/recipient keys; claim token and send-intent transition; three attempts maximum; global UTC daily budget, initially 20 and capped at 100. The budget counts attempts, not claims of successful delivery.
-- Claim expiry before send can be reclaimed. Expiry after send intent becomes `unknown`. A timeout, 5xx, malformed response or failed result write never triggers a blind resend. Only a documented 429/20429 response without a message SID permits bounded exponential retries.
-- Twilio ContentSid templates only, no free-text fallback. Payload variables contain request reference and authenticated account link, not private Operations notes or claimed payment/booking.
-- Signature-verified status callbacks bind the configured account, sender, recipient, provider SID and opaque attempt token. All form fields enter the HMAC; duplicate fields and oversized bodies fail. Callbacks may reconcile an unknown outcome. Duplicate and out-of-order callbacks do not downgrade delivered/read evidence. Callbacks continue when the outbound environment switch is off.
-- `get_drive_whatsapp_delivery(request_id)` exposes state, attempts and error code to authorized regional Operations only, without phone numbers. It does not add a new UI panel. Failed/unknown entries remain available for controlled reconciliation; no automatic unknown-resend endpoint exists.
+## Server configuration contract
 
-## Configuration contract, server-side only
-
-| Name | Meaning |
+| Binding | Meaning |
 | --- | --- |
-| `DIR3COM_WHATSAPP_ENABLED` | Exact `true` permits the worker endpoint; absent/false returns 404 before database/provider access |
-| `DIR3COM_WHATSAPP_WORKER_SECRET` | Separate random bearer secret of at least 32 characters for the POST worker endpoint |
-| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` | Existing approved account, secured server-side; token also verifies callbacks |
-| `TWILIO_MESSAGING_SERVICE_SID` | Messaging service with the approved WhatsApp sender |
-| `DIR3COM_WHATSAPP_FROM` | Verified E.164 sender, without the `whatsapp:` prefix |
-| `DIR3COM_WHATSAPP_CALLBACK_URL` | Fixed HTTPS URL ending `/api/webhooks/twilio/whatsapp`, no credentials/query/fragment |
-| `DIR3COM_WHATSAPP_SITE_URL` | Approved HTTPS application origin, no extra path/query |
-| `DIR3COM_WHATSAPP_TEMPLATE_SIDS` | JSON map from the keys below to approved HX content SIDs |
+| `DIR3COM_WHATSAPP_ENABLED` | Exact `true` permits worker routing; otherwise 404 before database/provider access |
+| `DIR3COM_WHATSAPP_CATEGORIES` | Must equal `operations.created` exactly; other categories fail closed |
+| `DIR3COM_WHATSAPP_WORKER_SECRET` | Separate server bearer secret, at least 32 characters |
+| `KAPSO_API_KEY` | Existing approved provider key, server secret only |
+| `KAPSO_PHONE_NUMBER_ID` | Existing approved Egyptian sender identifier; captured in durable send intent |
+| `KAPSO_WEBHOOK_SECRET` | Secret for the approved phone-number webhook, at least 32 characters; receipt verification remains active with outbound off |
+| `DIR3COM_WHATSAPP_SITE_URL` | Approved HTTPS application origin, no credentials/path/query/fragment |
+| `DIR3COM_WHATSAPP_KAPSO_TEMPLATES` | JSON map containing only `operations.created.ar` and/or `operations.created.en`, each `{ "name": "approved_template_name", "languageCode": "ar" }` or approved `en`/`en_US`/`en_GB` |
 
-Use approved local/server secrets, never source files, issue comments or client variables. Preview testing must use an isolated database and explicit non-production sender authorization. Do not copy Production credentials into Preview. No scheduler or automatic cron is enabled by this PR. A separately approved scheduler calls POST `/api/internal/drive-whatsapp/dispatch`, processing at most one item per invocation. The route accepts no recipient or message input.
+A single approved recipient language needs only its one template. Template names in configuration are not proof of provider approval. The approved template contract has two positional body text parameters: request reference and authenticated Operations link. No free-text fallback, private notes, quote price or booking/payment assertion is sent.
 
-Both the database `settings.send_enabled` and environment switch must permit dispatch. Database `capture_enabled` governs only newly created events. Turn off database `send_enabled` for an immediate check at the next begin-send; turning off the environment switch may also require the hosting platform's environment rollout. Neither switch can recall a request already sent to Twilio. Keep callback verification configured to record in-flight deliveries.
+Database settings `capture_enabled`, `send_enabled` and `operations_created_enabled` must be separately approved. `operations_recipient_user_id` selects the privately verified Operations account, and `operations_template_languages` must match the deployed approved template languages. Empty defaults close the rollout. Subscriptions require verified contact and documented consent. The worker accepts no arbitrary recipient/message input.
 
-## Approved-template drafts
+## Transport and receipts
 
-Each key requires `.ar` and `.en`. These are drafts, not claims of Twilio approval. `{{1}}` is the request reference; `{{2}}` is the account link. No quote amount is embedded, so the authenticated current request remains the source of price truth.
+Kapso sends use the fixed documented proxy `https://api.kapso.ai/meta/whatsapp/v24.0/{phone_number_id}/messages`, X-API-Key and approved template JSON. Successful HTTP acceptance requires one valid WAMID and a matching echoed recipient. HTTP acceptance is not delivery. Every ambiguous response, 429, 5xx, timeout or malformed/mismatched response becomes `unknown`; Twilio20429 retry assumptions do not apply to Kapso. A lost write leaves durable send intent; expired sending becomes unknown, never automatic resend.
 
-| Key | Arabic text | English text |
-| --- | --- | --- |
-| `customer.created` | استلمنا طلب النقل {{1}}. ستراجعه عمليات مصر. لم يتم حجز أو دفع. متابعة الطلب: {{2}} | We received transport request {{1}}. Egypt Operations will review it. No booking or payment has occurred. View request: {{2}} |
-| `customer.review` | طلب النقل {{1}} قيد المراجعة لدى عمليات مصر. متابعة الطلب: {{2}} | Transport request {{1}} is under review by Egypt Operations. View request: {{2}} |
-| `customer.confirm` | عرض السعر لطلب {{1}} جاهز لمراجعتك وموافقتك في حسابك. لم يتم حجز أو دفع. عرض التفاصيل: {{2}} | The offer for request {{1}} is ready for your review and acceptance in your account. No booking or payment has occurred. View details: {{2}} |
-| `customer.decline` | تعذّر قبول طلب النقل {{1}}. راجع حالة الطلب في حسابك: {{2}} | Transport request {{1}} could not be accepted. View its status in your account: {{2}} |
-| `customer.customer_accept` | سُجّلت موافقتك على عرض الطلب {{1}}. لم يتم حجز أو دفع أو تأكيد مورد. متابعة الطلب: {{2}} | Your acceptance of the offer for request {{1}} was recorded. No booking, payment or supplier confirmation has occurred. View request: {{2}} |
-| `operations.created` | وصل طلب نقل جديد {{1}} إلى عمليات مصر للمراجعة. افتح الطلب من حساب العمليات: {{2}} | New transport request {{1}} requires Egypt Operations review. Open your Operations account: {{2}} |
-| `operations.customer_accept` | وافق العميل على عرض الطلب {{1}}. يلزم استكمال التنسيق؛ لا حجز أو دفع مسجّل. افتح حساب العمليات: {{2}} | The customer accepted the offer for request {{1}}. Coordination remains required; no booking or payment is recorded. Open Operations: {{2}} |
+Configure only an approved Kapso **phone-number v2 webhook** for sent/delivered/read/failed events at `/api/webhooks/kapso/drive-whatsapp`. Verification uses raw bounded JSON bytes and HMAC-SHA256 from `X-Webhook-Signature`, with timing-safe comparison. The event header is not signed and cannot choose delivery state; the state must come from the signed message body. Sender phone-number ID, outbound/non-passive direction, recipient and WAMID must all match. BSUID-only or missing-phone events fail closed for this explicitly verified phone rollout.
 
-## Verification and activation boundary
+The receipt RPC correlates only a durably persisted WAMID plus captured sender and recipient, then reuses the existing token-checked monotonic receipt logic and database duplicate key. Unknown WAMIDs cannot be attached by phone alone. A callback racing HTTP acceptance returns409 for provider retry. If the HTTP response/WAMID was lost, the v2 callback cannot safely identify the outbox attempt and requires controlled provider reconciliation. This is an explicit limitation; automatic reconciliation or universal exactly-once network delivery is not claimed. Retain delivery callbacks and operational monitoring when outbound is switched off. Kill switches cannot recall an already submitted network request.
 
-Local tests execute the real TypeScript worker/webhook with isolated transport and actual SQL functions in disposable PostgreSQL fixtures. The CI outbox step uses a new database on its loopback PostgreSQL17 service and tests two-connection claims/send intent. The in-memory fallback uses PGlite and does not claim concurrent-connection coverage.
+Official contracts checked on this continuation: [Kapso template send](https://docs.kapso.ai/docs/whatsapp/templates/simple-text), [signature verification](https://docs.kapso.ai/docs/platform/webhooks/security), [v2 message events](https://docs.kapso.ai/docs/platform/webhooks/message-events), [delivery retries](https://docs.kapso.ai/docs/platform/webhooks/advanced).
 
-1. Complete exact-SHA independent functional and security reviews and release gates.
-2. Verify sender, messaging service and all template approvals in the existing provider account; finish required compliance evidence.
-3. Provision approved opted-in subscriptions through restricted database administration. Do not enroll historical customers merely because their phone appears in a request. No PII belongs in git.
-4. Obtain concrete release/migration/configuration authorization, apply this one registered forward once, and initially keep both switches off.
-5. Verify the callback endpoint on the approved deployment. Enable a bounded isolated test with only approved recipients, then observe provider acceptance and actual delivered status. Test duplicate callbacks and kill switch without repeated real messages.
-6. Preserve `REQ != BOOKING != PAYMENT`. Do not claim live PASS until delivery is independently observed. Do not replay old events or turn `unknown` into a fresh send without provider reconciliation.
+## Verification and remaining gates
 
-References: [Twilio signatures](https://www.twilio.com/docs/usage/security), [approved WhatsApp templates](https://www.twilio.com/docs/whatsapp/tutorial/send-whatsapp-notification-messages-templates), [out-of-order status callbacks](https://www.twilio.com/docs/messaging/guides/track-outbound-message-status), [safe 20429 retries](https://www.twilio.com/docs/api/errors/20429). Checked 28 September 2026.
+Candidate TypeScript tests execute the actual adapter and Drive request/quote handlers with synthetic store/transport and all real sockets blocked. Migration-cutover checks verify registered forward hashes and unchanged archives. The SQL harness now applies the actual forward after historical baseline checks, and includes atomic rollback, single-category/recipient/language gates, current authority/consent revocation, WAMID/sender/recipient binding, monotonic duplicate receipts, unknown crash handling, budgets, RLS/privileges and two-connection claims/send intent when real PostgreSQL is available. Added assertions are unverified until that harness actually runs.
+
+Local SQL currently BLOCKED: installed PostgreSQL17 lacks `share/postgres.bki`; initialization failed before a test database was created. No installed PGlite package was found in existing dependency/cache candidates; normal fallback exited ERR_MODULE_NOT_FOUND. One read-only Docker Server version probe timed out after6 seconds; only its client process was terminated. No Docker restoration, downloads, paid resources, remote database or unrelated deletion occurred. The CI test step is prepared, but this local-only candidate is not pushed and no hosted CI PASS is claimed. Typecheck and lint passed; 37 focused synthetic tests and 9 migration-cutover tests passed. Default npm build failed because Turbopack rejects the external dependency junction. The documented webpack fallback failed on blocked Google font downloads and ENOSPC. Its PowerShell process-tree stop overload was unsupported; the build then exited with compilation failure. Only this run's newly generated, verified non-symlink webpack cache was removed to restore space to343MB; no source/unrelated deletion. No build remains running. Both build attempts are non-PASS, and no further build is attempted in this low-disk environment. Independent review remains pending; static tests are not full Production PASS.
+
+The smallest future activation bundle requires: exact-candidate isolated SQL/build/preview checks and independent functional/security review; verified current Rami EG operational grant, matching verified contact and documented opt-in subscription; the existing Egyptian Kapso sender/project and approved one-category template/parameter contract; secure secret/webhook binding on the approved deployment; explicit migration/configuration/scheduler/recipient authorization with both kill switches and a bounded budget; and separate immediate approval for one controlled real lifecycle send after a newly committed managed request. None of these private live facts is inferred from historical reports. No contact/credential values belong in git or task comments.

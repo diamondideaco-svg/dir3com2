@@ -72,10 +72,11 @@ try {
   const managedDriveAcceptance = files.find(file => file.endsWith('_drive_customer_quote_acceptance.sql'));
   const managedDriveSeptember = files.find(file => file.endsWith('_drive_september27_managed_catalog.sql'));
   const managedDriveWhatsApp = files.find(file => file.endsWith('_drive_whatsapp_outbox.sql'));
+  const managedDriveKapso = files.find(file => file.endsWith('_drive_whatsapp_kapso_operations_created.sql'));
   // CEO-specific 43-row price release has its own isolated rollback/replay fixture.
   const priceRelease = files.find(file => file.endsWith('_drive_price_reduction_15_percent.sql'));
   assert.ok(migration);
-  for (const file of files.filter(file => file !== priceRelease && file !== migration && file !== managedDrive && file !== managedDriveModelYear && file !== managedDriveAcceptance && file !== managedDriveSeptember && file !== managedDriveWhatsApp)) sql(read(`supabase/migrations/${file}`));
+  for (const file of files.filter(file => file !== priceRelease && file !== migration && file !== managedDrive && file !== managedDriveModelYear && file !== managedDriveAcceptance && file !== managedDriveSeptember && file !== managedDriveWhatsApp && file !== managedDriveKapso)) sql(read(`supabase/migrations/${file}`));
   // Fixtures are inserted only in our disposable database; no captured user data.
   for (const [id, role] of [[ceo,'admin'],[admin,'admin'],[staff,'staff'],[customer,'customer'],[partner,'partner']]) {
     sql(`INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES('${id}','${id}@example.invalid','{}');
@@ -101,6 +102,7 @@ try {
     if (managedDriveAcceptance) sql(read(`supabase/migrations/${managedDriveAcceptance}`));
     if (managedDriveSeptember) sql(read(`supabase/migrations/${managedDriveSeptember}`));
     if (managedDriveWhatsApp) sql(read(`supabase/migrations/${managedDriveWhatsApp}`));
+    if (managedDriveKapso) sql(read(`supabase/migrations/${managedDriveKapso}`));
     sql(read('tests/sql/drive-managed-request.sql'));
     equal(rows(), before, 'managed Drive regression rolls back fixtures without changing existing business data');
   }
