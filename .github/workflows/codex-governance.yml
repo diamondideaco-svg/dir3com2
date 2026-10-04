@@ -46,6 +46,19 @@ jobs:
                 return;
               }
             }
+            let reviewerReceipt;
+            const reviewerName = body.match(/^[-*]\s*Independent reviewer\s*:\s*(.+)\s*$/im)?.[1]?.trim();
+            if (['Codex - ChatGPT Work Mode', 'Codex — ChatGPT Work Mode', 'ChatGPT Work Model'].includes(reviewerName)) {
+              const receiptId = body.match(/^[-*]\s*Reviewer receipt\s*:\s*([1-9][0-9]*)\s*$/im)?.[1];
+              if (receiptId) {
+                try {
+                  reviewerReceipt = (await github.rest.issues.getComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: Number(receiptId) })).data;
+                } catch {
+                  core.setFailed('Assigned reviewer receipt could not be verified.');
+                  return;
+                }
+              }
+            }
             const { record, failures } = validate({
               prBody: body,
               issueBody: taskRecord.body || '',
@@ -55,7 +68,8 @@ jobs:
               taskTitle: taskRecord.title || '',
               taskIsPullRequest: Boolean(taskRecord.pull_request),
               repoOwner: context.repo.owner,
-              repoName: context.repo.repo
+              repoName: context.repo.repo,
+              reviewerReceipt
             });
             const summary = [
               '## Codex Control Tower Record', '',
