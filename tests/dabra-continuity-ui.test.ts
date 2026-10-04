@@ -18,19 +18,27 @@ function fixture(language:'ar'|'en',expired=false){
  const expiry=new Date(Date.now()+(expired?-1:86400000)).toISOString();
  const snapshot={revision:1,generation:0,consentEnabled:true,consentVersion:'task187-v1',preferences,preferencesExpiresAt:expiry,trip,tripExpiresAt:expiry,updatedAt:new Date().toISOString()};
  const slots:unknown[]=[snapshot,true,preferences,trip,true,false,false,'idle',new ContinuityRequests()];let index=0;const refs:{current:unknown}[]=[];let refIndex=0;
+ let effectIndex=0;let feedbackEffect=()=>{};let feedbackDependencies:unknown[]=[];let lastFeedbackDependencies:unknown[]|null=null;let feedbackFocuses=0;
  const callbacks={resumed:null as unknown,applied:null as unknown,forgotten:0};let calls=0;const payloads:unknown[]=[];
  const compiled=ts.transpileModule(readFileSync(new URL('../components/dabra/DabraContinuity.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const require=createRequire(import.meta.url);const exports={} as {default:(props:unknown)=>ReactElement};
  const dependencies:Record<string,unknown>={
-  react:{useState:(initial:unknown)=>{const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],(v:unknown)=>{slots[i]=typeof v==='function'?v(slots[i]):v;}];},useRef:(initial:unknown)=>{const i=refIndex++;return refs[i]??(refs[i]={current:initial});},useEffect:()=>{}},
+  react:{useState:(initial:unknown)=>{const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],(v:unknown)=>{slots[i]=typeof v==='function'?v(slots[i]):v;}];},useRef:(initial:unknown)=>{const i=refIndex++;return refs[i]??(refs[i]={current:initial});},useEffect:(effect:()=>void,dependencies:unknown[])=>{if(effectIndex++===0){feedbackEffect=effect;feedbackDependencies=dependencies;}}},
   '@/lib/supabase/client':{supabase:{}},'@/lib/dabra/continuity-contract':{...contract,parseSavedTrip:(value:unknown)=>contract.parseSavedTrip(JSON.parse(JSON.stringify(value)))},'@/lib/dabra/continuity-service':service,'@/lib/dabra/continuity-requests':{ContinuityRequests},'./DabraContinuity.module.css':{default:{panel:'panel',grid:'grid',actions:'actions'}},
  };
  runInNewContext(compiled,{exports,require:(id:string)=>id in dependencies?dependencies[id]:require(id),crypto:globalThis.crypto,Date,AbortController,JSON,fetch:async(_url:string,options:{body?:string})=>{calls++;if(options.body)payloads.push(JSON.parse(options.body));return {ok:true,status:200,json:async()=>({enabled:true,ownerId:'user:test',state:{...snapshot,revision:2,preferences:null,preferencesExpiresAt:null,trip:null,tripExpiresAt:null,consentEnabled:false,consentVersion:null}})};}},{filename:'DabraContinuity.tsx'});
- const render=()=>{index=0;refIndex=0;return exports.default({ownerId:'user:test',language,onResume:(intent:unknown,prefs:unknown)=>{callbacks.resumed={intent,prefs};},onApply:(prefs:unknown)=>{callbacks.applied=prefs;},onForget:()=>{callbacks.forgotten++;}});};
- type Element={type:unknown;props:Record<string,unknown>};
+ const render=()=>{index=0;refIndex=0;effectIndex=0;return exports.default({ownerId:'user:test',language,onResume:(intent:unknown,prefs:unknown)=>{callbacks.resumed={intent,prefs};},onApply:(prefs:unknown)=>{callbacks.applied=prefs;},onForget:()=>{callbacks.forgotten++;}});};
+ type Element={type:unknown;key?:string|null;props:Record<string,unknown>};
  const elements=(node:unknown):Element[]=>{if(Array.isArray(node))return node.flatMap(elements);if(!node||typeof node!=='object'||!('props' in node))return [];const el=node as Element;return [el,...elements(el.props.children)];};
  const button=(label:string)=>{const found=elements(render()).find(el=>el.type==='button'&&el.props.children===label);assert.ok(found,`button ${label}`);return found.props;};
- return {render,button,elements,slots,callbacks,calls:()=>calls,trip,payloads};
+ const commitFeedback=()=>{
+  const alert=elements(render()).find(el=>el.type==='p'&&el.props.role==='alert');
+  if(alert)(alert.props.ref as {current:unknown}).current={focus:()=>{feedbackFocuses++;}};
+  const changed=lastFeedbackDependencies===null||feedbackDependencies.some((value,i)=>!Object.is(value,lastFeedbackDependencies?.[i]));
+  if(changed){lastFeedbackDependencies=[...feedbackDependencies];feedbackEffect();}
+  return {key:alert?.key,focuses:feedbackFocuses};
+ };
+ return {render,button,elements,slots,callbacks,calls:()=>calls,trip,payloads,commitFeedback};
 }
 test('actual AR/EN controls render consent unchecked and saving disabled',()=>{
  for(const language of ['ar','en'] as const){const f=fixture(language);const tree=f.render();const html=renderToStaticMarkup(tree);assert.match(html,language==='ar'?/dir="rtl"/:/dir="ltr"/);assert.match(html,/type="date"/);assert.match(html,/Riyadh/);
@@ -57,4 +65,13 @@ test('resume stages the same safe intent without any network call; expired state
 });
 test('revoke performs one account mutation then detaches local planning state',async()=>{
  const f=fixture('en');(f.button('Disable memory and delete all').onClick as ()=>void)();await new Promise<void>(resolve=>setImmediate(resolve));assert.equal(f.calls(),1);assert.equal(f.callbacks.forgotten,1);assert.equal((f.slots[0] as {consentEnabled:boolean}).consentEnabled,false);assert.equal(f.slots[5],false);
+});
+test('each repeated invalid AR/EN save refocuses and remounts feedback without a mutation',()=>{
+ for(const language of ['ar','en'] as const){
+  const f=fixture(language);f.slots[3]={...f.trip,destination:''};f.slots[5]=true;f.commitFeedback();
+  const save=language==='ar'?'تأكيد وحفظ':'Confirm and save';
+  (f.button(save).onClick as ()=>void)();const first=f.commitFeedback();assert.equal(first.focuses,1);
+  (f.button(save).onClick as ()=>void)();const second=f.commitFeedback();assert.equal(second.focuses,2);assert.notEqual(second.key,first.key);
+  assert.equal(f.commitFeedback().focuses,2,'render without another explicit action must not steal focus');assert.equal(f.calls(),0);
+ }
 });

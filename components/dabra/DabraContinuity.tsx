@@ -24,6 +24,8 @@ export default function DabraContinuity(props:Props){
  const [requests]=useState(()=>new ContinuityRequests());const pending=useRef<ContinuityMutation|null>(null);
  const callbacks=useRef({onForget,onState:props.onState});const snapshot=useRef<ContinuitySnapshot|null>(null);const channel=useRef<BroadcastChannel|null>(null);
  const foreground=useRef(false);
+ const feedback=useRef<HTMLParagraphElement|null>(null);const focusFeedback=useRef(false);const [feedbackAttempt,setFeedbackAttempt]=useState(0);
+ useEffect(()=>{if(!busy&&status!=='idle'&&focusFeedback.current){focusFeedback.current=false;feedback.current?.focus();}},[busy,status,feedbackAttempt]);
  useEffect(()=>{callbacks.current={onForget,onState:props.onState};},[onForget,props.onState]);
  function hydrate(s:ContinuitySnapshot){
   snapshot.current=s;callbacks.current.onState?.(s);setState(s);setConsent(false);setPreferences(s.preferences??{...defaults,replyLanguage:language});
@@ -60,6 +62,7 @@ export default function DabraContinuity(props:Props){
  },[ownerId]);
  async function submit(action:ContinuityAction,retry=false){
   if(!state||busy)return;
+  focusFeedback.current=true;setFeedbackAttempt(current=>current+1);
   if(action==='save'&&(!consent||(includeTrip&&!parseSavedTrip(trip)))){setStatus('invalid');return;}
   const attempt=retry?pending.current:{action,revision:state.revision,generation:state.generation,mutationId:crypto.randomUUID(),payload:action==='save'?{consent:true,preferences,trip:includeTrip?trip:null}:{}};
   if(!attempt)return;
@@ -106,6 +109,6 @@ export default function DabraContinuity(props:Props){
  <button type="button" disabled={busy} onClick={()=>void load()}>{t.load}</button>
  {status==='error'&&<button type="button" disabled={busy} onClick={()=>{const attempt=pending.current;if(attempt)void submit(attempt.action,true);}}>{t.retry}</button>}
  </div></>}
- {status!=='idle'&&<p role={status==='saved'?'status':'alert'}>{t[status]}</p>}
+ {status!=='idle'&&<p key={feedbackAttempt} ref={feedback} tabIndex={-1} role={status==='saved'?'status':'alert'}>{t[status]}</p>}
  </section>;
 }
