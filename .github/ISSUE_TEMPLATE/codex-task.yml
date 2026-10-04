@@ -33,8 +33,25 @@ body:
         - Codex Desktop
         - VS Code Codex
         - Codex Security
+        - Codex — ChatGPT Work Mode
+        - ChatGPT Work Model
     validations:
       required: true
+  - type: input
+    id: implementation_session
+    attributes:
+      label: Implementation session
+      description: Required for Work Mode reviewers; actual full implementation-session UUID.
+  - type: input
+    id: reviewer_session
+    attributes:
+      label: Reviewer session
+      description: Required for Work Mode reviewers; actual different full reviewer-session UUID.
+  - type: input
+    id: reviewer_receipt
+    attributes:
+      label: Reviewer receipt
+      description: Required for Work Mode reviewers; numeric exact-artifact non-author receipt comment ID on this Task.
   - type: input
     id: branch
     attributes:
