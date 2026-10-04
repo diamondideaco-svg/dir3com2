@@ -34,10 +34,22 @@ export function platformFamilies(message: string): PlatformFamily[] {
   return (Object.keys(familyTerms) as PlatformFamily[]).filter(f => familyTerms[f].test(text));
 }
 export function platformContext(message: string, history: Turn[] = []) {
+  // Replay contextual USER answers in order, so an accepted bare count has the
+  // same preference semantics as a qualified count on subsequent refinements.
+  // The bounded transcript is not mutated and assistant assertions are never facts.
+  const reconstructed: Turn[] = [];
+  for (const turn of history.slice(-8)) {
+    const content = turn.content.slice(0, 500);
+    reconstructed.push({ role: turn.role, content: turn.role === 'user' ? contextualStayGuests(content, reconstructed) ?? content : content });
+  }
+  return preferenceContext(contextualStayGuests(message, reconstructed) ?? message, reconstructed);
+}
+
+/** Merge already reconstructed user preferences; no recursive transcript replay. */
+function preferenceContext(message: string, history: Turn[]) {
   // Carry only bounded user preferences, never assistant assertions or account data.
   // New explicit preferences override old ones, including when the user names a family.
-  const effectiveMessage = contextualStayGuests(message, history) ?? message;
-  const turns = [...history.filter(t => t.role === 'user').slice(-4).map(t => t.content.slice(0, 500)), effectiveMessage];
+  const turns = [...history.filter(t => t.role === 'user').slice(-4).map(t => t.content.slice(0, 500)), message];
   const reset = turns.findLastIndex(turn => /new trip|start over|رحله جديده|ابدا من جديد/.test(normalizePlatformQuery(turn)));
   const relevant = turns.slice(Math.max(0, reset));
   const preferences = relevant.map(turn => tripPreferences(normalizePlatformQuery(turn)));
@@ -57,7 +69,7 @@ export function platformContext(message: string, history: Turn[] = []) {
     const currency = relevant.slice(0, -1).reverse().map(platformCurrency).find(Boolean);
     if (currency) carry.push(currency);
   }
-  return [...carry, effectiveMessage].join('\n');
+  return [...carry, message].join('\n');
 }
 
 /** A bare count is a preference only immediately after the missing Stay guest question. */
@@ -73,7 +85,7 @@ function contextualStayGuests(message: string, history: Turn[]): string | null {
   if (/\breq-|my requests|my bookings|operations|executive|\bceo\b|طلباتي|حجوزاتي|عمليات|الغاء|استرد|payment|\bpay\b/.test(normalizePlatformQuery(user.content))) return null;
   // Assistant text only signals conversational position. Recheck family and missing
   // preference from bounded USER context; it supplies no factual/account authority.
-  const prior = platformContext(user.content, recent.slice(0, -2));
+  const prior = preferenceContext(user.content, recent.slice(0, -2));
   const families = platformFamilies(prior), preferences = tripPreferences(normalizePlatformQuery(prior));
   if (families.length !== 1 || families[0] !== 'stay' || !preferences.city || preferences.dates.length !== 2 || preferences.party) return null;
   return `${number} adults`;
