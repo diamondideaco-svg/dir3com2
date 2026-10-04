@@ -1,6 +1,8 @@
 'use client';
 
 import PlatformAnswer from '@/components/dabra/PlatformAnswer';
+import DabraContinuity from '@/components/dabra/DabraContinuity';
+import type { ContinuityPreferences, SavedTrip } from '@/lib/dabra/continuity-contract';
 import PlatformResults from '@/components/dabra/PlatformResults';
 import { platformFamilies, platformContext, platformCurrency, type PlatformFamily } from '@/lib/dabra/platform-assistant';
 
@@ -131,6 +133,7 @@ export default function DabraChatCommerce() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [continuityPreferences, setContinuityPreferences] = useState<ContinuityPreferences | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const [requestedFor, setRequestedFor] = useState('');
   const [travellerCount, setTravellerCount] = useState(1);
@@ -225,6 +228,7 @@ export default function DabraChatCommerce() {
   useEffect(() => {
     let active = true;
     function detachSensitiveState() {
+      setContinuityPreferences(null);
       privateConversationRef.current = false;
       invalidateActiveRequests();
       setStorageHydrated(false);
@@ -457,7 +461,7 @@ export default function DabraChatCommerce() {
       form.set('message', message);
       form.set('history', JSON.stringify(messages.map(({ role, text: content }) => ({ role, content }))));
       form.set('stream', 'true');
-      form.set('locale', language);
+      form.set('locale', continuityPreferences?.replyLanguage ?? language);
       form.set('currency', requestedCurrency);
       for (const item of pendingAttachments) form.append('attachment', item.file, item.safeName);
       const response = await fetch('/api/ai2/chat', {
@@ -665,6 +669,39 @@ export default function DabraChatCommerce() {
     setFavorites((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
 
+  function forgetContinuityContext() {
+    invalidateActiveRequests();
+    setContinuityPreferences(null);
+    setInput('');
+    setCart([]);
+    setServices([]);
+    setPlatformQuery(null);
+    setLastMarketplaceQuery('');
+    setCompareMode(false);
+    setRequestState('idle');
+    setRequestReference('');
+    setMessages([welcomeMessage(language)]);
+    privateConversationRef.current = false;
+  }
+
+  function applyContinuityPreferences(preferences: ContinuityPreferences | null) {
+    setContinuityPreferences(preferences);
+    if (preferences) setCurrency(preferences.displayCurrency);
+  }
+
+  function resumeContinuityTrip(trip: SavedTrip, preferences: ContinuityPreferences | null) {
+    // Stage intent for explicit user confirmation. No chat, search or provider call here.
+    forgetContinuityContext();
+    applyContinuityPreferences(preferences);
+    setTravellerCount(trip.adults + trip.children);
+    setRequestedFor('');
+    const summary = [trip.families.join(' '), trip.destination, trip.origin ? `from ${trip.origin}` : '',
+      trip.startDate ?? '', trip.endDate ?? '', `${trip.adults} adults`, `${trip.children} children`, `${trip.rooms} rooms`,
+      trip.budget ? `${trip.budget} ${trip.currency}` : trip.currency,
+      preferences ? `${preferences.travelClass}; ${preferences.lodgingStyle}; ${preferences.itineraryPace}` : ''];
+    setInput(summary.filter(Boolean).join(' '));
+  }
+
   return (
     <main className="dabra-experience" dir={direction} lang={language}>
       <header className="dabra-topbar">
@@ -681,6 +718,10 @@ export default function DabraChatCommerce() {
       </header>
 
       <DabraFamilySafetyPanel />
+
+      {identityResolved && persistenceContext?.ownerId.startsWith('user:') &&
+        <DabraContinuity key={persistenceContext.ownerId} ownerId={persistenceContext.ownerId} language={language}
+          onResume={resumeContinuityTrip} onApply={applyContinuityPreferences} onForget={forgetContinuityContext} />}
 
       <CollaborativeTripCapabilities phase="planning" />
 
