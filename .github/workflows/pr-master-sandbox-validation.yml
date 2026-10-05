@@ -88,10 +88,21 @@ jobs:
       - name: Customer private upload (real disposable Auth, Storage and PostgreSQL 17)
         timeout-minutes: 8
         run: |
-          docker pull postgres:17-alpine
-          docker pull public.ecr.aws/supabase/gotrue:v2.195.0
-          docker pull public.ecr.aws/supabase/postgrest:v16.1
-          docker pull public.ecr.aws/supabase/storage-api:v1.70.7
+          # Pace anonymous registry pulls and retry transient throttling without skipping any image.
+          pull_test_image() {
+            local image="$1"
+            local delay
+            for delay in 2 5 15 30; do
+              sleep "$delay"
+              if docker pull "$image"; then return 0; fi
+            done
+            echo "::error::Required test image unavailable after bounded retries: $image"
+            return 1
+          }
+          pull_test_image postgres:17-alpine
+          pull_test_image public.ecr.aws/supabase/gotrue:v2.195.0
+          pull_test_image public.ecr.aws/supabase/postgrest:v16.1
+          pull_test_image public.ecr.aws/supabase/storage-api:v1.70.7
           node --import tsx scripts/test-customer-upload-local.ts
 
       - name: Active chain and immutable archive (including registered forwards)
