@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execFile } from 'node:child_process';
 import { randomBytes, createHmac } from 'node:crypto';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -134,6 +134,16 @@ async function main(){
   await a.auth.signOut();const fresh=client();assert.equal((await fresh.auth.signInWithPassword({email:'a@example.invalid',password})).error,null);
   assert.equal((await listCustomerDocuments(fresh,await customerDocumentActor(fresh))).length,1);
   report.upload='PASS';report.persistence='PASS';report.relogin='PASS';report.ownerViewDownload='PASS';report.crossCustomer='PASS';report.anonymous='PASS';report.directStorageWrites='DENIED';report.idempotency='PASS';
+  // Reuse this already-owned stack while it is alive; a separate server-condition
+  // process imports the genuine chat handler without auth/RPC replacements.
+  report.task187Chat = await new Promise<unknown>((resolve,reject)=>{
+    const child=execFile(process.execPath,['--conditions=react-server','--import','tsx','scripts/test-task187-chat-real-auth.ts'],
+      {timeout:90000,maxBuffer:32768},(error,stdout)=>{
+        if(error)return reject(new Error('TASK187_GENUINE_CHAT_FAILED'));
+        try{resolve(JSON.parse(stdout));}catch{reject(new Error('TASK187_GENUINE_CHAT_INVALID_RECEIPT'));}
+      });
+    child.stdin!.end(JSON.stringify({url:'http://127.0.0.1:19030',anon,password,aid,bid,container:prefix+'-db'}));
+  });
   // Private local config enables the same-origin browser checks. Never printed.
   writeFileSync(join(out,'local-runtime.json'),JSON.stringify({url:'http://127.0.0.1:19030',anon,service,password,aid,bid}),{mode:0o600});
   if(process.argv.includes('--keep-for-browser')){
