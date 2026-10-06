@@ -13,7 +13,7 @@ export default function PlatformResults({ query, language, family, trip }: { que
   const pricing = { currency, snapshot };
   const ar = language === 'ar';
   const drive = family === 'drive';
-  const offers = drive ? findPlatformDriveOffers(query, pricing) : [];
+  const offers = drive ? findPlatformDriveOffers(query, pricing, trip) : [];
   const airport = /airport|المطار/i.test(query);
   return <div className={`dabra-other-results ${styles.results}`} data-platform-results>
     {drive && offers.length > 0 ? <>

@@ -149,10 +149,13 @@ export function refinePlatformTrip(trip: SavedTrip, message: string): SavedTrip 
 }
 
 /** Approved rate catalogue, never live supplier availability. No network or transaction side effects. */
-export function findPlatformDriveOffers(message: string, pricing?: PlatformPricing): DriveOffer[] {
+export function findPlatformDriveOffers(message: string, pricing?: PlatformPricing, trip?: SavedTrip | null): DriveOffer[] {
   const text = normalizePlatformQuery(message);
-  // The latest explicit destination wins over carried conversation context.
-  if (['riyadh', 'jeddah', 'dubai'].includes(tripPreferences(text).city ?? '')) return [];
+  // A typed resumed destination controls geography just as it controls links.
+  // Unknown typed places cannot inherit Egypt rates. Unstructured discovery
+  // retains its existing bounded free-text fallback.
+  const destination = trip ? routingPlace(trip.destination) : tripPreferences(text).city;
+  if (trip ? !['cairo', 'giza', 'alexandria'].includes(destination ?? '') : ['riyadh', 'jeddah', 'dubai'].includes(destination ?? '')) return [];
   if (/\b(bmw|tesla|audi|honda)\b|بي ام|تسلا|اودي|هوندا/.test(text)) return [];
   const makes = [...new Set(DRIVE_OFFERS.map(o => vehicleFor(o).make))];
   const matchingMakes = makes.filter(make => DRIVE_OFFERS.some(o => {
@@ -202,7 +205,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
     for (const family of families) {
       const href = platformEntry(family, context, locale, pricing?.currency, trip);
       if (family === 'drive') {
-        const offers = findPlatformDriveOffers(context, pricing), airport = /airport|المطار/.test(text);
+        const offers = findPlatformDriveOffers(context, pricing, trip), airport = /airport|المطار/.test(text);
         const pickup = new URL(href, 'https://dir3com.com').searchParams.get('pickupAt');
         const instant = pickup ? cairoInstant(pickup) : null;
         const tooSoon = (instant !== null && instant < now + 6 * 3600000) || /(?:after|in)\s*[1-5]\s*hours?|بعد\s*(?:ساعه|ساعتين|[1-5]\s*ساعات)/.test(current);
