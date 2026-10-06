@@ -41,10 +41,15 @@ async function main() {
     assert.equal(registered.error,null);assert.ok(registered.data.user);
     const sid=registered.data.user.id;assert.match(sid,/^[0-9a-f-]{36}$/);
     // Genuine Auth owns users; explicitly seed only these local canonical rows.
-    for(const [id,role,email] of [[cfg.aid,'customer','a@example.invalid'],[cfg.bid,'client','b@example.invalid'],[sid,'staff','task187-staff@example.invalid']]) {
+    for(const [id,role,email] of [[cfg.aid,'customer','a@example.invalid'],[cfg.bid,'customer','b@example.invalid'],[sid,'staff','task187-staff@example.invalid']]) {
       sql("INSERT INTO public.profiles(id,full_name,email,role,status,deleted_at) VALUES('"+id+"','Synthetic Task187','"+email+"','"+role+"','active',NULL) ON CONFLICT(id) DO UPDATE SET role=excluded.role,status='active',deleted_at=NULL;");
     }
     const st=await login(staff,'task187-staff@example.invalid',sid);
+    const {resolveCanonicalActiveProfile}=await import('../lib/auth/identity');
+    for(const [actor,id,role] of [[a,cfg.aid,'customer'],[b,cfg.bid,'customer'],[staff,sid,'staff']] as const) {
+      const profile=await resolveCanonicalActiveProfile(actor,id);
+      assert.equal(profile?.id,id);assert.equal(profile?.sourceRole,role);assert.equal(profile?.role,role);
+    }
     const trip={id:randomUUID(),origin:'Cairo',destination:'Riyadh',startDate:null,endDate:null,adults:2,children:0,rooms:1,budget:null,currency:'SAR',families:['stay']};
     const read=async()=>{const r=await a.rpc('dabra_continuity_read');assert.equal(r.error,null);return r.data as ContinuitySnapshot;};
     // PostgREST schema reload is asynchronous; bounded readiness without skip.
