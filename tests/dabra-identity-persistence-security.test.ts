@@ -84,7 +84,7 @@ test('stale identity responses cannot restore a previous user after a newer tran
 test('chat controls stay disabled until validated identity resolution completes', () => {
   assert.match(component, /AbortSignal\.timeout\(8_000\)/);
   assert.match(component, /if \(!message \|\| chatInFlightRef\.current \|\| !identityResolved\) return/);
-  assert.match(component, /disabled=\{!identityResolved \|\| \(!input\.trim\(\) && !attachments\.length\) \|\| chatInFlight\}/);
+  assert.match(component, /disabled=\{!identityResolved \|\| \(!input\.trim\(\) && !continuityDraft && !attachments\.length\) \|\| chatInFlight\}/);
   assert.match(component, /placeholder=\{identityResolved \? t\.placeholder : t\.securePlaceholder\}/);
   assert.match(component, /securePlaceholder: 'Preparing your secure session\.\.\.'/);
 });
