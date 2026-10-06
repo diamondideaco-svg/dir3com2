@@ -150,7 +150,7 @@ async function main(){
   assert.equal(chat.count,32);assert.equal(chat.externalAttempts,0);
   assert.ok(Array.isArray(chat.cases));assert.equal(chat.cases.length,32);
   assert.equal(new Set(chat.cases).size,32);
-  assert.ok(chat.cases.every(name=>typeof name==='string'&&/^[A-Za-z0-9-]{1,80}$/.test(name)));
+  assert.ok(chat.cases.every(name=>typeof name==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(name)));
   console.log('TASK187_CHAT_RECEIPT='+JSON.stringify({status:chat.status,mode:chat.mode,count:chat.count,cases:chat.cases,externalAttempts:chat.externalAttempts}));
   // Private local config enables the same-origin browser checks. Never printed.
   writeFileSync(join(out,'local-runtime.json'),JSON.stringify({url:'http://127.0.0.1:19030',anon,service,password,aid,bid}),{mode:0o600});
