@@ -144,6 +144,14 @@ async function main(){
       });
     child.stdin!.end(JSON.stringify({url:'http://127.0.0.1:19030',anon,password,aid,bid,container:prefix+'-db'}));
   });
+  // Emit only the child assertion receipt, never the local runtime/config.
+  const chat=report.task187Chat as {status:string;mode:string;count:number;cases:string[];externalAttempts:number};
+  assert.equal(chat.status,'PASS');assert.equal(chat.mode,'genuine-GoTrue-JWT-PostgREST-RPC-RLS-direct-handler');
+  assert.equal(chat.count,32);assert.equal(chat.externalAttempts,0);
+  assert.ok(Array.isArray(chat.cases));assert.equal(chat.cases.length,32);
+  assert.equal(new Set(chat.cases).size,32);
+  assert.ok(chat.cases.every(name=>typeof name==='string'&&/^[A-Za-z0-9-]{1,80}$/.test(name)));
+  console.log('TASK187_CHAT_RECEIPT='+JSON.stringify({status:chat.status,mode:chat.mode,count:chat.count,cases:chat.cases,externalAttempts:chat.externalAttempts}));
   // Private local config enables the same-origin browser checks. Never printed.
   writeFileSync(join(out,'local-runtime.json'),JSON.stringify({url:'http://127.0.0.1:19030',anon,service,password,aid,bid}),{mode:0o600});
   if(process.argv.includes('--keep-for-browser')){

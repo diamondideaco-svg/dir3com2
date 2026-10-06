@@ -111,6 +111,10 @@ jobs:
           node scripts/check-migration-baseline.mjs
 
       - name: Repository Tests
+        env:
+          # Existing job-owned PostgreSQL service; the continuity test creates
+          # and drops its own UUID database after validating this loopback root.
+          CONTINUITY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/dir3com_test
         run: |
           set -o pipefail
           npm run test:all 2>&1 | tee test-all.log
