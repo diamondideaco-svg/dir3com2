@@ -4,6 +4,8 @@ import PlatformAnswer from '@/components/dabra/PlatformAnswer';
 import DabraContinuity from '@/components/dabra/DabraContinuity';
 import type { ContinuityPreferences, SavedTrip } from '@/lib/dabra/continuity-contract';
 import {ContinuityContext} from '@/lib/dabra/continuity-context';
+import { continuityRequestLocale } from '@/lib/dabra/continuity-chat';
+import { newTripRequested } from '@/lib/dabra/trip-routing';
 import {parseContinuitySnapshot,type ContinuitySnapshot} from '@/lib/dabra/continuity-service';
 import PlatformResults from '@/components/dabra/PlatformResults';
 import { platformFamilies, platformContext, platformCurrency, type PlatformFamily } from '@/lib/dabra/platform-assistant';
@@ -117,7 +119,7 @@ export default function DabraChatCommerce() {
   const [voicePlaybackPartial, setVoicePlaybackPartial] = useState(false);
   const [approvedVoiceAvailable, setApprovedVoiceAvailable] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<string | undefined>();
-  const [platformQuery, setPlatformQuery] = useState<{ query: string; family: PlatformFamily } | null>(null);
+  const [platformQuery, setPlatformQuery] = useState<{ query: string; family: PlatformFamily; trip?: SavedTrip | null } | null>(null);
   const [services, setServices] = useState<MarketplaceService[]>([]);
   const [marketplaceQuery, setMarketplaceQuery] = useState('');
   const [lastMarketplaceQuery, setLastMarketplaceQuery] = useState('');
@@ -344,7 +346,7 @@ export default function DabraChatCommerce() {
       storage.removeItem(storageKey(persistenceContext.ownerId, 'context'));
       return;
     }
-    storage.setItem(storageKey(persistenceContext.ownerId, 'context'), JSON.stringify(createPersisted(continuityContextRef.current.independent(messages).slice(-20), persistenceContext.ownerId)));
+    storage.setItem(storageKey(persistenceContext.ownerId, 'context'), JSON.stringify(createPersisted(continuityContextRef.current.cachedMessages(messages), persistenceContext.ownerId)));
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: 'smooth' });
   }, [persistenceContext, storageHydrated, messages]);
 
@@ -381,6 +383,7 @@ export default function DabraChatCommerce() {
 
   async function searchMarketplace(message: string, familyOverride = activeTab) {
     if(!await ensureContinuityFresh())return;
+    if(newTripRequested(message))forgetContinuityContext();
     const normalizedQuery = message.trim();
     if (!normalizedQuery && !familyOverride) return;
     const requestId = ++marketplaceRequestRef.current;
@@ -392,11 +395,12 @@ export default function DabraChatCommerce() {
     setResultState('idle');
     try {
       const parsed = parseDabraMarketplaceQuery(normalizedQuery, familyOverride as Parameters<typeof parseDabraMarketplaceQuery>[1]);
-      const context = platformContext(normalizedQuery, messages.map(({ role, text: content }) => ({ role, content })));
+      const trip = continuityContextRef.current.refine(normalizedQuery);
+      const context = platformContext(normalizedQuery, continuityContextRef.current.independent(messages).map(({ role, text: content }) => ({ role, content })), trip);
       const families = platformFamilies(context);
       const selected = familyOverride ? familyOverride.replace('dir3-', '') : families[0];
       if (selected && ['drive', 'stay', 'fly', 'concierge', 'vip'].includes(selected)) {
-        setPlatformQuery({ query: context, family: selected as PlatformFamily });
+        setPlatformQuery({ query: context, family: selected as PlatformFamily, trip });
         setServices([]);
         setResultState('idle');
         return;
@@ -460,6 +464,7 @@ export default function DabraChatCommerce() {
   async function sendMessage(text = input) {
     if(chatInFlightRef.current||!identityResolved)return;
     if(!await ensureContinuityFresh())return;
+    if(newTripRequested(text))forgetContinuityContext();
     const context=continuityContextRef.current;
     const draft=context.draft;
     const explicitText=text.trim();
@@ -483,16 +488,24 @@ export default function DabraChatCommerce() {
     setCart((current) => applyScopedHotelChange(current, message));
     const assistantId = makeId();
     const userId=makeId();const seed:Message|null=draft&&explicitText?{id:makeId(),role:'user',text:draft}:null;
+    // The staged summary is presentation only. Explicit refinements update
+    // the ephemeral typed trip, never the saved record or account authority.
+    const trip=context.refine(explicitText);
+    const requestMessage=explicitText || trip?.families.join(' ') || message;
+    const requestHistory=context.independent(messages).map(({role,text:content})=>({role,content}));
+    context.beginAnswer(assistantId);
     if(context.lease){context.tag(assistantId);if(seed)context.tag(seed.id);else if(draft&&!explicitText)context.tag(userId);}
     context.draft=null;setContinuityDraft(null);
     setMessages((current) => [...current,...(seed?[seed]:[]), { id:userId, role: 'user', text: message }, { id: assistantId, role: 'assistant', text: '' }]);
     setVoiceStatus('processing');
+    let answerFinished=false;
     try {
       const form = new FormData();
-      form.set('message', message);
-      form.set('history', JSON.stringify([...messages,...(seed?[seed]:[])].map(({ role, text: content }) => ({ role, content }))));
+      form.set('message', requestMessage);
+      form.set('history', JSON.stringify(requestHistory));
+      if(trip&&context.lease)form.set('continuityTrip',JSON.stringify({revision:context.lease.revision,generation:context.lease.generation,trip}));
       form.set('stream', 'true');
-      form.set('locale', continuityPreferences?.replyLanguage ?? language);
+      form.set('locale', continuityRequestLocale(context.lease ? continuityPreferences : null, language));
       form.set('currency', requestedCurrency);
       for (const item of pendingAttachments) form.append('attachment', item.file, item.safeName);
       const response = await fetch('/api/ai2/chat', {
@@ -503,24 +516,31 @@ export default function DabraChatCommerce() {
       });
       if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
       if (response.headers.get('X-DABRA-Private-Context') === '1') privateConversationRef.current = true;
-      await consumeDabraChatResponse(response, (visibleAnswer) => {
+      const finalAnswer=await consumeDabraChatResponse(response, (visibleAnswer) => {
         if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
         setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));
       }, DABRA_LOCALE_ERROR[language]);
       if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
+      context.finishAnswer(assistantId);answerFinished=true;
+      // Trigger persistence only after completion, even if React already
+      // rendered the final streaming callback while it was still pending.
+      setMessages(current=>current.map(item=>item.id===assistantId?{...item,text:finalAnswer}:item));
       setAttachments([]);
       if (attachmentRef.current) attachmentRef.current.value = '';
     } catch {
       if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
+      context.finishAnswer(assistantId);answerFinished=true;
       setAttachments((current) => current.map((item) => ({ ...item, status: 'error', error: t.attachmentSendError })));
       setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: DABRA_LOCALE_ERROR[language] } : item));
     } finally {
+      if(!answerFinished)setMessages(current=>current.filter(item=>item.id!==assistantId));
+      context.finishAnswer(assistantId);
       if (lifecycle === lifecycleRef.current) {
         chatAbortRef.current = null;
         chatInFlightRef.current = false;
         setChatInFlight(false);
         setVoiceStatus('idle');
-        if (!controller.signal.aborted && marketplaceGeneration === marketplaceRequestRef.current) void searchMarketplace(seed?`${seed.text} ${message}`:message);
+        if (!controller.signal.aborted && marketplaceGeneration === marketplaceRequestRef.current) void searchMarketplace(explicitText || trip?.families.join(' ') || message);
       }
     }
   }
@@ -854,7 +874,7 @@ export default function DabraChatCommerce() {
           {!loading && resultState === 'error' && <div className="dabra-state"><FiX /><p>{t.marketError}</p></div>}
           {!loading && !platformQuery && resultState === 'idle' && services.length === 0 && <div className="dabra-state dabra-state-welcome"><FiArrowLeft /><p>{t.marketWelcome}</p></div>}
 
-          {!loading && platformQuery && <PlatformResults query={platformQuery.query} family={platformQuery.family} language={language} />}
+          {!loading && platformQuery && <PlatformResults query={platformQuery.query} family={platformQuery.family} language={language} trip={platformQuery.trip} />}
           {!loading && recommendationDecisions.length > 0 && <div className="dabra-recommendations"><div className="dabra-section-label">{t.recommendation}</div>{recommendationDecisions.map(({ service, badge, why }) => <ProductCard key={service.id} language={language} service={service} badge={badge} why={why} inCart={cart.some((item) => item.id === service.id)} favorite={favorites.includes(service.id)} onCart={() => toggleCart(service)} onFavorite={() => toggleFavorite(service.id)} compare={compareMode} />)}</div>}
           {compareMode && comparisonServices.length > 1 && <ComparisonTable language={language} services={comparisonServices} />}
           {alternatives.length > 0 && <div className="dabra-other-results"><div className="dabra-section-label">{t.alternatives}</div>{alternatives.map((service) => <ProductCard key={service.id} language={language} service={service} catalogOnly={!recommendationEligible(service)} inCart={cart.some((item) => item.id === service.id)} favorite={favorites.includes(service.id)} onCart={() => toggleCart(service)} onFavorite={() => toggleFavorite(service.id)} compare={compareMode} />)}</div>}
