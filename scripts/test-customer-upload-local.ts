@@ -152,6 +152,23 @@ async function main(){
   assert.equal(new Set(chat.cases).size,32);
   assert.ok(chat.cases.every(name=>typeof name==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(name)));
   console.log('TASK187_CHAT_RECEIPT='+JSON.stringify({status:chat.status,mode:chat.mode,count:chat.count,cases:chat.cases,externalAttempts:chat.externalAttempts}));
+  // Actual Next app + preinstalled ChromeDriver, within this same owned stack.
+  report.task187Browser = await new Promise<unknown>((resolve,reject)=>{
+    const child=execFile(process.execPath,['--import','tsx','scripts/test-task187-browser.ts'],
+      {timeout:300000,maxBuffer:32768},(error,stdout)=>{
+        if(error)return reject(new Error('TASK187_BROWSER_ACCEPTANCE_FAILED'));
+        try{resolve(JSON.parse(stdout));}catch{reject(new Error('TASK187_BROWSER_INVALID_RECEIPT'));}
+      });
+    child.stdin!.end(JSON.stringify({url:'http://127.0.0.1:19030',anon,password,aid,bid}));
+  });
+  const browser=report.task187Browser as {status:string;mode:string;cells:Array<{language:string;width:number;height:number;status:string;checks:string[]}>;externalAllowed:number;ownedProcessesStopped:boolean};
+  assert.equal(browser.status,'PASS');assert.equal(browser.mode,'real-Next-ChromeDriver-cookie-Auth-RPC');
+  assert.equal(browser.cells.length,4);assert.equal(browser.externalAllowed,0);assert.equal(browser.ownedProcessesStopped,true);
+  assert.deepEqual(new Set(browser.cells.map(c=>c.language+'-'+c.width)),new Set(['ar-390','ar-1440','en-390','en-1440']));
+  for(const cell of browser.cells){assert.equal(cell.status,'PASS');assert.equal(cell.height,cell.width===390?844:900);
+    assert.equal(cell.checks.length,12);assert.equal(new Set(cell.checks).size,12);assert.ok(cell.checks.every(name=>/^[A-Za-z0-9_-]{1,80}$/.test(name)));}
+
+  console.log('TASK187_BROWSER_RECEIPT='+JSON.stringify({status:browser.status,mode:browser.mode,cells:browser.cells,externalAllowed:browser.externalAllowed,ownedProcessesStopped:browser.ownedProcessesStopped}));
   // Private local config enables the same-origin browser checks. Never printed.
   writeFileSync(join(out,'local-runtime.json'),JSON.stringify({url:'http://127.0.0.1:19030',anon,service,password,aid,bid}),{mode:0o600});
   if(process.argv.includes('--keep-for-browser')){

@@ -86,7 +86,7 @@ jobs:
         run: npm run test:customer-documents-postgresql
 
       - name: Customer private upload (real disposable Auth, Storage and PostgreSQL 17)
-        timeout-minutes: 8
+        timeout-minutes: 12
         run: |
           # Pace anonymous registry pulls and retry transient throttling without skipping any image.
           pull_test_image() {
