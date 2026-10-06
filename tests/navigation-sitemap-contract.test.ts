@@ -77,3 +77,17 @@ test('dynamic detail routes are contextual rather than sidebar entries', () => {
   assert.ok(dynamic.every((entry) => entry.discoverability === 'contextual' && entry.parent));
   assert.equal(protectedNavigationItems.some((item) => item.href.includes('[')), false);
 });
+
+test('server binding diagnostic stays CEO-only and absent from public or shared navigation', () => {
+  const diagnosticPath = '/admin/server-binding';
+  const diagnostic = routeCatalog.find((entry) => entry.path === diagnosticPath);
+  assert.ok(diagnostic, 'diagnostic needs an explicit route classification');
+  assert.equal(diagnostic.audience, 'ceo');
+  assert.equal(diagnostic.protected, true);
+  assert.equal(diagnostic.discoverability, 'internal');
+  assert.equal(diagnostic.indexable, false);
+  assert.equal(publicSitemapPaths.includes(diagnosticPath), false);
+  for (const items of [customerNavigationItems, partnerNavigationItems, protectedNavigationItems]) {
+    assert.equal(items.some((item) => item.href === diagnosticPath), false);
+  }
+});
