@@ -76,5 +76,11 @@
     "sha256": "f51ab2a5ff3d5030fbbbf2eeda55c2c0f9fa71e84c3b8e3f5b5bb0c391a66dd0",
     "task": "#166",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261008115500_drive_whatsapp_customer_categories.sql",
+    "sha256": "5a223c6002b25b2fa3de24d9f737bccc9d769162d933e98822d2f411fcbbea49",
+    "task": "#192 (linked #166)",
+    "production_apply_authorized": false
   }
 ]
