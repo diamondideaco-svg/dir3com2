@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {TASK187_APP_ORIGIN,attachTask187ConnectProxy} from './sandbox/task187-browser-network.mjs';
 import {assertTask187BrowserVersions} from './sandbox/task187-browser-versions.mjs';
+import {clickTask187Element,Task187CommandError,Task187ClickError} from './sandbox/task187-browser-click';
 const origin=TASK187_APP_ORIGIN;
 let stage='preflight';const abort=new AbortController();process.once('SIGTERM',()=>abort.abort());
 const labels={en:{panel:'My memory and trip',save:'Confirm and save',resume:'Resume trip',revoke:'Disable memory and delete all',origin:'Departure city',destination:'Destination',consent:'I agree to save',trip:'Save this trip',message:'Message DABRA',send:'Send message',saved:'Saved in your account.',stage:'Saved trip intent, awaiting your confirmation to send:'},ar:{panel:'ذاكرتي ورحلتي',save:'تأكيد وحفظ',resume:'استئناف الرحلة',revoke:'إيقاف الذاكرة وحذف الكل',origin:'مدينة المغادرة',destination:'الوجهة',consent:'أوافق على حفظ',trip:'حفظ هذه الرحلة',message:'رسالة للدبرة',send:'إرسال الرسالة',saved:'تم الحفظ في حسابك.',stage:'نية الرحلة المحفوظة، بانتظار تأكيد الإرسال:'}};
@@ -35,11 +36,11 @@ async function main(){
  });
  const closeTunnels=attachTask187ConnectProxy(proxy,()=>{browserProxied++;},()=>{browserDenied++;});
  const finish=async(child:ChildProcess|undefined,ipc=false)=>{if(!child||child.exitCode!==null)return;if(ipc)child.send('STOP');else child.kill('SIGTERM');await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('TASK187_OWNED_PROCESS_STOP_TIMEOUT')),10000);child.once('exit',()=>{clearTimeout(timer);resolve();});});};
- const command=async(path:string,body?:unknown,method=body===undefined?'GET':'POST'):Promise<unknown>=>{const response=await fetch('http://127.0.0.1:19041'+path,{method,headers:{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.any([AbortSignal.timeout(65000),abort.signal])});const payload=await response.json();if(!response.ok||payload.value?.error)throw Error('TASK187_WEBDRIVER_COMMAND_FAILED');return payload.value;};
+ const command=async(path:string,body?:unknown,method=body===undefined?'GET':'POST'):Promise<unknown>=>{const response=await fetch('http://127.0.0.1:19041'+path,{method,headers:{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.any([AbortSignal.timeout(65000),abort.signal])});const payload=await response.json();if(!response.ok||payload.value?.error)throw new Task187CommandError(response.status,payload.value?.error,path);return payload.value;};
  const script=async<T>(source:string,args:unknown[]=[]):Promise<T>=>await command('/session/'+session+'/execute/sync',{script:source,args}) as T;
  const wait=async<T>(fn:()=>Promise<T>,name:string):Promise<T>=>{const start=Date.now();while(Date.now()-start<60000){if(abort.signal.aborted)throw Error('TASK187_TEST_STOPPED');try{const result=await fn();if(result)return result;}catch{}await delay(200);}throw Error('TASK187_BROWSER_WAIT_'+name);};
  const element=async(source:string,args:unknown[]=[])=>{const e=await wait(()=>script<Record<string,string>|null>(source,args),'ELEMENT');assert.ok(e);return e['element-6066-11e4-a52e-4f735466cecf'];};
- const click=async(source:string,args:unknown[]=[])=>{const id=await element(source,args);await command('/session/'+session+'/element/'+id+'/click',{});};
+ let clickNumber=0;const click=async(source:string,args:unknown[]=[])=>{const id=await element(source,args);assert.ok(session);await clickTask187Element(command,session,id,stage+'-click-'+(++clickNumber));};
  const fill=async(source:string,value:string,args:unknown[]=[])=>{const id=await element(source,args);await command('/session/'+session+'/element/'+id+'/clear',{});await command('/session/'+session+'/element/'+id+'/value',{text:value});};
  const metrics=async()=>await (await fetch(origin+'/__task187_metrics',{signal:AbortSignal.any([AbortSignal.timeout(10000),abort.signal])})).json() as {chatRequests:number;chatCompleted:number;externalDenied:number};
  const state=async()=>await command('/session/'+session+'/execute/async',{script:"const done=arguments[arguments.length-1];fetch('/api/dabra/continuity',{cache:'no-store'}).then(async r=>done({status:r.status,body:await r.json()})).catch(()=>done(null));",args:[]}) as {status:number;body:{ownerId:string;state:{trip:{origin:string;destination:string}|null;preferences:unknown;consentEnabled:boolean}}};
@@ -108,4 +109,4 @@ async function main(){
  }
  console.log(JSON.stringify({...result as object,ownedProcessesStopped:true}));
 }
-main().catch(()=>{console.error('TASK187_BROWSER_ACCEPTANCE_FAILED:'+stage);process.exitCode=1;});
+main().catch(error=>{console.error('TASK187_BROWSER_ACCEPTANCE_FAILED:'+stage);if(error instanceof Task187ClickError)console.error(error.name+':'+error.message);process.exitCode=1;});
