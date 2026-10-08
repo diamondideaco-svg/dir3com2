@@ -5,6 +5,7 @@ import {mkdtempSync,writeFileSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {TASK187_APP_ORIGIN,attachTask187ConnectProxy} from './sandbox/task187-browser-network.mjs';
+import {assertTask187BrowserVersions} from './sandbox/task187-browser-versions.mjs';
 const origin=TASK187_APP_ORIGIN;
 let stage='preflight';const abort=new AbortController();process.once('SIGTERM',()=>abort.abort());
 const labels={en:{panel:'My memory and trip',save:'Confirm and save',resume:'Resume trip',revoke:'Disable memory and delete all',origin:'Departure city',destination:'Destination',consent:'I agree to save',trip:'Save this trip',message:'Message DABRA',send:'Send message',saved:'Saved in your account.',stage:'Saved trip intent, awaiting your confirmation to send:'},ar:{panel:'ذاكرتي ورحلتي',save:'تأكيد وحفظ',resume:'استئناف الرحلة',revoke:'إيقاف الذاكرة وحذف الكل',origin:'مدينة المغادرة',destination:'الوجهة',consent:'أوافق على حفظ',trip:'حفظ هذه الرحلة',message:'رسالة للدبرة',send:'إرسال الرسالة',saved:'تم الحفظ في حسابك.',stage:'نية الرحلة المحفوظة، بانتظار تأكيد الإرسال:'}};
@@ -14,7 +15,7 @@ async function main(){
  const cfg=JSON.parse(raw) as {url:string;anon:string;password:string;aid:string;bid:string};assert.equal(cfg.url,'http://127.0.0.1:19030');
  for(const name of ['.env','.env.local','.env.development','.env.development.local'])assert.equal(existsSync(name),false,'browser runtime must not load external environment files');
  const chrome=execFileSync('google-chrome',['--version'],{encoding:'utf8',timeout:5000}).match(/\d+\.\d+\.\d+\.\d+/)?.[0];
- const driverVersion=execFileSync('chromedriver',['--version'],{encoding:'utf8',timeout:5000}).match(/\d+\.\d+\.\d+\.\d+/)?.[0];assert.ok(chrome);assert.equal(chrome,driverVersion,'preinstalled matching Chrome/driver required; no download');
+ const driverVersion=execFileSync('chromedriver',['--version'],{encoding:'utf8',timeout:5000}).match(/\d+\.\d+\.\d+\.\d+/)?.[0];assertTask187BrowserVersions(chrome,driverVersion);
  const out=mkdtempSync(join(tmpdir(),'task187-browser-'));const font=join(out,'fonts.cjs');
  writeFileSync(font,"module.exports=new Proxy({}, {get(_t,url){if(typeof url!=='string'||!url.startsWith('https://fonts.googleapis.com/css2?'))return undefined;const f=new URL(url).searchParams.get('family').split(':')[0];if(!['Tajawal','Montserrat','Playfair Display'].includes(f))throw Error('UNEXPECTED_FONT');return `@font-face{font-family:'${f}';src:local('Arial');font-style:normal;font-weight:400 700;font-display:swap}`;}});",{mode:0o600});
  // Child receives no Production/provider credentials, only existing local anon configuration.
@@ -50,7 +51,8 @@ async function main(){
   driver=spawn('chromedriver',['--port=19041','--allowed-ips=127.0.0.1'],{stdio:'ignore'});await wait(async()=>{if(driver!.exitCode!==null)throw Error('TASK187_DRIVER_EXIT');try{return await command('/status');}catch{return null;}},'DRIVER');assert.equal(driver.exitCode,null);
   for(const language of ['ar','en'] as const)for(const [width,height] of [[390,844],[1440,900]]){
    stage=language+'-'+width+'-login';const t=labels[language],checks:string[]=[];const profile=mkdtempSync(join(out,language+'-'+width+'-'));
-   const created=await command('/session',{capabilities:{alwaysMatch:{browserName:'chrome','goog:chromeOptions':{args:['--headless=new','--disable-dev-shm-usage','--disable-background-networking','--disable-component-update','--no-first-run','--no-default-browser-check','--proxy-server=http://127.0.0.1:19042','--proxy-bypass-list=<-loopback>','--user-data-dir='+profile]}}}}) as {sessionId:string};session=created.sessionId;
+   const created=await command('/session',{capabilities:{alwaysMatch:{browserName:'chrome','goog:chromeOptions':{args:['--headless=new','--disable-dev-shm-usage','--disable-background-networking','--disable-component-update','--no-first-run','--no-default-browser-check','--proxy-server=http://127.0.0.1:19042','--proxy-bypass-list=<-loopback>','--user-data-dir='+profile]}}}}) as {sessionId:string;capabilities:{browserVersion:string;chrome:{chromedriverVersion:string}}};session=created.sessionId;
+   const actualDriver=created.capabilities.chrome.chromedriverVersion.split(' ')[0];assertTask187BrowserVersions(created.capabilities.browserVersion,actualDriver);assert.equal(created.capabilities.browserVersion,chrome);assert.equal(actualDriver,driverVersion);
    await command('/session/'+session+'/timeouts',{script:60000,pageLoad:60000,implicit:0});
    await command('/session/'+session+'/goog/cdp/execute',{cmd:'Emulation.setDeviceMetricsOverride',params:{width,height,deviceScaleFactor:1,mobile:false}});
    const navigate=async(path:string)=>{await command('/session/'+session+'/url',{url:origin+path});};
