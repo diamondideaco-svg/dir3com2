@@ -93,7 +93,7 @@ export async function sendKapsoTemplate(config: KapsoConfig, item: OutboxItem, f
   } catch { return { outcome: 'unknown', sid: null, error: 'SEND_OUTCOME_UNKNOWN' }; }
 }
 export async function dispatchKapsoOne(store: NotificationStore, config: KapsoConfig, fetcher: typeof fetch = fetch) {
-  const claim = await store.rpc('claim_drive_whatsapp');
+  const claim = await store.rpc('claim_kapso_drive_whatsapp', { p_template_keys: Object.keys(config.templates) });
   if (claim.error) throw new Error('CLAIM_FAILED');
   if (claim.data === null) return 'idle';
   const item = parseOutboxItem(claim.data);

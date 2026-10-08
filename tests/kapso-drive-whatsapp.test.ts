@@ -41,7 +41,7 @@ const accepted = (patch = {}) => new Response(JSON.stringify({ messaging_product
 function store(start: unknown = true, finish: unknown = true, row: unknown = item) {
   const calls: { name: string; args?: Record<string, unknown> }[] = [];
   const db: NotificationStore = { async rpc(name, args) {
-    calls.push({ name, args }); return { error: null, data: name === 'claim_drive_whatsapp' ? row : name === 'begin_kapso_drive_whatsapp' ? start : finish };
+    calls.push({ name, args }); return { error: null, data: name === 'claim_kapso_drive_whatsapp' ? row : name === 'begin_kapso_drive_whatsapp' ? start : finish };
   } };
   return { db, calls };
 }
@@ -101,7 +101,7 @@ test('other categories and missing language cannot reach network or durable send
 test('durable sender binding and lease must precede network; lost persistence never resends', async () => {
   const mock = store(); let sends = 0;
   assert.equal(await api.dispatchKapsoOne(mock.db, config, async () => {
-    assert.deepEqual(mock.calls.map(x => x.name), ['claim_drive_whatsapp', 'begin_kapso_drive_whatsapp']);
+    assert.deepEqual(mock.calls.map(x => x.name), ['claim_kapso_drive_whatsapp', 'begin_kapso_drive_whatsapp']);
     assert.equal(mock.calls[1].args?.p_phone_number_id, env.KAPSO_PHONE_NUMBER_ID); sends++; return accepted();
   }), 'accepted');
   assert.equal(sends, 1); assert.equal(mock.calls[2].args?.p_token, item.token); assert.equal(mock.calls[2].args?.p_sid, sid);
@@ -203,7 +203,7 @@ test('customer revoked eligibility or superseded quote RPC rejection prevents an
   for (const action of customerActions) {
     const mock = store(false, true, { ...item, audience: 'customer', action });
     assert.equal(await api.dispatchKapsoOne(mock.db, customerConfig, failFetch), 'not_sent');
-    assert.deepEqual(mock.calls.map(call => call.name), ['claim_drive_whatsapp', 'begin_kapso_drive_whatsapp']);
+    assert.deepEqual(mock.calls.map(call => call.name), ['claim_kapso_drive_whatsapp', 'begin_kapso_drive_whatsapp']);
   }
 });
 test('customer category or language absent from approved runtime config cannot begin a send', async () => {
@@ -227,11 +227,56 @@ test('customer duplicate worker attempt respects begin-send fencing and unknown 
   const row: OutboxItem = { ...item, audience: 'customer', action: 'confirm' };
   let started = false; let sends = 0;
   const db: NotificationStore = { async rpc(name) {
-    if (name === 'claim_drive_whatsapp') return { data: row, error: null };
+    if (name === 'claim_kapso_drive_whatsapp') return { data: row, error: null };
     if (name === 'begin_kapso_drive_whatsapp') { const allowed = !started; started = true; return { data: allowed, error: null }; }
     return { data: true, error: null };
   } };
   const fetcher: typeof fetch = async () => { sends++; throw new Error('isolated response lost'); };
   assert.equal(await api.dispatchKapsoOne(db, customerConfig, fetcher), 'unknown');
   assert.equal(await api.dispatchKapsoOne(db, customerConfig, failFetch), 'not_sent'); assert.equal(sends, 1);
+});
+
+test('exact runtime claim keys skip an older unsupported language across >lease cadence without losing it', async () => {
+  const arConfig = api.kapsoConfig({ ...env, DIR3COM_WHATSAPP_CATEGORIES: 'customer.confirm',
+    DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ 'customer.confirm.ar': customerTemplates['customer.confirm.ar'] }) })!;
+  const enConfig = api.kapsoConfig({ ...env, DIR3COM_WHATSAPP_CATEGORIES: 'customer.confirm',
+    DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ 'customer.confirm.en': customerTemplates['customer.confirm.en'] }) })!;
+  const english: OutboxItem = { ...item, audience: 'customer', action: 'confirm', language: 'en', phone: '+10000000001' };
+  const arabic: OutboxItem = { ...english, id: '00000000-0000-4000-8000-000000000168', language: 'ar', phone: '+10000000002' };
+  // Narrow scheduling model, not PostgreSQL/RLS evidence. Actual SQL regression lives in the SQL harness.
+  let clock = 0; let sends = 0;
+  const queue = [english, arabic].map(row => ({ row, state: 'pending', lease: 0 }));
+  const db: NotificationStore = { async rpc(name, args) {
+    if (name === 'claim_kapso_drive_whatsapp') {
+      for (const entry of queue) if (entry.state === 'claimed' && entry.lease <= clock) entry.state = 'pending';
+      const keys = args?.p_template_keys as string[];
+      assert.equal(keys.length, 1);
+      const next = queue.find(entry => entry.state === 'pending' && keys.includes(`${entry.row.audience}.${entry.row.action}.${entry.row.language}`));
+      if (!next) return { data: null, error: null };
+      next.state = 'claimed'; next.lease = clock + 120; return { data: next.row, error: null };
+    }
+    const entry = queue.find(entry => entry.row.id === args?.p_id)!;
+    assert.equal(args?.p_token, entry.row.token);
+    if (name === 'begin_kapso_drive_whatsapp') {
+      const allowed = entry.state === 'claimed'; if (allowed) entry.state = 'sending'; return { data: allowed, error: null };
+    }
+    assert.equal(name, 'finish_drive_whatsapp'); entry.state = String(args?.p_outcome); return { data: true, error: null };
+  } };
+  const fetcher: typeof fetch = async (_url, init) => {
+    sends++; const to = JSON.parse(String(init?.body)).to;
+    return accepted({ contacts: [{ input: to, wa_id: to }], messages: [{ id: `wamid.ISOLATED_${sends}` }] });
+  };
+  assert.equal(await api.dispatchKapsoOne(db, arConfig, fetcher), 'accepted');
+  for (let cycle = 0; cycle < 6; cycle++) { clock += 121; assert.equal(await api.dispatchKapsoOne(db, arConfig, failFetch), 'idle'); }
+  assert.equal(queue[0].state, 'pending'); assert.equal(queue[0].lease, 0); assert.equal(queue[1].state, 'accepted');
+  assert.equal(sends, 1);
+  assert.equal(await api.dispatchKapsoOne(db, enConfig, fetcher), 'accepted');
+  assert.equal(queue[0].state, 'accepted'); assert.equal(sends, 2);
+});
+test('runtime filtered claim still requires current eligibility RPC and rejects claim errors before provider', async () => {
+  const row: OutboxItem = { ...item, audience: 'customer', action: 'confirm' };
+  const mock = store(false, true, row);
+  assert.equal(await api.dispatchKapsoOne(mock.db, customerConfig, failFetch), 'not_sent');
+  assert.deepEqual(JSON.parse(JSON.stringify(mock.calls[0].args)), { p_template_keys: Object.keys(customerConfig.templates) });
+  await assert.rejects(api.dispatchKapsoOne({ rpc: async () => ({ data: row, error: new Error('claim unavailable') }) }, customerConfig, failFetch), /CLAIM_FAILED/);
 });

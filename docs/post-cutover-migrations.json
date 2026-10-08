@@ -79,7 +79,7 @@
   },
   {
     "path": "supabase/migrations/20261008115500_drive_whatsapp_customer_categories.sql",
-    "sha256": "5a223c6002b25b2fa3de24d9f737bccc9d769162d933e98822d2f411fcbbea49",
+    "sha256": "e54712a9b7f7aa775d3bcf57e6cdec09b0cc7b2cfb1271fe298f7df13fb5df56",
     "task": "#192 (linked #166)",
     "production_apply_authorized": false
   }

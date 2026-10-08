@@ -39,7 +39,7 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION drive_notification_private.capture_event() FROM PUBLIC,anon,authenticated,service_role;
 
-CREATE OR REPLACE FUNCTION public.claim_drive_whatsapp()
+CREATE OR REPLACE FUNCTION drive_notification_private.claim(p_template_keys text[])
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE v drive_notification_private.outbox%ROWTYPE; v_token uuid:=gen_random_uuid();
 BEGIN
@@ -54,12 +54,39 @@ BEGIN
  SELECT * INTO v FROM drive_notification_private.outbox
  WHERE state='pending' AND available_at<=now() AND attempts<3
   AND drive_notification_private.category_enabled(audience,action,recipient_user_id,language)
+  AND (p_template_keys IS NULL OR (audience||'.'||action||'.'||language)=ANY(p_template_keys))
  ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED;
  IF NOT FOUND THEN RETURN NULL; END IF;
  UPDATE drive_notification_private.outbox SET state='claimed',lease_token=v_token,lease_until=now()+interval '2 minutes',updated_at=now() WHERE id=v.id;
  RETURN jsonb_build_object('id',v.id,'token',v_token,'audience',v.audience,'action',v.action,'language',v.language,
    'phone',v.phone,'reference',v.request_reference);
 END $$;
+
+-- One shared claim/lease implementation. The legacy RPC retains its DB-gated behavior.
+REVOKE ALL ON FUNCTION drive_notification_private.claim(text[]) FROM PUBLIC,anon,authenticated,service_role;
+CREATE OR REPLACE FUNCTION public.claim_drive_whatsapp()
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path='' AS $$
+ SELECT drive_notification_private.claim(NULL);
+$$;
+
+-- Kapso selects only exact runtime category/language keys. Unsupported rows stay
+-- pending, untouched, and can be claimed later after a separately approved configuration.
+CREATE OR REPLACE FUNCTION public.claim_kapso_drive_whatsapp(p_template_keys text[])
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+BEGIN
+ IF current_setting('role',true) IS DISTINCT FROM 'service_role' THEN RAISE EXCEPTION 'SERVICE_REQUIRED' USING ERRCODE='42501'; END IF;
+ IF p_template_keys IS NULL OR cardinality(p_template_keys) NOT BETWEEN 1 AND 12
+  OR array_position(p_template_keys,NULL) IS NOT NULL
+  OR NOT (p_template_keys <@ ARRAY[
+   'operations.created.ar','operations.created.en',
+   'customer.created.ar','customer.created.en','customer.review.ar','customer.review.en',
+   'customer.confirm.ar','customer.confirm.en','customer.decline.ar','customer.decline.en',
+   'customer.customer_accept.ar','customer.customer_accept.en']::text[])
+ THEN RAISE EXCEPTION 'INVALID_TEMPLATE_KEYS' USING ERRCODE='22023'; END IF;
+ RETURN drive_notification_private.claim(p_template_keys);
+END $$;
+REVOKE ALL ON FUNCTION public.claim_kapso_drive_whatsapp(text[]) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.claim_kapso_drive_whatsapp(text[]) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.begin_drive_whatsapp(p_id uuid,p_token uuid)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$

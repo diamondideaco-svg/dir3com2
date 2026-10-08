@@ -43,11 +43,11 @@ const asUser = async (id, query, params = []) => {
   await db.exec('SET ROLE authenticated');
   try { return await scalar(query, params); } finally { await db.exec('RESET ROLE'); }
 };
-const request = async key => {
-  const trip = { pickup: 'Cairo', dropoff: 'Giza', name: 'Isolated QA', phone: '+10000000001', acknowledged: true,
+const request = async (key, user = customer, phone = '+10000000001') => {
+  const trip = { pickup: 'Cairo', dropoff: 'Giza', name: 'Isolated QA', phone, acknowledged: true,
     currency: 'USD', minimumModelYear: null, acceptableModelYears: null, passengers: 2, luggage: 1,
     pickupAt: '2099-01-12T12:00', returnAt: '2099-01-13T12:00', mode: 'chauffeur', notes: '', specialRequest: '', flightNumber: '', flightArrival: '' };
-  return asUser(customer, 'SELECT public.create_managed_drive_request($1,$2,$3::jsonb,$4)',
+  return asUser(user, 'SELECT public.create_managed_drive_request($1,$2,$3::jsonb,$4)',
     ['safeerat-eg-jetour-t2', key.padEnd(20, '-'), JSON.stringify(trip), 'managed-eg-20260928-v3']);
 };
 const requestId = ref => scalar('SELECT id FROM public.marketplace_requests WHERE request_reference=$1', [ref]);
@@ -408,6 +408,33 @@ try {
    equal(starts.filter(x=>x.rows[0].result).length,1,'customer two workers one intent');
   }finally{await a.end();await b.end();}
  }
+
+ // F1: exact runtime-key claim skips unsupported oldest rows without mutation/loss.
+ await clear(); await db.exec("UPDATE drive_notification_private.settings SET customer_actions=ARRAY['confirm'],customer_template_languages=ARRAY['ar','en']");
+ await db.query("UPDATE drive_notification_private.subscriptions SET language='en',phone='+10000000002' WHERE user_id=$1",[other]);
+ const enFirst=await request('filtered-en-first',other,'+10000000002'); const enFirstId=await requestId(enFirst.reference);
+ await asUser(operations,"SELECT public.review_managed_drive_request($1,0,'review')",[enFirstId]);
+ await asUser(operations,"SELECT public.review_managed_drive_request($1,1,'confirm','QA vehicle',NULL,150,'USD',now()+interval '1 day',NULL)",[enFirstId]);
+ const arSecond=await request('filtered-ar-second'); const arSecondId=await requestId(arSecond.reference);
+ await asUser(operations,"SELECT public.review_managed_drive_request($1,0,'review')",[arSecondId]);
+ await asUser(operations,"SELECT public.review_managed_drive_request($1,1,'confirm','QA vehicle',NULL,150,'USD',now()+interval '1 day',NULL)",[arSecondId]);
+ const filteredClaim=keys=>service('claim_kapso_drive_whatsapp($1::text[])',[keys]);
+ row=await filteredClaim(['customer.confirm.ar']); equal(row.reference,arSecond.reference,'supported newer AR progresses past oldest EN');
+ equal(await scalar("SELECT state FROM drive_notification_private.outbox WHERE request_id=$1",[enFirstId]),'pending','unsupported EN untouched');
+ equal(await kapsoBegin(row),true,'filtered AR eligibility rechecked'); await finish(row,'accepted','wamid.FILTERED_AR');
+ for(let i=0;i<6;i++){
+  // Expire any claimed leases to model dispatch cadence beyond two minutes, no sleeps.
+  await db.exec("UPDATE drive_notification_private.outbox SET lease_until=now()-interval '1 second' WHERE state='claimed'");
+  equal(await filteredClaim(['customer.confirm.ar']),null,'filtered AR no unsupported lease churn '+i);
+ }
+ equal(await scalar("SELECT attempts=0 AND lease_token IS NULL AND state='pending' FROM drive_notification_private.outbox WHERE request_id=$1",[enFirstId]),true,'unsupported message neither dropped nor claimed');
+ row=await filteredClaim(['customer.confirm.en']); equal(row.reference,enFirst.reference,'later EN template still claims original pending message');
+ await db.query("UPDATE drive_notification_private.subscriptions SET enabled=false WHERE user_id=$1",[other]);
+ equal(await kapsoBegin(row),false,'filtered claim does not bypass revoked consent');
+ await db.query("UPDATE drive_notification_private.subscriptions SET enabled=true WHERE user_id=$1",[other]);
+ for(const keys of [[],['customer.confirm.fr'],['operations.customer_accept.ar'],[null]]){await assert.rejects(filteredClaim(keys),/INVALID_TEMPLATE_KEYS/);checks++;}
+ for(const role of ['anon','authenticated']) equal(await scalar('SELECT has_function_privilege($1,$2,$3)',[role,'public.claim_kapso_drive_whatsapp(text[])','EXECUTE']),false,role+' filtered claim denied');
+ for(const role of ['anon','authenticated','service_role']) equal(await scalar('SELECT has_function_privilege($1,$2,$3)',[role,'drive_notification_private.claim(text[])','EXECUTE']),false,role+' shared claim helper private');
 
  console.log(`PASS ${checks} isolated PostgreSQL assertions (${connectPeer ? 'PostgreSQL with two-connection concurrency' : 'PGlite, sequential'}); no remote database or provider calls`);
 } finally { await db.close(); }
