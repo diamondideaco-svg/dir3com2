@@ -1,7 +1,8 @@
 import next from 'next';
 import {createServer} from 'node:http';
+import {TASK187_APP_ORIGIN} from './sandbox/task187-browser-network.mjs';
 const origin=process.env.TASK187_APP_ORIGIN, backend=process.env.TASK187_BACKEND_ORIGIN;
-if(origin!=='http://127.0.0.1:19040'||backend!=='http://127.0.0.1:19030')throw Error('TASK187_LOCAL_ORIGIN_REQUIRED');
+if(origin!==TASK187_APP_ORIGIN||backend!=='http://127.0.0.1:19030')throw Error('TASK187_LOCAL_ORIGIN_REQUIRED');
 const realFetch=globalThis.fetch;let externalDenied=0,chatRequests=0,chatCompleted=0;
 globalThis.fetch=async(input,init)=>{const url=new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url);
  if(![origin,backend].includes(url.origin)){externalDenied++;throw Error('TASK187_EXTERNAL_FETCH_DENIED');}

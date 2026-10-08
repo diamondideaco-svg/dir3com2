@@ -4,7 +4,8 @@ import {createServer,request as httpRequest} from 'node:http';
 import {mkdtempSync,writeFileSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-const origin='http://127.0.0.1:19040';
+import {TASK187_APP_ORIGIN,attachTask187ConnectProxy} from './sandbox/task187-browser-network.mjs';
+const origin=TASK187_APP_ORIGIN;
 let stage='preflight';const abort=new AbortController();process.once('SIGTERM',()=>abort.abort());
 const labels={en:{panel:'My memory and trip',save:'Confirm and save',resume:'Resume trip',revoke:'Disable memory and delete all',origin:'Departure city',destination:'Destination',consent:'I agree to save',trip:'Save this trip',message:'Message DABRA',send:'Send message',saved:'Saved in your account.',stage:'Saved trip intent, awaiting your confirmation to send:'},ar:{panel:'ذاكرتي ورحلتي',save:'تأكيد وحفظ',resume:'استئناف الرحلة',revoke:'إيقاف الذاكرة وحذف الكل',origin:'مدينة المغادرة',destination:'الوجهة',consent:'أوافق على حفظ',trip:'حفظ هذه الرحلة',message:'رسالة للدبرة',send:'إرسال الرسالة',saved:'تم الحفظ في حسابك.',stage:'نية الرحلة المحفوظة، بانتظار تأكيد الإرسال:'}};
 const delay=(ms:number)=>new Promise(r=>setTimeout(r,ms));
@@ -28,10 +29,10 @@ async function main(){
   let url:URL;try{url=new URL(req.url??'');}catch{browserDenied++;res.writeHead(403).end();return;}
   if(url.origin!==origin){browserDenied++;res.writeHead(403).end('TASK187_EXTERNAL_BROWSER_DENIED');return;}
   browserProxied++;const headers:Record<string,string|string[]|undefined>={...req.headers,host:url.host};delete headers['proxy-connection'];
-  const upstream=httpRequest(url,{method:req.method,headers},response=>{res.writeHead(response.statusCode??503,response.headers);response.pipe(res);});
+  const upstream=httpRequest({hostname:'127.0.0.1',port:19040,path:url.pathname+url.search,method:req.method,headers},response=>{res.writeHead(response.statusCode??503,response.headers);response.pipe(res);});
   upstream.on('error',()=>res.writeHead(503).end());req.pipe(upstream);
  });
- proxy.on('connect',(_req,socket)=>{browserDenied++;socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');});
+ const closeTunnels=attachTask187ConnectProxy(proxy,()=>{browserProxied++;},()=>{browserDenied++;});
  const finish=async(child:ChildProcess|undefined,ipc=false)=>{if(!child||child.exitCode!==null)return;if(ipc)child.send('STOP');else child.kill('SIGTERM');await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('TASK187_OWNED_PROCESS_STOP_TIMEOUT')),10000);child.once('exit',()=>{clearTimeout(timer);resolve();});});};
  const command=async(path:string,body?:unknown,method=body===undefined?'GET':'POST'):Promise<unknown>=>{const response=await fetch('http://127.0.0.1:19041'+path,{method,headers:{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.any([AbortSignal.timeout(65000),abort.signal])});const payload=await response.json();if(!response.ok||payload.value?.error)throw Error('TASK187_WEBDRIVER_COMMAND_FAILED');return payload.value;};
  const script=async<T>(source:string,args:unknown[]=[]):Promise<T>=>await command('/session/'+session+'/execute/sync',{script:source,args}) as T;
@@ -99,6 +100,7 @@ async function main(){
  }finally{
   // Even deadline termination attempts every owned cleanup path before exit.
   if(session)await fetch('http://127.0.0.1:19041/session/'+session,{method:'DELETE',signal:AbortSignal.timeout(10000)}).catch(()=>null);
+  closeTunnels();
   const stopped=await Promise.allSettled([finish(driver),finish(app,true),new Promise<void>(r=>{proxy.close(()=>r());proxy.closeAllConnections();})]);
   assert.ok(stopped.every(s=>s.status==='fulfilled'),'owned process cleanup must complete');
  }
