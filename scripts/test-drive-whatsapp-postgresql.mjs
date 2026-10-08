@@ -367,7 +367,11 @@ try {
   ["UPDATE public.profiles SET deleted_at=now() WHERE id=$1","UPDATE public.profiles SET deleted_at=NULL WHERE id=$1",'deleted profile'],
  ];
  for(const [change,restore,label] of mutations){
-  await clear(); await db.query(change,[customer]); await request('customer-capture-'+label.replaceAll(' ','-'));
+  await clear(); await db.query(change,[customer]);
+  const captureAttempt=()=>request('customer-capture-'+label.replaceAll(' ','-'));
+  if(['inactive profile','deleted profile'].includes(label)){
+   await assert.rejects(captureAttempt,/AUTH_REQUIRED/); checks++;
+  }else await captureAttempt();
   equal(await scalar('SELECT count(*)::int FROM drive_notification_private.outbox'),0,label+' blocks capture'); await db.query(restore,[customer]);
   await clear(); await request('customer-begin-'+label.replaceAll(' ','-')); row=await claim(); await db.query(change,[customer]);
   equal(await kapsoBegin(row),false,label+' blocks begin'); equal(await state(row),'suppressed',label+' suppressed'); await db.query(restore,[customer]);
