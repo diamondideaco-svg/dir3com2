@@ -142,6 +142,7 @@ function classifyError(providerName: string, status: number, payload: OpenAIComp
   const codes = [payload.code, error?.code, error?.type].map(normalizeErrorString);
   const qwen = providerName === 'qwen';
   const qwenThrottle = qwen && status === 429 && codes.some(code => [
+    'throttling', 'throttling.serviceoverloaded', 'throttling.resourceexhausted',
     'throttling.ratequota', 'limitrequests', 'limit_requests',
     'throttling.burstrate', 'limit_burst_rate',
     'throttling.allocationquota', 'insufficient_quota',
@@ -167,6 +168,11 @@ function classifyError(providerName: string, status: number, payload: OpenAIComp
   if (codes.some(code => code === 'rate_limit_exceeded' || code === 'rate_limit_error')
     || joined.includes('rate limit')) return 'rate_limit';
   if (status === 429) return 'unknown_429';
+
+  // Narrower diagnostic attribution must not unlock retries/fallback for quota
+  // signals that the prior classifier stopped, including contradictory 5xx.
+  // The body is ambiguous; do not claim verified quota exhaustion or throttling.
+  if (joined.includes('quota')) return 'invalid_request';
 
   if (status === 404 || joined.includes('model_not_found') || joined.includes('model not found')) {
     return 'model_not_found';
