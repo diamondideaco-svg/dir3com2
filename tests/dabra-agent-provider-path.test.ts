@@ -6,6 +6,7 @@ import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { NextRequest } from 'next/server';
 import { INTERNAL_AGENT_PROVIDERS, planInternalAgentTool } from '../lib/dabra/agent-planner';
+import { callOpenAICompatibleProvider } from '../lib/ai2/runtime/openai-compatible';
 import type { AgentContext } from '../lib/dabra/agent-contract';
 
 // Execute the production POST module; only the authenticated actor boundary and
@@ -123,4 +124,80 @@ test('process budget is bounded and concurrent calls do not start a second provi
   let calls = 1; globalThis.fetch = async url => { calls++; return providerResponse(String(url)); };
   for (let index = 0; index < 25; index++) await planInternalAgentTool('hello');
   assert.equal(calls, 20);
+});
+
+const costSafeFailures = [
+  { name: 'temporary throttle', status: 429, error: { code: 'rate_limit_exceeded', message: 'PRIVATE_PROVIDER_DETAIL' }, category: 'rate_limit' },
+  { name: 'quota exhausted', status: 429, error: { code: 'insufficient_quota', message: 'PRIVATE_PROVIDER_DETAIL' }, category: 'insufficient_quota' },
+  { name: 'unknown 429', status: 429, error: { message: 'PRIVATE_PROVIDER_DETAIL' }, category: 'unknown_429' },
+  { name: 'billing 429', status: 429, error: { code: 'billing_error', message: 'PRIVATE_PROVIDER_DETAIL' }, category: 'billing_or_identity' },
+  { name: 'mixed quota and throttle', status: 429, error: { code: 'rate_limit_exceeded', message: 'quota exceeded PRIVATE_PROVIDER_DETAIL' }, category: 'insufficient_quota' },
+] as const;
+for (const failure of costSafeFailures) test(`${failure.name}: distinguish error, one call, no fallback, safe AR/EN continuation`, async () => {
+  process.env.DABRA_AI_PROVIDER = 'qwen';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return Response.json({ error: failure.error }, { status: failure.status }); };
+  const plan = await planInternalAgentTool('plan my trip');
+  assert.equal(plan.attempts?.[0].outcome, failure.category);
+  assert.equal(plan.attempts?.length, 1);
+  assert.equal(plan.status, 'unavailable');
+  assert.equal(plan.tool, null);
+  assert.equal(calls, 1);
+  for (const locale of ['ar', 'en'] as const) for (const stream of [false, true]) {
+    const response = await productPost('customer')(new NextRequest('http://localhost/api/ai2/chat', {
+      method: 'POST', body: JSON.stringify({ message: 'plan my trip', locale, stream,
+        history: [{ role: 'user', content: 'I need a hotel in Cairo' }] }),
+    }));
+    assert.equal(response.status, 200);
+    const body = stream ? null : await response.json();
+    const answer = stream ? await response.text() : body.answer;
+    assert.ok(answer.startsWith(locale === 'ar'
+      ? 'يمكنك المتابعة عبر خيارات المنصة أدناه، أو تحديد الخدمة التي تحتاجها.'
+      : 'You can continue through the platform options below, or tell me which service you need.'));
+    assert.match(answer, /family=dir3-stay/);
+    assert.match(answer, /destination=cairo/);
+    assert.doesNotMatch(answer, /PRIVATE_PROVIDER_DETAIL|insufficient_quota|unknown_429|billing_error|rate_limit_exceeded/);
+    if (body) { assert.equal(body.provider, 'local'); assert.equal(body.agent.mutations, 0); assert.equal(body.understandingProvider, undefined); }
+    else { assert.equal(response.headers.get('X-DABRA-Understanding'), 'unavailable'); assert.equal(response.headers.get('X-DABRA-Understanding-Provider'), null); }
+  }
+  assert.equal(calls, 5, 'each customer request has one classifier call; no retry, discovery or fallback');
+});
+
+for (const failure of [...costSafeFailures, { name: 'upstream 503', status: 503, error: { message: 'temporary' }, category: 'upstream_error' }]) {
+  test(`${failure.name}: shared transport preserves retry cap and never discovers another model`, async () => {
+    let calls = 0;
+    globalThis.fetch = async input => {
+      calls++;
+      assert.match(String(input), /chat\/completions$/);
+      return Response.json({ error: failure.error }, { status: failure.status });
+    };
+    const result = await callOpenAICompatibleProvider({ providerName: 'qwen', baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+      apiKey: 'isolated-test-placeholder', model: 'test-model', preferredModels: ['test-model'], prompt: 'test', message: 'test', timeoutMs: 6000, retryCount: 2 });
+    assert.equal(result.errorCategory, failure.category);
+    assert.equal(calls, failure.status === 503 ? 3 : 1);
+    assert.equal(result.answer, '');
+    assert.doesNotMatch(JSON.stringify(result), /PRIVATE_PROVIDER_DETAIL/);
+  });
+}
+
+test('after throttling, explicit hotel follow-up continues through platform rules with no new inference', async () => {
+  process.env.DABRA_AI_PROVIDER = 'qwen';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return Response.json({ error: { code: 'rate_limit_exceeded' } }, { status: 429 }); };
+  const post = productPost('customer');
+  const first = await post(new NextRequest('http://localhost/api/ai2/chat', { method: 'POST', body: JSON.stringify({ message: 'plan my trip', locale: 'en' }) }));
+  const firstBody = await first.json();
+  assert.equal(calls, 1);
+  for (const [locale, message] of [['en', 'I need a hotel in Cairo'], ['ar', 'أحتاج فندق في القاهرة']] as const) {
+    const response = await post(new NextRequest('http://localhost/api/ai2/chat', { method: 'POST', body: JSON.stringify({ message, locale,
+      history: [{ role: 'user', content: 'plan my trip' }, { role: 'assistant', content: firstBody.answer }] }) }));
+    const body = await response.json();
+    assert.equal(body.understanding, 'internal-rules');
+    assert.match(body.answer, /family=dir3-stay/);
+    assert.match(body.answer, /destination=cairo/);
+    assert.equal(body.agent.mutations, 0);
+  }
+  assert.equal(calls, 1, 'explicit service follow-up needs no classifier retry');
 });

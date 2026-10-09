@@ -15,7 +15,7 @@ test('missing key is classified safely', async () => {
   assert.equal(result.ok, false); assert.equal(result.errorCategory, 'missing_key');
 });
 
-for (const [status, category] of [[401,'invalid_key'],[429,'insufficient_quota'],[503,'upstream_error']] as const) {
+for (const [status, category] of [[401,'invalid_key'],[429,'unknown_429'],[503,'upstream_error']] as const) {
   test(`${status} is sanitized and classified`, async () => {
     globalThis.fetch = (async () => new Response(JSON.stringify({ error: { message: 'secret upstream detail' } }), { status })) as typeof fetch;
     const result = await callXAIWebSearch({ message: 'test', language: 'en', prompt: AI2_DABRA_GLOBAL_WEB_PROMPT, apiKey: 'test-only', model: 'grok-test' });

@@ -7,6 +7,8 @@ export type OpenAICompatibleErrorCategory =
   | 'invalid_request'
   | 'malformed_response'
   | 'insufficient_quota'
+  | 'rate_limit'
+  | 'unknown_429'
   | 'model_not_found'
   | 'web_search_unavailable'
   | 'timeout'
@@ -136,13 +138,18 @@ function classifyError(status: number, payload: OpenAICompatibleErrorPayload): O
     return 'invalid_key';
   }
 
-  if (status === 429 || joined.includes('quota') || joined.includes('rate limit')) {
-    return 'insufficient_quota';
-  }
-
   if (joined.includes('billing') || joined.includes('payment') || joined.includes('identity verification') || joined.includes('credit')) {
     return 'billing_or_identity';
   }
+
+  // An HTTP 429 alone does not establish quota exhaustion or a temporary limit.
+  // Explicit quota/billing evidence wins over throttle hints; none permits retry.
+  if (joined.includes('quota')) return 'insufficient_quota';
+  const error = typeof payload.error === 'object' ? payload.error : undefined;
+  const codes = [payload.code, error?.code, error?.type].map(normalizeErrorString);
+  if (codes.some(code => code === 'rate_limit_exceeded' || code === 'rate_limit_error')
+    || joined.includes('rate limit')) return 'rate_limit';
+  if (status === 429) return 'unknown_429';
 
   if (status === 404 || joined.includes('model_not_found') || joined.includes('model not found')) {
     return 'model_not_found';

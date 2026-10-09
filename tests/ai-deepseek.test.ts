@@ -26,7 +26,7 @@ test('missing key is classified safely', async () => {
   assert.equal(result.errorCategory, 'missing_key');
 });
 
-for (const [status, category] of [[401, 'invalid_key'], [429, 'insufficient_quota'], [503, 'upstream_error']] as const) {
+for (const [status, category] of [[401, 'invalid_key'], [429, 'unknown_429'], [503, 'upstream_error']] as const) {
   test(`${status} is sanitized and classified`, async () => {
     globalThis.fetch = (async () => new Response(JSON.stringify({
       error: { message: 'secret upstream detail' },
