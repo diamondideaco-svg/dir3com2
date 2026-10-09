@@ -2,8 +2,8 @@
 
 Implementation owner: Codex Desktop / Engineer A, delegated from source task `01a1185c-259c-77e9-b73c-6d53ddd290d7`.
 Task: https://github.com/diamondideaco-svg/dir3com2/issues/192 . Base: `4ed9374d07bf466e0eb1db330ae7d7dcad94a994`.
-Branch: `codex/task166-customer-whatsapp-local`; worktree: `D:/DIR3COM-task166-customer/2026-10-08/dir3com2`.
-PR: none. Independent reviewer: unassigned. Author checks are not independent review or security approval.
+Branch: `codex/task166-customer-whatsapp-local`.
+PR: none. Independent reviewer: separate non-author Codex session `01a11b6d-ce5c-75ca-8d96-1914a2000007`. Exact candidate `978f331289161d6452fb02d81201c4fbaca6e395` received bounded local review; author QA is not independent execution or release approval.
 PR191 and its separate acceptance owner/branch are untouched.
 
 ## Existing boundary completed
@@ -12,7 +12,7 @@ Task166's original subscription, consent/contact eligibility, atomic event captu
 
 The forward source `20261008115500_drive_whatsapp_customer_categories.sql` adds empty `customer_actions` and `customer_template_languages` allowlists. Existing `capture_enabled` and `send_enabled` remain required. The shared private category predicate preserves the operations recipient/language gate and is checked at capture, claim and begin-send. Existing `eligible` derives customers from the authoritative request owner, active profile, matching verified contact and enabled documented-consent subscription. Begin rechecks ownership, consent, captured contact/language, current request status, quote validity, freshness, lease, kill switch and budget. Existing unique event/channel/recipient/phone constraints and signed WAMID receipts remain unchanged. Historical migrations are immutable; the new file has a separate registered hash and `production_apply_authorized: false`.
 
-No SQL is applied by this local task. A separately authorized future deployment must apply the registered original outbox, operations forward and this customer forward in order. The source files do not activate any switch or create a subscription.
+No SQL is applied to a remote or Production database by this task. Later owner QA executed the relevant SQL in disposable isolated local PostgreSQL databases. A separately authorized future deployment must apply the registered original outbox, operations forward and this customer forward in order. The source files do not activate any switch or create a subscription.
 
 ## Explicit runtime/template contract
 
@@ -38,9 +38,13 @@ Required AR/EN template meaning for later provider approval (copy contract, not 
 
 The TypeScript tests execute actual adapters/API/UI modules with synthetic RPC/HTTP boundaries. Their failed-network guard prevents real provider calls. They cover all five customer actions in AR/EN, exact category templates/links/recipients, off/authorization gates, invalid claims, RPC rejection before transport, durable send intent/duplicate worker rejection, WAMID acceptance and ambiguous response handling. Existing request and quote tests cover auth/payload/status handling. These mocks do not prove SQL ownership, consent, RLS, concurrency or WhatsApp delivery.
 
-The actual PostgreSQL harness extension tests customer defaults, ownership (including another customer sharing the same phone), consent/contact/profile checks at capture and begin, unauthorized reviews/acceptance, request/acceptance dedup, truthful review/quote/decline/acceptance transitions, stale status and expired quote suppression, category/language revocation, WAMID/sender/recipient matching, monotonic/deduplicated receipts, crash handling, private helper privileges, retained RLS and two-worker fencing when PostgreSQL is supplied. It is source-ready and syntax-checked, not executed here: PGlite is unavailable and no migrations, database startup, Docker restart or remote database operation is authorized. Independent functional/security review and real isolated PostgreSQL execution remain required before any release recommendation.
+The actual PostgreSQL harness extension tests customer defaults, ownership (including another customer sharing the same phone), consent/contact/profile checks at capture and begin, unauthorized reviews/acceptance, request/acceptance dedup, truthful review/quote/decline/acceptance transitions, stale status and expired quote suppression, category/language revocation, WAMID/sender/recipient matching, monotonic/deduplicated receipts, crash handling, private helper privileges, retained RLS and two-worker fencing when PostgreSQL is supplied. Later owner QA passed 209 assertions on isolated PostgreSQL 17.11 with two independent connections, using synthetic fixtures and the repository functions. This exercises local ownership, consent, privileges/RLS and shared claim/begin fencing; the exact-template filtered claim tests are sequential. It does not establish current Production schema/RLS, high-contention behavior or provider delivery.
 
-No push, PR, Actions rerun, merge, deployment, settings/secrets/permissions/subscription/billing changes or real sends occur. Precise local command results and final SHA are in the external handoff/verification folder so the committed source does not claim later evidence in advance.
+Owner QA also passed 104 related tests and 24 local browser cases across six request states, AR/EN and desktop/mobile, with actual local authentication and PostgREST. Typecheck and lint passed (0 errors, 23 existing warnings). A qualified local Next 16.3.3 webpack build passed using a hashed snapshot of official Google font bytes through the build-only font response hook; this is not a stock network-font or hosted build result.
+
+The independent final review inspected the exact test-only delta from `082aa1c46c7c42cd55bb33eb388056698a190cb9` to `978f331289161d6452fb02d81201c4fbaca6e395` and verified supplied QA evidence consistency. Its verdict is PASS for that bounded delta and evidence review, PARTIAL overall. It did not replay the owner PostgreSQL/browser/build runs. Application and SQL bytes are unchanged from the previously reviewed parent; F1/F2 remain closed. Private raw QA artifacts are retained outside the public source and are not copied here.
+
+No push, published PR, Actions rerun, merge, deployment, Production settings/secrets/permissions/subscription/billing changes or real sends are performed by this local delivery. Required hosted checks, exact public-head review, Production binding and migration readiness, approved templates, callback configuration and separately authorized end-to-end delivery remain release/activation gates. No release recommendation or specialized security approval is claimed.
 
 ## Independent review fixes (F1/F2)
 
