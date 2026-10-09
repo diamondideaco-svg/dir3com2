@@ -127,8 +127,11 @@ test('process budget is bounded and concurrent calls do not start a second provi
 });
 
 const costSafeFailures = [
+  { name: 'Qwen RPM throttle', status: 429, error: { code: 'Throttling.RateQuota', message: 'You have exceeded your request limit.' }, category: 'rate_limit' },
+  { name: 'Qwen burst throttle', status: 429, error: { code: 'Throttling.BurstRate', message: 'Request rate increased too quickly.' }, category: 'rate_limit' },
+  { name: 'Qwen TPM throttle', status: 429, error: { code: 'Throttling.AllocationQuota', message: 'Allocated quota exceeded, please increase your quota limit.' }, category: 'rate_limit' },
   { name: 'temporary throttle', status: 429, error: { code: 'rate_limit_exceeded', message: 'PRIVATE_PROVIDER_DETAIL' }, category: 'rate_limit' },
-  { name: 'quota exhausted', status: 429, error: { code: 'insufficient_quota', message: 'PRIVATE_PROVIDER_DETAIL' }, category: 'insufficient_quota' },
+  { name: 'quota exhausted', status: 429, error: { code: 'insufficient_quota', message: 'Free allocated quota exceeded. PRIVATE_PROVIDER_DETAIL' }, category: 'insufficient_quota' },
   { name: 'unknown 429', status: 429, error: { message: 'PRIVATE_PROVIDER_DETAIL' }, category: 'unknown_429' },
   { name: 'billing 429', status: 429, error: { code: 'billing_error', message: 'PRIVATE_PROVIDER_DETAIL' }, category: 'billing_or_identity' },
   { name: 'mixed quota and throttle', status: 429, error: { code: 'rate_limit_exceeded', message: 'quota exceeded PRIVATE_PROVIDER_DETAIL' }, category: 'insufficient_quota' },
@@ -200,4 +203,38 @@ test('after throttling, explicit hotel follow-up continues through platform rule
     assert.equal(body.agent.mutations, 0);
   }
   assert.equal(calls, 1, 'explicit service follow-up needs no classifier retry');
+});
+
+const qwenErrorBodies: Array<{ name: string; body: unknown; category: string; provider?: string; status?: number; raw?: string }> = [
+  { name: 'native TPM code with documented billing guidance', body: { code: 'Throttling.AllocationQuota', message: 'You exceeded your current quota, please check your plan and billing details.' }, category: 'rate_limit' },
+  { name: 'actual arrearage HTTP400', body: { code: 'Arrearage', message: 'Access denied, please make sure your account is in good standing.' }, status: 400, category: 'billing_or_identity' },
+  { name: 'invalid key overrides throttle', body: { code: 'Throttling.RateQuota' }, status: 401, category: 'invalid_key' },
+  { name: 'unknown quota phrase is not exhaustion', body: { message: 'quota configuration details' }, category: 'unknown_429' },
+  { name: 'malformed JSON', body: null, raw: '{', category: 'unknown_429' },
+  { name: 'top-level documented RPM', body: { code: 'Throttling.RateQuota' }, category: 'rate_limit' },
+  { name: 'top-level documented TPM', body: { code: 'Throttling.AllocationQuota' }, category: 'rate_limit' },
+  { name: 'documented TPM alias', body: { error: { code: 'insufficient_quota', message: 'You exceeded your current quota, please check your plan and billing details.' } }, category: 'rate_limit' },
+  { name: 'documented TPM alias without billing ambiguity', body: { code: 'insufficient_quota' }, category: 'rate_limit' },
+  { name: 'free allocation overrides TPM code', body: { error: { code: 'Throttling.AllocationQuota', message: 'Free allocated quota exceeded.' } }, category: 'insufficient_quota' },
+  { name: 'free quota expired', body: { error: { code: 'Throttling.AllocationQuota', message: 'Free quota expired.' } }, category: 'insufficient_quota' },
+  { name: 'arrearage overrides throttle', body: { code: 'Throttling.RateQuota', error: { code: 'Arrearage' } }, category: 'billing_or_identity' },
+  { name: 'service suspended', body: { code: 'isv.OUT_OF_SERVICE' }, category: 'billing_or_identity' },
+  { name: 'billing message overrides RPM', body: { code: 'Throttling.RateQuota', error: { message: 'billing error' } }, category: 'billing_or_identity' },
+  { name: 'another provider cannot inherit Qwen code meaning', body: { code: 'Throttling.RateQuota' }, category: 'unknown_429', provider: 'mistral' },
+  { name: 'unknown quota-suffixed code', body: { code: 'Unknown.Quota' }, category: 'unknown_429' },
+  { name: 'malformed code object', body: { code: { value: 'Throttling.RateQuota' }, error: { code: 123 } }, category: 'unknown_429' },
+  { name: 'malformed array', body: [], category: 'unknown_429' },
+  { name: 'malformed scalar', body: 42, category: 'unknown_429' },
+  { name: 'malformed null', body: null, category: 'unknown_429' },
+];
+for (const fixture of qwenErrorBodies) test(`${fixture.name}: fail closed with one transport call`, async () => {
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return fixture.raw === undefined
+    ? Response.json(fixture.body, { status: fixture.status ?? 429 })
+    : new Response(fixture.raw, { status: fixture.status ?? 429 }); };
+  const result = await callOpenAICompatibleProvider({ providerName: fixture.provider ?? 'qwen', baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+    apiKey: 'isolated-test-placeholder', model: 'test-model', preferredModels: ['test-model'], prompt: 'test', message: 'test', timeoutMs: 6000, retryCount: 2 });
+  assert.equal(result.errorCategory, fixture.category);
+  assert.equal(calls, 1);
+  assert.equal(result.answer, '');
 });
