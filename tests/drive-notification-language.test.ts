@@ -22,11 +22,11 @@ function load(path: string, modules: Record<string, unknown>) {
   }).outputText, { exports, URL, require(name: string) { assert.ok(name in modules, name); return modules[name]; } });
   return exports;
 }
-function page(user: string | null = owner, found = true) {
+function page(user: string | null = owner, found = true, failed = false) {
   const filters: Record<string, unknown> = {};
   let reads = 0;
   const query = { select() { return query; }, eq(key: string, value: unknown) { filters[key] = value; return query; },
-    async maybeSingle() { return { data: found ? { request_reference: reference } : null, error: null }; } };
+    async maybeSingle() { return { data: found ? { request_reference: reference } : null, error: failed ? new Error('private database diagnostic') : null }; } };
   const db = { auth: { getUser: async () => ({ data: { user: user ? { id: user } : null } }) },
     from(name: string) { reads++; assert.equal(name, 'marketplace_requests'); return query; } };
   const subject = load('app/my-requests/[reference]/drive/page.tsx', {
@@ -36,6 +36,7 @@ function page(user: string | null = owner, found = true) {
     '@/lib/marketplace/customer-requests': { isMarketplaceRequestReference },
     '@/lib/drive/record': record, '@/lib/i18n/config': locale,
     '@/components/drive/DriveRequestReview': { default: 'request-review' },
+    '@/components/drive/DriveRequestReadError': { default: 'request-read-error' },
   });
   return { render: subject.default as (props: PageProps) => Promise<Element>, filters, reads: () => reads };
 }
@@ -129,3 +130,66 @@ for (const language of ['ar', 'en'] as const) {
     assert.match(output, language === 'en' ? /not a booking/ : /ليس حجز/);
   });
 }
+
+for (const language of ['ar', 'en'] as const) {
+  test(`failed ${language} request read returns a locale-preserving retry view without partial data`, async () => {
+    const subject = page(owner, true, true);
+    const result = await subject.render(props(language));
+    assert.equal(result.type, 'request-read-error');
+    assert.deepEqual(Object.keys(result.props), ['notificationLanguage']);
+    assert.equal(result.props.notificationLanguage, language);
+    assert.deepEqual(subject.filters, { request_reference: reference, user_id: owner });
+    assert.ok(!JSON.stringify(result).includes('private database diagnostic'));
+  });
+}
+
+function readError(preference: locale.AppLanguage, explicit: locale.AppLanguage | undefined, pending: boolean) {
+  let refreshes = 0;
+  const subject = load('components/drive/DriveRequestReadError.tsx', {
+    'react/jsx-runtime': { jsx, jsxs: jsx },
+    react: { useTransition: () => [pending, (callback: () => void) => callback()] },
+    'next/link': { default: 'a' },
+    'next/navigation': { useRouter: () => ({ refresh() { refreshes++; } }) },
+    '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language: preference }) },
+    '@/lib/i18n/config': locale, './drive.module.css': { default: {} },
+  });
+  const view = (subject.default as (props: { notificationLanguage?: locale.AppLanguage }) => Element)({ notificationLanguage: explicit });
+  return { view, refreshes: () => refreshes };
+}
+function elements(node: unknown): Element[] {
+  if (Array.isArray(node)) return node.flatMap(elements);
+  if (node && typeof node === 'object' && 'props' in node) return [node as Element, ...elements((node as Element).props.children)];
+  return [];
+}
+for (const language of ['ar', 'en'] as const) {
+  test(`${language} read error has accessible recovery and no invented request outcome`, () => {
+    const subject = readError(language === 'ar' ? 'en' : 'ar', language, false);
+    assert.equal(subject.view.props.lang, language);
+    assert.equal(subject.view.props.dir, locale.languageDirection(language));
+    assert.equal(elements(subject.view).find(node => 'aria-busy' in node.props)?.props['aria-busy'], false);
+    const nodes = elements(subject.view);
+    const button = nodes.find(node => node.type === 'button')!;
+    assert.equal(button.props.type, 'button'); assert.equal(button.props.disabled, false);
+    (button.props.onClick as () => void)(); assert.equal(subject.refreshes(), 1);
+    assert.equal(nodes.filter(node => node.props.role === 'alert').length, 1);
+    assert.equal(nodes.find(node => node.type === 'a')?.props.href, '/my-bookings');
+    assert.equal(nodes.filter(node => node.type === 'form').length, 0);
+    assert.ok(!text(subject.view).includes('private database diagnostic'));
+    assert.match(text(subject.view), language === 'ar' ? /تعذر تحميل الطلب/ : /Unable to load your request/);
+  });
+  test(`${language} retry loading is announced and cannot be double-submitted by its disabled button`, () => {
+    const subject = readError(language, undefined, true);
+    const nodes = elements(subject.view);
+    assert.equal(elements(subject.view).find(node => 'aria-busy' in node.props)?.props['aria-busy'], true);
+    assert.equal(nodes.find(node => node.type === 'button')?.props.disabled, true);
+    assert.equal(nodes.filter(node => node.props.role === 'status').length, 1);
+    assert.match(text(subject.view), language === 'ar' ? /جارٍ تحميل الطلب/ : /Loading your request/);
+    assert.equal(subject.refreshes(), 0);
+  });
+}
+test('read failure cannot bypass anonymous redirect or convert a missing owner-scoped row into success', async () => {
+  const anonymous = page(null, true, true);
+  await assert.rejects(anonymous.render(props('en')), /REDIRECT:/);
+  assert.equal(anonymous.reads(), 0);
+  await assert.rejects(page(owner, false).render(props('ar')), /NOT_FOUND/);
+});

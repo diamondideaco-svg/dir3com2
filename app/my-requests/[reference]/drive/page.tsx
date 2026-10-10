@@ -4,6 +4,7 @@ import { isMarketplaceRequestReference } from '@/lib/marketplace/customer-reques
 import { DRIVE_REQUEST_FIELDS, type DriveRequestRecord } from '@/lib/drive/record';
 import { isAppLanguage } from '@/lib/i18n/config';
 import DriveRequestReview from '@/components/drive/DriveRequestReview';
+import DriveRequestReadError from '@/components/drive/DriveRequestReadError';
 
 export default async function DriveRequestPage({ params, searchParams }: { params: Promise<{ reference: string }>; searchParams: Promise<{ language?: string | string[] }> }) {
   const { reference } = await params;
@@ -17,7 +18,7 @@ export default async function DriveRequestPage({ params, searchParams }: { param
   // Explicit owner predicate in addition to RLS: Operations must use its own queue.
   const { data, error } = await supabase.from('marketplace_requests').select(DRIVE_REQUEST_FIELDS)
     .eq('request_reference', reference).eq('user_id', user.id).maybeSingle();
-  if (error) throw new Error('Unable to load Drive request.');
+  if (error) return <DriveRequestReadError notificationLanguage={notificationLanguage} />;
   if (!data) notFound();
   return <DriveRequestReview request={data as unknown as DriveRequestRecord} notificationLanguage={notificationLanguage} />;
 }
