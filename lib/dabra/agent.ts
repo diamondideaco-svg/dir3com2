@@ -9,11 +9,11 @@ import type { SavedTrip } from './continuity-contract';
 
 type Input = {
   message: string; locale: 'ar' | 'en'; history: Array<{ role: 'user' | 'assistant'; content: string }>;
-  context: AgentContext; pricing?: PlatformPricing; intent?: AgentIntent; trip?: SavedTrip | null;
+  context: AgentContext; pricing?: PlatformPricing; intent?: AgentIntent; trip?: SavedTrip | null; needsClarification?: boolean;
 };
 
 /** The model can select a read tool. Facts, permissions, links and replies stay server-owned. */
-export async function runInternalAgent({ message, locale, history, context, pricing, trip, intent = agentIntent(message) }: Input) {
+export async function runInternalAgent({ message, locale, history, context, pricing, trip, needsClarification = false, intent = agentIntent(message) }: Input) {
   const ar = locale === 'ar';
   const link = serverReplyLink;
   const text = serverReplySegments();
@@ -40,7 +40,16 @@ export async function runInternalAgent({ message, locale, history, context, pric
     return result;
   }
 
-  if (intent.tool === 'discover') return { ...buildPlatformAssistantResponse(message, history, locale, undefined, undefined, pricing, trip), agent: { role: context.role, tool: intent.tool, state: 'catalogue', mutations: 0 } };
+  if (intent.tool === 'discover') {
+    const response = buildPlatformAssistantResponse(message, history, locale, undefined, undefined, pricing, trip);
+    // Optional understanding can fail without blocking existing platform journeys.
+    // Keep history, catalogue facts and links; do not surface provider internals.
+    const continuation = ar
+      ? 'يمكنك المتابعة عبر خيارات المنصة أدناه، أو تحديد الخدمة التي تحتاجها.'
+      : 'You can continue through the platform options below, or tell me which service you need.';
+    return { ...response, answer: needsClarification ? `${continuation}\n\n${response.answer}` : response.answer,
+      agent: { role: context.role, tool: intent.tool, state: 'catalogue', mutations: 0 } };
+  }
 
   if (intent.tool === 'weather') {
     const query = normalizePlatformQuery(message);

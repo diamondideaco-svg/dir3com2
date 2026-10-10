@@ -146,12 +146,14 @@ export async function POST(request: NextRequest) {
   }
   let understanding: string = 'internal-rules';
   let understandingProvider: string | undefined;
+  let needsClarification = false;
   // Only authenticated ambiguity uses the optional classifier. It cannot read
   // records, grant roles or generate customer-facing facts/actions.
   if (inferenceEnabled && agentContext.role !== 'guest' && intent.tool === 'discover' && !platformFamilies(message).length) {
     const { planInternalAgentTool } = await import('@/lib/dabra/agent-planner');
     const planned = await planInternalAgentTool(message);
     understanding = planned.status;
+    needsClarification = planned.status === 'unavailable' || planned.status === 'invalid';
     understandingProvider = planned.status === 'ok' ? planned.provider : undefined;
     if (planned.tool) intent = { ...intent, tool: planned.tool };
   }
@@ -159,7 +161,7 @@ export async function POST(request: NextRequest) {
   const currency = parseDisplayCurrency(body?.currency) ?? platformCurrency(context);
   const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
   const snapshot = needsRates ? await getCurrencySnapshot() : null;
-  const response = await runInternalAgent({ message: modelMessage, history, locale, context: agentContext, intent,
+  const response = await runInternalAgent({ message: modelMessage, history, locale, context: agentContext, intent, needsClarification,
     pricing: currency ? { currency, snapshot } : undefined, trip });
   if (body?.stream === true) {
     const streamed = createDabraAssistantTextResponse(response);
