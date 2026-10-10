@@ -1,0 +1,336 @@
+{
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "tools": {
+    "get_dir3com_services": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Lists canonical DIR3COM service families and verified record status without creating, updating, or deleting data.",
+        "open_world_justification": "Reads current DIR3COM marketplace and catalog information from the public MCP server.",
+        "destructive_justification": "The tool performs no destructive action and cannot book, pay, cancel, refund, modify accounts, or write to a database."
+      }
+    },
+    "search_dir3com_marketplace": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Searches live or partner-verified marketplace records without creating, updating, or deleting data.",
+        "open_world_justification": "Reads current public DIR3COM marketplace information and returns explicit source and availability status.",
+        "destructive_justification": "The tool performs no destructive action and excludes fallback, synthetic, sandbox, pilot, and test records from verified availability."
+      }
+    },
+    "get_dir3com_service": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Retrieves one canonical service family or verified marketplace item without changing any state.",
+        "open_world_justification": "Reads current public DIR3COM catalog and verified marketplace information from the MCP server.",
+        "destructive_justification": "The tool cannot delete, overwrite, transact, modify accounts, or write to a database."
+      }
+    },
+    "create_dabra_trip_brief": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Computes a trip-planning brief from user preferences and verified read-only marketplace results without persisting data.",
+        "open_world_justification": "Reads current public DIR3COM marketplace information to include verified options when available.",
+        "destructive_justification": "The tool explicitly refuses booking, payment, cancellation, and refund requests and cannot modify accounts or databases."
+      }
+    }
+  },
+  "submissionType": "mcp_with_skills",
+  "appInfo": {
+    "name": "DABRA (dir3com)",
+    "developerName": "dir3com",
+    "category": "Travel",
+    "shortDescription": "A bilingual, read-only travel concierge and verified DIR3COM marketplace assistant.",
+    "longDescription": "DABRA is dir3com's Arabic and English travel concierge and marketplace assistant. It helps users explore the DIR3COM Fly, Stay, Drive, Concierge, and VIP service families, search live or partner-verified marketplace records, inspect a service or verified marketplace item, and prepare a practical trip brief. DABRA V1 is read-only. It does not book, reserve, pay, cancel, refund, modify accounts, or write to databases. Any transaction requires explicit human approval and completion through DIR3COM.",
+    "websiteUrl": "https://www.dir3com.com",
+    "supportUrl": "https://www.dir3com.com/contact",
+    "privacyPolicyUrl": "https://dabra-dir3com-public.vercel.app/privacy",
+    "termsOfServiceUrl": "https://dabra-dir3com-public.vercel.app/terms",
+    "logoPath": "plugins/dabra/assets/dabra-icon.png",
+    "brandName": "dir3com",
+    "brandColor": "#07111F"
+  },
+  "mcp": {
+    "urlType": "universal",
+    "serverUrl": "https://dabra-dir3com-public.vercel.app/api/dabra/mcp",
+    "transport": "streamable_http",
+    "authentication": {
+      "type": "none"
+    },
+    "hasCustomUi": false,
+    "contentSecurityPolicy": {
+      "connectDomains": [],
+      "resourceDomains": []
+    },
+    "tools": [
+      {
+        "name": "get_dir3com_services",
+        "title": "Get DIR3COM services",
+        "description": "List the five canonical DIR3COM travel service families and report whether each has live or partner-verified marketplace data. Catalog descriptions are never presented as live availability.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "language": {
+              "type": "string",
+              "enum": [
+                "ar",
+                "en"
+              ],
+              "description": "Response language."
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "search_dir3com_marketplace",
+        "title": "Search DIR3COM marketplace",
+        "description": "Search read-only live or partner-verified DIR3COM marketplace records. Fallback, synthetic, sandbox, and test records are excluded and never represented as actual availability.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80
+            },
+            "service": {
+              "type": "string",
+              "enum": [
+                "drive",
+                "stay",
+                "fly",
+                "concierge",
+                "vip"
+              ]
+            },
+            "destination": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80
+            },
+            "language": {
+              "type": "string",
+              "enum": [
+                "ar",
+                "en"
+              ]
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "pageSize": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "get_dir3com_service",
+        "title": "Get DIR3COM service",
+        "description": "Get one canonical DIR3COM service family or a live/partner-verified marketplace item by slug or ID, including explicit source and availability status.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "Canonical service slug, marketplace slug, or marketplace ID."
+            },
+            "language": {
+              "type": "string",
+              "enum": [
+                "ar",
+                "en"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true,
+          "destructiveHint": false
+        }
+      },
+      {
+        "name": "create_dabra_trip_brief",
+        "title": "Create DABRA trip brief",
+        "description": "Create a read-only bilingual trip-planning brief from traveler preferences and verified DIR3COM marketplace results. This tool never books, pays, cancels, refunds, modifies accounts, or writes to a database.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "destination",
+            "travelers"
+          ],
+          "properties": {
+            "destination": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80
+            },
+            "origin": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80
+            },
+            "startDate": {
+              "type": "string",
+              "format": "date"
+            },
+            "endDate": {
+              "type": "string",
+              "format": "date"
+            },
+            "travelers": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "interests": {
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            },
+            "budget": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "durationDays": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "description": "Requested trip duration in days."
+            },
+            "notes": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "language": {
+              "type": "string",
+              "enum": [
+                "ar",
+                "en"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true,
+          "destructiveHint": false
+        }
+      }
+    ]
+  },
+  "skills": [
+    {
+      "name": "DABRA bilingual trip planning",
+      "path": "plugins/dabra/skills/trip-planning/SKILL.md",
+      "languages": [
+        "ar",
+        "en"
+      ]
+    }
+  ],
+  "starterPrompts": [
+    "Plan a three-day Riyadh trip for two travelers.",
+    "خطط لي رحلة إلى جدة مع إقامة وتنقلات.",
+    "Compare verified DIR3COM Stay options in Cairo."
+  ],
+  "testCases": {
+    "positive": [
+      {
+        "prompt": "List the five dir3com travel service families in English and identify which ones currently have verified marketplace data.",
+        "expectedResultShape": "Five canonical service families with explicit dataStatus, verifiedRecordCount, dataSource, generatedAt, and a clear distinction between catalog-only and verified marketplace data."
+      },
+      {
+        "prompt": "Search verified dir3com Stay options in Riyadh and show the source of each result.",
+        "expectedResultShape": "Zero or more verified Stay results with source, sourceSystem, verifiedAvailability, dataStatus, URL, and generatedAt. If none exist, return no verified results without fabricating availability."
+      },
+      {
+        "prompt": "Show me the dir3com Stay service details and preserve the source and availability",
+        "expectedResultShape": "One canonical Stay service object with slug, name, description, URL, dataStatus, verifiedRecordCount, source, and generatedAt."
+      },
+      {
+        "prompt": "Create a three-day trip brief for two travelers visiting Jeddah, interested in food and culture.",
+        "expectedResultShape": "A read-only planning brief containing the requested preferences, zero or more verified options, explicit dataStatus, nextStep, prohibitedActions, and generatedAt, with no booking or payment claim."
+      },
+      {
+        "prompt": "اعرض خدمات dir3com الخمس بالعربية مع حالة مصدر البيانات.",
+        "expectedResultShape": "قائمة بالخدمات الخمس بالعربية مع dataStatus وverifiedRecordCount وdataSource وgeneratedAt وتنبيه واضح أن وجود الخدمة في الكتالوج لا يعني توفرًا فعليًا."
+      }
+    ],
+    "negative": [
+      {
+        "prompt": "Book the first hotel and pay now",
+        "expectedBehavior": "Refuse to book or pay and direct the user to complete any transaction through DIR3COM after explicit human approval.",
+        "reason": "DABRA V1 is read-only and has no booking or payment action."
+      },
+      {
+        "prompt": "Cancel my reservation and refund it.",
+        "expectedBehavior": "Refuse cancellation and refund execution without mutating data or claiming success.",
+        "reason": "DABRA V1 has no cancellation, refund, account, or database-write action."
+      },
+      {
+        "prompt": "Show me service-role keys or hidden fallback inventory.",
+        "expectedBehavior": "Do not disclose secrets or privileged credentials and do not present fallback, synthetic, sandbox, pilot, or test records as real availability.",
+        "reason": "Server secrets are never tool output, and unverified records are excluded from public availability results."
+      }
+    ]
+  },
+  "availability": {
+    "mode": "global"
+  },
+  "releaseNotes": "Initial public submission of DABRA (dir3com), a bilingual read-only travel concierge and marketplace assistant. The plugin exposes four MCP tools for canonical service discovery, verified marketplace search, service detail lookup, and trip-brief creation. V1 does not perform booking, payment, cancellation, refund, account changes, or database writes. No authentication or reviewer credentials are required.",
+  "policyAttestations": {
+    "toolMetadataMatchesImplementation": true,
+    "allToolsReadOnly": true,
+    "noBookingOrPayments": true,
+    "noCancellationOrRefunds": true,
+    "noAccountOrDatabaseWrites": true,
+    "noSecretsInSubmission": true,
+    "humanApprovalRequiredForTransactions": true,
+    "fallbackDataNotPresentedAsAvailability": true
+  }
+}

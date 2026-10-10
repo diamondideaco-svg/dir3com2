@@ -234,6 +234,7 @@ export const dabraToolDefinitions = [
         travelers: { type: 'integer', minimum: 1, maximum: 20 },
         interests: { type: 'array', maxItems: 10, items: { type: 'string', minLength: 1, maxLength: 80 } },
         budget: { type: 'string', maxLength: 80 },
+        durationDays: { type: 'integer', minimum: 1, maximum: 365, description: 'Requested trip duration in days.' },
         notes: { type: 'string', maxLength: 500 },
         language: { type: 'string', enum: ['ar', 'en'] },
       },
@@ -253,18 +254,28 @@ export const dabraToolDefinitions = [
         },
         {
           type: 'object',
+          required: ['status', 'message'],
+          properties: {
+            status: { const: 'refused_sensitive_data_request' },
+            message: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        {
+          type: 'object',
           required: ['status', 'title', 'requested', 'verifiedOptions', 'dataStatus', 'nextStep', 'prohibitedActions', 'generatedAt'],
           properties: {
             status: { const: 'planning_brief_only' },
             title: { type: 'string' },
             requested: {
               type: 'object',
-              required: ['destination', 'origin', 'startDate', 'endDate', 'travelers', 'interests', 'budget'],
+              required: ['destination', 'origin', 'startDate', 'endDate', 'durationDays', 'travelers', 'interests', 'budget'],
               properties: {
                 destination: { type: 'string' },
                 origin: { type: ['string', 'null'] },
                 startDate: { type: ['string', 'null'] },
                 endDate: { type: ['string', 'null'] },
+                durationDays: { type: ['integer', 'null'], minimum: 1, maximum: 365 },
                 travelers: { type: 'integer', minimum: 1, maximum: 20 },
                 interests: { type: 'array', items: { type: 'string' } },
                 budget: { type: ['string', 'null'] },
@@ -335,6 +346,42 @@ function stringArg(args: ToolArguments, key: string, maxLength: number) {
 function containsForbiddenAction(args: ToolArguments) {
   const text = JSON.stringify(args);
   return /(?:book|booking|reserve|pay|payment|cancel|refund|حجز|ادفع|دفع|إلغاء|الغاء|استرداد)/i.test(text);
+}
+
+function containsSensitiveDataRequest(args: ToolArguments) {
+  const text = JSON.stringify(args);
+  return /(?:service[ _-]?role|secret(?:s)?|api[ _-]?key|access[ _-]?token|credential(?:s)?|hidden[ _-]?(?:fallback[ _-]?)?inventory|internal[ _-]?inventory|private[ _-]?inventory|fallback[ _-]?inventory|مفتاح|مفاتيح|أسرار|اسرار|بيانات اعتماد|مخزون (?:داخلي|مخفي|احتياطي))/i.test(text);
+}
+
+const numberWords: Readonly<Record<string, number>> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+
+function durationDaysOf(args: ToolArguments) {
+  if (typeof args.durationDays === 'number' && Number.isInteger(args.durationDays)) {
+    return Math.max(1, Math.min(365, args.durationDays));
+  }
+
+  const notes = stringArg(args, 'notes', 500).toLowerCase();
+  const numeric = notes.match(/\b(\d{1,3})[ -]?days?\b/i);
+  if (numeric) return Math.max(1, Math.min(365, Number(numeric[1])));
+
+  const written = notes.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten)[ -]?days?\b/i);
+  if (written) return numberWords[written[1]] ?? null;
+
+  const arabic = notes.match(/(?:لمدة\s*)?([١٢٣٤٥٦٧٨٩]|\d{1,3})\s*(?:أيام|ايام|يوم)/i);
+  if (!arabic) return null;
+  const normalized = arabic[1].replace(/[١٢٣٤٥٦٧٨٩]/g, (digit) => String('١٢٣٤٥٦٧٨٩'.indexOf(digit) + 1));
+  return Math.max(1, Math.min(365, Number(normalized)));
 }
 
 async function getServices(args: ToolArguments) {
@@ -430,6 +477,14 @@ async function getService(args: ToolArguments) {
 
 async function createTripBrief(args: ToolArguments) {
   const language = languageOf(args);
+  if (containsSensitiveDataRequest(args)) {
+    return response({
+      status: 'refused_sensitive_data_request',
+      message: language === 'ar'
+        ? 'لا تكشف DABRA الأسرار أو بيانات الاعتماد أو المخزون الداخلي أو المخفي أو الاحتياطي. تعرض فقط بيانات DIR3COM العامة أو الموثقة والمخصصة للمستخدم.'
+        : 'DABRA does not disclose secrets, credentials, or internal, hidden, or fallback inventory. It only returns public or verified user-facing DIR3COM data.',
+    });
+  }
   if (containsForbiddenAction(args)) {
     return response({
       status: 'refused_write_action',
@@ -440,6 +495,7 @@ async function createTripBrief(args: ToolArguments) {
   }
 
   const destination = stringArg(args, 'destination', 80);
+  const durationDays = durationDaysOf(args);
   const travelers = typeof args.travelers === 'number' ? Math.max(1, Math.min(20, Math.floor(args.travelers))) : 1;
   const search = await queryMarketplace({ destination: destination.toLowerCase(), page: 1, pageSize: 12 }, { anonymous: true, clientKey: 'dabra-public-mcp' });
   const catalog = await readDriveCatalog({destination, language, page: 1, pageSize: 8});
@@ -449,6 +505,7 @@ async function createTripBrief(args: ToolArguments) {
     origin: stringArg(args, 'origin', 80) || null,
     startDate: stringArg(args, 'startDate', 10) || null,
     endDate: stringArg(args, 'endDate', 10) || null,
+    durationDays,
     travelers,
     interests: Array.isArray(args.interests) ? args.interests.filter((value): value is string => typeof value === 'string').slice(0, 10) : [],
     budget: stringArg(args, 'budget', 80) || null,
@@ -456,7 +513,9 @@ async function createTripBrief(args: ToolArguments) {
 
   return response({
     status: 'planning_brief_only',
-    title: language === 'ar' ? `موجز رحلة DABRA إلى ${destination}` : `DABRA trip brief for ${destination}`,
+    title: language === 'ar'
+      ? `موجز رحلة DABRA إلى ${destination}${durationDays ? ` لمدة ${durationDays} أيام` : ''}`
+      : `DABRA trip brief for ${destination}${durationDays ? ` — ${durationDays} days` : ''}`,
     requested,
     ...catalog,
     verifiedOptions: verified.map((item) => publicService(item, language)),
