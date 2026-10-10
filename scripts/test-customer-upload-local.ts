@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execFile } from 'node:child_process';
 import { randomBytes, createHmac } from 'node:crypto';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -134,6 +134,41 @@ async function main(){
   await a.auth.signOut();const fresh=client();assert.equal((await fresh.auth.signInWithPassword({email:'a@example.invalid',password})).error,null);
   assert.equal((await listCustomerDocuments(fresh,await customerDocumentActor(fresh))).length,1);
   report.upload='PASS';report.persistence='PASS';report.relogin='PASS';report.ownerViewDownload='PASS';report.crossCustomer='PASS';report.anonymous='PASS';report.directStorageWrites='DENIED';report.idempotency='PASS';
+  // Reuse this already-owned stack while it is alive; a separate server-condition
+  // process imports the genuine chat handler without auth/RPC replacements.
+  report.task187Chat = await new Promise<unknown>((resolve,reject)=>{
+    const child=execFile(process.execPath,['--conditions=react-server','--import','tsx','scripts/test-task187-chat-real-auth.ts'],
+      {timeout:90000,maxBuffer:32768},(error,stdout)=>{
+        if(error)return reject(new Error('TASK187_GENUINE_CHAT_FAILED'));
+        try{resolve(JSON.parse(stdout));}catch{reject(new Error('TASK187_GENUINE_CHAT_INVALID_RECEIPT'));}
+      });
+    child.stdin!.end(JSON.stringify({url:'http://127.0.0.1:19030',anon,password,aid,bid,container:prefix+'-db'}));
+  });
+  // Emit only the child assertion receipt, never the local runtime/config.
+  const chat=report.task187Chat as {status:string;mode:string;count:number;cases:string[];externalAttempts:number};
+  assert.equal(chat.status,'PASS');assert.equal(chat.mode,'genuine-GoTrue-JWT-PostgREST-RPC-RLS-direct-handler');
+  assert.equal(chat.count,32);assert.equal(chat.externalAttempts,0);
+  assert.ok(Array.isArray(chat.cases));assert.equal(chat.cases.length,32);
+  assert.equal(new Set(chat.cases).size,32);
+  assert.ok(chat.cases.every(name=>typeof name==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(name)));
+  console.log('TASK187_CHAT_RECEIPT='+JSON.stringify({status:chat.status,mode:chat.mode,count:chat.count,cases:chat.cases,externalAttempts:chat.externalAttempts}));
+  // Actual Next app + preinstalled ChromeDriver, within this same owned stack.
+  report.task187Browser = await new Promise<unknown>((resolve,reject)=>{
+    const child=execFile(process.execPath,['--import','tsx','scripts/test-task187-browser.ts'],
+      {timeout:300000,maxBuffer:32768},(error,stdout)=>{
+        if(error)return reject(new Error('TASK187_BROWSER_ACCEPTANCE_FAILED'));
+        try{resolve(JSON.parse(stdout));}catch{reject(new Error('TASK187_BROWSER_INVALID_RECEIPT'));}
+      });
+    child.stdin!.end(JSON.stringify({url:'http://127.0.0.1:19030',anon,password,aid,bid}));
+  });
+  const browser=report.task187Browser as {status:string;mode:string;cells:Array<{language:string;width:number;height:number;status:string;checks:string[]}>;externalAllowed:number;ownedProcessesStopped:boolean};
+  assert.equal(browser.status,'PASS');assert.equal(browser.mode,'real-Next-ChromeDriver-cookie-Auth-RPC');
+  assert.equal(browser.cells.length,4);assert.equal(browser.externalAllowed,0);assert.equal(browser.ownedProcessesStopped,true);
+  assert.deepEqual(new Set(browser.cells.map(c=>c.language+'-'+c.width)),new Set(['ar-390','ar-1440','en-390','en-1440']));
+  for(const cell of browser.cells){assert.equal(cell.status,'PASS');assert.equal(cell.height,cell.width===390?844:900);
+    assert.equal(cell.checks.length,12);assert.equal(new Set(cell.checks).size,12);assert.ok(cell.checks.every(name=>/^[A-Za-z0-9_-]{1,80}$/.test(name)));}
+
+  console.log('TASK187_BROWSER_RECEIPT='+JSON.stringify({status:browser.status,mode:browser.mode,cells:browser.cells,externalAllowed:browser.externalAllowed,ownedProcessesStopped:browser.ownedProcessesStopped}));
   // Private local config enables the same-origin browser checks. Never printed.
   writeFileSync(join(out,'local-runtime.json'),JSON.stringify({url:'http://127.0.0.1:19030',anon,service,password,aid,bid}),{mode:0o600});
   if(process.argv.includes('--keep-for-browser')){

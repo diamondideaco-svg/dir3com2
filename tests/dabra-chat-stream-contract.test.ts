@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/ai2/chat/route';
+import { ContinuityContext } from '@/lib/dabra/continuity-context';
+import { createPersisted, readPersisted, validatePersistedMessages } from '@/lib/dabra/travel-commerce-state';
 import {
   consumeDabraChatResponse,
   createDabraAssistantTextResponse,
@@ -137,8 +139,30 @@ test('only final visible assistant text reaches transcript persistence and no un
   assert.doesNotMatch(component, /speechSynthesis|SpeechSynthesisUtterance|normalizeDabraSpeechText/);
   assert.match(component, /item\.id === assistantId \? \{ \.\.\.item, text: visibleAnswer \}/);
   assert.doesNotMatch(component, /text:\s*normalizeDabraSpeechText/);
-  assert.match(component, /createPersisted\(messages\.slice\(-20\)/);
+  assert.match(component, /createPersisted\(continuityContextRef.current.cachedMessages\(messages\)/);
   assert.doesNotMatch(component, /createPersisted\([^\n]*(response|payload|raw)/);
+});
+
+test('cache retains bounded completed independent text, excluding leased derivations and pending transport', async () => {
+  const context = new ContinuityContext();
+  context.tag('seed', 'derived-answer');
+  context.beginAnswer('pending');
+  const messages = Array.from({ length: 25 }, (_, i) => ({ id: `user-${i}`, role: 'user' as const, text: `Independent ${i}` }));
+  const answer = await consumeDabraChatResponse(new Response(JSON.stringify({ answer: 'Visible final answer', providerErrorCategory: 'private-debug' }), { headers: { 'content-type': 'application/json' } }), () => {});
+  const all = [...messages,
+    { id: 'seed', role: 'user' as const, text: 'Private resumed trip' },
+    { id: 'derived-answer', role: 'assistant' as const, text: 'Derived destination' },
+    { id: 'pending', role: 'assistant' as const, text: 'Partial stream' },
+    { id: 'final', role: 'assistant' as const, text: answer, raw: 'private-debug' }];
+  const envelope = JSON.stringify(createPersisted(context.cachedMessages(all), 'user:A', 100));
+  const restored = readPersisted(envelope, 'user:A', validatePersistedMessages, 101)!;
+  assert.equal(restored.length, 20);
+  assert.equal(restored[0].id, 'user-6');
+  assert.deepEqual(restored.at(-1), { id: 'final', role: 'assistant', text: 'Visible final answer' });
+  for (const excluded of ['Private resumed', 'Derived destination', 'Partial stream', 'private-debug']) assert.equal(envelope.includes(excluded), false);
+  assert.equal(readPersisted(envelope, 'user:B', validatePersistedMessages, 101), null);
+  context.finishAnswer('pending');
+  assert.ok(context.cachedMessages(all).some(message=>message.id==='pending'));
 });
 
 test('multipart chat validates and deduplicates attachment bytes without storing or forwarding metadata', async () => {

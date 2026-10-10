@@ -26,7 +26,7 @@ test('voice input models its states and preserves shared conversation flow', () 
   }
   assert.match(component, /SpeechRecognition/);
   assert.match(component, /messages\.map/);
-  assert.match(component, /form\.set\('history', JSON\.stringify\(messages\.map/);
+  assert.match(component, /form\.set\('history', JSON\.stringify\(requestHistory\)\)/);
   assert.match(component, /recognition\.onresult/);
 });
 
