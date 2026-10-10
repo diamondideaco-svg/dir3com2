@@ -52,7 +52,7 @@ const fixture: record.DriveRequestRecord = {
       passengers: 2, luggage: 1, currency: 'USD', name: 'Isolated QA', phone: '+10000000001', acknowledged: true,
       flightNumber: '', flightArrival: '', specialRequest: '', notes: '', minimumModelYear: null, acceptableModelYears: null } },
 };
-function review(preference: locale.AppLanguage, explicit?: locale.AppLanguage) {
+function review(preference: locale.AppLanguage, explicit?: locale.AppLanguage, quoteAmount: number | null = 150) {
   const subject = load('components/drive/DriveRequestReview.tsx', {
     'react/jsx-runtime': { jsx, jsxs: jsx },
     react: { useState: (value: unknown) => [typeof value === 'function' ? value() : value, () => undefined],
@@ -64,7 +64,7 @@ function review(preference: locale.AppLanguage, explicit?: locale.AppLanguage) {
     './DriveMarketplace': { DriveInclusions: 'inclusions' }, './drive.module.css': { default: {} },
   });
   return (subject.default as (props: { request: record.DriveRequestRecord; notificationLanguage?: locale.AppLanguage }) => Element)
-    ({ request: fixture, notificationLanguage: explicit });
+    ({ request: { ...fixture, status: quoteAmount === null ? 'request_submitted' : fixture.status, quote_amount: quoteAmount }, notificationLanguage: explicit });
 }
 function text(node: unknown): string {
   if (Array.isArray(node)) return node.map(text).join(' ');
@@ -118,3 +118,14 @@ test('invalid/duplicate language falls back to current preference and cannot cha
   }
   await assert.rejects(page(owner, false).render(props('en')), /NOT_FOUND/);
 });
+
+for (const language of ['ar', 'en'] as const) {
+  test(`unissued ${language} quote waits for confirmation without claiming a final total`, () => {
+    const output = text(review(language, language, null));
+    assert.ok(output.includes(language === 'ar' ? 'الإجمالي النهائي بانتظار تأكيد العمليات' : 'Final total is awaiting Operations confirmation'));
+    assert.ok(!output.includes(language === 'ar' ? 'الإجمالي النهائي من العمليات' : 'Operations final total'));
+    assert.match(text(review('en', 'en', 150)), /Operations final total\s*:\s*150\s+USD/);
+    assert.match(text(review('en', 'en', 0)), /Operations final total\s*:\s*0\s+USD/);
+    assert.match(output, language === 'en' ? /not a booking/ : /ليس حجز/);
+  });
+}
