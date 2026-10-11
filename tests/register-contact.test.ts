@@ -32,7 +32,10 @@ test('contact is signup-only unverified metadata; existing users and OAuth autho
   assert.ok(page.indexOf('normalizeRegisterContact(country, phone)') < page.indexOf('supabase.auth.signUp'));
   assert.doesNotMatch(page, /auth\.updateUser|\.upsert\(|phone_verified|phone_confirmed|app_metadata|country_scope|role:/);
   const oauth = page.slice(page.indexOf('const handleGoogle'), page.indexOf('    return ('));
-  assert.doesNotMatch(oauth, /registration_contact|phone|country|queryParams/);
+  // Only the account chooser parameter belongs in OAuth; contact stays signup-only.
+  const chooserParams = /queryParams:\s*\{\s*prompt:\s*'select_account'\s*\}/;
+  assert.match(oauth, chooserParams);
+  assert.doesNotMatch(oauth.replace(chooserParams, ''), /registration_contact|phone|country|queryParams/);
   assert.doesNotMatch(page, /Google is a separate sign-in flow|register-contact-note|styles\.contactNote/);
 });
 

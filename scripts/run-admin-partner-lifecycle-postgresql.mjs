@@ -629,6 +629,9 @@ try {
     await setAuthenticatedActor(countryWaiter, staffId);
     const waiterPid = (await countryWaiter.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
     const pendingPublish = countryWaiter.query(`SELECT public.publish_product_lifecycle($1,1,'country race')`, [countryRaceProductId]);
+    // The waiter may reject before COMMIT returns. Observe it immediately;
+    // the original promise is still awaited and its exact denial asserted below.
+    void pendingPublish.catch(() => {});
     await waitForDatabaseLock(testClient, waiterPid, 'country authorization race');
     await countryLocker.query('COMMIT');
     try {
