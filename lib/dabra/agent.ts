@@ -5,14 +5,15 @@ import { normalizePlatformQuery } from './platform-assistant';
 import { getWeatherSnapshot } from '../weather/service';
 import { convertCurrency } from '../currency/service';
 import { displayPrice, parseDisplayCurrency } from '../currency/display';
+import type { SavedTrip } from './continuity-contract';
 
 type Input = {
   message: string; locale: 'ar' | 'en'; history: Array<{ role: 'user' | 'assistant'; content: string }>;
-  context: AgentContext; pricing?: PlatformPricing; intent?: AgentIntent;
+  context: AgentContext; pricing?: PlatformPricing; intent?: AgentIntent; trip?: SavedTrip | null;
 };
 
 /** The model can select a read tool. Facts, permissions, links and replies stay server-owned. */
-export async function runInternalAgent({ message, locale, history, context, pricing, intent = agentIntent(message) }: Input) {
+export async function runInternalAgent({ message, locale, history, context, pricing, trip, intent = agentIntent(message) }: Input) {
   const ar = locale === 'ar';
   const link = serverReplyLink;
   const text = serverReplySegments();
@@ -39,7 +40,7 @@ export async function runInternalAgent({ message, locale, history, context, pric
     return result;
   }
 
-  if (intent.tool === 'discover') return { ...buildPlatformAssistantResponse(message, history, locale, undefined, undefined, pricing), agent: { role: context.role, tool: intent.tool, state: 'catalogue', mutations: 0 } };
+  if (intent.tool === 'discover') return { ...buildPlatformAssistantResponse(message, history, locale, undefined, undefined, pricing, trip), agent: { role: context.role, tool: intent.tool, state: 'catalogue', mutations: 0 } };
 
   if (intent.tool === 'weather') {
     const query = normalizePlatformQuery(message);

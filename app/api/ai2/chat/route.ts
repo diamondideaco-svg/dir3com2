@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { platformCurrency, platformContext, platformFamilies } from '@/lib/dabra/platform-assistant';
+import { platformCurrency, platformContext, platformFamilies, refinePlatformTrip } from '@/lib/dabra/platform-assistant';
 type AI2ChatTurn = { role: 'user' | 'assistant'; content: string };
 import { createDabraAssistantTextResponse } from '@/lib/dabra/chat-response-contract';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
@@ -8,6 +8,7 @@ import { getCurrencySnapshot } from '@/lib/currency/service';
 import { parseDisplayCurrency } from '@/lib/currency/display';
 import { agentIntent, type AgentContext } from '@/lib/dabra/agent-contract';
 import { runInternalAgent } from '@/lib/dabra/agent';
+import { parseContinuityChatTrip } from '@/lib/dabra/continuity-chat';
 export const dynamic = 'force-dynamic';
 
 type AI2ChatRequest = {
@@ -17,6 +18,7 @@ type AI2ChatRequest = {
   mode?: 'chat' | 'travel-plan';
   stream?: boolean;
   locale?: 'ar' | 'en';
+  continuityTrip?: unknown;
 };
 
 type ParsedChatRequest = { body: AI2ChatRequest | null; attachmentCount: number; attachmentError: boolean };
@@ -44,6 +46,11 @@ async function parseChatRequest(request: NextRequest): Promise<ParsedChatRequest
     const localeValue = form.get('locale');
     const locale = parseDabraLocale(localeValue);
     const body: AI2ChatRequest = { currency: typeof form.get('currency') === 'string' ? String(form.get('currency')) : undefined, message: String(form.get('message') ?? ''), history, stream, mode, locale: locale ?? undefined };
+    const rawTrip = form.get('continuityTrip');
+    if (rawTrip !== null) {
+      try { body.continuityTrip = typeof rawTrip === 'string' ? JSON.parse(rawTrip) : null; }
+      catch { body.continuityTrip = null; }
+    }
     const files = form.getAll('attachment');
     if (files.length > MAX_ATTACHMENTS || files.some((item) => !(item instanceof File))) return { body, attachmentCount: 0, attachmentError: true };
     const seen = new Set<string>();
@@ -117,6 +124,17 @@ export async function POST(request: NextRequest) {
   }
 
   const history = sanitizeHistory(body?.history);
+  let trip = null;
+  if (body?.continuityTrip !== undefined) {
+    const input = parseContinuityChatTrip(body.continuityTrip);
+    if (!input) return NextResponse.json({ error: 'Invalid continuity context.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
+    try {
+      const { resolveContinuityChatTrip } = await import('@/lib/dabra/continuity-chat-server');
+      trip = await resolveContinuityChatTrip(request, input);
+    } catch { /* Unavailable authenticated continuity fails closed. */ }
+    if (!trip) return NextResponse.json({ error: 'Continuity context expired or changed.' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
+    trip = refinePlatformTrip(trip, message);
+  }
   if (body?.currency !== undefined && !parseDisplayCurrency(body.currency)) return NextResponse.json({ error: 'Invalid currency.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
   let intent = agentIntent(message);
   let agentContext: AgentContext = { role: 'guest', readRequests: async () => ({ kind: 'authentication_required' }) };
@@ -137,12 +155,12 @@ export async function POST(request: NextRequest) {
     understandingProvider = planned.status === 'ok' ? planned.provider : undefined;
     if (planned.tool) intent = { ...intent, tool: planned.tool };
   }
-  const context = platformContext(modelMessage, history);
+  const context = platformContext(modelMessage, history, trip);
   const currency = parseDisplayCurrency(body?.currency) ?? platformCurrency(context);
   const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
   const snapshot = needsRates ? await getCurrencySnapshot() : null;
   const response = await runInternalAgent({ message: modelMessage, history, locale, context: agentContext, intent,
-    pricing: currency ? { currency, snapshot } : undefined });
+    pricing: currency ? { currency, snapshot } : undefined, trip });
   if (body?.stream === true) {
     const streamed = createDabraAssistantTextResponse(response);
     streamed.headers.set('X-DABRA-Understanding', understanding);

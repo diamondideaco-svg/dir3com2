@@ -4,7 +4,9 @@ import { parseOutboxItem, secureEqual, type NotificationStore, type OutboxItem, 
 
 type Environment = Record<string, string | undefined>;
 type Template = { name: string; languageCode: string };
-export type KapsoConfig = { apiKey: string; phoneNumberId: string; webhookSecret: string; siteUrl: string; templates: Partial<Record<'ar' | 'en', Template>> };
+export type KapsoCategory = 'operations.created' | `customer.${OutboxItem['action']}`;
+const CATEGORIES: readonly KapsoCategory[] = ['operations.created', 'customer.created', 'customer.review', 'customer.confirm', 'customer.decline', 'customer.customer_accept'];
+export type KapsoConfig = { apiKey: string; phoneNumberId: string; webhookSecret: string; siteUrl: string; templates: Partial<Record<`${KapsoCategory}.${'ar' | 'en'}`, Template>> };
 const PATH = '/api/webhooks/kapso/drive-whatsapp';
 const MESSAGE_ID = /^wamid\.[A-Za-z0-9_+/=-]{1,250}$/;
 function object(value: unknown): Record<string, unknown> | null {
@@ -17,7 +19,10 @@ export function receiptConfig(env: Environment) {
     ? { phoneNumberId, webhookSecret } : null;
 }
 export function kapsoConfig(env: Environment): KapsoConfig | null {
-  if (env.DIR3COM_WHATSAPP_ENABLED !== 'true' || env.DIR3COM_WHATSAPP_CATEGORIES !== 'operations.created') return null;
+  if (env.DIR3COM_WHATSAPP_ENABLED !== 'true') return null;
+  // Exact explicit categories only; absence, duplicates and unknown categories fail closed.
+  const categories = (env.DIR3COM_WHATSAPP_CATEGORIES ?? '').split(',');
+  if (new Set(categories).size !== categories.length || categories.some(key => !CATEGORIES.includes(key as KapsoCategory))) return null;
   const receipt = receiptConfig(env);
   const apiKey = env.KAPSO_API_KEY ?? '';
   if (!receipt || apiKey.length < 16 || apiKey.length > 512 || /\s/.test(apiKey)) return null;
@@ -28,14 +33,16 @@ export function kapsoConfig(env: Environment): KapsoConfig | null {
     if (!values || Object.keys(values).length === 0) return null;
     const templates: KapsoConfig['templates'] = {};
     for (const [key, value] of Object.entries(values)) {
-      if (key !== 'operations.created.ar' && key !== 'operations.created.en') return null;
+      const category = key.slice(0, key.lastIndexOf('.'));
+      if (!categories.includes(category) || !['ar', 'en'].includes(key.slice(key.lastIndexOf('.') + 1))) return null;
       const entry = object(value);
       const language = key.endsWith('.ar') ? 'ar' : 'en';
       if (!entry || typeof entry.name !== 'string' || !/^[a-z][a-z0-9_]{0,511}$/.test(entry.name)
         || typeof entry.languageCode !== 'string' || !(language === 'ar' ? ['ar'] : ['en', 'en_US', 'en_GB']).includes(entry.languageCode)
         || Object.keys(entry).some(k => !['name', 'languageCode'].includes(k))) return null;
-      templates[language] = { name: entry.name, languageCode: entry.languageCode };
+      templates[key as keyof typeof templates] = { name: entry.name, languageCode: entry.languageCode };
     }
+    if (categories.some(category => !Object.keys(templates).some(key => key.startsWith(`${category}.`)))) return null;
     return { ...receipt, apiKey, siteUrl: site.origin, templates };
   } catch { return null; }
 }
@@ -53,9 +60,14 @@ async function bodyBytes(message: Request | Response, limit: number): Promise<Bu
     }
   } finally { reader.releaseLock(); }
 }
+function configuredTemplate(config: KapsoConfig, item: OutboxItem) {
+  const category = `${item.audience}.${item.action}`;
+  if (!CATEGORIES.includes(category as KapsoCategory)) return undefined;
+  return config.templates[`${category}.${item.language}` as keyof KapsoConfig['templates']];
+}
 export async function sendKapsoTemplate(config: KapsoConfig, item: OutboxItem, fetcher: typeof fetch = fetch): Promise<SendResult> {
-  const template = config.templates[item.language];
-  if (item.audience !== 'operations' || item.action !== 'created' || !template) return { outcome: 'failed', sid: null, error: 'CATEGORY_NOT_CONFIGURED' };
+  const template = configuredTemplate(config, item);
+  if (!parseOutboxItem(item) || !template) return { outcome: 'failed', sid: null, error: 'CATEGORY_NOT_CONFIGURED' };
   const to = item.phone.slice(1);
   try {
     const response = await fetcher(`https://api.kapso.ai/meta/whatsapp/v24.0/${config.phoneNumberId}/messages`, {
@@ -64,7 +76,7 @@ export async function sendKapsoTemplate(config: KapsoConfig, item: OutboxItem, f
       body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'template',
         template: { name: template.name, language: { code: template.languageCode }, components: [{ type: 'body', parameters: [
           { type: 'text', text: item.reference },
-          { type: 'text', text: `${config.siteUrl}/admin/operations/drive?language=${item.language}` },
+          { type: 'text', text: `${config.siteUrl}${item.audience === 'customer' ? `/my-requests/${item.reference}/drive` : '/admin/operations/drive'}?language=${item.language}` },
         ] }] } }),
     });
     const result = object(JSON.parse((await bodyBytes(response, 32_768)).toString('utf8')));
@@ -81,12 +93,12 @@ export async function sendKapsoTemplate(config: KapsoConfig, item: OutboxItem, f
   } catch { return { outcome: 'unknown', sid: null, error: 'SEND_OUTCOME_UNKNOWN' }; }
 }
 export async function dispatchKapsoOne(store: NotificationStore, config: KapsoConfig, fetcher: typeof fetch = fetch) {
-  const claim = await store.rpc('claim_drive_whatsapp');
+  const claim = await store.rpc('claim_kapso_drive_whatsapp', { p_template_keys: Object.keys(config.templates) });
   if (claim.error) throw new Error('CLAIM_FAILED');
   if (claim.data === null) return 'idle';
   const item = parseOutboxItem(claim.data);
   if (!item) throw new Error('INVALID_CLAIM');
-  if (item.audience !== 'operations' || item.action !== 'created' || !config.templates[item.language]) return 'not_sent';
+  if (!configuredTemplate(config, item)) return 'not_sent';
   const start = await store.rpc('begin_kapso_drive_whatsapp', { p_id: item.id, p_token: item.token, p_phone_number_id: config.phoneNumberId });
   if (start.error) throw new Error('SEND_INTENT_UNCONFIRMED');
   if (start.data !== true) return 'not_sent';

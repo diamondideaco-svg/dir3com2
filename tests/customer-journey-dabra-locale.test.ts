@@ -108,7 +108,7 @@ test('dedicated journeys initialize the shared search with family-native semanti
 test('DABRA client binds UI, request, history boundary, recognition, and speech to selected locale', () => {
   const source = read('components', 'dabra', 'DabraChatCommerce.tsx');
   assert.match(source, /useLanguage\(\)/);
-  assert.match(source, /form\.set\('locale', language\)/);
+  assert.match(source, /form\.set\('locale', continuityRequestLocale\(context.lease \? continuityPreferences : null, language\)\)/);
   assert.match(source, /language === 'ar' \? 'ar-SA' : 'en-US'/);
   assert.match(source, /setMessages\(current => conversationForLocale\(current, welcomeMessage\(language\)\)\)/);
   assert.match(source, /invalidateActiveRequests\(\)/);

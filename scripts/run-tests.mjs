@@ -15,6 +15,7 @@ const serverOnlyTests = new Set([
   'marketplace-truth-contract.test.ts',
 ]);
 const databaseTests = new Set([
+  'dabra-continuity-postgres.integration.test.ts',
   'ceo-identity-postgres.integration.test.ts',
   'assignment-schema-postgres.integration.test.ts',
   'customer-activity-postgres.integration.test.ts',
