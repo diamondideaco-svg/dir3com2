@@ -106,9 +106,11 @@ async function fetchSupabaseServices(): Promise<MarketplaceService[]> {
   throw new Error('No marketplace provider returned data');
 }
 
-export async function getMarketplaceSnapshot(): Promise<MarketplaceSnapshot> {
+export async function getMarketplaceSnapshot(
+  fetchServices: () => Promise<MarketplaceService[]> = fetchSupabaseServices,
+): Promise<MarketplaceSnapshot> {
   try {
-    const services = await fetchSupabaseServices();
+    const services = await fetchServices();
     const hasRealData = services.some((service) => service.source !== 'fallback');
     const source = hasRealData
       ? services.find((service) => service.source !== 'fallback')?.source ?? 'supabase'

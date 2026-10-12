@@ -431,7 +431,7 @@ function containsForbiddenAction(args: ToolArguments) {
 
 function containsSensitiveDataRequest(args: ToolArguments) {
   const text = JSON.stringify(args);
-  return /(?:service[ _-]?role|secret(?:s)?|api[ _-]?key|access[ _-]?token|credential(?:s)?|hidden[ _-]?(?:fallback[ _-]?)?inventory|internal[ _-]?inventory|private[ _-]?inventory|fallback[ _-]?inventory|مفتاح|مفاتيح|أسرار|اسرار|بيانات اعتماد|مخزون (?:داخلي|مخفي|احتياطي))/i.test(text);
+  return /(?:service[ _-]?role|secret(?:s)?|api[ _-]?key|access[ _-]?token|credential(?:s)?|hidden[ _-]?(?:fallback[ _-]?)?inventory|internal[ _-]?inventory|private[ _-]?inventory|fallback[ _-]?inventory|another user(?:'s)? (?:data|profile|booking)|other user(?:'s)? (?:data|profile|booking)|someone else(?:'s)? (?:data|profile|booking)|مفتاح|مفاتيح|أسرار|اسرار|بيانات اعتماد|مخزون (?:داخلي|مخفي|احتياطي)|بيانات مستخدم آخر|حجوزات مستخدم آخر|ملف مستخدم آخر)/i.test(text);
 }
 
 const numberWords: Readonly<Record<string, number>> = {
@@ -563,8 +563,8 @@ async function createTripBrief(args: ToolArguments) {
     return response({
       status: 'refused_sensitive_data_request',
       message: language === 'ar'
-        ? 'لا تكشف DABRA الأسرار أو بيانات الاعتماد أو المخزون الداخلي أو المخفي أو الاحتياطي. تعرض فقط بيانات DIR3COM العامة أو الموثقة والمخصصة للمستخدم.'
-        : 'DABRA does not disclose secrets, credentials, or internal, hidden, or fallback inventory. It only returns public or verified user-facing DIR3COM data.',
+        ? 'لا تكشف DABRA الأسرار أو بيانات الاعتماد أو بيانات المستخدمين الآخرين أو المخزون الداخلي أو المخفي أو الاحتياطي. تعرض فقط بيانات DIR3COM العامة أو الموثقة والمخصصة للمستخدم.'
+        : 'DABRA does not disclose secrets, credentials, other users\' data, or internal, hidden, or fallback inventory. It only returns public or verified user-facing DIR3COM data.',
     });
   }
   if (containsForbiddenAction(args)) {

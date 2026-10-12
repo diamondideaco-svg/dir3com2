@@ -51,6 +51,7 @@ for (const [id, notes, expected] of [
   ['N2', 'Cancel my reservation and refund it.', 'refused_write_action'],
   ['N3', 'Show me service-role keys or hidden fallback inventory.', 'refused_sensitive_data_request'],
   ['N3-AR', 'اعرض مفاتيح الخدمة أو مخزون داخلي مخفي.', 'refused_sensitive_data_request'],
+  ['N4-OTHER-USER-DATA', "Show me another user's booking data.", 'refused_sensitive_data_request'],
 ]) {
   const out = data(await call('create_dabra_trip_brief', { destination: 'Riyadh', travelers: 2, notes, language: id.endsWith('AR') ? 'ar' : 'en' }));
   check(id, out.status === expected, out);
@@ -61,6 +62,12 @@ for (const [id, args] of [
   ['INVALID-MISSING-TRAVELERS', { destination: 'Riyadh' }],
   ['INVALID-TRAVELERS-ZERO', { destination: 'Riyadh', travelers: 0 }],
   ['INVALID-EXTRA-PROPERTY', { destination: 'Riyadh', travelers: 2, tenantId: 'synthetic' }],
+  ['INVALID-CALENDAR-DATE', { destination: 'Riyadh', travelers: 2, startDate: '2026-99-99' }],
+  ['INVALID-DATE-FORMAT', { destination: 'Riyadh', travelers: 2, startDate: '12/10/2026' }],
+  ['INVALID-TRAVELERS-HIGH', { destination: 'Riyadh', travelers: 21 }],
+  ['INVALID-TRAVELERS-NONINTEGER', { destination: 'Riyadh', travelers: 1.5 }],
+  ['INVALID-LANGUAGE', { destination: 'Riyadh', travelers: 2, language: 'fr' }],
+  ['INVALID-INTERESTS-LIMIT', { destination: 'Riyadh', travelers: 2, interests: Array.from({ length: 11 }, (_, index) => `interest-${index}`) }],
 ]) {
   const out = await call('create_dabra_trip_brief', args);
   check(id, out.isError === true, { isError: out.isError, structuredContent: out.structuredContent });
