@@ -17,7 +17,8 @@
 | TypeScript | PASS | `npm run typecheck` |
 | Targeted ESLint | PASS | DABRA MCP, marketplace server, tests, and matrix files |
 | Production build | PASS | `npm run build` |
-| Local Node test runner | BLOCKED | `tsx` stopped before loading tests: `uv_os_get_passwd returned ENOMEM`; zero tests executed |
+| Local Node test runner (native) | PASS | `npm run test:dabra-mcp:native`: 10/10 tests passed with one worker |
+| Local `tsx` runner | BLOCKED | `tsx` stopped before loading tests: `uv_os_get_passwd returned ENOMEM`; zero tests executed even with one worker and isolation disabled |
 | Preview MCP smoke | PASS | initialize, tools/list, calls, annotations, refusal |
 | Preview risk matrix | PASS | 26/26 |
 | Public MCP risk matrix | PASS | 26/26 after alias assignment |
@@ -49,6 +50,8 @@ The 26 direct MCP cases are counted once. Smoke checks and ChatGPT Web checks ar
 
 No production source was disabled or modified.
 
+The controlled outage fixture passed in the local native Node run. The native path uses Node 24's supported `--experimental-transform-types` mode and a repository-local resolver for the existing `@/` aliases and extensionless TypeScript imports. It does not change application runtime behavior.
+
 ## Findings and fixes
 
 1. Runtime input validation originally normalized missing or invalid trip-brief arguments. Fixed by enforcing required fields, ranges, date validity, language, interests, and unknown-property rejection.
@@ -58,4 +61,4 @@ No production source was disabled or modified.
 
 ## Release gate
 
-Code, MCP, public endpoint, and ChatGPT Web are PASS. Submission remains blocked until the eight submitted cases pass on an actual ChatGPT Mobile client. No OpenAI submission was made.
+Code, local DABRA MCP tests, MCP, public endpoint, and ChatGPT Web are PASS. Submission remains blocked until the eight submitted cases pass on an actual ChatGPT Mobile client. No OpenAI submission was made.

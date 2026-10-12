@@ -47,6 +47,7 @@
     "test:liteapi": "node --import tsx --test tests/liteapi-provider.test.ts",
     "test:liteapi-hmac": "node --import tsx --test tests/liteapi-hmac-auth.test.ts",
     "test:dabra-mcp": "node --import tsx --test tests/dabra-mcp.test.ts",
+    "test:dabra-mcp:native": "node --experimental-transform-types --import ./scripts/native-ts-test-loader.mjs --test --test-concurrency=1 --test-isolation=none tests/dabra-mcp.test.ts",
     "smoke:dabra-mcp": "node scripts/dabra-mcp-smoke.mjs",
     "smoke:liteapi": "node --import tsx scripts/liteapi-sandbox-smoke.ts",
     "test:all": "node --import tsx --test tests/*.test.ts",
