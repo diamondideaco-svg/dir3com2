@@ -101,6 +101,7 @@ test('trip brief rejects arguments that do not satisfy its declared input schema
     { destination: 'Riyadh' },
     { destination: 'Riyadh', travelers: 0 },
     { destination: 'Riyadh', travelers: 2, tenantId: 'synthetic' },
+    { destination: 'Riyadh', travelers: 2, startDate: '2026-99-99' },
   ];
 
   for (const args of invalidArguments) {

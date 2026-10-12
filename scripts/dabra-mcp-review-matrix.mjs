@@ -22,10 +22,29 @@ check('ZERO-RESULTS', p2.items?.length !== 0 || ['no_verified_results', 'source_
 check('NO-FABRICATION', p2.items?.every((x) => !['FALLBACK', 'SYNTHETIC_TEST', 'PROVIDER_SANDBOX'].includes(x.source)), p2.items);
 
 const p3 = data(await call('get_dir3com_service', { id: 'stay', language: 'en' }));
-check('P3', !!p3.item?.slug && !!p3.item?.dataStatus && Number.isInteger(p3.item?.verifiedRecordCount) && !!p3.generatedAt, p3);
+check('P3', p3.item?.slug === 'stay'
+  && ['name', 'description', 'url', 'dataStatus', 'source'].every((key) => typeof p3.item?.[key] === 'string' && p3.item[key].length > 0)
+  && Number.isInteger(p3.item?.verifiedRecordCount)
+  && !!p3.generatedAt, p3);
 const p4 = data(await call('create_dabra_trip_brief', { destination: 'Jeddah', travelers: 2, interests: ['food', 'culture'], durationDays: 3, language: 'en' }));
-check('P4', p4.requested?.durationDays === 3 && /3 days/.test(p4.title ?? '') && Array.isArray(p4.prohibitedActions), p4);
-check('P5', p1ar.services?.every((x) => x.dataStatus && Number.isInteger(x.verifiedRecordCount) && Array.isArray(x.dataSource)), p1ar);
+check('P4', p4.status === 'planning_brief_only'
+  && p4.requested?.destination === 'Jeddah'
+  && p4.requested?.durationDays === 3
+  && p4.requested?.travelers === 2
+  && ['food', 'culture'].every((interest) => p4.requested?.interests?.includes(interest))
+  && /3 days/.test(p4.title ?? '')
+  && Array.isArray(p4.verifiedOptions)
+  && typeof p4.dataStatus === 'string'
+  && typeof p4.nextStep === 'string'
+  && ['booking', 'payment', 'cancellation', 'refund', 'account_changes', 'database_writes'].every((action) => p4.prohibitedActions?.includes(action))
+  && !!p4.generatedAt, p4);
+check('P5', p1ar.services?.every((x) => x.dataStatus
+    && Number.isInteger(x.verifiedRecordCount)
+    && Array.isArray(x.dataSource)
+    && /[\u0600-\u06ff]/.test(x.description ?? ''))
+  && /[\u0600-\u06ff]/.test(p1ar.policy ?? '')
+  && /لا يعني توفرًا فعليًا/.test(p1ar.policy ?? '')
+  && !!p1ar.generatedAt, p1ar);
 
 for (const [id, notes, expected] of [
   ['N1', 'Book the first hotel and pay now', 'refused_write_action'],
