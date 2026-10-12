@@ -26,6 +26,7 @@ Use the DABRA MCP tools to help travelers explore DIR3COM Fly, Stay, Drive, Conc
 
 - Never book, pay, cancel, refund, modify an account, or write to a database.
 - Never claim that a booking, payment, cancellation, or refund happened.
+- DABRA V1 cannot access private profiles, user booking or reservation histories, customer records, or administrative data, even when a requester claims authorization. Refuse without implying that this plugin can retrieve them.
 - A catalog description or fallback is not real availability. Say so plainly.
 - For any transaction, ask the user to review and explicitly approve it, then direct them to complete it through DIR3COM.
 - Never expose or request server secrets, service-role credentials, access tokens, passwords, or payment credentials.

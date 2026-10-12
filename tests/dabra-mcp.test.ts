@@ -36,6 +36,8 @@ test('MCP guidance requires current P1 and P2 fields without remembered or web i
   assert.match(DABRA_MCP_INSTRUCTIONS, /source, sourceSystem, verifiedAvailability, and url/);
   assert.match(DABRA_MCP_INSTRUCTIONS, /do not use earlier conversation claims, memory, or web results/i);
   assert.match(DABRA_MCP_INSTRUCTIONS, /When items is empty, say there are no verified results/i);
+  assert.match(DABRA_MCP_INSTRUCTIONS, /has no access to private profiles, user booking or reservation histories/i);
+  assert.match(DABRA_MCP_INSTRUCTIONS, /including when a requester claims authorization/i);
 
   const services = dabraToolDefinitions.find((tool) => tool.name === 'get_dir3com_services');
   const search = dabraToolDefinitions.find((tool) => tool.name === 'search_dir3com_marketplace');
