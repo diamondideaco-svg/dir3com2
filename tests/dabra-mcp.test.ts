@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { callDabraTool, dabraToolDefinitions } from '../lib/dabra/mcp';
+import { callDabraTool, dabraToolDefinitions, DABRA_MCP_INSTRUCTIONS } from '../lib/dabra/mcp';
 
 test('DABRA exposes exactly four read-only tools with required annotations', () => {
   assert.deepEqual(dabraToolDefinitions.map((tool) => tool.name), [
@@ -28,6 +28,19 @@ test('Arabic and English service discovery identifies data status', async () => 
     assert.equal(data.services.length, 5);
     assert.ok(data.services.every((service) => service.dataStatus.length > 0));
   }
+});
+
+test('MCP guidance requires current P1 and P2 fields without remembered or web inventory', () => {
+  assert.match(DABRA_MCP_INSTRUCTIONS, /dataStatus, verifiedRecordCount, dataSource/);
+  assert.match(DABRA_MCP_INSTRUCTIONS, /source, sourceSystem, verifiedAvailability, and url/);
+  assert.match(DABRA_MCP_INSTRUCTIONS, /do not use earlier conversation claims, memory, or web results/i);
+  assert.match(DABRA_MCP_INSTRUCTIONS, /When items is empty, say there are no verified results/i);
+
+  const services = dabraToolDefinitions.find((tool) => tool.name === 'get_dir3com_services');
+  const search = dabraToolDefinitions.find((tool) => tool.name === 'search_dir3com_marketplace');
+  assert.match(services?.description ?? '', /preserve each returned dataStatus, verifiedRecordCount, dataSource/);
+  assert.match(search?.description ?? '', /Preserve top-level dataStatus and generatedAt/);
+  assert.match(search?.description ?? '', /do not add remembered, web, fallback, synthetic, sandbox, pilot, or test inventory/);
 });
 
 test('marketplace search never returns fallback as verified availability', async () => {

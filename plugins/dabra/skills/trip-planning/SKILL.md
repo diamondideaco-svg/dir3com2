@@ -19,6 +19,8 @@ Use the DABRA MCP tools to help travelers explore DIR3COM Fly, Stay, Drive, Conc
 3. Use `get_dir3com_service` for a specific slug or ID.
 4. Use `create_dabra_trip_brief` to organize preferences into a read-only plan.
 5. Always state the returned `dataStatus`, source, and whether availability is verified or catalog-only.
+6. For service-family answers, preserve every returned `dataStatus`, `verifiedRecordCount`, `dataSource`, and the top-level `generatedAt` exactly. Do not replace current tool data with memory, earlier conversation claims, or web results.
+7. For marketplace searches, preserve the top-level `dataStatus` and `generatedAt` and each result's `source`, `sourceSystem`, `verifiedAvailability`, and URL. If `items` is empty, explicitly say there are no verified results; do not supplement them with sandbox, fallback, synthetic, pilot, test, remembered, or web-sourced inventory.
 
 ## Hard limits · حدود إلزامية
 

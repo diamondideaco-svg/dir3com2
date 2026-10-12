@@ -5,6 +5,14 @@ import type { MarketplaceFamilyKey, MarketplaceService } from '@/lib/marketplace
 
 export const DABRA_MCP_PROTOCOL_VERSION = '2025-06-18';
 
+export const DABRA_MCP_INSTRUCTIONS = [
+  'Read-only DIR3COM travel planning. Never claim or perform booking, payment, cancellation, refund, account changes, or database writes.',
+  'For service-family questions, call get_dir3com_services and base the answer only on that current result; do not use earlier conversation claims, memory, or web results to relabel catalog records as verified availability.',
+  'Preserve each service dataStatus, verifiedRecordCount, dataSource, and the top-level generatedAt exactly. Catalog records are not verified marketplace availability.',
+  'For marketplace searches, call search_dir3com_marketplace and preserve the top-level dataStatus and generatedAt plus each returned item source, sourceSystem, verifiedAvailability, and url.',
+  'When items is empty, say there are no verified results and show the current dataStatus and generatedAt; do not supplement the result with sandbox, fallback, synthetic, pilot, test, remembered, or web-sourced inventory.',
+].join(' ');
+
 const annotations = {
   readOnlyHint: true,
   openWorldHint: true,
@@ -71,7 +79,7 @@ export const dabraToolDefinitions = [
   {
     name: 'get_dir3com_services',
     title: 'Get DIR3COM services',
-    description: 'List five service families with separate verified inventory and published Drive request-to-confirm catalogue counts. Catalogue offers are not verified city/date availability.',
+    description: 'Authoritative current source for listing the five DIR3COM service families. Use this tool for every such request and preserve each returned dataStatus, verifiedRecordCount, dataSource, and the top-level generatedAt exactly. Never relabel catalog records as verified availability from memory, prior conversation, or web results.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -117,7 +125,7 @@ export const dabraToolDefinitions = [
   {
     name: 'search_dir3com_marketplace',
     title: 'Search DIR3COM marketplace',
-    description: 'Search verified inventory and, separately, the published Egypt Drive request-to-confirm catalogue. Catalogue results have verifiedAvailability=false and require city/date/vehicle confirmation. Fallback and test inventory remain excluded.',
+    description: 'Authoritative current search for verified DIR3COM marketplace inventory. Preserve top-level dataStatus and generatedAt plus each item source, sourceSystem, verifiedAvailability, and url. If items is empty, report no verified results with the returned status and timestamp; do not add remembered, web, fallback, synthetic, sandbox, pilot, or test inventory. Published Drive catalogue results remain separate and have verifiedAvailability=false.',
     inputSchema: {
       type: 'object',
       properties: {

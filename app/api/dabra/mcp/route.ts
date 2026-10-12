@@ -1,4 +1,4 @@
-import { callDabraTool, dabraToolDefinitions, DABRA_MCP_PROTOCOL_VERSION } from '@/lib/dabra/mcp';
+import { callDabraTool, dabraToolDefinitions, DABRA_MCP_INSTRUCTIONS, DABRA_MCP_PROTOCOL_VERSION } from '@/lib/dabra/mcp';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,7 +39,7 @@ async function handleMessage(message: JsonRpcRequest) {
         protocolVersion: requestedVersion,
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: 'DABRA by DIR3COM', version: '1.0.0' },
-        instructions: 'Read-only DIR3COM travel planning. Never claim or perform booking, payment, cancellation, refund, account changes, or database writes. Clearly distinguish verified marketplace data from catalog-only information.',
+        instructions: DABRA_MCP_INSTRUCTIONS,
       },
     };
   }
