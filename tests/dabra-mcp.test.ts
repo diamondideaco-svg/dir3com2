@@ -95,6 +95,22 @@ test('trip brief explicitly refuses secrets and non-user-facing inventory reques
   }
 });
 
+test('trip brief rejects arguments that do not satisfy its declared input schema', async () => {
+  const invalidArguments = [
+    { travelers: 2 },
+    { destination: 'Riyadh' },
+    { destination: 'Riyadh', travelers: 0 },
+    { destination: 'Riyadh', travelers: 2, tenantId: 'synthetic' },
+  ];
+
+  for (const args of invalidArguments) {
+    await assert.rejects(
+      callDabraTool('create_dabra_trip_brief', args),
+      /Invalid create_dabra_trip_brief arguments/,
+    );
+  }
+});
+
 test('tool output does not expose privileged secrets', async () => {
   const result = await callDabraTool('get_dir3com_service', { id: 'stay', language: 'en' });
   const serialized = JSON.stringify(result);

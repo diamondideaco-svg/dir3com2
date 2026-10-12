@@ -351,6 +351,70 @@ function stringArg(args: ToolArguments, key: string, maxLength: number) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
 }
 
+const tripBriefArgumentNames = new Set([
+  'destination',
+  'origin',
+  'startDate',
+  'endDate',
+  'travelers',
+  'interests',
+  'budget',
+  'durationDays',
+  'notes',
+  'language',
+]);
+
+function invalidTripBriefArguments(message: string): never {
+  throw new Error(`Invalid create_dabra_trip_brief arguments: ${message}`);
+}
+
+function validateOptionalString(args: ToolArguments, key: string, minimum: number, maximum: number) {
+  const value = args[key];
+  if (value === undefined) return;
+  if (typeof value !== 'string' || value.trim().length < minimum || value.length > maximum) {
+    invalidTripBriefArguments(`${key} must be a string between ${minimum} and ${maximum} characters.`);
+  }
+}
+
+function validateTripBriefArguments(args: ToolArguments) {
+  const unknown = Object.keys(args).find((key) => !tripBriefArgumentNames.has(key));
+  if (unknown) invalidTripBriefArguments(`unknown property: ${unknown}.`);
+
+  validateOptionalString(args, 'destination', 2, 80);
+  if (args.destination === undefined) invalidTripBriefArguments('destination is required.');
+
+  if (!Number.isInteger(args.travelers) || (args.travelers as number) < 1 || (args.travelers as number) > 20) {
+    invalidTripBriefArguments('travelers must be an integer between 1 and 20.');
+  }
+
+  validateOptionalString(args, 'origin', 2, 80);
+  validateOptionalString(args, 'budget', 0, 80);
+  validateOptionalString(args, 'notes', 0, 500);
+
+  for (const key of ['startDate', 'endDate'] as const) {
+    const value = args[key];
+    if (value !== undefined && (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value))) {
+      invalidTripBriefArguments(`${key} must use YYYY-MM-DD format.`);
+    }
+  }
+
+  if (args.durationDays !== undefined
+    && (!Number.isInteger(args.durationDays) || (args.durationDays as number) < 1 || (args.durationDays as number) > 365)) {
+    invalidTripBriefArguments('durationDays must be an integer between 1 and 365.');
+  }
+
+  if (args.language !== undefined && args.language !== 'ar' && args.language !== 'en') {
+    invalidTripBriefArguments('language must be ar or en.');
+  }
+
+  if (args.interests !== undefined) {
+    if (!Array.isArray(args.interests) || args.interests.length > 10
+      || args.interests.some((value) => typeof value !== 'string' || value.trim().length < 1 || value.length > 80)) {
+      invalidTripBriefArguments('interests must contain at most 10 non-empty strings of at most 80 characters.');
+    }
+  }
+}
+
 function containsForbiddenAction(args: ToolArguments) {
   const text = JSON.stringify(args);
   return /(?:book|booking|reserve|pay|payment|cancel|refund|حجز|ادفع|دفع|إلغاء|الغاء|استرداد)/i.test(text);
@@ -484,6 +548,7 @@ async function getService(args: ToolArguments) {
 }
 
 async function createTripBrief(args: ToolArguments) {
+  validateTripBriefArguments(args);
   const language = languageOf(args);
   if (containsSensitiveDataRequest(args)) {
     return response({
@@ -504,7 +569,7 @@ async function createTripBrief(args: ToolArguments) {
 
   const destination = stringArg(args, 'destination', 80);
   const durationDays = durationDaysOf(args);
-  const travelers = typeof args.travelers === 'number' ? Math.max(1, Math.min(20, Math.floor(args.travelers))) : 1;
+  const travelers = args.travelers as number;
   const search = await queryMarketplace({ destination: destination.toLowerCase(), page: 1, pageSize: 12 }, { anonymous: true, clientKey: 'dabra-public-mcp' });
   const catalog = await readDriveCatalog({destination, language, page: 1, pageSize: 8});
   const verified = filterAssistantServices(search.services).filter(isVerified).slice(0, 8);
