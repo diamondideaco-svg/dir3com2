@@ -56,22 +56,41 @@ function createSupabaseBearerClient(accessToken: string): SupabaseClient {
   });
 }
 
+let configuredAdminHostname: string | null = null;
+function projectAdminHostname(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port
+      || url.pathname !== '/' || url.search || url.hash
+      || !/^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(url.hostname)) return null;
+    return url.hostname;
+  } catch { return null; }
+}
+
 function createSupabaseAdminClient() {
   try {
     const { supabaseUrl, supabaseServiceRoleKey } = getServerSupabaseConfig();
 
-    return createClient(supabaseUrl, supabaseServiceRoleKey, {
+    const client = createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
       },
     });
+    configuredAdminHostname = projectAdminHostname(supabaseUrl);
+    return client;
   } catch {
     return null;
   }
 }
 
+
 export const supabaseAdmin = createSupabaseAdminClient();
+
+// Captured from the exact configuration used to construct supabaseAdmin.
+export function getSupabaseAdminHostname(): string | null {
+  return supabaseAdmin ? configuredAdminHostname : null;
+}
 
 export async function createSupabaseServerClient(): Promise<SupabaseClient> {
   const cookieStore = await cookies();
