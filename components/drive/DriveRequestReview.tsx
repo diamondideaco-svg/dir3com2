@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { acceptDriveQuote } from '@/app/my-requests/[reference]/drive/actions';
+import { languageDirection, type AppLanguage } from '@/lib/i18n/config';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { driveOffer, vehicleFor, vehicleTitle, vehicleYearAvailabilityLabel } from '@/lib/drive/catalog';
 import { driveRequestState } from '@/lib/drive/request';
@@ -10,8 +11,13 @@ import { savedDriveModelYears, type DriveRequestRecord } from '@/lib/drive/recor
 import { DriveInclusions } from './DriveMarketplace';
 import styles from './drive.module.css';
 
-export default function DriveRequestReview({ request }: { request: DriveRequestRecord }) {
-  const { language, direction } = useLanguage(); const ar = language === 'ar'; const router = useRouter();
+export default function DriveRequestReview({ request, notificationLanguage }: { request: DriveRequestRecord; notificationLanguage?: AppLanguage }) {
+  const preference = useLanguage();
+  // Explicit notification locale applies to this request review on SSR and hydration.
+  // Cookie/localStorage preferences remain unchanged for the rest of the site.
+  const language = notificationLanguage ?? preference.language;
+  const direction = languageDirection(language);
+  const ar = language === 'ar'; const router = useRouter();
   const [now, setNow] = useState(() => Date.now());
   const [acceptance, acceptAction, accepting] = useActionState(acceptDriveQuote, '');
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
@@ -38,7 +44,7 @@ export default function DriveRequestReview({ request }: { request: DriveRequestR
     UNAVAILABLE: ['تعذر حفظ الموافقة الآن. حاول لاحقًا.','Acceptance could not be saved. Try again later.'],
     ACCEPTED: ['تم حفظ موافقتك دون حجز أو تحصيل.','Your acceptance was saved without a booking or charge.'],
   };
-  return <section className={styles.page} dir={direction}>
+  return <section className={styles.page} lang={language} dir={direction}>
     <h1>{quoteReady || accepted ? (ar?'مراجعة العرض النهائي':'Final quote review') : (ar?'متابعة طلب السيارة':'Your Drive request')}</h1>
     <div className={styles.row}><p>{request.request_reference}</p><button onClick={() => router.refresh()}>{ar?'تحديث الحالة':'Refresh status'}</button></div>
     <p role="status" className={styles.badge}>{labels[state]?.[ar?0:1] ?? (ar?'الحالة غير متاحة':'Status unavailable')}</p>
@@ -51,7 +57,7 @@ export default function DriveRequestReview({ request }: { request: DriveRequestR
       <p>{trip.name} · {trip.phone}</p><p>{trip.passengers} {ar?'ركاب':'passengers'} · {trip.luggage} {ar?'قطع أمتعة':'bags'}</p>
       {trip.mode==='airport'&&<p>{trip.flightNumber} · {trip.flightArrival}</p>}<p>{trip.specialRequest}</p><p>{trip.notes}</p>
       <h2>{ar?'تفاصيل السعر':'Price breakdown'}</h2><p>{ar?'سعر المورد الأساسي المحفوظ':'Preserved supplier base rate'}: {context.supplier_amount} {context.supplier_currency}</p>
-      {request.quote_amount!==null ? <><p className={styles.price}>{ar?'الإجمالي النهائي من العمليات':'Operations final total'}: {request.quote_amount} {request.quote_currency}</p><p>{ar?'صالح حتى':'Valid until'}: {request.quote_expires_at ? new Intl.DateTimeFormat(ar?'ar-EG':'en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(new Date(request.quote_expires_at)) : '—'} (Africa/Cairo)</p></> : <p>{ar?'الإجمالي النهائي تؤكده العمليات':'Final total confirmed by Operations'}</p>}
+      {request.quote_amount!==null ? <><p className={styles.price}>{ar?'الإجمالي النهائي من العمليات':'Operations final total'}: {request.quote_amount} {request.quote_currency}</p><p>{ar?'صالح حتى':'Valid until'}: {request.quote_expires_at ? new Intl.DateTimeFormat(ar?'ar-EG':'en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(new Date(request.quote_expires_at)) : '—'} (Africa/Cairo)</p></> : <p>{ar?'الإجمالي النهائي بانتظار تأكيد العمليات':'Final total is awaiting Operations confirmation'}</p>}
       <p>{ar?'شروط التغيير والإلغاء لم تُحدد؛ يجب تأكيدها قبل الالتزام.':'Change and cancellation terms have not been supplied; confirm before committing.'}</p>
     </div></section>
     {quoteReady && <form action={acceptAction} className={styles.payment}>

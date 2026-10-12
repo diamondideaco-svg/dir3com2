@@ -49,6 +49,7 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   { path: '/admin/operations/drive', audience: 'admin', protected: true, discoverability: 'direct', parent: '/admin' },
   ...['dashboard', 'bookings', 'categories', 'pricing', 'partners', 'customers', 'products', 'assignment', 'finance', 'operations', 'verification', 'audit', 'events', 'notifications', 'shield'].map((slug) => ({ path: `/admin/${slug}`, audience: 'admin' as const, protected: true, discoverability: 'direct' as const, parent: '/admin' })),
   { path: '/admin/team', audience: 'ceo', protected: true, discoverability: 'direct', parent: '/admin' },
+  { path: '/admin/server-binding', audience: 'ceo', protected: true, discoverability: 'internal', parent: '/admin', indexable: false },
   { path: '/admin/partners/vip-local-egypt', audience: 'admin', protected: true, discoverability: 'direct', parent: '/admin/partners' },
   ...['/admin/assignment/logs', '/admin/assignment/rules', '/admin/verification/customers', '/admin/verification/documents', '/admin/verification/partners', '/admin/partners/new', '/admin/bookings/[id]', '/admin/customers/[id]', '/admin/partners/[id]', '/admin/products/[id]', '/admin/products/[id]/preview'].map((path) => ({ path, audience: 'admin' as const, protected: true, discoverability: 'contextual' as const, parent: path.split('/').slice(0, 3).join('/') })),
 

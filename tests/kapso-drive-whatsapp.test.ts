@@ -41,7 +41,7 @@ const accepted = (patch = {}) => new Response(JSON.stringify({ messaging_product
 function store(start: unknown = true, finish: unknown = true, row: unknown = item) {
   const calls: { name: string; args?: Record<string, unknown> }[] = [];
   const db: NotificationStore = { async rpc(name, args) {
-    calls.push({ name, args }); return { error: null, data: name === 'claim_drive_whatsapp' ? row : name === 'begin_kapso_drive_whatsapp' ? start : finish };
+    calls.push({ name, args }); return { error: null, data: name === 'claim_kapso_drive_whatsapp' ? row : name === 'begin_kapso_drive_whatsapp' ? start : finish };
   } };
   return { db, calls };
 }
@@ -55,9 +55,9 @@ function receipt(raw = JSON.stringify(payload()), signature?: string, url = 'htt
   }, body: raw });
 }
 test('single approved category/language config needs none of the other thirteen templates', () => {
-  assert.ok(config); assert.equal(Object.keys(config.templates).join(','), 'ar');
+  assert.ok(config); assert.equal(Object.keys(config.templates).join(','), 'operations.created.ar');
   for (const [key, value] of [
-    ['DIR3COM_WHATSAPP_ENABLED', 'false'], ['DIR3COM_WHATSAPP_CATEGORIES', 'operations.created,customer.created'],
+    ['DIR3COM_WHATSAPP_ENABLED', 'false'], ['DIR3COM_WHATSAPP_CATEGORIES', 'operations.created,customer.unknown'],
     ['KAPSO_PHONE_NUMBER_ID', '../sender'], ['KAPSO_WEBHOOK_SECRET', 'short'], ['KAPSO_API_KEY', 'bad key'],
     ['DIR3COM_WHATSAPP_SITE_URL', 'http://qa.example.invalid'], ['DIR3COM_WHATSAPP_SITE_URL', 'https://a:b@qa.example.invalid'],
     ['DIR3COM_WHATSAPP_KAPSO_TEMPLATES', '{}'], ['DIR3COM_WHATSAPP_KAPSO_TEMPLATES', '[]'],
@@ -78,7 +78,7 @@ test('approved template transport uses fixed Kapso host and captured recipient/r
     assert.equal(init?.redirect, 'error'); assert.equal(init?.method, 'POST'); assert.equal(init?.cache, 'no-store');
     const body = JSON.parse(String(init?.body));
     assert.equal(body.to, item.phone.slice(1)); assert.equal(body.type, 'template'); assert.equal(body.text, undefined);
-    assert.equal(body.template.name, config.templates.ar!.name); assert.equal(body.template.language.code, 'ar');
+    assert.equal(body.template.name, config.templates['operations.created.ar']!.name); assert.equal(body.template.language.code, 'ar');
     assert.deepEqual(body.template.components[0].parameters, [{ type: 'text', text: item.reference }, { type: 'text', text: `${env.DIR3COM_WHATSAPP_SITE_URL}/admin/operations/drive?language=ar` }]);
     return accepted();
   });
@@ -86,7 +86,7 @@ test('approved template transport uses fixed Kapso host and captured recipient/r
 });
 test('English language can be configured alone without Arabic or customer categories', async () => {
   const english = api.kapsoConfig({ ...env, DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ 'operations.created.en': { name: 'isolated_operations_en', languageCode: 'en_US' } }) })!;
-  assert.ok(english); assert.equal(english.templates.ar, undefined);
+  assert.ok(english); assert.equal(english.templates['operations.created.ar'], undefined);
   assert.equal((await api.sendKapsoTemplate(english, { ...item, language: 'en' }, async (_url, init) => {
     assert.equal(JSON.parse(String(init?.body)).template.language.code, 'en_US'); return accepted();
   })).outcome, 'accepted');
@@ -101,7 +101,7 @@ test('other categories and missing language cannot reach network or durable send
 test('durable sender binding and lease must precede network; lost persistence never resends', async () => {
   const mock = store(); let sends = 0;
   assert.equal(await api.dispatchKapsoOne(mock.db, config, async () => {
-    assert.deepEqual(mock.calls.map(x => x.name), ['claim_drive_whatsapp', 'begin_kapso_drive_whatsapp']);
+    assert.deepEqual(mock.calls.map(x => x.name), ['claim_kapso_drive_whatsapp', 'begin_kapso_drive_whatsapp']);
     assert.equal(mock.calls[1].args?.p_phone_number_id, env.KAPSO_PHONE_NUMBER_ID); sends++; return accepted();
   }), 'accepted');
   assert.equal(sends, 1); assert.equal(mock.calls[2].args?.p_token, item.token); assert.equal(mock.calls[2].args?.p_sid, sid);
@@ -150,4 +150,133 @@ test('unbound callback races request retry; database failure never acknowledges 
   assert.equal((await api.receiveKapsoReceipt(receipt(), env, () => ({ rpc: async () => ({ data: null, error: new Error('private database detail') }) }))).status, 503);
   assert.equal((await api.receiveKapsoReceipt(receipt(), { ...env, KAPSO_WEBHOOK_SECRET: '' }, failStore)).status, 503);
   assert.equal((await api.receiveKapsoReceipt(receipt(), env, () => null)).status, 503);
+});
+
+// Customer transport checks run the real adapter with synthetic RPC/HTTP boundaries.
+// They do not simulate RLS or claim that a mock checks ownership/consent in PostgreSQL.
+const customerActions = ['created', 'review', 'confirm', 'decline', 'customer_accept'] as const;
+const customerTemplates = Object.fromEntries(customerActions.flatMap(action => (['ar', 'en'] as const).map(language =>
+  [`customer.${action}.${language}`, { name: `isolated_customer_${action}_${language}`, languageCode: language === 'ar' ? 'ar' : 'en_US' }])));
+const customerEnv = { ...env, DIR3COM_WHATSAPP_CATEGORIES: customerActions.map(action => `customer.${action}`).join(','),
+  DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify(customerTemplates) };
+const customerConfig = api.kapsoConfig(customerEnv)!;
+
+test('customer categories require explicit allowlist and category-specific approved template', () => {
+  assert.ok(customerConfig);
+  for (const categories of ['', 'customer.confirm,customer.confirm', 'customer.confirm, customer.review',
+    'operations.customer_accept', 'customer.unknown', 'customer.confirm,', 'customer.confirm,customer.review']) {
+    const templates = { 'customer.confirm.ar': customerTemplates['customer.confirm.ar'] };
+    assert.equal(api.kapsoConfig({ ...env, DIR3COM_WHATSAPP_CATEGORIES: categories,
+      DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify(templates) }), null, categories);
+  }
+  for (const key of ['customer.confirm.en', 'customer.confirm.ar', 'customer.confirm.fr']) {
+    assert.equal(api.kapsoConfig({ ...env, DIR3COM_WHATSAPP_CATEGORIES: 'customer.confirm',
+      DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ [key]: { name: 'isolated_quote', languageCode: 'fr' } }) }), null);
+  }
+  assert.equal(api.kapsoConfig({ ...customerEnv, DIR3COM_WHATSAPP_ENABLED: undefined }), null);
+  const combined = api.kapsoConfig({ ...customerEnv, DIR3COM_WHATSAPP_CATEGORIES: 'operations.created,' + customerEnv.DIR3COM_WHATSAPP_CATEGORIES,
+    DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ ...customerTemplates, 'operations.created.ar': { name: 'isolated_operations', languageCode: 'ar' } }) });
+  assert.ok(combined);
+});
+
+for (const action of customerActions) for (const language of ['ar', 'en'] as const) {
+  test(`customer ${action}/${language} uses its captured recipient, category template and private request link`, async () => {
+    const row: OutboxItem = { ...item, audience: 'customer', action, language, phone: '+10000000001' };
+    const mock = store(true, true, row); let sends = 0;
+    assert.equal(await api.dispatchKapsoOne(mock.db, customerConfig, async (_url, init) => {
+      sends++;
+      assert.equal(mock.calls[1].name, 'begin_kapso_drive_whatsapp');
+      assert.equal(mock.calls[1].args?.p_id, row.id); assert.equal(mock.calls[1].args?.p_token, row.token);
+      const body = JSON.parse(String(init?.body));
+      assert.equal(body.to, row.phone.slice(1)); assert.equal(body.text, undefined); assert.equal(body.type, 'template');
+      assert.equal(body.template.name, customerTemplates[`customer.${action}.${language}`].name);
+      assert.equal(body.template.language.code, language === 'ar' ? 'ar' : 'en_US');
+      assert.deepEqual(body.template.components[0].parameters, [{ type: 'text', text: row.reference },
+        { type: 'text', text: `${env.DIR3COM_WHATSAPP_SITE_URL}/my-requests/${row.reference}/drive?language=${language}` }]);
+      return accepted({ contacts: [{ input: row.phone.slice(1), wa_id: row.phone.slice(1) }] });
+    }), 'accepted');
+    assert.equal(sends, 1); assert.equal(mock.calls[2].args?.p_sid, sid);
+  });
+}
+
+test('customer revoked eligibility or superseded quote RPC rejection prevents any transport', async () => {
+  for (const action of customerActions) {
+    const mock = store(false, true, { ...item, audience: 'customer', action });
+    assert.equal(await api.dispatchKapsoOne(mock.db, customerConfig, failFetch), 'not_sent');
+    assert.deepEqual(mock.calls.map(call => call.name), ['claim_kapso_drive_whatsapp', 'begin_kapso_drive_whatsapp']);
+  }
+});
+test('customer category or language absent from approved runtime config cannot begin a send', async () => {
+  const arQuote = api.kapsoConfig({ ...env, DIR3COM_WHATSAPP_CATEGORIES: 'customer.confirm',
+    DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ 'customer.confirm.ar': customerTemplates['customer.confirm.ar'] }) })!;
+  for (const row of [{ ...item, audience: 'customer' as const, action: 'confirm' as const, language: 'en' as const },
+    { ...item, audience: 'customer' as const, action: 'review' as const }, item]) {
+    const mock = store(true, true, row);
+    assert.equal(await api.dispatchKapsoOne(mock.db, arQuote, failFetch), 'not_sent'); assert.equal(mock.calls.length, 1);
+  }
+});
+test('invalid customer claim and provider recipient mismatch fail closed', async () => {
+  const row: OutboxItem = { ...item, audience: 'customer', action: 'confirm', phone: '+10000000001' };
+  for (const invalid of [{ ...row, reference: '../../other' }, { ...row, phone: 'arbitrary' }, { ...row, token: 'forged' }]) {
+    await assert.rejects(api.dispatchKapsoOne(store(true, true, invalid).db, customerConfig, failFetch), /INVALID_CLAIM/);
+    assert.equal((await api.sendKapsoTemplate(customerConfig, invalid, failFetch)).outcome, 'failed');
+  }
+  assert.equal((await api.sendKapsoTemplate(customerConfig, row, async () => accepted())).outcome, 'unknown');
+});
+test('customer duplicate worker attempt respects begin-send fencing and unknown never retries in transport', async () => {
+  const row: OutboxItem = { ...item, audience: 'customer', action: 'confirm' };
+  let started = false; let sends = 0;
+  const db: NotificationStore = { async rpc(name) {
+    if (name === 'claim_kapso_drive_whatsapp') return { data: row, error: null };
+    if (name === 'begin_kapso_drive_whatsapp') { const allowed = !started; started = true; return { data: allowed, error: null }; }
+    return { data: true, error: null };
+  } };
+  const fetcher: typeof fetch = async () => { sends++; throw new Error('isolated response lost'); };
+  assert.equal(await api.dispatchKapsoOne(db, customerConfig, fetcher), 'unknown');
+  assert.equal(await api.dispatchKapsoOne(db, customerConfig, failFetch), 'not_sent'); assert.equal(sends, 1);
+});
+
+test('exact runtime claim keys skip an older unsupported language across >lease cadence without losing it', async () => {
+  const arConfig = api.kapsoConfig({ ...env, DIR3COM_WHATSAPP_CATEGORIES: 'customer.confirm',
+    DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ 'customer.confirm.ar': customerTemplates['customer.confirm.ar'] }) })!;
+  const enConfig = api.kapsoConfig({ ...env, DIR3COM_WHATSAPP_CATEGORIES: 'customer.confirm',
+    DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ 'customer.confirm.en': customerTemplates['customer.confirm.en'] }) })!;
+  const english: OutboxItem = { ...item, audience: 'customer', action: 'confirm', language: 'en', phone: '+10000000001' };
+  const arabic: OutboxItem = { ...english, id: '00000000-0000-4000-8000-000000000168', language: 'ar', phone: '+10000000002' };
+  // Narrow scheduling model, not PostgreSQL/RLS evidence. Actual SQL regression lives in the SQL harness.
+  let clock = 0; let sends = 0;
+  const queue = [english, arabic].map(row => ({ row, state: 'pending', lease: 0 }));
+  const db: NotificationStore = { async rpc(name, args) {
+    if (name === 'claim_kapso_drive_whatsapp') {
+      for (const entry of queue) if (entry.state === 'claimed' && entry.lease <= clock) entry.state = 'pending';
+      const keys = args?.p_template_keys as string[];
+      assert.equal(keys.length, 1);
+      const next = queue.find(entry => entry.state === 'pending' && keys.includes(`${entry.row.audience}.${entry.row.action}.${entry.row.language}`));
+      if (!next) return { data: null, error: null };
+      next.state = 'claimed'; next.lease = clock + 120; return { data: next.row, error: null };
+    }
+    const entry = queue.find(entry => entry.row.id === args?.p_id)!;
+    assert.equal(args?.p_token, entry.row.token);
+    if (name === 'begin_kapso_drive_whatsapp') {
+      const allowed = entry.state === 'claimed'; if (allowed) entry.state = 'sending'; return { data: allowed, error: null };
+    }
+    assert.equal(name, 'finish_drive_whatsapp'); entry.state = String(args?.p_outcome); return { data: true, error: null };
+  } };
+  const fetcher: typeof fetch = async (_url, init) => {
+    sends++; const to = JSON.parse(String(init?.body)).to;
+    return accepted({ contacts: [{ input: to, wa_id: to }], messages: [{ id: `wamid.ISOLATED_${sends}` }] });
+  };
+  assert.equal(await api.dispatchKapsoOne(db, arConfig, fetcher), 'accepted');
+  for (let cycle = 0; cycle < 6; cycle++) { clock += 121; assert.equal(await api.dispatchKapsoOne(db, arConfig, failFetch), 'idle'); }
+  assert.equal(queue[0].state, 'pending'); assert.equal(queue[0].lease, 0); assert.equal(queue[1].state, 'accepted');
+  assert.equal(sends, 1);
+  assert.equal(await api.dispatchKapsoOne(db, enConfig, fetcher), 'accepted');
+  assert.equal(queue[0].state, 'accepted'); assert.equal(sends, 2);
+});
+test('runtime filtered claim still requires current eligibility RPC and rejects claim errors before provider', async () => {
+  const row: OutboxItem = { ...item, audience: 'customer', action: 'confirm' };
+  const mock = store(false, true, row);
+  assert.equal(await api.dispatchKapsoOne(mock.db, customerConfig, failFetch), 'not_sent');
+  assert.deepEqual(JSON.parse(JSON.stringify(mock.calls[0].args)), { p_template_keys: Object.keys(customerConfig.templates) });
+  await assert.rejects(api.dispatchKapsoOne({ rpc: async () => ({ data: row, error: new Error('claim unavailable') }) }, customerConfig, failFetch), /CLAIM_FAILED/);
 });
