@@ -31,11 +31,60 @@ const env = {
   DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ 'operations.created.ar': { name: 'isolated_operations_created', languageCode: 'ar' } }),
 };
 const config = api.kapsoConfig(env)!;
+const target: Subject.KapsoTarget = { requestId: '00000000-0000-4000-8000-000000000170',
+  outboxId: '00000000-0000-4000-8000-000000000166', recipientUserId: '00000000-0000-4000-8000-000000000171',
+  category: 'operations.created', language: 'ar' };
 const item: OutboxItem = { id: '00000000-0000-4000-8000-000000000166', token: '00000000-0000-4000-8000-000000000167',
   phone: '+10000000003', reference: 'REQ-ISOLATED166', audience: 'operations', action: 'created', language: 'ar' };
 const sid = 'wamid.ISOLATED166';
 const failFetch: typeof fetch = async () => { assert.fail('Real provider calls prohibited'); };
 const failStore = () => { assert.fail('Unexpected store access'); };
+const targetRequest = (body: unknown = target, authorization = `Bearer ${env.DIR3COM_WHATSAPP_WORKER_SECRET}`) =>
+  new Request('https://qa.example.invalid/api/internal/drive-whatsapp/dispatch-target', {
+    method: 'POST', headers: { authorization, 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+
+test('target endpoint validates auth, configuration and bounded exact identity before store access', async () => {
+  assert.equal((await api.handleKapsoTargetDispatch(targetRequest(), {}, failStore, failFetch)).status, 404);
+  assert.equal((await api.handleKapsoTargetDispatch(targetRequest(target, 'wrong'), env, failStore, failFetch)).status, 401);
+  assert.equal((await api.handleKapsoTargetDispatch(targetRequest(), { ...env, KAPSO_API_KEY: '' }, failStore, failFetch)).status, 503);
+  for (const invalid of [null, [], {}, { ...target, extra: true }, { ...target, requestId: 'bad' },
+    { ...target, outboxId: 'bad' }, { ...target, recipientUserId: 'bad' }, { ...target, category: 'operations.customer_accept' },
+    { ...target, language: 'fr' }, { ...target, extra: 'x'.repeat(2100) }]) {
+    assert.equal((await api.handleKapsoTargetDispatch(targetRequest(invalid), env, failStore, failFetch)).status, 400);
+  }
+  assert.equal(api.parseKapsoTarget(target)?.category, 'operations.created');
+});
+
+test('target dispatch uses only targeted claim and persists provider result through shared begin/finish', async () => {
+  const calls: string[] = [];
+  const db: NotificationStore = { async rpc(name, args) {
+    calls.push(name);
+    if (name === 'claim_kapso_drive_whatsapp_target') {
+      assert.deepEqual(JSON.parse(JSON.stringify(args)), { p_request_id: target.requestId, p_outbox_id: target.outboxId,
+        p_recipient_user_id: target.recipientUserId, p_category: target.category, p_language: target.language });
+      return { data: { ...item, request_id: target.requestId, recipient_user_id: target.recipientUserId }, error: null };
+    }
+    return { data: true, error: null };
+  } };
+  let sends = 0;
+  const response = await api.handleKapsoTargetDispatch(targetRequest(), env, () => db, async () => { sends++; return accepted(); });
+  assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal((await response.json()).result, 'accepted'); assert.equal(sends, 1);
+  assert.deepEqual(calls, ['claim_kapso_drive_whatsapp_target', 'begin_kapso_drive_whatsapp', 'finish_drive_whatsapp']);
+});
+
+test('target dispatch fails closed for missing, mismatched, unavailable and ineligible claims', async () => {
+  const good = { ...item, request_id: target.requestId, recipient_user_id: target.recipientUserId };
+  assert.equal(await api.dispatchKapsoTarget({ rpc: async () => ({ data: null, error: null }) }, config, target, failFetch), 'idle');
+  for (const row of [{ ...good, request_id: item.token }, { ...good, recipient_user_id: item.token },
+    { ...good, id: item.token }, { ...good, action: 'customer_accept' }, { ...good, language: 'en' }, { ...good, audience: 'customer' }]) {
+    await assert.rejects(api.dispatchKapsoTarget({ rpc: async () => ({ data: row, error: null }) }, config, target, failFetch), /TARGET_MISMATCH/);
+  }
+  assert.equal(await api.dispatchKapsoTarget({ rpc: async name => ({ data: name === 'claim_kapso_drive_whatsapp_target' ? good : false, error: null }) }, config, target, failFetch), 'not_sent');
+  assert.equal(await api.dispatchKapsoTarget({ rpc: async () => { assert.fail('Unexpected store access'); } }, { ...config, templates: {} }, target, failFetch), 'not_sent');
+  await assert.rejects(api.dispatchKapsoTarget({ rpc: async () => ({ data: null, error: new Error('Lost claim response') }) }, config, target, failFetch), /CLAIM_FAILED/);
+});
 const request = (authorization = `Bearer ${env.DIR3COM_WHATSAPP_WORKER_SECRET}`) => new Request('https://qa.example.invalid/api/internal/drive-whatsapp/dispatch', { method: 'POST', headers: { authorization } });
 const accepted = (patch = {}) => new Response(JSON.stringify({ messaging_product: 'whatsapp', contacts: [{ input: item.phone.slice(1), wa_id: item.phone.slice(1) }], messages: [{ id: sid }], ...patch }), { status: 200 });
 function store(start: unknown = true, finish: unknown = true, row: unknown = item) {

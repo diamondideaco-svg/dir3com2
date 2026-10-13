@@ -1,6 +1,6 @@
 import 'server-only';
 import { createHmac } from 'node:crypto';
-import { parseOutboxItem, secureEqual, type NotificationStore, type OutboxItem, type SendResult } from './drive-whatsapp';
+import { parseOutboxItem, readLimitedBody, secureEqual, type NotificationStore, type OutboxItem, type SendResult } from './drive-whatsapp';
 
 type Environment = Record<string, string | undefined>;
 type Template = { name: string; languageCode: string };
@@ -98,6 +98,9 @@ export async function dispatchKapsoOne(store: NotificationStore, config: KapsoCo
   if (claim.data === null) return 'idle';
   const item = parseOutboxItem(claim.data);
   if (!item) throw new Error('INVALID_CLAIM');
+  return dispatchClaimedKapso(store, config, item, fetcher);
+}
+async function dispatchClaimedKapso(store: NotificationStore, config: KapsoConfig, item: OutboxItem, fetcher: typeof fetch) {
   if (!configuredTemplate(config, item)) return 'not_sent';
   const start = await store.rpc('begin_kapso_drive_whatsapp', { p_id: item.id, p_token: item.token, p_phone_number_id: config.phoneNumberId });
   if (start.error) throw new Error('SEND_INTENT_UNCONFIRMED');
@@ -106,6 +109,54 @@ export async function dispatchKapsoOne(store: NotificationStore, config: KapsoCo
   const finished = await store.rpc('finish_drive_whatsapp', { p_id: item.id, p_token: item.token, p_outcome: result.outcome, p_sid: result.sid, p_error: result.error });
   if (finished.error || finished.data !== true) throw new Error('RESULT_PERSISTENCE_UNCONFIRMED');
   return result.outcome;
+}
+export type KapsoTarget = {
+  requestId: string; outboxId: string; recipientUserId: string; category: KapsoCategory; language: 'ar' | 'en';
+};
+export function parseKapsoTarget(value: unknown): KapsoTarget | null {
+  const target = object(value);
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  if (!target || Object.keys(target).length !== 5
+    || typeof target.requestId !== 'string' || !uuid.test(target.requestId)
+    || typeof target.outboxId !== 'string' || !uuid.test(target.outboxId)
+    || typeof target.recipientUserId !== 'string' || !uuid.test(target.recipientUserId)
+    || (target.language !== 'ar' && target.language !== 'en')) return null;
+  const category = CATEGORIES.find(category => category === target.category);
+  if (!category) return null;
+  return { requestId: target.requestId, outboxId: target.outboxId, recipientUserId: target.recipientUserId, category, language: target.language };
+}
+export async function dispatchKapsoTarget(store: NotificationStore, config: KapsoConfig, target: KapsoTarget, fetcher: typeof fetch = fetch) {
+  if (!parseKapsoTarget(target)) throw new Error('INVALID_TARGET');
+  if (!config.templates[`${target.category}.${target.language}`]) return 'not_sent';
+  const claim = await store.rpc('claim_kapso_drive_whatsapp_target', {
+    p_request_id: target.requestId, p_outbox_id: target.outboxId, p_recipient_user_id: target.recipientUserId,
+    p_category: target.category, p_language: target.language,
+  });
+  if (claim.error) throw new Error('CLAIM_FAILED');
+  if (claim.data === null) return 'idle';
+  const item = parseOutboxItem(claim.data);
+  const identity = object(claim.data);
+  if (!item || item.id !== target.outboxId || identity?.request_id !== target.requestId
+    || identity.recipient_user_id !== target.recipientUserId || `${item.audience}.${item.action}` !== target.category
+    || item.language !== target.language) throw new Error('TARGET_MISMATCH');
+  return dispatchClaimedKapso(store, config, item, fetcher);
+}
+export async function handleKapsoTargetDispatch(request: Request, env: Environment, getStore: () => NotificationStore | null, fetcher: typeof fetch = fetch) {
+  if (env.DIR3COM_WHATSAPP_ENABLED !== 'true') return Response.json({ error: 'DISABLED' }, { status: 404 });
+  const secret = env.DIR3COM_WHATSAPP_WORKER_SECRET ?? '';
+  if (secret.length < 32 || !secureEqual(request.headers.get('authorization') ?? '', `Bearer ${secret}`)) return Response.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+  if (request.method !== 'POST' || request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') return Response.json({ error: 'INVALID_TARGET' }, { status: 400 });
+  const config = kapsoConfig(env);
+  if (!config) return Response.json({ error: 'NOT_CONFIGURED' }, { status: 503 });
+  let target: KapsoTarget | null;
+  try { target = parseKapsoTarget(JSON.parse(await readLimitedBody(request, 2048))); }
+  catch { return Response.json({ error: 'INVALID_TARGET' }, { status: 400 }); }
+  if (!target) return Response.json({ error: 'INVALID_TARGET' }, { status: 400 });
+  try {
+    const store = getStore();
+    if (!store) return Response.json({ error: 'STORE_UNAVAILABLE' }, { status: 503 });
+    return Response.json({ result: await dispatchKapsoTarget(store, config, target, fetcher) }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch { return Response.json({ error: 'DISPATCH_UNCONFIRMED' }, { status: 503 }); }
 }
 export async function handleKapsoDispatch(request: Request, env: Environment, getStore: () => NotificationStore | null, fetcher: typeof fetch = fetch) {
   if (env.DIR3COM_WHATSAPP_ENABLED !== 'true') return Response.json({ error: 'DISABLED' }, { status: 404 });
