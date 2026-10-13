@@ -440,5 +440,9 @@ try {
  for(const role of ['anon','authenticated']) equal(await scalar('SELECT has_function_privilege($1,$2,$3)',[role,'public.claim_kapso_drive_whatsapp(text[])','EXECUTE']),false,role+' filtered claim denied');
  for(const role of ['anon','authenticated','service_role']) equal(await scalar('SELECT has_function_privilege($1,$2,$3)',[role,'drive_notification_private.claim(text[])','EXECUTE']),false,role+' shared claim helper private');
 
+ if(connectPeer) {
+  const { runTargetAcceptance } = await import('./test-drive-whatsapp-target-acceptance.mjs');
+  checks += await runTargetAcceptance({ db, connectPeer, request, requestId, asUser, operations, customer, other });
+ } else { console.log('SKIP targeted concurrent acceptance: requires the explicit isolated PostgreSQL fixture'); }
  console.log(`PASS ${checks} isolated PostgreSQL assertions (${connectPeer ? 'PostgreSQL with two-connection concurrency' : 'PGlite, sequential'}); no remote database or provider calls`);
 } finally { await db.close(); }
