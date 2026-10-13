@@ -83,7 +83,7 @@ VERDICT =
 
 A handoff without a full 40-character SHA is incomplete. Review comments must name the reviewed SHA. Any later commit requires re-review.
 
-## Automated governance gate
+## Historical governance v1 contract (retained for provenance)
 
 The **Codex Governance Gate** workflow validates pull request metadata without executing untrusted pull request text in a shell. It fails when:
 
@@ -120,3 +120,13 @@ A green workflow is evidence, not permission. The following remain prohibited wi
 ## Daily operating rule
 
 The CEO provides the goal and approves sensitive or irreversible actions. Control Tower handles routing and returns only decisions, blockers, and evidence that require CEO attention.
+
+## Current governance v2 contract
+
+Governance v2 evolves PR86/115 without removing their source-of-truth, single-owner, read-only independent review, exact-artifact and release boundaries. All roles use verified sessions independent of display/app names. The historical surface allowlists above explain prior decisions, not permission for current v2 review. Legacy receipts retain their original scope; new artifacts require fresh exact-SHA certificates.
+
+Current review requires matching Task/PR version2, assigned implementer and independent-reviewer roles, distinct verified session IDs, source/runtime evidence digests, signed participation/authorship sets, scoped immutable review receipts and a proof signed by an authority enrolled in the approved base policy. PENDING/unknown identity or proof fails closed. A shared GitHub login, PR body, arbitrary UUID or changed UI name cannot confer independence. Signature validity proves authority attestation, not omniscient observation; the authority must independently enroll and inspect session provenance/authorship. Details and limitations: CODEX_SESSION_PROOF.md.
+
+The workflow reads validator/trust policy from the immutable event base SHA, never candidate PR keys/code. Empty enrollment deliberately prevents approval until a separately reviewed and authorized activation. Read-only token scopes and existing event types remain unchanged. Trusted workflow publication and required-check enforcement are prerequisites outside local testing; a step name or successful candidate CI is not proof those controls exist. No live gate is disabled during transition.
+
+Local BUILD may have explicitly assigned reviewer PENDING with PR NONE; that permits authorized isolated implementation, not review approval or publication. Before publication the independent policy/security reviewers and exact artifact must be assigned/verified. Control Tower maintains continuity; all old decisions remain attached to their original task/SHA/scope. Governance proof reports releaseAuthorized=false; explicit human merge/Production authority is separate and never inferred from review PASS.

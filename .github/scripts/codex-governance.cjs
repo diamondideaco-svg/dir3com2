@@ -25,7 +25,7 @@ function issueField(body, label) {
   }
   return section.length === 1 ? section[0] : '';
 }
-function validate(input) {
+function validateLegacy(input) {
   const labels = ['Task','Implementation owner','Independent reviewer','Branch','Target SHA','Base SHA','Worktree','Last verified result','Next action','Verdict'];
   const record = Object.fromEntries(labels.map(label => [label, prField(input.prBody, label)]));
   record.Verdict = record.Verdict.toUpperCase();
@@ -72,4 +72,10 @@ function validate(input) {
   if (!ALLOWED_VERDICTS.includes(record.Verdict)) failures.push('Verdict must be IN_PROGRESS, REVIEW, PASS, FAIL, or BLOCKED.');
   return { record, failures };
 }
-module.exports = { validate };
+// Original PR86/115-compatible implementation is retained for historical replay only.
+const sessionProof = require('./codex-session-proof.cjs');
+function validate(input) {
+  if (input.mode === 'historical') return { ...validateLegacy(input), decision: 'HISTORICAL_ONLY', releaseAuthorized: false };
+  return sessionProof.validate(input);
+}
+module.exports = { validate, validateLegacy, ...{ proof: sessionProof.proof } };

@@ -41,30 +41,32 @@ Verify the values against the current Codex Task, PR, branch, and repository sta
 
 The authoritative coordinator is the ChatGPT conversation named **مهندس المشروع — Control Tower**. It assigns work, records the owner and reviewer, tracks the PR and current SHA, and recommends MERGE, RETURN FOR FIX, or BLOCKED. It does not compete with implementation agents by editing the same task. When the CEO explicitly assigns implementation to Work Mode, record that implementation identity separately; coordination or self-checks are never independent approval.
 
-Each working surface must use exactly one of these identities:
+Roles below describe responsibilities, not a reviewer identity allowlist. Application/display names are descriptive provenance only. Each assigned actor has a unique verified session and one role for the artifact; different names cannot prove independence and matching names cannot refute it. Codex/Copilot Chat equivalence must never be inferred from a label. Preserve observed source/runtime truth and mark unproved provenance UNVERIFIED. The governance v2 evidence contract is in docs/CODEX_OPERATIONS.md.
+
+Historical surface responsibilities:
 
 ### Codex Desktop — Engineer A / Primary Implementation
 
 - Owns the main complex implementation assigned by Control Tower.
 - Creates and owns its task branch, commits, tests, and PR.
 - Fixes findings on its own PR.
-- Reviews VS Code Codex work only after that work has a fixed commit SHA and while remaining read-only.
-- Must not edit a branch or PR currently owned by VS Code Codex.
+- Reviews another formally assigned verified session only on its fixed artifact SHA, without implementation/fix participation and while remaining read-only.
+- Must not edit a branch or PR owned by another implementation session.
 
 ### VS Code Codex — Engineer B / Secondary Implementation and Cross-Review
 
 - Owns a separate implementation only when it has a separate branch/worktree and non-conflicting scope.
 - Creates and owns its task branch, commits, tests, and PR.
 - Fixes findings on its own PR.
-- Reviews Codex Desktop work only after Desktop provides a fixed commit SHA and while remaining read-only.
-- Must not edit a branch or PR currently owned by Codex Desktop.
+- Reviews another formally assigned verified session only on its fixed artifact SHA, without implementation/fix participation and while remaining read-only.
+- Must not edit a branch or PR owned by another implementation session.
 
 ### Codex — ChatGPT Work Mode — Assigned Implementation
 
 - May own implementation when explicitly assigned by the CEO/Control Tower and recorded in the Codex Task with branch, isolated worktree, PR and exact SHA.
 - Uses the exact implementation identity `Codex — ChatGPT Work Mode`; must not claim Desktop or VS Code identity.
 - Owns its assigned branch and fixes; must not edit a task simultaneously owned by another surface.
-- Requires a different read-only functional reviewer (Codex Desktop, VS Code Codex, or an explicitly assigned separate Work Mode session) and separate security coverage appropriate to the change. Codex Security remains available for specialized security review.
+- Requires a formally assigned verified non-author functional reviewer and separate security coverage appropriate to the change. The application name is not the independence criterion; specialized Codex Security coverage is claimed only when actually performed.
 - May review under its truthful name `Codex — ChatGPT Work Mode` or displayed `ChatGPT Work Model` only with an explicit Control Tower assignment, different implementation/reviewer session IDs, and a fetched exact-artifact receipt stating no authorship. Matching or different surface labels never prove session independence; owner self-checks and Control Tower coordination do not approve implementation.
 - Retains all existing exact-SHA, verification and explicit merge/Production authorization requirements.
 
@@ -81,7 +83,7 @@ A surface must state its identity, task, branch, PR, owner/reviewer role, and ta
 ## Cross-Review Protocol
 
 - One PR has one implementation owner. Reviewers do not modify the owner's branch. A Work Mode reviewer must be a separate session that did not implement or fix the reviewed artifact; same-session or author review is prohibited even under another display name.
-- Codex Desktop and VS Code Codex may review each other, but never while both are editing the same PR.
+- Any formally assigned verified non-author session may review another session, including on the same application surface. No author/fix participant may review their artifact. Names, UUID strings and shared GitHub accounts are not proof; v2 requires the trusted exact-artifact session/evidence certificate. Review remains read-only and publication requires independent assignment and receipts.
 - Every review records the exact commit SHA. A code change invalidates earlier approvals until the reviewers evaluate the new SHA.
 - The implementation owner receives findings, applies fixes, publishes a new SHA, and requests re-review.
 - Functional review and security review are distinct. Security-sensitive scope requires a dedicated security pass; when TAC/Codex Security is unavailable, record that limitation and perform the strongest available standard security review without claiming specialized coverage.
@@ -153,3 +155,7 @@ Verification:
 - Do not merge, enable auto-merge, deploy production, run production migrations, rotate credentials, or mutate live data without explicit authorization.
 - Preview deployment and browser QA must pass before a release candidate is recommended.
 - Final handoff must include surface identity, owner/reviewer role, branch, PR, exact SHA, scope, files changed, tests run, unresolved risks, and explicit status: PASS, PARTIAL, BLOCKED, or FAIL.
+
+## Governance v2 transition
+
+PR86/115 history and existing receipts remain within their original SHA/scope. Legacy replay is not current review authorization. Trusted authorities are enrolled only through a separately reviewed and explicitly authorized activation; candidate PR data cannot enroll a signer or approve its own policy. Local BUILD may record reviewer PENDING by explicit Control Tower assignment; that status must fail current review approval and never imply publication readiness. Merge and Production decisions remain separately authorized. See docs/CODEX_SESSION_PROOF.md.

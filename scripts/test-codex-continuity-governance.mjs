@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { validate } = require('../.github/scripts/codex-governance.cjs');
+const { validateLegacy: validate } = require('../.github/scripts/codex-governance.cjs');
 const sha = 'a'.repeat(40), base = 'b'.repeat(40);
 const prBody = '- Task: #180\n- Implementation owner: Codex — ChatGPT Work Mode\n- Independent reviewer: VS Code Codex\n- Branch: chore/codex-continuity-recovery\n- Target SHA: ' + sha + '\n- Base SHA: ' + base + '\n- Worktree: GitHub connector isolated branch\n- Last verified result: policy tests pass\n- Next action: VS Code Codex reviews exact SHA\n- Verdict: REVIEW';
 const issueBody = '## Implementation owner\nCodex — ChatGPT Work Mode\n## Independent reviewer\nVS Code Codex\n## Branch\nchore/codex-continuity-recovery\n## Pull request\n#181\n## Base SHA\n' + base + '\n## Worktree\nGitHub connector isolated branch\n## Current target SHA\n' + sha + '\n## Last verified result\npolicy tests pass\n## Next action\nVS Code Codex reviews exact SHA\n## Current verdict\nREVIEW';
@@ -20,3 +20,9 @@ assert.deepEqual(validate({...valid,prBody:prBody.replaceAll('- ', '* ')}).failu
 assert.deepEqual(validate({...valid,prBody:prBody.replaceAll('- ', '-   ')}).failures, []);
 assert(validate({...valid,issueBody:issueBody.replace('## Current verdict\nREVIEW','## Current verdict\nBLOCKED')}).failures.some(x=>x.includes('Task Verdict')));
 console.log('Codex continuity governance: 12/12 PASS');
+
+// Original twelve checks are history replay, never v2 current review approval.
+const { validate: currentValidate } = require('../.github/scripts/codex-governance.cjs');
+assert(currentValidate(valid).failures.length > 0);
+assert.equal(currentValidate({...valid,mode:'historical'}).decision,'HISTORICAL_ONLY');
+console.log('Legacy transition: current approval denied; historical replay retained');

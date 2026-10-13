@@ -1,0 +1,82 @@
+name: Codex Governance Gate
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: codex-governance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate-control-tower-record:
+    name: Validate task, owner, reviewer, continuity, SHA, and verdict
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted validator
+        uses: actions/checkout@v4
+      - name: Test continuity validator
+        run: node scripts/test-codex-continuity-governance.mjs
+      - name: Validate pull request handoff metadata
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { validate } = require('./.github/scripts/codex-governance.cjs');
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+            const taskMatch = body.match(/^[-*]\s*Task\s*:\s*#([0-9]+)\s*$/im);
+            let taskRecord = { title: '', body: '', pull_request: true };
+            if (taskMatch) {
+              try {
+                const response = await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: Number(taskMatch[1])
+                });
+                taskRecord = response.data;
+              } catch (error) {
+                core.setFailed('Task issue could not be verified: ' + error.message);
+                return;
+              }
+            }
+            let reviewerReceipt;
+            const reviewerName = body.match(/^[-*]\s*Independent reviewer\s*:\s*(.+)\s*$/im)?.[1]?.trim();
+            if (['Codex - ChatGPT Work Mode', 'Codex — ChatGPT Work Mode', 'ChatGPT Work Model'].includes(reviewerName)) {
+              const receiptId = body.match(/^[-*]\s*Reviewer receipt\s*:\s*([1-9][0-9]*)\s*$/im)?.[1];
+              if (receiptId) {
+                try {
+                  reviewerReceipt = (await github.rest.issues.getComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: Number(receiptId) })).data;
+                } catch {
+                  core.setFailed('Assigned reviewer receipt could not be verified.');
+                  return;
+                }
+              }
+            }
+            const { record, failures } = validate({
+              prBody: body,
+              issueBody: taskRecord.body || '',
+              actualBranch: pr.head.ref,
+              actualSha: pr.head.sha,
+              prNumber: pr.number,
+              taskTitle: taskRecord.title || '',
+              taskIsPullRequest: Boolean(taskRecord.pull_request),
+              repoOwner: context.repo.owner,
+              repoName: context.repo.repo,
+              reviewerReceipt
+            });
+            const summary = [
+              '## Codex Control Tower Record', '',
+              ...Object.entries(record).map(([key, value]) => '- ' + key + ': ' + (value || 'MISSING')),
+              '', failures.length ? '### FAIL' : '### PASS',
+              ...(failures.length ? failures.map(item => '- ' + item) : ['Continuity and traceability metadata are complete.']),
+              '', '> This gate validates metadata only. It does not authorize merge or production release.'
+            ].join('\n');
+            await core.summary.addRaw(summary).write();
+            if (failures.length) core.setFailed(failures.join('\n'));

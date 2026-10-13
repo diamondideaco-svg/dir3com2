@@ -1,0 +1,135 @@
+name: Codex Task
+description: Create the single source-of-truth record for a DIR3COM engineering task
+title: "[Codex Task] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue is the authoritative task record. One task has one implementation owner, one branch/PR, and a different independent reviewer.
+  - type: textarea
+    id: mission
+    attributes:
+      label: Mission and bounded scope
+      description: State the required outcome and explicit exclusions.
+      placeholder: "Outcome: ...\nDo not: ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Implementation owner
+      options:
+        - Codex Desktop
+        - VS Code Codex
+        - Codex — ChatGPT Work Mode
+    validations:
+      required: true
+  - type: dropdown
+    id: reviewer
+    attributes:
+      label: Independent reviewer
+      options:
+        - Codex Desktop
+        - VS Code Codex
+        - Codex Security
+        - Codex — ChatGPT Work Mode
+        - ChatGPT Work Model
+    validations:
+      required: true
+  - type: input
+    id: implementation_session
+    attributes:
+      label: Implementation session
+      description: Required for Work Mode reviewers; actual full implementation-session UUID.
+  - type: input
+    id: reviewer_session
+    attributes:
+      label: Reviewer session
+      description: Required for Work Mode reviewers; actual different full reviewer-session UUID.
+  - type: input
+    id: reviewer_receipt
+    attributes:
+      label: Reviewer receipt
+      description: Required for Work Mode reviewers; numeric exact-artifact non-author receipt comment ID on this Task.
+  - type: input
+    id: branch
+    attributes:
+      label: Branch
+      description: Use TBD only before implementation starts; replace it as soon as the branch exists.
+      placeholder: chore/example
+    validations:
+      required: true
+  - type: input
+    id: pull_request
+    attributes:
+      label: Pull request
+      description: Use TBD until opened, then record the PR number or URL.
+      placeholder: "#123"
+    validations:
+      required: true
+  - type: input
+    id: base_sha
+    attributes:
+      label: Base SHA
+      description: Exact 40-character base commit used to start the task.
+      placeholder: 40-character base commit SHA
+    validations:
+      required: true
+  - type: input
+    id: worktree
+    attributes:
+      label: Worktree
+      description: Exact local worktree path or GitHub connector isolated branch.
+      placeholder: /absolute/path or GitHub connector isolated branch
+    validations:
+      required: true
+  - type: input
+    id: target_sha
+    attributes:
+      label: Current target SHA
+      description: Use TBD before the first commit; review requires the exact 40-character SHA.
+      placeholder: 40-character commit SHA
+    validations:
+      required: true
+  - type: input
+    id: last_verified_result
+    attributes:
+      label: Last verified result
+      description: Most recent result proven from repository, CI, runtime, or review evidence.
+    validations:
+      required: true
+  - type: input
+    id: next_action
+    attributes:
+      label: Next action
+      description: One concrete action and its owner.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance evidence
+      description: List required tests, QA, security coverage, and PASS criteria.
+    validations:
+      required: true
+  - type: dropdown
+    id: verdict
+    attributes:
+      label: Current verdict
+      options:
+        - PLANNED
+        - IN_PROGRESS
+        - REVIEW
+        - PASS
+        - FAIL
+        - BLOCKED
+    validations:
+      required: true
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Blockers and unresolved risks
+      placeholder: NONE or a concrete blocker with owner
+    validations:
+      required: true

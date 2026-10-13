@@ -9,7 +9,7 @@ Read the repository-root `AGENTS.md` before acting; it is authoritative for surf
 
 ## Identify the surface
 
-At the start of an engineering handoff, state one assigned identity:
+At the start of an engineering handoff, state the assigned role and verified session, with truthful runtime provenance. Names below describe historical surface responsibilities, not proof of independence:
 
 - **Codex Desktop — Engineer A / Primary Implementation**
 - **VS Code Codex — Engineer B / Secondary Implementation and Cross-Review**
@@ -53,3 +53,7 @@ End with:
 - status: PASS, PARTIAL, BLOCKED, or FAIL.
 
 Never merge, deploy production, mutate live data, or perform an irreversible external action solely because checks passed. Obtain explicit authorization for that action.
+
+## Verified-session review
+
+Apply governance v2 from docs/CODEX_OPERATIONS.md and docs/CODEX_SESSION_PROOF.md. Same-surface independent review is valid only with trusted verified non-author sessions and exact-artifact proof; differently named author self-review remains prohibited. Never infer Codex/Copilot equivalence from labels or treat PR-body declarations as proof. Preserve legacy evidence without approving a later SHA. Reviewer PENDING may be recorded in an explicitly authorized local BUILD; it is never independent approval or publication authority.

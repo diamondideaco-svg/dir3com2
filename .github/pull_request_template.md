@@ -1,11 +1,17 @@
 ## Control Tower Record
 
+- Governance version: 2
+- Implementation role: implementer
+- Reviewer role: independent reviewer
+- Governance proof receipt: <!-- signed proof comment ID on Task; no PR-supplied trust key -->
+- Evidence scope: <!-- bounded scope bound in signed proof -->
+
 - Task: #<!-- required Codex Task issue number; PR numbers are rejected -->
-- Implementation owner: <!-- Codex Desktop | VS Code Codex | Codex — ChatGPT Work Mode -->
-- Independent reviewer: <!-- Codex Desktop | VS Code Codex | Codex Security | Codex — ChatGPT Work Mode | ChatGPT Work Model; Work Mode requires separate non-author session receipt -->
-- Implementation session: <!-- full session UUID; required when reviewer uses Work Mode name -->
-- Reviewer session: <!-- different full session UUID; required when reviewer uses Work Mode name -->
-- Reviewer receipt: <!-- numeric exact-artifact non-author receipt comment ID on Task; required for Work Mode -->
+- Implementation owner: <!-- truthful surface provenance; implementer role/session must be verified -->
+- Independent reviewer: <!-- truthful surface provenance; independent non-author session required, including same-surface review -->
+- Implementation session: <!-- verified full implementation-session UUID; all reviewers -->
+- Reviewer session: <!-- verified different full session UUID; all reviewers -->
+- Reviewer receipt: <!-- exact functional receipt comment ID, hash-bound in signed proof -->
 - Branch: <!-- exact PR head branch -->
 - Target SHA: <!-- exact 40-character current PR head SHA -->
 - Base SHA: <!-- exact 40-character task base SHA -->
@@ -58,7 +64,7 @@ Skipped or blocked checks, with reason:
 
 - [ ] Implementation review completed on the exact Target SHA
 - [ ] Independent security review completed when risk requires it
-- [ ] Implementation owner and reviewer are separate non-author sessions; required Work Mode receipt verified
+- [ ] Implementation owner and reviewer are separate non-author sessions; trusted exact-session/artifact/scope proof verified for all surfaces
 - [ ] Unresolved risks are listed below
 - [ ] This PR does not assume CI PASS authorizes merge or production deployment
 

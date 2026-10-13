@@ -16,67 +16,49 @@ concurrency:
 
 jobs:
   validate-control-tower-record:
-    name: Validate task, owner, reviewer, continuity, SHA, and verdict
+    name: Validate task, session proof, artifact and scoped evidence
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout trusted validator
+      - name: Checkout approved base validator and trust policy
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
       - name: Test continuity validator
         run: node scripts/test-codex-continuity-governance.mjs
       - name: Validate pull request handoff metadata
         uses: actions/github-script@v7
         with:
           script: |
-            const { validate } = require('./.github/scripts/codex-governance.cjs');
+            // Candidate PR files/keys are never used as evidence authority.
+            const { validate, proof } = require('./.github/scripts/codex-governance.cjs');
+            const policy = JSON.parse(require('node:fs').readFileSync('.github/policies/codex-governance-trust.json', 'utf8'));
             const pr = context.payload.pull_request;
-            const body = pr.body || '';
-            const taskMatch = body.match(/^[-*]\s*Task\s*:\s*#([0-9]+)\s*$/im);
-            let taskRecord = { title: '', body: '', pull_request: true };
-            if (taskMatch) {
-              try {
-                const response = await github.rest.issues.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: Number(taskMatch[1])
-                });
-                taskRecord = response.data;
-              } catch (error) {
-                core.setFailed('Task issue could not be verified: ' + error.message);
-                return;
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const now = Date.now();
+            try {
+              const current = (await github.rest.pulls.get({ ...repo, pull_number: pr.number })).data;
+              if (current.head.sha !== pr.head.sha || current.head.ref !== pr.head.ref || current.base.sha !== pr.base.sha) throw new Error('Stale pull request event.');
+              const values = name => (pr.body || '').split(/\r?\n/).flatMap(line => {
+                const match = line.trim().match(/^[-*]\s*([^:]+):\s*(.*)$/);
+                return match && match[1].trim().toLowerCase() === name.toLowerCase() ? [match[2].trim()] : [];
+              });
+              const taskIds = values('Task'), proofIds = values('Governance proof receipt');
+              if (taskIds.length !== 1 || !/^#[1-9][0-9]*$/.test(taskIds[0]) || proofIds.length !== 1 || !/^[1-9][0-9]{0,14}$/.test(proofIds[0]) || !Number.isSafeInteger(Number(proofIds[0]))) throw new Error('Unique valid Task/proof references required.');
+              const task = (await github.rest.issues.get({ ...repo, issue_number: Number(taskIds[0].slice(1)) })).data;
+              const proofReceipt = (await github.rest.issues.getComment({ ...repo, comment_id: Number(proofIds[0]) })).data;
+              const manifest = proof(proofReceipt.body, policy, now);
+              if (!Array.isArray(manifest.reviews) || manifest.reviews.length > 8) throw new Error('Invalid bounded review list.');
+              const reviewReceipts = {};
+              for (const review of manifest.reviews) {
+                if (!/^[1-9][0-9]{0,14}$/.test(String(review.receipt)) || !Number.isSafeInteger(Number(review.receipt))) throw new Error('Invalid review reference.');
+                reviewReceipts[String(review.receipt)] = (await github.rest.issues.getComment({ ...repo, comment_id: Number(review.receipt) })).data;
               }
+              const changedFiles = (await github.paginate(github.rest.pulls.listFiles, { ...repo, pull_number: pr.number, per_page: 100 })).map(file => file.filename);
+              const { record, failures, decision } = validate({ prBody: pr.body || '', issueBody: task.body || '', actualBranch: pr.head.ref, actualSha: pr.head.sha, prNumber: pr.number, taskTitle: task.title || '', taskIsPullRequest: Boolean(task.pull_request), repoOwner: repo.owner, repoName: repo.repo, proofReceipt, reviewReceipts, trustPolicy: policy, changedFiles, now });
+              await core.summary.addRaw(['## Verified session review', ...Object.entries(record).map(([k,v]) => '- ' + k + ': ' + (v || 'MISSING')), '', decision || 'BLOCKED', ...failures, '', 'Review proof never authorizes merge or Production.'].join('\n')).write();
+              if (failures.length) core.setFailed(failures.join('\n'));
+            } catch (error) {
+              core.setFailed('Governance proof unavailable or rejected: ' + error.message);
             }
-            let reviewerReceipt;
-            const reviewerName = body.match(/^[-*]\s*Independent reviewer\s*:\s*(.+)\s*$/im)?.[1]?.trim();
-            if (['Codex - ChatGPT Work Mode', 'Codex — ChatGPT Work Mode', 'ChatGPT Work Model'].includes(reviewerName)) {
-              const receiptId = body.match(/^[-*]\s*Reviewer receipt\s*:\s*([1-9][0-9]*)\s*$/im)?.[1];
-              if (receiptId) {
-                try {
-                  reviewerReceipt = (await github.rest.issues.getComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: Number(receiptId) })).data;
-                } catch {
-                  core.setFailed('Assigned reviewer receipt could not be verified.');
-                  return;
-                }
-              }
-            }
-            const { record, failures } = validate({
-              prBody: body,
-              issueBody: taskRecord.body || '',
-              actualBranch: pr.head.ref,
-              actualSha: pr.head.sha,
-              prNumber: pr.number,
-              taskTitle: taskRecord.title || '',
-              taskIsPullRequest: Boolean(taskRecord.pull_request),
-              repoOwner: context.repo.owner,
-              repoName: context.repo.repo,
-              reviewerReceipt
-            });
-            const summary = [
-              '## Codex Control Tower Record', '',
-              ...Object.entries(record).map(([key, value]) => '- ' + key + ': ' + (value || 'MISSING')),
-              '', failures.length ? '### FAIL' : '### PASS',
-              ...(failures.length ? failures.map(item => '- ' + item) : ['Continuity and traceability metadata are complete.']),
-              '', '> This gate validates metadata only. It does not authorize merge or production release.'
-            ].join('\n');
-            await core.summary.addRaw(summary).write();
-            if (failures.length) core.setFailed(failures.join('\n'));

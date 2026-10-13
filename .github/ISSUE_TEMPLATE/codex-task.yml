@@ -15,43 +15,35 @@ body:
       placeholder: "Outcome: ...\nDo not: ..."
     validations:
       required: true
-  - type: dropdown
+  - type: input
     id: owner
     attributes:
       label: Implementation owner
-      options:
-        - Codex Desktop
-        - VS Code Codex
-        - Codex — ChatGPT Work Mode
+      description: Truthful observed surface description; role and verified session establish assignment, not this name.
     validations:
       required: true
-  - type: dropdown
+  - type: input
     id: reviewer
     attributes:
       label: Independent reviewer
-      options:
-        - Codex Desktop
-        - VS Code Codex
-        - Codex Security
-        - Codex — ChatGPT Work Mode
-        - ChatGPT Work Model
+      description: Truthful observed surface description; role and verified session establish assignment, not this name.
     validations:
       required: true
   - type: input
     id: implementation_session
     attributes:
       label: Implementation session
-      description: Required for Work Mode reviewers; actual full implementation-session UUID.
+      description: Required for all reviews; full verified implementation-session UUID.
   - type: input
     id: reviewer_session
     attributes:
       label: Reviewer session
-      description: Required for Work Mode reviewers; actual different full reviewer-session UUID.
+      description: Required for all reviews; distinct verified non-author reviewer-session UUID.
   - type: input
     id: reviewer_receipt
     attributes:
       label: Reviewer receipt
-      description: Required for Work Mode reviewers; numeric exact-artifact non-author receipt comment ID on this Task.
+      description: Required for all reviews; exact-artifact functional receipt ID on this Task, hash-bound in signed proof.
   - type: input
     id: branch
     attributes:
@@ -133,3 +125,30 @@ body:
       placeholder: NONE or a concrete blocker with owner
     validations:
       required: true
+  - type: input
+    id: governance_version
+    attributes:
+      label: Governance version
+      value: '2'
+    validations:
+      required: true
+  - type: input
+    id: implementation_role
+    attributes:
+      label: Implementation role
+      value: implementer
+  - type: input
+    id: reviewer_role
+    attributes:
+      label: Reviewer role
+      value: independent reviewer
+  - type: input
+    id: governance_proof_receipt
+    attributes:
+      label: Governance proof receipt
+      description: Canonical signed v2 proof JSON comment; approved-base authority required. PENDING is not approval.
+  - type: input
+    id: evidence_scope
+    attributes:
+      label: Evidence scope
+      description: Exact bounded artifact scope shared by Task, PR and signed proof.
