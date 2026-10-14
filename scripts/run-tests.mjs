@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 const serverOnlyTests = new Set([
   'dabra-agent-authorization-runtime.test.ts',
   'dabra-agent-provider-path.test.ts',
+  'dabra-compatibility-runtime.test.ts',
   'admin-partner-authorization-runtime.test.ts',
   'ceo-identity-postgres.integration.test.ts',
   'ceo-identity-runtime.test.ts',

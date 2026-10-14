@@ -90,7 +90,7 @@ export function mapProviderErrorCategory(error: string | undefined, status?: num
   if (error === 'deadline_exceeded') return 'deadline_exceeded';
   if (error === 'invalid_key') return 'authentication';
   if (error === 'missing_key' || error === 'configuration_error') return 'configuration';
-  if (error === 'insufficient_quota') return 'rate_limit';
+  if (error === 'insufficient_quota' || error === 'rate_limit') return 'rate_limit';
   if (error === 'model_not_found' || error === 'web_search_unavailable' || error === 'billing_or_identity') return 'model_access';
   if (error === 'upstream_error' || error === 'invalid_request' || error === 'malformed_response' || error === 'safety_blocked') {
     return 'provider_error';

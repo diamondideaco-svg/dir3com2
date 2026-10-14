@@ -436,3 +436,9 @@ test('migration is append-only, least privilege and exposes only aggregate servi
   assert.match(migration, /error_categories jsonb/i);
   assert.doesNotMatch(migration, /\b(?:prompt|answer|email|phone|authorization|headers?|response_body)\b\s+(?:text|jsonb)/i);
 });
+
+test('throttling distinctions fit existing telemetry schema without treating unknown 429 as quota', () => {
+  assert.equal(mapProviderErrorCategory('rate_limit', 429), 'rate_limit');
+  assert.equal(mapProviderErrorCategory('unknown_429', 429), 'unknown');
+  assert.equal(mapProviderErrorCategory('billing_or_identity', 429), 'model_access');
+});

@@ -7,6 +7,8 @@ export type OpenAICompatibleErrorCategory =
   | 'invalid_request'
   | 'malformed_response'
   | 'insufficient_quota'
+  | 'rate_limit'
+  | 'unknown_429'
   | 'model_not_found'
   | 'web_search_unavailable'
   | 'timeout'
@@ -123,7 +125,7 @@ function extractErrorJoined(payload: OpenAICompatibleErrorPayload): string {
     .join(' ');
 }
 
-function classifyError(status: number, payload: OpenAICompatibleErrorPayload): OpenAICompatibleErrorCategory {
+function classifyError(providerName: string, status: number, payload: OpenAICompatibleErrorPayload): OpenAICompatibleErrorCategory {
   const joined = extractErrorJoined(payload);
 
   if (
@@ -136,13 +138,41 @@ function classifyError(status: number, payload: OpenAICompatibleErrorPayload): O
     return 'invalid_key';
   }
 
-  if (status === 429 || joined.includes('quota') || joined.includes('rate limit')) {
-    return 'insufficient_quota';
-  }
-
-  if (joined.includes('billing') || joined.includes('payment') || joined.includes('identity verification') || joined.includes('credit')) {
+  const error = typeof payload.error === 'object' ? payload.error : undefined;
+  const codes = [payload.code, error?.code, error?.type].map(normalizeErrorString);
+  const qwen = providerName === 'qwen';
+  const qwenThrottle = qwen && status === 429 && codes.some(code => [
+    'throttling', 'throttling.serviceoverloaded', 'throttling.resourceexhausted',
+    'throttling.ratequota', 'limitrequests', 'limit_requests',
+    'throttling.burstrate', 'limit_burst_rate',
+    'throttling.allocationquota', 'insufficient_quota',
+  ].includes(code));
+  // The documented TPM message mentions billing details as guidance, not a billing error.
+  const billingEvidence = qwenThrottle
+    ? joined.replace('please check your plan and billing details', '') : joined;
+  if (billingEvidence.includes('billing') || joined.includes('payment') || joined.includes('identity verification') || joined.includes('credit')
+    || (qwen && codes.some(code => code === 'arrearage' || code === 'isv.out_of_service'))) {
     return 'billing_or_identity';
   }
+
+  // Model Studio distinguishes expired/exhausted free allocation from RPM/TPM
+  // throttling. A code containing "quota" alone is not quota-exhaustion evidence.
+  // https://www.alibabacloud.com/help/en/model-studio/error-code
+  const exhaustedFreeQuota = /free allocated quota exceeded|free quota (?:expired|exhausted)/.test(joined);
+  if (exhaustedFreeQuota) return 'insufficient_quota';
+  if (qwenThrottle) return 'rate_limit';
+
+  // Explicit quota/billing evidence wins over generic throttle hints. Unknown
+  // HTTP429 remains unknown; no category added here permits retries or fallback.
+  if (codes.includes('insufficient_quota') || joined.includes('quota exceeded') || joined.includes('quota exhausted')) return 'insufficient_quota';
+  if (codes.some(code => code === 'rate_limit_exceeded' || code === 'rate_limit_error')
+    || joined.includes('rate limit')) return 'rate_limit';
+  if (status === 429) return 'unknown_429';
+
+  // Narrower diagnostic attribution must not unlock retries/fallback for quota
+  // signals that the prior classifier stopped, including contradictory 5xx.
+  // The body is ambiguous; do not claim verified quota exhaustion or throttling.
+  if (joined.includes('quota')) return 'invalid_request';
 
   if (status === 404 || joined.includes('model_not_found') || joined.includes('model not found')) {
     return 'model_not_found';
@@ -330,7 +360,7 @@ async function callChatCompletions(
         ok: false,
         answer: '',
         citations: [],
-        errorCategory: classifyError(response.status, (payload ?? {}) as OpenAICompatibleErrorPayload),
+        errorCategory: classifyError(params.providerName, response.status, (payload ?? {}) as OpenAICompatibleErrorPayload),
         status: response.status,
         model,
       };
