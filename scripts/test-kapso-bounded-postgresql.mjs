@@ -108,6 +108,42 @@ export async function runBoundedContractAcceptance({db,connectPeer,request,reque
   equal((await service('SELECT public.expire_kapso_drive_whatsapp_window()')).deactivation_required,true,'deadline watchdog closes window');
   equal(await scalar('SELECT send_enabled FROM drive_notification_private.settings'),false,'watchdog disables sends');
 
+  const waiting=await fixture('outbox-expiry');const waitingLease=await service('SELECT public.claim_kapso_drive_whatsapp_target($1,$2,$3,$4,$5)',targetArgs(waiting));
+  const held=await connectPeer();const pid=(await peer.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+  const waitingBudget=await scalar('SELECT budget_used FROM drive_notification_private.settings');const waitingSends=sends;
+  let pending;
+  try {await held.query('BEGIN');await held.query('SELECT 1 FROM drive_notification_private.outbox WHERE id=$1 FOR UPDATE',[waiting.outboxId]);
+   await db.query("UPDATE drive_notification_private.execution_windows SET expires_at=clock_timestamp()+interval '1 second' WHERE id=$1",[waiting.windowId]);
+   const normal=storeFor(peer);const leasedStore={rpc:(name,args)=>name==='claim_kapso_drive_whatsapp_target'?Promise.resolve({data:waitingLease,error:null}):normal.rpc(name,args)};
+   pending=api.dispatchKapsoTarget(leasedStore,config,transportTarget(waiting),fake);
+   let blocked=false;for(let i=0;i<80;i++){const status=await db.query("SELECT wait_event_type='Lock' AS blocked FROM pg_stat_activity WHERE pid=$1",[pid]);if(status.rows[0]?.blocked){blocked=true;break;}await new Promise(resolve=>setTimeout(resolve,10));}
+   equal(blocked,true,'begin is actually blocked on the independent outbox lock');
+   await db.exec('SELECT pg_sleep(1.05)');await held.query('ROLLBACK');
+   equal(await pending,'not_sent','outbox wait crossing expiry rejects the final send');
+  } finally {await held.query('ROLLBACK');await held.end();if(pending)await pending;}
+  equal(sends,waitingSends,'expiry while waiting causes zero provider calls');
+  equal(await scalar('SELECT budget_used FROM drive_notification_private.settings'),waitingBudget,'expired lock wait consumes no budget');
+  equal(await scalar('SELECT send_started_at IS NULL AND stop_reason=\'expired\' FROM drive_notification_private.execution_windows WHERE id=$1',[waiting.windowId]),true,'no durable send intent after expiry');
+  equal(await scalar('SELECT attempts=0 AND state=\'claimed\' AND provider_phone_number_id IS NULL FROM drive_notification_private.outbox WHERE id=$1',[waiting.outboxId]),true,'no attempt or sender binding from expired wait');
+
+  const rollbackTarget=await fixture('intent-rollback');const rollbackLease=await service('SELECT public.claim_kapso_drive_whatsapp_target($1,$2,$3,$4,$5)',targetArgs(rollbackTarget));
+  const rollbackBudget=await scalar('SELECT budget_used FROM drive_notification_private.settings');const rollbackSends=sends;
+  await db.exec(`CREATE FUNCTION drive_notification_private.synthetic_delay_intent() RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $$ BEGIN PERFORM pg_catalog.pg_sleep(2); RETURN NEW; END $$;
+   CREATE TRIGGER synthetic_delay_intent BEFORE UPDATE ON drive_notification_private.outbox FOR EACH ROW WHEN(NEW.state='sending' AND OLD.state='claimed') EXECUTE FUNCTION drive_notification_private.synthetic_delay_intent();`);
+  let rollbackPending;
+  try {
+   await db.query("UPDATE drive_notification_private.execution_windows SET expires_at=clock_timestamp()+interval '1 second' WHERE id=$1",[rollbackTarget.windowId]);
+   const normal=storeFor(peer);const leasedStore={rpc:(name,args)=>name==='claim_kapso_drive_whatsapp_target'?Promise.resolve({data:rollbackLease,error:null}):normal.rpc(name,args)};
+   rollbackPending=api.dispatchKapsoTarget(leasedStore,config,transportTarget(rollbackTarget),fake);
+   let delayed=false;for(let i=0;i<100;i++){const status=await db.query("SELECT wait_event='PgSleep' AS delayed FROM pg_stat_activity WHERE pid=$1",[pid]);if(status.rows[0]?.delayed){delayed=true;break;}await new Promise(resolve=>setTimeout(resolve,10));}
+   equal(delayed,true,'synthetic trigger actually delays the legacy durable intent');
+   equal(await rollbackPending,'not_sent','expiry inside legacy begin rolls back its work');
+  } finally {if(rollbackPending)await rollbackPending;await db.exec('DROP TRIGGER synthetic_delay_intent ON drive_notification_private.outbox; DROP FUNCTION drive_notification_private.synthetic_delay_intent()');}
+  equal(sends,rollbackSends,'late intent performs zero provider calls');
+  equal(await scalar('SELECT budget_used FROM drive_notification_private.settings'),rollbackBudget,'subtransaction rolls back budget reservation');
+  equal(await scalar('SELECT send_started_at IS NULL AND stop_reason=\'expired\' FROM drive_notification_private.execution_windows WHERE id=$1',[rollbackTarget.windowId]),true,'late legacy intent leaves a stopped window without send timestamp');
+  equal(await scalar('SELECT attempts=0 AND state=\'claimed\' AND provider_phone_number_id IS NULL FROM drive_notification_private.outbox WHERE id=$1',[rollbackTarget.outboxId]),true,'subtransaction rolls back attempt and sender binding');
+
   const deadlineTarget=await fixture('db-deadline');const lease=await service('SELECT public.claim_kapso_drive_whatsapp_target($1,$2,$3,$4,$5)',targetArgs(deadlineTarget));
   equal(await service('SELECT public.begin_kapso_drive_whatsapp($1,$2,$3)',[lease.id,lease.token,sender]),true,'deadline fixture has a durable intent only');
   const locker=await connectPeer();

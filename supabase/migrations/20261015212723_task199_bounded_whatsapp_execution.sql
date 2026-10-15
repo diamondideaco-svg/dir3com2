@@ -173,6 +173,7 @@ END $$;
 CREATE OR REPLACE FUNCTION public.begin_kapso_drive_whatsapp(p_id uuid,p_token uuid,p_phone_number_id text)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE cfg drive_notification_private.settings%ROWTYPE; w drive_notification_private.execution_windows%ROWTYPE;
+ intent_at timestamptz;
 BEGIN
  IF current_setting('role',true) IS DISTINCT FROM 'service_role' THEN RAISE EXCEPTION 'SERVICE_REQUIRED' USING ERRCODE='42501'; END IF;
  IF p_phone_number_id IS NULL OR p_phone_number_id !~ '^[0-9]{5,32}$' THEN RAISE EXCEPTION 'INVALID_SENDER' USING ERRCODE='22023'; END IF;
@@ -184,10 +185,25 @@ BEGIN
   IF w.expires_at<=clock_timestamp() THEN PERFORM drive_notification_private.stop_window(w.id,'expired'); RETURN false; END IF;
   IF w.stopped_at IS NOT NULL OR w.send_started_at IS NOT NULL OR w.outbox_id IS DISTINCT FROM p_id
    OR w.phone_number_id IS DISTINCT FROM p_phone_number_id THEN RETURN false; END IF;
+  -- An independently held outbox lock may outlive the wall-clock window.
+  -- Acquire it before the final expiry checks; never use transaction now().
+  PERFORM 1 FROM drive_notification_private.outbox WHERE id=p_id FOR UPDATE;
+  IF NOT FOUND THEN RETURN false; END IF;
+  IF w.expires_at<=clock_timestamp() THEN PERFORM drive_notification_private.stop_window(w.id,'expired'); RETURN false; END IF;
  END IF;
- IF NOT drive_notification_private.begin_legacy(p_id,p_token) THEN RETURN false; END IF;
- UPDATE drive_notification_private.outbox SET provider_phone_number_id=p_phone_number_id WHERE id=p_id;
- IF cfg.dispatch_mode='target_only' THEN UPDATE drive_notification_private.execution_windows SET send_started_at=clock_timestamp() WHERE id=w.id; END IF;
+ BEGIN
+  IF NOT drive_notification_private.begin_legacy(p_id,p_token) THEN RETURN false; END IF;
+  intent_at:=clock_timestamp();
+  IF cfg.dispatch_mode='target_only' AND w.expires_at<=intent_at THEN
+   RAISE EXCEPTION 'WINDOW_EXPIRED_DURING_BEGIN' USING ERRCODE='P1991';
+  END IF;
+  UPDATE drive_notification_private.outbox SET provider_phone_number_id=p_phone_number_id WHERE id=p_id;
+  IF cfg.dispatch_mode='target_only' THEN UPDATE drive_notification_private.execution_windows SET send_started_at=intent_at WHERE id=w.id; END IF;
+ EXCEPTION WHEN SQLSTATE 'P1991' THEN
+  -- The subtransaction rolls back legacy intent/attempt/budget changes first.
+  PERFORM drive_notification_private.stop_window(w.id,'expired');
+  RETURN false;
+ END;
  RETURN true;
 END $$;
 
