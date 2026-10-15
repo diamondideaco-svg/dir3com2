@@ -25,7 +25,7 @@ const databaseTests = new Set([
   'schema-compatibility.integration.test.ts',
 ]);
 const testFiles = readdirSync(new URL('../tests/', import.meta.url))
-  .filter((file) => file.endsWith('.test.ts'))
+  .filter((file) => file.endsWith('.test.ts') || file === 'kapso-bounded-contract.test.mjs')
   .sort();
 
 function run(files, conditions = []) {

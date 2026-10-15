@@ -7,7 +7,9 @@ export type OutboxItem = {
   audience: 'customer' | 'operations'; action: 'created' | 'review' | 'confirm' | 'decline' | 'customer_accept'; language: 'ar' | 'en';
 };
 export interface NotificationStore {
-  rpc(name: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
+  rpc(name: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }> & {
+    abortSignal?: (signal: AbortSignal) => PromiseLike<{ data: unknown; error: unknown }>;
+  };
 }
 export type SenderConfig = {
   accountSid: string; authToken: string; from: string; messagingServiceSid: string;

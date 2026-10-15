@@ -443,6 +443,8 @@ try {
  if(connectPeer) {
   const { runTargetAcceptance } = await import('./test-drive-whatsapp-target-acceptance.mjs');
   checks += await runTargetAcceptance({ db, connectPeer, request, requestId, asUser, operations, customer, other });
+  const { runBoundedContractAcceptance } = await import('./test-kapso-bounded-postgresql.mjs');
+  checks += await runBoundedContractAcceptance({ db, connectPeer, request, requestId, asUser, operations, customer, other });
  } else { console.log('SKIP targeted concurrent acceptance: requires the explicit isolated PostgreSQL fixture'); }
  console.log(`PASS ${checks} isolated PostgreSQL assertions (${connectPeer ? 'PostgreSQL with two-connection concurrency' : 'PGlite, sequential'}); no remote database or provider calls`);
 } finally { await db.close(); }
