@@ -9,7 +9,7 @@ function load(path, dependencies = {}) {
  const exports = {};
  runInNewContext(ts.transpileModule(readFileSync(path, 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
- }).outputText, { exports, Buffer, URL, URLSearchParams, Response, Request, AbortSignal,
+ }).outputText, { exports, Buffer, URL, URLSearchParams, Response, Request, AbortSignal, AbortController, setTimeout, clearTimeout,
   fetch: async () => { assert.fail('Real network prohibited'); },
   require(name) {
    if (name === 'server-only') return {};

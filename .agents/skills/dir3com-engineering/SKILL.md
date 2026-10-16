@@ -24,7 +24,7 @@ VS Code Chat is limited to small, bounded, low-cost tasks. It must hand complex 
 - For implementation, own a separate branch/worktree, inspect the affected code and tests, make the smallest coherent change, and verify it.
 - For diagnosis or review, remain read-only unless Control Tower explicitly reassigns implementation ownership.
 - Never have two surfaces modify the same PR. The PR owner applies reviewer findings.
-- Review an exact SHA. Any code change invalidates earlier review approval.
+- Review an exact SHA. Any code change invalidates earlier review approval. Desktop/Desktop review additionally requires an explicit recorded assignment, distinct session UUIDs and the fetched exact-artifact non-author receipt in `docs/CODEX_OPERATIONS.md`; a matching label alone does not qualify a reviewer.
 - For authentication, tenant isolation, payments, uploads, admin access, or external-provider changes, include a separate security-focused review.
 - If TAC/Codex Security is unavailable, record the coverage limitation and do not claim specialized security PASS.
 - For UI changes, verify Arabic and English plus relevant desktop and mobile layouts.

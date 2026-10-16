@@ -1,0 +1,132 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import * as crypto from 'node:crypto';
+import ts from 'typescript';
+function load(file,deps={},sink={error(){}}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,console:sink,Buffer,URL,URLSearchParams,Request,Response,AbortSignal,AbortController,setTimeout,clearTimeout,fetch:async()=>assert.fail('Live provider prohibited'),require(name){if(name==='server-only')return {};if(name==='node:crypto')return crypto;if(name in deps)return deps[name];throw Error(name);}});return exports;}
+const core=load('lib/notifications/drive-whatsapp.ts');
+const sender=load('lib/notifications/kapso-drive-whatsapp.ts',{'./drive-whatsapp':core});
+const query=load('lib/notifications/kapso-provider-query.ts',{'./drive-whatsapp':core,'./kapso-drive-whatsapp':sender});
+const env={DIR3COM_WHATSAPP_ENABLED:'true',DIR3COM_WHATSAPP_DELIVERY_MODE:'provider_query',DIR3COM_WHATSAPP_CATEGORIES:'operations.created',KAPSO_API_KEY:'SYNTHETIC-NOT-A-PROVIDER-KEY',KAPSO_PHONE_NUMBER_ID:'10000000000166',DIR3COM_WHATSAPP_WORKER_SECRET:'SYNTHETIC-WORKER-SECRET-00000000000000',DIR3COM_WHATSAPP_SITE_URL:'https://qa.example.invalid',DIR3COM_WHATSAPP_KAPSO_TEMPLATES:JSON.stringify({'operations.created.ar':{name:'synthetic_operations',languageCode:'ar'}})};
+const target={requestId:'00000000-0000-4000-8000-000000000001',outboxId:'00000000-0000-4000-8000-000000000002',recipientUserId:'00000000-0000-4000-8000-000000000003',category:'operations.created',language:'ar'};
+const sid='wamid.SYNTHETIC_QUERY+/==';
+const phone='+10000000003';
+const lease=()=>({window_id:'00000000-0000-4000-8000-000000000004',query_token:'00000000-0000-4000-8000-000000000005',request_id:target.requestId,outbox_id:target.outboxId,recipient_user_id:target.recipientUserId,category:target.category,language:target.language,phone_number_id:env.KAPSO_PHONE_NUMBER_ID,provider_sid:sid,phone,expires_at:new Date(Date.now()+60000).toISOString()});
+const request=(body=target,auth='Bearer '+env.DIR3COM_WHATSAPP_WORKER_SECRET)=>new Request('https://qa.example.invalid/api/internal/drive-whatsapp/reconcile-target',{method:'POST',headers:{authorization:auth,'content-type':'application/json'},body:JSON.stringify(body)});
+function store(row=lease(),error=null){const calls=[];return {calls,rpc:async(name,args)=>{calls.push({name,args});return {data:name==='claim_kapso_drive_whatsapp_status_query'?row:true,error};}};}
+const observed=(patch={})=>Response.json({id:sid,to:phone.slice(1),kapso:{direction:'outbound',status:'delivered',processing_status:'completed'},...patch});
+const noStore=()=>assert.fail('No privileged lookup');
+const noFetch=async()=>assert.fail('No provider I/O');
+
+test('query is explicit and server-only; default webhook still requires its signing secret',()=>{
+ const config=sender.kapsoConfig(env);assert.equal(config.deliveryMode,'provider_query');assert.equal('webhookSecret' in config,false);
+ assert.equal(sender.kapsoConfig({...env,DIR3COM_WHATSAPP_DELIVERY_MODE:undefined}),null);
+ assert.equal(sender.kapsoConfig({...env,DIR3COM_WHATSAPP_DELIVERY_MODE:'webhook',KAPSO_WEBHOOK_SECRET:'SYNTHETIC-SIGNING-SECRET-00000000000000'}).deliveryMode,'webhook');
+ for(const mode of ['', 'unknown', 'PROVIDER_QUERY'])assert.equal(sender.kapsoConfig({...env,DIR3COM_WHATSAPP_DELIVERY_MODE:mode}),null);
+ assert.equal(sender.kapsoConfig({...env,DIR3COM_WHATSAPP_DISPATCH_MODE:'general'}),null);
+ assert.equal(sender.kapsoConfig({...env,DIR3COM_WHATSAPP_CATEGORIES:'customer.confirm'}),null);
+});
+test('query mode cannot fall back to a generic queue claim',async()=>{
+ assert.equal(await sender.dispatchKapsoOne({rpc:()=>assert.fail('No claim')},sender.kapsoConfig(env),noFetch),'not_sent');
+ assert.equal((await sender.handleKapsoDispatch(new Request('https://qa.example.invalid/api/internal/drive-whatsapp/dispatch'),env,noStore,noFetch)).status,404);
+});
+test('worker authentication, configuration and exact target precede privileged access',async()=>{
+ assert.equal((await query.handleKapsoTargetReconcile(request(),{...env,DIR3COM_WHATSAPP_ENABLED:'false'},noStore,noFetch)).status,404);
+ assert.equal((await query.handleKapsoTargetReconcile(request(),{...env,DIR3COM_WHATSAPP_DELIVERY_MODE:'webhook'},noStore,noFetch)).status,404);
+ assert.equal((await query.handleKapsoTargetReconcile(request(target,'wrong'),env,noStore,noFetch)).status,401);
+ assert.equal((await query.handleKapsoTargetReconcile(request(),{...env,KAPSO_API_KEY:''},noStore,noFetch)).status,503);
+ for(const body of [{...target,sid},{...target,windowId:lease().window_id},{...target,category:'customer.confirm'},{...target,requestId:'../other'}])assert.equal((await query.handleKapsoTargetReconcile(request(body),env,noStore,noFetch)).status,400);
+});
+test('target send chooses query-specific intent, then atomically completes WAMID through existing finish RPC',async()=>{
+ const calls=[];let posts=0;
+ const item={id:target.outboxId,token:lease().query_token,phone,reference:'REQ-SYNTHETIC',audience:'operations',action:'created',language:'ar',request_id:target.requestId,recipient_user_id:target.recipientUserId};
+ const db={rpc:async(name,args)=>{calls.push({name,args});return {data:name==='claim_kapso_drive_whatsapp_target'?item:true,error:null};}};
+ const outcome=await sender.dispatchKapsoTarget(db,sender.kapsoConfig(env),target,async(_url,options)=>{posts++;assert.equal(options.method,'POST');assert.equal(calls.at(-1).name,'begin_kapso_drive_whatsapp_provider_query');return Response.json({messaging_product:'whatsapp',contacts:[{input:phone.slice(1),wa_id:phone.slice(1)}],messages:[{id:sid}]});});
+ assert.equal(outcome,'accepted');assert.equal(posts,1);assert.equal(calls.at(-1).name,'finish_drive_whatsapp');assert.equal(calls.at(-1).args.p_sid,sid);assert.equal(calls.at(-1).args.p_outcome,'accepted');
+});
+test('dedicated recovery contract preserves the full validated pair and emits no extra metadata',()=>{
+ const events=[];const recovery=load('lib/notifications/kapso-drive-whatsapp.ts',{'./drive-whatsapp':core},{error:(...args)=>events.push(args)});
+ const fullSid='wamid.'+'9'.repeat(250);
+ recovery.logKapsoRecovery({outboxId:target.outboxId,messageId:fullSid,phone,token:'SYNTHETIC_PRIVATE_TOKEN',body:'SYNTHETIC_PRIVATE_BODY'});
+ assert.equal(events.length,1);assert.equal(events[0][0],'DRIVE_WHATSAPP_RECOVERY');
+ assert.deepEqual(JSON.parse(JSON.stringify(events[0][1])),{outboxId:target.outboxId,messageId:fullSid});assert.equal(events[0][1].messageId.length,256);
+ for(const value of [null,[],{}, {outboxId:'not-a-uuid',messageId:sid},{outboxId:target.outboxId,messageId:'SYNTHETIC_PRIVATE_BODY'},{outboxId:target.outboxId,messageId:'wamid.'+'A'.repeat(251)},{outboxId:target.outboxId,messageId:'wamid.PRIVATE\nBODY'}])recovery.logKapsoRecovery(value);
+ assert.equal(events.length,1);
+ const throwing=load('lib/notifications/kapso-drive-whatsapp.ts',{'./drive-whatsapp':core},{error(){throw Error('SYNTHETIC_LOG_SINK_FAILURE');}});
+ assert.doesNotThrow(()=>throwing.logKapsoRecovery({outboxId:target.outboxId,messageId:sid}));
+});
+test('only accepted messages with unsuccessful finish produce recovery, without raw errors or another POST',async()=>{
+ for(const mode of ['provider_query','webhook'])for(const finish of ['error','false','throw','ok']){
+  const events=[];const recovery=load('lib/notifications/kapso-drive-whatsapp.ts',{'./drive-whatsapp':core},{error:(...args)=>events.push(args)});let posts=0;
+  const config=recovery.kapsoConfig({...env,DIR3COM_WHATSAPP_DELIVERY_MODE:mode,KAPSO_WEBHOOK_SECRET:'SYNTHETIC-SIGNING-SECRET-00000000000000'});
+  const item={id:target.outboxId,token:lease().query_token,phone,reference:'REQ-SYNTHETIC',audience:'operations',action:'created',language:'ar',request_id:target.requestId,recipient_user_id:target.recipientUserId};
+  const db={rpc:async(name)=>{if(name==='claim_kapso_drive_whatsapp_target')return {data:item,error:null};if(name==='finish_drive_whatsapp'){if(finish==='throw')throw Error('SYNTHETIC_PRIVATE_DB_DETAIL');return {data:finish==='ok',error:finish==='error'?Error('SYNTHETIC_PRIVATE_DB_DETAIL'):null};}return {data:true,error:null};}};
+  const call=recovery.dispatchKapsoTarget(db,config,target,async()=>{posts++;return Response.json({messaging_product:'whatsapp',contacts:[{input:phone.slice(1),wa_id:phone.slice(1)}],messages:[{id:sid}]});});
+  if(finish==='ok')assert.equal(await call,'accepted');else await assert.rejects(call,/RESULT_PERSISTENCE_UNCONFIRMED/);
+  assert.equal(posts,1);assert.equal(events.length,finish==='ok'?0:1);
+  if(events.length)assert.deepEqual(JSON.parse(JSON.stringify(events[0][1])),{outboxId:target.outboxId,messageId:sid});
+ }
+ for(const result of ['response_lost','invalid_acceptance']){
+  const events=[];const recovery=load('lib/notifications/kapso-drive-whatsapp.ts',{'./drive-whatsapp':core},{error:(...args)=>events.push(args)});let posts=0;
+  const item={id:target.outboxId,token:lease().query_token,phone,reference:'REQ-SYNTHETIC',audience:'operations',action:'created',language:'ar',request_id:target.requestId,recipient_user_id:target.recipientUserId};
+  const db={rpc:async(name)=>({data:name==='claim_kapso_drive_whatsapp_target'?item:name==='finish_drive_whatsapp'?false:true,error:null})};
+  await assert.rejects(recovery.dispatchKapsoTarget(db,recovery.kapsoConfig(env),target,async()=>{posts++;if(result==='response_lost')throw Error('SYNTHETIC_PRIVATE_PROVIDER_DETAIL');return Response.json({messaging_product:'whatsapp',contacts:[],messages:[{id:sid}]});}),/RESULT_PERSISTENCE_UNCONFIRMED/);
+  assert.equal(posts,1);assert.equal(events.length,0);
+ }
+});
+test('null claim or missing persisted WAMID never queries the provider',async()=>{
+ assert.equal((await query.handleKapsoTargetReconcile(request(),env,()=>store(null),noFetch)).status,200);
+ for(const patch of [{provider_sid:null},{provider_sid:'../other'},{phone_number_id:'10000000999'},{request_id:lease().window_id},{outbox_id:lease().window_id},{recipient_user_id:lease().window_id},{language:'en'},{category:'customer.confirm'},{expires_at:'invalid'},{expires_at:'2000-01-01T00:00:00Z'}]){
+  const response=await query.handleKapsoTargetReconcile(request(),env,()=>store({...lease(),...patch}),noFetch);assert.equal(response.status,503);assert.equal((await response.json()).reason,'QUERY_IDENTITY_UNCONFIRMED');
+ }
+});
+test('one exact-sender fixed-origin GET reads the saved WAMID, never accepts a client WAMID',async()=>{
+ const db=store();let gets=0;
+ const response=await query.handleKapsoTargetReconcile(request(),env,()=>db,async(url,options)=>{gets++;const parsed=new URL(url);assert.equal(parsed.origin,'https://api.kapso.ai');assert.equal(parsed.pathname.split('/').at(-3),env.KAPSO_PHONE_NUMBER_ID);assert.equal(decodeURIComponent(parsed.pathname.split('/').at(-1)),sid);assert.equal(parsed.searchParams.get('fields'),'id,to,kapso(direction,status,processing_status)');assert.equal(options.method,'GET');assert.equal(options.redirect,'error');assert.equal(options.cache,'no-store');assert.equal(options.headers['X-API-Key'],env.KAPSO_API_KEY);return observed();});
+ assert.equal(gets,1);assert.equal(response.status,200);assert.equal((await response.json()).result,'recorded');assert.equal(db.calls.length,2);assert.equal(db.calls[1].name,'finish_kapso_drive_whatsapp_status_query');assert.equal(db.calls[1].args.p_sid,sid);assert.equal(db.calls[1].args.p_state,'delivered');assert.ok(!JSON.stringify(db.calls).includes('processing_status'));
+});
+for(const state of ['sent','delivered','read','failed'])test('validated '+state+' is observed separately from POST acceptance',async()=>{
+ const db=store();const r=await query.handleKapsoTargetReconcile(request(),env,()=>db,async()=>observed({kapso:{direction:'outbound',status:state}}));assert.equal(r.status,200);assert.equal(db.calls.at(-1).args.p_state,state);
+});
+// Unexpected sender/passive extras are defensive checks, not documented GET fields.
+for(const [label,body] of Object.entries({wrong_wamid:{id:'wamid.OTHER'},wrong_recipient:{to:'10000000009'},missing_phone:{to:null,to_user_id:'US.SYNTHETIC'},inbound:{kapso:{direction:'inbound',status:'delivered'}},unexpected_sender_extra:{kapso:{direction:'outbound',status:'delivered',phone_number_id:'10000000999'}},unexpected_passive_extra:{kapso:{direction:'outbound',status:'delivered',passive:true}},pending:{kapso:{direction:'outbound',status:'pending'}},provider_error:{error:{message:'SYNTHETIC_PRIVATE_PROVIDER_DETAIL'}}}))test(label+' is unconfirmed and never becomes delivery',async()=>{
+ const db=store();let gets=0;const r=await query.handleKapsoTargetReconcile(request(),env,()=>db,async()=>{gets++;return observed(body);});assert.equal(gets,1);assert.equal(r.status,200);const outcome=await r.json();assert.equal(outcome.result,'unconfirmed');assert.equal(outcome.reason,label==='pending'?'UNSUPPORTED_STATE':label==='provider_error'?'PROVIDER_ERROR':'IDENTITY_MISMATCH');assert.ok(!JSON.stringify(outcome).includes('PRIVATE'));assert.equal(db.calls.at(-1).args.p_state,null);
+});
+for(const status of [404,429,500,302])test('HTTP'+status+' is one unconfirmed query, never a resend or delivery',async()=>{
+ const db=store();let calls=0;const r=await query.handleKapsoTargetReconcile(request(),env,()=>db,async()=>{calls++;return new Response('SYNTHETIC_PRIVATE_BODY',{status});});assert.equal(calls,1);const outcome=await r.json();assert.equal(outcome.result,'unconfirmed');assert.equal(outcome.reason,({404:'HTTP_NOT_FOUND',429:'HTTP_RATE_LIMITED',500:'PROVIDER_UNAVAILABLE',302:'HTTP_UNCONFIRMED'})[status]);assert.ok(!JSON.stringify(outcome).includes('PRIVATE'));assert.equal(db.calls.at(-1).args.p_state,null);
+});
+test('JSON/content-type/size failures are bounded and do not expose payloads',async()=>{
+ for(const response of [new Response('{private malformed',{headers:{'content-type':'application/json'}}),new Response(JSON.stringify({id:sid}),{headers:{'content-type':'text/html'}}),new Response('x'.repeat(8193),{headers:{'content-type':'application/json'}}),Response.json(null),Response.json({id:sid,to:phone.slice(1)})]){
+  const db=store();const r=await query.handleKapsoTargetReconcile(request(),env,()=>db,async()=>response);assert.equal(r.status,200);const outcome=await r.json();assert.equal(outcome.reason,'BAD_BODY');assert.ok(!JSON.stringify(outcome).includes('private'));assert.equal(db.calls.at(-1).args.p_state,null);
+ }
+});
+test('transport exceptions produce only the fixed reason, with no raw provider error',async()=>{
+ const db=store();const r=await query.handleKapsoTargetReconcile(request(),env,()=>db,async()=>{throw new Error('SYNTHETIC_PRIVATE_TRANSPORT');});assert.equal(r.status,200);const outcome=await r.json();assert.equal(outcome.reason,'TRANSPORT_UNCONFIRMED');assert.ok(!JSON.stringify(outcome).includes('PRIVATE'));assert.equal(db.calls.at(-1).args.p_state,null);
+});
+test('non-settling HTTP and body transports obey the whole-operation deadline',async()=>{
+ for(const fetcher of [()=>new Promise(()=>{}),async()=>new Response(new ReadableStream({start(){},cancel(){return new Promise(()=>{});}}),{headers:{'content-type':'application/json'}})]){
+  const db=store();const started=Date.now();const r=await query.handleKapsoTargetReconcile(request(),env,()=>db,fetcher,20);assert.equal(r.status,503);assert.equal((await r.json()).reason,'QUERY_DEADLINE');assert.ok(Date.now()-started<500);assert.equal(db.calls.length,1);
+ }
+});
+test('a non-ending inbound request is a deadline, with zero database or provider access',async()=>{
+ let cancelled=false;
+ const inbound=new Request('https://qa.example.invalid/api/internal/drive-whatsapp/reconcile-target',{method:'POST',headers:{authorization:'Bearer '+env.DIR3COM_WHATSAPP_WORKER_SECRET,'content-type':'application/json'},body:new ReadableStream({start(){},cancel(){cancelled=true;}}),duplex:'half'});
+ const response=await query.handleKapsoTargetReconcile(inbound,env,noStore,noFetch,20);
+ assert.equal(response.status,503);assert.deepEqual(await response.json(),{error:'QUERY_UNCONFIRMED',reason:'QUERY_DEADLINE'});assert.equal(cancelled,true);
+ const malformed=new Request(inbound.url,{method:'POST',headers:{authorization:'Bearer '+env.DIR3COM_WHATSAPP_WORKER_SECRET,'content-type':'application/json'},body:'{SYNTHETIC_PRIVATE_BAD_JSON'});
+ const invalid=await query.handleKapsoTargetReconcile(malformed,env,noStore,noFetch);assert.equal(invalid.status,400);assert.deepEqual(await invalid.json(),{error:'INVALID_TARGET'});
+});
+test('database reservation or completion uncertainty never reports recorded delivery',async()=>{
+ const r=await query.handleKapsoTargetReconcile(request(),env,()=>({rpc:()=>new Promise(()=>{})}),noFetch,20);assert.equal(r.status,503);assert.equal((await r.json()).reason,'QUERY_DEADLINE');
+ for(const db of [store(lease(),new Error('SYNTHETIC_PRIVATE_DB_DETAIL')),{rpc:async()=>{throw new Error('SYNTHETIC_PRIVATE_DB_DETAIL');}}]){
+  const failed=await query.handleKapsoTargetReconcile(request(),env,()=>db,noFetch);assert.equal(failed.status,503);const outcome=await failed.json();assert.equal(outcome.reason,'QUERY_LEASE_UNCONFIRMED');assert.ok(!JSON.stringify(outcome).includes('PRIVATE'));
+ }
+ for(const failure of [{data:null,error:new Error('SYNTHETIC_PRIVATE_DB_DETAIL')},{data:false,error:null},null]){
+  const db=store();const base=db.rpc;db.rpc=async(name,args)=>{if(name!=='finish_kapso_drive_whatsapp_status_query')return base(name,args);if(failure===null)throw new Error('SYNTHETIC_PRIVATE_DB_DETAIL');return failure;};
+  const failed=await query.handleKapsoTargetReconcile(request(),env,()=>db,async()=>observed());assert.equal(failed.status,503);const outcome=await failed.json();assert.equal(outcome.reason,'QUERY_PERSISTENCE_UNCONFIRMED');assert.ok(!JSON.stringify(outcome).includes('PRIVATE'));assert.equal(failed.headers.get('cache-control'),'no-store');
+ }
+});
+test('webhook callback still fails closed without its own signing secret in query mode',async()=>{
+ const r=await sender.receiveKapsoReceipt(new Request('https://qa.example.invalid/api/webhooks/kapso/drive-whatsapp',{method:'POST'}),env,noStore);assert.equal(r.status,503);
+});

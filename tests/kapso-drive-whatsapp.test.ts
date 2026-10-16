@@ -11,7 +11,7 @@ function load(path: string, dependencies: Record<string, unknown> = {}) {
   const exports: Record<string, unknown> = {};
   runInNewContext(ts.transpileModule(readFileSync(path, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { exports, Buffer, URL, URLSearchParams, Response, Request, AbortSignal, fetch,
+  }).outputText, { exports, Buffer, URL, URLSearchParams, Response, Request, AbortSignal, AbortController, setTimeout, clearTimeout, fetch: async () => assert.fail('Real provider network prohibited'),
     require(name: string) {
       if (name === 'server-only') return {};
       if (name === 'node:crypto') return crypto;
@@ -24,7 +24,7 @@ const api = load('lib/notifications/kapso-drive-whatsapp.ts', {
   './drive-whatsapp': load('lib/notifications/drive-whatsapp.ts'),
 }) as unknown as typeof Subject;
 const env = {
-  DIR3COM_WHATSAPP_ENABLED: 'true', DIR3COM_WHATSAPP_CATEGORIES: 'operations.created',
+  DIR3COM_WHATSAPP_ENABLED: 'true', DIR3COM_WHATSAPP_DISPATCH_MODE: 'general', DIR3COM_WHATSAPP_CATEGORIES: 'operations.created',
   KAPSO_API_KEY: 'isolated-not-an-api-key', KAPSO_PHONE_NUMBER_ID: '10000000000166',
   KAPSO_WEBHOOK_SECRET: 'isolated-webhook-secret'.repeat(3), DIR3COM_WHATSAPP_WORKER_SECRET: 'isolated-worker-secret'.repeat(3),
   DIR3COM_WHATSAPP_SITE_URL: 'https://qa.example.invalid',
