@@ -75,7 +75,10 @@ export async function handleKapsoTargetReconcile(request: Request, env: Record<s
   try {
     let target: KapsoTarget | null;
     try { target = parseKapsoTarget(JSON.parse((await bodyBytes(request, 2048, deadline.signal)).toString('utf8'))); }
-    catch { return Response.json({ error: 'INVALID_TARGET' }, { status: deadline.signal.aborted ? 503 : 400 }); }
+    catch {
+      if (deadline.signal.aborted) throw new Error('QUERY_DEADLINE');
+      return Response.json({ error: 'INVALID_TARGET' }, { status: 400 });
+    }
     if (!target || target.category !== 'operations.created') return Response.json({ error: 'INVALID_TARGET' }, { status: 400 });
     const store = getStore();
     if (!store) return Response.json({ error: 'STORE_UNAVAILABLE' }, { status: 503 });

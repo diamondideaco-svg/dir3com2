@@ -12,8 +12,22 @@ export type KapsoConfig = KapsoSender & (
 );
 const PATH = '/api/webhooks/kapso/drive-whatsapp';
 const MESSAGE_ID = /^wamid\.[A-Za-z0-9_+/=-]{1,250}$/;
+const TARGET_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+type KapsoRecoveryPair = Readonly<{ outboxId: string; messageId: string }>;
 function object(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+// Dedicated identifier-only contract on the existing server console destination.
+// No generic sanitizer changes: lossless identifiers are permitted only by this boundary.
+// Deployment still requires separate evidence of actual log access and retention.
+export function logKapsoRecovery(value: unknown): void {
+  try {
+    const candidate = object(value);
+    if (!candidate || typeof candidate.outboxId !== 'string' || !TARGET_UUID.test(candidate.outboxId)
+      || typeof candidate.messageId !== 'string' || !MESSAGE_ID.test(candidate.messageId)) return;
+    const pair: KapsoRecoveryPair = { outboxId: candidate.outboxId, messageId: candidate.messageId };
+    console.error('DRIVE_WHATSAPP_RECOVERY', pair);
+  } catch { /* Logging is best effort and cannot change send intent or enable a retry. */ }
 }
 export function receiptConfig(env: Environment) {
   const phoneNumberId = env.KAPSO_PHONE_NUMBER_ID ?? '';
@@ -139,8 +153,13 @@ async function dispatchClaimedKapso(store: NotificationStore, config: KapsoConfi
   if (start.error) throw new Error('SEND_INTENT_UNCONFIRMED');
   if (start.data !== true) return 'not_sent';
   const result = await sendKapsoTemplate(config, item, fetcher);
-  const finished = await store.rpc('finish_drive_whatsapp', { p_id: item.id, p_token: item.token, p_outcome: result.outcome, p_sid: result.sid, p_error: result.error });
-  if (finished.error || finished.data !== true) throw new Error('RESULT_PERSISTENCE_UNCONFIRMED');
+  try {
+    const finished = await store.rpc('finish_drive_whatsapp', { p_id: item.id, p_token: item.token, p_outcome: result.outcome, p_sid: result.sid, p_error: result.error });
+    if (finished.error || finished.data !== true) throw new Error('RESULT_PERSISTENCE_UNCONFIRMED');
+  } catch {
+    if (result.outcome === 'accepted' && result.sid !== null) logKapsoRecovery({ outboxId: item.id, messageId: result.sid });
+    throw new Error('RESULT_PERSISTENCE_UNCONFIRMED');
+  }
   return result.outcome;
 }
 export type KapsoTarget = {
@@ -148,11 +167,10 @@ export type KapsoTarget = {
 };
 export function parseKapsoTarget(value: unknown): KapsoTarget | null {
   const target = object(value);
-  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
   if (!target || Object.keys(target).length !== 5
-    || typeof target.requestId !== 'string' || !uuid.test(target.requestId)
-    || typeof target.outboxId !== 'string' || !uuid.test(target.outboxId)
-    || typeof target.recipientUserId !== 'string' || !uuid.test(target.recipientUserId)
+    || typeof target.requestId !== 'string' || !TARGET_UUID.test(target.requestId)
+    || typeof target.outboxId !== 'string' || !TARGET_UUID.test(target.outboxId)
+    || typeof target.recipientUserId !== 'string' || !TARGET_UUID.test(target.recipientUserId)
     || (target.language !== 'ar' && target.language !== 'en')) return null;
   const category = CATEGORIES.find(category => category === target.category);
   if (!category) return null;

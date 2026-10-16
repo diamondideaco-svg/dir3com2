@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import * as crypto from 'node:crypto';
 import ts from 'typescript';
-function load(file,deps={}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,Buffer,URL,URLSearchParams,Request,Response,AbortSignal,AbortController,setTimeout,clearTimeout,fetch:async()=>assert.fail('Live provider prohibited'),require(name){if(name==='server-only')return {};if(name==='node:crypto')return crypto;if(name in deps)return deps[name];throw Error(name);}});return exports;}
+function load(file,deps={},sink={error(){}}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,console:sink,Buffer,URL,URLSearchParams,Request,Response,AbortSignal,AbortController,setTimeout,clearTimeout,fetch:async()=>assert.fail('Live provider prohibited'),require(name){if(name==='server-only')return {};if(name==='node:crypto')return crypto;if(name in deps)return deps[name];throw Error(name);}});return exports;}
 const core=load('lib/notifications/drive-whatsapp.ts');
 const sender=load('lib/notifications/kapso-drive-whatsapp.ts',{'./drive-whatsapp':core});
 const query=load('lib/notifications/kapso-provider-query.ts',{'./drive-whatsapp':core,'./kapso-drive-whatsapp':sender});
@@ -45,6 +45,36 @@ test('target send chooses query-specific intent, then atomically completes WAMID
  const outcome=await sender.dispatchKapsoTarget(db,sender.kapsoConfig(env),target,async(_url,options)=>{posts++;assert.equal(options.method,'POST');assert.equal(calls.at(-1).name,'begin_kapso_drive_whatsapp_provider_query');return Response.json({messaging_product:'whatsapp',contacts:[{input:phone.slice(1),wa_id:phone.slice(1)}],messages:[{id:sid}]});});
  assert.equal(outcome,'accepted');assert.equal(posts,1);assert.equal(calls.at(-1).name,'finish_drive_whatsapp');assert.equal(calls.at(-1).args.p_sid,sid);assert.equal(calls.at(-1).args.p_outcome,'accepted');
 });
+test('dedicated recovery contract preserves the full validated pair and emits no extra metadata',()=>{
+ const events=[];const recovery=load('lib/notifications/kapso-drive-whatsapp.ts',{'./drive-whatsapp':core},{error:(...args)=>events.push(args)});
+ const fullSid='wamid.'+'9'.repeat(250);
+ recovery.logKapsoRecovery({outboxId:target.outboxId,messageId:fullSid,phone,token:'SYNTHETIC_PRIVATE_TOKEN',body:'SYNTHETIC_PRIVATE_BODY'});
+ assert.equal(events.length,1);assert.equal(events[0][0],'DRIVE_WHATSAPP_RECOVERY');
+ assert.deepEqual(JSON.parse(JSON.stringify(events[0][1])),{outboxId:target.outboxId,messageId:fullSid});assert.equal(events[0][1].messageId.length,256);
+ for(const value of [null,[],{}, {outboxId:'not-a-uuid',messageId:sid},{outboxId:target.outboxId,messageId:'SYNTHETIC_PRIVATE_BODY'},{outboxId:target.outboxId,messageId:'wamid.'+'A'.repeat(251)},{outboxId:target.outboxId,messageId:'wamid.PRIVATE\nBODY'}])recovery.logKapsoRecovery(value);
+ assert.equal(events.length,1);
+ const throwing=load('lib/notifications/kapso-drive-whatsapp.ts',{'./drive-whatsapp':core},{error(){throw Error('SYNTHETIC_LOG_SINK_FAILURE');}});
+ assert.doesNotThrow(()=>throwing.logKapsoRecovery({outboxId:target.outboxId,messageId:sid}));
+});
+test('only accepted messages with unsuccessful finish produce recovery, without raw errors or another POST',async()=>{
+ for(const mode of ['provider_query','webhook'])for(const finish of ['error','false','throw','ok']){
+  const events=[];const recovery=load('lib/notifications/kapso-drive-whatsapp.ts',{'./drive-whatsapp':core},{error:(...args)=>events.push(args)});let posts=0;
+  const config=recovery.kapsoConfig({...env,DIR3COM_WHATSAPP_DELIVERY_MODE:mode,KAPSO_WEBHOOK_SECRET:'SYNTHETIC-SIGNING-SECRET-00000000000000'});
+  const item={id:target.outboxId,token:lease().query_token,phone,reference:'REQ-SYNTHETIC',audience:'operations',action:'created',language:'ar',request_id:target.requestId,recipient_user_id:target.recipientUserId};
+  const db={rpc:async(name)=>{if(name==='claim_kapso_drive_whatsapp_target')return {data:item,error:null};if(name==='finish_drive_whatsapp'){if(finish==='throw')throw Error('SYNTHETIC_PRIVATE_DB_DETAIL');return {data:finish==='ok',error:finish==='error'?Error('SYNTHETIC_PRIVATE_DB_DETAIL'):null};}return {data:true,error:null};}};
+  const call=recovery.dispatchKapsoTarget(db,config,target,async()=>{posts++;return Response.json({messaging_product:'whatsapp',contacts:[{input:phone.slice(1),wa_id:phone.slice(1)}],messages:[{id:sid}]});});
+  if(finish==='ok')assert.equal(await call,'accepted');else await assert.rejects(call,/RESULT_PERSISTENCE_UNCONFIRMED/);
+  assert.equal(posts,1);assert.equal(events.length,finish==='ok'?0:1);
+  if(events.length)assert.deepEqual(JSON.parse(JSON.stringify(events[0][1])),{outboxId:target.outboxId,messageId:sid});
+ }
+ for(const result of ['response_lost','invalid_acceptance']){
+  const events=[];const recovery=load('lib/notifications/kapso-drive-whatsapp.ts',{'./drive-whatsapp':core},{error:(...args)=>events.push(args)});let posts=0;
+  const item={id:target.outboxId,token:lease().query_token,phone,reference:'REQ-SYNTHETIC',audience:'operations',action:'created',language:'ar',request_id:target.requestId,recipient_user_id:target.recipientUserId};
+  const db={rpc:async(name)=>({data:name==='claim_kapso_drive_whatsapp_target'?item:name==='finish_drive_whatsapp'?false:true,error:null})};
+  await assert.rejects(recovery.dispatchKapsoTarget(db,recovery.kapsoConfig(env),target,async()=>{posts++;if(result==='response_lost')throw Error('SYNTHETIC_PRIVATE_PROVIDER_DETAIL');return Response.json({messaging_product:'whatsapp',contacts:[],messages:[{id:sid}]});}),/RESULT_PERSISTENCE_UNCONFIRMED/);
+  assert.equal(posts,1);assert.equal(events.length,0);
+ }
+});
 test('null claim or missing persisted WAMID never queries the provider',async()=>{
  assert.equal((await query.handleKapsoTargetReconcile(request(),env,()=>store(null),noFetch)).status,200);
  for(const patch of [{provider_sid:null},{provider_sid:'../other'},{phone_number_id:'10000000999'},{request_id:lease().window_id},{outbox_id:lease().window_id},{recipient_user_id:lease().window_id},{language:'en'},{category:'customer.confirm'},{expires_at:'invalid'},{expires_at:'2000-01-01T00:00:00Z'}]){
@@ -78,6 +108,14 @@ test('non-settling HTTP and body transports obey the whole-operation deadline',a
  for(const fetcher of [()=>new Promise(()=>{}),async()=>new Response(new ReadableStream({start(){},cancel(){return new Promise(()=>{});}}),{headers:{'content-type':'application/json'}})]){
   const db=store();const started=Date.now();const r=await query.handleKapsoTargetReconcile(request(),env,()=>db,fetcher,20);assert.equal(r.status,503);assert.equal((await r.json()).reason,'QUERY_DEADLINE');assert.ok(Date.now()-started<500);assert.equal(db.calls.length,1);
  }
+});
+test('a non-ending inbound request is a deadline, with zero database or provider access',async()=>{
+ let cancelled=false;
+ const inbound=new Request('https://qa.example.invalid/api/internal/drive-whatsapp/reconcile-target',{method:'POST',headers:{authorization:'Bearer '+env.DIR3COM_WHATSAPP_WORKER_SECRET,'content-type':'application/json'},body:new ReadableStream({start(){},cancel(){cancelled=true;}}),duplex:'half'});
+ const response=await query.handleKapsoTargetReconcile(inbound,env,noStore,noFetch,20);
+ assert.equal(response.status,503);assert.deepEqual(await response.json(),{error:'QUERY_UNCONFIRMED',reason:'QUERY_DEADLINE'});assert.equal(cancelled,true);
+ const malformed=new Request(inbound.url,{method:'POST',headers:{authorization:'Bearer '+env.DIR3COM_WHATSAPP_WORKER_SECRET,'content-type':'application/json'},body:'{SYNTHETIC_PRIVATE_BAD_JSON'});
+ const invalid=await query.handleKapsoTargetReconcile(malformed,env,noStore,noFetch);assert.equal(invalid.status,400);assert.deepEqual(await invalid.json(),{error:'INVALID_TARGET'});
 });
 test('database reservation or completion uncertainty never reports recorded delivery',async()=>{
  const r=await query.handleKapsoTargetReconcile(request(),env,()=>({rpc:()=>new Promise(()=>{})}),noFetch,20);assert.equal(r.status,503);assert.equal((await r.json()).reason,'QUERY_DEADLINE');
