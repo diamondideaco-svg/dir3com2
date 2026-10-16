@@ -6,7 +6,10 @@ type Environment = Record<string, string | undefined>;
 type Template = { name: string; languageCode: string; bodyParameterNames?: [string, string] };
 export type KapsoCategory = 'operations.created' | `customer.${OutboxItem['action']}`;
 const CATEGORIES: readonly KapsoCategory[] = ['operations.created', 'customer.created', 'customer.review', 'customer.confirm', 'customer.decline', 'customer.customer_accept'];
-export type KapsoConfig = { apiKey: string; phoneNumberId: string; webhookSecret: string; siteUrl: string; templates: Partial<Record<`${KapsoCategory}.${'ar' | 'en'}`, Template>> };
+type KapsoSender = { apiKey: string; phoneNumberId: string; siteUrl: string; templates: Partial<Record<`${KapsoCategory}.${'ar' | 'en'}`, Template>> };
+export type KapsoConfig = KapsoSender & (
+  { deliveryMode: 'webhook'; webhookSecret: string } | { deliveryMode: 'provider_query' }
+);
 const PATH = '/api/webhooks/kapso/drive-whatsapp';
 const MESSAGE_ID = /^wamid\.[A-Za-z0-9_+/=-]{1,250}$/;
 function object(value: unknown): Record<string, unknown> | null {
@@ -23,9 +26,16 @@ export function kapsoConfig(env: Environment): KapsoConfig | null {
   // Exact explicit categories only; absence, duplicates and unknown categories fail closed.
   const categories = (env.DIR3COM_WHATSAPP_CATEGORIES ?? '').split(',');
   if (new Set(categories).size !== categories.length || categories.some(key => !CATEGORIES.includes(key as KapsoCategory))) return null;
-  const receipt = receiptConfig(env);
+  const deliveryMode = env.DIR3COM_WHATSAPP_DELIVERY_MODE ?? 'webhook';
+  if (deliveryMode !== 'webhook' && deliveryMode !== 'provider_query') return null;
+  // Query delivery is an explicit single-Operations-target mode, never a queue fallback.
+  if (deliveryMode === 'provider_query' && (env.DIR3COM_WHATSAPP_DISPATCH_MODE === 'general'
+    || categories.length !== 1 || categories[0] !== 'operations.created')) return null;
+  const phoneNumberId = env.KAPSO_PHONE_NUMBER_ID ?? '';
+  const receipt = deliveryMode === 'webhook' ? receiptConfig(env) : null;
   const apiKey = env.KAPSO_API_KEY ?? '';
-  if (!receipt || apiKey.length < 16 || apiKey.length > 512 || /\s/.test(apiKey)) return null;
+  if (!/^[0-9]{5,32}$/.test(phoneNumberId) || (deliveryMode === 'webhook' && !receipt)
+    || apiKey.length < 16 || apiKey.length > 512 || /\s/.test(apiKey)) return null;
   try {
     const site = new URL(env.DIR3COM_WHATSAPP_SITE_URL ?? '');
     if (site.protocol !== 'https:' || site.username || site.password || site.pathname !== '/' || site.search || site.hash) return null;
@@ -46,10 +56,13 @@ export function kapsoConfig(env: Environment): KapsoConfig | null {
         ...(Array.isArray(names) ? { bodyParameterNames: [names[0], names[1]] as [string, string] } : {}) };
     }
     if (categories.some(category => !Object.keys(templates).some(key => key.startsWith(`${category}.`)))) return null;
-    return { ...receipt, apiKey, siteUrl: site.origin, templates };
+    const sender = { phoneNumberId, apiKey, siteUrl: site.origin, templates };
+    return deliveryMode === 'webhook' && receipt
+      ? { ...sender, deliveryMode, webhookSecret: receipt.webhookSecret }
+      : { ...sender, deliveryMode: 'provider_query' };
   } catch { return null; }
 }
-async function bodyBytes(message: Request | Response, limit: number, signal?: AbortSignal): Promise<Buffer> {
+export async function bodyBytes(message: Request | Response, limit: number, signal?: AbortSignal): Promise<Buffer> {
   if (!message.body) return Buffer.alloc(0);
   const reader = message.body.getReader();
   const chunks: Uint8Array[] = []; let length = 0;
@@ -68,7 +81,7 @@ async function bodyBytes(message: Request | Response, limit: number, signal?: Ab
 }
 // Bound the whole callback, including slow bodies and database transport. A late
 // commit is safe: delivery ingestion is transactional and semantically deduplicated.
-function beforeDeadline<T>(value: PromiseLike<T>, signal?: AbortSignal): Promise<T> {
+export function beforeDeadline<T>(value: PromiseLike<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return Promise.resolve(value);
   return new Promise<T>((resolve, reject) => {
     const abort = () => { signal.removeEventListener('abort', abort); reject(new Error('CALLBACK_DEADLINE')); };
@@ -110,6 +123,7 @@ export async function sendKapsoTemplate(config: KapsoConfig, item: OutboxItem, f
   } catch { return { outcome: 'unknown', sid: null, error: 'SEND_OUTCOME_UNKNOWN' }; }
 }
 export async function dispatchKapsoOne(store: NotificationStore, config: KapsoConfig, fetcher: typeof fetch = fetch) {
+  if (config.deliveryMode === 'provider_query') return 'not_sent';
   const claim = await store.rpc('claim_kapso_drive_whatsapp', { p_template_keys: Object.keys(config.templates) });
   if (claim.error) throw new Error('CLAIM_FAILED');
   if (claim.data === null) return 'idle';
@@ -119,7 +133,9 @@ export async function dispatchKapsoOne(store: NotificationStore, config: KapsoCo
 }
 async function dispatchClaimedKapso(store: NotificationStore, config: KapsoConfig, item: OutboxItem, fetcher: typeof fetch) {
   if (!configuredTemplate(config, item)) return 'not_sent';
-  const start = await store.rpc('begin_kapso_drive_whatsapp', { p_id: item.id, p_token: item.token, p_phone_number_id: config.phoneNumberId });
+  const start = await store.rpc(config.deliveryMode === 'provider_query'
+    ? 'begin_kapso_drive_whatsapp_provider_query' : 'begin_kapso_drive_whatsapp',
+  { p_id: item.id, p_token: item.token, p_phone_number_id: config.phoneNumberId });
   if (start.error) throw new Error('SEND_INTENT_UNCONFIRMED');
   if (start.data !== true) return 'not_sent';
   const result = await sendKapsoTemplate(config, item, fetcher);

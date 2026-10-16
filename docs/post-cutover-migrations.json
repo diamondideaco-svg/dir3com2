@@ -94,5 +94,11 @@
     "sha256": "f989c162f155aa34d2e2c17d949357d1316ec73ffcd88ba4d5f779ba2aee901f",
     "task": "#199",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261016031829_task199_provider_query_delivery.sql",
+    "sha256": "d32b5fec3583a3f75e58ca72727e9bdfdc3610439b5980f2ac6242eb8a788d4a",
+    "task": "#199",
+    "production_apply_authorized": false
   }
 ]

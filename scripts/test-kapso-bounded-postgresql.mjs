@@ -22,6 +22,7 @@ export async function runBoundedContractAcceptance({db,connectPeer,request,reque
  const accepted=(sid,to)=>new Response(JSON.stringify({messaging_product:'whatsapp',contacts:[{input:to,wa_id:to}],messages:[{id:sid}]}),{status:200});
  const fake=async(_url,options)=>{sends++;return accepted('wamid.BOUNDED_'+sends,JSON.parse(options.body).to);};
  await db.exec(fs.readFileSync('supabase/migrations/20261015212723_task199_bounded_whatsapp_execution.sql','utf8'));
+ await db.exec(fs.readFileSync('supabase/migrations/20261016031829_task199_provider_query_delivery.sql','utf8')); // Existing webhook regressions also exercise the new wrappers.
  equal(await scalar('SELECT dispatch_mode FROM drive_notification_private.settings'),'target_only','new mode defaults closed');
  await db.exec('ALTER TABLE public.drive_request_events ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT clock_timestamp()');
  const fixture=async(label,open=true)=>{
