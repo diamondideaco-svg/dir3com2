@@ -34,23 +34,28 @@ function records(owner = workMode, reviewer = 'Codex Desktop') {
 
 async function validate(input = records(), unavailable = false) {
   const failures = []; const queries = []; const summaries = [];
+  const predicateCalls = []; const receiptQueries = [];
   await runInNewContext(`(async () => {\n${source}\n})()`, {
     require(path) {
       assert.equal(path, './.github/scripts/codex-governance.cjs');
-      return loadValidator('./.github/scripts/codex-governance.cjs');
+      const actual = loadValidator('./.github/scripts/codex-governance.cjs');
+      return { ...actual, requiresReviewerReceipt(body) {
+        predicateCalls.push(body);
+        return actual.requiresReviewerReceipt(body);
+      } };
     },
     context: { payload: { pull_request: input.pr }, repo: { owner: 'fixture-owner', repo: 'fixture-repo' } },
     github: { rest: { issues: { async get(query) {
       queries.push({ ...query });
       if (unavailable) throw new Error('fixture unavailable');
       return { data: input.issue };
-    }, async getComment() { if (!input.receipt) throw new Error('missing receipt'); return { data: input.receipt }; } } } },
+    }, async getComment(query) { receiptQueries.push({ ...query }); if (!input.receipt) throw new Error('missing receipt'); return { data: input.receipt }; } } } },
     core: {
       summary: { addRaw(value) { summaries.push(value); return { async write() {} }; } },
       setFailed(message) { failures.push(message); },
     },
   }, { timeout: 1000 });
-  return { failures, queries, summaries };
+  return { failures, queries, summaries, predicateCalls, receiptQueries };
 }
 
 for (const [owner, reviewer] of [
@@ -68,7 +73,7 @@ for (const [owner, reviewer] of [
 const denied = [
   ['unknown owner', value => { value.pr.body = value.pr.body.replace(workMode, 'Other Agent'); }, /Implementation owner must be/],
   ['owner suffix impersonation', value => { value.pr.body = value.pr.body.replace(workMode, 'Codex Desktop — ChatGPT Work Mode'); }, /Implementation owner must be/],
-  ['same Desktop owner and reviewer', value => Object.assign(value, records('Codex Desktop', 'Codex Desktop')), /must be different/],
+  ['Desktop pair without strict session/receipt evidence', value => Object.assign(value, records('Codex Desktop', 'Codex Desktop')), /must be different/],
   ['Work Mode reviewer without session assignment remains denied', value => Object.assign(value, records('VS Code Codex', workMode)), /Independent reviewer must be/],
   ['unknown reviewer', value => { value.pr.body = value.pr.body.replace('- Independent reviewer: Codex Desktop', '- Independent reviewer: Other Agent'); }, /Independent reviewer must be/],
   ['missing Task', value => { value.pr.body = value.pr.body.replace('- Task: #167', ''); }, /Task must reference exactly one/],
@@ -151,4 +156,84 @@ for (const [name, mutate, reason] of [
   ['unavailable receipt', v => { delete v.receipt; }, /could not be verified/],
 ]) {
   test(`conditional Work Mode review denies ${name}`, async () => { const value = workModeReview(); mutate(value); assert.match((await validate(value)).failures.join('\n'), reason); });
+}
+
+
+const desktopOwnerSession = 'abcdefab-1234-4abc-8def-123456789abc';
+const desktopReviewSession = 'bcdefabc-2345-4bcd-8efa-23456789abcd';
+function desktopReview() {
+  const value = workModeReview('Codex Desktop');
+  value.pr.body = value.pr.body.replace(`Implementation owner: ${workMode}`, 'Implementation owner: Codex Desktop');
+  value.issue.body = value.issue.body.replace(`## Implementation owner\n${workMode}`, '## Implementation owner\nCodex Desktop');
+  for (const body of [value.pr, value.issue, value.receipt]) {
+    body.body = body.body.replaceAll(ownerSession, desktopOwnerSession).replaceAll(reviewSession, desktopReviewSession);
+  }
+  return value;
+}
+function changeDesktopField(value, label, replacement) {
+  value.pr.body = value.pr.body.replace(`- ${label}: ${label === 'Implementation session' ? desktopOwnerSession : desktopReviewSession}`, `- ${label}: ${replacement}`);
+  value.issue.body = value.issue.body.replace(`## ${label}\n${label === 'Implementation session' ? desktopOwnerSession : desktopReviewSession}`, `## ${label}\n${replacement}`);
+  value.receipt.body = value.receipt.body.replace(`- ${label}: ${label === 'Implementation session' ? desktopOwnerSession : desktopReviewSession}`, `- ${label}: ${replacement}`);
+}
+
+test('distinct truthful Desktop sessions use the shared strict fetch predicate', async () => {
+  const value = desktopReview();
+  const result = await validate(value);
+  assert.deepEqual(result.failures, []);
+  assert.deepEqual(result.predicateCalls, [value.pr.body]);
+  assert.deepEqual(result.receiptQueries, [{ owner: 'fixture-owner', repo: 'fixture-repo', comment_id: 12345 }]);
+});
+
+test('shared predicate preserves Work Mode aliases and unrelated cross-surface behavior', async () => {
+  const { requiresReviewerReceipt } = loadValidator('./.github/scripts/codex-governance.cjs');
+  for (const name of [workMode, 'Codex - ChatGPT Work Mode', 'ChatGPT Work Model']) {
+    const value = workModeReview(name);
+    const result = await validate(value);
+    assert.equal(requiresReviewerReceipt(value.pr.body), true);
+    assert.deepEqual(result.failures, []);
+    assert.deepEqual(result.predicateCalls, [value.pr.body]);
+    assert.equal(result.receiptQueries.length, 1);
+  }
+  for (const pair of [['Codex Desktop', 'VS Code Codex'], ['VS Code Codex', 'Codex Desktop'], [workMode, 'Codex Desktop']]) {
+    const value = records(...pair);
+    assert.equal(requiresReviewerReceipt(value.pr.body), false);
+    assert.deepEqual((await validate(value)).receiptQueries, []);
+  }
+  assert.equal(requiresReviewerReceipt(records('VS Code Codex', 'VS Code Codex').pr.body), false);
+  assert.match((await validate(records('VS Code Codex', 'VS Code Codex'))).failures.join('\n'), /must be different/);
+});
+
+for (const [name, mutate, reason] of [
+  ['same session', v => changeDesktopField(v, 'Reviewer session', desktopOwnerSession), /different sessions/],
+  ['same session with UUID case changes', v => changeDesktopField(v, 'Reviewer session', desktopOwnerSession.toUpperCase()), /different sessions/],
+  ['missing reviewer session', v => { v.pr.body = v.pr.body.replace(`- Reviewer session: ${desktopReviewSession}`, ''); }, /concrete implementation and reviewer session/],
+  ['missing owner session', v => { v.pr.body = v.pr.body.replace(`- Implementation session: ${desktopOwnerSession}`, ''); }, /concrete implementation and reviewer session/],
+  ['invalid reviewer UUID', v => changeDesktopField(v, 'Reviewer session', 'not-a-uuid'), /concrete implementation and reviewer session/],
+  ['invalid owner UUID', v => changeDesktopField(v, 'Implementation session', 'not-a-uuid'), /concrete implementation and reviewer session/],
+  ['Task reviewer session mismatch', v => { v.issue.body = v.issue.body.replace(desktopReviewSession, desktopOwnerSession); }, /Task Reviewer session must match/],
+  ['Task owner session mismatch', v => { v.issue.body = v.issue.body.replace(desktopOwnerSession, desktopReviewSession); }, /Task Implementation session must match/],
+  ['missing receipt ID', v => { v.pr.body = v.pr.body.replace('- Reviewer receipt: 12345', ''); }, /matching Task/],
+  ['invalid receipt ID', v => { v.pr.body = v.pr.body.replace('- Reviewer receipt: 12345', '- Reviewer receipt: invalid'); }, /matching Task/],
+  ['Task receipt mismatch', v => { v.issue.body = v.issue.body.replace('## Reviewer receipt\n12345', '## Reviewer receipt\n99999'); }, /Task Reviewer receipt must match/],
+  ['unavailable fetched receipt', v => { delete v.receipt; }, /could not be verified/],
+  ['foreign Task receipt', v => { v.receipt.issue_url = 'https://api.github.com/repos/fixture-owner/fixture-repo/issues/999'; }, /matching Task/],
+  ['foreign repository receipt', v => { v.receipt.issue_url = 'https://api.github.com/repos/other/fixture-repo/issues/167'; }, /matching Task/],
+  ['wrong fetched receipt ID', v => { v.receipt.id = 99999; }, /matching Task/],
+  ['stale receipt SHA', v => { v.receipt.body = v.receipt.body.replace(sha, 'c'.repeat(40)); }, /Target SHA/],
+  ['stale PR SHA', v => { v.pr.body = v.pr.body.replace(sha, 'c'.repeat(40)); }, /actual PR head SHA/],
+  ['author participation', v => { v.receipt.body = v.receipt.body.replace('Reviewer authorship: none', 'Reviewer authorship: implementation'); }, /Reviewer authorship/],
+  ['fix participation', v => { v.receipt.body = v.receipt.body.replace('Reviewer authorship: none', 'Reviewer authorship: fixes'); }, /Reviewer authorship/],
+  ['wrong receipt role', v => { v.receipt.body = v.receipt.body.replace('Reviewer role: independent reviewer', 'Reviewer role: implementation owner'); }, /Reviewer role/],
+  ['mismatched truthful reviewer', v => { v.receipt.body = v.receipt.body.replace('Independent reviewer: Codex Desktop', 'Independent reviewer: VS Code Codex'); }, /Independent reviewer/],
+  ['duplicate receipt field', v => { v.receipt.body += '\n- Reviewer authorship: none'; }, /Reviewer authorship/],
+  ['duplicate PR session', v => { v.pr.body += `\n- Reviewer session: ${desktopReviewSession}`; }, /concrete implementation and reviewer session/],
+  ['duplicate Task session', v => { v.issue.body += `\n## Reviewer session\n${desktopReviewSession}`; }, /Task Reviewer session must match/],
+  ['duplicate PR reviewer', v => { v.pr.body += '\n- Independent reviewer: Codex Desktop'; }, /Independent reviewer must be/],
+  ['unsupported owner identity', v => { v.pr.body = v.pr.body.replace('Implementation owner: Codex Desktop', 'Implementation owner: Other Agent'); }, /Implementation owner must be/],
+  ['unsupported reviewer identity', v => { v.pr.body = v.pr.body.replace('Independent reviewer: Codex Desktop', 'Independent reviewer: Other Agent'); }, /Independent reviewer must be/],
+]) {
+  test(`strict Desktop review denies ${name}`, async () => {
+    const value = desktopReview(); mutate(value);
+    assert.match((await validate(value)).failures.join('\n'), reason);
+  });
 }

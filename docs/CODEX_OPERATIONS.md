@@ -90,7 +90,7 @@ The **Codex Governance Gate** workflow validates pull request metadata without e
 - the Task is not a verifiable GitHub issue whose title starts with `[Codex Task]`, or it points to a pull request;
 - owner, reviewer, branch, target SHA, or verdict is missing;
 - the implementation owner is not exactly `Codex Desktop`, `VS Code Codex`, or `Codex — ChatGPT Work Mode`, or the reviewer is outside Desktop/VS Code/Codex Security or the explicitly assigned separate Work Mode review role;
-- owner and reviewer are identical surfaces, except that matching Work Mode labels require distinct concrete session IDs and the non-author receipt checks below;
+- owner and reviewer are identical surfaces, except that Work Mode review and Desktop/Desktop review require distinct concrete session IDs and the fetched non-author receipt checks below;
 - the declared branch differs from the actual pull request branch;
 - the target SHA differs from the actual pull request head;
 - the PR verdict is not exactly `IN_PROGRESS`, `REVIEW`, `PASS`, `FAIL`, or `BLOCKED`.
@@ -106,6 +106,12 @@ The owner explicitly requested correction of the existing reviewer naming mismat
 When the reviewer uses a Work Mode name, Task and PR must both contain `Implementation session`, `Reviewer session` (full session UUIDs), and `Reviewer receipt` (numeric Task comment ID). The sessions must differ, including case-insensitive comparison. GitHub fetches that receipt from the same repository/Task; PR text alone cannot supply it. The receipt must contain exactly one bullet for `Independent reviewer`, `Implementation session`, `Reviewer session`, `Target SHA`, `Reviewer role: independent reviewer`, and `Reviewer authorship: none`, matching the assignment/artifact. Missing, duplicate, mismatched, foreign-Task, unavailable or stale receipts fail closed. A receipt acknowledging prior authorship cannot qualify. The current free-form receiving ACK must be supplemented with these exact fields before this automated gate can pass; its publication alone is not approval.
 
 The receipt is a traceability/non-authorship attestation, not cryptographic proof of runtime identity or truthful independence. Control Tower verifies actual separate-session participation; label normalization alone never satisfies this requirement. Implementation/fix participants cannot review their own artifact under another name. Review findings stay read-only; owner applies fixes and each later commit requires fresh exact-artifact review. Functional and distinct security coverage remain separate, and no build, QA, merge or Production requirement is waived. Old Task186/Task187 exceptions do not transfer.
+
+### Desktop session review correction — 2026-10-16
+
+Task199 direction6215450700 extends the existing strict receipt path to a truthful Codex Desktop owner and Codex Desktop reviewer with an explicit recorded assignment. It does not permit same-session or author review. Task and PR must match on full implementation/reviewer UUIDs and numeric reviewer receipt ID; UUID comparison rejects the same session regardless of letter case. GitHub must actually fetch that comment from the same Task, and its six unique fields must match the truthful reviewer, both sessions, actual head SHA, independent reviewer role and authorship none. Missing, invalid, unavailable, foreign-Task, duplicate, mismatched, author or stale receipts fail closed.
+
+The workflow and validator use the same exported receipt-eligibility predicate. Existing Work Mode handling and unrelated cross-surface rules remain unchanged; identical VS Code labels do not acquire this exception. Receiving-session qualification and original source review scope still require evidence. A documentary reconciliation remains an attestation, not runtime identity proof, a fresh full source review or native GitHub approval. New code requires exact-delta independent review and a refreshed receipt. No token permissions, branch protection, merge/Production requirements, Task201 inactive v2 trust or historical decisions change. Task196's artifact exception is not reused.
 
 ## Merge boundaries
 

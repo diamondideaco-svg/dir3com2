@@ -25,6 +25,12 @@ function issueField(body, label) {
   }
   return section.length === 1 ? section[0] : '';
 }
+// One predicate for both workflow fetching and strict validator requirements.
+function requiresReviewerReceipt(prBody) {
+  const owner = identity(prField(prBody, 'Implementation owner'));
+  const reviewer = identity(prField(prBody, 'Independent reviewer'));
+  return reviewer === ALLOWED_OWNERS[2] || (owner === 'Codex Desktop' && reviewer === 'Codex Desktop');
+}
 function validate(input) {
   const labels = ['Task','Implementation owner','Independent reviewer','Branch','Target SHA','Base SHA','Worktree','Last verified result','Next action','Verdict'];
   const record = Object.fromEntries(labels.map(label => [label, prField(input.prBody, label)]));
@@ -43,7 +49,7 @@ function validate(input) {
   const owner = identity(record['Implementation owner']), reviewer = identity(record['Independent reviewer']);
   if (!ALLOWED_OWNERS.includes(owner)) failures.push('Implementation owner must be Codex Desktop, VS Code Codex, or Codex - ChatGPT Work Mode.');
   if (!ALLOWED_REVIEWERS.includes(reviewer) && reviewer !== ALLOWED_OWNERS[2]) failures.push('Independent reviewer must be an assigned Codex Desktop, VS Code Codex, Codex Security, or separate Codex - ChatGPT Work Mode session.');
-  if (reviewer === ALLOWED_OWNERS[2]) {
+  if (requiresReviewerReceipt(input.prBody)) {
     const sessionFields = ['Implementation session', 'Reviewer session', 'Reviewer receipt'];
     for (const label of sessionFields) {
       record[label] = prField(input.prBody, label);
@@ -72,4 +78,4 @@ function validate(input) {
   if (!ALLOWED_VERDICTS.includes(record.Verdict)) failures.push('Verdict must be IN_PROGRESS, REVIEW, PASS, FAIL, or BLOCKED.');
   return { record, failures };
 }
-module.exports = { validate };
+module.exports = { validate, requiresReviewerReceipt };

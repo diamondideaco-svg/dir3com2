@@ -81,7 +81,7 @@ A surface must state its identity, task, branch, PR, owner/reviewer role, and ta
 ## Cross-Review Protocol
 
 - One PR has one implementation owner. Reviewers do not modify the owner's branch. A Work Mode reviewer must be a separate session that did not implement or fix the reviewed artifact; same-session or author review is prohibited even under another display name.
-- Codex Desktop and VS Code Codex may review each other, but never while both are editing the same PR.
+- Codex Desktop and VS Code Codex may review each other, but never while both are editing the same PR. Desktop may also review another Desktop session only with an explicit recorded assignment, distinct session UUIDs and the fetched exact-artifact non-author receipt required by `docs/CODEX_OPERATIONS.md`. Same-session or author review is prohibited; a matching label is not proof of independence.
 - Every review records the exact commit SHA. A code change invalidates earlier approvals until the reviewers evaluate the new SHA.
 - The implementation owner receives findings, applies fixes, publishes a new SHA, and requests re-review.
 - Functional review and security review are distinct. Security-sensitive scope requires a dedicated security pass; when TAC/Codex Security is unavailable, record that limitation and perform the strongest available standard security review without claiming specialized coverage.

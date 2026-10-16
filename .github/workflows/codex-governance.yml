@@ -28,7 +28,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const { validate } = require('./.github/scripts/codex-governance.cjs');
+            const { validate, requiresReviewerReceipt } = require('./.github/scripts/codex-governance.cjs');
             const pr = context.payload.pull_request;
             const body = pr.body || '';
             const taskMatch = body.match(/^[-*]\s*Task\s*:\s*#([0-9]+)\s*$/im);
@@ -47,8 +47,7 @@ jobs:
               }
             }
             let reviewerReceipt;
-            const reviewerName = body.match(/^[-*]\s*Independent reviewer\s*:\s*(.+)\s*$/im)?.[1]?.trim();
-            if (['Codex - ChatGPT Work Mode', 'Codex — ChatGPT Work Mode', 'ChatGPT Work Model'].includes(reviewerName)) {
+            if (requiresReviewerReceipt(body)) {
               const receiptId = body.match(/^[-*]\s*Reviewer receipt\s*:\s*([1-9][0-9]*)\s*$/im)?.[1];
               if (receiptId) {
                 try {
