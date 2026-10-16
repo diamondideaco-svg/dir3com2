@@ -96,6 +96,7 @@ export async function runTask199Trial(operation: unknown, origin: string | null,
         p_approval_reference: 'Task199-6223033225-one-trial', p_expires_at: new Date(expires).toISOString(),
       });
       if (opened.error || typeof opened.data !== 'string' || !UUID.test(opened.data)) return result('START_UNCONFIRMED');
+      cleanup = { id: opened.data, secret };
       const body = opened.data + '.' + expires;
       // A MAC binds the server-created window to this immutable tuple. No worker
       // credential, WAMID, contact, arbitrary target or URL reaches the browser.

@@ -180,3 +180,26 @@ test('adapter forbids target fields, pins fresh canonical CEO, and uses a scoped
   const controls = readFileSync('app/admin/task199-trial/controls.tsx', 'utf8');
   assert.ok(!controls.includes('WORKER_SECRET')); assert.ok(!controls.includes('outboxId')); assert.ok(!controls.includes('windowId'));
 });
+
+test('cookie publication failure after durable open stops the confirmed new window without retrying send', async () => {
+  const f = fixture();
+  f.ctx.writeTicket = () => { throw new Error('SYNTHETIC_COOKIE_PUBLICATION_FAILURE'); };
+  const response = await f.run();
+  assert.equal(response.code, 'UNCONFIRMED');
+  assert.equal(response.stopped, true);
+  assert.equal(f.ticket(), undefined);
+  assert.deepEqual(f.calls.map(call => call.kind), ['open_kapso_drive_whatsapp_provider_query_window', 'stop']);
+  assert.equal((await f.run('dispatch')).code, 'NO_WINDOW');
+  assert.equal((await f.run('start')).code, 'START_UNCONFIRMED');
+  assert.equal(f.sends(), 0); assert.equal(f.queries(), 0);
+});
+
+test('failed stop after cookie publication failure never claims cleanup or enables a retry', async () => {
+  const f = fixture(); f.stopError();
+  f.ctx.writeTicket = () => { throw new Error('SYNTHETIC_COOKIE_PUBLICATION_FAILURE'); };
+  const response = await f.run();
+  assert.equal(response.code, 'UNCONFIRMED'); assert.equal(response.stopped, false);
+  assert.equal((await f.run('start')).code, 'START_UNCONFIRMED');
+  assert.equal((await f.run('dispatch')).code, 'NO_WINDOW');
+  assert.equal(f.sends(), 0); assert.equal(f.queries(), 0);
+});
