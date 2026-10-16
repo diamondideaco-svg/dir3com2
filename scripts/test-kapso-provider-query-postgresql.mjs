@@ -5,14 +5,31 @@ import vm from 'node:vm';
 import * as crypto from 'node:crypto';
 import ts from 'typescript';
 function load(file,deps={}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,Buffer,URL,URLSearchParams,Request,Response,AbortSignal,AbortController,setTimeout,clearTimeout,fetch:async()=>assert.fail('Live provider forbidden'),require(name){if(name==='server-only')return {};if(name==='node:crypto')return crypto;if(name in deps)return deps[name];throw Error(name);}});return exports;}
+async function assertProviderQuerySchema(db){
+ const shape=(await db.query(`SELECT
+  to_regprocedure('public.open_kapso_drive_whatsapp_provider_query_window(uuid,uuid,uuid,text,text,text,text,timestamptz)') IS NOT NULL
+   AND to_regprocedure('public.begin_kapso_drive_whatsapp_provider_query(uuid,uuid,text)') IS NOT NULL
+   AND to_regprocedure('public.claim_kapso_drive_whatsapp_status_query(uuid,uuid,uuid,text,text,text)') IS NOT NULL
+   AND to_regprocedure('public.finish_kapso_drive_whatsapp_status_query(uuid,uuid,text,text,text,text)') IS NOT NULL AS rpc,
+  (SELECT count(*)=7 FROM pg_attribute WHERE attrelid=to_regclass('drive_notification_private.execution_windows')
+   AND NOT attisdropped AND (attname,format_type(atttypid,atttypmod)) IN
+   (('delivery_mode','text'),('status_query_attempts','integer'),('query_lease_token','uuid'),('query_lease_until','timestamp with time zone'),
+    ('query_available_at','timestamp with time zone'),('last_query_outcome','text'),('outbox_id','uuid'))) AS columns,
+  (SELECT count(*)=2 FROM pg_constraint WHERE conrelid=to_regclass('drive_notification_private.execution_windows')
+   AND contype='c' AND conname IN ('execution_window_delivery_binding','execution_window_query_lease')) AS bindings,
+  EXISTS(SELECT 1 FROM pg_constraint c JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attname='outbox_id'
+   WHERE c.conrelid=to_regclass('drive_notification_private.execution_windows') AND c.contype='u' AND c.conkey=ARRAY[a.attnum]) AS unique_target`)).rows[0];
+ for(const key of ['rpc','columns','bindings','unique_target'])assert.equal(shape?.[key],true,'Provider query schema prerequisite missing: '+key);
+}
 export async function runProviderQueryAcceptance({db,connectPeer,request,requestId,operations,other}){
  assert.equal(typeof connectPeer,'function','Two real isolated PostgreSQL connections required');
+ await assertProviderQuerySchema(db); // Caller owns setup; never reapply a migration here.
  const core=load('lib/notifications/drive-whatsapp.ts');
  const sender=load('lib/notifications/kapso-drive-whatsapp.ts',{'./drive-whatsapp':core});
  const api=load('lib/notifications/kapso-provider-query.ts',{'./drive-whatsapp':core,'./kapso-drive-whatsapp':sender});
  const phone='+10000000003',phoneId='10000000000166',webhook='00000000-0000-4000-8000-000000000777';
  const env={DIR3COM_WHATSAPP_ENABLED:'true',DIR3COM_WHATSAPP_DELIVERY_MODE:'provider_query',DIR3COM_WHATSAPP_CATEGORIES:'operations.created',KAPSO_API_KEY:'SYNTHETIC-NOT-A-PROVIDER-KEY',KAPSO_PHONE_NUMBER_ID:phoneId,DIR3COM_WHATSAPP_WORKER_SECRET:'SYNTHETIC-WORKER-SECRET-000000000000',DIR3COM_WHATSAPP_SITE_URL:'https://qa.example.invalid',DIR3COM_WHATSAPP_KAPSO_TEMPLATES:JSON.stringify({'operations.created.ar':{name:'synthetic_operations',languageCode:'ar'}})};
- const config=sender.kapsoConfig(env);assert.ok(config);let checks=0,sequence=0,posts=0,gets=0;
+ const config=sender.kapsoConfig(env);assert.ok(config);let checks=4,sequence=0,posts=0,gets=0;
  const equal=(actual,expected,label)=>{assert.deepEqual(actual,expected,label);checks++;};
  const scalar=async(sql,args=[],client=db)=>Object.values((await client.query(sql,args)).rows[0])[0];
  const service=async(sql,args=[],client=db)=>{await client.query('SET ROLE service_role');try{return await scalar(sql,args,client);}finally{await client.query('RESET ROLE');}};
@@ -48,6 +65,23 @@ export async function runProviderQueryAcceptance({db,connectPeer,request,request
  const finishQuery=(lease,status,sid=lease.provider_sid,token=lease.query_token)=>service('SELECT public.finish_kapso_drive_whatsapp_status_query($1,$2,$3,$4,$5,$6)',[lease.window_id,token,sid,phoneId,phone,status]);
  const peer=await connectPeer();
  try {
+  // Actual catalog failures in the owned fixture, each rolled back before any provider I/O.
+  for(const [sql,missing] of [
+   ['ALTER FUNCTION public.claim_kapso_drive_whatsapp_status_query(uuid,uuid,uuid,text,text,text) RENAME TO synthetic_missing_query','rpc'],
+   ['ALTER TABLE drive_notification_private.execution_windows RENAME COLUMN status_query_attempts TO synthetic_missing_attempts','columns'],
+   ['ALTER TABLE drive_notification_private.execution_windows DROP CONSTRAINT execution_window_query_lease','bindings'],
+  ]){await db.exec('BEGIN');try{await db.exec(sql);await assert.rejects(assertProviderQuerySchema(db),new RegExp('schema prerequisite missing: '+missing));checks++;}finally{await db.exec('ROLLBACK');}}
+  await assertProviderQuerySchema(db);
+  const stoppedWebhook=await fixture('inherited-stop-bookkeeping','webhook');
+  const firstStop=await service("SELECT public.stop_kapso_drive_whatsapp_window($1,'manual')",[stoppedWebhook.windowId]);
+  equal(firstStop.deactivation_required,true,'webhook stop requires separate provider action');
+  const firstStamp=await scalar('SELECT stopped_at::text FROM drive_notification_private.execution_windows WHERE id=$1',[stoppedWebhook.windowId]);
+  // Simulate an external bookkeeping clear, not an implemented runtime acknowledgment API.
+  await db.query('UPDATE drive_notification_private.execution_windows SET deactivation_required=false WHERE id=$1',[stoppedWebhook.windowId]);
+  equal((await service("SELECT public.stop_kapso_drive_whatsapp_window($1,'manual')",[stoppedWebhook.windowId])).deactivation_required,true,'inherited stop reasserts webhook work after external clear');
+  equal(await scalar('SELECT stopped_at::text FROM drive_notification_private.execution_windows WHERE id=$1',[stoppedWebhook.windowId]),firstStamp,'repeated stop preserves original timestamp');
+  equal(await scalar('SELECT stop_reason FROM drive_notification_private.execution_windows WHERE id=$1',[stoppedWebhook.windowId]),'manual','repeated stop preserves original reason');
+  equal(await scalar('SELECT send_enabled FROM drive_notification_private.settings'),false,'repeated stop never enables sending');
   const concurrent=await fixture('exclusive');const old=await snapshot(concurrent),postBefore=posts;
   const sends=await Promise.all([run(concurrent,post),run(concurrent,post,peer)]);
   equal(sends.sort(),['accepted','idle'],'two workers reserve/send once');equal(posts,postBefore+1,'one POST after concurrent send');
