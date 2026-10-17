@@ -1,4 +1,5 @@
 import { execFileSync, execFile } from 'node:child_process';
+import {task187BrowserFailure} from './sandbox/task187-browser-diagnostics.mjs';
 import { randomBytes, createHmac } from 'node:crypto';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -155,8 +156,8 @@ async function main(){
   // Actual Next app + preinstalled ChromeDriver, within this same owned stack.
   report.task187Browser = await new Promise<unknown>((resolve,reject)=>{
     const child=execFile(process.execPath,['--import','tsx','scripts/test-task187-browser.ts'],
-      {timeout:300000,maxBuffer:32768},(error,stdout)=>{
-        if(error)return reject(new Error('TASK187_BROWSER_ACCEPTANCE_FAILED'));
+      {timeout:300000,maxBuffer:32768},(error,stdout,stderr)=>{
+        if(error){const failure=task187BrowserFailure(stderr);report.task187BrowserFailure=failure.diagnostic;return reject(failure.error);}
         try{resolve(JSON.parse(stdout));}catch{reject(new Error('TASK187_BROWSER_INVALID_RECEIPT'));}
       });
     child.stdin!.end(JSON.stringify({url:'http://127.0.0.1:19030',anon,password,aid,bid}));
