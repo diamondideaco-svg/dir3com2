@@ -1,4 +1,7 @@
+import { ensureSandboxServiceImage } from './sandbox/pull-service-image.mjs';
+import { ensureGoTrueImage } from './sandbox/pull-gotrue-image.mjs';
 import { execFileSync, execFile } from 'node:child_process';
+import {task187BrowserFailure} from './sandbox/task187-browser-diagnostics.mjs';
 import { randomBytes, createHmac } from 'node:crypto';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -51,7 +54,7 @@ async function main(){
   report.postgresReadiness={status:'PASS',transport:'TCP',attempts:readinessAttempts};
   console.log('LOCAL_POSTGRES_TCP_READY');
   sql("CREATE SCHEMA auth; CREATE SCHEMA extensions; CREATE EXTENSION pgcrypto WITH SCHEMA extensions; CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS; GRANT USAGE ON SCHEMA public,auth TO anon,authenticated,service_role;");
-  start('auth','public.ecr.aws/supabase/gotrue:v2.195.0',{
+  start('auth',ensureGoTrueImage(),{
     GOTRUE_DB_DATABASE_URL:'postgres://postgres:'+password+'@'+prefix+'-db:5432/postgres?search_path=auth',
     GOTRUE_DB_DRIVER:'postgres',GOTRUE_API_HOST:'0.0.0.0',GOTRUE_API_PORT:'9999',API_EXTERNAL_URL:'http://127.0.0.1:19030/auth/v1',
     GOTRUE_SITE_URL:'http://localhost:3017',GOTRUE_JWT_SECRET:secret,GOTRUE_JWT_AUD:'authenticated',GOTRUE_JWT_DEFAULT_GROUP_NAME:'authenticated',
@@ -64,11 +67,11 @@ async function main(){
   }
   for(const f of capture.functions.filter((f:{schema:string})=>f.schema==='auth'))sql(f.definition);
   sql(readFileSync('supabase/migrations/20260903215959_production_schema_baseline.sql','utf8'));
-  start('rest','public.ecr.aws/supabase/postgrest:v16.1',{
+  start('rest',ensureSandboxServiceImage('postgrest'),{
     PGRST_DB_URI:'postgres://postgres:'+password+'@'+prefix+'-db:5432/postgres',PGRST_DB_SCHEMAS:'public',
     PGRST_DB_ANON_ROLE:'anon',PGRST_JWT_SECRET:secret,PGRST_DB_EXTRA_SEARCH_PATH:'public,extensions',
   },'19031:3000');await wait('http://127.0.0.1:19031/');
-  start('storage','public.ecr.aws/supabase/storage-api:v1.70.7',{
+  start('storage',ensureSandboxServiceImage('storage'),{
     ANON_KEY:anon,SERVICE_KEY:service,AUTH_JWT_SECRET:secret,POSTGREST_URL:'http://'+prefix+'-rest:3000',
     DATABASE_URL:'postgres://postgres:'+password+'@'+prefix+'-db:5432/postgres',
     STORAGE_BACKEND:'file',FILE_STORAGE_BACKEND_PATH:'/var/lib/storage',FILE_SIZE_LIMIT:'4194304',
@@ -155,8 +158,8 @@ async function main(){
   // Actual Next app + preinstalled ChromeDriver, within this same owned stack.
   report.task187Browser = await new Promise<unknown>((resolve,reject)=>{
     const child=execFile(process.execPath,['--import','tsx','scripts/test-task187-browser.ts'],
-      {timeout:300000,maxBuffer:32768},(error,stdout)=>{
-        if(error)return reject(new Error('TASK187_BROWSER_ACCEPTANCE_FAILED'));
+      {timeout:300000,maxBuffer:32768},(error,stdout,stderr)=>{
+        if(error){const failure=task187BrowserFailure(stderr);report.task187BrowserFailure=failure.diagnostic;return reject(failure.error);}
         try{resolve(JSON.parse(stdout));}catch{reject(new Error('TASK187_BROWSER_INVALID_RECEIPT'));}
       });
     child.stdin!.end(JSON.stringify({url:'http://127.0.0.1:19030',anon,password,aid,bid}));

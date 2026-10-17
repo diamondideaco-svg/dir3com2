@@ -91,3 +91,18 @@ test('server binding diagnostic stays CEO-only and absent from public or shared 
     assert.equal(items.some((item) => item.href === diagnosticPath), false);
   }
 });
+
+test('Task199 temporary operator stays CEO-only and absent from shared discovery', () => {
+  const trialPath = '/admin/task199-trial';
+  const trial = routeCatalog.find((entry) => entry.path === trialPath);
+  assert.ok(trial, 'temporary operator needs an explicit route classification');
+  assert.equal(trial.audience, 'ceo');
+  assert.equal(trial.protected, true);
+  assert.equal(trial.discoverability, 'internal');
+  assert.equal(trial.parent, '/admin');
+  assert.equal(trial.indexable, false);
+  assert.equal(publicSitemapPaths.includes(trialPath), false);
+  for (const items of [customerNavigationItems, partnerNavigationItems, protectedNavigationItems]) {
+    assert.equal(items.some((item) => item.href === trialPath), false);
+  }
+});

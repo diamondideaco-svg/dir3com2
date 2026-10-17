@@ -103,9 +103,9 @@ jobs:
             return 1
           }
           pull_test_image postgres:17-alpine
-          pull_test_image public.ecr.aws/supabase/gotrue:v2.195.0
-          pull_test_image public.ecr.aws/supabase/postgrest:v16.1
-          pull_test_image public.ecr.aws/supabase/storage-api:v1.70.7
+          node scripts/sandbox/pull-gotrue-image.mjs
+          node scripts/sandbox/pull-service-image.mjs postgrest
+          node scripts/sandbox/pull-service-image.mjs storage
           node --import tsx scripts/test-customer-upload-local.ts
 
       - name: Active chain and immutable archive (including registered forwards)
