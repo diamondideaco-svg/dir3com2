@@ -103,7 +103,7 @@ jobs:
             return 1
           }
           pull_test_image postgres:17-alpine
-          pull_test_image public.ecr.aws/supabase/gotrue:v2.195.0
+          node scripts/sandbox/pull-gotrue-image.mjs
           pull_test_image public.ecr.aws/supabase/postgrest:v16.1
           pull_test_image public.ecr.aws/supabase/storage-api:v1.70.7
           node --import tsx scripts/test-customer-upload-local.ts
