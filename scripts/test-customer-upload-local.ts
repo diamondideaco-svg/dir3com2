@@ -1,3 +1,4 @@
+import { ensureSandboxServiceImage } from './sandbox/pull-service-image.mjs';
 import { ensureGoTrueImage } from './sandbox/pull-gotrue-image.mjs';
 import { execFileSync, execFile } from 'node:child_process';
 import {task187BrowserFailure} from './sandbox/task187-browser-diagnostics.mjs';
@@ -66,11 +67,11 @@ async function main(){
   }
   for(const f of capture.functions.filter((f:{schema:string})=>f.schema==='auth'))sql(f.definition);
   sql(readFileSync('supabase/migrations/20260903215959_production_schema_baseline.sql','utf8'));
-  start('rest','public.ecr.aws/supabase/postgrest:v16.1',{
+  start('rest',ensureSandboxServiceImage('postgrest'),{
     PGRST_DB_URI:'postgres://postgres:'+password+'@'+prefix+'-db:5432/postgres',PGRST_DB_SCHEMAS:'public',
     PGRST_DB_ANON_ROLE:'anon',PGRST_JWT_SECRET:secret,PGRST_DB_EXTRA_SEARCH_PATH:'public,extensions',
   },'19031:3000');await wait('http://127.0.0.1:19031/');
-  start('storage','public.ecr.aws/supabase/storage-api:v1.70.7',{
+  start('storage',ensureSandboxServiceImage('storage'),{
     ANON_KEY:anon,SERVICE_KEY:service,AUTH_JWT_SECRET:secret,POSTGREST_URL:'http://'+prefix+'-rest:3000',
     DATABASE_URL:'postgres://postgres:'+password+'@'+prefix+'-db:5432/postgres',
     STORAGE_BACKEND:'file',FILE_STORAGE_BACKEND_PATH:'/var/lib/storage',FILE_SIZE_LIMIT:'4194304',
