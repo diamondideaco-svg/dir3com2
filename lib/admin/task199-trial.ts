@@ -73,7 +73,7 @@ export async function runTask199Trial(operation: unknown, origin: string | null,
     if (operation !== 'start' && operation !== 'dispatch' && operation !== 'reconcile' && operation !== 'stop') return result('INVALID_OPERATION');
     if (ctx.env.VERCEL_ENV !== 'production' || ctx.hostname !== TRIAL.hostname || !ctx.store) return result('RUNTIME_REJECTED');
     const secret = ctx.env.DIR3COM_WHATSAPP_WORKER_SECRET ?? '';
-    if (secret.length < 32 || secret.length > 512) return result('NOT_CONFIGURED');
+    if (secret.length < 32 || secret.length > 512) return result('WORKER_CONFIGURATION_REQUIRED');
     const existing = ticket(ctx.readTicket(), secret);
     if (existing) cleanup = { id: existing.id, secret };
     if (operation === 'stop') return existing ? result('STOP', await stop(ctx, existing.id, secret)) : result('NO_WINDOW');
@@ -86,7 +86,7 @@ export async function runTask199Trial(operation: unknown, origin: string | null,
       || ctx.env.DIR3COM_WHATSAPP_CATEGORIES !== TRIAL.category
       || config.templates['operations.created.ar']?.name !== 'dir3com_operations_created_ar'
       || config.templates['operations.created.ar']?.languageCode !== 'ar'
-      || config.siteUrl !== 'https://dir3com.com') return result('NOT_CONFIGURED');
+      || config.siteUrl !== 'https://dir3com.com') return result('KAPSO_CONFIGURATION_REQUIRED');
     if (operation === 'start') {
       if (existing) return result('WINDOW_ALREADY_ASSIGNED');
       const expires = Math.min(ctx.now() + 9 * 60_000, TRIAL.cutoff);

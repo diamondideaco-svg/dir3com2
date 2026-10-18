@@ -6,7 +6,7 @@ import * as crypto from 'node:crypto';
 import ts from 'typescript';
 import type * as Subject from '../lib/admin/task199-trial';
 
-function fixture() {
+function fixture(configUnavailable = false) {
   let allowed = true;
   let current = Date.parse('2026-10-16T21:00:00Z');
   let value: string | undefined;
@@ -40,7 +40,7 @@ function fixture() {
       if (name === 'node:crypto') return crypto;
       if (name.endsWith('/drive-whatsapp')) return { secureEqual: (a: string, b: string) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b)) };
       if (name.endsWith('/kapso-drive-whatsapp')) return {
-        kapsoConfig: () => config,
+        kapsoConfig: () => configUnavailable ? null : config,
         handleKapsoTargetDispatch: async (request: Request) => {
           await record('dispatch', request);
           if (sends === 0) sends++;
@@ -100,10 +100,10 @@ test('unknown operation, runtime, database binding, mode, sender and template fa
   }
   const f = fixture(); f.ctx.hostname = 'wrong.supabase.co'; assert.equal((await f.run()).code, 'RUNTIME_REJECTED');
   for (const part of ['phoneNumberId', 'siteUrl'] as const) {
-    const f = fixture(); f.config[part] = 'wrong'; assert.equal((await f.run()).code, 'NOT_CONFIGURED');
+    const f = fixture(); f.config[part] = 'wrong'; assert.equal((await f.run()).code, 'KAPSO_CONFIGURATION_REQUIRED');
   }
   const template = fixture(); template.config.templates['operations.created.ar'].name = 'another_template';
-  assert.equal((await template.run()).code, 'NOT_CONFIGURED');
+  assert.equal((await template.run()).code, 'KAPSO_CONFIGURATION_REQUIRED');
 });
 test('start binds the immutable tuple to one existing window RPC and sends nothing', async () => {
   const f = fixture(); assert.equal((await f.run()).code, 'WINDOW_OPEN');
@@ -219,4 +219,24 @@ test('renewed cutoff clips the last minute, retains the nine-minute cap and stop
   const fullWindow = earlier.calls[0].body;
   assert.ok(fullWindow && typeof fullWindow === 'object' && 'p_expires_at' in fullWindow);
   assert.equal(fullWindow.p_expires_at, new Date(earlier.api.TRIAL.cutoff - 60_000).toISOString());
+});
+
+// Diagnostic delta only: synthetic fixture, no real configuration or provider access.
+test('worker configuration rejection exposes only a fixed code before any window or provider call', async () => {
+  for (const operation of ['start', 'dispatch', 'reconcile', 'stop']) {
+    const f = fixture(); delete f.env.DIR3COM_WHATSAPP_WORKER_SECRET;
+    assert.equal(JSON.stringify(await f.run(operation)), JSON.stringify({ code: 'WORKER_CONFIGURATION_REQUIRED', stopped: false }));
+    assert.equal(f.calls.length, 0); assert.equal(f.sends(), 0); assert.equal(f.queries(), 0);
+  }
+});
+
+test('Kapso configuration rejection is distinct and does not block authenticated no-window stop', async () => {
+  for (const operation of ['start', 'dispatch', 'reconcile']) {
+    const f = fixture(true);
+    assert.equal(JSON.stringify(await f.run(operation)), JSON.stringify({ code: 'KAPSO_CONFIGURATION_REQUIRED', stopped: false }));
+    assert.equal(f.calls.length, 0); assert.equal(f.sends(), 0); assert.equal(f.queries(), 0);
+  }
+  const stop = fixture(true);
+  assert.equal(JSON.stringify(await stop.run('stop')), JSON.stringify({ code: 'NO_WINDOW', stopped: false }));
+  assert.equal(stop.calls.length, 0); assert.equal(stop.sends(), 0); assert.equal(stop.queries(), 0);
 });
