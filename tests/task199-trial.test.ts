@@ -5,8 +5,21 @@ import { runInNewContext } from 'node:vm';
 import * as crypto from 'node:crypto';
 import ts from 'typescript';
 import type * as Subject from '../lib/admin/task199-trial';
+import type * as KapsoSubject from '../lib/notifications/kapso-drive-whatsapp';
 
-function fixture(configUnavailable = false) {
+const kapsoExports = {};
+runInNewContext(ts.transpileModule(readFileSync('lib/notifications/kapso-drive-whatsapp.ts', 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText, { exports: kapsoExports, URL,
+  require(name: string) {
+    if (name === 'server-only' || name === './drive-whatsapp') return {};
+    if (name === 'node:crypto') return crypto;
+    throw new Error('Unexpected dependency: ' + name);
+  },
+});
+const realKapso = kapsoExports as typeof KapsoSubject;
+
+function fixture(configUnavailable = false, useRealConfig = false) {
   let allowed = true;
   let current = Date.parse('2026-10-16T21:00:00Z');
   let value: string | undefined;
@@ -41,7 +54,8 @@ function fixture(configUnavailable = false) {
       if (name === 'node:crypto') return crypto;
       if (name.endsWith('/drive-whatsapp')) return { secureEqual: (a: string, b: string) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b)) };
       if (name.endsWith('/kapso-drive-whatsapp')) return {
-        kapsoConfig: () => configUnavailable ? null : config,
+        kapsoConfig: (env: Record<string, string | undefined>, rejected?: (code: KapsoSubject.KapsoConfigRejection) => void) =>
+          useRealConfig ? realKapso.kapsoConfig(env, rejected) : configUnavailable ? null : config,
         handleKapsoTargetDispatch: async (request: Request) => {
           await record('dispatch', request);
           if (sends === 0) sends++;
@@ -101,10 +115,10 @@ test('unknown operation, runtime, database binding, mode, sender and template fa
   }
   const f = fixture(); f.ctx.hostname = 'wrong.supabase.co'; assert.equal((await f.run()).code, 'RUNTIME_REJECTED');
   for (const part of ['phoneNumberId', 'siteUrl'] as const) {
-    const f = fixture(); f.config[part] = 'wrong'; assert.equal((await f.run()).code, 'KAPSO_CONFIGURATION_REQUIRED');
+    const f = fixture(); f.config[part] = 'wrong'; assert.equal((await f.run()).code, part === 'phoneNumberId' ? 'KAPSO_TRIAL_SENDER_MISMATCH' : 'KAPSO_TRIAL_SITE_MISMATCH');
   }
   const template = fixture(); template.config.templates['operations.created.ar'].name = 'another_template';
-  assert.equal((await template.run()).code, 'KAPSO_CONFIGURATION_REQUIRED');
+  assert.equal((await template.run()).code, 'KAPSO_TRIAL_TEMPLATE_MISMATCH');
 });
 test('start binds the immutable tuple to one existing window RPC and sends nothing', async () => {
   const f = fixture(); assert.equal((await f.run()).code, 'WINDOW_OPEN');
@@ -255,4 +269,51 @@ test('Kapso configuration rejection is distinct and does not block authenticated
   const stop = fixture(true);
   assert.equal(JSON.stringify(await stop.run('stop')), JSON.stringify({ code: 'NO_WINDOW', stopped: false }));
   assert.equal(stop.calls.length, 0); assert.equal(stop.sends(), 0); assert.equal(stop.queries(), 0);
+});
+
+test('real configuration rejection reaches only the protected operator as a fixed code with zero side effects', async () => {
+  const valid = {
+    DIR3COM_WHATSAPP_ENABLED: 'true', DIR3COM_WHATSAPP_DELIVERY_MODE: 'provider_query',
+    DIR3COM_WHATSAPP_DISPATCH_MODE: 'target_only', DIR3COM_WHATSAPP_CATEGORIES: 'operations.created',
+    KAPSO_API_KEY: 'synthetic-not-a-provider-credential', KAPSO_PHONE_NUMBER_ID: '1205896545944230',
+    DIR3COM_WHATSAPP_SITE_URL: 'https://dir3com.com',
+    DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ 'operations.created.ar': { name: 'dir3com_operations_created_ar', languageCode: 'ar' } }),
+  };
+  const cases: [Record<string, string | undefined>, string][] = [
+    [{ DIR3COM_WHATSAPP_ENABLED: 'false' }, 'KAPSO_CONFIG_ENABLED_REQUIRED'],
+    [{ DIR3COM_WHATSAPP_DELIVERY_MODE: 'invalid' }, 'KAPSO_CONFIG_DELIVERY_MODE_REJECTED'],
+    [{ DIR3COM_WHATSAPP_DISPATCH_MODE: 'general' }, 'KAPSO_CONFIG_QUERY_SCOPE_REJECTED'],
+    [{ DIR3COM_WHATSAPP_DISPATCH_MODE: 'invalid' }, 'KAPSO_TRIAL_DISPATCH_MODE_MISMATCH'],
+    [{ DIR3COM_WHATSAPP_CATEGORIES: '' }, 'KAPSO_CONFIG_CATEGORIES_REJECTED'],
+    [{ KAPSO_API_KEY: undefined }, 'KAPSO_CONFIG_API_KEY_MISSING'],
+    [{ KAPSO_API_KEY: 'bad' }, 'KAPSO_CONFIG_API_KEY_REJECTED'],
+    [{ KAPSO_API_KEY: 'x'.repeat(513) }, 'KAPSO_CONFIG_API_KEY_REJECTED'],
+    [{ KAPSO_API_KEY: 'synthetic key with whitespace' }, 'KAPSO_CONFIG_API_KEY_REJECTED'],
+    [{ KAPSO_PHONE_NUMBER_ID: 'invalid' }, 'KAPSO_CONFIG_SENDER_FORMAT_REJECTED'],
+    [{ KAPSO_PHONE_NUMBER_ID: '10000000000000' }, 'KAPSO_TRIAL_SENDER_MISMATCH'],
+    [{ DIR3COM_WHATSAPP_SITE_URL: 'invalid' }, 'KAPSO_CONFIG_SITE_REJECTED'],
+    [{ DIR3COM_WHATSAPP_SITE_URL: 'http://dir3com.com' }, 'KAPSO_CONFIG_SITE_REJECTED'],
+    [{ DIR3COM_WHATSAPP_SITE_URL: 'https://qa.example.invalid' }, 'KAPSO_TRIAL_SITE_MISMATCH'],
+    [{ DIR3COM_WHATSAPP_KAPSO_TEMPLATES: 'invalid' }, 'KAPSO_CONFIG_TEMPLATE_JSON_REJECTED'],
+    [{ DIR3COM_WHATSAPP_KAPSO_TEMPLATES: '{}' }, 'KAPSO_CONFIG_TEMPLATE_MAP_REJECTED'],
+    [{ DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ 'unknown.ar': { name: 'test', languageCode: 'ar' } }) }, 'KAPSO_CONFIG_TEMPLATE_KEY_REJECTED'],
+    [{ DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ 'operations.created.ar': { name: 'TEST', languageCode: 'ar' } }) }, 'KAPSO_CONFIG_TEMPLATE_ENTRY_REJECTED'],
+    [{ DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ 'operations.created.ar': { name: 'test', languageCode: 'ar', bodyParameterNames: ['x', 'x'] } }) }, 'KAPSO_CONFIG_TEMPLATE_PARAMETERS_REJECTED'],
+    [{ DIR3COM_WHATSAPP_KAPSO_TEMPLATES: JSON.stringify({ 'operations.created.ar': { name: 'another_template', languageCode: 'ar' } }) }, 'KAPSO_TRIAL_TEMPLATE_MISMATCH'],
+    [{ DIR3COM_WHATSAPP_DELIVERY_MODE: 'webhook', KAPSO_WEBHOOK_SECRET: undefined }, 'KAPSO_CONFIG_WEBHOOK_RECEIPT_REQUIRED'],
+    [{ DIR3COM_WHATSAPP_DELIVERY_MODE: 'webhook', KAPSO_WEBHOOK_SECRET: 'synthetic-webhook-secret'.repeat(2) }, 'KAPSO_TRIAL_DELIVERY_MODE_MISMATCH'],
+  ];
+  for (const [patch, code] of cases) {
+    const f = fixture(false, true); Object.assign(f.env, valid, patch);
+    assert.equal(JSON.stringify(await f.run('reconcile')), JSON.stringify({ code, stopped: false }));
+    assert.equal(f.calls.length, 0); assert.equal(f.sends(), 0); assert.equal(f.queries(), 0);
+    assert.equal(f.ticket(), undefined);
+    assert.equal((await f.run('stop')).code, 'NO_WINDOW');
+    f.allow(false); assert.equal((await f.run('reconcile')).code, 'FORBIDDEN');
+    f.allow(true); assert.equal((await f.run('reconcile', 'https://evil.invalid')).code, 'ORIGIN_REJECTED');
+    assert.equal(f.calls.length, 0);
+  }
+  const ready = fixture(false, true); Object.assign(ready.env, valid);
+  assert.equal((await ready.run('reconcile')).code, 'NO_WINDOW');
+  assert.equal(ready.calls.length, 0); assert.equal(ready.sends(), 0); assert.equal(ready.queries(), 0);
 });

@@ -77,13 +77,16 @@ export async function runTask199Trial(operation: unknown, origin: string | null,
     const existing = ticket(ctx.readTicket(), secret);
     if (existing) cleanup = { id: existing.id, secret };
     if (operation === 'stop') return existing ? result('STOP', await stop(ctx, existing.id, secret)) : result('NO_WINDOW');
-    const config = kapsoConfig(ctx.env);
-    if (!config || config.deliveryMode !== 'provider_query' || config.phoneNumberId !== TRIAL.sender
-      || ctx.env.DIR3COM_WHATSAPP_DISPATCH_MODE !== 'target_only'
-      || ctx.env.DIR3COM_WHATSAPP_CATEGORIES !== TRIAL.category
-      || config.templates['operations.created.ar']?.name !== 'dir3com_operations_created_ar'
-      || config.templates['operations.created.ar']?.languageCode !== 'ar'
-      || config.siteUrl !== 'https://dir3com.com') return result('KAPSO_CONFIGURATION_REQUIRED');
+    let configRejection = 'KAPSO_CONFIGURATION_REQUIRED';
+    const config = kapsoConfig(ctx.env, code => { configRejection = code; });
+    if (!config) return result(configRejection);
+    if (config.deliveryMode !== 'provider_query') return result('KAPSO_TRIAL_DELIVERY_MODE_MISMATCH');
+    if (config.phoneNumberId !== TRIAL.sender) return result('KAPSO_TRIAL_SENDER_MISMATCH');
+    if (ctx.env.DIR3COM_WHATSAPP_DISPATCH_MODE !== 'target_only') return result('KAPSO_TRIAL_DISPATCH_MODE_MISMATCH');
+    if (ctx.env.DIR3COM_WHATSAPP_CATEGORIES !== TRIAL.category) return result('KAPSO_TRIAL_CATEGORY_MISMATCH');
+    if (config.templates['operations.created.ar']?.name !== 'dir3com_operations_created_ar') return result('KAPSO_TRIAL_TEMPLATE_MISMATCH');
+    if (config.templates['operations.created.ar']?.languageCode !== 'ar') return result('KAPSO_TRIAL_LANGUAGE_MISMATCH');
+    if (config.siteUrl !== 'https://dir3com.com') return result('KAPSO_TRIAL_SITE_MISMATCH');
     if (operation === 'start') {
       if (existing) return result('WINDOW_ALREADY_ASSIGNED');
       const expires = ctx.now() + TRIAL.windowMs;

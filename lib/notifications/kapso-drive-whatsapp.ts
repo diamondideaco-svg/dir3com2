@@ -35,46 +35,68 @@ export function receiptConfig(env: Environment) {
   return /^[0-9]{5,32}$/.test(phoneNumberId) && webhookSecret.length >= 32 && webhookSecret.length <= 512
     ? { phoneNumberId, webhookSecret } : null;
 }
-export function kapsoConfig(env: Environment): KapsoConfig | null {
-  if (env.DIR3COM_WHATSAPP_ENABLED !== 'true') return null;
+export type KapsoConfigRejection =
+  | 'KAPSO_CONFIG_ENABLED_REQUIRED'
+  | 'KAPSO_CONFIG_CATEGORIES_REJECTED'
+  | 'KAPSO_CONFIG_DELIVERY_MODE_REJECTED'
+  | 'KAPSO_CONFIG_QUERY_SCOPE_REJECTED'
+  | 'KAPSO_CONFIG_SENDER_FORMAT_REJECTED'
+  | 'KAPSO_CONFIG_WEBHOOK_RECEIPT_REQUIRED'
+  | 'KAPSO_CONFIG_API_KEY_MISSING'
+  | 'KAPSO_CONFIG_API_KEY_REJECTED'
+  | 'KAPSO_CONFIG_SITE_REJECTED'
+  | 'KAPSO_CONFIG_TEMPLATE_JSON_REJECTED'
+  | 'KAPSO_CONFIG_TEMPLATE_MAP_REJECTED'
+  | 'KAPSO_CONFIG_TEMPLATE_KEY_REJECTED'
+  | 'KAPSO_CONFIG_TEMPLATE_ENTRY_REJECTED'
+  | 'KAPSO_CONFIG_TEMPLATE_PARAMETERS_REJECTED'
+  | 'KAPSO_CONFIG_TEMPLATE_CATEGORY_MISSING';
+export function kapsoConfig(env: Environment, onReject?: (code: KapsoConfigRejection) => void): KapsoConfig | null {
+  // Optional observer receives fixed reason codes only; the existing acceptance predicates remain authoritative.
+  const reject = (code: KapsoConfigRejection): null => { onReject?.(code); return null; };
+  if (env.DIR3COM_WHATSAPP_ENABLED !== 'true') return reject('KAPSO_CONFIG_ENABLED_REQUIRED');
   // Exact explicit categories only; absence, duplicates and unknown categories fail closed.
   const categories = (env.DIR3COM_WHATSAPP_CATEGORIES ?? '').split(',');
-  if (new Set(categories).size !== categories.length || categories.some(key => !CATEGORIES.includes(key as KapsoCategory))) return null;
+  if (new Set(categories).size !== categories.length || categories.some(key => !CATEGORIES.includes(key as KapsoCategory))) return reject('KAPSO_CONFIG_CATEGORIES_REJECTED');
   const deliveryMode = env.DIR3COM_WHATSAPP_DELIVERY_MODE ?? 'webhook';
-  if (deliveryMode !== 'webhook' && deliveryMode !== 'provider_query') return null;
+  if (deliveryMode !== 'webhook' && deliveryMode !== 'provider_query') return reject('KAPSO_CONFIG_DELIVERY_MODE_REJECTED');
   // Query delivery is an explicit single-Operations-target mode, never a queue fallback.
   if (deliveryMode === 'provider_query' && (env.DIR3COM_WHATSAPP_DISPATCH_MODE === 'general'
-    || categories.length !== 1 || categories[0] !== 'operations.created')) return null;
+    || categories.length !== 1 || categories[0] !== 'operations.created')) return reject('KAPSO_CONFIG_QUERY_SCOPE_REJECTED');
   const phoneNumberId = env.KAPSO_PHONE_NUMBER_ID ?? '';
   const receipt = deliveryMode === 'webhook' ? receiptConfig(env) : null;
   const apiKey = env.KAPSO_API_KEY ?? '';
-  if (!/^[0-9]{5,32}$/.test(phoneNumberId) || (deliveryMode === 'webhook' && !receipt)
-    || apiKey.length < 16 || apiKey.length > 512 || /\s/.test(apiKey)) return null;
+  if (!/^[0-9]{5,32}$/.test(phoneNumberId)) return reject('KAPSO_CONFIG_SENDER_FORMAT_REJECTED');
+  if (deliveryMode === 'webhook' && !receipt) return reject('KAPSO_CONFIG_WEBHOOK_RECEIPT_REQUIRED');
+  if (apiKey === '') return reject('KAPSO_CONFIG_API_KEY_MISSING');
+  if (apiKey.length < 16 || apiKey.length > 512 || /\s/.test(apiKey)) return reject('KAPSO_CONFIG_API_KEY_REJECTED');
+  let parsingSite = true;
   try {
     const site = new URL(env.DIR3COM_WHATSAPP_SITE_URL ?? '');
-    if (site.protocol !== 'https:' || site.username || site.password || site.pathname !== '/' || site.search || site.hash) return null;
+    if (site.protocol !== 'https:' || site.username || site.password || site.pathname !== '/' || site.search || site.hash) return reject('KAPSO_CONFIG_SITE_REJECTED');
+    parsingSite = false;
     const values = object(JSON.parse(env.DIR3COM_WHATSAPP_KAPSO_TEMPLATES ?? '{}'));
-    if (!values || Object.keys(values).length === 0) return null;
+    if (!values || Object.keys(values).length === 0) return reject('KAPSO_CONFIG_TEMPLATE_MAP_REJECTED');
     const templates: KapsoConfig['templates'] = {};
     for (const [key, value] of Object.entries(values)) {
       const category = key.slice(0, key.lastIndexOf('.'));
-      if (!categories.includes(category) || !['ar', 'en'].includes(key.slice(key.lastIndexOf('.') + 1))) return null;
+      if (!categories.includes(category) || !['ar', 'en'].includes(key.slice(key.lastIndexOf('.') + 1))) return reject('KAPSO_CONFIG_TEMPLATE_KEY_REJECTED');
       const entry = object(value);
       const language = key.endsWith('.ar') ? 'ar' : 'en';
       if (!entry || typeof entry.name !== 'string' || !/^[a-z][a-z0-9_]{0,511}$/.test(entry.name)
         || typeof entry.languageCode !== 'string' || !(language === 'ar' ? ['ar'] : ['en', 'en_US', 'en_GB']).includes(entry.languageCode)
-        || Object.keys(entry).some(k => !['name', 'languageCode', 'bodyParameterNames'].includes(k))) return null;
+        || Object.keys(entry).some(k => !['name', 'languageCode', 'bodyParameterNames'].includes(k))) return reject('KAPSO_CONFIG_TEMPLATE_ENTRY_REJECTED');
       const names = entry.bodyParameterNames;
-      if (names !== undefined && (!Array.isArray(names) || names.length !== 2 || names.some(n => typeof n !== 'string' || !/^[a-z][a-z0-9_]{0,63}$/.test(n)) || names[0] === names[1])) return null;
+      if (names !== undefined && (!Array.isArray(names) || names.length !== 2 || names.some(n => typeof n !== 'string' || !/^[a-z][a-z0-9_]{0,63}$/.test(n)) || names[0] === names[1])) return reject('KAPSO_CONFIG_TEMPLATE_PARAMETERS_REJECTED');
       templates[key as keyof typeof templates] = { name: entry.name, languageCode: entry.languageCode,
         ...(Array.isArray(names) ? { bodyParameterNames: [names[0], names[1]] as [string, string] } : {}) };
     }
-    if (categories.some(category => !Object.keys(templates).some(key => key.startsWith(`${category}.`)))) return null;
+    if (categories.some(category => !Object.keys(templates).some(key => key.startsWith(`${category}.`)))) return reject('KAPSO_CONFIG_TEMPLATE_CATEGORY_MISSING');
     const sender = { phoneNumberId, apiKey, siteUrl: site.origin, templates };
     return deliveryMode === 'webhook' && receipt
       ? { ...sender, deliveryMode, webhookSecret: receipt.webhookSecret }
       : { ...sender, deliveryMode: 'provider_query' };
-  } catch { return null; }
+  } catch { return reject(parsingSite ? 'KAPSO_CONFIG_SITE_REJECTED' : 'KAPSO_CONFIG_TEMPLATE_JSON_REJECTED'); }
 }
 export async function bodyBytes(message: Request | Response, limit: number, signal?: AbortSignal): Promise<Buffer> {
   if (!message.body) return Buffer.alloc(0);
