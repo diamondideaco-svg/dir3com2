@@ -12,7 +12,7 @@ export const TRIAL = {
   recipientUserId: '5f72ea11-b5eb-4c3c-a611-5a37abde5409',
   category: 'operations.created', language: 'ar', sender: '1205896545944230',
   origin: 'https://www.dir3com.com', hostname: 'ynupwivgvwcyrsdhtkcc.supabase.co',
-  cutoff: Date.parse('2026-10-17T18:45:00Z'),
+  cutoff: Date.parse('2026-10-18T15:39:00Z'),
 } as const;
 export const TRIAL_COOKIE = '__Secure-task199-trial';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -93,7 +93,7 @@ export async function runTask199Trial(operation: unknown, origin: string | null,
       const opened = await ctx.store.rpc('open_kapso_drive_whatsapp_provider_query_window', {
         p_request_id: TRIAL.requestId, p_outbox_id: TRIAL.outboxId, p_recipient_user_id: TRIAL.recipientUserId,
         p_category: TRIAL.category, p_language: TRIAL.language, p_phone_number_id: TRIAL.sender,
-        p_approval_reference: 'Task199-6223033225-one-trial', p_expires_at: new Date(expires).toISOString(),
+        p_approval_reference: 'Task199-20261018-1830', p_expires_at: new Date(expires).toISOString(),
       });
       if (opened.error || typeof opened.data !== 'string' || !UUID.test(opened.data)) return result('START_UNCONFIRMED');
       cleanup = { id: opened.data, secret };

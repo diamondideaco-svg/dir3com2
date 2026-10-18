@@ -111,7 +111,7 @@ test('start binds the immutable tuple to one existing window RPC and sends nothi
   assert.deepEqual(JSON.parse(JSON.stringify(call.body)), {
     p_request_id: f.api.TRIAL.requestId, p_outbox_id: f.api.TRIAL.outboxId, p_recipient_user_id: f.api.TRIAL.recipientUserId,
     p_category: 'operations.created', p_language: 'ar', p_phone_number_id: f.api.TRIAL.sender,
-    p_approval_reference: 'Task199-6223033225-one-trial', p_expires_at: '2026-10-16T21:09:00.000Z',
+    p_approval_reference: 'Task199-20261018-1830', p_expires_at: '2026-10-16T21:09:00.000Z',
   });
   assert.equal(f.sends(), 0); assert.ok(f.ticket()); assert.ok(!f.ticket()!.includes(f.secret));
   assert.equal((await f.run()).code, 'WINDOW_ALREADY_ASSIGNED'); assert.equal(f.calls.length, 1);
@@ -202,4 +202,21 @@ test('failed stop after cookie publication failure never claims cleanup or enabl
   assert.equal((await f.run('start')).code, 'START_UNCONFIRMED');
   assert.equal((await f.run('dispatch')).code, 'NO_WINDOW');
   assert.equal(f.sends(), 0); assert.equal(f.queries(), 0);
+});
+test('renewed cutoff clips the last minute, retains the nine-minute cap and stops at the deadline', async () => {
+  const near = fixture(); near.time(near.api.TRIAL.cutoff - 60_000);
+  assert.equal((await near.run()).code, 'WINDOW_OPEN');
+  const lastMinute = near.calls[0].body;
+  assert.ok(lastMinute && typeof lastMinute === 'object' && 'p_expires_at' in lastMinute);
+  assert.equal(lastMinute.p_expires_at, new Date(near.api.TRIAL.cutoff).toISOString());
+  assert.equal(near.sends(), 0);
+  near.time(near.api.TRIAL.cutoff);
+  const closed = await near.run('dispatch');
+  assert.equal(closed.code, 'ACCESS_EXPIRED'); assert.equal(closed.stopped, true);
+  assert.equal(near.sends(), 0); assert.equal(near.queries(), 0);
+  const earlier = fixture(); earlier.time(earlier.api.TRIAL.cutoff - 10 * 60_000);
+  assert.equal((await earlier.run()).code, 'WINDOW_OPEN');
+  const fullWindow = earlier.calls[0].body;
+  assert.ok(fullWindow && typeof fullWindow === 'object' && 'p_expires_at' in fullWindow);
+  assert.equal(fullWindow.p_expires_at, new Date(earlier.api.TRIAL.cutoff - 60_000).toISOString());
 });
