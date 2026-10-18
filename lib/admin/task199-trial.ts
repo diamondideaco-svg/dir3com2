@@ -12,7 +12,7 @@ export const TRIAL = {
   recipientUserId: '5f72ea11-b5eb-4c3c-a611-5a37abde5409',
   category: 'operations.created', language: 'ar', sender: '1205896545944230',
   origin: 'https://www.dir3com.com', hostname: 'ynupwivgvwcyrsdhtkcc.supabase.co',
-  cutoff: Date.parse('2026-10-18T15:39:00Z'),
+  windowMs: 9 * 60_000,
 } as const;
 export const TRIAL_COOKIE = '__Secure-task199-trial';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -38,7 +38,7 @@ function ticket(value: string | undefined, secret: string) {
   const [id, rawExpiry, mac, extra] = value.split('.');
   if (extra !== undefined || !UUID.test(id ?? '') || !/^\d{13}$/.test(rawExpiry ?? '') || !/^[a-f0-9]{64}$/.test(mac ?? '')) return null;
   const expires = Number(rawExpiry);
-  if (expires > TRIAL.cutoff || !secureEqual(mac, signature(id + '.' + rawExpiry, secret))) return null;
+  if (!secureEqual(mac, signature(id + '.' + rawExpiry, secret))) return null;
   return { id, expires };
 }
 function internal(path: string, body: unknown, secret: string) {
@@ -73,23 +73,20 @@ export async function runTask199Trial(operation: unknown, origin: string | null,
     if (operation !== 'start' && operation !== 'dispatch' && operation !== 'reconcile' && operation !== 'stop') return result('INVALID_OPERATION');
     if (ctx.env.VERCEL_ENV !== 'production' || ctx.hostname !== TRIAL.hostname || !ctx.store) return result('RUNTIME_REJECTED');
     const secret = ctx.env.DIR3COM_WHATSAPP_WORKER_SECRET ?? '';
-    if (secret.length < 32 || secret.length > 512) return result('NOT_CONFIGURED');
+    if (secret.length < 32 || secret.length > 512) return result('WORKER_CONFIGURATION_REQUIRED');
     const existing = ticket(ctx.readTicket(), secret);
     if (existing) cleanup = { id: existing.id, secret };
     if (operation === 'stop') return existing ? result('STOP', await stop(ctx, existing.id, secret)) : result('NO_WINDOW');
-    if (ctx.now() >= TRIAL.cutoff) {
-      return result('ACCESS_EXPIRED', existing ? await stop(ctx, existing.id, secret) : false);
-    }
     const config = kapsoConfig(ctx.env);
     if (!config || config.deliveryMode !== 'provider_query' || config.phoneNumberId !== TRIAL.sender
       || ctx.env.DIR3COM_WHATSAPP_DISPATCH_MODE !== 'target_only'
       || ctx.env.DIR3COM_WHATSAPP_CATEGORIES !== TRIAL.category
       || config.templates['operations.created.ar']?.name !== 'dir3com_operations_created_ar'
       || config.templates['operations.created.ar']?.languageCode !== 'ar'
-      || config.siteUrl !== 'https://dir3com.com') return result('NOT_CONFIGURED');
+      || config.siteUrl !== 'https://dir3com.com') return result('KAPSO_CONFIGURATION_REQUIRED');
     if (operation === 'start') {
       if (existing) return result('WINDOW_ALREADY_ASSIGNED');
-      const expires = Math.min(ctx.now() + 9 * 60_000, TRIAL.cutoff);
+      const expires = ctx.now() + TRIAL.windowMs;
       const opened = await ctx.store.rpc('open_kapso_drive_whatsapp_provider_query_window', {
         p_request_id: TRIAL.requestId, p_outbox_id: TRIAL.outboxId, p_recipient_user_id: TRIAL.recipientUserId,
         p_category: TRIAL.category, p_language: TRIAL.language, p_phone_number_id: TRIAL.sender,
@@ -100,7 +97,8 @@ export async function runTask199Trial(operation: unknown, origin: string | null,
       const body = opened.data + '.' + expires;
       // A MAC binds the server-created window to this immutable tuple. No worker
       // credential, WAMID, contact, arbitrary target or URL reaches the browser.
-      ctx.writeTicket(body + '.' + signature(body, secret), new Date(TRIAL.cutoff + 86_400_000));
+      // Retain cleanup authority after the window expires, never send authority.
+      ctx.writeTicket(body + '.' + signature(body, secret), new Date(expires + 86_400_000));
       return result('WINDOW_OPEN');
     }
     if (!existing) return result('NO_WINDOW');
