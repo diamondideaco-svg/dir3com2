@@ -10,6 +10,7 @@ function fixture(configUnavailable = false) {
   let allowed = true;
   let current = Date.parse('2026-10-16T21:00:00Z');
   let value: string | undefined;
+  let cookieExpires: Date | undefined;
   let opening = false;
   let state = 'accepted';
   let responseStatus = 200;
@@ -67,7 +68,7 @@ function fixture(configUnavailable = false) {
       opening = true; return { data: windowId, error: null };
     } },
     readTicket: () => value,
-    writeTicket: v => { value = v; }, clearTicket: () => { value = undefined; },
+    writeTicket: (v, expires) => { value = v; cookieExpires = expires; }, clearTicket: () => { value = undefined; },
     readDelivery: async () => {
       if (deliveryError) throw new Error('SYNTHETIC-PRIVATE-ERROR');
       return rows ?? [{ audience: 'operations', attempts: 1, state }];
@@ -76,7 +77,7 @@ function fixture(configUnavailable = false) {
   const run = (op: unknown = 'start', origin: string | null = api.TRIAL.origin) => api.runTask199Trial(op, origin, ctx);
   return { api, ctx, calls, run, env, secret, config, sends: () => sends, queries: () => queries,
     allow: (v: boolean) => { allowed = v; }, time: (v: number) => { current = v; },
-    ticket: () => value, setTicket: (v: string | undefined) => { value = v; },
+    ticket: () => value, cookieExpires: () => cookieExpires, setTicket: (v: string | undefined) => { value = v; },
     state: (v: string) => { state = v; }, rows: (v: unknown) => { rows = v; },
     reply: (v: unknown, status = 200) => { reply = v; responseStatus = status; },
     deliveryError: () => { deliveryError = true; }, stopError: () => { stopError = true; },
@@ -160,11 +161,9 @@ test('expired window denies dispatch and query, but preserves authenticated clea
   const f = fixture(); await f.run(); f.time(Date.parse('2026-10-16T21:10:00Z'));
   const response = await f.run('dispatch'); assert.equal(response.code, 'WINDOW_EXPIRED'); assert.equal(response.stopped, true);
   assert.equal(f.sends(), 0); assert.equal(f.queries(), 0);
-  const cutoff = fixture(); cutoff.time(cutoff.api.TRIAL.cutoff);
-  assert.equal((await cutoff.run()).code, 'ACCESS_EXPIRED'); assert.equal(cutoff.calls.length, 0);
 });
-test('stop remains available after cutoff and cleanup failures never claim stop confirmation', async () => {
-  const f = fixture(); await f.run(); f.time(f.api.TRIAL.cutoff + 1); f.stopError();
+test('stop remains available after the window and cleanup failures never claim stop confirmation', async () => {
+  const f = fixture(); await f.run(); f.time(Date.parse('2026-10-16T21:00:00Z') + f.api.TRIAL.windowMs + 1); f.stopError();
   const failed = await f.run('stop'); assert.equal(failed.stopped, false); assert.ok(f.ticket());
   assert.equal(f.sends(), 0);
 });
@@ -203,22 +202,39 @@ test('failed stop after cookie publication failure never claims cleanup or enabl
   assert.equal((await f.run('dispatch')).code, 'NO_WINDOW');
   assert.equal(f.sends(), 0); assert.equal(f.queries(), 0);
 });
-test('renewed cutoff clips the last minute, retains the nine-minute cap and stops at the deadline', async () => {
-  const near = fixture(); near.time(near.api.TRIAL.cutoff - 60_000);
-  assert.equal((await near.run()).code, 'WINDOW_OPEN');
-  const lastMinute = near.calls[0].body;
-  assert.ok(lastMinute && typeof lastMinute === 'object' && 'p_expires_at' in lastMinute);
-  assert.equal(lastMinute.p_expires_at, new Date(near.api.TRIAL.cutoff).toISOString());
-  assert.equal(near.sends(), 0);
-  near.time(near.api.TRIAL.cutoff);
-  const closed = await near.run('dispatch');
-  assert.equal(closed.code, 'ACCESS_EXPIRED'); assert.equal(closed.stopped, true);
-  assert.equal(near.sends(), 0); assert.equal(near.queries(), 0);
-  const earlier = fixture(); earlier.time(earlier.api.TRIAL.cutoff - 10 * 60_000);
-  assert.equal((await earlier.run()).code, 'WINDOW_OPEN');
-  const fullWindow = earlier.calls[0].body;
-  assert.ok(fullWindow && typeof fullWindow === 'object' && 'p_expires_at' in fullWindow);
-  assert.equal(fullWindow.p_expires_at, new Date(earlier.api.TRIAL.cutoff - 60_000).toISOString());
+test('first-ready activation after the former calendar deadline keeps exactly nine minutes and cleanup authority', async () => {
+  const startedAt = Date.parse('2026-10-19T00:05:00Z');
+  const f = fixture(); f.time(startedAt);
+  assert.equal((await f.run()).code, 'WINDOW_OPEN');
+  const opened = f.calls[0].body;
+  assert.ok(opened && typeof opened === 'object' && 'p_expires_at' in opened);
+  assert.equal(opened.p_expires_at, new Date(startedAt + 9 * 60_000).toISOString());
+  assert.equal(f.cookieExpires()?.getTime(), startedAt + 9 * 60_000 + 86_400_000);
+  assert.equal((await f.run()).code, 'WINDOW_ALREADY_ASSIGNED');
+  f.time(startedAt + 9 * 60_000);
+  const closed = await f.run('dispatch');
+  assert.equal(closed.code, 'WINDOW_EXPIRED'); assert.equal(closed.stopped, true);
+  assert.equal(f.sends(), 0); assert.equal(f.queries(), 0);
+  assert.equal((await f.run('dispatch')).code, 'NO_WINDOW');
+});
+
+test('relative expiry denies reconcile without a provider read and cannot reopen the durable window', async () => {
+  const startedAt = Date.parse('2026-10-20T21:00:00Z');
+  const f = fixture(); f.time(startedAt); await f.run();
+  f.time(startedAt + f.api.TRIAL.windowMs + 1);
+  const closed = await f.run('reconcile');
+  assert.equal(closed.code, 'WINDOW_EXPIRED'); assert.equal(closed.stopped, true);
+  assert.equal(f.sends(), 0); assert.equal(f.queries(), 0);
+  assert.equal((await f.run()).code, 'START_UNCONFIRMED');
+});
+
+test('an active relative window before expiry still uses the authenticated fixed-target path', async () => {
+  const startedAt = Date.parse('2026-10-19T00:05:00Z');
+  const f = fixture(); f.time(startedAt); await f.run();
+  f.time(startedAt + f.api.TRIAL.windowMs - 1);
+  const result = await f.run('dispatch');
+  assert.equal(result.code, 'ACCEPTED_NOT_DELIVERED'); assert.equal(result.stopped, false);
+  assert.equal(f.sends(), 1); assert.equal(f.queries(), 0);
 });
 
 // Diagnostic delta only: synthetic fixture, no real configuration or provider access.
