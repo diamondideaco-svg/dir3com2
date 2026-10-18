@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {TASK187_DIAGNOSTIC_PREFIX,task187BrowserDiagnostic} from './sandbox/task187-browser-diagnostics.mjs';
 import {spawn,execFileSync,type ChildProcess} from 'node:child_process';
 import {createServer,request as httpRequest} from 'node:http';
 import {mkdtempSync,writeFileSync,existsSync} from 'node:fs';
@@ -109,4 +110,4 @@ async function main(){
  }
  console.log(JSON.stringify({...result as object,ownedProcessesStopped:true}));
 }
-main().catch(error=>{console.error('TASK187_BROWSER_ACCEPTANCE_FAILED:'+stage);if(error instanceof Task187ClickError)console.error(error.name+':'+error.message);process.exitCode=1;});
+main().catch(error=>{console.error(TASK187_DIAGNOSTIC_PREFIX+JSON.stringify(task187BrowserDiagnostic(error,stage)));console.error('TASK187_BROWSER_ACCEPTANCE_FAILED:'+stage);if(error instanceof Task187ClickError)console.error(error.name+':'+error.message);process.exitCode=1;});
