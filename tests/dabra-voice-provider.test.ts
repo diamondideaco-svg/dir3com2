@@ -210,11 +210,11 @@ test('client playback cancels fetch and audio across response, locale, navigatio
   assert.doesNotMatch(client, /speechSynthesis|SpeechSynthesisUtterance/);
 });
 
-import { execFileSync as runBoundaryCase } from 'node:child_process';
+import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
 test('actual full send stops voice before dispatch', () => {
-  const env = { ...process.env };
-  delete env.NODE_TEST_CONTEXT;
-  const output = runBoundaryCase(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=^actual full send stops voice before dispatch$', 'tests/fixtures/dabra-conversation-boundaries.mjs'], { env, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
-  assert.match(output, /# pass 1(?:\r?\n|$)/);
-  assert.match(output, /# fail 0(?:\r?\n|$)/);
+  runDabraBoundaryCase('actual full send stops voice before dispatch');
+});
+
+test('boundary proof guard rejects a nonexistent case rather than file-level PASS', () => {
+  assert.throws(() => runDabraBoundaryCase('TASK208_NONEXISTENT_CASE'), { code: 'ERR_ASSERTION' });
 });

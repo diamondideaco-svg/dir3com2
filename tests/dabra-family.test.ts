@@ -186,11 +186,7 @@ test('floating DABRA defaults AR left and EN right and avoids critical mobile PD
   assert.equal(DABRA_ACTION_RULES.request_human_support.handoff, 'support');
 });
 
-import { execFileSync as runBoundaryCase } from 'node:child_process';
+import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
 test('actual shared root resets account authority', () => {
-  const env = { ...process.env };
-  delete env.NODE_TEST_CONTEXT;
-  const output = runBoundaryCase(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=^actual shared root resets account authority$', 'tests/fixtures/dabra-conversation-boundaries.mjs'], { env, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
-  assert.match(output, /# pass 1(?:\r?\n|$)/);
-  assert.match(output, /# fail 0(?:\r?\n|$)/);
+  runDabraBoundaryCase('actual shared root resets account authority');
 });

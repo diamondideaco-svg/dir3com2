@@ -191,11 +191,7 @@ test('malformed, executable, oversized-count and unsupported attachments fail sa
   assert.equal(tooMany.status, 400);
 });
 
-import { execFileSync as runBoundaryCase } from 'node:child_process';
+import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
 test('shared actual persistence excludes private content', () => {
-  const env = { ...process.env };
-  delete env.NODE_TEST_CONTEXT;
-  const output = runBoundaryCase(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=^shared actual persistence excludes private content$', 'tests/fixtures/dabra-conversation-boundaries.mjs'], { env, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
-  assert.match(output, /# pass 1(?:\r?\n|$)/);
-  assert.match(output, /# fail 0(?:\r?\n|$)/);
+  runDabraBoundaryCase('shared actual persistence excludes private content');
 });
