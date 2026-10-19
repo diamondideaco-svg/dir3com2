@@ -2,7 +2,10 @@
 
 import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import PlatformAnswer from '@/components/dabra/PlatformAnswer';
-import { supabase } from '@/lib/supabase/client';
+import { useDabraConversation } from '@/components/dabra/DabraConversationProvider';
+import { parseContinuitySnapshot } from '@/lib/dabra/continuity-service';
+import { continuityRequestLocale } from '@/lib/dabra/continuity-chat';
+import { newTripRequested } from '@/lib/dabra/trip-routing';
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -103,21 +106,16 @@ function detectConversationLanguage(text: string, fallback: 'ar' | 'en' = 'ar'):
 
 export default function FloatingDibrah({ launcherIdentity, desktopIdentity }: { launcherIdentity?: ReactNode; desktopIdentity?: DesktopIdentity } = {}) {
   const { language } = useLanguage();
-  const [identityRevision, setIdentityRevision] = useState(0);
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event !== 'INITIAL_SESSION') setIdentityRevision(value => value + 1);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-  // A locale is a conversation boundary. Remount atomically, including history,
-  // drafts, speech callbacks, errors and request refs, even for AR -> EN -> AR.
-  return <FloatingDibrahSession key={`${language}:${identityRevision}`} language={language} launcherIdentity={launcherIdentity} desktopIdentity={desktopIdentity} />;
+  const { state } = useDabraConversation();
+  return <FloatingDibrahSession key={`${language}:${state.generation}`} language={language} launcherIdentity={launcherIdentity} desktopIdentity={desktopIdentity} />;
 }
 
 function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: { language: 'ar' | 'en'; launcherIdentity?: ReactNode; desktopIdentity?: DesktopIdentity }) {
   const t = floatingCopy[language];
-  const { currency } = useDisplayCurrency();
+  const viewMountedRef = useRef(true);
+  useEffect(() => { viewMountedRef.current = true; return () => { viewMountedRef.current = false; }; }, []);
+  const { currency, setCurrency } = useDisplayCurrency();
+  const { session: conversation, state: conversationState } = useDabraConversation();
   const positionStorageKey = `${DIBRAH_POSITION_STORAGE_KEY}:${language}`;
   const pathname = usePathname();
   const controlRef = useRef<HTMLDivElement | null>(null);
@@ -134,25 +132,18 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
   const [panelOpen, setPanelOpen] = useState(false);
   const [policyOpen, setPolicyOpen] = useState(false);
   const [policyChecked, setPolicyChecked] = useState(false);
-  const [, setAssistantContext] = useState<DibrahAssistantContext | null>(null);
-  const [messages, setMessages] = useState<DibrahMessage[]>(() => buildSeedMessages(null, language));
-  const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const [assistantContext, setAssistantContext] = useState<DibrahAssistantContext | null>(null);
+  const messages: DibrahMessage[] = conversationState.messages.length
+    ? conversationState.messages.map(({ id, role, text }) => ({ id, role, content: text })) : buildSeedMessages(assistantContext, language);
+  const draft = conversationState.draft;
+  const setDraft = useCallback((update: Parameters<typeof conversation.setDraft>[0]) => { if (viewMountedRef.current) conversation.setDraftFor(conversationState.generation, update); }, [conversation, conversationState.generation]);
+  const sending = conversationState.pending;
+  const sendError = conversationState.error;
   const [micLanguage, setMicLanguage] = useState<'ar' | 'en'>(language);
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
-  const sendInFlightRef = useRef(false);
-  const activeRequestIdRef = useRef<string | null>(null);
-  const chatAbortRef = useRef<AbortController | null>(null);
-
-  useEffect(() => () => {
-    activeRequestIdRef.current = null;
-    chatAbortRef.current?.abort();
-  }, []);
-
   const clampPosition = useCallback((x: number, y: number) => {
     const width = controlRef.current?.offsetWidth ?? 220;
     const height = controlRef.current?.offsetHeight ?? 72;
@@ -260,11 +251,6 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
         const payload = (await response.json()) as DibrahAssistantContext;
         if (controller.signal.aborted) return;
         setAssistantContext(payload);
-        setMessages((previous) => (
-          previous.length === 1 && previous[0]?.id === 'assistant-welcome'
-            ? buildSeedMessages(payload, language)
-            : previous
-        ));
       } catch {
         if (!controller.signal.aborted) setAssistantContext(null);
       }
@@ -394,68 +380,66 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
 
   const sendDraft = useCallback(async () => {
     const trimmed = draft.trim();
-    if (!trimmed || sending || sendInFlightRef.current) return;
-    setMicLanguage(detectConversationLanguage(trimmed, micLanguage));
-    const requestId = typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const userMessageId = `user-${requestId}`;
-    const assistantMessageId = `assistant-${requestId}`;
-    sendInFlightRef.current = true;
-    activeRequestIdRef.current = requestId;
-    // Short session-only context so DABRA can resolve follow-ups ("خليها 3 أيام") without a persistent memory claim.
-    const historyForRequest = messages
-      .filter((entry) => entry.role === 'user' || entry.role === 'assistant')
-      .slice(-8)
-      .map((entry) => ({ role: entry.role, content: entry.content }));
-    setSending(true);
-    setSendError(null);
-    setMessages((previous) => (
-      previous.some((entry) => entry.id === userMessageId)
-        ? previous
-        : [...previous, { id: userMessageId, role: 'user', content: trimmed }]
-    ));
-    setDraft('');
-    // Sending is an explicit action, so always return the viewport to the newest message.
+    const generation = conversation.getSnapshot().generation;
+    if (!viewMountedRef.current || generation !== conversationState.generation || !trimmed || conversation.getSnapshot().pending || !conversationState.ready) return;
+    const job = conversation.begin();
+    if (!job) return;
+    const context = conversation.context;
+    if (context.lease) {
+      try {
+        const response = await fetch('/api/dabra/continuity', { cache: 'no-store', credentials: 'same-origin', signal: AbortSignal.any([job.signal, AbortSignal.timeout(8_000)]) });
+        const body = await response.json();
+        if (!conversation.isCurrent(job)) { conversation.finish(job); return; }
+        const state = response.ok && body.enabled === true && body.ownerId === conversationState.persistence?.ownerId ? parseContinuitySnapshot(body.state) : null;
+        if (!context.isFresh(conversationState.persistence?.ownerId ?? '', state)) { conversation.forgetContext(); return; }
+        conversation.setContinuitySnapshot(state);
+      } catch { if (conversation.isCurrent(job)) conversation.forgetContext(); return; }
+    }
+    if (generation !== conversation.getSnapshot().generation) return;
+    if (newTripRequested(trimmed)) {
+      const previousCurrency = conversation.continuityCurrency;
+      conversation.forgetContext(job); conversation.setContinuityCurrency(null);
+      if (previousCurrency && currency === previousCurrency.applied) setCurrency(previousCurrency.before);
+    }
+    const locale = detectConversationLanguage(trimmed, micLanguage);
+    setMicLanguage(locale);
+    const assistantId = 'assistant-' + job.id;
+    const userId = 'user-' + job.id;
+    const history = context.independent(conversation.getSnapshot().messages).slice(-8).map(({role,text:content})=>({role,content}));
+    const trip = context.refine(trimmed);
+    const staged = context.draft;
+    const seed = staged ? { id: 'seed-' + job.id, role: 'user' as const, text: staged } : null;
+    context.beginAnswer(assistantId);
+    if(context.lease){context.tag(assistantId);if(seed)context.tag(seed.id);}
+    conversation.setContinuityDraft(null);
+    conversation.update(job, current => [...current, ...(seed ? [seed] : []), { id: userId, role: 'user', text: trimmed }, { id: assistantId, role: 'assistant', text: '' }]);
+    conversation.setDraft(current => current === draft ? '' : current);
     stickToBottomRef.current = true;
     try {
-      const controller = new AbortController();
-      chatAbortRef.current = controller;
       const response = await fetch('/api/ai2/chat', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: trimmed, history: historyForRequest, locale: micLanguage, currency }),
+        method: 'POST', signal: job.signal, headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: trimmed, history, locale: continuityRequestLocale(context.lease ? conversation.getSnapshot().preferences : null, locale), currency,
+          ...(trip && context.lease ? { continuityTrip: { revision: context.lease.revision, generation: context.lease.generation, trip } } : {}) }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { answer?: string; error?: string };
-      if (controller.signal.aborted || activeRequestIdRef.current !== requestId) return;
+      const payload = await response.json().catch(() => ({})) as { answer?: string; error?: string };
+      if (!conversation.isCurrent(job)) return;
       if (!response.ok) {
-        if (response.status === 400) {
-          setSendError(t.invalid);
-        } else if (response.status === 401 || response.status === 403) {
-          setSendError(t.session);
-        } else {
-          setSendError(t.unavailableChat);
-        }
+        conversation.fail(job, response.status === 400 ? t.invalid : response.status === 401 || response.status === 403 ? t.session : t.unavailableChat);
+        conversation.update(job, current => current.filter(m => m.id !== assistantId));
         return;
       }
-      if (activeRequestIdRef.current !== requestId) return;
-      setMessages((previous) => (
-        previous.some((entry) => entry.id === assistantMessageId)
-          ? previous
-          : [...previous, { id: assistantMessageId, role: 'assistant', content: presentAssistantAnswer(payload.answer, micLanguage) }]
-      ));
+      if (response.headers.get('X-DABRA-Private-Context') === '1') conversation.markPrivate();
+      conversation.update(job, current => current.map(m => m.id === assistantId ? { ...m, text: presentAssistantAnswer(payload.answer, locale) } : m));
     } catch {
-      if (activeRequestIdRef.current === requestId && !chatAbortRef.current?.signal.aborted) setSendError(t.network);
-    } finally {
-      if (activeRequestIdRef.current === requestId) {
-        activeRequestIdRef.current = null;
-        sendInFlightRef.current = false;
-        setSending(false);
-        window.requestAnimationFrame(() => draftRef.current?.focus());
+      if (conversation.isCurrent(job)) {
+        conversation.fail(job, t.network);
+        conversation.update(job, current => current.filter(m => m.id !== assistantId));
       }
+    } finally {
+      context.finishAnswer(assistantId);
+      conversation.finish(job);
     }
-  }, [draft, sending, messages, micLanguage, currency, t]);
+  }, [draft, conversation, conversationState.generation, conversationState.ready, conversationState.persistence, micLanguage, currency, setCurrency, t]);
 
   return (
     <div
@@ -564,7 +548,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
                   type="button"
                   aria-label={t.send}
                   onClick={() => void sendDraft()}
-                  disabled={sending || !draft.trim()}
+                  disabled={sending || !conversationState.ready || !draft.trim()}
                   className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-strong)] text-[var(--color-light)] transition hover:bg-[var(--color-gold)] hover:text-[var(--color-navy)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <FiSend size={14} />

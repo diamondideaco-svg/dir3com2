@@ -4,6 +4,7 @@ import { Montserrat, Playfair_Display, Tajawal } from 'next/font/google';
 import { cookies } from 'next/headers';
 import { LanguageProvider } from '@/components/i18n/LanguageProvider';
 import SiteShell from '@/components/layout/SiteShell';
+import { DabraConversationProvider } from '@/components/dabra/DabraConversationProvider';
 import { DEFAULT_LANGUAGE, LANGUAGE_COOKIE_NAME, languageDirection, normalizeLanguage } from '@/lib/i18n/config';
 
 const tajawal = Tajawal({ subsets: ['arabic', 'latin'], weight: ['400', '500', '700'], variable: '--font-tajawal', display: 'swap' });
@@ -48,7 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang={initialLanguage} dir={languageDirection(initialLanguage)} className={`${tajawal.variable} ${montserrat.variable} ${playfair.variable}`} suppressHydrationWarning>
       <body className="antialiased">
         <LanguageProvider initialLanguage={initialLanguage}>
-          <SiteShell>{children}</SiteShell>
+          <DabraConversationProvider><SiteShell>{children}</SiteShell></DabraConversationProvider>
         </LanguageProvider>
       </body>
     </html>

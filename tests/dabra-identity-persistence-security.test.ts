@@ -11,7 +11,10 @@ import {
   validatePersistedMessages,
 } from '@/lib/dabra/travel-commerce-state';
 
+import { ConversationSession } from '../lib/dabra/conversation-session';
+
 const root = process.cwd();
+const provider = fs.readFileSync(path.join(root, 'components', 'dabra', 'DabraConversationProvider.tsx'), 'utf8');
 const component = fs.readFileSync(path.join(root, 'components', 'dabra', 'DabraChatCommerce.tsx'), 'utf8');
 const route = fs.readFileSync(path.join(root, 'app', 'api', 'dabra', 'session-identity', 'route.ts'), 'utf8');
 const anonymousSessionId = '12345678-1234-1234-1234-123456789abc';
@@ -44,20 +47,34 @@ test('unresolved or malformed identity cannot select user persistence', () => {
 });
 
 test('user transition detaches transcript cart and favorites before identity fetch', () => {
-  const start = component.indexOf('async function resolveValidatedIdentity()');
-  const fetchIndex = component.indexOf("fetch('/api/dabra/session-identity'", start);
-  const detachCall = component.indexOf('detachSensitiveState()', start);
-  assert(detachCall > start && detachCall < fetchIndex);
-  for (const clear of ['setMessages([welcomeMessage(languageRef.current)])', 'setCart([])', 'setFavorites([])', 'setPersistenceContext(null)']) {
-    assert.match(component.slice(component.indexOf('function detachSensitiveState()'), start), new RegExp(clear.replace(/[()[\]]/g, '\\$&')));
-  }
+  const start = provider.indexOf('const resolveIdentity = () => {');
+  const clear = provider.indexOf('session.invalidate(boundary)', start);
+  const request = provider.indexOf("fetch('/api/dabra/session-identity'", start);
+  assert.ok(start >= 0 && clear > start && clear < request);
+  assert.match(provider, /clearPreviousContext\(\)/);
+  assert.match(component, /DabraChatCommerceSession key=\{state.generation\}/);
+  assert.match(component, /const \[cart, setCart\] = useState<CartItem\[\]>\(\[\]\)/);
+  assert.match(component, /const \[favorites, setFavorites\] = useState<Array<string \| number>>\(\[\]\)/);
+  const session = new ConversationSession();
+  session.resolve(session.invalidate('customer-public'), {ownerId:'user:a',storage:'local'});
+  session.setMessages([{id:'a',role:'user',text:'private'}]);
+  session.invalidate('customer-public');
+  assert.deepEqual(session.getSnapshot().messages, []);
+  assert.equal(session.getSnapshot().persistence, null);
 });
 
 test('authenticated to anonymous transition uses the same immediate detach boundary', () => {
-  const callback = component.slice(component.indexOf('onAuthStateChange((event) => {'));
-  assert(callback.indexOf('detachSensitiveState()') < callback.indexOf('window.setTimeout'));
-  assert(callback.indexOf('identityRequestRef.current += 1') < callback.indexOf('window.setTimeout'));
-  assert.match(component, /identityState === 'anonymous_confirmed'/);
+  assert.match(provider, /onAuthStateChange\(event =>/);
+  assert.match(provider, /if \(event !== 'INITIAL_SESSION'\) resolveIdentity\(\)/);
+  assert.match(provider, /identityState === 'anonymous_confirmed'/);
+  const session = new ConversationSession();
+  session.resolve(session.invalidate('customer-public'), {ownerId:'user:a',storage:'local'});
+  session.setDraft('private draft');
+  const generation = session.invalidate('customer-public');
+  assert.equal(session.getSnapshot().ready, false);
+  session.resolve(generation, {ownerId:'anonymous:synthetic',storage:'session'});
+  assert.equal(session.getSnapshot().draft, '');
+  assert.equal(session.getSnapshot().persistence?.ownerId, 'anonymous:synthetic');
 });
 
 test('same authenticated user restores only its own valid state', () => {
@@ -76,20 +93,26 @@ test('confirmed anonymous restores only its session-scoped state', () => {
 });
 
 test('stale identity responses cannot restore a previous user after a newer transition', () => {
-  assert.match(component, /const requestId = \+\+identityRequestRef\.current/);
-  assert.match(component, /requestId !== identityRequestRef\.current/g);
-  assert.match(component, /identityRequestRef\.current \+= 1/);
+  const session = new ConversationSession();
+  const older = session.invalidate('customer-public');
+  const current = session.invalidate('customer-public');
+  session.resolve(current, {ownerId:'user:b',storage:'local'});
+  session.resolve(older, {ownerId:'user:a',storage:'local'});
+  assert.equal(session.getSnapshot().persistence?.ownerId, 'user:b');
 });
 
 test('chat controls stay disabled until validated identity resolution completes', () => {
-  assert.match(component, /AbortSignal\.timeout\(8_000\)/);
-  assert.match(component, /if \(!message \|\| chatInFlightRef\.current \|\| !identityResolved\) return/);
+  assert.match(provider, /AbortSignal\.timeout\(8_000\)/);
+  assert.match(component, /const job = conversation.begin\(\)/);
+  assert.match(component, /if \(!job\) return/);
   assert.match(component, /disabled=\{!identityResolved \|\| \(!input\.trim\(\) && !continuityDraft && !attachments\.length\) \|\| chatInFlight\}/);
   assert.match(component, /placeholder=\{identityResolved \? t\.placeholder : t\.securePlaceholder\}/);
-  assert.match(component, /securePlaceholder: 'Preparing your secure session\.\.\.'/);
+  const session = new ConversationSession();
+  session.resolve(session.invalidate('customer-public'), null);
+  assert.equal(session.begin(), null);
 });
 
 test('initial Supabase session notification cannot detach a newly entered turn', () => {
-  assert.match(component, /onAuthStateChange\(\(event\) =>/);
-  assert.match(component, /if \(event === 'INITIAL_SESSION'\) return/);
+  assert.match(provider, /onAuthStateChange\(event =>/);
+  assert.match(provider, /if \(event !== 'INITIAL_SESSION'\) resolveIdentity\(\)/);
 });
