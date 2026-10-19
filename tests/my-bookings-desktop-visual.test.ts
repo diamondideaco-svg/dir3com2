@@ -61,7 +61,8 @@ test('one existing launcher receives Concierge presentation only on the exact My
   const runtime = readFileSync(new URL('../components/layout/FloatingDibrah.tsx', import.meta.url), 'utf8');
   assert.ok(runtime.includes('desktopIdentity={desktopIdentity}'));
   assert.equal((runtime.match(/id="dibrah"/g) || []).length, 1);
-  assert.ok(runtime.includes('body: JSON.stringify({ message: trimmed, history: historyForRequest, locale: micLanguage, currency })'));
+  assert.match(runtime, /body: JSON\.stringify\(\{ message: trimmed, history, locale: continuityRequestLocale/);
+  assert.match(runtime, /currency: getDisplayCurrency\(\)/);
   assert.doesNotMatch(runtime.slice(runtime.indexOf('const sendDraft'), runtime.indexOf('\n  return (', runtime.indexOf('const sendDraft'))), /desktopIdentity/);
   assert.ok(runtime.includes('DABRA never books, pays, cancels, refunds, or performs irreversible actions on its own.'));
   assert.ok(runtime.includes('launcherIdentity ?? <span'));
@@ -81,4 +82,13 @@ test('contextual identity appears only at approved phone/desktop breakpoints; ot
   ast.walkDecls(declaration => {
     assert.ok(!['position', 'background', 'width', 'height', 'transform'].includes(declaration.prop));
   });
+});
+
+import { execFileSync as runBoundaryCase } from 'node:child_process';
+test('actual floating request preserves wire contract', () => {
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const output = runBoundaryCase(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=^actual floating request preserves wire contract$', 'tests/fixtures/dabra-conversation-boundaries.mjs'], { env, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
+  assert.match(output, /# pass 1(?:\r?\n|$)/);
+  assert.match(output, /# fail 0(?:\r?\n|$)/);
 });

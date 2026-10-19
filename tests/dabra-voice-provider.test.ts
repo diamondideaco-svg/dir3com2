@@ -206,6 +206,15 @@ test('client playback cancels fetch and audio across response, locale, navigatio
   assert.match(client, /URL\.revokeObjectURL/);
   assert.match(client, /window\.addEventListener\('pagehide', cancelForNavigation\)/);
   assert.match(client, /language !== languageRef\.current/);
-  assert.match(client, /stopVoicePlayback\(\);[\s\S]{0,120}chatInFlightRef\.current = true/);
+  assert.match(client, /const job = conversation\.begin\(\);[\s\S]*stopVoicePlayback\(\);[\s\S]*fetch\('\/api\/ai2\/chat'/);
   assert.doesNotMatch(client, /speechSynthesis|SpeechSynthesisUtterance/);
+});
+
+import { execFileSync as runBoundaryCase } from 'node:child_process';
+test('actual full send stops voice before dispatch', () => {
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const output = runBoundaryCase(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=^actual full send stops voice before dispatch$', 'tests/fixtures/dabra-conversation-boundaries.mjs'], { env, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
+  assert.match(output, /# pass 1(?:\r?\n|$)/);
+  assert.match(output, /# fail 0(?:\r?\n|$)/);
 });

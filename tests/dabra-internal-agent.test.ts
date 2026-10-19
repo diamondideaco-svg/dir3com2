@@ -81,8 +81,8 @@ test('internal car discovery remains available without DB/model and does not fab
 test('private chat context is excluded from local persistence and stale responses after identity change', async()=>{
  const {readFileSync}=await import('node:fs');
  const ui=readFileSync('components/dabra/DabraChatCommerce.tsx','utf8');
- assert.match(ui,/privateConversationRef\.current[\s\S]*storage\.removeItem\(storageKey\(persistenceContext\.ownerId, 'context'\)\)/);
- assert.match(ui,/lifecycle !== lifecycleRef\.current \|\| controller\.signal\.aborted\) return;\s*if \(response\.headers\.get\('X-DABRA-Private-Context'\)/);
+ assert.match(ui,/conversation\.privateConversation[\s\S]*storage\.removeItem\(storageKey\(persistenceContext\.ownerId, 'context'\)\)/);
+ assert.match(ui,/if \(!conversation\.isCurrent\(job\)\) return;\s*if \(response\.headers\.get\('X-DABRA-Private-Context'\)/);
  const route=readFileSync('app/api/ai2/chat/route.ts','utf8');
  assert.match(route,/intent\.tool !== 'discover'\) streamed\.headers\.set\('X-DABRA-Private-Context', '1'\)/);
 });
@@ -109,4 +109,13 @@ test('map tool stays inside platform until explicit navigation',async()=>{
  const response=await run('خريطة المطار','guest',undefined,'ar').promise;
  assert.match(response.answer,/\/#home-map/);assert.doesNotMatch(response.answer,/https?:/);assert.equal(platformLinkAllowed('/#home-map'),true);
  assert.equal(platformLinkAllowed('/?redirect=https://evil.invalid#home-map'),false);
+});
+
+import { execFileSync as runBoundaryCase } from 'node:child_process';
+test('actual provider and view reject retired account writes', () => {
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const output = runBoundaryCase(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=^actual provider and view reject retired account writes$', 'tests/fixtures/dabra-conversation-boundaries.mjs'], { env, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
+  assert.match(output, /# pass 1(?:\r?\n|$)/);
+  assert.match(output, /# fail 0(?:\r?\n|$)/);
 });

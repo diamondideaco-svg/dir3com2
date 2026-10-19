@@ -173,12 +173,24 @@ test('floating DABRA defaults AR left and EN right and avoids critical mobile PD
   assert.match(floating, /window\.visualViewport/);
   assert.match(floating, /language === 'ar' \? 'sm:left-5' : 'sm:right-5'/);
   assert.match(floating, /data-marketplace-critical-action/);
-  assert.ok(floating.includes('key={`${language}:${identityRevision}`} language={language}'));
-  assert.match(floating, /supabase\.auth\.onAuthStateChange/);
-  assert.match(floating, /subscription\.unsubscribe\(\)/);
-  assert.match(floating, /chatAbortRef\.current\?\.abort\(\)/);
-  assert.match(floating, /signal: controller\.signal/);
-  assert.match(floating, /activeRequestIdRef\.current !== requestId/);
+  assert.ok(floating.includes('key={`${language}:${state.generation}`} language={language}'));
+  const provider = fs.readFileSync(path.join(process.cwd(), 'components/dabra/DabraConversationProvider.tsx'), 'utf8');
+  const session = fs.readFileSync(path.join(process.cwd(), 'lib/dabra/conversation-session.ts'), 'utf8');
+  assert.match(provider, /supabase\.auth\.onAuthStateChange/);
+  assert.match(provider, /subscription\.unsubscribe\(\)/);
+  assert.match(session, /this\.controller\?\.abort\(\)/);
+  assert.match(floating, /signal: job\.signal/);
+  assert.match(floating, /if \(!conversation\.isCurrent\(job\)\) return/);
+  assert.match(session, /!job\.signal\.aborted && job\.generation === this\.state\.generation/);
   assert.match(pdp, /data-marketplace-critical-action/);
   assert.equal(DABRA_ACTION_RULES.request_human_support.handoff, 'support');
+});
+
+import { execFileSync as runBoundaryCase } from 'node:child_process';
+test('actual shared root resets account authority', () => {
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const output = runBoundaryCase(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=^actual shared root resets account authority$', 'tests/fixtures/dabra-conversation-boundaries.mjs'], { env, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
+  assert.match(output, /# pass 1(?:\r?\n|$)/);
+  assert.match(output, /# fail 0(?:\r?\n|$)/);
 });

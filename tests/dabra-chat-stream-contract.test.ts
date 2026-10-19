@@ -139,7 +139,7 @@ test('only final visible assistant text reaches transcript persistence and no un
   assert.doesNotMatch(component, /speechSynthesis|SpeechSynthesisUtterance|normalizeDabraSpeechText/);
   assert.match(component, /item\.id === assistantId \? \{ \.\.\.item, text: visibleAnswer \}/);
   assert.doesNotMatch(component, /text:\s*normalizeDabraSpeechText/);
-  assert.match(component, /createPersisted\(continuityContextRef.current.cachedMessages\(messages\)/);
+  assert.match(component, /createPersisted\(conversation.cachedMessages\(messages\)/);
   assert.doesNotMatch(component, /createPersisted\([^\n]*(response|payload|raw)/);
 });
 
@@ -189,4 +189,13 @@ test('malformed, executable, oversized-count and unsupported attachments fail sa
   assert.equal(await response.text(), DABRA_SAFE_CHAT_ERROR);
   const tooMany = await POST(multipartChatRequest(Array.from({ length: 4 }, (_, index) => new File([new Uint8Array([1])], `${index}.png`, { type: 'image/png' }))));
   assert.equal(tooMany.status, 400);
+});
+
+import { execFileSync as runBoundaryCase } from 'node:child_process';
+test('shared actual persistence excludes private content', () => {
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const output = runBoundaryCase(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=^shared actual persistence excludes private content$', 'tests/fixtures/dabra-conversation-boundaries.mjs'], { env, encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
+  assert.match(output, /# pass 1(?:\r?\n|$)/);
+  assert.match(output, /# fail 0(?:\r?\n|$)/);
 });
