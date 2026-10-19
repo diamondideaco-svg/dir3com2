@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { ConversationSession } from '@/lib/dabra/conversation-session';
 import { DABRA_ANONYMOUS_SESSION_KEY, anonymousOwnerId, persistenceContextForIdentity, storageKey } from '@/lib/dabra/travel-commerce-state';
-import type { DabraIdentityPayload } from '@/lib/dabra/travel-commerce-state';
+import type { DabraIdentityPayload, DabraPersistenceContext } from '@/lib/dabra/travel-commerce-state';
 import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
@@ -31,11 +31,20 @@ export function DabraConversationProvider({ children }: { children: ReactNode })
         try { const storage = previous.storage === 'local' ? window.localStorage : window.sessionStorage; storage.removeItem(storageKey(previous.ownerId, 'context')); storage.removeItem(storageKey(previous.ownerId, 'cart')); } catch { /* Memory is still cleared if storage is unavailable. */ }
       }
     };
-    const resolveIdentity = () => {
-      clearPreviousContext();
+    const resolveIdentity = (preserveSameAccount = false) => {
+      if (!preserveSameAccount) clearPreviousContext();
       identityRequest?.abort();
       const controller = new AbortController(); identityRequest = controller;
-      const generation = session.invalidate(boundary);
+      const generation = preserveSameAccount ? session.getSnapshot().generation : session.invalidate(boundary);
+      const settle = (persistence: DabraPersistenceContext | null) => {
+        if (!alive || controller.signal.aborted || identityRequest !== controller || generation !== session.getSnapshot().generation) return;
+        const previous = session.getSnapshot().persistence;
+        // The SDK event is only a refresh hint. The existing server identity
+        // remains authoritative; a failed or changed identity still clears all private state.
+        if (preserveSameAccount && persistence && previous && persistence.ownerId === previous.ownerId && persistence.storage === previous.storage) return;
+        if (preserveSameAccount) { clearPreviousContext(); session.resolve(session.invalidate(boundary), persistence); }
+        else session.resolve(generation, persistence);
+      };
       void (async () => {
         try {
           const response = await fetch('/api/dabra/session-identity', { cache: 'no-store', credentials: 'same-origin', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8_000)]) });
@@ -46,13 +55,16 @@ export function DabraConversationProvider({ children }: { children: ReactNode })
             anonymousId = window.sessionStorage.getItem(DABRA_ANONYMOUS_SESSION_KEY) ?? '';
             if (!anonymousOwnerId(anonymousId)) { anonymousId = crypto.randomUUID(); window.sessionStorage.setItem(DABRA_ANONYMOUS_SESSION_KEY, anonymousId); }
           }
-          if (alive && !controller.signal.aborted) session.resolve(generation, persistenceContextForIdentity(identity, anonymousId));
-        } catch { if (alive && !controller.signal.aborted) session.resolve(generation, null); }
+          settle(persistenceContextForIdentity(identity, anonymousId));
+        } catch { settle(null); }
       })();
     };
     resolveIdentity();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(event => {
-      if (event !== 'INITIAL_SESSION') resolveIdentity();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, authSession) => {
+      if (event === 'INITIAL_SESSION') return;
+      const current = session.getSnapshot();
+      const sameAccountRefresh = event === 'TOKEN_REFRESHED' && current.ready && Boolean(authSession?.user.id) && current.persistence?.ownerId === 'user:' + authSession?.user.id;
+      resolveIdentity(sameAccountRefresh);
     });
     return () => { alive = false; identityRequest?.abort(); subscription.unsubscribe(); clearPreviousContext(); session.invalidate(boundary); };
   }, [session, boundary, setCurrency]);

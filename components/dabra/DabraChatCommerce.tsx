@@ -463,7 +463,7 @@ function DabraChatCommerceSession() {
         signal,
       });
       if (!conversation.isCurrent(job)) return;
-      if (response.headers.get('X-DABRA-Private-Context') === '1') conversation.markPrivate();
+      if (response.headers.get('X-DABRA-Private-Context') === '1' || response.headers.get('Content-Type')?.includes('application/json')) conversation.markPrivate(assistantId);
       const finalAnswer=await consumeDabraChatResponse(response, (visibleAnswer) => {
         if (!conversation.isCurrent(job)) return;
         setJobMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));

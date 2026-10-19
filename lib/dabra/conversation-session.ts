@@ -27,7 +27,7 @@ export class ConversationSession {
   readonly emptySnapshot = this.state;
   setContinuitySnapshot(snapshot: ContinuitySnapshot | null) { this.continuitySnapshot = snapshot; }
   setContinuityCurrency(value: typeof this.continuityCurrency) { this.continuityCurrency = value; }
-  markPrivate() { this.privateConversation = true; }
+  markPrivate(messageId?: string) { this.privateConversation = true; if (messageId) this.context.tag(messageId); }
   getSnapshot = () => this.state;
   getServerSnapshot = () => this.emptySnapshot;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };

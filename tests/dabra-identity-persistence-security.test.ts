@@ -47,7 +47,7 @@ test('unresolved or malformed identity cannot select user persistence', () => {
 });
 
 test('user transition detaches transcript cart and favorites before identity fetch', () => {
-  const start = provider.indexOf('const resolveIdentity = () => {');
+  const start = provider.indexOf('const resolveIdentity = (preserveSameAccount = false) => {');
   const clear = provider.indexOf('session.invalidate(boundary)', start);
   const request = provider.indexOf("fetch('/api/dabra/session-identity'", start);
   assert.ok(start >= 0 && clear > start && clear < request);
@@ -64,8 +64,8 @@ test('user transition detaches transcript cart and favorites before identity fet
 });
 
 test('authenticated to anonymous transition uses the same immediate detach boundary', () => {
-  assert.match(provider, /onAuthStateChange\(event =>/);
-  assert.match(provider, /if \(event !== 'INITIAL_SESSION'\) resolveIdentity\(\)/);
+  assert.match(provider, /onAuthStateChange\(\(event, authSession\) =>/);
+  assert.match(provider, /if \(event === 'INITIAL_SESSION'\) return;/);
   assert.match(provider, /identityState === 'anonymous_confirmed'/);
   const session = new ConversationSession();
   session.resolve(session.invalidate('customer-public'), {ownerId:'user:a',storage:'local'});
@@ -113,6 +113,6 @@ test('chat controls stay disabled until validated identity resolution completes'
 });
 
 test('initial Supabase session notification cannot detach a newly entered turn', () => {
-  assert.match(provider, /onAuthStateChange\(event =>/);
-  assert.match(provider, /if \(event !== 'INITIAL_SESSION'\) resolveIdentity\(\)/);
+  assert.match(provider, /onAuthStateChange\(\(event, authSession\) =>/);
+  assert.match(provider, /if \(event === 'INITIAL_SESSION'\) return;/);
 });
