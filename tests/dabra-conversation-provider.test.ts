@@ -51,7 +51,7 @@ function fixture() {
       if (name.endsWith('/conversation-session')) return { ConversationSession };
       if (name.endsWith('/travel-commerce-state')) return persistence;
       if (name.endsWith('/LanguageProvider')) return { useLanguage: () => ({ language }) };
-      if (name.endsWith('/useDisplayCurrency')) return { useDisplayCurrency: () => ({ currency, setCurrency }) };
+      if (name.endsWith('/useDisplayCurrency')) return { getDisplayCurrency: () => currency, useDisplayCurrency: () => ({ currency, setCurrency }) };
       throw new Error('Unmocked provider dependency: ' + name);
     },
   });
@@ -65,7 +65,7 @@ function fixture() {
     const request = requests.at(-1); assert.ok(request); request.reply(identity); await new Promise<void>(resolve => setImmediate(resolve));
   };
   const changeAuth = (event: string, userId: string | null = 'synthetic-a') => { assert.ok(auth); auth(event, userId ? { user: { id: userId } } : null); };
-  return { render, commit, respond, changeAuth, requests, cache, currency: () => currency,
+  return { render, commit, respond, changeAuth, requests, cache, currency: () => currency, chooseCurrency: setCurrency,
     path: (value: string) => { path = value; }, language: (value: string) => { language = value; },
     unmount: () => { for (const effect of effects) effect.cleanup?.(); },
   };
@@ -173,4 +173,12 @@ test('changed SDK refresh identity clears immediately and stale validation canno
   old.reply({identityState:'authenticated',authenticated:true,userId:'synthetic-a'});
   await new Promise<void>(resolve=>setImmediate(resolve));
   assert.equal(f.render().state.persistence?.ownerId,'user:synthetic-b'); assert.equal(f.render().state.draft,''); f.unmount();
+});
+
+for (const current of ['SAR', 'EUR']) test('root currency restoration reads the latest choice without a view render: ' + current, async () => {
+  const f=fixture(); f.render(); f.commit(); await f.respond(); const view=f.render();
+  view.session.setContinuityCurrency({before:'USD',applied:'SAR'});
+  f.chooseCurrency(current); // A different view changed the global preference; no sender render follows.
+  view.session.forgetContext();
+  assert.equal(f.currency(),current==='SAR'?'USD':'EUR'); assert.equal(view.session.continuityCurrency,null); f.unmount();
 });

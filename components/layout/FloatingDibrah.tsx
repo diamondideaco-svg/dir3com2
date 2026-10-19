@@ -1,6 +1,6 @@
 'use client';
 
-import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
+import { getDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import PlatformAnswer from '@/components/dabra/PlatformAnswer';
 import { useDabraConversation } from '@/components/dabra/DabraConversationProvider';
 import { parseContinuitySnapshot } from '@/lib/dabra/continuity-service';
@@ -114,9 +114,6 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
   const t = floatingCopy[language];
   const viewMountedRef = useRef(true);
   useEffect(() => { viewMountedRef.current = true; return () => { viewMountedRef.current = false; }; }, []);
-  const { currency, setCurrency } = useDisplayCurrency();
-  const currentCurrencyRef = useRef(currency);
-  useEffect(() => { currentCurrencyRef.current = currency; }, [currency]);
   const { session: conversation, state: conversationState } = useDabraConversation();
   const positionStorageKey = `${DIBRAH_POSITION_STORAGE_KEY}:${language}`;
   const pathname = usePathname();
@@ -387,27 +384,19 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
     const job = conversation.begin();
     if (!job) return;
     const context = conversation.context;
-    const forgetContinuity = (keepJob?: typeof job) => {
-      const applied = conversation.continuityCurrency;
-      conversation.forgetContext(keepJob);
-      conversation.setContinuityCurrency(null);
-      if (applied && currentCurrencyRef.current === applied.applied) {
-        currentCurrencyRef.current = applied.before; setCurrency(applied.before);
-      }
-    };
     if (context.lease) {
       try {
         const response = await fetch('/api/dabra/continuity', { cache: 'no-store', credentials: 'same-origin', signal: AbortSignal.any([job.signal, AbortSignal.timeout(8_000)]) });
         const body = await response.json();
         if (!conversation.isCurrent(job)) { conversation.finish(job); return; }
         const state = response.ok && body.enabled === true && body.ownerId === conversationState.persistence?.ownerId ? parseContinuitySnapshot(body.state) : null;
-        if (!context.isFresh(conversationState.persistence?.ownerId ?? '', state)) { forgetContinuity(); return; }
+        if (!context.isFresh(conversationState.persistence?.ownerId ?? '', state)) { conversation.forgetContext(); return; }
         conversation.setContinuitySnapshot(state);
-      } catch { if (conversation.isCurrent(job)) forgetContinuity(); return; }
+      } catch { if (conversation.isCurrent(job)) conversation.forgetContext(); return; }
     }
     if (generation !== conversation.getSnapshot().generation) return;
     if (newTripRequested(trimmed)) {
-      forgetContinuity(job);
+      conversation.forgetContext(job);
     }
     const locale = detectConversationLanguage(trimmed, micLanguage);
     setMicLanguage(locale);
@@ -426,7 +415,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
     try {
       const response = await fetch('/api/ai2/chat', {
         method: 'POST', signal: job.signal, headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: trimmed, history, locale: continuityRequestLocale(context.lease ? conversation.getSnapshot().preferences : null, locale), currency: currentCurrencyRef.current,
+        body: JSON.stringify({ message: trimmed, history, locale: continuityRequestLocale(context.lease ? conversation.getSnapshot().preferences : null, locale), currency: getDisplayCurrency(),
           ...(trip && context.lease ? { continuityTrip: { revision: context.lease.revision, generation: context.lease.generation, trip } } : {}) }),
       });
       const payload = await response.json().catch(() => ({})) as { answer?: string; error?: string };
@@ -438,7 +427,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
       }
       // JSON responses have no public-context attestation. Keep them in memory
       // only, including when the shared transcript moves to the full-page view.
-      conversation.markPrivate(assistantId);
+      conversation.markPrivate();
       conversation.update(job, current => current.map(m => m.id === assistantId ? { ...m, text: presentAssistantAnswer(payload.answer, locale) } : m));
     } catch {
       if (conversation.isCurrent(job)) {
@@ -449,7 +438,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
       context.finishAnswer(assistantId);
       conversation.finish(job);
     }
-  }, [draft, conversation, conversationState.generation, conversationState.ready, conversationState.persistence, micLanguage, setCurrency, t]);
+  }, [draft, conversation, conversationState.generation, conversationState.ready, conversationState.persistence, micLanguage, t]);
 
   return (
     <div

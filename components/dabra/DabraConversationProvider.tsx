@@ -1,12 +1,12 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { ConversationSession } from '@/lib/dabra/conversation-session';
 import { DABRA_ANONYMOUS_SESSION_KEY, anonymousOwnerId, persistenceContextForIdentity, storageKey } from '@/lib/dabra/travel-commerce-state';
 import type { DabraIdentityPayload, DabraPersistenceContext } from '@/lib/dabra/travel-commerce-state';
-import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
+import { getDisplayCurrency, useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 
 const ConversationContext = createContext<{ session: ConversationSession; boundary: string } | null>(null);
@@ -17,15 +17,16 @@ export function DabraConversationProvider({ children }: { children: ReactNode })
   // A route realm can discard context, never confer an admin/partner permission.
   const boundary = (path === '/admin' || path.startsWith('/admin/')) ? 'admin' : (path === '/partner-portal' || path.startsWith('/partner-portal/')) ? 'partner' : (path === '/provider-portal' || path.startsWith('/provider-portal/')) ? 'provider' : 'customer-public';
   const { language } = useLanguage();
-  const { currency, setCurrency } = useDisplayCurrency();
-  const currencyRef = useRef(currency);
-  useEffect(() => { currencyRef.current = currency; }, [currency]);
+  const { setCurrency } = useDisplayCurrency();
   useEffect(() => {
     let alive = true;
     let identityRequest: AbortController | null = null;
+    session.setCurrencyRestorer(applied => {
+      // Read the same live preference source as every view, even after a sender unmounts.
+      if (getDisplayCurrency() === applied.applied) setCurrency(applied.before);
+    });
     const clearPreviousContext = () => {
-      const applied = session.continuityCurrency;
-      if (applied && currencyRef.current === applied.applied) { currencyRef.current = applied.before; setCurrency(applied.before); }
+      session.restoreContinuityCurrency();
       const previous = session.getSnapshot().persistence;
       if (previous) {
         try { const storage = previous.storage === 'local' ? window.localStorage : window.sessionStorage; storage.removeItem(storageKey(previous.ownerId, 'context')); storage.removeItem(storageKey(previous.ownerId, 'cart')); } catch { /* Memory is still cleared if storage is unavailable. */ }
@@ -66,7 +67,7 @@ export function DabraConversationProvider({ children }: { children: ReactNode })
       const sameAccountRefresh = event === 'TOKEN_REFRESHED' && current.ready && Boolean(authSession?.user.id) && current.persistence?.ownerId === 'user:' + authSession?.user.id;
       resolveIdentity(sameAccountRefresh);
     });
-    return () => { alive = false; identityRequest?.abort(); subscription.unsubscribe(); clearPreviousContext(); session.invalidate(boundary); };
+    return () => { alive = false; identityRequest?.abort(); subscription.unsubscribe(); clearPreviousContext(); session.invalidate(boundary); session.setCurrencyRestorer(null); };
   }, [session, boundary, setCurrency]);
   useEffect(() => {
     // Locale changes retain completed text and staged context; only an old-locale in-flight answer is cancelled.

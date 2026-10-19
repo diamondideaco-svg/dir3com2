@@ -264,9 +264,10 @@ function DabraChatCommerceSession() {
   }, []);
 
   useEffect(() => {
-    if (!identityResolved) return;
+    if (!identityResolved || viewGeneration !== conversation.getSnapshot().generation) return;
     if (!persistenceContext) {
       const reset = window.setTimeout(() => {
+        if (!viewMountedRef.current || viewGeneration !== conversation.getSnapshot().generation) return;
         setMessages([welcomeMessage(languageRef.current)]);
         setCart([]);
         setFavorites([]);
@@ -275,6 +276,7 @@ function DabraChatCommerceSession() {
       return () => window.clearTimeout(reset);
     }
     const hydrate = window.setTimeout(() => {
+      if (!viewMountedRef.current || viewGeneration !== conversation.getSnapshot().generation) return;
       const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
       const { ownerId } = persistenceContext;
       conversation.hydrateMessages(readPersisted(storage.getItem(storageKey(ownerId, 'context')), ownerId, validatePersistedMessages) ?? []);
@@ -283,31 +285,31 @@ function DabraChatCommerceSession() {
       setStorageHydrated(true);
     }, 0);
     return () => window.clearTimeout(hydrate);
-  }, [identityResolved, persistenceContext, conversation, setMessages]);
+  }, [identityResolved, persistenceContext, conversation, setMessages, viewGeneration]);
 
   useEffect(() => {
-    if (!persistenceContext || !storageHydrated) return;
+    if (!persistenceContext || !storageHydrated || !conversation.getSnapshot().ready || viewGeneration !== conversation.getSnapshot().generation) return;
     const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
     if (conversation.privateConversation) {
       storage.removeItem(storageKey(persistenceContext.ownerId, 'context'));
       return;
     }
-    storage.setItem(storageKey(persistenceContext.ownerId, 'context'), JSON.stringify(createPersisted(continuityContextRef.current.cachedMessages(messages), persistenceContext.ownerId)));
+    storage.setItem(storageKey(persistenceContext.ownerId, 'context'), JSON.stringify(createPersisted(conversation.cachedMessages(messages), persistenceContext.ownerId)));
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: 'smooth' });
-  }, [persistenceContext, storageHydrated, messages, conversation, conversationState.pending]);
+  }, [persistenceContext, storageHydrated, messages, conversation, conversationState.pending, viewGeneration]);
 
   useEffect(() => {
-    if (!persistenceContext || !storageHydrated) return;
+    if (!persistenceContext || !storageHydrated || !conversation.getSnapshot().ready || viewGeneration !== conversation.getSnapshot().generation) return;
     const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
     if(continuityContextRef.current.lease){storage.removeItem(storageKey(persistenceContext.ownerId,'cart'));return;}
     storage.setItem(storageKey(persistenceContext.ownerId, 'cart'), JSON.stringify(createPersisted(cart, persistenceContext.ownerId)));
-  }, [persistenceContext, storageHydrated, cart]);
+  }, [persistenceContext, storageHydrated, cart, conversation, viewGeneration]);
 
   useEffect(() => {
-    if (!persistenceContext || !storageHydrated) return;
+    if (!persistenceContext || !storageHydrated || !conversation.getSnapshot().ready || viewGeneration !== conversation.getSnapshot().generation) return;
     const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
     storage.setItem(storageKey(persistenceContext.ownerId, 'favorites'), JSON.stringify(createPersisted(favorites, persistenceContext.ownerId)));
-  }, [persistenceContext, storageHydrated, favorites]);
+  }, [persistenceContext, storageHydrated, favorites, conversation, viewGeneration]);
 
   const visibleServices = useMemo(() => sortDabraResults(services
     .filter((service) => !availabilityOnly || service.availability === 'available')
@@ -463,7 +465,7 @@ function DabraChatCommerceSession() {
         signal,
       });
       if (!conversation.isCurrent(job)) return;
-      if (response.headers.get('X-DABRA-Private-Context') === '1' || response.headers.get('Content-Type')?.includes('application/json')) conversation.markPrivate(assistantId);
+      if (response.headers.get('X-DABRA-Private-Context') === '1' || response.headers.get('Content-Type')?.includes('application/json')) conversation.markPrivate();
       const finalAnswer=await consumeDabraChatResponse(response, (visibleAnswer) => {
         if (!conversation.isCurrent(job)) return;
         setJobMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));
@@ -673,8 +675,7 @@ function DabraChatCommerceSession() {
     if(hadContext){if(!keepJob || !conversation.isCurrent(keepJob))conversation.cancel();invalidateActiveRequests();}
     setContinuityPreferences(null);
     setContinuityDraft(null);
-    const previousCurrency=conversation.continuityCurrency;conversation.setContinuityCurrency(null);
-    if(previousCurrency&&currentCurrencyRef.current===previousCurrency.applied){currentCurrencyRef.current=previousCurrency.before;setCurrency(previousCurrency.before);}
+    conversation.restoreContinuityCurrency();
     // Keep independently typed text, messages, favorites and attachments.
     const independent=context.forget();setMessages(current=>independent(current));
     if(hadContext){setCart([]);setServices([]);setPlatformQuery(null);setLastMarketplaceQuery('');setCompareMode(false);setRequestState('idle');setRequestReference('');

@@ -27,7 +27,15 @@ export class ConversationSession {
   readonly emptySnapshot = this.state;
   setContinuitySnapshot(snapshot: ContinuitySnapshot | null) { this.continuitySnapshot = snapshot; }
   setContinuityCurrency(value: typeof this.continuityCurrency) { this.continuityCurrency = value; }
-  markPrivate(messageId?: string) { this.privateConversation = true; if (messageId) this.context.tag(messageId); }
+  private currencyRestorer: ((applied: NonNullable<ConversationSession['continuityCurrency']>) => void) | null = null;
+  setCurrencyRestorer(restore: typeof this.currencyRestorer) { this.currencyRestorer = restore; }
+  restoreContinuityCurrency() {
+    const applied = this.continuityCurrency; this.continuityCurrency = null;
+    if (applied) this.currencyRestorer?.(applied);
+  }
+  markPrivate() { this.privateConversation = true; }
+  // Private text remains in this actor's live history, but never enters browser storage.
+  cachedMessages(messages: ConversationMessage[]) { return this.privateConversation ? [] : this.context.cachedMessages(messages); }
   getSnapshot = () => this.state;
   getServerSnapshot = () => this.emptySnapshot;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
@@ -87,6 +95,7 @@ export class ConversationSession {
     this.publish({ pending: false, messages: job ? this.state.messages.filter(m => m.id !== `assistant-${job.id}`) : this.state.messages });
   }
   forgetContext(keepJob?: ConversationJob) {
+    this.restoreContinuityCurrency();
     if (!keepJob || !this.isCurrent(keepJob)) this.cancel();
     const independent = this.context.forget();
     this.publish({ messages: independent(this.state.messages), preferences: null, continuityDraft: null });

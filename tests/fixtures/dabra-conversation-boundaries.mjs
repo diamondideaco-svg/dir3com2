@@ -46,14 +46,15 @@ function floatingFixture(options={}){
  const snapshot={revision:1,generation:0,consentEnabled:true,consentVersion:'task187-v1',preferences,preferencesExpiresAt:'2027-01-01T00:00:00Z',trip:null,tripExpiresAt:null,updatedAt:null};
  session.context.capture('user:synthetic-a',snapshot,true,false);session.setPreferences(preferences);session.setContinuitySnapshot(snapshot);session.setContinuityCurrency({before:'USD',applied:'SAR'});session.setDraft('hotels');
  if(options.privateJson){session.forgetContext();session.setDraft('my requests');}
- let currency='SAR',index=0,refIndex=0;const slots=[],refs=[];let posts=0;
- const react={useCallback:fn=>fn,useEffect:()=>{},useRef:value=>{const i=refIndex++;return refs[i]??(refs[i]={current:value});},useState:initial=>{const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],value=>{slots[i]=typeof value==='function'?value(slots[i]):value;}];}};
- const dependencies={react,'next/image':()=>null,'next/link':()=>null,'next/navigation':{usePathname:()=>'/'} ,'@/components/currency/useDisplayCurrency':{useDisplayCurrency:()=>({currency,setCurrency:value=>{currency=value;}})},'@/components/dabra/DabraConversationProvider':{useDabraConversation:()=>({session,state:session.getSnapshot()})},'@/components/layout/useDibrahSpeech':{useDibrahSpeech:()=>({listening:false,supported:false})},'@/components/i18n/LanguageProvider':{useLanguage:()=>({language:'en'})},'@/components/dabra/PlatformAnswer':()=>null,'./FloatingDibrahIdentity.module.css':{default:{}}};
- const exports={};vm.runInNewContext(compile(fs.readFileSync(owner+'/components/layout/FloatingDibrah.tsx','utf8')), {exports,require:name=>name in dependencies?dependencies[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name),AbortSignal,crypto:globalThis.crypto,window:{localStorage:{getItem:()=>null}},fetch:async url=>{if(url==='/api/dabra/continuity')return new Response(JSON.stringify({enabled:false}),{headers:{'content-type':'application/json'}});posts++;return new Response(JSON.stringify({answer:options.privateJson?'Synthetic private request REQ-EXAMPLE':'mock answer'}),{headers:{'content-type':'application/json','cache-control':'private, no-store'}});}});
+ let currency='SAR',index=0,refIndex=0;const slots=[],refs=[];let posts=0;let unmountView;let rejectContinuity;const histories=[];
+ session.setCurrencyRestorer(applied=>{if(currency===applied.applied)currency=applied.before;});
+ const react={useCallback:fn=>fn,useEffect:fn=>{if(/viewMountedRef.current\s*=\s*true/.test(fn.toString()))unmountView=fn();},useRef:value=>{const i=refIndex++;return refs[i]??(refs[i]={current:value});},useState:initial=>{const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],value=>{slots[i]=typeof value==='function'?value(slots[i]):value;}];}};
+ const dependencies={react,'next/image':()=>null,'next/link':()=>null,'next/navigation':{usePathname:()=>'/'} ,'@/components/currency/useDisplayCurrency':{getDisplayCurrency:()=>currency,useDisplayCurrency:()=>({currency,setCurrency:value=>{currency=value;}})},'@/components/dabra/DabraConversationProvider':{useDabraConversation:()=>({session,state:session.getSnapshot()})},'@/components/layout/useDibrahSpeech':{useDibrahSpeech:()=>({listening:false,supported:false})},'@/components/i18n/LanguageProvider':{useLanguage:()=>({language:'en'})},'@/components/dabra/PlatformAnswer':()=>null,'./FloatingDibrahIdentity.module.css':{default:{}}};
+ const exports={};vm.runInNewContext(compile(fs.readFileSync(owner+'/components/layout/FloatingDibrah.tsx','utf8')), {exports,require:name=>name in dependencies?dependencies[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name),AbortSignal,crypto:globalThis.crypto,window:{localStorage:{getItem:()=>null}},fetch:async (url,init)=>{if(url==='/api/dabra/continuity'){if(options.deferContinuity)await new Promise(resolve=>{rejectContinuity=resolve;});return new Response(JSON.stringify({enabled:false}),{headers:{'content-type':'application/json'}});}posts++;histories.push(JSON.parse(init.body).history);return new Response(JSON.stringify({answer:options.privateJson?'Synthetic private request REQ-EXAMPLE':'mock answer'}),{headers:{'content-type':'application/json','cache-control':'private, no-store'}});}});
  const elements=node=>Array.isArray(node)?node.flatMap(elements):!node||typeof node!=='object'||!node.props?[]:[node,...elements(node.props.children)];
  const render=()=>{index=0;refIndex=0;const outer=exports.default();return outer.type(outer.props);};
  render();slots[4]=true;
- return {session,currency:()=>currency,posts:()=>posts,send:async()=>{const input=elements(render()).find(n=>n.type==='textarea');assert.ok(input);input.props.onKeyDown({key:'Enter',shiftKey:false,nativeEvent:{isComposing:false},preventDefault(){}});for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));}};
+ return {session,currency:()=>currency,chooseCurrency:value=>{currency=value;},unmount:()=>unmountView?.(),rejectContinuity:()=>rejectContinuity?.(),histories,posts:()=>posts,send:async()=>{const input=elements(render()).find(n=>n.type==='textarea');assert.ok(input);input.props.onKeyDown({key:'Enter',shiftKey:false,nativeEvent:{isComposing:false},preventDefault(){}});for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));}};
 }
 
 test('floating continuity invalidation must undo its saved display currency',async()=>{
@@ -63,7 +64,7 @@ test('floating continuity invalidation must undo its saved display currency',asy
  assert.equal(f.currency(),'USD');assert.equal(f.session.continuityCurrency,null);
 });
 
-function cacheInFullView(session){
+function cacheInFullView(session,beforePersist=()=>{}){
  let index=0,refIndex=0;const slots=[],refs=[],effects=[],cache=new Map();
  const storage={getItem:key=>cache.get(key)??null,setItem:(key,value)=>cache.set(key,value),removeItem:key=>cache.delete(key)};
  const react={useCallback:fn=>fn,useEffect:fn=>effects.push(fn),useRef:value=>{const i=refIndex++;return refs[i]??(refs[i]={current:value});},useState:initial=>{const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],value=>{slots[i]=typeof value==='function'?value(slots[i]):value;}];},useMemo:fn=>fn()};
@@ -73,17 +74,38 @@ function cacheInFullView(session){
  const exports={};vm.runInNewContext(compile(fs.readFileSync(owner+'/components/dabra/DabraChatCommerce.tsx','utf8')),{exports,require:name=>name in deps?deps[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name),window:{localStorage:storage,sessionStorage:storage,setTimeout:fn=>{fn();return 1;},clearTimeout:()=>{}},AbortController,AbortSignal,crypto:globalThis.crypto});
  const render=()=>{index=0;refIndex=0;effects.length=0;const outer=exports.default();outer.type(outer.props);};
  render();const hydrate=effects.find(fn=>fn.toString().includes('conversation.hydrateMessages'));assert.ok(hydrate);hydrate();
- render();const persist=effects.find(fn=>fn.toString().includes('cachedMessages(messages)'));assert.ok(persist);persist();
+ render();const persist=effects.find(fn=>fn.toString().includes('cachedMessages(messages)'));assert.ok(persist);beforePersist();persist();
  return storage.getItem('dir3com-dabra-v1:context:user%3Asynthetic-a');
 }
 
 test('a private JSON reply from floating must not enter the full-page persistence path',async()=>{
  const f=floatingFixture({privateJson:true});await f.send();
- const cacheable=f.session.context.cachedMessages(f.session.getSnapshot().messages);
+ const cacheable=f.session.cachedMessages(f.session.getSnapshot().messages);
  const leaked=cacheable.some(m=>m.text==='Synthetic private request REQ-EXAMPLE');
  const stored=cacheInFullView(f.session);
  console.log('PRIVATE_JSON actual',JSON.stringify({posts:f.posts(),privateConversation:f.session.privateConversation,privateAnswerCacheable:leaked,privateAnswerStored:stored?.includes('Synthetic private request REQ-EXAMPLE')??false}));
  // Source-verified JSON route supplies private,no-store but omits X-DABRA-Private-Context;
  // the full view writes cachedMessages to localStorage whenever privateConversation is false.
  assert.equal(f.posts(),1);assert.equal(stored?.includes('Synthetic private request REQ-EXAMPLE')??false,false);assert.equal(f.session.privateConversation,true);assert.equal(leaked,false);
+});
+
+
+test('private replies remain in live history while excluded from storage',async()=>{
+ const f=floatingFixture({privateJson:true});await f.send();f.session.setDraft('What do you mean by that option?');await f.send();
+ assert.equal(f.posts(),2);assert.equal(f.histories[1].some(message=>message.content==='Synthetic private request REQ-EXAMPLE'),true);
+ assert.equal(f.session.cachedMessages(f.session.getSnapshot().messages).length,0);
+ assert.equal(cacheInFullView(f.session),null);
+});
+
+test('late continuity rejection respects newer currency after view unmount',async()=>{
+ const f=floatingFixture({deferContinuity:true});await f.send();assert.equal(f.session.getSnapshot().pending,true);
+ f.unmount();f.chooseCurrency('EUR');f.rejectContinuity();for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(f.currency(),'EUR');assert.equal(f.session.continuityCurrency,null);assert.equal(f.posts(),0);assert.equal(f.session.getSnapshot().pending,false);
+});
+
+
+test('retired storage effect cannot rewrite account A after identity invalidation',async()=>{
+ const f=floatingFixture({privateJson:true});await f.send();
+ const stored=cacheInFullView(f.session,()=>{f.session.resolve(f.session.invalidate('customer-public'),{ownerId:'user:synthetic-b',storage:'local'});});
+ assert.equal(stored,null);assert.equal(f.session.getSnapshot().persistence.ownerId,'user:synthetic-b');
 });

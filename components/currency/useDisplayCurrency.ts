@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { parseDisplayCurrency, type DisplayCurrency, type FxSnapshot } from '@/lib/currency/display';
 const KEY = 'dir3com-display-currency';
 const EVENT = 'dir3com-currency-change';
-function readCurrency(): DisplayCurrency {
+export function getDisplayCurrency(): DisplayCurrency {
   const params = new URLSearchParams(window.location.search);
   const query = parseDisplayCurrency(params.get('displayCurrency')) ?? parseDisplayCurrency(params.get('currency'));
   if (query) return query;
@@ -23,8 +23,8 @@ export function setDisplayCurrency(value: string) {
 }
 export function useDisplayCurrency() {
   const pathname = usePathname();
-  const currency = useSyncExternalStore(subscribe, readCurrency, () => 'SAR' as DisplayCurrency);
-  useEffect(() => { try { localStorage.setItem(KEY, readCurrency()); } catch {} }, [pathname, currency]);
+  const currency = useSyncExternalStore(subscribe, getDisplayCurrency, () => 'SAR' as DisplayCurrency);
+  useEffect(() => { try { localStorage.setItem(KEY, getDisplayCurrency()); } catch {} }, [pathname, currency]);
   return { currency, setCurrency: setDisplayCurrency };
 }
 type RatesState = { snapshot: FxSnapshot | null; loading: boolean };
