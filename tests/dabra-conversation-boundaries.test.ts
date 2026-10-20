@@ -1,22 +1,16 @@
 import test from 'node:test';
-import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-
-// Each case runs the actual view/provider and persistence effect in an isolated
-// process with controlled hooks and synthetic network/storage. No real auth/AI.
-for (const pattern of ['same-account TOKEN_REFRESHED', 'floating continuity invalidation', 'a private JSON reply', 'private replies remain', 'late continuity rejection', 'retired storage effect']) {
-  test('conversation boundary regression: ' + pattern, () => {
-    const result = spawnSync(process.execPath, ['--test', '--test-name-pattern=' + pattern, 'tests/fixtures/dabra-conversation-boundaries.mjs'], {
-      cwd: process.cwd(), encoding: 'utf8', timeout: 30_000,
-    });
-    assert.ifError(result.error);
-    assert.equal(result.status, 0, result.stdout + result.stderr);
-  });
-}
-
 import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
+
+// Execute each exact named case in a child without inherited test-runner context.
+// A passing file with no selected case, SKIP or TODO cannot satisfy this guard.
 for (const name of [
+  'same-account TOKEN_REFRESHED must preserve text, draft and the in-flight answer',
+  'floating continuity invalidation must undo its saved display currency',
+  'a private JSON reply from floating must not enter the full-page persistence path',
+  'private replies remain in live history while excluded from storage',
+  'late continuity rejection respects newer currency after view unmount',
+  'retired storage effect cannot rewrite account A after identity invalidation',
   'controlled same-account internal navigation shares private transcript in both actual views',
   'controlled late reply and request context isolation synthetic-a to synthetic-b',
   'controlled late reply and request context isolation synthetic-b to synthetic-a',
-]) test(name, () => { runDabraBoundaryCase(name); });
+]) test('conversation boundary regression: ' + name, () => { runDabraBoundaryCase(name); });
