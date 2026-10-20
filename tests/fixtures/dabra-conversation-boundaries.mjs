@@ -41,10 +41,10 @@ test('same-account TOKEN_REFRESHED must preserve text, draft and the in-flight a
 });
 
 function floatingFixture(options={}){
- const session=new ConversationSession();session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-a',storage:'local'});
+ const session=options.session??new ConversationSession();if(!options.session)session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-a',storage:'local'});
  const preferences={replyLanguage:'en',displayCurrency:'SAR',travelClass:'business',lodgingStyle:'hotel',itineraryPace:'relaxed'};
  const snapshot={revision:1,generation:0,consentEnabled:true,consentVersion:'task187-v1',preferences,preferencesExpiresAt:'2027-01-01T00:00:00Z',trip:null,tripExpiresAt:null,updatedAt:null};
- session.context.capture('user:synthetic-a',snapshot,true,false);session.setPreferences(preferences);session.setContinuitySnapshot(snapshot);session.setContinuityCurrency({before:'USD',applied:'SAR'});session.setDraft('hotels');
+ if(!options.session){session.context.capture('user:synthetic-a',snapshot,true,false);session.setPreferences(preferences);session.setContinuitySnapshot(snapshot);session.setContinuityCurrency({before:'USD',applied:'SAR'});session.setDraft('hotels');}
  if(options.privateJson){session.forgetContext();session.setDraft('my requests');}
  let currency='SAR',index=0,refIndex=0;const slots=[],refs=[];let posts=0;let unmountView;let rejectContinuity;const histories=[],requests=[];
  session.setCurrencyRestorer(applied=>{if(currency===applied.applied)currency=applied.before;});
@@ -54,7 +54,7 @@ function floatingFixture(options={}){
  const elements=node=>Array.isArray(node)?node.flatMap(elements):!node||typeof node!=='object'||!node.props?[]:[node,...elements(node.props.children)];
  const render=()=>{index=0;refIndex=0;const outer=exports.default();return outer.type(outer.props);};
  render();slots[4]=true;
- return {session,currency:()=>currency,chooseCurrency:value=>{currency=value;},unmount:()=>unmountView?.(),rejectContinuity:()=>rejectContinuity?.(),histories,requests,posts:()=>posts,send:async()=>{const input=elements(render()).find(n=>n.type==='textarea');assert.ok(input);input.props.onKeyDown({key:'Enter',shiftKey:false,nativeEvent:{isComposing:false},preventDefault(){}});for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));}};
+ return {session,view:()=>elements(render()),currency:()=>currency,chooseCurrency:value=>{currency=value;},unmount:()=>unmountView?.(),rejectContinuity:()=>rejectContinuity?.(),histories,requests,posts:()=>posts,send:async()=>{const input=elements(render()).find(n=>n.type==='textarea');assert.ok(input);input.props.onKeyDown({key:'Enter',shiftKey:false,nativeEvent:{isComposing:false},preventDefault(){}});for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));}};
 }
 
 test('floating continuity invalidation must undo its saved display currency',async()=>{
@@ -156,9 +156,9 @@ test('actual floating request preserves wire contract',async()=>{
 });
 
 
-function fullSendFixture(){
- const session=new ConversationSession();session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-a',storage:'local'});session.setDraft('Show Cairo hotels');
- let cursor=0,refCursor=0;const slots=[],refs=[],events=[],requests=[];
+function fullSendFixture(options={}){
+ const session=options.session??new ConversationSession();if(!options.session)session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-a',storage:'local'});if(!options.session)session.setDraft('Show Cairo hotels');
+ let cursor=0,refCursor=0;const slots=[],refs=[],events=[],requests=[];let releaseReply;
  const source=fs.readFileSync(owner+'/components/dabra/DabraChatCommerce.tsx','utf8');
  const tree=ts.createSourceFile('component.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);const refNames=[];
  function scan(node){if(ts.isVariableDeclaration(node)&&node.initializer&&ts.isCallExpression(node.initializer)&&node.initializer.expression.getText(tree)==='useRef')refNames.push(node.name.getText(tree));ts.forEachChild(node,scan);}scan(tree);
@@ -167,7 +167,7 @@ function fullSendFixture(){
  for(const name of ['PlatformAnswer','DabraContinuity','PlatformResults','DabraFamilySafetyPanel'])deps['@/components/dabra/'+name]=()=>null;deps['@/components/v6/CollaborativeTripCapabilities']=()=>null;
  const exports={};const syntheticURL=class extends URL{static revokeObjectURL(value){events.push('revoke:'+value);}};
  vm.runInNewContext(compile(source),{exports,require:name=>name in deps?deps[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name),window:{localStorage:{getItem:()=>null},sessionStorage:{getItem:()=>null}},AbortController,AbortSignal,FormData,URL:syntheticURL,crypto:globalThis.crypto,fetch:async(url,init)=>{
- if(url==='/api/ai2/chat'){events.push('chat-dispatch');requests.push(init);return Response.json({answer:'Synthetic visible answer'});}
+ if(url==='/api/ai2/chat'){events.push('chat-dispatch');requests.push(init);const ordinal=requests.length;if(options.deferFirst&&ordinal===1)await new Promise(resolve=>{releaseReply=resolve;});return Response.json({answer:options.deferFirst&&ordinal===1?'Late answer '+options.lateMarker:'Synthetic visible answer'});}
  if(String(url).startsWith('/api/marketplace'))return Response.json({services:[]});
  throw Error('Unmocked full-view IO '+url);
  }});
@@ -178,7 +178,7 @@ function fullSendFixture(){
  ref('playbackAbortRef').current=playback;
  ref('playbackRef').current={onended:null,onerror:null,pause:()=>events.push('audio-pause'),removeAttribute:name=>events.push('remove:'+name),load:()=>events.push('audio-load')};
  ref('playbackUrlRef').current='blob:synthetic-voice';
- return {session,events,requests,playback,send:async()=>{const button=elements(render()).find(n=>n.props.className==='dabra-send');assert.ok(button);button.props.onClick();for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));}};
+ return {session,events,requests,playback,view:()=>elements(render()),release:async()=>{assert.ok(releaseReply);releaseReply();for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));},send:async()=>{const button=elements(render()).find(n=>n.props.className==='dabra-send');assert.ok(button);button.props.onClick();for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));}};
 }
 
 test('actual full send stops voice before dispatch',async()=>{
@@ -186,4 +186,49 @@ test('actual full send stops voice before dispatch',async()=>{
  for(const event of ['voice-abort','audio-pause','revoke:blob:synthetic-voice']){assert.ok(f.events.indexOf(event)>=0,event);assert.ok(f.events.indexOf(event)<dispatch,event+' must precede chat');}
  assert.equal(f.playback.signal.aborted,true);assert.equal(f.requests[0].body.get('message'),'Show Cairo hotels');assert.equal(f.requests[0].signal.aborted,false);
  assert.equal(f.session.getSnapshot().pending,false);
+});
+
+const visibleSyntheticText=nodes=>nodes.flatMap(node=>[node.props.text,typeof node.props.children==='string'?node.props.children:'']).filter(value=>typeof value==='string').join('\n');
+
+test('controlled same-account internal navigation shares private transcript in both actual views',async()=>{
+ const f=providerExports.fixture();f.render();f.commit();await f.respond();const session=f.render().session;
+ session.setMessages([{id:'question',role:'user',text:'Synthetic private question'},{id:'answer',role:'assistant',text:'Synthetic private answer'}]);session.markPrivate();session.setDraft('Synthetic private draft');
+ f.path('/dabra');f.render();f.commit();const full=fullSendFixture({session});
+ assert.match(visibleSyntheticText(full.view()),/Synthetic private answer/);
+ f.path('/');f.render();f.commit();f.changeAuth('SIGNED_IN');await f.respond();
+ const floating=floatingFixture({session});
+ for(const view of [full,floating]){
+  const nodes=view.view();assert.match(visibleSyntheticText(nodes),/Synthetic private question/);assert.match(visibleSyntheticText(nodes),/Synthetic private answer/);
+  assert.ok(nodes.some(node=>node.props.value==='Synthetic private draft'));
+ }
+ assert.equal(cacheInFullView(session),null,'private answer never enters browser storage');
+ f.unmount();
+ const reloaded=providerExports.fixture();reloaded.render();reloaded.commit();await reloaded.respond();
+ assert.equal(reloaded.render().state.messages.length,0,'a fresh application root does not persist private text');reloaded.unmount();
+});
+
+for(const [before,after] of [['synthetic-a','synthetic-b'],['synthetic-b','synthetic-a']])test('controlled late reply and request context isolation '+before+' to '+after,async()=>{
+ const f=providerExports.fixture();f.render();f.commit();await f.respond({identityState:'authenticated',authenticated:true,userId:before});const session=f.render().session;
+ const marker='private-'+before;
+ session.setMessages([{id:'old-user',role:'user',text:marker+' question'},{id:'old-answer',role:'assistant',text:marker+' answer'}]);session.markPrivate();session.setContinuityDraft(marker+' context');session.setDraft('what can you do '+marker);
+ const oldView=fullSendFixture({session,deferFirst:true,lateMarker:marker});await oldView.send();
+ assert.equal(oldView.requests.length,1);assert.equal(session.getSnapshot().pending,true);assert.match(String(oldView.requests[0].body.get('history')),new RegExp(marker));session.setDraft(marker+' unsent');
+ const trip={id:marker,origin:null,destination:marker,startDate:null,endDate:null,adults:1,children:0,rooms:1,budget:null,currency:'SAR',families:['drive']};
+ session.context.capture('user:'+before,{revision:1,generation:0,consentEnabled:true,consentVersion:'task187-v1',preferences:null,preferencesExpiresAt:null,trip,tripExpiresAt:'2027-01-01T00:00:00Z',updatedAt:null},false,true);
+ session.setContinuityDraft(marker+' staged context');assert.equal(session.context.trip.destination,marker);assert.equal(session.context.lease.ownerId,'user:'+before);
+ f.changeAuth('SIGNED_OUT',null);assert.equal(oldView.requests[0].signal.aborted,true);
+ await f.respond({identityState:'anonymous_confirmed',authenticated:false});
+ f.changeAuth('SIGNED_IN',after);await f.respond({identityState:'authenticated',authenticated:true,userId:after});
+ const clean=f.render();assert.equal(clean.state.persistence.ownerId,'user:'+after);assert.equal(clean.state.messages.length,0);assert.equal(clean.state.draft,'');assert.equal(session.context.draft,null);assert.equal(session.context.lease,null);assert.equal(session.context.trip,null);assert.equal(clean.state.continuityDraft,null);assert.equal(session.privateConversation,false);
+ // The old transport deliberately ignores abort and resolves only AFTER the new actor is ready.
+ session.setDraft('next actor draft');await oldView.release();
+ assert.equal(session.getSnapshot().messages.length,0);assert.equal(session.getSnapshot().draft,'next actor draft');assert.equal(session.getSnapshot().pending,false);assert.equal(session.getSnapshot().error,null);assert.equal(session.privateConversation,false);
+ for(const view of [fullSendFixture({session}),floatingFixture({session})]){
+  const nodes=view.view();assert.doesNotMatch(visibleSyntheticText(nodes),new RegExp(marker));assert.ok(nodes.some(node=>node.props.value==='next actor draft'));
+ }
+ session.setDraft('what can you do next actor');await oldView.send();assert.equal(oldView.requests.length,2);
+ const fullBody=oldView.requests[1].body;assert.equal(fullBody.get('continuityTrip'),null);assert.doesNotMatch(String(fullBody.get('history')),new RegExp(marker));assert.equal(fullBody.get('message'),'what can you do next actor');
+ session.setDraft('what can you do floating next actor');const floating=floatingFixture({session});await floating.send();
+ assert.equal(floating.requests.length,1);assert.doesNotMatch(JSON.stringify(floating.requests[0]),new RegExp(marker));assert.equal(floating.requests[0].continuityTrip,undefined);
+ f.unmount();
 });

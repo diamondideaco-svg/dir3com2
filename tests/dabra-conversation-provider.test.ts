@@ -182,3 +182,55 @@ for (const current of ['SAR', 'EUR']) test('root currency restoration reads the 
   view.session.forgetContext();
   assert.equal(f.currency(),current==='SAR'?'USD':'EUR'); assert.equal(view.session.continuityCurrency,null); f.unmount();
 });
+
+test('same-account SIGNED_IN during internal full-to-floating navigation preserves private live conversation', async () => {
+  const f = fixture(); f.render(); f.commit(); await f.respond(); const view = f.render();
+  view.session.setMessages([{id:'question',role:'user',text:'private same-account question'}, {id:'answer',role:'assistant',text:'private same-account answer'}]);
+  view.session.markPrivate(); view.session.setDraft('same-account unsent draft');
+  const job = view.session.begin(); assert.ok(job);
+  const generation = view.state.generation;
+  f.path('/dabra'); f.render(); f.commit();
+  f.path('/'); f.render(); f.commit();
+  f.changeAuth('SIGNED_IN');
+  assert.equal(f.render().state.draft, 'same-account unsent draft');
+  assert.equal(job.signal.aborted, false);
+  await f.respond(); const after = f.render();
+  assert.equal(after.state.generation, generation);
+  assert.equal(after.state.messages.length, 2);
+  assert.equal(after.state.draft, 'same-account unsent draft');
+  assert.equal(after.state.pending, true);
+  assert.equal(view.session.privateConversation, true);
+  assert.deepEqual(view.session.cachedMessages(after.state.messages), []);
+  f.unmount();
+});
+
+for (const nextOwner of ['synthetic-a', 'synthetic-b', null]) test('repeated SIGNED_IN still verifies the server identity: ' + nextOwner, async () => {
+  const f = fixture(); f.render(); f.commit(); await f.respond(); const view = f.render();
+  view.session.setMessages([{id:'private-a',role:'assistant',text:'A private reply'}]);
+  view.session.setDraft('A draft'); view.session.markPrivate();
+  const job = view.session.begin(); assert.ok(job);
+  f.changeAuth('SIGNED_IN');
+  await f.respond(nextOwner ? {identityState:'authenticated',authenticated:true,userId:nextOwner} : {identityState:'unavailable',authenticated:false});
+  const same = nextOwner === 'synthetic-a'; const after = f.render();
+  assert.equal(after.state.messages.length, same ? 1 : 0);
+  assert.equal(after.state.draft, same ? 'A draft' : '');
+  assert.equal(after.state.pending, same);
+  assert.equal(job.signal.aborted, !same);
+  assert.equal(view.session.privateConversation, same);
+  assert.equal(after.state.ready, nextOwner !== null);
+  f.unmount();
+});
+
+test('repeated SIGNED_IN validation cannot restore text after an actual account switch', async () => {
+  const f = fixture(); f.render(); f.commit(); await f.respond(); const view = f.render();
+  view.session.setDraft('A private draft');
+  f.changeAuth('SIGNED_IN'); const stale = f.requests.at(-1); assert.ok(stale);
+  f.changeAuth('SIGNED_IN', 'synthetic-b');
+  assert.equal(f.render().state.draft, '');
+  await f.respond({identityState:'authenticated',authenticated:true,userId:'synthetic-b'});
+  stale.reply({identityState:'authenticated',authenticated:true,userId:'synthetic-a'});
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(f.render().state.persistence?.ownerId, 'user:synthetic-b');
+  assert.equal(f.render().state.draft, '');
+  f.unmount();
+});

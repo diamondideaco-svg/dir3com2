@@ -13,3 +13,10 @@ for (const pattern of ['same-account TOKEN_REFRESHED', 'floating continuity inva
     assert.equal(result.status, 0, result.stdout + result.stderr);
   });
 }
+
+import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
+for (const name of [
+  'controlled same-account internal navigation shares private transcript in both actual views',
+  'controlled late reply and request context isolation synthetic-a to synthetic-b',
+  'controlled late reply and request context isolation synthetic-b to synthetic-a',
+]) test(name, () => { runDabraBoundaryCase(name); });

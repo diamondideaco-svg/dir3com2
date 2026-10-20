@@ -64,7 +64,9 @@ export function DabraConversationProvider({ children }: { children: ReactNode })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, authSession) => {
       if (event === 'INITIAL_SESSION') return;
       const current = session.getSnapshot();
-      const sameAccountRefresh = event === 'TOKEN_REFRESHED' && current.ready && Boolean(authSession?.user.id) && current.persistence?.ownerId === 'user:' + authSession?.user.id;
+      // SIGNED_IN also repeats when the SDK recovers the same session on focus.
+      // Both hints retain live text only while the server verifies the same actor.
+      const sameAccountRefresh = (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') && current.ready && Boolean(authSession?.user.id) && current.persistence?.ownerId === 'user:' + authSession?.user.id;
       resolveIdentity(sameAccountRefresh);
     });
     return () => { alive = false; identityRequest?.abort(); subscription.unsubscribe(); clearPreviousContext(); session.invalidate(boundary); session.setCurrencyRestorer(null); };
