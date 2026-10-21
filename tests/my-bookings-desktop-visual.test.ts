@@ -61,7 +61,8 @@ test('one existing launcher receives Concierge presentation only on the exact My
   const runtime = readFileSync(new URL('../components/layout/FloatingDibrah.tsx', import.meta.url), 'utf8');
   assert.ok(runtime.includes('desktopIdentity={desktopIdentity}'));
   assert.equal((runtime.match(/id="dibrah"/g) || []).length, 1);
-  assert.ok(runtime.includes('body: JSON.stringify({ message: trimmed, history: historyForRequest, locale: micLanguage, currency })'));
+  assert.match(runtime, /body: JSON\.stringify\(\{ message: trimmed, history, locale: continuityRequestLocale/);
+  assert.match(runtime, /currency: getDisplayCurrency\(\)/);
   assert.doesNotMatch(runtime.slice(runtime.indexOf('const sendDraft'), runtime.indexOf('\n  return (', runtime.indexOf('const sendDraft'))), /desktopIdentity/);
   assert.ok(runtime.includes('DABRA never books, pays, cancels, refunds, or performs irreversible actions on its own.'));
   assert.ok(runtime.includes('launcherIdentity ?? <span'));
@@ -81,4 +82,9 @@ test('contextual identity appears only at approved phone/desktop breakpoints; ot
   ast.walkDecls(declaration => {
     assert.ok(!['position', 'background', 'width', 'height', 'transform'].includes(declaration.prop));
   });
+});
+
+import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
+test('actual floating request preserves wire contract', () => {
+  runDabraBoundaryCase('actual floating request preserves wire contract');
 });

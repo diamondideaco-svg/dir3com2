@@ -55,13 +55,16 @@ test('signed-out DABRA is public discovery and persona names are presentation-on
   assert.match(route, /canonicalRole: actor\.platformRole/);
 });
 
-test('locale changes remount the session and abort stale assistant work', () => {
+test('locale changes remount the view and cancel only stale assistant work in its shared owner', () => {
   const floating = read('components/layout/FloatingDibrah.tsx');
-  assert.ok(floating.includes('key={`${language}:${identityRevision}`} language={language}'));
-  assert.match(floating, /onAuthStateChange/);
-  assert.match(floating, /subscription\.unsubscribe\(\)/);
-  assert.match(floating, /chatAbortRef\.current\?\.abort\(\)/);
-  assert.match(floating, /controller\.signal\.aborted \|\| activeRequestIdRef\.current !== requestId/);
+  const provider = read('components/dabra/DabraConversationProvider.tsx');
+  const session = read('lib/dabra/conversation-session.ts');
+  assert.ok(floating.includes('key={`${language}:${state.generation}`} language={language}'));
+  assert.match(provider, /onAuthStateChange/);
+  assert.match(provider, /subscription\.unsubscribe\(\)/);
+  assert.match(provider, /session\.cancel\(\);\s*\}, \[session, language\]\)/);
+  assert.match(session, /abort\(\)/);
+  assert.match(floating, /conversation\.isCurrent\(job\)/);
   assert.match(floating, /fetch\('\/api\/services\?view=assistant', \{ cache: 'no-store', signal: controller\.signal \}\)/);
   assert.match(floating, /if \(!controller\.signal\.aborted\) setAssistantContext\(null\)/);
 });

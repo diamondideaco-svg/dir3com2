@@ -3,18 +3,18 @@
 import PlatformAnswer from '@/components/dabra/PlatformAnswer';
 import DabraContinuity from '@/components/dabra/DabraContinuity';
 import type { ContinuityPreferences, SavedTrip } from '@/lib/dabra/continuity-contract';
-import {ContinuityContext} from '@/lib/dabra/continuity-context';
+import { useDabraConversation } from '@/components/dabra/DabraConversationProvider';
+import type { ConversationJob } from '@/lib/dabra/conversation-session';
 import { continuityRequestLocale } from '@/lib/dabra/continuity-chat';
 import { newTripRequested } from '@/lib/dabra/trip-routing';
 import {parseContinuitySnapshot,type ContinuitySnapshot} from '@/lib/dabra/continuity-service';
 import PlatformResults from '@/components/dabra/PlatformResults';
 import { platformFamilies, platformContext, platformCurrency, type PlatformFamily } from '@/lib/dabra/platform-assistant';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FiArrowLeft, FiCheck, FiChevronDown, FiClock, FiHeart, FiMapPin, FiMessageCircle, FiMic, FiMicOff, FiPaperclip, FiSearch, FiSend, FiShoppingBag, FiSliders, FiStopCircle, FiVolume2, FiX } from 'react-icons/fi';
 import { cn } from '@/lib/utils';
 import type { MarketplaceService } from '@/lib/marketplace/data';
-import { supabase } from '@/lib/supabase/client';
 import { consumeDabraChatResponse } from '@/lib/dabra/chat-response-contract';
 import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
@@ -27,14 +27,11 @@ import DabraFamilySafetyPanel from '@/components/dabra/DabraFamilySafetyPanel';
 import CollaborativeTripCapabilities from '@/components/v6/CollaborativeTripCapabilities';
 import { normalizeDabraAvailability, normalizeDabraMarketplaceFamily, parseDabraMarketplaceQuery, toMarketplaceSearchParams } from '@/lib/dabra/marketplace-query';
 import {
-  DABRA_ANONYMOUS_SESSION_KEY,
   applyScopedHotelChange,
-  anonymousOwnerId,
   buildDabraRecommendations,
   calculateCartTotals,
   createPersisted,
   missingTripComponents,
-  persistenceContextForIdentity,
   readPersisted,
   recommendationEligible,
   sortDabraResults,
@@ -43,7 +40,6 @@ import {
   validatePersistedFavorites,
   validatePersistedMessages,
   type DabraCartItem,
-  type DabraPersistenceContext,
   type DabraResultSort,
 } from '@/lib/dabra/travel-commerce-state';
 
@@ -52,7 +48,6 @@ type VoicePlaybackStatus = 'idle' | 'loading' | 'playing' | 'error';
 type Message = { id: string; role: 'user' | 'assistant'; text: string };
 type DabraAttachment = { id: string; file: File; safeName: string; status: 'selected' | 'uploading' | 'error'; error?: string };
 type CartItem = DabraCartItem;
-type PersistenceContext = DabraPersistenceContext;
 
 const quickActionIds = ['compare', 'cheapest', 'comfort', 'nonstop', 'closest', 'highest', 'date', 'alternatives', 'shortlist', 'choose'] as const;
 const tabValues = [undefined, 'dir3-fly', 'dir3-stay', 'dir3-drive', 'dir3-concierge', 'dir3-vip'] as const;
@@ -107,13 +102,23 @@ function publicItemsToServices(items: Array<Record<string, unknown>>): Marketpla
 }
 
 export default function DabraChatCommerce() {
+  const { state } = useDabraConversation();
+  return <DabraChatCommerceSession key={state.generation} />;
+}
+
+function DabraChatCommerceSession() {
+  const { session: conversation, state: conversationState } = useDabraConversation();
+  const viewMountedRef = useRef(true);
   const { language, direction } = useLanguage();
   const { currency, setCurrency } = useDisplayCurrency();
   const t = dabraCopy[language];
   const approvedVoiceCopy = getApprovedDabraVoiceCopy(language);
   const approvedPlaybackCopy = getApprovedDabraPlaybackCopy(language);
-  const [messages, setMessages] = useState<Message[]>([welcomeMessage(language)]);
-  const [input, setInput] = useState('');
+  const messages = useMemo(() => conversationState.messages.length ? conversationState.messages : [welcomeMessage(language)], [conversationState.messages, language]);
+  const viewGeneration = conversationState.generation;
+  const setMessages = useCallback((update: Parameters<typeof conversation.setMessages>[0]) => conversation.setMessagesFor(viewGeneration, update), [conversation, viewGeneration]);
+  const input = conversationState.draft;
+  const setInput = useCallback((update: Parameters<typeof conversation.setDraft>[0]) => conversation.setDraftFor(viewGeneration, update), [conversation, viewGeneration]);
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle');
   const [voicePlaybackStatus, setVoicePlaybackStatus] = useState<VoicePlaybackStatus>('idle');
   const [voicePlaybackPartial, setVoicePlaybackPartial] = useState(false);
@@ -131,7 +136,7 @@ export default function DabraChatCommerce() {
   const [attachments, setAttachments] = useState<DabraAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [chatInFlight, setChatInFlight] = useState(false);
+  const chatInFlight = conversationState.pending;
   const [resultState, setResultState] = useState<'idle' | 'empty' | 'error'>('idle');
   const [favorites, setFavorites] = useState<Array<string | number>>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -159,11 +164,11 @@ export default function DabraChatCommerce() {
     return () => { document.removeEventListener('keydown', keyboard); if (trigger?.isConnected) trigger.focus(); };
   }, [showCart, showSettings]);
 
-  const [continuityPreferences, setContinuityPreferences] = useState<ContinuityPreferences | null>(null);
-  const [continuityDraft,setContinuityDraft]=useState<string|null>(null);
-  const continuityContextRef=useRef(new ContinuityContext());
-  const continuitySnapshotRef=useRef<ContinuitySnapshot|null>(null);
-  const continuityCurrencyRef=useRef<{before:typeof currency;applied:typeof currency}|null>(null);
+  const continuityPreferences = conversationState.preferences;
+  const setContinuityPreferences = conversation.setPreferences;
+  const continuityDraft = conversationState.continuityDraft;
+  const setContinuityDraft = conversation.setContinuityDraft;
+  const continuityContextRef = useRef(conversation.context);
   const currentCurrencyRef=useRef(currency);
   useEffect(()=>{currentCurrencyRef.current=currency;},[currency]);
   const [compareMode, setCompareMode] = useState(false);
@@ -171,8 +176,8 @@ export default function DabraChatCommerce() {
   const [travellerCount, setTravellerCount] = useState(1);
   const [requestState, setRequestState] = useState<'idle' | 'sending' | 'submitted' | 'error'>('idle');
   const [requestReference, setRequestReference] = useState('');
-  const [persistenceContext, setPersistenceContext] = useState<PersistenceContext | null>(null);
-  const [identityResolved, setIdentityResolved] = useState(false);
+  const persistenceContext = conversationState.persistence;
+  const identityResolved = conversationState.ready;
   const [storageHydrated, setStorageHydrated] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const playbackRef = useRef<HTMLAudioElement | null>(null);
@@ -181,11 +186,7 @@ export default function DabraChatCommerce() {
   const playbackGenerationRef = useRef(0);
   const attachmentRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
-  const identityRequestRef = useRef(0);
   const lifecycleRef = useRef(0);
-  const chatInFlightRef = useRef(false);
-  const privateConversationRef = useRef(false);
-  const chatAbortRef = useRef<AbortController | null>(null);
   const marketplaceRequestRef = useRef(0);
   const marketplaceAbortRef = useRef<AbortController | null>(null);
   const requestInFlightRef = useRef(false);
@@ -233,10 +234,6 @@ export default function DabraChatCommerce() {
 
   function invalidateActiveRequests() {
     lifecycleRef.current += 1;
-    chatAbortRef.current?.abort();
-    chatAbortRef.current = null;
-    chatInFlightRef.current = false;
-    setChatInFlight(false);
     marketplaceRequestRef.current += 1;
     marketplaceAbortRef.current?.abort();
     marketplaceAbortRef.current = null;
@@ -245,60 +242,9 @@ export default function DabraChatCommerce() {
   }
 
   useEffect(() => {
-    let active = true;
-    function detachSensitiveState() {
-      const appliedCurrency=continuityCurrencyRef.current;
-      if(appliedCurrency&&currentCurrencyRef.current===appliedCurrency.applied){currentCurrencyRef.current=appliedCurrency.before;setCurrency(appliedCurrency.before);}
-      continuityContextRef.current.clear([]);continuitySnapshotRef.current=null;continuityCurrencyRef.current=null;setContinuityDraft(null);
-      setContinuityPreferences(null);
-      privateConversationRef.current = false;
-      invalidateActiveRequests();
-      setStorageHydrated(false);
-      setPersistenceContext(null);
-      setIdentityResolved(false);
-      setMessages([welcomeMessage(languageRef.current)]);
-      setCart([]);
-      setFavorites([]);
-      setInput('');
-      setAttachments([]);
-      setAttachmentError('');
-      setVoicePlaybackPartial(false);
-      if (attachmentRef.current) attachmentRef.current.value = '';
-    }
-    async function resolveValidatedIdentity() {
-      const requestId = ++identityRequestRef.current;
-      detachSensitiveState();
-      try {
-        const response = await fetch('/api/dabra/session-identity', { cache: 'no-store', credentials: 'same-origin', signal: AbortSignal.timeout(8_000) });
-        if (!response.ok) throw new Error('identity');
-        const identity = await response.json() as { identityState?: string; authenticated?: boolean; userId?: string };
-        let sessionId = '';
-        if (identity.identityState === 'anonymous_confirmed' && identity.authenticated === false) {
-          sessionId = window.sessionStorage.getItem(DABRA_ANONYMOUS_SESSION_KEY) ?? '';
-          if (!anonymousOwnerId(sessionId)) {
-            sessionId = window.crypto.randomUUID();
-            window.sessionStorage.setItem(DABRA_ANONYMOUS_SESSION_KEY, sessionId);
-          }
-        }
-        const next = persistenceContextForIdentity(identity, sessionId);
-        if (!active || requestId !== identityRequestRef.current) return;
-        setPersistenceContext(next);
-        setIdentityResolved(true);
-      } catch {
-        if (!active || requestId !== identityRequestRef.current) return;
-        setPersistenceContext(null);
-        setIdentityResolved(true);
-      }
-    }
-    void resolveValidatedIdentity();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'INITIAL_SESSION') return;
-      identityRequestRef.current += 1;
-      detachSensitiveState();
-      window.setTimeout(() => { if (active) void resolveValidatedIdentity(); }, 0);
-    });
-    return () => { active = false; identityRequestRef.current += 1; invalidateActiveRequests(); subscription.unsubscribe(); };
-  // Identity resolution subscribes exactly once; request/resource invalidation is ref-based and always observes current resources.
+    viewMountedRef.current = true;
+    return () => { viewMountedRef.current = false; invalidateActiveRequests(); };
+  // The root owns chat cancellation. View cleanup only stops local market/voice resources.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -318,9 +264,10 @@ export default function DabraChatCommerce() {
   }, []);
 
   useEffect(() => {
-    if (!identityResolved) return;
+    if (!identityResolved || viewGeneration !== conversation.getSnapshot().generation) return;
     if (!persistenceContext) {
       const reset = window.setTimeout(() => {
+        if (!viewMountedRef.current || viewGeneration !== conversation.getSnapshot().generation) return;
         setMessages([welcomeMessage(languageRef.current)]);
         setCart([]);
         setFavorites([]);
@@ -329,39 +276,40 @@ export default function DabraChatCommerce() {
       return () => window.clearTimeout(reset);
     }
     const hydrate = window.setTimeout(() => {
+      if (!viewMountedRef.current || viewGeneration !== conversation.getSnapshot().generation) return;
       const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
       const { ownerId } = persistenceContext;
-      setMessages(readPersisted(storage.getItem(storageKey(ownerId, 'context')), ownerId, validatePersistedMessages) ?? [welcomeMessage(languageRef.current)]);
+      conversation.hydrateMessages(readPersisted(storage.getItem(storageKey(ownerId, 'context')), ownerId, validatePersistedMessages) ?? []);
       setCart(readPersisted(storage.getItem(storageKey(ownerId, 'cart')), ownerId, validatePersistedCart) ?? []);
       setFavorites(readPersisted(storage.getItem(storageKey(ownerId, 'favorites')), ownerId, validatePersistedFavorites) ?? []);
       setStorageHydrated(true);
     }, 0);
     return () => window.clearTimeout(hydrate);
-  }, [identityResolved, persistenceContext]);
+  }, [identityResolved, persistenceContext, conversation, setMessages, viewGeneration]);
 
   useEffect(() => {
-    if (!persistenceContext || !storageHydrated) return;
+    if (!persistenceContext || !storageHydrated || !conversation.getSnapshot().ready || viewGeneration !== conversation.getSnapshot().generation) return;
     const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
-    if (privateConversationRef.current) {
+    if (conversation.privateConversation) {
       storage.removeItem(storageKey(persistenceContext.ownerId, 'context'));
       return;
     }
-    storage.setItem(storageKey(persistenceContext.ownerId, 'context'), JSON.stringify(createPersisted(continuityContextRef.current.cachedMessages(messages), persistenceContext.ownerId)));
+    storage.setItem(storageKey(persistenceContext.ownerId, 'context'), JSON.stringify(createPersisted(conversation.cachedMessages(messages), persistenceContext.ownerId)));
     streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: 'smooth' });
-  }, [persistenceContext, storageHydrated, messages]);
+  }, [persistenceContext, storageHydrated, messages, conversation, conversationState.pending, viewGeneration]);
 
   useEffect(() => {
-    if (!persistenceContext || !storageHydrated) return;
+    if (!persistenceContext || !storageHydrated || !conversation.getSnapshot().ready || viewGeneration !== conversation.getSnapshot().generation) return;
     const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
     if(continuityContextRef.current.lease){storage.removeItem(storageKey(persistenceContext.ownerId,'cart'));return;}
     storage.setItem(storageKey(persistenceContext.ownerId, 'cart'), JSON.stringify(createPersisted(cart, persistenceContext.ownerId)));
-  }, [persistenceContext, storageHydrated, cart]);
+  }, [persistenceContext, storageHydrated, cart, conversation, viewGeneration]);
 
   useEffect(() => {
-    if (!persistenceContext || !storageHydrated) return;
+    if (!persistenceContext || !storageHydrated || !conversation.getSnapshot().ready || viewGeneration !== conversation.getSnapshot().generation) return;
     const storage = persistenceContext.storage === 'local' ? window.localStorage : window.sessionStorage;
     storage.setItem(storageKey(persistenceContext.ownerId, 'favorites'), JSON.stringify(createPersisted(favorites, persistenceContext.ownerId)));
-  }, [persistenceContext, storageHydrated, favorites]);
+  }, [persistenceContext, storageHydrated, favorites, conversation, viewGeneration]);
 
   const visibleServices = useMemo(() => sortDabraResults(services
     .filter((service) => !availabilityOnly || service.availability === 'available')
@@ -462,32 +410,34 @@ export default function DabraChatCommerce() {
   }
 
   async function sendMessage(text = input) {
-    if(chatInFlightRef.current||!identityResolved)return;
-    if(!await ensureContinuityFresh())return;
-    if(newTripRequested(text))forgetContinuityContext();
+    const generation = conversation.getSnapshot().generation;
+    if(!viewMountedRef.current || generation !== viewGeneration || conversation.getSnapshot().pending || !identityResolved)return;
+    if (!text.trim() && !conversation.context.draft && !attachments.length) return;
+    const job = conversation.begin();
+    if (!job) return;
+    if(!await ensureContinuityFresh(false, job) || !conversation.isCurrent(job)) { conversation.finish(job); return; }
+    if(newTripRequested(text))forgetContinuityContext(job);
     const context=continuityContextRef.current;
     const draft=context.draft;
     const explicitText=text.trim();
     const message = explicitText || draft || (attachments.length ? t.attachmentPrompt : '');
-    if (!message || chatInFlightRef.current || !identityResolved) return;
+    if (!message || !identityResolved) { conversation.finish(job); return; }
+    const setJobMessages = (update: Parameters<typeof conversation.setMessages>[0]) => conversation.update(job, update);
     const requestedCurrency = platformCurrency(message) ?? currency;
     if (requestedCurrency !== currency) setCurrency(requestedCurrency);
     stopVoicePlayback();
     setVoicePlaybackPartial(false);
-    chatInFlightRef.current = true;
-    setChatInFlight(true);
     const lifecycle = lifecycleRef.current;
     const marketplaceGeneration = marketplaceRequestRef.current;
-    const controller = new AbortController();
-    chatAbortRef.current = controller;
+    const signal = job.signal;
     const pendingAttachments = attachments;
     // A fresh continuity read can outlive a new edit in the composer.
     setInput(current=>current===text?'':current);
     setAttachments((current) => current.map((item) => ({ ...item, status: 'uploading', error: undefined })));
     setAttachmentError('');
     setCart((current) => applyScopedHotelChange(current, message));
-    const assistantId = makeId();
-    const userId=makeId();const seed:Message|null=draft&&explicitText?{id:makeId(),role:'user',text:draft}:null;
+    const assistantId = `assistant-${job.id}`;
+    const userId=`user-${job.id}`;const seed:Message|null=draft&&explicitText?{id:makeId(),role:'user',text:draft}:null;
     // The staged summary is presentation only. Explicit refinements update
     // the ephemeral typed trip, never the saved record or account authority.
     const trip=context.refine(explicitText);
@@ -496,7 +446,7 @@ export default function DabraChatCommerce() {
     context.beginAnswer(assistantId);
     if(context.lease){context.tag(assistantId);if(seed)context.tag(seed.id);else if(draft&&!explicitText)context.tag(userId);}
     context.draft=null;setContinuityDraft(null);
-    setMessages((current) => [...current,...(seed?[seed]:[]), { id:userId, role: 'user', text: message }, { id: assistantId, role: 'assistant', text: '' }]);
+    setJobMessages((current) => [...current,...(seed?[seed]:[]), { id:userId, role: 'user', text: message }, { id: assistantId, role: 'assistant', text: '' }]);
     setVoiceStatus('processing');
     let answerFinished=false;
     try {
@@ -512,35 +462,34 @@ export default function DabraChatCommerce() {
         method: 'POST',
         headers: { Accept: 'text/plain' },
         body: form,
-        signal: controller.signal,
+        signal,
       });
-      if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
-      if (response.headers.get('X-DABRA-Private-Context') === '1') privateConversationRef.current = true;
+      if (!conversation.isCurrent(job)) return;
+      if (response.headers.get('X-DABRA-Private-Context') === '1' || response.headers.get('Content-Type')?.includes('application/json')) conversation.markPrivate();
       const finalAnswer=await consumeDabraChatResponse(response, (visibleAnswer) => {
-        if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
-        setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));
+        if (!conversation.isCurrent(job)) return;
+        setJobMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));
       }, DABRA_LOCALE_ERROR[language]);
-      if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
+      if (!conversation.isCurrent(job)) return;
       context.finishAnswer(assistantId);answerFinished=true;
       // Trigger persistence only after completion, even if React already
       // rendered the final streaming callback while it was still pending.
-      setMessages(current=>current.map(item=>item.id===assistantId?{...item,text:finalAnswer}:item));
-      setAttachments([]);
-      if (attachmentRef.current) attachmentRef.current.value = '';
+      setJobMessages(current=>current.map(item=>item.id===assistantId?{...item,text:finalAnswer}:item));
+      if (viewMountedRef.current) { setAttachments([]); if (attachmentRef.current) attachmentRef.current.value = ''; }
     } catch {
-      if (lifecycle !== lifecycleRef.current || controller.signal.aborted) return;
+      if (!conversation.isCurrent(job)) return;
       context.finishAnswer(assistantId);answerFinished=true;
-      setAttachments((current) => current.map((item) => ({ ...item, status: 'error', error: t.attachmentSendError })));
-      setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: DABRA_LOCALE_ERROR[language] } : item));
+      conversation.fail(job, DABRA_LOCALE_ERROR[language]);
+      if (viewMountedRef.current) setAttachments((current) => current.map((item) => ({ ...item, status: 'error', error: t.attachmentSendError })));
+      setJobMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: DABRA_LOCALE_ERROR[language] } : item));
     } finally {
-      if(!answerFinished)setMessages(current=>current.filter(item=>item.id!==assistantId));
+      if(!answerFinished)setJobMessages(current=>current.filter(item=>item.id!==assistantId));
       context.finishAnswer(assistantId);
-      if (lifecycle === lifecycleRef.current) {
-        chatAbortRef.current = null;
-        chatInFlightRef.current = false;
-        setChatInFlight(false);
+      const current = conversation.isCurrent(job);
+      conversation.finish(job);
+      if (current && viewMountedRef.current && lifecycle === lifecycleRef.current) {
         setVoiceStatus('idle');
-        if (!controller.signal.aborted && marketplaceGeneration === marketplaceRequestRef.current) void searchMarketplace(explicitText || trip?.families.join(' ') || message);
+        if (marketplaceGeneration === marketplaceRequestRef.current) void searchMarketplace(explicitText || trip?.families.join(' ') || message);
       }
     }
   }
@@ -648,7 +597,7 @@ export default function DabraChatCommerce() {
   }
 
   function removeAttachment(id: string) {
-    if (chatInFlightRef.current) return;
+    if (conversation.getSnapshot().pending) return;
     setAttachments((current) => current.filter((item) => item.id !== id));
     setAttachmentError('');
   }
@@ -700,7 +649,7 @@ export default function DabraChatCommerce() {
     recognition.onerror = () => { if (voiceGeneration === voiceGenerationRef.current && lifecycle === lifecycleRef.current) { stopVoiceResources(); setVoiceStatus('error'); } };
     recognition.onend = () => { if (voiceGeneration === voiceGenerationRef.current && lifecycle === lifecycleRef.current) { recognitionRef.current = null; setVoiceStatus((current) => current === 'listening' ? 'idle' : current); } };
     recognition.onresult = (event) => {
-      if (voiceGeneration !== voiceGenerationRef.current || lifecycle !== lifecycleRef.current || chatInFlightRef.current) return;
+      if (voiceGeneration !== voiceGenerationRef.current || lifecycle !== lifecycleRef.current || conversation.getSnapshot().pending) return;
       const transcript = event.results[0]?.[0]?.transcript ?? '';
       setInput(transcript);
       setVoiceStatus('processing');
@@ -720,13 +669,13 @@ export default function DabraChatCommerce() {
     setFavorites((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
 
-  function forgetContinuityContext() {
+  function forgetContinuityContext(keepJob?: ConversationJob) {
+    if (viewGeneration !== conversation.getSnapshot().generation) return;
     const context=continuityContextRef.current;const hadContext=Boolean(context.lease);
-    if(hadContext)invalidateActiveRequests();
+    if(hadContext){if(!keepJob || !conversation.isCurrent(keepJob))conversation.cancel();invalidateActiveRequests();}
     setContinuityPreferences(null);
     setContinuityDraft(null);
-    const previousCurrency=continuityCurrencyRef.current;continuityCurrencyRef.current=null;
-    if(previousCurrency&&currentCurrencyRef.current===previousCurrency.applied){currentCurrencyRef.current=previousCurrency.before;setCurrency(previousCurrency.before);}
+    conversation.restoreContinuityCurrency();
     // Keep independently typed text, messages, favorites and attachments.
     const independent=context.forget();setMessages(current=>independent(current));
     if(hadContext){setCart([]);setServices([]);setPlatformQuery(null);setLastMarketplaceQuery('');setCompareMode(false);setRequestState('idle');setRequestReference('');
@@ -736,6 +685,7 @@ export default function DabraChatCommerce() {
   useEffect(() => {
     if (previousLanguageRef.current === language) return;
     previousLanguageRef.current = language;
+    conversation.cancel();
     invalidateActiveRequests();
     setMessages(current => conversationForLocale(current, welcomeMessage(language)));
     setAttachments([]);
@@ -747,35 +697,38 @@ export default function DabraChatCommerce() {
   }, [language]);
 
   function observeContinuityState(state:ContinuitySnapshot|null){
+    if (viewGeneration !== conversation.getSnapshot().generation) return;
     if(!continuityContextRef.current.isFresh(persistenceContext?.ownerId??'',state))forgetContinuityContext();
-    continuitySnapshotRef.current=state;
+    conversation.setContinuitySnapshot(state);
   }
 
-  async function ensureContinuityFresh(force=false){
+  async function ensureContinuityFresh(force=false, job?: ConversationJob){
+    if (viewGeneration !== conversation.getSnapshot().generation) return false;
     if(!force&&!continuityContextRef.current.lease)return true;
     const lifecycle=lifecycleRef.current;
-    try{const response=await fetch('/api/dabra/continuity',{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(8_000)});
-      const body=await response.json();if(lifecycle!==lifecycleRef.current)return false;
+    try{const response=await fetch('/api/dabra/continuity',{cache:'no-store',credentials:'same-origin',signal:job?AbortSignal.any([job.signal,AbortSignal.timeout(8_000)]):AbortSignal.timeout(8_000)});
+      const body=await response.json();if((job?!conversation.isCurrent(job):lifecycle!==lifecycleRef.current) || viewGeneration !== conversation.getSnapshot().generation)return false;
       const state=response.ok&&body.enabled===true&&body.ownerId===persistenceContext?.ownerId?parseContinuitySnapshot(body.state):null;
-      if(!continuityContextRef.current.isFresh(persistenceContext?.ownerId??'',state)){forgetContinuityContext();continuitySnapshotRef.current=state;return false;}
-      continuitySnapshotRef.current=state;return true;
-    }catch{if(lifecycle===lifecycleRef.current)forgetContinuityContext();return false;}
+      if(!continuityContextRef.current.isFresh(persistenceContext?.ownerId??'',state)){forgetContinuityContext();conversation.setContinuitySnapshot(state);return false;}
+      conversation.setContinuitySnapshot(state);return true;
+    }catch{if((job?conversation.isCurrent(job):lifecycle===lifecycleRef.current) && viewGeneration === conversation.getSnapshot().generation)forgetContinuityContext();return false;}
   }
 
   function setAppliedContinuityPreferences(preferences: ContinuityPreferences | null) {
+    if (viewGeneration !== conversation.getSnapshot().generation) return;
     if(!preferences){forgetContinuityContext();return;}
-    const state=continuitySnapshotRef.current;if(!state||!persistenceContext)return;
+    const state=conversation.continuitySnapshot;if(!state||!persistenceContext)return;
     continuityContextRef.current.capture(persistenceContext.ownerId,state,true,Boolean(continuityContextRef.current.lease?.trip));
     setContinuityPreferences(preferences);
-    if(!continuityCurrencyRef.current)continuityCurrencyRef.current={before:currentCurrencyRef.current,applied:preferences.displayCurrency};
-    else continuityCurrencyRef.current.applied=preferences.displayCurrency;
+    if(!conversation.continuityCurrency)conversation.setContinuityCurrency({before:currentCurrencyRef.current,applied:preferences.displayCurrency});
+    else conversation.setContinuityCurrency({...conversation.continuityCurrency,applied:preferences.displayCurrency});
     setCurrency(preferences.displayCurrency);
   }
 
   async function applyContinuityPreferences(preferences:ContinuityPreferences|null){
     if(!preferences){forgetContinuityContext();return;}
     if(!await ensureContinuityFresh(true))return;
-    const state=continuitySnapshotRef.current;
+    const state=conversation.continuitySnapshot;
     if(!state?.consentEnabled||Date.parse(state.preferencesExpiresAt??'')<=Date.now()||JSON.stringify(state.preferences)!==JSON.stringify(preferences))return;
     setAppliedContinuityPreferences(preferences);
   }
@@ -783,11 +736,11 @@ export default function DabraChatCommerce() {
   async function resumeContinuityTrip(trip: SavedTrip, preferences: ContinuityPreferences | null) {
     // Stage intent for explicit user confirmation. No chat, search or provider call here.
     if(!await ensureContinuityFresh(true))return;
-    const refreshed=continuitySnapshotRef.current;
+    const refreshed=conversation.continuitySnapshot;
     if(!refreshed?.consentEnabled||Date.parse(refreshed.tripExpiresAt??'')<=Date.now()||JSON.stringify(refreshed.trip)!==JSON.stringify(trip)
       ||(preferences&&JSON.stringify(refreshed.preferences)!==JSON.stringify(preferences)))return;
     forgetContinuityContext();
-    const state=continuitySnapshotRef.current;if(!state||!persistenceContext)return;
+    const state=conversation.continuitySnapshot;if(!state||!persistenceContext)return;
     setAppliedContinuityPreferences(preferences);
     continuityContextRef.current.capture(persistenceContext.ownerId,state,Boolean(preferences),true);
     setCart([]);setServices([]);setPlatformQuery(null);setLastMarketplaceQuery('');setCompareMode(false);setRequestState('idle');setRequestReference('');
@@ -802,6 +755,7 @@ export default function DabraChatCommerce() {
 
   return (
     <main className="dabra-experience" dir={direction} lang={language}>
+      {conversationState.error && <p role="status">{conversationState.error}</p>}
       <header className="dabra-topbar">
         <div className="dabra-identity">
           <div className="dabra-avatar" aria-hidden="true">{language === 'ar' ? 'د' : 'D'}</div>

@@ -81,8 +81,8 @@ test('internal car discovery remains available without DB/model and does not fab
 test('private chat context is excluded from local persistence and stale responses after identity change', async()=>{
  const {readFileSync}=await import('node:fs');
  const ui=readFileSync('components/dabra/DabraChatCommerce.tsx','utf8');
- assert.match(ui,/privateConversationRef\.current[\s\S]*storage\.removeItem\(storageKey\(persistenceContext\.ownerId, 'context'\)\)/);
- assert.match(ui,/lifecycle !== lifecycleRef\.current \|\| controller\.signal\.aborted\) return;\s*if \(response\.headers\.get\('X-DABRA-Private-Context'\)/);
+ assert.match(ui,/conversation\.privateConversation[\s\S]*storage\.removeItem\(storageKey\(persistenceContext\.ownerId, 'context'\)\)/);
+ assert.match(ui,/if \(!conversation\.isCurrent\(job\)\) return;\s*if \(response\.headers\.get\('X-DABRA-Private-Context'\)/);
  const route=readFileSync('app/api/ai2/chat/route.ts','utf8');
  assert.match(route,/intent\.tool !== 'discover'\) streamed\.headers\.set\('X-DABRA-Private-Context', '1'\)/);
 });
@@ -109,4 +109,9 @@ test('map tool stays inside platform until explicit navigation',async()=>{
  const response=await run('خريطة المطار','guest',undefined,'ar').promise;
  assert.match(response.answer,/\/#home-map/);assert.doesNotMatch(response.answer,/https?:/);assert.equal(platformLinkAllowed('/#home-map'),true);
  assert.equal(platformLinkAllowed('/?redirect=https://evil.invalid#home-map'),false);
+});
+
+import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
+test('actual provider and view reject retired account writes', () => {
+  runDabraBoundaryCase('actual provider and view reject retired account writes');
 });

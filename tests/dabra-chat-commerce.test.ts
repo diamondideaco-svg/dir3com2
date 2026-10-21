@@ -112,8 +112,11 @@ test('voice lifecycle, chat serialization and stale marketplace updates are guar
   assert.match(component, /recognition\.abort\?\.\(\)/);
   assert.match(component, /return \(\) => \{[^}]*invalidateActiveRequests\(\)/);
   assert.match(component, /voiceGeneration !== voiceGenerationRef\.current/);
-  assert.match(component, /chatInFlightRef\.current/);
-  assert.match(component, /chatAbortRef\.current\?\.abort\(\)/);
+  assert.match(component, /conversation\.getSnapshot\(\)\.pending/);
+  assert.match(component, /conversation\.begin\(\)/);
+  assert.match(component, /conversation\.isCurrent\(job\)/);
+  const sessionSource = fs.readFileSync(path.join(root, 'lib', 'dabra', 'conversation-session.ts'), 'utf8');
+  assert.match(sessionSource, /this\.controller\?\.abort\(\)/);
   assert.match(component, /requestId !== marketplaceRequestRef\.current/);
   assert.match(component, /marketplaceAbortRef\.current\?\.abort\(\)/);
   assert.match(component, /marketplaceGeneration === marketplaceRequestRef\.current/);

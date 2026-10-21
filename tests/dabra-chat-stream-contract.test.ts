@@ -139,7 +139,7 @@ test('only final visible assistant text reaches transcript persistence and no un
   assert.doesNotMatch(component, /speechSynthesis|SpeechSynthesisUtterance|normalizeDabraSpeechText/);
   assert.match(component, /item\.id === assistantId \? \{ \.\.\.item, text: visibleAnswer \}/);
   assert.doesNotMatch(component, /text:\s*normalizeDabraSpeechText/);
-  assert.match(component, /createPersisted\(continuityContextRef.current.cachedMessages\(messages\)/);
+  assert.match(component, /createPersisted\(conversation.cachedMessages\(messages\)/);
   assert.doesNotMatch(component, /createPersisted\([^\n]*(response|payload|raw)/);
 });
 
@@ -189,4 +189,9 @@ test('malformed, executable, oversized-count and unsupported attachments fail sa
   assert.equal(await response.text(), DABRA_SAFE_CHAT_ERROR);
   const tooMany = await POST(multipartChatRequest(Array.from({ length: 4 }, (_, index) => new File([new Uint8Array([1])], `${index}.png`, { type: 'image/png' }))));
   assert.equal(tooMany.status, 400);
+});
+
+import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
+test('shared actual persistence excludes private content', () => {
+  runDabraBoundaryCase('shared actual persistence excludes private content');
 });

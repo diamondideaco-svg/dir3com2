@@ -206,6 +206,15 @@ test('client playback cancels fetch and audio across response, locale, navigatio
   assert.match(client, /URL\.revokeObjectURL/);
   assert.match(client, /window\.addEventListener\('pagehide', cancelForNavigation\)/);
   assert.match(client, /language !== languageRef\.current/);
-  assert.match(client, /stopVoicePlayback\(\);[\s\S]{0,120}chatInFlightRef\.current = true/);
+  assert.match(client, /const job = conversation\.begin\(\);[\s\S]*stopVoicePlayback\(\);[\s\S]*fetch\('\/api\/ai2\/chat'/);
   assert.doesNotMatch(client, /speechSynthesis|SpeechSynthesisUtterance/);
+});
+
+import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
+test('actual full send stops voice before dispatch', () => {
+  runDabraBoundaryCase('actual full send stops voice before dispatch');
+});
+
+test('boundary proof guard rejects a nonexistent case rather than file-level PASS', () => {
+  assert.throws(() => runDabraBoundaryCase('TASK208_NONEXISTENT_CASE'), { code: 'ERR_ASSERTION' });
 });

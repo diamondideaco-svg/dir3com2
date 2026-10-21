@@ -40,11 +40,13 @@ test('customer launcher reuses canonical chat including locale reset and safety 
   const shell = read('components/v6/Chrome.tsx'), chat = read('components/layout/FloatingDibrah.tsx');
   assert.match(shell, /viewer && path !== '\/my-account' && <div className=\{styles.customerLauncher\}/);
   assert.match(shell, /FloatingDibrah launcherIdentity=\{<DabraCompact/);
-  assert.ok(chat.includes('key={`${language}:${identityRevision}`} language={language}'));
-  assert.match(chat, /onAuthStateChange/);
+  assert.ok(chat.includes('key={`${language}:${state.generation}`} language={language}'));
+  const provider = read('components/dabra/DabraConversationProvider.tsx');
+  const session = read('lib/dabra/conversation-session.ts');
+  assert.match(provider, /supabase\.auth\.onAuthStateChange/);
   assert.match(chat, /launcherIdentity \?\?/);
   assert.match(chat, /DIBRAH_POLICY_ACCEPTED_KEY/);
-  assert.match(chat, /chatAbortRef\.current\?\.abort\(\)/);
+  assert.match(session, /this\.controller\?\.abort\(\)/);
   assert.match(chat, /fetch\('\/api\/ai2\/chat'/);
 });
 
@@ -89,4 +91,9 @@ test('Documents opts its informational heading/banner into canonical launcher av
     assert.ok(result.y>=heading.bottom+8);
     assert.ok(result.y+74<=cards.top-8);
   }
+});
+
+import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
+test('actual locale boundary retains transcript and cancels pending', () => {
+  runDabraBoundaryCase('actual locale boundary retains transcript and cancels pending');
 });
