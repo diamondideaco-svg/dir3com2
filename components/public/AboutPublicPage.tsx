@@ -11,7 +11,7 @@ const values = [
   { title: 'الثقة', description: 'الخدمة أولاً، والحساب بعد رضاك.', icon: FiShield },
   { title: 'الوضوح', description: 'واجهة تعرض القيمة والسياسات بلغة مباشرة وراقية.', icon: FiCompass },
   { title: 'الضيافة', description: 'تجربة عربية حديثة تحترم الوقت والذوق.', icon: FiUsers },
-  { title: 'الاستعداد', description: 'الدبرة حاضر بصرياً لتكاملات مستقبلية فقط.', icon: HiSparkles },
+  { title: 'الاستعداد', description: 'الدبرة مساعد السفر الذكي من dir3com لاستكشاف الخدمات والمساعدة في التخطيط. النتائج لا تعني توافرًا مؤكدًا أو إتمام حجز أو دفع.', icon: HiSparkles },
 ];
 
 export default function AboutPublicPage() {
