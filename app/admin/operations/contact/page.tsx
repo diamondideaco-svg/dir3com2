@@ -1,13 +1,16 @@
 import { requireScopedAdminPageDataAccess, scopeCountryQuery } from '@/lib/auth/admin';
 import { hasPermission } from '@/lib/auth/team-access';
 import { progressContact } from '@/lib/actions/contact-actions';
-import { AdminText } from '@/components/admin/AdminLocale';
+import { AdminSubmitButton, AdminText } from '@/components/admin/AdminLocale';
 export const dynamic = 'force-dynamic';
 export default async function ContactInbox() {
   const { supabase, scope } = await requireScopedAdminPageDataAccess('/admin/operations/contact', 'operations:read');
   const { data, error } = await scopeCountryQuery(supabase.from('contact_enquiries')
     .select('id,name,email,phone,subject,message,country,status,created_at,contact_enquiry_events(id,status,internal_note,created_at)')
-    .order('created_at', { ascending: false }).limit(100), scope);
+    .order('created_at', { ascending: false })
+    .order('created_at', { referencedTable: 'contact_enquiry_events', ascending: true })
+    .order('id', { referencedTable: 'contact_enquiry_events', ascending: true })
+    .limit(100), scope);
   const write = scope.grant === null || hasPermission(scope.grant, 'operations:write');
   return <main className="mx-auto max-w-5xl space-y-5 p-4">
     <h1 className="text-2xl font-semibold"><AdminText ar="رسائل التواصل" en="Contact inbox" /></h1>
@@ -22,7 +25,13 @@ export default async function ContactInbox() {
         <input type="hidden" name="id" value={item.id} /><input type="hidden" name="expected" value={item.status} />
         <input type="hidden" name="status" value={item.status === 'received' ? 'in_progress' : 'closed'} />
         <label className="block"><AdminText ar="ملاحظة داخلية (لا تُرسل للعميل)" en="Internal note (not sent to customer)" /><textarea name="note" maxLength={2000} className="mt-1 block w-full rounded border p-2" /></label>
-        <button className="rounded bg-slate-900 px-4 py-2 text-white"><AdminText ar={item.status === 'received' ? 'بدء المتابعة' : 'إغلاق المتابعة'} en={item.status === 'received' ? 'Start follow-up' : 'Close follow-up'} /></button>
+        <AdminSubmitButton
+          ar={item.status === 'received' ? 'بدء المتابعة' : 'إغلاق المتابعة'}
+          en={item.status === 'received' ? 'Start follow-up' : 'Close follow-up'}
+          confirmAr={item.status === 'received' ? 'هل تريد بدء متابعة هذه الرسالة؟' : 'هل تريد إغلاق متابعة هذه الرسالة؟'}
+          confirmEn={item.status === 'received' ? 'Start follow-up for this enquiry?' : 'Close follow-up for this enquiry?'}
+          className="rounded bg-slate-900 px-4 py-2 text-white"
+        />
       </form>}
     </article>)}
   </main>;
