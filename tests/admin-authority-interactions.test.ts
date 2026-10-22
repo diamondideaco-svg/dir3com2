@@ -17,14 +17,14 @@ function filesUnder(relative: string): string[] {
 const adminRoutes = [
   '/admin', '/admin/assignment', '/admin/assignment/logs', '/admin/assignment/rules', '/admin/audit',
   '/admin/bookings', '/admin/bookings/[id]', '/admin/categories', '/admin/customers', '/admin/customers/[id]',
-  '/admin/dashboard', '/admin/events', '/admin/finance', '/admin/notifications', '/admin/operations',
+  '/admin/dashboard', '/admin/events', '/admin/finance', '/admin/notifications', '/admin/operations', '/admin/operations/contact',
   '/admin/partners', '/admin/partners/new', '/admin/partners/vip-local-egypt', '/admin/partners/[id]',
   '/admin/pricing', '/admin/products', '/admin/shield', '/admin/verification', '/admin/verification/customers',
   '/admin/verification/documents', '/admin/verification/partners',
 ];
 
 test('the complete current admin page inventory is explicit and protected by one server guard', () => {
-  assert.equal(adminRoutes.length, 26);
+  assert.equal(adminRoutes.length, 27);
   for (const route of adminRoutes) {
     const file = route === '/admin' ? 'app/admin/page.tsx' : `app${route}/page.tsx`;
     assert.equal(existsSync(path.join(root, file)), true, file);
@@ -92,6 +92,7 @@ test('enabled audited state-changing controls require confirmation and prevent d
   for (const file of [
     'components/admin/MarketplaceRequestOperationsTable.tsx',
     'components/admin/VipPartnerConfigForm.tsx',
+    'app/admin/operations/contact/page.tsx',
   ]) {
     assert.match(read(file), /AdminSubmitButton/);
   }
