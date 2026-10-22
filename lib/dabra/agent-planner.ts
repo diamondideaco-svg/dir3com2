@@ -2,12 +2,15 @@ import 'server-only';
 import { callOpenAICompatibleProvider } from '../ai2/runtime/openai-compatible';
 import { callAnthropicMessagesWeb } from '../ai2/runtime/anthropic-web';
 import { callGeminiGoogleSearch } from '../ai2/runtime/gemini-web';
+import { createDabraProviderRequestId, mapProviderErrorCategory, type DabraProviderAttemptScheduler, type DabraProviderErrorCategory } from '../ai2/observability/provider-attempts';
 import { AGENT_TOOLS, parseAgentTool, type AgentTool } from './agent-contract';
 
 export const INTERNAL_AGENT_PROVIDERS = ['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'] as const;
 export type InternalAgentProvider = typeof INTERNAL_AGENT_PROVIDERS[number];
 type Attempt = { provider: InternalAgentProvider; model: string; outcome: string };
 export type AgentPlan = { tool: AgentTool | null; status: 'disabled' | 'not_configured' | 'ok' | 'unavailable' | 'invalid'; provider?: InternalAgentProvider; attempts?: Attempt[] };
+
+type ClassifierObservation = { language: 'ar' | 'en'; scheduleAttempt: DabraProviderAttemptScheduler };
 
 function configuration(provider: InternalAgentProvider) {
   const keyNames: Record<InternalAgentProvider, string[]> = {
@@ -56,7 +59,7 @@ function takeBudget() {
 // Optional language understanding, never web retrieval or fact generation. Existing
 // catalogue/support tools work even when a model is unavailable. No role data,
 // database rows, credentials or chat history are sent to the model.
-export async function planInternalAgentTool(message: string): Promise<AgentPlan> {
+export async function planInternalAgentTool(message: string, observation?: ClassifierObservation): Promise<AgentPlan> {
   if (process.env.DABRA_INTERNAL_AI_ENABLED !== 'true') return { tool: null, status: 'disabled' };
   const selected = process.env.DABRA_AI_PROVIDER?.trim().toLowerCase() || 'openai';
   const primary = INTERNAL_AGENT_PROVIDERS.find(provider => provider === selected);
@@ -65,6 +68,10 @@ export async function planInternalAgentTool(message: string): Promise<AgentPlan>
   const attempts: Attempt[] = [];
   const deadline = Date.now() + 12000;
   try {
+    let requestId: string | undefined;
+    try { if (observation) requestId = createDabraProviderRequestId(); }
+    catch { console.error('DABRA_CLASSIFIER_TELEMETRY_INIT_FAILED'); }
+    let previousTelemetryError: DabraProviderErrorCategory | undefined;
     const fallback = process.env.DABRA_PROVIDER_FALLBACK_ENABLED === 'true'
       ? INTERNAL_AGENT_PROVIDERS.find(provider => provider !== primary && configuration(provider)) : undefined;
     for (const provider of fallback ? [primary, fallback] : [primary]) {
@@ -73,16 +80,37 @@ export async function planInternalAgentTool(message: string): Promise<AgentPlan>
         windowCalls += 1;
       }
       const config = configuration(provider)!;
+      const startedAtMs = Date.now();
       const result = await classify(provider, config, message, Math.min(6000, Math.max(1, deadline - Date.now())));
+      const completedAtMs = Date.now();
+      let tool: AgentTool | null = null;
+      if (result.ok) {
+        try { tool = parseAgentTool(JSON.parse(result.answer)); } catch { /* invalid output is never an answer */ }
+      }
+      attempts.push({ provider, model: config.model, outcome: result.ok ? (tool ? 'ok' : 'invalid') : (result.errorCategory ?? 'upstream_error') });
+      if (observation && requestId) {
+        const errorCategory = result.ok && tool ? undefined
+          : mapProviderErrorCategory(result.ok ? 'malformed_response' : result.errorCategory, result.status);
+        try {
+          observation.scheduleAttempt({
+            requestId, provider, model: result.model ?? config.model, intentClass: 'internal',
+            language: observation.language, route: 'fast-chat', startedAtMs, completedAtMs,
+            success: Boolean(tool), errorCategory,
+            fallbackFrom: attempts.at(-2)?.provider, fallbackReason: previousTelemetryError,
+            fallbackHop: attempts.length - 1, inputTokens: result.inputTokens, outputTokens: result.outputTokens,
+            groundingStatus: tool ? 'answered-general' : 'fallback-provider-unavailable',
+          });
+        } catch {
+          // Instrumentation is best effort and cannot change a classifier result or its budget.
+          console.error('DABRA_CLASSIFIER_TELEMETRY_SCHEDULE_FAILED', JSON.stringify({ provider, operation: 'schedule' }));
+        }
+        previousTelemetryError = errorCategory;
+      }
       if (!result.ok) {
-        attempts.push({ provider, model: config.model, outcome: result.errorCategory ?? 'upstream_error' });
         // Only one transient-error fallback; invalid credentials/quota/unsafe output fail closed.
         if (result.errorCategory === 'timeout' || result.errorCategory === 'upstream_error') continue;
         break;
       }
-      let tool: AgentTool | null = null;
-      try { tool = parseAgentTool(JSON.parse(result.answer)); } catch { /* invalid output is never an answer */ }
-      attempts.push({ provider, model: config.model, outcome: tool ? 'ok' : 'invalid' });
       return { tool, status: tool ? 'ok' : 'invalid', provider, attempts };
     }
     return { tool: null, status: 'unavailable', attempts };

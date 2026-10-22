@@ -5,17 +5,19 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { INTERNAL_AGENT_PROVIDERS, planInternalAgentTool } from '../lib/dabra/agent-planner';
 import { callOpenAICompatibleProvider } from '../lib/ai2/runtime/openai-compatible';
 import type { AgentContext } from '../lib/dabra/agent-contract';
+import { createDabraProviderAttemptAfterResponseScheduler, setDabraProviderAttemptWriterForTests, type DabraProviderAttemptRecord } from '../lib/ai2/observability/provider-attempts';
 
 // Execute the production POST module; only the authenticated actor boundary and
 // provider transport are isolated. Not a claim of live credentials/browser auth.
-function productPost(role: AgentContext['role']) {
+function productPost(role: AgentContext['role'], registerAfterResponse: (task: () => void | Promise<void>) => void = () => {}) {
   const require = createRequire(import.meta.url);
   const exports = {};
   const dependencies: Record<string, unknown> = {
+    'next/server': { NextRequest, NextResponse, after: registerAfterResponse },
     '@/lib/dabra/agent-context': { resolveAgentContext: async () => ({ role, readRequests: async () => { throw new Error('Unexpected account read'); } }) },
     '@/lib/dabra/agent-planner': { planInternalAgentTool },
   };
@@ -40,6 +42,7 @@ test.beforeEach(() => {
 });
 test.afterEach(() => {
   globalThis.fetch = originalFetch; Date.now = realNow;
+  setDabraProviderAttemptWriterForTests(null);
   for (const [name, value] of Object.entries(initial)) if (value === undefined) delete process.env[name]; else process.env[name] = value;
 });
 function providerResponse(url: string, answer = '{"tool":"discover"}') {
@@ -322,3 +325,320 @@ for (const provider of ['qwen', 'mistral'] as const) for (const status of [500, 
     assert.equal(calls, oldPlannerCalls, 'conflicting status/body cannot unlock a paid alternate provider');
   });
 }
+
+
+function task212Queue(timeoutMs = 20) {
+  const tasks: Array<() => void | Promise<void>> = [];
+  const records: DabraProviderAttemptRecord[] = [];
+  setDabraProviderAttemptWriterForTests(async record => { records.push(record); });
+  const register = (task: () => void | Promise<void>) => { tasks.push(task); };
+  return {
+    tasks, records, register,
+    observation: { language: 'en' as const, scheduleAttempt: createDabraProviderAttemptAfterResponseScheduler(register, timeoutMs) },
+    async flush() { while (tasks.length) await tasks.shift()?.(); },
+  };
+}
+
+function task212Response(provider: string, answer = '{"tool":"discover"}', inputTokens: unknown = 37, outputTokens: unknown = 11) {
+  if (provider === 'gemini') return Response.json({ candidates: [{ content: { parts: [{ text: answer }] } }], usageMetadata: { promptTokenCount: inputTokens, candidatesTokenCount: outputTokens } });
+  if (provider === 'anthropic') return Response.json({ content: [{ type: 'text', text: answer }], usage: { input_tokens: inputTokens, output_tokens: outputTokens } });
+  return Response.json({ choices: [{ message: { content: answer } }], usage: { prompt_tokens: inputTokens, completion_tokens: outputTokens } });
+}
+
+const task212Keys = [
+  'attempt_id', 'request_id', 'provider', 'model', 'intent_class', 'language', 'route', 'started_at', 'completed_at',
+  'latency_ms', 'success', 'error_category', 'fallback_from', 'fallback_reason', 'fallback_hop', 'input_tokens',
+  'output_tokens', 'estimated_cost_usd', 'pricing_version', 'grounding_status', 'created_at',
+].sort();
+
+for (const provider of INTERNAL_AGENT_PROVIDERS) test(`Task212 ${provider}: actual POST schedules one private observation per AR/EN classifier call after response`, async () => {
+  process.env.DABRA_AI_PROVIDER = provider;
+  const q = task212Queue();
+  const post = productPost('customer', q.register);
+  let calls = 0;
+  globalThis.fetch = async (_input, init) => {
+    calls++;
+    assert.doesNotMatch(String(init?.body), /PRIVATE_ASSISTANT_HISTORY|PRIVATE_ACCOUNT_MARKER/);
+    now += 17;
+    return task212Response(provider);
+  };
+  for (const locale of ['ar', 'en'] as const) {
+    const response = await post(new NextRequest('http://localhost/api/ai2/chat', { method: 'POST',
+      body: JSON.stringify({ message: locale === 'ar' ? 'خطط رحلتي' : 'Plan my trip', locale, history: [{ role: 'assistant', content: 'PRIVATE_ASSISTANT_HISTORY PRIVATE_ACCOUNT_MARKER' }] }),
+    }));
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.understanding, 'ok');
+    assert.equal(body.understandingProvider, provider);
+    assert.equal(body.agent.mutations, 0);
+    assert.equal(body.provider, 'local');
+    assert.equal(body.attempts, undefined);
+    assert.equal(body.request_id, undefined);
+    assert.equal(q.records.length, locale === 'ar' ? 0 : 1, 'persistence must wait for the registered after-response callback');
+    assert.equal(q.tasks.length, 1);
+    await q.flush();
+    const record = q.records.at(-1)!;
+    assert.deepEqual(Object.keys(record).sort(), task212Keys);
+    assert.equal(record.provider, provider);
+    assert.equal(record.model, 'test-model');
+    assert.equal(record.intent_class, 'internal');
+    assert.equal(record.route, 'fast-chat');
+    assert.equal(record.language, locale);
+    assert.equal(record.latency_ms, 17);
+    assert.equal(Date.parse(record.completed_at) - Date.parse(record.started_at), 17);
+    assert.equal(record.input_tokens, 37);
+    assert.equal(record.output_tokens, 11);
+    assert.equal(record.success, true);
+    assert.equal(record.error_category, null);
+    assert.equal(record.fallback_hop, 0);
+    assert.equal(record.fallback_from, null);
+    assert.equal(record.estimated_cost_usd, null);
+    assert.equal(record.pricing_version, null);
+    assert.doesNotMatch(JSON.stringify(record), /PRIVATE_|Plan my trip|خطط رحلتي|isolated-test-placeholder|tool|discover/);
+  }
+  assert.equal(calls, 2);
+  assert.equal(q.records.length, 2);
+  assert.notEqual(q.records[0].request_id, q.records[1].request_id);
+  assert.notEqual(q.records[0].attempt_id, q.records[1].attempt_id);
+});
+
+test('Task212 transient fallback: exactly two linked observations without extra provider requests', async () => {
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  const q = task212Queue();
+  let calls = 0;
+  globalThis.fetch = async input => {
+    calls++;
+    if (String(input).includes('api.openai.com')) {
+      now += 4;
+      return Response.json({ error: { message: 'PRIVATE_PROVIDER_ERROR' } }, { status: 503 });
+    }
+    now += 9;
+    return task212Response('gemini');
+  };
+  const plan = await planInternalAgentTool('PRIVATE_CUSTOMER_INPUT', q.observation);
+  assert.equal(plan.status, 'ok');
+  assert.equal(calls, 2);
+  assert.equal(q.tasks.length, 2);
+  await q.flush();
+  assert.equal(q.records.length, 2);
+  const [first, second] = q.records;
+  assert.equal(first.success, false);
+  assert.equal(first.error_category, 'upstream_503');
+  assert.equal(first.latency_ms, 4);
+  assert.equal(first.input_tokens, null);
+  assert.equal(first.estimated_cost_usd, null);
+  assert.equal(second.request_id, first.request_id);
+  assert.notEqual(second.attempt_id, first.attempt_id);
+  assert.equal(second.fallback_hop, 1);
+  assert.equal(second.fallback_from, 'openai');
+  assert.equal(second.fallback_reason, 'upstream_503');
+  assert.equal(second.latency_ms, 9);
+  assert.equal(second.success, true);
+  assert.doesNotMatch(JSON.stringify(q.records), /PRIVATE_/);
+});
+
+for (const [status, error, expected] of [
+  [401, { message: 'PRIVATE_PROVIDER_ERROR' }, 'authentication'],
+  [429, { code: 'rate_limit_exceeded', message: 'PRIVATE_PROVIDER_ERROR' }, 'rate_limit'],
+  [429, { message: 'PRIVATE_PROVIDER_ERROR' }, 'unknown'],
+  [400, { message: 'PRIVATE_PROVIDER_ERROR' }, 'provider_error'],
+] as const) test(`Task212 HTTP${status}/${expected}: one failure observation, no retry or fallback`, async () => {
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  const q = task212Queue();
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; now += 6; return Response.json({ error }, { status }); };
+  const plan = await planInternalAgentTool('PRIVATE_CUSTOMER_INPUT', q.observation);
+  assert.equal(plan.status, 'unavailable');
+  assert.equal(calls, 1);
+  await q.flush();
+  assert.equal(q.records.length, 1);
+  assert.equal(q.records[0].success, false);
+  assert.equal(q.records[0].error_category, expected);
+  assert.equal(q.records[0].latency_ms, 6);
+  assert.equal(q.records[0].input_tokens, null);
+  assert.equal(q.records[0].output_tokens, null);
+  assert.equal(q.records[0].estimated_cost_usd, null);
+  assert.doesNotMatch(JSON.stringify(q.records), /PRIVATE_/);
+});
+
+test('Task212 invalid classifier output is a measured failure and cannot trigger a fallback', async () => {
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  const q = task212Queue();
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return task212Response('openai', '{"tool":"executive","role":"ceo","text":"PRIVATE_OUTPUT"}'); };
+  const plan = await planInternalAgentTool('PRIVATE_INPUT', q.observation);
+  assert.equal(plan.status, 'invalid');
+  assert.equal(plan.tool, null);
+  assert.equal(calls, 1);
+  await q.flush();
+  assert.equal(q.records.length, 1);
+  assert.equal(q.records[0].success, false);
+  assert.equal(q.records[0].error_category, 'provider_error');
+  assert.equal(q.records[0].input_tokens, 37);
+  assert.doesNotMatch(JSON.stringify(q.records), /PRIVATE_|executive|ceo/);
+});
+
+test('Task212 missing and invalid usage remains unknown; expired official pricing is never treated as zero cost', async () => {
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  process.env.DABRA_INTERNAL_AI_MODEL = 'gpt-4.1-mini';
+  const q = task212Queue();
+  for (const [input, output, expectedInput, expectedOutput] of [[null, null, null, null], [-1, 11, null, 11], [2.5, 11, null, 11], [37, 11, 37, 11]] as const) {
+    globalThis.fetch = async () => task212Response('openai', '{"tool":"discover"}', input, output);
+    assert.equal((await planInternalAgentTool('hello', q.observation)).status, 'ok');
+    await q.flush();
+    const record = q.records.at(-1)!;
+    assert.equal(record.input_tokens, expectedInput);
+    assert.equal(record.output_tokens, expectedOutput);
+    assert.equal(record.estimated_cost_usd, null);
+    assert.equal(record.pricing_version, null);
+  }
+});
+
+test('Task212 skipped disabled, unconfigured, guest and explicit-rule paths never schedule attempts', async () => {
+  const q = task212Queue();
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; throw new Error('Unexpected provider call'); };
+  process.env.DABRA_INTERNAL_AI_ENABLED = 'false';
+  assert.equal((await planInternalAgentTool('hello', q.observation)).status, 'disabled');
+  process.env.DABRA_INTERNAL_AI_ENABLED = 'true';
+  process.env.DABRA_AI_PROVIDER = 'not-a-provider';
+  assert.equal((await planInternalAgentTool('hello', q.observation)).status, 'not_configured');
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  for (const [role, message] of [['guest', 'Plan my trip'], ['customer', 'I need a hotel in Cairo']] as const) {
+    const response = await productPost(role, q.register)(new NextRequest('http://localhost/api/ai2/chat', { method: 'POST', body: JSON.stringify({ message, locale: 'en' }) }));
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).understanding, 'internal-rules');
+  }
+  assert.equal(calls, 0);
+  assert.equal(q.tasks.length, 0);
+  assert.equal(q.records.length, 0);
+});
+
+test('Task212 concurrent and hourly-budget skips create no phantom observations; actual calls remain capped at20', async () => {
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  const q = task212Queue();
+  let release: () => void = () => { throw new Error('Provider not started'); };
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; await new Promise<void>(resolve => { release = resolve; }); return task212Response('openai'); };
+  const pending = planInternalAgentTool('hello', q.observation);
+  assert.equal((await planInternalAgentTool('hello', q.observation)).status, 'unavailable');
+  assert.equal(q.tasks.length, 0);
+  release();
+  assert.equal((await pending).status, 'ok');
+  globalThis.fetch = async () => { calls++; return task212Response('openai'); };
+  for (let index = 0; index < 25; index++) await planInternalAgentTool('hello', q.observation);
+  assert.equal(calls, 20);
+  assert.equal(q.tasks.length, 20);
+  await q.flush();
+  assert.equal(q.records.length, 20);
+  assert.equal(new Set(q.records.map(record => record.request_id)).size, 20);
+});
+
+test('Task212 a throwing scheduler cannot alter classifier output, release of in-flight guard or provider call count', async () => {
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return task212Response('openai'); };
+  const errors: string[] = [];
+  const originalError = console.error;
+  console.error = (...args) => { errors.push(args.join(' ')); };
+  try {
+    const observation = { language: 'en' as const, scheduleAttempt: () => { throw new Error('PRIVATE_SCHEDULER_ERROR'); } };
+    for (let index = 0; index < 2; index++) {
+      const result = await planInternalAgentTool('PRIVATE_CUSTOMER_INPUT', observation);
+      assert.equal(result.status, 'ok');
+      assert.equal(result.tool, 'discover');
+      assert.equal(result.attempts?.length, 1);
+    }
+    assert.equal(calls, 2);
+    assert.equal(errors.length, 2);
+    assert.doesNotMatch(errors.join(' '), /PRIVATE_|isolated-test-placeholder/);
+  } finally { console.error = originalError; }
+});
+
+test('Task212 actual POST preserves response when the Next after registrar rejects telemetry', async () => {
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return task212Response('openai'); };
+  const errors: string[] = [];
+  const originalError = console.error;
+  console.error = (...args) => { errors.push(args.join(' ')); };
+  try {
+    const post = productPost('customer', () => { throw new Error('PRIVATE_REGISTRAR_ERROR'); });
+    const response = await post(new NextRequest('http://localhost/api/ai2/chat', { method: 'POST', body: JSON.stringify({ message: 'Plan my trip', locale: 'en', stream: true }) }));
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('X-DABRA-Understanding'), 'ok');
+    assert.match(await response.text(), /family=dir3-stay/);
+    assert.equal(calls, 1);
+    assert.equal(errors.length, 1);
+    assert.doesNotMatch(errors.join(' '), /PRIVATE_/);
+  } finally { console.error = originalError; }
+});
+
+for (const failure of ['insert', 'timeout'] as const) test(`Task212 ${failure} persistence failure runs after the response and never retries inference`, async () => {
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  const q = task212Queue(20);
+  let calls = 0, writes = 0;
+  globalThis.fetch = async () => { calls++; return task212Response('openai'); };
+  setDabraProviderAttemptWriterForTests(async (_record, signal) => {
+    writes++;
+    if (failure === 'insert') throw new Error('PRIVATE_DATABASE_DETAIL');
+    await new Promise<void>((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(new Error('PRIVATE_ABORT_DETAIL')), { once: true });
+    });
+  });
+  const errors: string[] = [];
+  const originalError = console.error;
+  console.error = (...args) => { errors.push(args.join(' ')); };
+  try {
+    const result = await planInternalAgentTool('PRIVATE_INPUT', q.observation);
+    assert.equal(result.status, 'ok');
+    assert.equal(writes, 0, 'after-response work has not started');
+    assert.equal(q.tasks.length, 1);
+    await q.flush();
+    assert.equal(writes, 1);
+    assert.equal(calls, 1);
+    assert.equal(result.tool, 'discover');
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /DABRA_TELEMETRY_PERSIST_FAILED/);
+    assert.doesNotMatch(errors[0], /PRIVATE_/);
+  } finally { console.error = originalError; }
+});
+
+test('Task212 provider timeout is observed once and links only the existing single fallback', async () => {
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  const q = task212Queue();
+  let calls = 0;
+  globalThis.fetch = async input => {
+    calls++; now += 5;
+    if (String(input).includes('api.openai.com')) throw new Error('aborted PRIVATE_PROVIDER_ERROR');
+    return task212Response('gemini');
+  };
+  assert.equal((await planInternalAgentTool('PRIVATE_INPUT', q.observation)).status, 'ok');
+  await q.flush();
+  assert.equal(calls, 2);
+  assert.equal(q.records.length, 2);
+  assert.equal(q.records[0].error_category, 'timeout');
+  assert.equal(q.records[1].fallback_reason, 'timeout');
+  assert.equal(q.records[1].fallback_hop, 1);
+  assert.equal(q.records[0].request_id, q.records[1].request_id);
+  assert.doesNotMatch(JSON.stringify(q.records), /PRIVATE_/);
+});
+
+test('Task212 exhausted request deadline produces no observation for a skipped fallback', async () => {
+  process.env.DABRA_AI_PROVIDER = 'openai';
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  const q = task212Queue();
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; now += 12000; return Response.json({ error: { message: 'temporary' } }, { status: 503 }); };
+  assert.equal((await planInternalAgentTool('hello', q.observation)).status, 'unavailable');
+  await q.flush();
+  assert.equal(calls, 1);
+  assert.equal(q.records.length, 1);
+  assert.equal(q.records[0].fallback_hop, 0);
+  assert.equal(q.records[0].fallback_from, null);
+  assert.equal(q.records[0].latency_ms, 12000);
+});
