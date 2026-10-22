@@ -1,0 +1,72 @@
+name: Codex Governance Gate
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: codex-governance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate-control-tower-record:
+    name: Validate task, session proof, artifact and scoped evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout approved base validator and trust policy
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Test continuity validator
+        run: node scripts/test-codex-continuity-governance.mjs
+      - name: Validate pull request handoff metadata
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Candidate PR files/keys are never used as evidence authority.
+            const pr = context.payload.pull_request;
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const now = Date.now();
+            try {
+              const fs = require('node:fs');
+              const policyPath = '.github/policies/codex-governance-trust.json';
+              const loaderPath = './.github/scripts/codex-governance-loader.cjs';
+              const modulePath = '.github/scripts/codex-governance.mjs';
+              if (![policyPath, loaderPath, modulePath].every(path => fs.existsSync(path))) throw new Error('BASE_TRUST_UNAVAILABLE: approved base lacks governance v2 policy/loader/module; activation remains BLOCKED. Candidate files are never a fallback.');
+              const policy = JSON.parse(fs.readFileSync(policyPath, 'utf8'));
+              if (policy.version !== 2 || !Array.isArray(policy.authorities)) throw new Error('BASE_TRUST_INVALID: approved-base policy is not governance v2.');
+              if (policy.authorities.length === 0) throw new Error('BASE_AUTHORITY_UNENROLLED: approved base has no enrolled authority; activation remains BLOCKED.');
+              const { validate, proof } = await require(loaderPath).load();
+              const current = (await github.rest.pulls.get({ ...repo, pull_number: pr.number })).data;
+              if (current.head.sha !== pr.head.sha || current.head.ref !== pr.head.ref || current.base.sha !== pr.base.sha) throw new Error('Stale pull request event.');
+              const values = name => (pr.body || '').split(/\r?\n/).flatMap(line => {
+                const match = line.trim().match(/^[-*]\s*([^:]+):\s*(.*)$/);
+                return match && match[1].trim().toLowerCase() === name.toLowerCase() ? [match[2].trim()] : [];
+              });
+              const taskIds = values('Task'), proofIds = values('Governance proof receipt');
+              if (taskIds.length !== 1 || !/^#[1-9][0-9]*$/.test(taskIds[0]) || proofIds.length !== 1 || !/^[1-9][0-9]{0,14}$/.test(proofIds[0]) || !Number.isSafeInteger(Number(proofIds[0]))) throw new Error('Unique valid Task/proof references required.');
+              const task = (await github.rest.issues.get({ ...repo, issue_number: Number(taskIds[0].slice(1)) })).data;
+              const proofReceipt = (await github.rest.issues.getComment({ ...repo, comment_id: Number(proofIds[0]) })).data;
+              const manifest = proof(proofReceipt.body, policy, now);
+              if (!Array.isArray(manifest.reviews) || manifest.reviews.length > 8) throw new Error('Invalid bounded review list.');
+              const reviewReceipts = {};
+              for (const review of manifest.reviews) {
+                if (!/^[1-9][0-9]{0,14}$/.test(String(review.receipt)) || !Number.isSafeInteger(Number(review.receipt))) throw new Error('Invalid review reference.');
+                reviewReceipts[String(review.receipt)] = (await github.rest.issues.getComment({ ...repo, comment_id: Number(review.receipt) })).data;
+              }
+              const changedFiles = (await github.paginate(github.rest.pulls.listFiles, { ...repo, pull_number: pr.number, per_page: 100 })).map(file => file.filename);
+              const { record, failures, decision } = validate({ prBody: pr.body || '', issueBody: task.body || '', actualBranch: pr.head.ref, actualSha: pr.head.sha, prNumber: pr.number, taskTitle: task.title || '', taskIsPullRequest: Boolean(task.pull_request), repoOwner: repo.owner, repoName: repo.repo, proofReceipt, reviewReceipts, trustPolicy: policy, changedFiles, now });
+              await core.summary.addRaw(['## Verified session review', ...Object.entries(record).map(([k,v]) => '- ' + k + ': ' + (v || 'MISSING')), '', decision || 'BLOCKED', ...failures, '', 'Review proof never authorizes merge or Production.'].join('\n')).write();
+              if (failures.length) core.setFailed(failures.join('\n'));
+            } catch (error) {
+              await core.summary.addRaw('## Governance review BLOCKED\n\n' + error.message + '\n\nNo candidate-policy fallback or release authorization.').write();
+              core.setFailed('Governance proof unavailable or rejected: ' + error.message);
+            }
