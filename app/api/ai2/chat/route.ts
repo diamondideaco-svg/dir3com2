@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { platformCurrency, platformContext, platformFamilies, refinePlatformTrip } from '@/lib/dabra/platform-assistant';
 type AI2ChatTurn = { role: 'user' | 'assistant'; content: string };
 import { createDabraAssistantTextResponse } from '@/lib/dabra/chat-response-contract';
@@ -151,7 +151,9 @@ export async function POST(request: NextRequest) {
   // records, grant roles or generate customer-facing facts/actions.
   if (inferenceEnabled && agentContext.role !== 'guest' && intent.tool === 'discover' && !platformFamilies(message).length) {
     const { planInternalAgentTool } = await import('@/lib/dabra/agent-planner');
-    const planned = await planInternalAgentTool(message);
+    const { createDabraProviderAttemptAfterResponseScheduler } = await import('@/lib/ai2/observability/provider-attempts');
+    const planned = await planInternalAgentTool(message, { language: locale,
+      scheduleAttempt: createDabraProviderAttemptAfterResponseScheduler(after) });
     understanding = planned.status;
     needsClarification = planned.status === 'unavailable' || planned.status === 'invalid';
     understandingProvider = planned.status === 'ok' ? planned.provider : undefined;
