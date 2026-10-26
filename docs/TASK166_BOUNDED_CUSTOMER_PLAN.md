@@ -56,3 +56,15 @@ digest, credentials or quota-only fallback rules change. Focused injected-comman
 regressions cover canonical pull/tag, verified cache, bounded quota fallback and
 fail-closed nonquota errors. These regressions do not substitute for a successful
 real Docker pull and complete hosted Sandbox run on the new exact head.
+
+The first hosted attempt exposed a data-limit registry message and failed closed.
+Its one normal retry reached post-pull verification instead, revealing an image
+identity compatibility gap. Docker's containerd image-inspection implementation
+returns the target manifest digest as `Id`, unlike legacy config-digest `Id`.
+The shared verifier retains exact approved repository/manifest/platform checks
+and accepts either the approved legacy config Id or the same approved single
+manifest Id with its matching descriptor. No arbitrary manifest/index or new
+digest is accepted. The manifest cryptographically binds the approved config and
+layers. Both GoTrue and the existing PostgREST/Storage prerequisite use this
+identity check so the same incompatibility does not recur at the next image.
+Quota classification is unchanged; no registry credentials or skips are added.

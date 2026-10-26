@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ensureGoTrueImage, sanitizeGoTruePullStderr, GOTRUE_PRIMARY, GOTRUE_ALTERNATIVE, GOTRUE_AMD64_DIGEST } from '../scripts/sandbox/pull-gotrue-image.mjs';
+import { verifiedImageIdentity } from '../scripts/sandbox/verified-image-identity.mjs';
+import { ensureSandboxServiceImage } from '../scripts/sandbox/pull-service-image.mjs';
 
 const config = 'sha256:7a35ead3d6be1049c2bb37f28420a05d20550e128c2144c3a27b81ea40842873';
 const repository = (image) => image.slice(0, image.lastIndexOf(':'));
@@ -8,7 +10,7 @@ const pinned = (image) => repository(image) + '@' + GOTRUE_AMD64_DIGEST;
 const failed = (stderr, status = 1) => Object.assign(new Error('synthetic Docker failure'), { stderr, status });
 const quota = () => failed('Error response from daemon: toomanyrequests: Data limit exceeded\n');
 
-function fixture({ platform = 'linux/amd64', cached = false, rejectPull = () => null, badCache = false } = {}) {
+function fixture({ platform = 'linux/amd64', cached = false, rejectPull = () => null, badCache = false, modern = false } = {}) {
   const calls = [], pauses = [], receipts = [], failures = [];
   let source = GOTRUE_PRIMARY;
   const run = (args) => {
@@ -16,7 +18,8 @@ function fixture({ platform = 'linux/amd64', cached = false, rejectPull = () => 
     if (args[0] === 'version') return platform;
     if (args[0] === 'image') {
       if (!cached) throw failed('No such image');
-      return JSON.stringify([{ Os: 'linux', Architecture: 'amd64', Id: badCache ? 'wrong-config' : config,
+      return JSON.stringify([{ Os: 'linux', Architecture: 'amd64', Id: badCache ? 'wrong-config' : modern ? GOTRUE_AMD64_DIGEST : config,
+        ...(modern ? { Descriptor: { digest: GOTRUE_AMD64_DIGEST, mediaType: 'application/vnd.oci.image.manifest.v1+json' } } : {}),
         RepoDigests: [pinned(source)] }]);
     }
     if (args[0] === 'pull') {
@@ -31,7 +34,7 @@ function fixture({ platform = 'linux/amd64', cached = false, rejectPull = () => 
     if (args[0] === 'tag') { cached = true; return ''; }
     throw new Error('Unexpected Docker command');
   };
-  return { calls, pauses, receipts, failures, run: () => ensureGoTrueImage({ run, pause: (ms) => pauses.push(ms), report: (value) => receipts.push(value), reportFailure: (value) => failures.push(value) }) };
+  return { calls, pauses, receipts, failures, run: () => ensureGoTrueImage({ run, pause: (ms) => pauses.push(ms), report: (value) => receipts.push(value), reportFailure: (value) => failures.push(value), reportVerificationFailure: (value) => failures.push(value) }) };
 }
 
 test('primary pull and local tag use the exact canonical repository@digest', () => {
@@ -96,6 +99,9 @@ test('incorrect config cannot satisfy cache or post-pull verification', () => {
   assert.throws(f.run, /GOTRUE_IMAGE_DIGEST_VERIFICATION_FAILED/);
   assert.equal(f.calls.filter((args) => args[0] === 'pull').length, 1);
   assert.equal(f.receipts.length, 0);
+  assert.equal(f.failures[0].checks.configId, false);
+  assert.equal(f.failures[0].checks.manifestId, false);
+  assert.ok(Object.values(f.failures[0].checks).every((value) => typeof value === 'boolean'));
 });
 
 test('unsupported platform cannot use the amd64 alternative after quota', () => {
@@ -138,3 +144,51 @@ test('failure is a single-line JSON-safe receipt, with no stdout, env or whole-e
   assert.equal(line.includes('synthetic-private-'), false);
   assert.equal(JSON.parse(line).stderr, error.stderr);
 });
+
+test('containerd manifest identity verifies after a real-command-shaped pull/tag', () => {
+  const f = fixture({ modern: true });
+  assert.equal(f.run(), GOTRUE_PRIMARY);
+  assert.equal(f.receipts[0].identity, 'manifest-digest');
+});
+
+const approved = { manifestDigest: GOTRUE_AMD64_DIGEST, configDigest: config, repositories: [repository(GOTRUE_PRIMARY)] };
+const modernEntry = () => ({ Os: 'linux', Architecture: 'amd64', Id: GOTRUE_AMD64_DIGEST,
+  RepoDigests: [pinned(GOTRUE_PRIMARY)], Descriptor: { digest: GOTRUE_AMD64_DIGEST, mediaType: 'application/vnd.oci.image.manifest.v1+json' } });
+
+for (const [name, change] of [
+  ['wrong image Id', (entry) => { entry.Id = 'sha256:unapproved'; }],
+  ['wrong descriptor digest', (entry) => { entry.Descriptor.digest = 'sha256:unapproved'; }],
+  ['missing descriptor', (entry) => { delete entry.Descriptor; }],
+  ['index instead of pinned single-platform manifest', (entry) => { entry.Descriptor.mediaType = 'application/vnd.oci.image.index.v1+json'; }],
+  ['unapproved repository', (entry) => { entry.RepoDigests = ['unapproved/gotrue@' + GOTRUE_AMD64_DIGEST]; }],
+  ['wrong manifest digest', (entry) => { entry.RepoDigests = [repository(GOTRUE_PRIMARY) + '@sha256:unapproved']; }],
+  ['wrong architecture', (entry) => { entry.Architecture = 'arm64'; }],
+  ['wrong OS', (entry) => { entry.Os = 'windows'; }],
+]) {
+  test('modern image verification rejects ' + name, () => {
+    const entry = modernEntry(); change(entry);
+    assert.equal(verifiedImageIdentity(entry, approved), null);
+  });
+}
+
+test('both exact legacy config and exact modern manifest identities stay accepted', () => {
+  assert.equal(verifiedImageIdentity(modernEntry(), approved), 'manifest-digest');
+  assert.equal(verifiedImageIdentity({ ...modernEntry(), Id: config, Descriptor: undefined }, approved), 'config-digest');
+});
+
+for (const [name, primary, digest] of [
+  ['postgrest', 'public.ecr.aws/supabase/postgrest:v16.1', 'sha256:73e76c305027cb1119bc7c6ab82449d9e1a50a9e8697f4ebac5443dc63590c90'],
+  ['storage', 'public.ecr.aws/supabase/storage-api:v1.70.7', 'sha256:9bf0dbb911f9c28d6d6808efeaa06a91a37dbbedaf2397f5c2a228266ee09b75'],
+]) {
+  test(name + ' uses the same strict containerd identity check without pulling a verified cache', () => {
+    const receipts = [];
+    const run = (args) => {
+      if (args[0] === 'version') return 'linux/amd64';
+      assert.equal(args[0], 'image');
+      return JSON.stringify([{ Os: 'linux', Architecture: 'amd64', Id: digest,
+        RepoDigests: [repository(primary) + '@' + digest], Descriptor: { digest, mediaType: 'application/vnd.oci.image.manifest.v1+json' } }]);
+    };
+    assert.equal(ensureSandboxServiceImage(name, { run, pause: () => assert.fail('cached image must not pause/pull'), report: (value) => receipts.push(value) }), primary);
+    assert.equal(receipts[0].identity, 'manifest-digest');
+  });
+}

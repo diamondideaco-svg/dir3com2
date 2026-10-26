@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { imageIdentityChecks, verifiedImageIdentity } from './verified-image-identity.mjs';
 
 export const GOTRUE_PRIMARY = 'public.ecr.aws/supabase/gotrue:v2.195.0';
 export const GOTRUE_ALTERNATIVE = 'docker.io/supabase/gotrue:v2.195.0';
@@ -38,26 +39,30 @@ const safeCodes = new Set(['EACCES', 'EPERM', 'ENOENT', 'ETIMEDOUT', 'ENOBUFS', 
 const safeSignals = new Set(['SIGTERM', 'SIGKILL', 'SIGINT']);
 
 /** Shared prerequisite only. Never alters fixture assertions, credentials or service settings. */
-export function ensureGoTrueImage({ run = docker, pause = sleep, report = (receipt) => console.log('GOTRUE_IMAGE_RECEIPT=' + JSON.stringify(receipt)), reportFailure = (failure) => console.error('GOTRUE_IMAGE_PULL_FAILURE=' + JSON.stringify(failure)) } = {}) {
+export function ensureGoTrueImage({ run = docker, pause = sleep, report = (receipt) => console.log('GOTRUE_IMAGE_RECEIPT=' + JSON.stringify(receipt)), reportFailure = (failure) => console.error('GOTRUE_IMAGE_PULL_FAILURE=' + JSON.stringify(failure)), reportVerificationFailure = (failure) => console.error('GOTRUE_IMAGE_VERIFICATION_FAILURE=' + JSON.stringify(failure)) } = {}) {
   const platform = run(['version', '--format', '{{.Server.Os}}/{{.Server.Arch}}']).trim();
   const pinned = platform === 'linux/amd64';
-  // Resolve the immutable manifest directly. The primary registry rejects the
-  // compound tag@digest reference even though repository@digest verifies.
+  // Resolve the immutable manifest directly, without tag/index negotiation.
   const ref = (image) => pinned ? image.slice(0, image.lastIndexOf(':')) + '@' + GOTRUE_AMD64_DIGEST : image;
+  let identity = null;
+  let verification = null;
   const verifiedCache = () => {
+    identity = null;
+    verification = null;
     try {
       const entries = JSON.parse(run(['image', 'inspect', GOTRUE_PRIMARY]));
       if (!Array.isArray(entries) || entries.length !== 1) return false;
       const entry = entries[0];
-      return pinned && entry?.Os === 'linux' && entry.Architecture === 'amd64'
-        && entry.Id === configDigest && Array.isArray(entry.RepoDigests)
-        && entry.RepoDigests.some((digest) => [GOTRUE_PRIMARY, GOTRUE_ALTERNATIVE, 'supabase/gotrue:v2.195.0']
-          .some((image) => digest === image.slice(0, image.lastIndexOf(':')) + '@' + GOTRUE_AMD64_DIGEST));
+      const approved = { manifestDigest: GOTRUE_AMD64_DIGEST, configDigest,
+        repositories: [GOTRUE_PRIMARY, GOTRUE_ALTERNATIVE, 'supabase/gotrue:v2.195.0'].map((image) => image.slice(0, image.lastIndexOf(':'))) };
+      verification = imageIdentityChecks(entry, approved);
+      identity = pinned ? verifiedImageIdentity(entry, approved) : null;
+      return identity !== null;
     } catch { return false; }
   };
   // Reuse only the exact verified image prepared by the workflow. This also
   // avoids another registry pull when the standalone fixture starts next.
-  if (verifiedCache()) { report({ status: 'PASS', mode: 'verified-cache', platform, digest: GOTRUE_AMD64_DIGEST }); return GOTRUE_PRIMARY; }
+  if (verifiedCache()) { report({ status: 'PASS', mode: 'verified-cache', platform, digest: GOTRUE_AMD64_DIGEST, identity }); return GOTRUE_PRIMARY; }
   const pull = (image, delays) => {
     for (const [index, delay] of delays.entries()) {
       pause(delay * 1000);
@@ -84,9 +89,12 @@ export function ensureGoTrueImage({ run = docker, pause = sleep, report = (recei
   }
   if (pinned) {
     run(['tag', ref(selected), GOTRUE_PRIMARY]);
-    if (!verifiedCache()) throw Error('GOTRUE_IMAGE_DIGEST_VERIFICATION_FAILED');
+    if (!verifiedCache()) {
+      reportVerificationFailure({ image: selected, platform, checks: verification });
+      throw Error('GOTRUE_IMAGE_DIGEST_VERIFICATION_FAILED');
+    }
   }
-  report({ status: 'PASS', mode: selected === GOTRUE_PRIMARY ? 'primary' : 'quota-fallback', platform, digest: pinned ? GOTRUE_AMD64_DIGEST : null });
+  report({ status: 'PASS', mode: selected === GOTRUE_PRIMARY ? 'primary' : 'quota-fallback', platform, digest: pinned ? GOTRUE_AMD64_DIGEST : null, identity });
   return GOTRUE_PRIMARY;
 }
 
