@@ -109,6 +109,7 @@ jobs:
             return 1
           }
           pull_test_image postgres:17-alpine
+          node --test tests/sandbox-gotrue-image.test.mjs
           node scripts/sandbox/pull-gotrue-image.mjs
           node scripts/sandbox/pull-service-image.mjs postgrest
           node scripts/sandbox/pull-service-image.mjs storage

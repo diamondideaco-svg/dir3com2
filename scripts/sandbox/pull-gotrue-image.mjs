@@ -16,11 +16,34 @@ const isQuota = (error) => error instanceof Error && 'status' in error && Number
   && /^(?:Error response from daemon:\s*)?toomanyrequests: Data limit exceeded\s*$/i.test(error.stderr.trim())
   && !/unauthorized|denied|authentication required|x509|certificate|manifest unknown|not found|digest mismatch/i.test(error.stderr);
 
+export function sanitizeGoTruePullStderr(stderr) {
+  if (typeof stderr !== 'string') return '';
+  const safe = stderr
+    .replace(/\bauthorization\s*[:=][^\r\n]*/gi, 'Authorization: [REDACTED]')
+    .replace(/\b(bearer|basic)\s+[^\s]+/gi, '$1 [REDACTED]')
+    .replace(/\b(password|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)\s*[:=]\s*[^\s]+/gi, '$1=[REDACTED]')
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi, (value) => {
+      try {
+        const url = new URL(value);
+        url.username = ''; url.password = ''; url.search = ''; url.hash = '';
+        return url.href;
+      } catch { return '[REDACTED_URL]'; }
+    })
+    .replace(/[?#][^\s"'<>]*/g, '[REDACTED_URL_SUFFIX]');
+  // Redact before truncation so a cut credential cannot evade a later match.
+  return Buffer.from(safe).subarray(0, 4096).toString('utf8').replace(/\uFFFD$/, '');
+}
+
+const safeCodes = new Set(['EACCES', 'EPERM', 'ENOENT', 'ETIMEDOUT', 'ENOBUFS', 'ECONNRESET', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH', 'EPIPE']);
+const safeSignals = new Set(['SIGTERM', 'SIGKILL', 'SIGINT']);
+
 /** Shared prerequisite only. Never alters fixture assertions, credentials or service settings. */
-export function ensureGoTrueImage({ run = docker, pause = sleep, report = (receipt) => console.log('GOTRUE_IMAGE_RECEIPT=' + JSON.stringify(receipt)) } = {}) {
+export function ensureGoTrueImage({ run = docker, pause = sleep, report = (receipt) => console.log('GOTRUE_IMAGE_RECEIPT=' + JSON.stringify(receipt)), reportFailure = (failure) => console.error('GOTRUE_IMAGE_PULL_FAILURE=' + JSON.stringify(failure)) } = {}) {
   const platform = run(['version', '--format', '{{.Server.Os}}/{{.Server.Arch}}']).trim();
   const pinned = platform === 'linux/amd64';
-  const ref = (image) => pinned ? image + '@' + GOTRUE_AMD64_DIGEST : image;
+  // Resolve the immutable manifest directly. The primary registry rejects the
+  // compound tag@digest reference even though repository@digest verifies.
+  const ref = (image) => pinned ? image.slice(0, image.lastIndexOf(':')) + '@' + GOTRUE_AMD64_DIGEST : image;
   const verifiedCache = () => {
     try {
       const entries = JSON.parse(run(['image', 'inspect', GOTRUE_PRIMARY]));
@@ -36,10 +59,17 @@ export function ensureGoTrueImage({ run = docker, pause = sleep, report = (recei
   // avoids another registry pull when the standalone fixture starts next.
   if (verifiedCache()) { report({ status: 'PASS', mode: 'verified-cache', platform, digest: GOTRUE_AMD64_DIGEST }); return GOTRUE_PRIMARY; }
   const pull = (image, delays) => {
-    for (const delay of delays) {
+    for (const [index, delay] of delays.entries()) {
       pause(delay * 1000);
       try { run(['pull', ...pinned ? ['--platform=linux/amd64'] : [], ref(image)]); return true; }
       catch (error) {
+        reportFailure({
+          image, platform, attempt: index + 1,
+          status: Number.isInteger(error?.status) && error.status >= 0 && error.status <= 255 ? error.status : null,
+          code: safeCodes.has(error?.code) ? error.code : null,
+          signal: safeSignals.has(error?.signal) ? error.signal : null,
+          stderr: sanitizeGoTruePullStderr(error?.stderr),
+        });
         // A denied/auth/TLS/missing/damaged image is never a quota fallback.
         if (!isQuota(error)) throw Error('GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA');
       }

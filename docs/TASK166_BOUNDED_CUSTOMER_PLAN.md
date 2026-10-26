@@ -43,3 +43,16 @@ This source repair authorizes no Production SQL, credentials, enrollment,
 switches, webhook subscription, real provider call or message. Actual template
 readiness and precise recipient/content/purpose require separate acceptance.
 Rollback is gates OFF with records retained, never replay or queue broadening.
+
+## Sandbox image prerequisite
+
+The original job hid Docker stderr behind `GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA`.
+Read-only inspection on 26 October reproduced `manifest verification failed` for
+the primary registry's compound `tag@digest` reference. The same registry's
+canonical `repository@digest` returned the approved 1431-byte amd64 manifest;
+SHA-256 computed from its raw bytes equals the existing pinned manifest digest,
+and its config digest also matches the existing pin. No image version, registry,
+digest, credentials or quota-only fallback rules change. Focused injected-command
+regressions cover canonical pull/tag, verified cache, bounded quota fallback and
+fail-closed nonquota errors. These regressions do not substitute for a successful
+real Docker pull and complete hosted Sandbox run on the new exact head.
