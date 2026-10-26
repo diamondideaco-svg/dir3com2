@@ -97,10 +97,10 @@ BEGIN
  SELECT * INTO r FROM public.marketplace_requests WHERE id=NEW.request_id;
  SELECT * INTO c FROM public.drive_request_context WHERE request_id=NEW.request_id;
  IF r.user_id IS DISTINCT FROM a.recipient_user_id OR r.request_reference IS DISTINCT FROM a.request_reference
-  OR c.country IS DISTINCT FROM 'EG' OR c.version IS DISTINCT FROM a.expected_version+CASE WHEN a.action='created' THEN 0 ELSE 1 END
+  OR c.country IS DISTINCT FROM 'EG' OR c.version IS DISTINCT FROM (a.expected_version+CASE WHEN a.action='created' THEN 0 ELSE 1 END)
   OR r.status IS DISTINCT FROM NEW.new_status OR r.requested_for<=stamp
-  OR NEW.new_status IS DISTINCT FROM CASE a.action WHEN 'created' THEN 'request_submitted' WHEN 'review' THEN 'under_review'
-   WHEN 'confirm' THEN 'awaiting_customer_acceptance' WHEN 'decline' THEN 'declined' WHEN 'customer_accept' THEN 'awaiting_payment' END
+  OR NEW.new_status IS DISTINCT FROM (CASE a.action WHEN 'created' THEN 'request_submitted' WHEN 'review' THEN 'under_review'
+   WHEN 'confirm' THEN 'awaiting_customer_acceptance' WHEN 'decline' THEN 'declined' WHEN 'customer_accept' THEN 'awaiting_payment' END)
   OR (a.action='confirm' AND (r.quote_expires_at IS NULL OR r.quote_expires_at<=stamp))
   OR NOT drive_notification_private.category_enabled('customer',a.action,a.recipient_user_id,a.language)
   OR NOT drive_notification_private.eligible(a.subscription_id,r.id)

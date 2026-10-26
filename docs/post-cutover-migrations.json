@@ -103,7 +103,7 @@
   },
   {
     "path": "supabase/migrations/20261026110832_task166_bounded_customer_notifications.sql",
-    "sha256": "64663c8b98b8f5bcd083e37dbefae8e3d5b015170893e1fea4124add26c2f4da",
+    "sha256": "031de58334773606285aeba97574ce176ea750ba58d0e9625380c621102a580c",
     "task": "#166",
     "production_apply_authorized": false
   }

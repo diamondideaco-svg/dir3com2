@@ -67,7 +67,7 @@ export async function runCustomerBoundedAcceptance({db,connectPeer,request,reque
   equal(await scalar('SELECT stopped_at IS NOT NULL FROM drive_notification_private.customer_authorizations WHERE id=$1',[t.authorization_id]),true,'durable authorization stop');
   equal(await snapshot(t.outboxId),old,'all old rows unchanged');
  }
- for(const kind of ['consent','phone','language','owner','country','state','version','trip','quote','category','expiry','kill']) {
+ for(const kind of ['consent','phone','language','owner','country','state','version','trip','quote','category','expiry','kill','budget']) {
   const {t}=await fixture(kind==='quote'?'confirm':'created');const row=await claim(t);assert.ok(row);checks++;
   if(kind==='consent')await db.query('UPDATE drive_notification_private.subscriptions SET enabled=false WHERE user_id=$1',[customer]);
   if(kind==='phone')await db.query("UPDATE drive_notification_private.subscriptions SET phone='+10000000099' WHERE user_id=$1",[customer]);
@@ -81,6 +81,7 @@ export async function runCustomerBoundedAcceptance({db,connectPeer,request,reque
   if(kind==='category')await db.exec('UPDATE drive_notification_private.settings SET customer_actions=ARRAY[]::text[]');
   if(kind==='expiry'){await db.query("UPDATE drive_notification_private.customer_authorizations SET started_at=clock_timestamp()-interval '9 minutes',expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",[t.authorization_id]);await db.query("UPDATE drive_notification_private.execution_windows SET started_at=clock_timestamp()-interval '9 minutes',expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",[t.windowId]);}
   if(kind==='kill')await db.exec('UPDATE drive_notification_private.settings SET send_enabled=false');
+  if(kind==='budget')await db.exec('UPDATE drive_notification_private.settings SET daily_limit=1,budget_used=1');
   equal(await begin(row),false,kind+' changed after claim blocks intent');equal(await scalar('SELECT attempts FROM drive_notification_private.outbox WHERE id=$1',[t.outboxId]),0,kind+' no attempt consumed');
  }
  const {t:wrong}=await fixture();const before=await snapshot(wrong.outboxId);
@@ -90,8 +91,26 @@ export async function runCustomerBoundedAcceptance({db,connectPeer,request,reque
  equal(await run(unknown,config,async()=>{sends++;throw new Error('SYNTHETIC_RESPONSE_LOSS');}),'unknown','uncertain result explicit');equal(await run(unknown,config,fakeFor(unknown)),'idle','unknown no resend');equal(sends,count+1,'unknown one stub call only');
  const {t:stopped,fire}=await fixture('created','ar',false);await service('SELECT public.stop_kapso_customer_notification($1)',[stopped.authorization_id]);await db.exec('UPDATE drive_notification_private.settings SET capture_enabled=true,send_enabled=true');await fire();equal(stopped.windowId,null,'stopped pre-event approval never captures');
  const {t:disabled,fire:fireDisabled}=await fixture('created','ar',false);await fireDisabled();equal(disabled.windowId,null,'capture gate OFF prevents natural event capture');await stop();await assert.rejects(arm(disabled.reference,'created','ar',0),/INELIGIBLE_CUSTOMER_APPROVAL/);checks++;
- const {t:race}=await fixture();const a=await connectPeer(),b=await connectPeer();
- try {await a.query('SET ROLE service_role');await b.query('SET ROLE service_role');const results=await Promise.all([a.query('SELECT public.claim_kapso_drive_whatsapp_target($1,$2,$3,$4,$5) AS result',targetArgs(race)),b.query('SELECT public.claim_kapso_drive_whatsapp_target($1,$2,$3,$4,$5) AS result',targetArgs(race))]);equal(results.filter(x=>x.rows[0].result!==null).length,1,'real concurrent workers one claim');const row=results.find(x=>x.rows[0].result).rows[0].result;const starts=await Promise.all([a.query('SELECT public.begin_kapso_drive_whatsapp($1,$2,$3) AS result',[row.id,row.token,sender]),b.query('SELECT public.begin_kapso_drive_whatsapp($1,$2,$3) AS result',[row.id,row.token,sender])]);equal(starts.filter(x=>x.rows[0].result).length,1,'real concurrent workers one intent');}finally{await a.end();await b.end();}
+ const {t:rollback,fire:fireRollback}=await fixture('created','ar',false);
+ await db.exec('UPDATE drive_notification_private.settings SET capture_enabled=true,send_enabled=true; BEGIN');
+ await fireRollback();assert.ok(rollback.windowId);checks++;await db.exec('ROLLBACK');
+ equal(await scalar('SELECT count(*)::int FROM drive_notification_private.outbox WHERE id=$1',[rollback.outboxId]),0,'failed natural transaction rolls back outbox');
+ equal(await scalar('SELECT event_id IS NULL AND window_id IS NULL FROM drive_notification_private.customer_authorizations WHERE id=$1',[rollback.authorization_id]),true,'failed transaction does not consume approval');
+ await fireRollback();assert.ok(rollback.windowId);checks++;
+ const oldAuthorization=rollback.authorization_id;
+ const {t:preExpiry,fire:firePreExpiry}=await fixture('created','ar',false);
+ await db.query("UPDATE drive_notification_private.customer_authorizations SET started_at=clock_timestamp()-interval '9 minutes',expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",[preExpiry.authorization_id]);
+ await db.exec('UPDATE drive_notification_private.settings SET capture_enabled=true,send_enabled=true');await firePreExpiry();equal(preExpiry.windowId,null,'expired approval cannot capture');
+ assert.ok(await service('SELECT public.expire_kapso_drive_whatsapp_window()'));checks++;
+ equal(await scalar('SELECT NOT capture_enabled AND NOT send_enabled FROM drive_notification_private.settings'),true,'watchdog closes pre-event expiry');
+ const {t:race}=await fixture();
+ await service('SELECT public.stop_kapso_customer_notification($1)',[oldAuthorization]);
+ equal(await scalar('SELECT capture_enabled AND send_enabled FROM drive_notification_private.settings'),true,'late stop of old approval cannot stop a newer approval');
+ const queryLease=await claim(race);assert.ok(queryLease);checks++;
+ equal(await service('SELECT public.begin_kapso_drive_whatsapp_provider_query($1,$2,$3)',[queryLease.id,queryLease.token,sender]),false,'customer intent cannot use query RPC');
+ await stop();
+ const {t:concurrent}=await fixture();const a=await connectPeer(),b=await connectPeer();
+ try {await a.query('SET ROLE service_role');await b.query('SET ROLE service_role');const results=await Promise.all([a.query('SELECT public.claim_kapso_drive_whatsapp_target($1,$2,$3,$4,$5) AS result',targetArgs(concurrent)),b.query('SELECT public.claim_kapso_drive_whatsapp_target($1,$2,$3,$4,$5) AS result',targetArgs(concurrent))]);equal(results.filter(x=>x.rows[0].result!==null).length,1,'real concurrent workers one claim');const row=results.find(x=>x.rows[0].result).rows[0].result;const starts=await Promise.all([a.query('SELECT public.begin_kapso_drive_whatsapp($1,$2,$3) AS result',[row.id,row.token,sender]),b.query('SELECT public.begin_kapso_drive_whatsapp($1,$2,$3) AS result',[row.id,row.token,sender])]);equal(starts.filter(x=>x.rows[0].result).length,1,'real concurrent workers one intent');}finally{await a.end();await b.end();}
  await stop();await db.exec("UPDATE drive_notification_private.settings SET dispatch_mode='general',send_enabled=true");equal(await service("SELECT public.claim_kapso_drive_whatsapp(ARRAY['customer.created.ar','customer.confirm.ar','customer.created.en','customer.review.ar','customer.review.en','customer.confirm.en','customer.decline.ar','customer.decline.en','customer.customer_accept.ar','customer.customer_accept.en'])"),null,'general worker cannot claim/reclaim any bounded customer row');
  for(const role of ['anon','authenticated'])for(const sig of ['public.arm_kapso_customer_notification(text,uuid,text,text,text,integer,text,uuid,text,timestamptz)','public.stop_kapso_customer_notification(uuid)'])equal(await scalar("SELECT has_function_privilege($1,$2,'EXECUTE')",[role,sig]),false,role+' denied privileged RPC');
  for(const role of ['anon','authenticated','service_role'])equal(await scalar("SELECT has_table_privilege($1,'drive_notification_private.customer_authorizations','INSERT')",[role]),false,role+' cannot fabricate approval/event binding');
