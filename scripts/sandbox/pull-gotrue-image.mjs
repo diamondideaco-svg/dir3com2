@@ -19,14 +19,19 @@ const isQuota = (error) => error instanceof Error && 'status' in error && Number
 
 const credentialKeys = new Set(['authorization', 'password', 'apikey', 'accesstoken', 'refreshtoken', 'clientsecret']);
 const isCredentialKey = (key) => credentialKeys.has(key.replace(/[_-]/g, '').toLowerCase());
+const credentialAssignments = () => new RegExp(String.raw`(["']?)\b[_-]*(${[...credentialKeys].map((key) => [...key].join('[_-]*')).join('|')})[_-]*\1\s*[:=]\s*`, 'gi');
 
 function redactAssignedValues(text, assignments) {
   let safe = '', cursor = 0, match;
   while ((match = assignments.exec(text)) !== null) {
-    safe += text.slice(cursor, match.index) + match[0] + '[REDACTED]';
+    safe += text.slice(cursor, match.index) + match[0] + '"[REDACTED]"';
     let end = assignments.lastIndex;
     const quote = text[end];
-    if (quote === '"' || quote === "'") {
+    if (quote === '[' || quote === '{' || /^\\+["']/.test(text.slice(end))) {
+      // A structured or partially serialized secret cannot be split on spaces.
+      // Fail closed for the remainder instead of exposing an ambiguous tail.
+      end = text.length;
+    } else if (quote === '"' || quote === "'") {
       end += 1;
       while (end < text.length) {
         const character = text[end++];
@@ -58,14 +63,18 @@ function redactDiagnosticText(text, depth = 0) {
   try { parsed = JSON.parse(text); }
   catch { /* Mixed Docker text is not necessarily a JSON document. */ }
   if (parsed !== undefined) return JSON.stringify(redactJson(parsed, depth + 1));
-  let safe = redactAssignedValues(text.replace(/\\\//g, '/'), /(["']?)\b(authorization|password|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)\1\s*[:=]\s*/gi);
+  let safe = redactAssignedValues(text.replace(/\\\//g, '/'), credentialAssignments());
+  // Error renderers can serialize JSON without the enclosing string quotes.
+  // Redact literal assignments first so an escaped quote inside their value
+  // cannot become a premature closing delimiter during normalization.
+  if (/\\["']/.test(safe)) return redactDiagnosticText(safe.replace(/\\(["'\\])/g, '$1'), depth + 1);
   // Decode serialized JSON strings before redacting their inner diagnostics.
   safe = safe.replace(/"(?:\\[\s\S]|[^"\\])*"/g, (quoted) => {
     try { return JSON.stringify(redactDiagnosticText(JSON.parse(quoted), depth + 1)); }
     catch { return '[REDACTED_QUOTED_DIAGNOSTIC]'; }
   });
   // Decoding can expose an escaped JSON key in an otherwise plain-text error.
-  safe = redactAssignedValues(safe, /(["']?)\b(authorization|password|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)\1\s*[:=]\s*/gi)
+  safe = redactAssignedValues(safe, credentialAssignments())
     .replace(/\bauthorization\s*[:=][^\r\n]*/gi, 'Authorization: [REDACTED]');
   return redactAssignedValues(safe, /\b(?:bearer|basic)\s+/gi)
     .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi, (value) => {

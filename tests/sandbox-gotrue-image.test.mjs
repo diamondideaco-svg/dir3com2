@@ -264,6 +264,11 @@ for (const [name, input] of [
   ['quoted key and unquoted value', '"password": SYNTHETIC_BEGIN'],
   ['nested JSON string', JSON.stringify(JSON.stringify(secretObject))],
   ['serialized JSON in mixed text', 'Docker error metadata: ' + JSON.stringify(JSON.stringify(secretObject))],
+  ['escaped JSON without enclosing string quotes', String.raw`Docker: {\"password\":\"SYNTHETIC_BEGIN SYNTHETIC_MIDDLE SYNTHETIC_END\"}`],
+  ['partially serialized quoted value', String.raw`password=\"SYNTHETIC_BEGIN SYNTHETIC_MIDDLE SYNTHETIC_END\"`],
+  ['normalized separator aliases in mixed JSON', 'Docker: ' + JSON.stringify({ api__key: quotedSecret, _access__token_: quotedSecret, client___secret: quotedSecret })],
+  ['array-valued credential in mixed JSON', 'Docker: ' + JSON.stringify({ password: [quotedSecret] })],
+  ['object-valued credential in mixed JSON', 'Docker: ' + JSON.stringify({ api_key: { nested: quotedSecret } })],
   ['escaped JSON credential key', '{"\\u0070assword":"' + quotedSecret + '"}'],
   ['escaped JSON credential key in mixed text', 'Docker error: {"\\u0070assword":"' + quotedSecret + '"}'],
   ['quoted authorization without scheme', JSON.stringify({ authorization: quotedSecret })],
@@ -278,15 +283,17 @@ for (const [name, input] of [
 }
 
 test('credential redaction protects both actual diagnostic callbacks with quoted JSON', () => {
-  const raw = JSON.stringify(secretObject);
-  const pull = fixture({ rejectPull: () => failed(raw) });
-  assert.throws(pull.run, /GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
-  const probe = fixture({ rejectPull: newQuotaRenderer, probeError: failed(raw) });
-  assert.throws(probe.run, /GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
-  for (const receipt of [pull.failures[0], probe.quotaEvidence[0]]) {
-    for (const fragment of secretFragments) assert.equal(JSON.stringify(receipt).includes(fragment), false);
+  for (const raw of [JSON.stringify(secretObject), String.raw`Docker: {\"password\":\"SYNTHETIC_BEGIN SYNTHETIC_MIDDLE SYNTHETIC_END\"}`,
+    'Docker: ' + JSON.stringify({ api__key: quotedSecret }), 'Docker: ' + JSON.stringify({ password: [quotedSecret] })]) {
+    const pull = fixture({ rejectPull: () => failed(raw) });
+    assert.throws(pull.run, /GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+    const probe = fixture({ rejectPull: newQuotaRenderer, probeError: failed(raw) });
+    assert.throws(probe.run, /GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+    for (const receipt of [pull.failures[0], probe.quotaEvidence[0]]) {
+      for (const fragment of secretFragments) assert.equal(JSON.stringify(receipt).includes(fragment), false);
+    }
+    assert.equal(probe.quotaEvidence[0].confirmed, false);
   }
-  assert.equal(probe.quotaEvidence[0].confirmed, false);
 });
 
 test('credential redaction preserves ordinary useful diagnostics and quota classification input', () => {
