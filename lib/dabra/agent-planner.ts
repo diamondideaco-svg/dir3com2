@@ -5,7 +5,8 @@ import { callGeminiGoogleSearch } from '../ai2/runtime/gemini-web';
 import { createDabraProviderRequestId, mapProviderErrorCategory, type DabraProviderAttemptScheduler, type DabraProviderErrorCategory } from '../ai2/observability/provider-attempts';
 import { AGENT_TOOLS, parseAgentTool, type AgentTool } from './agent-contract';
 
-export const INTERNAL_AGENT_PROVIDERS = ['openai', 'gemini', 'anthropic', 'xai', 'deepseek', 'qwen', 'mistral'] as const;
+import { AGENT_PROVIDER_IDS } from './agent-capabilities';
+export const INTERNAL_AGENT_PROVIDERS = AGENT_PROVIDER_IDS;
 export type InternalAgentProvider = typeof INTERNAL_AGENT_PROVIDERS[number];
 type Attempt = { provider: InternalAgentProvider; model: string; outcome: string };
 export type AgentPlan = { tool: AgentTool | null; status: 'disabled' | 'not_configured' | 'ok' | 'unavailable' | 'invalid'; provider?: InternalAgentProvider; attempts?: Attempt[] };

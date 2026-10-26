@@ -18,7 +18,9 @@ function productPost(role: AgentContext['role'], registerAfterResponse: (task: (
   const exports = {};
   const dependencies: Record<string, unknown> = {
     'next/server': { NextRequest, NextResponse, after: registerAfterResponse },
-    '@/lib/dabra/agent-context': { resolveAgentContext: async () => ({ role, readRequests: async () => { throw new Error('Unexpected account read'); } }) },
+    '@/lib/dabra/agent-context': { resolveAgentContext: async (): Promise<AgentContext> => ({ role,
+      taskAuthority: role === 'customer' ? { kind: 'customer', actorId: 'authenticated-test-customer', ownerId: 'authenticated-test-customer' } : { kind: 'guest' },
+      isTaskAuthorityCurrent: async () => role === 'customer', readRequests: async () => { throw new Error('Unexpected account read'); } }) },
     '@/lib/dabra/agent-planner': { planInternalAgentTool },
   };
   runInNewContext(ts.transpileModule(readFileSync('app/api/ai2/chat/route.ts', 'utf8'), {

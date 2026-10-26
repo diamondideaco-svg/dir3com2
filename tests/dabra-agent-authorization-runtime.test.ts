@@ -157,3 +157,47 @@ test('approved GPT-5 classifier uses bounded compatible parameters without retri
   for(const [key,value]of Object.entries({DABRA_INTERNAL_AI_ENABLED:before.enabled,OPENAI_API_KEY:before.key,DABRA_INTERNAL_AI_MODEL:before.model}))if(value===undefined)delete process.env[key];else process.env[key]=value;
  }
 });
+
+
+test('Task217: canonical customer identity supplies owner scope and rejects mid-task profile deactivation', async () => {
+ const config: Fixture = { role: 'customer' }; const fixture = setup(config); const context = await fixture.resolve();
+ assert.equal(context.taskAuthority?.kind, 'customer');
+ if (context.taskAuthority?.kind === 'customer') {
+  assert.equal(context.taskAuthority.actorId, customerId); assert.equal(context.taskAuthority.ownerId, customerId);
+ }
+ assert.equal(await context.isTaskAuthorityCurrent?.(), true); config.active = false;
+ assert.equal(await context.isTaskAuthorityCurrent?.(), false);
+ assert.equal(fixture.seen.filter(url => url.pathname.endsWith('/marketplace_requests')).length, 0);
+});
+
+test('Task217: role change revokes an already-created task authority', async () => {
+ const config: Fixture = { role: 'customer' }; const context = await setup(config).resolve();
+ config.role = 'partner'; assert.equal(await context.isTaskAuthorityCurrent?.(), false);
+});
+
+test('Task217: Egypt operation authority is server-derived and its revoked grant cannot complete a task', async () => {
+ const config: Fixture = { role: 'staff', grant: true, country: 'EG' }; const fixture = setup(config); const context = await fixture.resolve();
+ assert.equal(context.taskAuthority?.kind, 'operator');
+ if (context.taskAuthority?.kind === 'operator') { assert.equal(context.taskAuthority.country, 'EG'); assert.equal(context.taskAuthority.actorId, customerId); }
+ assert.equal(await context.isTaskAuthorityCurrent?.(), true); config.revoked = true;
+ assert.equal(await context.isTaskAuthorityCurrent?.(), false);
+ assert.equal(fixture.seen.filter(url => url.pathname.endsWith('/marketplace_requests')).length, 0);
+});
+
+test('Task217: non-Egypt and absent authentication do not gain a country/owner task authority', async () => {
+ const otherCountry = await setup({ role: 'staff', grant: true, country: 'SA' }).resolve();
+ assert.equal(otherCountry.taskAuthority?.kind, 'operator');
+ if (otherCountry.taskAuthority?.kind === 'operator') assert.equal(otherCountry.taskAuthority.country, null);
+ const guest = await setup({ role: 'customer', authError: true }).resolve();
+ assert.equal(guest.taskAuthority?.kind, 'guest'); assert.equal(guest.taskAuthorityFailure, 'authentication_required');
+});
+
+test('Task217: executive product authority retains canonical CEO verification', async () => {
+ const regular = await setup({ role: 'admin', grant: true }).resolve();
+ assert.equal(regular.taskAuthority?.kind, 'operator');
+ if (regular.taskAuthority?.kind === 'operator') assert.equal(regular.taskAuthority.role, 'admin');
+ const ceo = await setup({ role: 'admin', id: team.CEO_USER_ID }).resolve();
+ assert.equal(ceo.taskAuthority?.kind, 'operator');
+ if (ceo.taskAuthority?.kind === 'operator') assert.equal(ceo.taskAuthority.role, 'ceo');
+ assert.equal(await ceo.isTaskAuthorityCurrent?.(), true);
+});

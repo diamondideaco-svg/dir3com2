@@ -5,10 +5,10 @@ import { resolveCanonicalActiveProfile } from '@/lib/auth/identity';
 import { isCeoActor } from '@/lib/auth/team-access';
 import { isCountryAllowed, resolveVerifiedOperationalAccess } from '@/lib/auth/admin';
 import { getCustomerMarketplaceRequest, listCustomerMarketplaceRequests } from '@/lib/marketplace/customer-requests';
-import { safeAgentRequest, type AgentContext, type AgentReadResult, type AgentRole } from './agent-contract';
+import { safeAgentRequest, type AgentContext, type AgentReadResult, type AgentRole, type AgentTaskAuthority } from './agent-contract';
 
-export const anonymousAgentContext: AgentContext = { role: 'guest', readRequests: async () => ({ kind: 'authentication_required' }) };
-export const unavailableAgentContext: AgentContext = { role: 'guest', readRequests: async () => ({ kind: 'unavailable' }) };
+export const anonymousAgentContext: AgentContext = { role: 'guest', taskAuthority: { kind: 'guest' }, taskAuthorityFailure: 'authentication_required', readRequests: async () => ({ kind: 'authentication_required' }) };
+export const unavailableAgentContext: AgentContext = { role: 'guest', taskAuthority: { kind: 'guest' }, taskAuthorityFailure: 'unavailable', readRequests: async () => ({ kind: 'unavailable' }) };
 const LIMIT = 20;
 
 export async function resolveAgentContext(request: NextRequest): Promise<AgentContext> {
@@ -16,13 +16,31 @@ export async function resolveAgentContext(request: NextRequest): Promise<AgentCo
     const auth = await createSupabaseRequestClient(request);
     if (!auth) return anonymousAgentContext;
     const profile = await resolveCanonicalActiveProfile(auth.supabase, auth.user.id);
-    if (!profile) return { role: 'guest', readRequests: async () => ({ kind: 'forbidden' }) };
+    if (!profile) return { role: 'guest', taskAuthority: { kind: 'guest' }, taskAuthorityFailure: 'forbidden', readRequests: async () => ({ kind: 'forbidden' }) };
     const executive = await isCeoActor(auth.supabase, auth.user);
     const operational = profile.role === 'admin' || profile.role === 'staff'
       ? await resolveVerifiedOperationalAccess(auth.supabase, auth.user, 'operations:read') : null;
     const role: AgentRole = executive ? 'ceo' : profile.role;
+    const operationsCountry = operational?.scope && isCountryAllowed(operational.scope, 'EG') ? 'EG' : null;
+    let taskAuthority: AgentTaskAuthority = { kind: 'guest' };
+    if (role === 'staff' || role === 'admin' || role === 'ceo') taskAuthority = { kind: 'operator', actorId: auth.user.id, role, country: operationsCountry };
+    else if (role === 'customer') taskAuthority = { kind: 'customer', actorId: auth.user.id, ownerId: auth.user.id };
+    else if (role === 'partner') taskAuthority = { kind: 'partner', actorId: auth.user.id };
     return {
       role,
+      taskAuthority,
+      async isTaskAuthorityCurrent() {
+        try {
+          const current = await resolveCanonicalActiveProfile(auth.supabase, auth.user.id);
+          if (!current || current.role !== profile.role) return false;
+          if ((await isCeoActor(auth.supabase, auth.user)) !== executive) return false;
+          if (operationsCountry === 'EG') {
+            const access = await resolveVerifiedOperationalAccess(auth.supabase, auth.user, 'operations:read');
+            if (!access?.scope || !isCountryAllowed(access.scope, 'EG')) return false;
+          }
+          return true;
+        } catch { return false; }
+      },
       async readRequests(reference, asOperations): Promise<AgentReadResult> {
         try {
           let rows: unknown[];
