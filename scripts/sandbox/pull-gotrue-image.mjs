@@ -17,12 +17,57 @@ const isQuota = (error) => error instanceof Error && 'status' in error && Number
   && /^(?:Error response from daemon:\s*)?toomanyrequests: Data limit exceeded\s*$/i.test(error.stderr.trim())
   && !/unauthorized|denied|authentication required|x509|certificate|manifest unknown|not found|digest mismatch/i.test(error.stderr);
 
-export function sanitizeGoTruePullStderr(stderr) {
-  if (typeof stderr !== 'string') return '';
-  const safe = stderr
-    .replace(/\bauthorization\s*[:=][^\r\n]*/gi, 'Authorization: [REDACTED]')
-    .replace(/\b(bearer|basic)\s+[^\s]+/gi, '$1 [REDACTED]')
-    .replace(/\b(password|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)\s*[:=]\s*[^\s]+/gi, '$1=[REDACTED]')
+const credentialKeys = new Set(['authorization', 'password', 'apikey', 'accesstoken', 'refreshtoken', 'clientsecret']);
+const isCredentialKey = (key) => credentialKeys.has(key.replace(/[_-]/g, '').toLowerCase());
+
+function redactAssignedValues(text, assignments) {
+  let safe = '', cursor = 0, match;
+  while ((match = assignments.exec(text)) !== null) {
+    safe += text.slice(cursor, match.index) + match[0] + '[REDACTED]';
+    let end = assignments.lastIndex;
+    const quote = text[end];
+    if (quote === '"' || quote === "'") {
+      end += 1;
+      while (end < text.length) {
+        const character = text[end++];
+        if (character === '\\' && end < text.length) { end += 1; continue; }
+        if (character === quote) break;
+      }
+    } else {
+      while (end < text.length && !/[\s,;}\]]/.test(text[end])) end += 1;
+    }
+    cursor = end;
+    assignments.lastIndex = end;
+  }
+  return safe + text.slice(cursor);
+}
+
+function redactJson(value, depth) {
+  if (depth > 16) return '[REDACTED_NESTED_DIAGNOSTIC]';
+  if (typeof value === 'string') return redactDiagnosticText(value, depth + 1);
+  if (Array.isArray(value)) return value.map((item) => redactJson(item, depth + 1));
+  if (value !== null && typeof value === 'object') {
+    for (const key of Object.keys(value)) value[key] = isCredentialKey(key) ? '[REDACTED]' : redactJson(value[key], depth + 1);
+  }
+  return value;
+}
+
+function redactDiagnosticText(text, depth = 0) {
+  if (depth > 16) return '[REDACTED_NESTED_DIAGNOSTIC]';
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch { /* Mixed Docker text is not necessarily a JSON document. */ }
+  if (parsed !== undefined) return JSON.stringify(redactJson(parsed, depth + 1));
+  let safe = redactAssignedValues(text.replace(/\\\//g, '/'), /(["']?)\b(authorization|password|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)\1\s*[:=]\s*/gi);
+  // Decode serialized JSON strings before redacting their inner diagnostics.
+  safe = safe.replace(/"(?:\\[\s\S]|[^"\\])*"/g, (quoted) => {
+    try { return JSON.stringify(redactDiagnosticText(JSON.parse(quoted), depth + 1)); }
+    catch { return '[REDACTED_QUOTED_DIAGNOSTIC]'; }
+  });
+  // Decoding can expose an escaped JSON key in an otherwise plain-text error.
+  safe = redactAssignedValues(safe, /(["']?)\b(authorization|password|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)\1\s*[:=]\s*/gi)
+    .replace(/\bauthorization\s*[:=][^\r\n]*/gi, 'Authorization: [REDACTED]');
+  return redactAssignedValues(safe, /\b(?:bearer|basic)\s+/gi)
     .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi, (value) => {
       try {
         const url = new URL(value);
@@ -31,6 +76,11 @@ export function sanitizeGoTruePullStderr(stderr) {
       } catch { return '[REDACTED_URL]'; }
     })
     .replace(/[?#][^\s"'<>]*/g, '[REDACTED_URL_SUFFIX]');
+}
+
+export function sanitizeGoTruePullStderr(stderr) {
+  if (typeof stderr !== 'string') return '';
+  const safe = redactDiagnosticText(stderr);
   // Redact before truncation so a cut credential cannot evade a later match.
   return Buffer.from(safe).subarray(0, 4096).toString('utf8').replace(/\uFFFD$/, '');
 }

@@ -247,3 +247,54 @@ test('quota corroboration diagnostics redact credentials in an unsuccessful prob
   for (const secret of ['synthetic-probe-secret', 'synthetic-user', 'synthetic-pass', 'synthetic-query']) assert.equal(diagnostic.includes(secret), false);
   assert.equal(f.quotaEvidence[0].confirmed, false);
 });
+
+const secretFragments = ['SYNTHETIC_BEGIN', 'SYNTHETIC_MIDDLE', 'SYNTHETIC_END'];
+const quotedSecret = secretFragments.join(' ');
+const secretObject = Object.fromEntries(['password', 'api_key', 'access_token', 'refreshToken', 'client-secret', 'Authorization']
+  .map((key) => [key, quotedSecret]));
+
+for (const [name, input] of [
+  ['JSON quoted credential fields', JSON.stringify(secretObject)],
+  ['double-quoted value with spaces', 'password="' + quotedSecret + '"'],
+  ['single-quoted value with spaces', "'api-key' = '" + quotedSecret + "'"],
+  ['escaped quote inside a value', 'password="SYNTHETIC_BEGIN \\" SYNTHETIC_MIDDLE \\\\ SYNTHETIC_END"'],
+  ['multiline quoted value', 'accessToken="' + secretFragments.join('\n') + '"'],
+  ['unterminated quoted value', 'client_secret="' + quotedSecret],
+  ['dangling escape in quoted value', 'password="' + quotedSecret + '\\'],
+  ['quoted key and unquoted value', '"password": SYNTHETIC_BEGIN'],
+  ['nested JSON string', JSON.stringify(JSON.stringify(secretObject))],
+  ['serialized JSON in mixed text', 'Docker error metadata: ' + JSON.stringify(JSON.stringify(secretObject))],
+  ['escaped JSON credential key', '{"\\u0070assword":"' + quotedSecret + '"}'],
+  ['escaped JSON credential key in mixed text', 'Docker error: {"\\u0070assword":"' + quotedSecret + '"}'],
+  ['quoted authorization without scheme', JSON.stringify({ authorization: quotedSecret })],
+  ['quoted Basic credentials', 'Basic "' + quotedSecret + '"'],
+  ['quoted Bearer credentials', 'Bearer "' + quotedSecret + '"'],
+  ['serialized URL with escaped slashes', JSON.stringify('https://SYNTHETIC_BEGIN:SYNTHETIC_MIDDLE@public.ecr.aws/token?key=SYNTHETIC_END').replace(/\//g, '\\/')],
+]) {
+  test('credential redaction removes all fragments from ' + name, () => {
+    const safe = sanitizeGoTruePullStderr(input);
+    for (const fragment of secretFragments) assert.equal(safe.includes(fragment), false, fragment + ' survived');
+  });
+}
+
+test('credential redaction protects both actual diagnostic callbacks with quoted JSON', () => {
+  const raw = JSON.stringify(secretObject);
+  const pull = fixture({ rejectPull: () => failed(raw) });
+  assert.throws(pull.run, /GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+  const probe = fixture({ rejectPull: newQuotaRenderer, probeError: failed(raw) });
+  assert.throws(probe.run, /GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+  for (const receipt of [pull.failures[0], probe.quotaEvidence[0]]) {
+    for (const fragment of secretFragments) assert.equal(JSON.stringify(receipt).includes(fragment), false);
+  }
+  assert.equal(probe.quotaEvidence[0].confirmed, false);
+});
+
+test('credential redaction preserves ordinary useful diagnostics and quota classification input', () => {
+  for (const message of ['manifest verification failed for digest sha256:approved', 'unauthorized: authentication required',
+    'x509: certificate signed by unknown authority', 'connection reset by peer', 'error from registry: Data limit exceeded',
+    'basically a manifest error', 'bearerless transport']) {
+    assert.equal(sanitizeGoTruePullStderr(message), message);
+  }
+  const ordinary = { error: 'denied', code: 'TOOMANYREQUESTS', message: 'Data limit exceeded' };
+  assert.deepEqual(JSON.parse(sanitizeGoTruePullStderr(JSON.stringify(ordinary))), ordinary);
+});
