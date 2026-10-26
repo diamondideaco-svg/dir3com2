@@ -68,3 +68,13 @@ digest is accepted. The manifest cryptographically binds the approved config and
 layers. Both GoTrue and the existing PostgREST/Storage prerequisite use this
 identity check so the same incompatibility does not recur at the next image.
 Quota classification is unchanged; no registry credentials or skips are added.
+
+Docker's containerd error translator may omit the OCI error code. The exact new
+ECR data-limit renderer therefore triggers only a bounded, native, read-only
+`docker manifest inspect` for the SAME pinned primary reference. It is not itself
+quota evidence. Only the original strict `toomanyrequests: Data limit exceeded`
+predicate returned by that probe corroborates quota. A successful read, missing
+OCI code, auth/TLS/network error or mixed response stays fail-closed. Probe
+diagnostics are redacted; no manifest output, token, new credential or registry
+is introduced. Existing pull retry counts, delays, approved fallback and all
+image/config/identity verification remain unchanged.

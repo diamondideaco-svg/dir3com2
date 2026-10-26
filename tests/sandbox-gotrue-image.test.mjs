@@ -10,8 +10,8 @@ const pinned = (image) => repository(image) + '@' + GOTRUE_AMD64_DIGEST;
 const failed = (stderr, status = 1) => Object.assign(new Error('synthetic Docker failure'), { stderr, status });
 const quota = () => failed('Error response from daemon: toomanyrequests: Data limit exceeded\n');
 
-function fixture({ platform = 'linux/amd64', cached = false, rejectPull = () => null, badCache = false, modern = false } = {}) {
-  const calls = [], pauses = [], receipts = [], failures = [];
+function fixture({ platform = 'linux/amd64', cached = false, rejectPull = () => null, badCache = false, modern = false, probeError = null } = {}) {
+  const calls = [], pauses = [], receipts = [], failures = [], quotaEvidence = [];
   let source = GOTRUE_PRIMARY;
   const run = (args) => {
     calls.push(args);
@@ -32,9 +32,10 @@ function fixture({ platform = 'linux/amd64', cached = false, rejectPull = () => 
       return '';
     }
     if (args[0] === 'tag') { cached = true; return ''; }
+    if (args[0] === 'manifest') { if (probeError) throw probeError; return '{}'; }
     throw new Error('Unexpected Docker command');
   };
-  return { calls, pauses, receipts, failures, run: () => ensureGoTrueImage({ run, pause: (ms) => pauses.push(ms), report: (value) => receipts.push(value), reportFailure: (value) => failures.push(value), reportVerificationFailure: (value) => failures.push(value) }) };
+  return { calls, pauses, receipts, failures, quotaEvidence, run: () => ensureGoTrueImage({ run, pause: (ms) => pauses.push(ms), report: (value) => receipts.push(value), reportFailure: (value) => failures.push(value), reportVerificationFailure: (value) => failures.push(value), reportQuotaEvidence: (value) => quotaEvidence.push(value) }) };
 }
 
 test('primary pull and local tag use the exact canonical repository@digest', () => {
@@ -192,3 +193,57 @@ for (const [name, primary, digest] of [
     assert.equal(receipts[0].identity, 'manifest-digest');
   });
 }
+
+const newQuotaRenderer = () => failed('error from registry: Data limit exceeded\n');
+
+test('quota corroboration requires native OCI code from the same original pinned manifest', () => {
+  const f = fixture({ rejectPull: (ref) => ref === pinned(GOTRUE_PRIMARY) ? newQuotaRenderer() : null, probeError: quota(), modern: true });
+  assert.equal(f.run(), GOTRUE_PRIMARY);
+  assert.deepEqual(f.calls.filter((args) => args[0] === 'manifest'), Array(4).fill(['manifest', 'inspect', pinned(GOTRUE_PRIMARY)]));
+  assert.deepEqual(f.calls.filter((args) => args[0] === 'pull').map((args) => args.at(-1)), [...Array(4).fill(pinned(GOTRUE_PRIMARY)), pinned(GOTRUE_ALTERNATIVE)]);
+  assert.deepEqual(f.pauses, [2000, 5000, 15000, 30000, 2000]);
+  assert.ok(f.quotaEvidence.every((value) => value.confirmed === true));
+  assert.equal(f.receipts[0].identity, 'manifest-digest');
+});
+
+for (const [name, probeError] of [
+  ['successful manifest read', null],
+  ['unauthorized manifest read', failed('unauthorized: authentication required')],
+  ['TLS failure', failed('x509: certificate signed by unknown authority')],
+  ['network timeout', Object.assign(new Error('synthetic timeout'), { status: null, code: 'ETIMEDOUT', signal: 'SIGTERM', stderr: '' })],
+  ['mixed quota and denied', failed('toomanyrequests: Data limit exceeded\ndenied')],
+  ['ambiguous new renderer again', newQuotaRenderer()],
+]) {
+  test('quota corroboration fails closed after ' + name, () => {
+    const f = fixture({ rejectPull: newQuotaRenderer, probeError });
+    assert.throws(f.run, /GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+    assert.equal(f.calls.filter((args) => args[0] === 'pull').length, 1);
+    assert.equal(f.calls.filter((args) => args[0] === 'manifest').length, 1);
+    assert.equal(f.quotaEvidence[0].confirmed, false);
+    assert.equal(f.receipts.length, 0);
+  });
+}
+
+test('quota corroboration never probes a signalled timeout or extra/mixed error text', () => {
+  for (const error of [Object.assign(newQuotaRenderer(), { code: 'ETIMEDOUT', signal: 'SIGTERM' }),
+    failed('error from registry: Data limit exceeded\nunauthorized')]) {
+    const f = fixture({ rejectPull: () => error, probeError: quota() });
+    assert.throws(f.run, /GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+    assert.equal(f.calls.filter((args) => args[0] === 'manifest').length, 0);
+  }
+});
+
+test('quota corroboration is not reused for an ambiguous alternative-registry failure', () => {
+  const f = fixture({ rejectPull: (ref) => ref === pinned(GOTRUE_PRIMARY) ? quota() : newQuotaRenderer(), probeError: quota() });
+  assert.throws(f.run, /GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+  assert.equal(f.calls.filter((args) => args[0] === 'pull').length, 5);
+  assert.equal(f.calls.filter((args) => args[0] === 'manifest').length, 0);
+});
+
+test('quota corroboration diagnostics redact credentials in an unsuccessful probe', () => {
+  const f = fixture({ rejectPull: newQuotaRenderer, probeError: failed('Authorization: Bearer synthetic-probe-secret\nhttps://synthetic-user:synthetic-pass@public.ecr.aws/token?token=synthetic-query') });
+  assert.throws(f.run, /GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+  const diagnostic = JSON.stringify(f.quotaEvidence[0]);
+  for (const secret of ['synthetic-probe-secret', 'synthetic-user', 'synthetic-pass', 'synthetic-query']) assert.equal(diagnostic.includes(secret), false);
+  assert.equal(f.quotaEvidence[0].confirmed, false);
+});

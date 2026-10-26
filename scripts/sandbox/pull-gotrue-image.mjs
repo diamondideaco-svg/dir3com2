@@ -39,7 +39,7 @@ const safeCodes = new Set(['EACCES', 'EPERM', 'ENOENT', 'ETIMEDOUT', 'ENOBUFS', 
 const safeSignals = new Set(['SIGTERM', 'SIGKILL', 'SIGINT']);
 
 /** Shared prerequisite only. Never alters fixture assertions, credentials or service settings. */
-export function ensureGoTrueImage({ run = docker, pause = sleep, report = (receipt) => console.log('GOTRUE_IMAGE_RECEIPT=' + JSON.stringify(receipt)), reportFailure = (failure) => console.error('GOTRUE_IMAGE_PULL_FAILURE=' + JSON.stringify(failure)), reportVerificationFailure = (failure) => console.error('GOTRUE_IMAGE_VERIFICATION_FAILURE=' + JSON.stringify(failure)) } = {}) {
+export function ensureGoTrueImage({ run = docker, pause = sleep, report = (receipt) => console.log('GOTRUE_IMAGE_RECEIPT=' + JSON.stringify(receipt)), reportFailure = (failure) => console.error('GOTRUE_IMAGE_PULL_FAILURE=' + JSON.stringify(failure)), reportVerificationFailure = (failure) => console.error('GOTRUE_IMAGE_VERIFICATION_FAILURE=' + JSON.stringify(failure)), reportQuotaEvidence = (evidence) => console.error('GOTRUE_IMAGE_QUOTA_EVIDENCE=' + JSON.stringify(evidence)) } = {}) {
   const platform = run(['version', '--format', '{{.Server.Os}}/{{.Server.Arch}}']).trim();
   const pinned = platform === 'linux/amd64';
   // Resolve the immutable manifest directly, without tag/index negotiation.
@@ -63,6 +63,30 @@ export function ensureGoTrueImage({ run = docker, pause = sleep, report = (recei
   // Reuse only the exact verified image prepared by the workflow. This also
   // avoids another registry pull when the standalone fixture starts next.
   if (verifiedCache()) { report({ status: 'PASS', mode: 'verified-cache', platform, digest: GOTRUE_AMD64_DIGEST, identity }); return GOTRUE_PRIMARY; }
+  const confirmedQuota = (error, image, attempt) => {
+    if (isQuota(error)) return true;
+    // Docker's containerd translator can omit the OCI code. Never infer quota
+    // from that message alone. Ask the native CLI for the SAME pinned manifest;
+    // it retains the OCI code. No new source, identity, credential or layer pull.
+    // https://github.com/moby/moby/blob/464cd50/daemon/containerd/registry_errors.go
+    if (!pinned || image !== GOTRUE_PRIMARY || !(error instanceof Error)
+      || !Number.isInteger(error.status) || error.status <= 0 || error.code != null || error.signal != null
+      || typeof error.stderr !== 'string'
+      || !/^(?:Error response from daemon:\s*)?error from registry: Data limit exceeded\s*$/i.test(error.stderr.trim())) return false;
+    try {
+      run(['manifest', 'inspect', ref(image)]);
+      reportQuotaEvidence({ image, platform, attempt, confirmed: false, reason: 'manifest-read-succeeded' });
+      return false;
+    } catch (probe) {
+      const confirmed = isQuota(probe) && probe.code == null && probe.signal == null;
+      reportQuotaEvidence({ image, platform, attempt, confirmed,
+        status: Number.isInteger(probe?.status) && probe.status >= 0 && probe.status <= 255 ? probe.status : null,
+        code: safeCodes.has(probe?.code) ? probe.code : null,
+        signal: safeSignals.has(probe?.signal) ? probe.signal : null,
+        stderr: sanitizeGoTruePullStderr(probe?.stderr) });
+      return confirmed;
+    }
+  };
   const pull = (image, delays) => {
     for (const [index, delay] of delays.entries()) {
       pause(delay * 1000);
@@ -76,7 +100,7 @@ export function ensureGoTrueImage({ run = docker, pause = sleep, report = (recei
           stderr: sanitizeGoTruePullStderr(error?.stderr),
         });
         // A denied/auth/TLS/missing/damaged image is never a quota fallback.
-        if (!isQuota(error)) throw Error('GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA');
+        if (!confirmedQuota(error, image, index + 1)) throw Error('GOTRUE_IMAGE_PULL_FAILED_WITHOUT_QUOTA');
       }
     }
     return false;
