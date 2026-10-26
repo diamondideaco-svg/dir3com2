@@ -92,7 +92,8 @@ export async function runCustomerBoundedAcceptance({db,connectPeer,request,reque
  const {t:stopped,fire}=await fixture('created','ar',false);await service('SELECT public.stop_kapso_customer_notification($1)',[stopped.authorization_id]);await db.exec('UPDATE drive_notification_private.settings SET capture_enabled=true,send_enabled=true');await fire();equal(stopped.windowId,null,'stopped pre-event approval never captures');
  const {t:disabled,fire:fireDisabled}=await fixture('created','ar',false);await fireDisabled();equal(disabled.windowId,null,'capture gate OFF prevents natural event capture');await stop();await assert.rejects(arm(disabled.reference,'created','ar',0),/INELIGIBLE_CUSTOMER_APPROVAL/);checks++;
  const {t:rollback,fire:fireRollback}=await fixture('created','ar',false);
- await db.exec('UPDATE drive_notification_private.settings SET capture_enabled=true,send_enabled=true; BEGIN');
+ await db.exec('UPDATE drive_notification_private.settings SET capture_enabled=true,send_enabled=true');
+ await db.exec('BEGIN');
  await fireRollback();assert.ok(rollback.windowId);checks++;await db.exec('ROLLBACK');
  equal(await scalar('SELECT count(*)::int FROM drive_notification_private.outbox WHERE id=$1',[rollback.outboxId]),0,'failed natural transaction rolls back outbox');
  equal(await scalar('SELECT event_id IS NULL AND window_id IS NULL FROM drive_notification_private.customer_authorizations WHERE id=$1',[rollback.authorization_id]),true,'failed transaction does not consume approval');
