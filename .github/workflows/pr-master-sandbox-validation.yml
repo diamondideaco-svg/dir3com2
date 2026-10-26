@@ -61,6 +61,12 @@ jobs:
           DRIVE_WHATSAPP_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/dir3com_test
         run: node scripts/test-drive-whatsapp-postgresql.mjs
 
+      - name: Task166 bounded customer natural lifecycle and authorization races
+        env:
+          DRIVE_WHATSAPP_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/dir3com_test
+          DRIVE_WHATSAPP_TEST_SCOPE: customer_bounded
+        run: node scripts/test-drive-whatsapp-postgresql.mjs
+
       - name: DIR-120 PostgreSQL Safety
         run: npm run test:dir120-postgresql
 
@@ -103,6 +109,7 @@ jobs:
             return 1
           }
           pull_test_image postgres:17-alpine
+          node --test tests/sandbox-gotrue-image.test.mjs
           node scripts/sandbox/pull-gotrue-image.mjs
           node scripts/sandbox/pull-service-image.mjs postgrest
           node scripts/sandbox/pull-service-image.mjs storage

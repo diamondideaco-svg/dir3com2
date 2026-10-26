@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { verifiedImageIdentity } from './verified-image-identity.mjs';
 
 // Platform manifests independently compared byte-for-byte with their official
-// alternatives. Keep the already accepted GoTrue prerequisite separate/unchanged.
+// alternatives. Image/config pins stay unchanged across Docker image stores.
 const images = Object.freeze({
   postgrest: Object.freeze({
     primary: 'public.ecr.aws/supabase/postgrest:v16.1',
@@ -34,17 +35,19 @@ export function ensureSandboxServiceImage(name, { run = docker, pause = sleep, r
   const pinned = platform === 'linux/amd64';
   // Canonical repository@digest avoids tag/index negotiation ambiguity.
   const ref = (source) => pinned ? repository(source) + '@' + image.digest : source;
+  let identity = null;
   const cache = () => {
+    identity = null;
     try {
       const entries = JSON.parse(run(['image', 'inspect', image.primary]));
       if (!Array.isArray(entries) || entries.length !== 1) return false;
       const entry = entries[0];
       const sources = [repository(image.primary), repository(image.alternative), repository(image.alternative).replace(/^docker\.io\//, '')];
-      return pinned && entry?.Os === 'linux' && entry.Architecture === 'amd64' && entry.Id === image.config
-        && Array.isArray(entry.RepoDigests) && entry.RepoDigests.some((value) => sources.some((source) => value === source + '@' + image.digest));
+      identity = pinned ? verifiedImageIdentity(entry, { manifestDigest: image.digest, configDigest: image.config, repositories: sources }) : null;
+      return identity !== null;
     } catch { return false; }
   };
-  const receipt = (mode) => report({ status: 'PASS', image: name, mode, platform, digest: pinned ? image.digest : null });
+  const receipt = (mode) => report({ status: 'PASS', image: name, mode, platform, digest: pinned ? image.digest : null, identity });
   if (cache()) { receipt('verified-cache'); return image.primary; }
   const pull = (source, delays) => {
     for (const delay of delays) {

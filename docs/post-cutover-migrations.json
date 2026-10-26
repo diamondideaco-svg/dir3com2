@@ -100,5 +100,11 @@
     "sha256": "d32b5fec3583a3f75e58ca72727e9bdfdc3610439b5980f2ac6242eb8a788d4a",
     "task": "#199",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261026110832_task166_bounded_customer_notifications.sql",
+    "sha256": "031de58334773606285aeba97574ce176ea750ba58d0e9625380c621102a580c",
+    "task": "#166",
+    "production_apply_authorized": false
   }
 ]
