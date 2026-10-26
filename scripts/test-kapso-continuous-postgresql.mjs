@@ -60,6 +60,39 @@ export async function runContinuousAcceptance({db,connectPeer,request,requestId,
  equal(await scalar('SELECT count(*)::int FROM drive_notification_private.continuous_services'),0,'invalid consent preparation atomic');
  await db.query('UPDATE drive_notification_private.subscriptions SET enabled=true WHERE id=$1',[customerSub]);
  await denied(()=>asUser(customer,'SELECT public.prepare_kapso_continuous_service($1,$2,$3,$4,$5,$6)',[JSON.stringify([{subscriptionId:customerSub,action:'created'}]),sender,webhook,{'customer.created.ar':template('ar')},'SYNTHETIC-USER-DENIED',1]),/permission|SERVICE_REQUIRED/i);
+ // A consented Operations contact without authority must not become a dormant scope.
+ await db.query('DELETE FROM public.team_access_grants WHERE invited_user_id=$1',[operations]);
+ const withoutAuthorityCount=await scalar('SELECT count(*)::int FROM drive_notification_private.continuous_services');
+ await denied(()=>prepare(),/INELIGIBLE_CONTINUOUS_SCOPE/);
+ equal(await scalar('SELECT count(*)::int FROM drive_notification_private.continuous_services'),withoutAuthorityCount,'missing Operations authority rolls back preparation atomically');
+ await db.query("INSERT INTO public.team_access_grants VALUES($1,'active','scoped_staff',ARRAY['operations:read','operations:write'],ARRAY['EG'])",[operations]);
+ const originalRole=await scalar('SELECT role FROM public.profiles WHERE id=$1',[operations]);
+ await db.query("UPDATE public.profiles SET role='customer' WHERE id=$1",[operations]);
+ await denied(()=>prepare(),/INELIGIBLE_CONTINUOUS_SCOPE/);
+ await db.query('UPDATE public.profiles SET role=$2 WHERE id=$1',[operations,originalRole]);
+ for(const patch of ["status='inactive'","country_scope=ARRAY['SA']","permissions=ARRAY['customers:read']","permissions=ARRAY['operations:read',NULL]"]) {
+  await db.query('UPDATE public.team_access_grants SET '+patch+' WHERE invited_user_id=$1',[operations]);
+  await denied(()=>prepare(),/INELIGIBLE_CONTINUOUS_SCOPE/);
+  await db.query("UPDATE public.team_access_grants SET status='active',country_scope=ARRAY['EG'],permissions=ARRAY['operations:read','operations:write'] WHERE invited_user_id=$1",[operations]);
+ }
+ const removedAuthority=await prepare();
+ await db.query('DELETE FROM public.team_access_grants WHERE invited_user_id=$1',[operations]);
+ await db.query("INSERT INTO public.team_access_grants VALUES($1,'active','scoped_staff',ARRAY['operations:read','operations:write'],ARRAY['EG'])",[operations]);
+ await denied(()=>activate(removedAuthority),/INELIGIBLE_CONTINUOUS_SCOPE/);
+ equal(await scalar('SELECT activated_at FROM drive_notification_private.continuous_services WHERE id=$1',[removedAuthority]),null,'new grant cannot activate previously revoked prepared scope');
+ const changedConsent=await prepare();
+ const oldConsent=await scalar('SELECT consent_reference FROM drive_notification_private.subscriptions WHERE id=$1',[customerSub]);
+ await db.query("UPDATE drive_notification_private.subscriptions SET consent_reference='SYNTHETIC-CHANGED-AFTER-PREPARE' WHERE id=$1",[customerSub]);
+ await db.query('UPDATE drive_notification_private.subscriptions SET consent_reference=$2 WHERE id=$1',[customerSub,oldConsent]);
+ await denied(()=>activate(changedConsent),/INELIGIBLE_CONTINUOUS_SCOPE/);
+ equal(await scalar('SELECT active_continuous_service_id FROM drive_notification_private.settings'),null,'failed activation never replaces running generation');
+ const lockedGeneration=await prepare(),grantLocker=await connectPeer();
+ try {
+  await grantLocker.query('BEGIN');
+  await grantLocker.query('SELECT 1 FROM public.team_access_grants WHERE invited_user_id=$1 FOR UPDATE',[operations]);
+  await denied(()=>activate(lockedGeneration),/lock|could not obtain/i);
+  equal(await scalar('SELECT activated_at FROM drive_notification_private.continuous_services WHERE id=$1',[lockedGeneration]),null,'concurrent authority lock cannot yield partial activation');
+ } finally {await grantLocker.query('ROLLBACK');await grantLocker.end();}
  const draftApproval='SYNTHETIC-PREPARE-IDEMPOTENCY';
  const draft=await prepare('ar',20,undefined,draftApproval);
  equal(await prepare('ar',20,[{subscriptionId:opsSub,action:'created'},{subscriptionId:customerSub,action:'created'}],draftApproval),draft,'reordered exact scope preparation converges');
@@ -84,6 +117,35 @@ export async function runContinuousAcceptance({db,connectPeer,request,requestId,
  await service('SELECT public.stop_kapso_current_state_notice($1)',[oldNotice.notice_id]);
  equal(await scalar('SELECT send_enabled AND capture_enabled FROM drive_notification_private.settings'),true,'idempotent old notice stop preserves active service');
  equal(await scalar('SELECT capture_enabled AND send_enabled FROM drive_notification_private.settings'),true,'fixture explicitly enabled, not migration');
+ // A previous generation can still have HTTP in flight when the next one starts.
+ const overlapA=await created('overlap-A');
+ const overlapRowsA=[await claim(),await claim()],overlapCustomerA=overlapRowsA.find(x=>x.audience==='customer');assert.ok(overlapCustomerA);checks++;
+ equal(await begin(overlapCustomerA),true,'old generation has a durable in-flight intent');
+ const generationA=active;await fresh();equal(active===generationA,false,'generation replaced while old HTTP is in flight');
+ const overlapB=await created('overlap-B');
+ const overlapRowsB=[await claim(),await claim()],overlapCustomerB=overlapRowsB.find(x=>x.audience==='customer');assert.ok(overlapCustomerB);checks++;
+ equal(await begin(overlapCustomerB),true,'replacement generation can begin for the same exact recipient');
+ const overlapSid='wamid.synthetic_cross_generation';
+ equal((await signed(overlapSid,'+10000000001')).status,200,'one early signed B receipt is durably acknowledged');
+ equal(await service("SELECT public.finish_drive_whatsapp($1,$2,'accepted',$3,NULL)",[overlapCustomerB.id,overlapCustomerB.token,overlapSid]),true,'actual B WAMID recorded at finish');
+ equal(await scalar('SELECT state FROM drive_notification_private.outbox WHERE id=$1',[overlapCustomerB.id]),'delivered','early receipt follows actual WAMID across generation inboxes');
+ equal(await scalar('SELECT provider_sid FROM drive_notification_private.outbox WHERE id=$1',[overlapCustomerA.id]),null,'same phone never attributes B receipt to old intent');
+ equal(await scalar('SELECT state FROM drive_notification_private.outbox WHERE id=$1',[overlapCustomerA.id]),'sending','old unmatched intent retains its truthful state');
+ equal(await scalar('SELECT matched_outbox_id FROM drive_notification_private.continuous_receipt_inbox WHERE provider_sid=$1',[overlapSid]),overlapCustomerB.id,'one durable receipt correlates only to actual B row');
+ equal(await scalar("SELECT count(*)::int FROM drive_notification_private.outbox WHERE request_id IN($1,$2) AND state='delivered'",[overlapA.id,overlapB.id]),1,'one early receipt never confirms two attempts');
+ equal(await service("SELECT public.ingest_kapso_drive_whatsapp_receipt($1,$2,$3,'delivered',NULL,NULL)",[overlapSid,sender,'+10000000009']),false,'actual WAMID with wrong recipient is not delivery proof');
+ equal(await scalar('SELECT state FROM drive_notification_private.outbox WHERE id=$1',[overlapCustomerA.id]),'sending','identity conflict cannot complete old phone-matched intent');
+ await service("SELECT public.finish_drive_whatsapp($1,$2,'unknown',NULL,'SEND_OUTCOME_UNKNOWN')",[overlapCustomerA.id,overlapCustomerA.token]);
+ await fresh();const authorityGeneration=active;
+ await db.query('DELETE FROM public.team_access_grants WHERE invited_user_id=$1',[operations]);
+ await db.query("INSERT INTO public.team_access_grants VALUES($1,'active','scoped_staff',ARRAY['operations:read','operations:write'],ARRAY['EG'])",[operations]);
+ const dormant=await created('grant-insert-cannot-revive');
+ equal(await scalar("SELECT count(*)::int FROM drive_notification_private.outbox WHERE request_id=$1 AND audience='operations'",[dormant.id]),0,'later grant INSERT cannot revive an activated scope');
+ equal(await scalar('SELECT active_continuous_service_id FROM drive_notification_private.settings'),authorityGeneration,'grant mutation does not switch generation or global service');
+ equal(await scalar('SELECT send_enabled AND capture_enabled FROM drive_notification_private.settings'),true,'revocation preserves other recipients and operating flags');
+ await fresh();const newlyAuthorized=await created('fresh-authority-generation');
+ equal(await scalar("SELECT count(*)::int FROM drive_notification_private.outbox WHERE request_id=$1 AND audience='operations'",[newlyAuthorized.id]),1,'new preparation and activation fence required after authority renewal');
+ await fresh();
  const one=await created('ar');equal(await count(one.id),2,'new natural event captures exact two consented recipients');
  equal((await request(one.key)).reference,one.reference,'actual request retry returns the same request');
  equal(await count(one.id),2,'actual request retry cannot duplicate captured notifications');
@@ -191,7 +253,7 @@ export async function runContinuousAcceptance({db,connectPeer,request,requestId,
   equal(await scalar('SELECT relrowsecurity FROM pg_class WHERE oid=$1::regclass',['drive_notification_private.'+name]),true,'private RLS');
   for(const permission of ['INSERT','UPDATE','DELETE'])equal(await scalar('SELECT has_table_privilege(\'service_role\',$1,$2)',['drive_notification_private.'+name,permission]),false,'no direct scope mutation');
  }
- for(const signature of ['continuous_valid(uuid)','capture_continuous_event()','revoke_continuous_scopes()','target_claim_before_continuous(uuid,uuid,uuid,text,text)','begin_before_continuous(uuid,uuid,text)','begin_generic_before_continuous(uuid,uuid)','query_begin_before_continuous(uuid,uuid,text)','ingest_before_continuous(text,text,text,text,text,text)','finish_before_continuous(uuid,uuid,text,text,text)','stop_before_continuous(uuid,text)']) {
+ for(const signature of ['continuous_scope_ready(uuid)','assert_continuous_scope(uuid)','continuous_valid(uuid)','capture_continuous_event()','revoke_continuous_scopes()','target_claim_before_continuous(uuid,uuid,uuid,text,text)','begin_before_continuous(uuid,uuid,text)','begin_generic_before_continuous(uuid,uuid)','query_begin_before_continuous(uuid,uuid,text)','ingest_before_continuous(text,text,text,text,text,text)','finish_before_continuous(uuid,uuid,text,text,text)','stop_before_continuous(uuid,text)']) {
   for(const role of ['anon','authenticated','service_role'])equal(await scalar('SELECT has_function_privilege($1,$2,\'EXECUTE\')',[role,'drive_notification_private.'+signature]),false,'private alias cannot bypass continuous authorization');
  }
  await db.exec("UPDATE drive_notification_private.settings SET dispatch_mode='general',send_enabled=true,capture_enabled=false");

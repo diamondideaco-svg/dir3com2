@@ -41,10 +41,42 @@ ALTER TABLE drive_notification_private.outbox ADD CONSTRAINT outbox_origin_exclu
 CREATE INDEX drive_continuous_pending ON drive_notification_private.outbox(available_at,id) WHERE continuous_scope_id IS NOT NULL AND state='pending';
 CREATE INDEX drive_continuous_budget ON drive_notification_private.outbox(continuous_intent_at,continuous_scope_id) WHERE continuous_intent_at IS NOT NULL;
 
+-- A prepared scope must already possess authority, not acquire it after activation.
+CREATE FUNCTION drive_notification_private.continuous_scope_ready(p_id uuid)
+RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path='' AS $$
+ SELECT EXISTS(SELECT 1 FROM drive_notification_private.continuous_scopes b
+ JOIN drive_notification_private.subscriptions s ON s.id=b.subscription_id
+ JOIN public.profiles p ON p.id=b.recipient_user_id AND p.status='active' AND p.deleted_at IS NULL
+ WHERE b.id=p_id AND b.stopped_at IS NULL AND s.enabled AND s.verified_at<=clock_timestamp()
+ AND ROW(s.user_id,s.audience,s.country,s.phone,s.language,s.consent_reference,s.verified_at)
+  IS NOT DISTINCT FROM ROW(b.recipient_user_id,b.audience,b.country,b.phone,b.language,b.consent_reference,b.verified_at)
+ AND (b.audience='customer' OR (b.audience='operations' AND lower(btrim(p.role)) IN ('admin','super_admin','staff')
+  AND EXISTS(SELECT 1 FROM public.team_access_grants g WHERE g.invited_user_id=p.id AND g.status='active'
+   AND g.access_level IN ('scoped_staff','global_admin') AND cardinality(g.permissions)>0 AND array_position(g.permissions,NULL) IS NULL
+   AND g.permissions <@ ARRAY['admin:full','operations:read','operations:write','customers:read','customers:write',
+    'partners:read','partners:write','products:read','products:write','finance:read','finance:write','verification:read','verification:write']::text[]
+   AND g.country_scope IS NOT NULL AND NOT EXISTS(SELECT 1 FROM unnest(g.country_scope) x WHERE x IS NULL OR btrim(x)='')
+   AND (g.access_level='global_admin' OR 'admin:full'=ANY(g.permissions) OR ('operations:read'=ANY(g.permissions)
+    AND EXISTS(SELECT 1 FROM unnest(g.country_scope) x WHERE public.normalize_admin_country_key(x)=b.country)))))));
+$$;
+CREATE FUNCTION drive_notification_private.assert_continuous_scope(p_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE b drive_notification_private.continuous_scopes%ROWTYPE;
+BEGIN
+ SELECT * INTO b FROM drive_notification_private.continuous_scopes WHERE id=p_id;
+ IF NOT FOUND THEN RAISE EXCEPTION 'INELIGIBLE_CONTINUOUS_SCOPE' USING ERRCODE='22023'; END IF;
+ -- Source mutations revoke scopes. NOWAIT avoids waiting behind their trigger locks.
+ PERFORM 1 FROM drive_notification_private.subscriptions WHERE id=b.subscription_id FOR SHARE NOWAIT;
+ PERFORM 1 FROM public.profiles WHERE id=b.recipient_user_id FOR SHARE NOWAIT;
+ IF b.audience='operations' THEN PERFORM 1 FROM public.team_access_grants WHERE invited_user_id=b.recipient_user_id FOR SHARE NOWAIT; END IF;
+ IF NOT drive_notification_private.continuous_scope_ready(b.id) THEN RAISE EXCEPTION 'INELIGIBLE_CONTINUOUS_SCOPE' USING ERRCODE='22023'; END IF;
+END $$;
+REVOKE ALL ON FUNCTION drive_notification_private.continuous_scope_ready(uuid),drive_notification_private.assert_continuous_scope(uuid) FROM PUBLIC,anon,authenticated,service_role;
+
 CREATE FUNCTION public.prepare_kapso_continuous_service(p_scopes jsonb,p_sender text,p_webhook uuid,p_templates jsonb,p_approval text,p_daily_limit integer)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE cfg drive_notification_private.continuous_services%ROWTYPE; binding jsonb; x jsonb; sub drive_notification_private.subscriptions%ROWTYPE;
- action text; template jsonb; stamp timestamptz:=clock_timestamp();
+ action text; template jsonb; scope_id uuid; stamp timestamptz:=clock_timestamp();
 BEGIN
  IF current_setting('role',true) IS DISTINCT FROM 'service_role' THEN RAISE EXCEPTION 'SERVICE_REQUIRED' USING ERRCODE='42501'; END IF;
  IF jsonb_typeof(p_scopes) IS DISTINCT FROM 'array' OR jsonb_array_length(p_scopes) NOT BETWEEN 1 AND 100
@@ -67,7 +99,7 @@ BEGIN
   IF jsonb_typeof(x) IS DISTINCT FROM 'object' OR NOT x ?& ARRAY['subscriptionId','action'] OR (SELECT count(*) FROM jsonb_object_keys(x))<>2
    THEN RAISE EXCEPTION 'INVALID_CONTINUOUS_SCOPE' USING ERRCODE='22023'; END IF;
   action:=x->>'action';
-  SELECT * INTO sub FROM drive_notification_private.subscriptions WHERE id=(x->>'subscriptionId')::uuid FOR SHARE;
+  SELECT * INTO sub FROM drive_notification_private.subscriptions WHERE id=(x->>'subscriptionId')::uuid FOR SHARE NOWAIT;
   IF NOT FOUND OR NOT sub.enabled OR sub.verified_at>stamp OR sub.country<>'EG'
    OR action IS NULL OR action NOT IN ('created','review','confirm','decline','customer_accept') OR (sub.audience='operations' AND action<>'created')
    OR NOT EXISTS(SELECT 1 FROM public.profiles WHERE id=sub.user_id AND status='active' AND deleted_at IS NULL)
@@ -75,7 +107,8 @@ BEGIN
   template:=p_templates->(sub.audience||'.'||action||'.'||sub.language);
   IF NOT drive_notification_private.current_state_template_valid(template,sub.language) THEN RAISE EXCEPTION 'INVALID_CONTINUOUS_TEMPLATE' USING ERRCODE='22023'; END IF;
   INSERT INTO drive_notification_private.continuous_scopes(service_id,subscription_id,recipient_user_id,audience,country,phone,language,consent_reference,verified_at,action,template)
-  VALUES(cfg.id,sub.id,sub.user_id,sub.audience,sub.country,sub.phone,sub.language,sub.consent_reference,sub.verified_at,action,template);
+  VALUES(cfg.id,sub.id,sub.user_id,sub.audience,sub.country,sub.phone,sub.language,sub.consent_reference,sub.verified_at,action,template) RETURNING id INTO scope_id;
+  PERFORM drive_notification_private.assert_continuous_scope(scope_id);
  END LOOP;
  IF EXISTS(SELECT 1 FROM jsonb_object_keys(p_templates) key WHERE NOT EXISTS(SELECT 1 FROM drive_notification_private.continuous_scopes s WHERE s.service_id=cfg.id AND key=s.audience||'.'||s.action||'.'||s.language))
  THEN RAISE EXCEPTION 'UNBOUND_CONTINUOUS_TEMPLATE' USING ERRCODE='22023'; END IF;
@@ -84,17 +117,22 @@ END $$;
 
 CREATE FUNCTION public.activate_kapso_continuous_service(p_service uuid,p_expected_active uuid)
 RETURNS timestamptz LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
-DECLARE cfg drive_notification_private.settings%ROWTYPE; s drive_notification_private.continuous_services%ROWTYPE; stamp timestamptz:=clock_timestamp();
+DECLARE cfg drive_notification_private.settings%ROWTYPE; s drive_notification_private.continuous_services%ROWTYPE; scope_id uuid; stamp timestamptz;
 BEGIN
  IF current_setting('role',true) IS DISTINCT FROM 'service_role' THEN RAISE EXCEPTION 'SERVICE_REQUIRED' USING ERRCODE='42501'; END IF;
  SELECT * INTO cfg FROM drive_notification_private.settings WHERE singleton FOR UPDATE;
  SELECT * INTO s FROM drive_notification_private.continuous_services WHERE id=p_service FOR UPDATE;
  IF NOT FOUND OR s.stopped_at IS NOT NULL THEN RAISE EXCEPTION 'INACTIVE_CONTINUOUS_SERVICE' USING ERRCODE='22023'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM drive_notification_private.continuous_scopes WHERE service_id=s.id) THEN RAISE EXCEPTION 'INELIGIBLE_CONTINUOUS_SCOPE' USING ERRCODE='22023'; END IF;
+ FOR scope_id IN SELECT id FROM drive_notification_private.continuous_scopes WHERE service_id=s.id ORDER BY subscription_id,action LOOP
+  PERFORM drive_notification_private.assert_continuous_scope(scope_id);
+ END LOOP;
  IF s.activated_at IS NOT NULL AND cfg.active_continuous_service_id=s.id THEN RETURN s.activated_at; END IF;
  IF s.activated_at IS NOT NULL OR cfg.active_continuous_service_id IS DISTINCT FROM p_expected_active
   OR EXISTS(SELECT 1 FROM drive_notification_private.execution_windows WHERE id=cfg.active_window_id AND stopped_at IS NULL)
   OR EXISTS(SELECT 1 FROM drive_notification_private.customer_authorizations WHERE id=cfg.active_customer_authorization_id AND stopped_at IS NULL)
  THEN RAISE EXCEPTION 'CONTINUOUS_ACTIVATION_CONFLICT' USING ERRCODE='22023'; END IF;
+ stamp:=clock_timestamp();
  UPDATE drive_notification_private.continuous_services SET stopped_at=coalesce(stopped_at,stamp) WHERE id=cfg.active_continuous_service_id;
  UPDATE drive_notification_private.continuous_services SET activated_at=stamp WHERE id=s.id;
  UPDATE drive_notification_private.settings SET active_continuous_service_id=s.id,dispatch_mode='continuous',active_window_id=NULL,active_customer_authorization_id=NULL WHERE singleton;
@@ -158,18 +196,23 @@ BEGIN
   END IF;
   UPDATE drive_notification_private.continuous_scopes SET stopped_at=coalesce(stopped_at,clock_timestamp()) WHERE recipient_user_id=OLD.id;
  ELSIF TG_TABLE_NAME='team_access_grants' THEN
+  IF TG_OP='INSERT' THEN
+   UPDATE drive_notification_private.continuous_scopes SET stopped_at=coalesce(stopped_at,clock_timestamp()) WHERE recipient_user_id=NEW.invited_user_id AND audience='operations';
+   RETURN NEW;
+  END IF;
   IF TG_OP='UPDATE' THEN
    IF ROW(OLD.invited_user_id,OLD.status,OLD.access_level,OLD.permissions,OLD.country_scope)
     IS NOT DISTINCT FROM ROW(NEW.invited_user_id,NEW.status,NEW.access_level,NEW.permissions,NEW.country_scope) THEN RETURN NEW; END IF;
   END IF;
-  UPDATE drive_notification_private.continuous_scopes SET stopped_at=coalesce(stopped_at,clock_timestamp()) WHERE recipient_user_id=OLD.invited_user_id AND audience='operations';
+  UPDATE drive_notification_private.continuous_scopes SET stopped_at=coalesce(stopped_at,clock_timestamp())
+   WHERE audience='operations' AND (recipient_user_id=OLD.invited_user_id OR recipient_user_id=CASE WHEN TG_OP='UPDATE' THEN NEW.invited_user_id ELSE NULL END);
  END IF;
  IF TG_OP='DELETE' THEN RETURN OLD; END IF;
  RETURN NEW;
 END $$;
 CREATE TRIGGER drive_continuous_consent_revoked AFTER UPDATE OR DELETE ON drive_notification_private.subscriptions FOR EACH ROW EXECUTE FUNCTION drive_notification_private.revoke_continuous_scopes();
 CREATE TRIGGER drive_continuous_profile_revoked AFTER UPDATE OR DELETE ON public.profiles FOR EACH ROW EXECUTE FUNCTION drive_notification_private.revoke_continuous_scopes();
-CREATE TRIGGER drive_continuous_grant_revoked AFTER UPDATE OR DELETE ON public.team_access_grants FOR EACH ROW EXECUTE FUNCTION drive_notification_private.revoke_continuous_scopes();
+CREATE TRIGGER drive_continuous_grant_revoked AFTER INSERT OR UPDATE OR DELETE ON public.team_access_grants FOR EACH ROW EXECUTE FUNCTION drive_notification_private.revoke_continuous_scopes();
 REVOKE ALL ON FUNCTION drive_notification_private.revoke_continuous_scopes() FROM PUBLIC,anon,authenticated,service_role;
 
 ALTER FUNCTION drive_notification_private.category_enabled(text,text,uuid,text) RENAME TO category_before_continuous;
@@ -239,8 +282,10 @@ BEGIN
  IF o.continuous_scope_id IS NOT NULL AND p_outcome='retry' THEN RAISE EXCEPTION 'RETRY_FORBIDDEN' USING ERRCODE='22023'; END IF;
  ok:=drive_notification_private.finish_before_continuous(p_id,p_token,p_outcome,p_sid,p_error);
  IF ok AND o.continuous_scope_id IS NOT NULL AND p_outcome='accepted' THEN
-  FOR r IN SELECT i.* FROM drive_notification_private.continuous_receipt_inbox i JOIN drive_notification_private.continuous_scopes b ON b.service_id=i.service_id
-   WHERE b.id=o.continuous_scope_id AND i.provider_sid=p_sid AND i.phone_number_id=o.provider_phone_number_id AND i.phone=o.phone AND i.matched_outbox_id IS NULL ORDER BY i.received_at,i.state LOOP
+  -- Inbox generation is only a bounded storage bucket while HTTP is unresolved.
+  -- Correlate across buckets by the actual stored WAMID/sender/recipient, never by phone alone.
+  FOR r IN SELECT i.* FROM drive_notification_private.continuous_receipt_inbox i
+   WHERE i.provider_sid=p_sid AND i.phone_number_id=o.provider_phone_number_id AND i.phone=o.phone AND i.matched_outbox_id IS NULL ORDER BY i.received_at,i.state LOOP
    IF public.record_drive_whatsapp_receipt(o.id,p_token,p_sid,o.phone,r.state,CASE WHEN r.state='failed' THEN 'KAPSO_DELIVERY_FAILED' ELSE NULL END) THEN
     UPDATE drive_notification_private.continuous_receipt_inbox SET matched_outbox_id=o.id WHERE service_id=r.service_id AND provider_sid=r.provider_sid AND state=r.state;
    END IF;

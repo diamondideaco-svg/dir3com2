@@ -115,7 +115,7 @@
   },
   {
     "path": "supabase/migrations/20261026204930_task166_continuous_future_events.sql",
-    "sha256": "428740acb9c92cb5ab6e65a9373b3006f9fd7d2febb85d18fad5936026863855",
+    "sha256": "98a6d32b471018d7cc2ffc661092baef90d4cca4170d4df55252ebc90d71c521",
     "task": "#166",
     "production_apply_authorized": false
   }

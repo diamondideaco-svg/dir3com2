@@ -13,6 +13,12 @@ country and actual template. No enrollment or consent mutation occurs. It create
 an inactive generation only. Exact repeated preparation converges; changed binding
 parameters conflict. The limit is not a monetary-price estimate.
 
+Operations role and qualifying active country/permission grant must already exist
+at preparation. Activation revalidates every unchanged, non-revoked scope under
+NOWAIT source-row locks before establishing its fence. A new or restored grant
+cannot authorize an old prepared generation. Invalid or concurrently changing
+bindings abort atomically and do not replace the running service.
+
 `activate_kapso_continuous_service` compares the expected active generation and
 establishes a database-clock activation time once. It cannot renew a stopped or
 previous generation. Replacement is atomic, with no global OFF/ON cycle. Active
@@ -34,7 +40,7 @@ spans HTTP. Ordinary general/Twilio/target/provider-query consumers cannot claim
 begin, reclaim or repurpose these rows, even after a later mode switch.
 
 Subscription contact/consent/verification/enable changes, profile authority changes
-and Operations grant changes permanently revoke the affected private scope. They
+and Operations grant insertion, changes or deletion permanently revoke the affected private scope. They
 do not modify consent or global service gates. Restoring an old field or toggling
 enabled back on cannot revive its old pending events. Other recipients remain
 active; renewed authorized scopes require a new activation fence.
@@ -61,6 +67,10 @@ phone. Only the actual stored WAMID/sender/recipient match permits attribution.
 An unmatched inbox is limited to eight rows per service/phone and never silently
 purged or used to retry. Duplicate identity conflicts fail closed. Late receipts
 can update a known row after a service stop without creating a new send.
+When generations overlap during HTTP, the inbox generation is only a bounded
+storage bucket. Finish drains matching evidence across those buckets using the
+actual recorded WAMID, sender and recipient. A bucket chosen before HTTP finishes
+does not determine delivery ownership, and a phone match alone proves nothing.
 
 `kapso_continuous_health` returns mode/gates, service state, last worker/receipt
 times, shared and service limits, and pending/stale/unknown/failed/unmatched counts.
