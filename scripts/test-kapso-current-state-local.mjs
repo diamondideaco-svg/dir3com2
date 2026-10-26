@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 const suffix=randomBytes(6).toString('hex');
+const scope=process.argv.length===2?'current_state':process.argv.length===3&&process.argv[2]==='--scope=continuous'?'continuous':process.argv.length===3&&process.argv[2]==='--scope=protected_operations'?'protected_operations':null;
+assert.ok(scope,'Only the explicit current_state, continuous or protected_operations local fixture is allowed');
 const name='dir3com-state-test-'+suffix, network=name+'-net';
 const docker=args=>execFileSync('docker',args,{encoding:'utf8',timeout:30000,stdio:['ignore','pipe','pipe']}).trim();
 let containerId,networkId;
@@ -28,8 +30,11 @@ try {
  }
  assert.ok(ready,'Disposable PostgreSQL did not become ready');
  console.log('FIXTURE_VERIFIED=owned-container/dedicated-bridge/loopback-port/tmpfs/no-host-mounts/no-pull');
- const run=spawnSync(process.execPath,['scripts/test-drive-whatsapp-postgresql.mjs'],{stdio:'inherit',timeout:180000,
-  env:{...process.env,DRIVE_WHATSAPP_TEST_SCOPE:'current_state',DRIVE_WHATSAPP_TEST_DATABASE_URL:'postgresql://postgres@127.0.0.1:54339/dir3com_test'}});
+ // The policy fixture starts many docker/psql processes on Windows. Keep its
+ // complete existing checks, with a bounded ten-minute allowance rather than skipping them.
+ const run=spawnSync(process.execPath,[scope==='protected_operations'?'scripts/test-protected-operations-postgresql.mjs':'scripts/test-drive-whatsapp-postgresql.mjs'],{stdio:'inherit',timeout:scope==='protected_operations'?600000:180000,
+  env:{...process.env,DRIVE_WHATSAPP_TEST_SCOPE:scope,DRIVE_WHATSAPP_TEST_DATABASE_URL:'postgresql://postgres@127.0.0.1:54339/dir3com_test',
+   ...(scope==='protected_operations'?{DIR3COM_PROTECTED_OPS_FIXTURE_CONTAINER:name}:{})}});
  if(run.error)throw run.error;
  process.exitCode=run.status??1;
 } catch(error) {

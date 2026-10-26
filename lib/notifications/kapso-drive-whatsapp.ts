@@ -50,6 +50,7 @@ export type KapsoConfigRejection =
   | 'KAPSO_CONFIG_DELIVERY_MODE_REJECTED'
   | 'KAPSO_CONFIG_QUERY_SCOPE_REJECTED'
   | 'KAPSO_CONFIG_STATE_SCOPE_REJECTED'
+  | 'KAPSO_CONFIG_CONTINUOUS_SCOPE_REJECTED'
   | 'KAPSO_CONFIG_SENDER_FORMAT_REJECTED'
   | 'KAPSO_CONFIG_WEBHOOK_RECEIPT_REQUIRED'
   | 'KAPSO_CONFIG_API_KEY_MISSING'
@@ -70,6 +71,8 @@ export function kapsoConfig(env: Environment, onReject?: (code: KapsoConfigRejec
   if (new Set(categories).size !== categories.length || categories.some(key => !CATEGORIES.includes(key as KapsoCategory))) return reject('KAPSO_CONFIG_CATEGORIES_REJECTED');
   const deliveryMode = env.DIR3COM_WHATSAPP_DELIVERY_MODE ?? 'webhook';
   if (deliveryMode !== 'webhook' && deliveryMode !== 'provider_query') return reject('KAPSO_CONFIG_DELIVERY_MODE_REJECTED');
+  if (env.DIR3COM_WHATSAPP_DISPATCH_MODE === 'continuous' && (deliveryMode !== 'webhook'
+    || categories.some(category => category.endsWith('.current_state')))) return reject('KAPSO_CONFIG_CONTINUOUS_SCOPE_REJECTED');
   if (categories.some(category => category.endsWith('.current_state')) && (deliveryMode !== 'webhook'
     || env.DIR3COM_WHATSAPP_DISPATCH_MODE !== 'target_only' || categories.some(category => !category.endsWith('.current_state')))) return reject('KAPSO_CONFIG_STATE_SCOPE_REJECTED');
   // Query delivery is an explicit single-Operations-target mode, never a queue fallback.
@@ -189,6 +192,9 @@ async function dispatchClaimedKapso(store: NotificationStore, config: KapsoConfi
   { p_id: item.id, p_token: item.token, p_phone_number_id: config.phoneNumberId });
   if (start.error) throw new Error('SEND_INTENT_UNCONFIRMED');
   if (start.data !== true) return 'not_sent';
+  return sendAndFinishKapso(store, config, item, fetcher);
+}
+async function sendAndFinishKapso(store: NotificationStore, config: KapsoConfig, item: KapsoOutboxItem, fetcher: typeof fetch) {
   const result = await sendKapsoTemplate(config, item, fetcher);
   try {
     const finished = await store.rpc('finish_drive_whatsapp', { p_id: item.id, p_token: item.token, p_outcome: result.outcome, p_sid: result.sid, p_error: result.error });
@@ -198,6 +204,23 @@ async function dispatchClaimedKapso(store: NotificationStore, config: KapsoConfi
     throw new Error('RESULT_PERSISTENCE_UNCONFIRMED');
   }
   return result.outcome;
+}
+export async function dispatchKapsoContinuous(store: NotificationStore, config: KapsoConfig, fetcher: typeof fetch = fetch) {
+  if (config.deliveryMode !== 'webhook') return 'not_sent';
+  const claim = await store.rpc('claim_kapso_continuous', { p_templates: config.templates });
+  if (claim.error) throw new Error('CLAIM_FAILED');
+  if (claim.data === null) return 'idle';
+  const item = parseOutboxItem(claim.data);
+  const row = object(claim.data);
+  if (!item || typeof row?.continuous_scope_id !== 'string' || !TARGET_UUID.test(row.continuous_scope_id)) throw new Error('INVALID_CONTINUOUS_CLAIM');
+  const template = configuredTemplate(config, item);
+  if (!template) throw new Error('INVALID_CONTINUOUS_CLAIM');
+  const start = await store.rpc('begin_kapso_continuous', {
+    p_id: item.id, p_token: item.token, p_sender: config.phoneNumberId, p_template: template,
+  });
+  if (start.error) throw new Error('SEND_INTENT_UNCONFIRMED');
+  if (start.data !== true) return 'not_sent';
+  return sendAndFinishKapso(store, config, item, fetcher);
 }
 export type KapsoTarget = {
   requestId: string; outboxId: string; recipientUserId: string; category: KapsoCategory; language: 'ar' | 'en';
@@ -247,15 +270,18 @@ export async function handleKapsoTargetDispatch(request: Request, env: Environme
   } catch { return Response.json({ error: 'DISPATCH_UNCONFIRMED' }, { status: 503 }); }
 }
 export async function handleKapsoDispatch(request: Request, env: Environment, getStore: () => NotificationStore | null, fetcher: typeof fetch = fetch) {
-  if (env.DIR3COM_WHATSAPP_ENABLED !== 'true' || env.DIR3COM_WHATSAPP_DISPATCH_MODE !== 'general') return Response.json({ error: 'DISABLED' }, { status: 404 });
+  const mode = env.DIR3COM_WHATSAPP_DISPATCH_MODE;
+  if (env.DIR3COM_WHATSAPP_ENABLED !== 'true' || (mode !== 'general' && mode !== 'continuous')) return Response.json({ error: 'DISABLED' }, { status: 404 });
   const secret = env.DIR3COM_WHATSAPP_WORKER_SECRET ?? '';
   if (secret.length < 32 || !secureEqual(request.headers.get('authorization') ?? '', `Bearer ${secret}`)) return Response.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+  if (mode === 'continuous' && request.method !== 'POST') return Response.json({ error: 'METHOD_NOT_ALLOWED' }, { status: 405 });
   const config = kapsoConfig(env);
   if (!config) return Response.json({ error: 'NOT_CONFIGURED' }, { status: 503 });
   try {
     const store = getStore();
     if (!store) return Response.json({ error: 'STORE_UNAVAILABLE' }, { status: 503 });
-    return Response.json({ result: await dispatchKapsoOne(store, config, fetcher) }, { headers: { 'Cache-Control': 'no-store' } });
+    const result = mode === 'continuous' ? await dispatchKapsoContinuous(store, config, fetcher) : await dispatchKapsoOne(store, config, fetcher);
+    return Response.json({ result }, { headers: { 'Cache-Control': 'no-store' } });
   }
   catch { return Response.json({ error: 'DISPATCH_UNCONFIRMED' }, { status: 503 }); }
 }
