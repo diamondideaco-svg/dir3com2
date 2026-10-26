@@ -1,11 +1,20 @@
 import 'server-only';
 import { createHash, createHmac } from 'node:crypto';
-import { parseOutboxItem, readLimitedBody, secureEqual, type NotificationStore, type OutboxItem, type SendResult } from './drive-whatsapp';
+import { parseOutboxItem, parseOutboxEnvelope, readLimitedBody, secureEqual, type NotificationStore, type OutboxItem, type OutboxEnvelope, type SendResult } from './drive-whatsapp';
 
 type Environment = Record<string, string | undefined>;
 type Template = { name: string; languageCode: string; bodyParameterNames?: [string, string] };
-export type KapsoCategory = 'operations.created' | `customer.${OutboxItem['action']}`;
-const CATEGORIES: readonly KapsoCategory[] = ['operations.created', 'customer.created', 'customer.review', 'customer.confirm', 'customer.decline', 'customer.customer_accept'];
+export type KapsoOutboxItem = OutboxItem | (OutboxEnvelope & { action: 'current_state' });
+export type KapsoCategory = 'operations.created' | `customer.${OutboxItem['action']}` | 'customer.current_state' | 'operations.current_state';
+const CATEGORIES: readonly KapsoCategory[] = ['operations.created', 'customer.created', 'customer.review', 'customer.confirm', 'customer.decline', 'customer.customer_accept', 'customer.current_state', 'operations.current_state'];
+export function parseKapsoOutboxItem(value: unknown): KapsoOutboxItem | null {
+  const lifecycle = parseOutboxItem(value);
+  if (lifecycle) return lifecycle;
+  const row = object(value);
+  if (row?.action !== 'current_state') return null;
+  const fields = parseOutboxEnvelope(row);
+  return fields ? { ...fields, action: 'current_state' } : null;
+}
 type KapsoSender = { apiKey: string; phoneNumberId: string; siteUrl: string; templates: Partial<Record<`${KapsoCategory}.${'ar' | 'en'}`, Template>> };
 export type KapsoConfig = KapsoSender & (
   { deliveryMode: 'webhook'; webhookSecret: string } | { deliveryMode: 'provider_query' }
@@ -40,6 +49,7 @@ export type KapsoConfigRejection =
   | 'KAPSO_CONFIG_CATEGORIES_REJECTED'
   | 'KAPSO_CONFIG_DELIVERY_MODE_REJECTED'
   | 'KAPSO_CONFIG_QUERY_SCOPE_REJECTED'
+  | 'KAPSO_CONFIG_STATE_SCOPE_REJECTED'
   | 'KAPSO_CONFIG_SENDER_FORMAT_REJECTED'
   | 'KAPSO_CONFIG_WEBHOOK_RECEIPT_REQUIRED'
   | 'KAPSO_CONFIG_API_KEY_MISSING'
@@ -60,6 +70,8 @@ export function kapsoConfig(env: Environment, onReject?: (code: KapsoConfigRejec
   if (new Set(categories).size !== categories.length || categories.some(key => !CATEGORIES.includes(key as KapsoCategory))) return reject('KAPSO_CONFIG_CATEGORIES_REJECTED');
   const deliveryMode = env.DIR3COM_WHATSAPP_DELIVERY_MODE ?? 'webhook';
   if (deliveryMode !== 'webhook' && deliveryMode !== 'provider_query') return reject('KAPSO_CONFIG_DELIVERY_MODE_REJECTED');
+  if (categories.some(category => category.endsWith('.current_state')) && (deliveryMode !== 'webhook'
+    || env.DIR3COM_WHATSAPP_DISPATCH_MODE !== 'target_only' || categories.some(category => !category.endsWith('.current_state')))) return reject('KAPSO_CONFIG_STATE_SCOPE_REJECTED');
   // Query delivery is an explicit single-Operations-target mode, never a queue fallback.
   if (deliveryMode === 'provider_query' && (env.DIR3COM_WHATSAPP_DISPATCH_MODE === 'general'
     || categories.length !== 1 || categories[0] !== 'operations.created')) return reject('KAPSO_CONFIG_QUERY_SCOPE_REJECTED');
@@ -126,14 +138,14 @@ export function beforeDeadline<T>(value: PromiseLike<T>, signal?: AbortSignal): 
     Promise.resolve(value).then(result => { signal.removeEventListener('abort', abort); resolve(result); }, error => { signal.removeEventListener('abort', abort); reject(error); });
   });
 }
-function configuredTemplate(config: KapsoConfig, item: OutboxItem) {
+function configuredTemplate(config: KapsoConfig, item: KapsoOutboxItem) {
   const category = `${item.audience}.${item.action}`;
   if (!CATEGORIES.includes(category as KapsoCategory)) return undefined;
   return config.templates[`${category}.${item.language}` as keyof KapsoConfig['templates']];
 }
-export async function sendKapsoTemplate(config: KapsoConfig, item: OutboxItem, fetcher: typeof fetch = fetch): Promise<SendResult> {
+export async function sendKapsoTemplate(config: KapsoConfig, item: KapsoOutboxItem, fetcher: typeof fetch = fetch): Promise<SendResult> {
   const template = configuredTemplate(config, item);
-  if (!parseOutboxItem(item) || !template) return { outcome: 'failed', sid: null, error: 'CATEGORY_NOT_CONFIGURED' };
+  if (!parseKapsoOutboxItem(item) || !template) return { outcome: 'failed', sid: null, error: 'CATEGORY_NOT_CONFIGURED' };
   const to = item.phone.slice(1);
   try {
     const response = await fetcher(`https://api.kapso.ai/meta/whatsapp/v24.0/${config.phoneNumberId}/messages`, {
@@ -167,9 +179,12 @@ export async function dispatchKapsoOne(store: NotificationStore, config: KapsoCo
   if (!item) throw new Error('INVALID_CLAIM');
   return dispatchClaimedKapso(store, config, item, fetcher);
 }
-async function dispatchClaimedKapso(store: NotificationStore, config: KapsoConfig, item: OutboxItem, fetcher: typeof fetch) {
-  if (!configuredTemplate(config, item)) return 'not_sent';
-  const start = await store.rpc(config.deliveryMode === 'provider_query'
+async function dispatchClaimedKapso(store: NotificationStore, config: KapsoConfig, item: KapsoOutboxItem, fetcher: typeof fetch) {
+  const template = configuredTemplate(config, item);
+  if (!template) return 'not_sent';
+  const start = item.action === 'current_state'
+    ? await store.rpc('begin_kapso_current_state_notice', { p_id: item.id, p_token: item.token, p_phone_number_id: config.phoneNumberId, p_template: template })
+    : await store.rpc(config.deliveryMode === 'provider_query'
     ? 'begin_kapso_drive_whatsapp_provider_query' : 'begin_kapso_drive_whatsapp',
   { p_id: item.id, p_token: item.token, p_phone_number_id: config.phoneNumberId });
   if (start.error) throw new Error('SEND_INTENT_UNCONFIRMED');
@@ -207,7 +222,7 @@ export async function dispatchKapsoTarget(store: NotificationStore, config: Kaps
   });
   if (claim.error) throw new Error('CLAIM_FAILED');
   if (claim.data === null) return 'idle';
-  const item = parseOutboxItem(claim.data);
+  const item = parseKapsoOutboxItem(claim.data);
   const identity = object(claim.data);
   if (!item || item.id !== target.outboxId || identity?.request_id !== target.requestId
     || identity.recipient_user_id !== target.recipientUserId || `${item.audience}.${item.action}` !== target.category
