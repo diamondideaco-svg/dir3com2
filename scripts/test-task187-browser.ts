@@ -13,12 +13,19 @@ let stage='preflight';const abort=new AbortController();process.once('SIGTERM',(
 const labels={en:{panel:'My memory and trip',save:'Confirm and save',resume:'Resume trip',revoke:'Disable memory and delete all',origin:'Departure city',destination:'Destination',consent:'I agree to save',trip:'Save this trip',message:'Message DABRA',send:'Send message',saved:'Saved in your account.',stage:'Saved trip intent, awaiting your confirmation to send:'},ar:{panel:'ذاكرتي ورحلتي',save:'تأكيد وحفظ',resume:'استئناف الرحلة',revoke:'إيقاف الذاكرة وحذف الكل',origin:'مدينة المغادرة',destination:'الوجهة',consent:'أوافق على حفظ',trip:'حفظ هذه الرحلة',message:'رسالة للدبرة',send:'إرسال الرسالة',saved:'تم الحفظ في حسابك.',stage:'نية الرحلة المحفوظة، بانتظار تأكيد الإرسال:'}};
 const delay=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function main(){
+ stage='preflight-input';
  let raw='';for await(const c of process.stdin)raw+=c;
  const cfg=JSON.parse(raw) as {url:string;anon:string;password:string;aid:string;bid:string};assert.equal(cfg.url,'http://127.0.0.1:19030');
+ stage='preflight-environment';
  for(const name of ['.env','.env.local','.env.development','.env.development.local'])assert.equal(existsSync(name),false,'browser runtime must not load external environment files');
+ stage='preflight-chrome-version';
  const chrome=execFileSync('google-chrome',['--version'],{encoding:'utf8',timeout:5000}).match(/\d+\.\d+\.\d+\.\d+/)?.[0];
- const driverVersion=execFileSync('chromedriver',['--version'],{encoding:'utf8',timeout:5000}).match(/\d+\.\d+\.\d+\.\d+/)?.[0];assertTask187BrowserVersions(chrome,driverVersion);
+ stage='preflight-driver-version';
+ const driverVersion=execFileSync('chromedriver',['--version'],{encoding:'utf8',timeout:5000}).match(/\d+\.\d+\.\d+\.\d+/)?.[0];
+ stage='preflight-version-contract';assertTask187BrowserVersions(chrome,driverVersion);
+ stage='preflight-temp';
  const out=mkdtempSync(join(tmpdir(),'task187-browser-'));const font=join(out,'fonts.cjs');
+ stage='preflight-font';
  writeFileSync(font,"module.exports=new Proxy({}, {get(_t,url){if(typeof url!=='string'||!url.startsWith('https://fonts.googleapis.com/css2?'))return undefined;const f=new URL(url).searchParams.get('family').split(':')[0];if(!['Tajawal','Montserrat','Playfair Display'].includes(f))throw Error('UNEXPECTED_FONT');return `@font-face{font-family:'${f}';src:local('Arial');font-style:normal;font-weight:400 700;font-display:swap}`;}});",{mode:0o600});
  // Child receives no Production/provider credentials, only existing local anon configuration.
  const env:NodeJS.ProcessEnv={NODE_ENV:'development'};for(const key of ['PATH','HOME','TEMP','TMP','TMPDIR','SystemRoot','WINDIR'])if(process.env[key])env[key]=process.env[key];
@@ -28,6 +35,7 @@ async function main(){
  // All browser HTTP/CONNECT traffic outside loopback is rejected by this test-only proxy.
  // <-loopback> removes Chrome's implicit bypass, so only the exact local app
  // origin can be forwarded. No system proxy/security settings change.
+ stage='preflight-proxy-create';
  const proxy=createServer((req,res)=>{
   let url:URL;try{url=new URL(req.url??'');}catch{browserDenied++;res.writeHead(403).end();return;}
   if(url.origin!==origin){browserDenied++;res.writeHead(403).end('TASK187_EXTERNAL_BROWSER_DENIED');return;}
@@ -46,11 +54,16 @@ async function main(){
  const metrics=async()=>await (await fetch(origin+'/__task187_metrics',{signal:AbortSignal.any([AbortSignal.timeout(10000),abort.signal])})).json() as {chatRequests:number;chatCompleted:number;externalDenied:number};
  const state=async()=>await command('/session/'+session+'/execute/async',{script:"const done=arguments[arguments.length-1];fetch('/api/dabra/continuity',{cache:'no-store'}).then(async r=>done({status:r.status,body:await r.json()})).catch(()=>done(null));",args:[]}) as {status:number;body:{ownerId:string;state:{trip:{origin:string;destination:string}|null;preferences:unknown;consentEnabled:boolean}}};
  try{
-  await new Promise<void>(r=>proxy.listen(19042,'127.0.0.1',r));
+  stage='preflight-proxy-port';
+  await new Promise<void>((resolve,reject)=>{proxy.once('error',reject);proxy.listen(19042,'127.0.0.1',resolve);});
+  stage='preflight-next-start';
   app=spawn(process.execPath,['scripts/task187-browser-next.mjs'],{env,stdio:['ignore','ignore','ignore','ipc']});
-  await new Promise<void>((resolve,reject)=>{const t=setTimeout(()=>reject(Error('TASK187_NEXT_START_TIMEOUT')),60000);app!.once('message',m=>{if((m as {ready?:boolean}).ready){clearTimeout(t);resolve();}});app!.once('exit',()=>{clearTimeout(t);reject(Error('TASK187_NEXT_EXIT'));});});
+  await new Promise<void>((resolve,reject)=>{const t=setTimeout(()=>reject(Error('TASK187_NEXT_START_TIMEOUT')),60000);app!.once('error',reject);app!.once('message',m=>{if((m as {ready?:boolean}).ready){clearTimeout(t);resolve();}});app!.once('exit',()=>{clearTimeout(t);reject(Error('TASK187_NEXT_EXIT'));});});
+  stage='preflight-driver-port';
   const portProbe=createServer();await new Promise<void>((resolve,reject)=>{portProbe.once('error',reject);portProbe.listen(19041,'127.0.0.1',resolve);});await new Promise<void>(resolve=>portProbe.close(()=>resolve()));
-  driver=spawn('chromedriver',['--port=19041','--allowed-ips=127.0.0.1'],{stdio:'ignore'});await wait(async()=>{if(driver!.exitCode!==null)throw Error('TASK187_DRIVER_EXIT');try{return await command('/status');}catch{return null;}},'DRIVER');assert.equal(driver.exitCode,null);
+  stage='preflight-driver-start';
+  driver=spawn('chromedriver',['--port=19041','--allowed-ips=127.0.0.1'],{stdio:'ignore'});
+  stage='preflight-driver-ready';await wait(async()=>{if(driver!.exitCode!==null)throw Error('TASK187_DRIVER_EXIT');try{return await command('/status');}catch{return null;}},'DRIVER');assert.equal(driver.exitCode,null);
   for(const language of ['ar','en'] as const)for(const [width,height] of [[390,844],[1440,900]]){
    stage=language+'-'+width+'-login';const t=labels[language],checks:string[]=[];const profile=mkdtempSync(join(out,language+'-'+width+'-'));
    const created=await command('/session',{capabilities:{alwaysMatch:{browserName:'chrome','goog:chromeOptions':{args:['--headless=new','--disable-dev-shm-usage','--disable-background-networking','--disable-component-update','--no-first-run','--no-default-browser-check','--proxy-server=http://127.0.0.1:19042','--proxy-bypass-list=<-loopback>','--user-data-dir='+profile]}}}}) as {sessionId:string;capabilities:{browserVersion:string;chrome:{chromedriverVersion:string}}};session=created.sessionId;
