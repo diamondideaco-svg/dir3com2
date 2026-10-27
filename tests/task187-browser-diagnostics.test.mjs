@@ -93,3 +93,29 @@ test('preflight diagnostic delta real failed child retains fixed command boundar
   try{assert.ok(error);const result=task187BrowserFailure(stderr);assert.deepEqual(result.diagnostic,{stage:'preflight-driver-version',reason:'TASK187_PREFLIGHT_COMMAND_NOT_FOUND'});assert.ok(!result.error.message.includes(secret));resolve();}catch(failure){reject(failure)}
  }));
 });
+
+for(const mode of ['spawn-error','ready-error'])test('preflight lifecycle delta preserves bounded '+mode+' and owned-child cleanup',async()=>{
+ const source=[
+  "import assert from 'node:assert/strict';",
+  "import {spawn} from 'node:child_process';",
+  "import {existsSync} from 'node:fs';",
+  "import {TASK187_DIAGNOSTIC_PREFIX,task187BrowserDiagnostic,waitTask187ChildSpawn} from './scripts/sandbox/task187-browser-diagnostics.mjs';",
+  "const mode="+JSON.stringify(mode)+";",
+  "const missing=process.execPath+'.TASK217_'+"+JSON.stringify(secret)+";if(mode==='spawn-error')assert.equal(existsSync(missing),false);",
+  "let stage='preflight-driver-start',adopted=false;",
+  "const candidate=spawn(mode==='spawn-error'?missing:process.execPath,mode==='spawn-error'?[]:['-e','setTimeout(()=>{},30)'],{stdio:'ignore'});",
+  "const closed=new Promise(resolve=>candidate.once('close',resolve));",
+  "try{await waitTask187ChildSpawn(candidate);adopted=true;stage='preflight-driver-ready';throw Error('TASK187_BROWSER_WAIT_DRIVER');}",
+  "catch(error){assert.equal(stage,mode==='spawn-error'?'preflight-driver-start':'preflight-driver-ready');assert.equal(adopted,mode==='ready-error');assert.equal(Number.isInteger(candidate.pid),mode==='ready-error');console.error(TASK187_DIAGNOSTIC_PREFIX+JSON.stringify(task187BrowserDiagnostic(error,stage)));process.exitCode=1;}",
+  "finally{await closed;}",
+ ].join('\n');
+ await new Promise((resolve,reject)=>execFile(process.execPath,['--input-type=module','-e',source],{maxBuffer:32768,timeout:5000},(error,stdout,stderr)=>{
+  try{
+   assert.ok(error);assert.equal(error.code,1);assert.equal(stdout,'');
+   const expected=mode==='spawn-error'?{stage:'preflight-driver-start',reason:'TASK187_PREFLIGHT_COMMAND_NOT_FOUND'}:{stage:'preflight-driver-ready',reason:'TASK187_BROWSER_WAIT_DRIVER'};
+   const failure=task187BrowserFailure(stderr);assert.deepEqual(failure.diagnostic,expected);
+   assert.ok(!stderr.includes(secret));assert.ok(!failure.error.message.includes(secret));
+   assert.equal(stderr.trim(),marker(expected));resolve();
+  }catch(failure){reject(failure)}
+ }));
+});

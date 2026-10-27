@@ -1,4 +1,11 @@
+import {once} from 'node:events';
+
 export const TASK187_DIAGNOSTIC_PREFIX='TASK187_BROWSER_DIAGNOSTIC=';
+
+/** Reject asynchronous spawn errors before the caller adopts a running child.
+ * @param {import('node:child_process').ChildProcess} child
+ */
+export async function waitTask187ChildSpawn(child){await once(child,'spawn');}
 
 const preflightStages=['preflight-input','preflight-environment','preflight-chrome-version','preflight-driver-version','preflight-version-contract','preflight-temp','preflight-font','preflight-proxy-create','preflight-proxy-port','preflight-next-start','preflight-driver-port','preflight-driver-start','preflight-driver-ready'];
 const commandStages=new Set(['preflight-chrome-version','preflight-driver-version','preflight-next-start','preflight-driver-start']);

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {TASK187_DIAGNOSTIC_PREFIX,task187BrowserDiagnostic} from './sandbox/task187-browser-diagnostics.mjs';
+import {TASK187_DIAGNOSTIC_PREFIX,task187BrowserDiagnostic,waitTask187ChildSpawn} from './sandbox/task187-browser-diagnostics.mjs';
 import {spawn,execFileSync,type ChildProcess} from 'node:child_process';
 import {createServer,request as httpRequest} from 'node:http';
 import {mkdtempSync,writeFileSync,existsSync} from 'node:fs';
@@ -62,7 +62,8 @@ async function main(){
   stage='preflight-driver-port';
   const portProbe=createServer();await new Promise<void>((resolve,reject)=>{portProbe.once('error',reject);portProbe.listen(19041,'127.0.0.1',resolve);});await new Promise<void>(resolve=>portProbe.close(()=>resolve()));
   stage='preflight-driver-start';
-  driver=spawn('chromedriver',['--port=19041','--allowed-ips=127.0.0.1'],{stdio:'ignore'});
+  const startingDriver=spawn('chromedriver',['--port=19041','--allowed-ips=127.0.0.1'],{stdio:'ignore'});
+  await waitTask187ChildSpawn(startingDriver);driver=startingDriver;
   stage='preflight-driver-ready';await wait(async()=>{if(driver!.exitCode!==null)throw Error('TASK187_DRIVER_EXIT');try{return await command('/status');}catch{return null;}},'DRIVER');assert.equal(driver.exitCode,null);
   for(const language of ['ar','en'] as const)for(const [width,height] of [[390,844],[1440,900]]){
    stage=language+'-'+width+'-login';const t=labels[language],checks:string[]=[];const profile=mkdtempSync(join(out,language+'-'+width+'-'));
