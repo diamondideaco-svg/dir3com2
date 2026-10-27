@@ -26,7 +26,7 @@ function fixture() {
     {exports:serverExports,require:(id:string)=>{assert.ok(id in serverDependencies,id);return serverDependencies[id];},process,Date});
   const dependencies: Record<string, unknown> = {
     '@/lib/dabra/continuity-chat-server': serverExports,
-    '@/lib/dabra/agent-context': {resolveAgentContext:async()=>({role:'customer',readRequests:async()=>({kind:'unavailable'})})},
+    '@/lib/dabra/agent-context': {resolveAgentContext:async()=>({role:'customer',taskAuthority:{kind:'customer',actorId:'authenticated-A',ownerId:'authenticated-A'},isTaskAuthorityCurrent:async()=>state.role==='customer',readRequests:async()=>({kind:'unavailable'})})},
     '@/lib/dabra/agent-planner': {planInternalAgentTool},
   };
   const exports = {};

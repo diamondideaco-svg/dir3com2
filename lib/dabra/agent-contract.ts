@@ -19,6 +19,9 @@ export type AgentReadResult =
   | { kind: 'unavailable' };
 export type AgentContext = {
   role: AgentRole;
+  taskAuthority?: AgentTaskAuthority;
+  taskAuthorityFailure?: 'authentication_required' | 'forbidden' | 'unavailable';
+  isTaskAuthorityCurrent?: () => Promise<boolean>;
   readRequests: (reference: string | null, operational: boolean) => Promise<AgentReadResult>;
 };
 
@@ -76,3 +79,57 @@ export function safeAgentRequest(value: unknown): AgentRequest | null {
     nextAction: typeof row.next_action === 'string' && /^[a-z_]{1,60}$/.test(row.next_action) ? row.next_action : null,
     quote: Number.isFinite(amount) && amount >= 0 && currency ? { amount, currency, expiresAt: typeof row.quote_expires_at === 'string' ? row.quote_expires_at : null } : null };
 }
+
+
+// Task217: product responsibility is distinct from the authenticated account role.
+export const AGENT_PRODUCT_ROLES = ['concierge', 'customer_service', 'call_center', 'admin', 'ceo'] as const;
+export type AgentProductRole = typeof AGENT_PRODUCT_ROLES[number];
+export type AgentCapability = AgentTool | 'intent.classify';
+export type AgentTaskScope =
+  | { kind: 'public' }
+  | { kind: 'owner'; actorId: string; ownerId: string }
+  | { kind: 'country'; actorId: string; country: 'EG'; grant: 'operations:read' };
+export type AgentTaskLimits = Readonly<{
+  maxAttempts: number; maxElapsedMs: number; maxInputTokens: number; maxOutputTokens: number; maxCostUsd: number;
+}>;
+export type AgentTaskSpec = Readonly<{
+  id: string; idempotencyKey: string; owner: string; productRole: AgentProductRole;
+  capability: AgentCapability; scope: AgentTaskScope; language: 'ar' | 'en';
+  inputDigest: string; createdAtMs: number; deadlineAtMs: number; limits: AgentTaskLimits;
+}>;
+export type AgentTaskAck = Readonly<{ taskId: string; owner: string; acknowledgedAtMs: number }>;
+export type AgentTaskEvidence = Readonly<{
+  taskId: string; owner: string; inputDigest: string; outputDigest: string; source: 'dir3com-core' | 'qualified-adapter';
+}>;
+export type AgentTaskConsumption = Readonly<{ attempts: number; inputTokens: number; outputTokens: number; costUsd: number }>;
+export type AgentTaskAccounting =
+  | Readonly<{ kind: 'known'; consumption: AgentTaskConsumption }>
+  | Readonly<{ kind: 'reserved'; upperBound: AgentTaskConsumption }>;
+export type AgentTaskBlockReason =
+  | 'invalid_task' | 'forbidden' | 'unqualified' | 'duplicate' | 'conflict' | 'capacity'
+  | 'not_acknowledged' | 'wrong_owner' | 'budget' | 'cancelled' | 'expired' | 'invalid_result' | 'execution_failed';
+export type AgentTaskState =
+  | { kind: 'prepared' }
+  | { kind: 'acknowledged'; ack: AgentTaskAck }
+  | { kind: 'running'; ack: AgentTaskAck }
+  | { kind: 'completed'; ack: AgentTaskAck; evidence: AgentTaskEvidence; accounting: AgentTaskAccounting; completedAtMs: number }
+  | { kind: 'blocked'; reason: AgentTaskBlockReason }
+  | { kind: 'cancelled' }
+  | { kind: 'expired' }
+  | { kind: 'failed'; reason: 'invalid_result' | 'execution_failed' | 'budget' };
+
+export function agentProductRole(tool: AgentCapability): AgentProductRole {
+  switch (tool) {
+    case 'operations': return 'admin';
+    case 'executive': return 'ceo';
+    case 'call_center': return 'call_center';
+    case 'my_requests': case 'support': return 'customer_service';
+    case 'discover': case 'capabilities': case 'weather': case 'currency': case 'maps': case 'intent.classify': return 'concierge';
+  }
+}
+
+export type AgentTaskAuthority =
+  | { kind: 'guest' }
+  | { kind: 'customer'; actorId: string; ownerId: string }
+  | { kind: 'partner'; actorId: string }
+  | { kind: 'operator'; actorId: string; role: 'staff' | 'admin' | 'ceo'; country: 'EG' | null };

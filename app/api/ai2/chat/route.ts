@@ -7,7 +7,7 @@ import { DABRA_LOCALE_ERROR, parseDabraLocale } from '@/lib/dabra/locale-contrac
 import { getCurrencySnapshot } from '@/lib/currency/service';
 import { parseDisplayCurrency } from '@/lib/currency/display';
 import { agentIntent, type AgentContext } from '@/lib/dabra/agent-contract';
-import { runInternalAgent } from '@/lib/dabra/agent';
+import { runInternalAgentTask } from '@/lib/dabra/agent-handoff';
 import { parseContinuityChatTrip } from '@/lib/dabra/continuity-chat';
 export const dynamic = 'force-dynamic';
 
@@ -163,8 +163,10 @@ export async function POST(request: NextRequest) {
   const currency = parseDisplayCurrency(body?.currency) ?? platformCurrency(context);
   const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
   const snapshot = needsRates ? await getCurrencySnapshot() : null;
-  const response = await runInternalAgent({ message: modelMessage, history, locale, context: agentContext, intent, needsClarification,
-    pricing: currency ? { currency, snapshot } : undefined, trip });
+  const taskResult = await runInternalAgentTask({ message: modelMessage, history, locale, context: agentContext, intent, needsClarification,
+    pricing: currency ? { currency, snapshot } : undefined, trip }, { signal: request.signal });
+  if (taskResult.kind === 'stopped') return NextResponse.json({ error: DABRA_LOCALE_ERROR[locale] }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
+  const response = taskResult.response;
   if (body?.stream === true) {
     const streamed = createDabraAssistantTextResponse(response);
     streamed.headers.set('X-DABRA-Understanding', understanding);
