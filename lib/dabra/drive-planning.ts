@@ -2,28 +2,48 @@
 type Locale = 'ar' | 'en';
 const numbers: Record<string, number> = {
   zero:0, one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10,
-  eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15, sixteen:16, seventeen:17, eighteen:18, nineteen:19, twenty:20,
+  eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15, sixteen:16, seventeen:17, eighteen:18, nineteen:19, twenty:20, thirty:30, forty:40, fifty:50, sixty:60, seventy:70, eighty:80, ninety:90,
   صفر:0, واحد:1, واحده:1, اثنان:2, اثنين:2, اثنتان:2, اثنتين:2, ثلاثه:3, ثلاث:3, اربعه:4, اربع:4,
   خمسه:5, خمس:5, سته:6, ست:6, سبعه:7, سبع:7, ثمانيه:8, ثماني:8, ثمان:8, تسعه:9, تسع:9, عشره:10, عشر:10,
   'احد عشر':11, 'اثنا عشر':12, 'اثني عشر':12, 'ثلاثه عشر':13, 'اربعه عشر':14, 'خمسه عشر':15,
-  'سته عشر':16, 'سبعه عشر':17, 'ثمانيه عشر':18, 'تسعه عشر':19, عشرون:20, عشرين:20,
+  'سته عشر':16, 'سبعه عشر':17, 'ثمانيه عشر':18, 'تسعه عشر':19, عشرون:20, عشرين:20, ثلاثون:30, ثلاثين:30, اربعون:40, اربعين:40, خمسون:50, خمسين:50, ستون:60, ستين:60, سبعون:70, سبعين:70, ثمانون:80, ثمانين:80, تسعون:90, تسعين:90,
 };
-const token = '(?:\\d{1,3}|' + Object.keys(numbers).sort((a,b)=>b.length-a.length).join('|').replace(/ /g,'\\s+') + ')';
+const englishTens = 'twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety';
+const englishUnits = 'one|two|three|four|five|six|seven|eight|nine';
+const arabicTens = 'عشرون|عشرين|ثلاثون|ثلاثين|اربعون|اربعين|خمسون|خمسين|ستون|ستين|سبعون|سبعين|ثمانون|ثمانين|تسعون|تسعين';
+const arabicUnits = 'واحد|واحده|اثنان|اثنين|اثنتان|اثنتين|ثلاثه|ثلاث|اربعه|اربع|خمسه|خمس|سته|ست|سبعه|سبع|ثمانيه|ثماني|ثمان|تسعه|تسع';
+const token = '(?:[+-]?\\d{1,9}(?:[.,]\\d{1,3})?|(?:' + englishTens + ')(?:[ -]+(?:' + englishUnits + '))?|(?:' + arabicUnits + ')\\s*و\\s*(?:' + arabicTens + ')|' + Object.keys(numbers).sort((a,b)=>b.length-a.length).join('|').replace(/ /g,'\\s+') + ')';
+function numberValue(text: string) {
+  const normalized = text.trim().replace(/\s+/g, ' ');
+  if (/^[+-]?\d+(?:\.\d+)?$/.test(normalized)) return Number(normalized);
+  if (numbers[normalized] !== undefined) return numbers[normalized];
+  const english = normalized.replace(/-/g, ' ').split(' ');
+  if (english.length === 2 && numbers[english[0]] >= 20 && numbers[english[0]] % 10 === 0 && numbers[english[1]] > 0 && numbers[english[1]] < 10) return numbers[english[0]] + numbers[english[1]];
+  const arabic = normalized.match(new RegExp('^(' + arabicUnits + ')\\s*و\\s*(' + arabicTens + ')$'));
+  return arabic ? numbers[arabic[1]] + numbers[arabic[2]] : undefined;
+}
+export function dateWithdrawalIndex(text: string) {
+  const expression = /dates? (?:are |is )?(?:undecided|unknown|not decided)|forget (?:the )?(?:previous |old )?dates|لم احدد (?:المواعيد|التواريخ)|(?:المواعيد|التواريخ) غير محدده|انس (?:المواعيد|التواريخ)(?: السابقه)?|(?:الغ|الغي|امسح) (?:المواعيد|التواريخ)/g;
+  return [...text.matchAll(expression)].filter(m => !/\b(?:do not|don't|never)\s*$/.test(text.slice(0, m.index))).at(-1)?.index ?? -1;
+}
 function lastIndex(text: string, expression: RegExp) { return [...text.matchAll(expression)].at(-1)?.index ?? -1; }
 function quantity(text: string, units: string, max: number, dual: RegExp, reset: RegExp, prefix?: string) {
-  const expressions=[new RegExp('(?<![\\p{L}\\p{N}])('+token+')\\s*(?:'+units+')(?!\\p{L})','gu')];
+  const expressions=[new RegExp('(?<![\\p{L}\\p{N}])(?:ل)?('+token+')\\s*(?:'+units+')(?!\\p{L})','gu')];
   if(prefix) expressions.push(new RegExp('(?:'+prefix+')\\s+('+token+')(?!\\p{L})(?!\\s+(?:hundred|thousand))','gu'));
   const match=expressions.flatMap(p=>[...text.matchAll(p)]).sort((a,b)=>a.index-b.index).at(-1);
-  const resetAt=lastIndex(text,reset), dualAt=lastIndex(text,dual);
+  const resetAt=lastIndex(text,reset);
+  const explicitEnd = match ? match.index + match[0].length : -1;
+  const dualAt = [...text.matchAll(dual)].filter(m => !match || m.index < match.index || m.index >= explicitEnd).at(-1)?.index ?? -1;
   const index=Math.max(match?.index??-1,dualAt);
   if(resetAt>=0&&resetAt>index)return {mentioned:true,value:undefined};
   if(index<0)return {mentioned:false,value:undefined};
-  const n=dualAt>=(match?.index??-1)?2:match?(/^\d+$/.test(match[1])?Number(match[1]):numbers[match[1].replace(/\s+/g,' ')]):undefined;
-  return {mentioned:true,value:n!==undefined&&n>0&&n<=max?n:undefined};
+  const negated = match && /(?:\bnot|ليس|مش|مو)\s*$/.test(text.slice(0,match.index));
+  const n=negated?undefined:dualAt>=(match?.index??-1)?2:match?numberValue(match[1]):undefined;
+  return {mentioned:true,value:n!==undefined&&Number.isInteger(n)&&n>0&&n<=max?n:undefined};
 }
 export function bareDriveParty(text: string) {
-  const n = /^\d{1,2}$/.test(text) ? Number(text) : numbers[text];
-  return n !== undefined && n > 0 && n <= 20 ? n : null;
+  const n = numberValue(text);
+  return n !== undefined && Number.isInteger(n) && n > 0 && n <= 20 ? n : null;
 }
 /** Called after shared normalization, including Arabic digit/letter normalization. */
 export function driveQuantities(text: string) {
@@ -58,7 +78,8 @@ export function driveDialogue(userTurns:readonly string[],preferences:DrivePlann
   for(const text of turns){
     const match=[...text.matchAll(/without (?:a )?driver|self[- ]drive|no driver|بدون سائق|بدون سواق|with (?:a )?driver|مع سائق|بسائق|مع سواق/g)].at(-1);
     const unknown=lastIndex(text,/لم احدد السائق|لم احسم السائق|driver preference (?:is )?undecided|undecided about (?:a )?driver/g);
-    if(unknown>=0&&unknown>(match?.index??-1))driver=null;
+    const negated = match && /(?:\bnot|\bno longer|ليس|مش|مو|لا اريد)\s*$/.test(text.slice(0,match.index));
+    if(unknown>=0&&unknown>(match?.index??-1)||negated)driver=null;
     else if(match)driver=/without|self|no driver|بدون/.test(match[0])?'without':'with';
     const change=budgetIn(text,budget);if(change!==undefined)budget=change;
   }

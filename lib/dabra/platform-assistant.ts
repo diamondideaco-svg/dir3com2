@@ -1,5 +1,5 @@
 import { AI2_DABRA_CONVERSATION_COPY } from '../ai2/prompt/contract';
-import { driveQuantities, driveDialogue, driveDialogueCopy, bareDriveParty } from './drive-planning';
+import { driveQuantities, driveDialogue, driveDialogueCopy, bareDriveParty, dateWithdrawalIndex } from './drive-planning';
 import { conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
 import { DRIVE_OFFERS, vehicleFor, vehicleTitle, type DriveOffer } from '../drive/catalog';
 import { serviceEntryHref } from '../marketplace/public-entry';
@@ -49,8 +49,13 @@ export function platformContext(message: string, history: Turn[] = [], trip?: Sa
   if (!trip || newTripRequested(message)) return context;
   // Routing receives the typed trip separately. This projection only supplies
   // non-location preferences; no human-readable summary supplies city roles.
+  const preferences = tripPreferences(normalizePlatformQuery(context));
   return [trip.families.join(' '), trip.startDate, trip.endDate,
-    `${trip.adults} adults`, `${trip.rooms} rooms`, trip.currency, message].filter(Boolean).join('\n');
+    `${trip.adults} adults`, `${trip.rooms} rooms`, trip.currency,
+    preferences.dateWithdrawn ? 'dates are undecided' : null,
+    preferences.partyMentioned && !preferences.party ? 'passenger count is unknown' : null,
+    preferences.durationMentioned && !preferences.durationDays ? 'duration is unknown' : null,
+    message].filter(Boolean).join('\n');
 }
 
 /** Merge already reconstructed user preferences; no recursive transcript replay. */
@@ -72,9 +77,21 @@ function preferenceContext(message: string, history: Turn[]) {
     }
   }
   if (!current.city && !current.ambiguous) { const city = previous.find(p => p.city || p.ambiguous); if (city?.city) carry.push(`destination: ${city.city}`); }
-  if (!current.hasDates) { const dates = previous.find(p => p.hasDates)?.dates; if (dates?.length) carry.push(dates.join(' ')); }
-  if (!current.party && !current.partyMentioned) { const party = previous.find(p => p.party || p.partyMentioned)?.party; if (party) carry.push(`${party} adults`); }
-  if (!current.durationMentioned) { const days = previous.find(p => p.durationMentioned)?.durationDays; if (days) carry.push(`${days} days`); }
+  if (!current.hasDates) {
+    const prior = previous.find(p => p.hasDates);
+    if (prior?.dateWithdrawn) carry.push('dates are undecided');
+    else if (prior?.dates.length) carry.push(prior.dates.join(' '));
+  }
+  if (!current.partyMentioned) {
+    const prior = previous.find(p => p.partyMentioned);
+    if (prior?.party) carry.push(`${prior.party} adults`);
+    else if (prior?.partyMentioned) carry.push('passenger count is unknown');
+  }
+  if (!current.durationMentioned) {
+    const prior = previous.find(p => p.durationMentioned);
+    if (prior?.durationDays) carry.push(`${prior.durationDays} days`);
+    else if (prior?.durationMentioned) carry.push('duration is unknown');
+  }
   if (!current.rooms) { const rooms = previous.find(p => p.rooms)?.rooms; if (rooms) carry.push(`${rooms} rooms`); }
   if (!platformCurrency(message)) {
     const currency = relevant.slice(0, -1).reverse().map(platformCurrency).find(Boolean);
@@ -128,12 +145,13 @@ function tripPreferences(text: string, trip?: SavedTrip | null) {
   const dates = range && (range.index ?? 0) > (iso.at(-1)?.index ?? -1)
     ? [range[1], range[2]].map(day => `${range[4]}-${String(month).padStart(2, '0')}-${day.padStart(2, '0')}`)
     : iso.slice(-2).map(match => match[0]);
+  const dateWithdrawn = dateWithdrawalIndex(text) > Math.max(iso.at(-1)?.index ?? -1, range?.index ?? -1);
   const safeDates = dates.filter(date => validSearchDate(date.slice(0, 10)) && (!date.includes('t') || /t(?:[01]\d|2[0-3]):[0-5]\d$/.test(date)));
   const quantities = driveQuantities(text);
   const party = quantities.party.value ? String(quantities.party.value) : undefined;
   const roomMatches = [...text.matchAll(/(?:^|\s)([1-8])\s*(?:rooms?|غرف(?:ه)?)(?=\s|[.,،]|$)/g)];
   const rooms = roomMatches.at(-1)?.[1] ?? (/\bone room\b|غرفه واحده/.test(text) ? '1' : undefined);
-  return { city, ambiguous: roles.ambiguous, dates: safeDates.length === dates.length ? safeDates : [], hasDates: iso.length > 0 || Boolean(range), party, rooms,
+  return { city, ambiguous: roles.ambiguous, dates: !dateWithdrawn && safeDates.length === dates.length ? safeDates : [], hasDates: iso.length > 0 || Boolean(range) || dateWithdrawn, dateWithdrawn, party, rooms,
     partyMentioned: quantities.party.mentioned, durationDays: quantities.days.value, durationMentioned: quantities.days.mentioned };
 }
 export function platformEntry(family: PlatformFamily, message: string, locale: Locale, displayCurrency?: DisplayCurrency, trip?: SavedTrip | null) {

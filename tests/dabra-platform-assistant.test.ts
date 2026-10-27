@@ -184,3 +184,49 @@ test('Task217 corrective: self-drive and whole-trip budget are not sold as known
  assert.doesNotMatch(body.answer,/offer=|guaranteed|confirmed available/);
  assert.match(body.answer,/does not confirm a self-drive|must verify/i);
 });
+
+test('Task217 corrective review F1: explicit Arabic adult counts outrank a dual substring',()=>{
+ for(const n of [3,10,12,20]){
+  const link=new URL(platformEntry('stay','فندق في القاهرة من 2026-12-10 إلى 2026-12-13 '+n+' بالغين','ar'),'https://dir3com.com');
+  assert.equal(link.searchParams.get('adults'),String(n));assert.equal(link.searchParams.get('travelers'),String(n));
+ }
+ const dual=new URL(platformEntry('stay','فندق في القاهرة لشخصين','ar'),'https://dir3com.com');
+ assert.equal(dual.searchParams.get('adults'),'2');
+});
+for(const locale of ['ar','en'] as const){
+ test('Task217 corrective review F2: compound duration is interpreted whole '+locale,async()=>{
+  const message=locale==='ar'?'أحتاج سيارة لخمسة أشخاص في القاهرة لمدة واحد وعشرين يوم. اسألني قبل الاقتراح.':'I need a car for five people in Cairo for twenty one days. Ask before suggesting a car.';
+  const body=await correctivePost(message,locale);
+  assert.match(body.answer,locale==='ar'?/21 أيام/:/21 days/);assert.doesNotMatch(body.answer,locale==='ar'?/(?<!\d)1 أيام/:/(?<!\d)1 days/);
+  assert.doesNotMatch(body.answer,earlyCatalogue);
+ });
+ test('Task217 corrective review F3: negative driver correction reopens the preference '+locale,async()=>{
+  const initial=locale==='ar'?'أحتاج سيارة في القاهرة لخمسة أشخاص لمدة ثلاثة أيام من 2026-12-10 إلى 2026-12-13 مع سائق والميزانية مفتوحة':'I need a car for five people in Cairo for three days 2026-12-10 to 2026-12-13 with a driver, no fixed budget.';
+  const first=await correctivePost(initial,locale);
+  const body=await correctivePost(locale==='ar'?'ليس مع سائق.':'Actually, not with a driver.',locale,[{role:'user',content:initial},{role:'assistant',content:first.answer}]);
+  const summary=body.answer.split(/\n\s*\n/)[0];
+  assert.doesNotMatch(summary,locale==='ar'?/مع سائق/:/with a driver/);
+  assert.match(body.answer,locale==='ar'?/تفضّل السيارة/:/would you prefer/i);assert.doesNotMatch(body.answer,earlyCatalogue);
+ });
+ test('Task217 corrective review F4: withdrawn dates stay unset across later turns '+locale,async()=>{
+  const initial=locale==='ar'?'أحتاج سيارة في القاهرة لخمسة أشخاص لمدة ثلاثة أيام من 2026-12-10 إلى 2026-12-13 مع سائق والميزانية مفتوحة':'I need a car for five people in Cairo for three days 2026-12-10 to 2026-12-13 with a driver, no fixed budget.';
+  const first=await correctivePost(initial,locale);
+  const withdraw=locale==='ar'?'لم أحدد المواعيد بعد، انس التواريخ السابقة.':'Dates are undecided; forget the previous dates.';
+  const history:Array<{role:'user'|'assistant';content:string}>=[{role:'user',content:initial},{role:'assistant',content:first.answer}];
+  const unset=await correctivePost(withdraw,locale,history);
+  assert.doesNotMatch(unset.answer,/2026-12-10|2026-12-13|pickupDate=|returnDate=/);assert.match(unset.answer,locale==='ar'?/تاريخا بدء/:/pickup and return dates/);
+  history.push({role:'user',content:withdraw},{role:'assistant',content:unset.answer});
+  const later=await correctivePost(locale==='ar'?'الميزانية مفتوحة':'Still no fixed budget',locale,history);
+  assert.doesNotMatch(later.answer,/2026-12-10|2026-12-13|pickupDate=|returnDate=/);assert.match(later.answer,locale==='ar'?/تاريخا بدء/:/pickup and return dates/);
+  history.push({role:'user',content:locale==='ar'?'الميزانية مفتوحة':'Still no fixed budget'},{role:'assistant',content:later.answer});
+  const changed=await correctivePost('2027-01-10 to 2027-01-13',locale,history);
+  assert.doesNotMatch(changed.answer,/2026-12-10|2026-12-13/);assert.match(changed.answer,/2027-01-10/);
+ });
+}
+test('Task217 corrective review: signed and fractional passenger values never become a valid suffix',async()=>{
+ for(const count of ['-5','2.5','21','twenty one']){
+  const body=await correctivePost('I need a car in Cairo for '+count+' people 2026-12-10 to 2026-12-13 with a driver, no fixed budget.','en');
+  assert.doesNotMatch(body.answer,/(?<!\d)(?:1|2|5) passengers|passengers=(?:1|2|5)(?:&|\))/);
+  assert.match(body.answer,/how many passengers/i);
+ }
+});
