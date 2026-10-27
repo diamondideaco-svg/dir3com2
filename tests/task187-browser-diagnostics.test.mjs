@@ -53,3 +53,69 @@ test('real failed subprocess propagates bounded reason without logging its raw s
   try{assert.ok(error);const result=task187BrowserFailure(stderr);assert.equal(result.error.message,'TASK187_BROWSER_ACCEPTANCE_FAILED:ar-390-login:TASK187_BROWSER_WAIT_LOGIN');assert.ok(!result.error.message.includes(secret));resolve();}catch(failure){reject(failure)}
  }));
 });
+for(const [stage,code,reason] of [
+ ['preflight-chrome-version','ENOENT','TASK187_PREFLIGHT_COMMAND_NOT_FOUND'],
+ ['preflight-driver-version','EACCES','TASK187_PREFLIGHT_COMMAND_DENIED'],
+ ['preflight-driver-version','EPERM','TASK187_PREFLIGHT_COMMAND_DENIED'],
+ ['preflight-next-start','ETIMEDOUT','TASK187_PREFLIGHT_COMMAND_TIMEOUT'],
+ ['preflight-driver-start','UNTRUSTED_'+secret,'TASK187_PREFLIGHT_COMMAND_FAILED'],
+ ['preflight-proxy-port','EADDRINUSE','TASK187_PREFLIGHT_PORT_IN_USE'],
+ ['preflight-driver-port','EACCES','TASK187_PREFLIGHT_PORT_DENIED'],
+ ['preflight-driver-port','EPERM','TASK187_PREFLIGHT_PORT_DENIED'],
+ ['preflight-driver-port','UNTRUSTED_'+secret,'TASK187_PREFLIGHT_PORT_FAILED'],
+])test('preflight diagnostic delta classifies bounded failure '+stage+' '+reason,()=>{
+ const error=Object.assign(Error(secret),{code,stderr:secret,stdout:secret,env:{token:secret}});
+ const diagnostic=task187BrowserDiagnostic(error,stage),failure=task187BrowserFailure(marker(diagnostic));
+ assert.deepEqual(diagnostic,{stage,reason});assert.deepEqual(failure.diagnostic,diagnostic);
+ assert.equal(failure.error.message,'TASK187_BROWSER_ACCEPTANCE_FAILED:'+stage+':'+reason);
+ assert.ok(!JSON.stringify(failure.diagnostic).includes(secret));assert.ok(!failure.error.message.includes(secret));
+});
+
+test('preflight diagnostic delta preserves version assertion and existing explicit stop reasons',()=>{
+ let version;try{assert.equal('154.0.1','153.0.1')}catch(error){version=error}
+ assert.deepEqual(task187BrowserDiagnostic(version,'preflight-version-contract'),{stage:'preflight-version-contract',reason:'ASSERTION_FAILED'});
+ assert.deepEqual(task187BrowserDiagnostic(Error('TASK187_NEXT_EXIT'),'preflight-next-start'),{stage:'preflight-next-start',reason:'TASK187_NEXT_EXIT'});
+ assert.deepEqual(task187BrowserDiagnostic(Error('TASK187_BROWSER_WAIT_DRIVER'),'preflight-driver-ready'),{stage:'preflight-driver-ready',reason:'TASK187_BROWSER_WAIT_DRIVER'});
+});
+
+test('preflight diagnostic delta exposes only fixed setup phases and never unknown identifiers',()=>{
+ for(const stage of ['preflight-input','preflight-environment','preflight-temp','preflight-font','preflight-proxy-create']){
+  const diagnostic=task187BrowserDiagnostic(Error(secret),stage);
+  assert.deepEqual(task187BrowserFailure(marker(diagnostic)).diagnostic,{stage,reason:'UNCLASSIFIED'});
+ }
+ assert.deepEqual(task187BrowserDiagnostic(Object.assign(Error(secret),{code:'ENOENT'}),'preflight-'+secret),{stage:'unknown',reason:'UNCLASSIFIED'});
+ assert.equal(task187BrowserFailure(marker({stage:'preflight-driver-version',reason:'TASK187_PREFLIGHT_COMMAND_NOT_FOUND',stderr:secret})).diagnostic.reason,'DIAGNOSTIC_UNAVAILABLE');
+});
+
+test('preflight diagnostic delta real failed child retains fixed command boundary without stderr values',async()=>{
+ const source="import {TASK187_DIAGNOSTIC_PREFIX,task187BrowserDiagnostic} from './scripts/sandbox/task187-browser-diagnostics.mjs';const error=Object.assign(Error("+JSON.stringify(secret)+"),{code:'ENOENT',stderr:"+JSON.stringify(secret)+"});console.error("+JSON.stringify(secret)+");console.error(TASK187_DIAGNOSTIC_PREFIX+JSON.stringify(task187BrowserDiagnostic(error,'preflight-driver-version')));process.exitCode=1";
+ await new Promise((resolve,reject)=>execFile(process.execPath,['--input-type=module','-e',source],{maxBuffer:32768},(error,_stdout,stderr)=>{
+  try{assert.ok(error);const result=task187BrowserFailure(stderr);assert.deepEqual(result.diagnostic,{stage:'preflight-driver-version',reason:'TASK187_PREFLIGHT_COMMAND_NOT_FOUND'});assert.ok(!result.error.message.includes(secret));resolve();}catch(failure){reject(failure)}
+ }));
+});
+
+for(const mode of ['spawn-error','ready-error'])test('preflight lifecycle delta preserves bounded '+mode+' and owned-child cleanup',async()=>{
+ const source=[
+  "import assert from 'node:assert/strict';",
+  "import {spawn} from 'node:child_process';",
+  "import {existsSync} from 'node:fs';",
+  "import {TASK187_DIAGNOSTIC_PREFIX,task187BrowserDiagnostic,waitTask187ChildSpawn} from './scripts/sandbox/task187-browser-diagnostics.mjs';",
+  "const mode="+JSON.stringify(mode)+";",
+  "const missing=process.execPath+'.TASK217_'+"+JSON.stringify(secret)+";if(mode==='spawn-error')assert.equal(existsSync(missing),false);",
+  "let stage='preflight-driver-start',adopted=false;",
+  "const candidate=spawn(mode==='spawn-error'?missing:process.execPath,mode==='spawn-error'?[]:['-e','setTimeout(()=>{},30)'],{stdio:'ignore'});",
+  "const closed=new Promise(resolve=>candidate.once('close',resolve));",
+  "try{await waitTask187ChildSpawn(candidate);adopted=true;stage='preflight-driver-ready';throw Error('TASK187_BROWSER_WAIT_DRIVER');}",
+  "catch(error){assert.equal(stage,mode==='spawn-error'?'preflight-driver-start':'preflight-driver-ready');assert.equal(adopted,mode==='ready-error');assert.equal(Number.isInteger(candidate.pid),mode==='ready-error');console.error(TASK187_DIAGNOSTIC_PREFIX+JSON.stringify(task187BrowserDiagnostic(error,stage)));process.exitCode=1;}",
+  "finally{await closed;}",
+ ].join('\n');
+ await new Promise((resolve,reject)=>execFile(process.execPath,['--input-type=module','-e',source],{maxBuffer:32768,timeout:5000},(error,stdout,stderr)=>{
+  try{
+   assert.ok(error);assert.equal(error.code,1);assert.equal(stdout,'');
+   const expected=mode==='spawn-error'?{stage:'preflight-driver-start',reason:'TASK187_PREFLIGHT_COMMAND_NOT_FOUND'}:{stage:'preflight-driver-ready',reason:'TASK187_BROWSER_WAIT_DRIVER'};
+   const failure=task187BrowserFailure(stderr);assert.deepEqual(failure.diagnostic,expected);
+   assert.ok(!stderr.includes(secret));assert.ok(!failure.error.message.includes(secret));
+   assert.equal(stderr.trim(),marker(expected));resolve();
+  }catch(failure){reject(failure)}
+ }));
+});

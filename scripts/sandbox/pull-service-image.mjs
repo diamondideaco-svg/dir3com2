@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { verifiedImageIdentity } from './verified-image-identity.mjs';
+import { sanitizeGoTruePullStderr } from './pull-gotrue-image.mjs';
 
 // Platform manifests independently compared byte-for-byte with their official
 // alternatives. Image/config pins stay unchanged across Docker image stores.
@@ -28,7 +29,7 @@ const quota = (error) => error instanceof Error && 'status' in error && Number.i
   && /^(?:Error response from daemon:\s*)?toomanyrequests: Data limit exceeded\s*$/i.test(error.stderr.trim());
 const repository = (image) => image.slice(0, image.lastIndexOf(':'));
 
-export function ensureSandboxServiceImage(name, { run = docker, pause = sleep, report = (receipt) => console.log('SANDBOX_IMAGE_RECEIPT=' + JSON.stringify(receipt)) } = {}) {
+export function ensureSandboxServiceImage(name, { run = docker, pause = sleep, report = (receipt) => console.log('SANDBOX_IMAGE_RECEIPT=' + JSON.stringify(receipt)), reportFailure = (failure) => console.error('SANDBOX_IMAGE_PULL_FAILURE=' + JSON.stringify(failure)) } = {}) {
   if (typeof name !== 'string' || !Object.hasOwn(images, name)) throw Error('SANDBOX_IMAGE_UNKNOWN_SERVICE');
   const image = images[name];
   const platform = run(['version', '--format', '{{.Server.Os}}/{{.Server.Arch}}']).trim();
@@ -53,7 +54,19 @@ export function ensureSandboxServiceImage(name, { run = docker, pause = sleep, r
     for (const delay of delays) {
       pause(delay * 1000);
       try { run(['pull', ...(pinned ? ['--platform=linux/amd64'] : []), ref(source)]); return true; }
-      catch (error) { if (!quota(error)) throw Error('SANDBOX_IMAGE_PULL_FAILED_WITHOUT_QUOTA'); }
+      catch (error) {
+        // Observe the original failure without changing strict quota eligibility.
+        // Reuse the reviewed redactor; never serialize stdout/env/the whole error.
+        try {
+          reportFailure({ service: name, image: ref(source),
+            platform: /^[a-z0-9_-]+\/[a-z0-9_-]+$/.test(platform) ? platform : null,
+            status: Number.isInteger(error?.status) ? error.status : null,
+            code: ['EACCES', 'EPERM', 'ENOENT', 'ETIMEDOUT', 'ENOBUFS', 'ECONNRESET', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH', 'EPIPE'].includes(error?.code) ? error.code : null,
+            signal: ['SIGTERM', 'SIGKILL', 'SIGINT'].includes(error?.signal) ? error.signal : null,
+            stderr: sanitizeGoTruePullStderr(error?.stderr) });
+        } catch { /* A failed diagnostic must not alter fail-closed classification. */ }
+        if (!quota(error)) throw Error('SANDBOX_IMAGE_PULL_FAILED_WITHOUT_QUOTA');
+      }
     }
     return false;
   };
