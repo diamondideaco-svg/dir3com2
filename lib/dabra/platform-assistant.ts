@@ -184,14 +184,17 @@ export function refinePlatformTrip(trip: SavedTrip, message: string): SavedTrip 
     endDate: parsed.dates.length === 2 && parsed.dates[0] <= parsed.dates[1] ? parsed.dates[1].slice(0, 10) : trip.endDate };
 }
 
+function driveCatalogueDestinationEligible(text: string, trip?: SavedTrip | null) {
+  // Reuse the catalogue's existing destination boundary before planning.
+  // An unavailable destination must not be treated as a supported car service.
+  const destination = trip ? routingPlace(trip.destination) : tripPreferences(text).city;
+  return trip ? ['cairo', 'giza', 'alexandria'].includes(destination ?? '') : !['riyadh', 'jeddah', 'dubai'].includes(destination ?? '');
+}
+
 /** Approved rate catalogue, never live supplier availability. No network or transaction side effects. */
 export function findPlatformDriveOffers(message: string, pricing?: PlatformPricing, trip?: SavedTrip | null): DriveOffer[] {
   const text = normalizePlatformQuery(message);
-  // A typed resumed destination controls geography just as it controls links.
-  // Unknown typed places cannot inherit Egypt rates. Unstructured discovery
-  // retains its existing bounded free-text fallback.
-  const destination = trip ? routingPlace(trip.destination) : tripPreferences(text).city;
-  if (trip ? !['cairo', 'giza', 'alexandria'].includes(destination ?? '') : ['riyadh', 'jeddah', 'dubai'].includes(destination ?? '')) return [];
+  if (!driveCatalogueDestinationEligible(text, trip)) return [];
   if (/\b(bmw|tesla|audi|honda)\b|بي ام|تسلا|اودي|هوندا/.test(text)) return [];
   const makes = [...new Set(DRIVE_OFFERS.map(o => vehicleFor(o).make))];
   const matchingMakes = makes.filter(make => DRIVE_OFFERS.some(o => {
@@ -227,7 +230,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
   const context = platformContext(message, history, trip), text = normalizePlatformQuery(context), current = withoutNegativeActions(normalizePlatformQuery(message));
   const ar = locale === 'ar';
   const families = familyOverride ? [familyOverride] : platformFamilies(context);
-  const drivePlan = driveDialogue([...history.filter(t => t.role === 'user').slice(-4).map(t => normalizePlatformQuery(t.content.slice(0, 500))), normalizePlatformQuery(message)], tripPreferences(text, trip));
+  const drivePlan = driveCatalogueDestinationEligible(text, trip) ? driveDialogue([...history.filter(t => t.role === 'user').slice(-4).map(t => normalizePlatformQuery(t.content.slice(0, 500))), normalizePlatformQuery(message)], tripPreferences(text, trip)) : null;
   const link = serverReplyLink;
   const lines = serverReplySegments();
   const smallTalk = familyOverride ? null : conversationReply(message, history, locale);

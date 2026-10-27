@@ -270,3 +270,11 @@ for(const locale of ['ar','en'] as const){
   }
  });
 }
+
+for(const locale of ['ar','en'] as const)test('Task217 corrective geography: unavailable catalogue destination stays truthful '+locale,async()=>{
+ const message=locale==='ar'?'أحتاج سيارة لعائلة من خمسة أشخاص في الرياض لمدة ثلاثة أيام. اسألني عن المعلومات الناقصة قبل الاقتراح.':'I need a car for a family of five in Riyadh for three days. Ask before suggesting a car.';
+ const body=await correctivePost(message,locale);
+ assert.match(body.answer,locale==='ar'?/لم أجد سيارة/:/No car matches/);
+ assert.doesNotMatch(body.answer,earlyCatalogue);
+ assert.doesNotMatch(body.answer,/offer=|guaranteed available|تم الحجز|تم الدفع/i);
+});
