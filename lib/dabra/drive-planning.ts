@@ -8,11 +8,16 @@ const numbers: Record<string, number> = {
   'احد عشر':11, 'اثنا عشر':12, 'اثني عشر':12, 'ثلاثه عشر':13, 'اربعه عشر':14, 'خمسه عشر':15,
   'سته عشر':16, 'سبعه عشر':17, 'ثمانيه عشر':18, 'تسعه عشر':19, عشرون:20, عشرين:20, ثلاثون:30, ثلاثين:30, اربعون:40, اربعين:40, خمسون:50, خمسين:50, ستون:60, ستين:60, سبعون:70, سبعين:70, ثمانون:80, ثمانين:80, تسعون:90, تسعين:90,
 };
-const englishTens = 'twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety';
-const englishUnits = 'one|two|three|four|five|six|seven|eight|nine';
 const arabicTens = 'عشرون|عشرين|ثلاثون|ثلاثين|اربعون|اربعين|خمسون|خمسين|ستون|ستين|سبعون|سبعين|ثمانون|ثمانين|تسعون|تسعين';
 const arabicUnits = 'واحد|واحده|اثنان|اثنين|اثنتان|اثنتين|ثلاثه|ثلاث|اربعه|اربع|خمسه|خمس|سته|ست|سبعه|سبع|ثمانيه|ثماني|ثمان|تسعه|تسع';
-const token = '(?:[+-]?\\d{1,9}(?:[.,]\\d{1,3})?|(?:' + englishTens + ')(?:[ -]+(?:' + englishUnits + '))?|(?:' + arabicUnits + ')\\s*و\\s*(?:' + arabicTens + ')|' + Object.keys(numbers).sort((a,b)=>b.length-a.length).join('|').replace(/ /g,'\\s+') + ')';
+// Consume unsupported word-number compounds whole, but keep independent numeric
+// literals separate (ISO dates can immediately precede a passenger quantity).
+const numberWords = Object.keys(numbers).sort((a,b)=>b.length-a.length).join('|').replace(/ /g,'\\s+') + '|hundred|thousand|million|مئه|مائه|ميه|مئتان|مائتان|الف|الاف|مليون';
+const numeral = '(?:[+-]\\s*)?(?:\\d[\\d.,٫٬]*|[.,٫٬]\\d+)';
+const numberJoin = '(?:[ -]+(?:and\\s+)?|\\s*و\\s*)';
+const token = '(?:' + numeral + '|(?:' + numberWords + ')(?:' + numberJoin + '(?:' + numberWords + '|' + numeral + ')){0,8})';
+// A bounded span must not restart at a valid suffix of another number phrase.
+const partialNumberPrefix = new RegExp('(?:^|[^\\p{L}\\p{N}.,٫٬+−-])(?:' + numeral + '|' + numberWords + ')' + numberJoin + '$','u');
 function numberValue(text: string) {
   const normalized = text.trim().replace(/\s+/g, ' ');
   if (/^[+-]?\d+(?:\.\d+)?$/.test(normalized)) return Number(normalized);
@@ -28,8 +33,8 @@ export function dateWithdrawalIndex(text: string) {
 }
 function lastIndex(text: string, expression: RegExp) { return [...text.matchAll(expression)].at(-1)?.index ?? -1; }
 function quantity(text: string, units: string, max: number, dual: RegExp, reset: RegExp, prefix?: string) {
-  const expressions=[new RegExp('(?<![\\p{L}\\p{N}])(?:ل)?('+token+')\\s*(?:'+units+')(?!\\p{L})','gu')];
-  if(prefix) expressions.push(new RegExp('(?:'+prefix+')\\s+('+token+')(?!\\p{L})(?!\\s+(?:hundred|thousand))','gu'));
+  const expressions=[new RegExp('(?<![\\p{L}\\p{N}.,٫٬+−-])(?:ل)?('+token+')\\s*(?:'+units+')(?!\\p{L})','gu')];
+  if(prefix) expressions.push(new RegExp('(?:'+prefix+')\\s+('+token+')(?![\\p{L}\\p{N}])','gu'));
   const match=expressions.flatMap(p=>[...text.matchAll(p)]).sort((a,b)=>a.index-b.index).at(-1);
   const resetAt=lastIndex(text,reset);
   const explicitEnd = match ? match.index + match[0].length : -1;
@@ -38,7 +43,8 @@ function quantity(text: string, units: string, max: number, dual: RegExp, reset:
   if(resetAt>=0&&resetAt>index)return {mentioned:true,value:undefined};
   if(index<0)return {mentioned:false,value:undefined};
   const negated = match && /(?:\bnot|ليس|مش|مو)\s*$/.test(text.slice(0,match.index));
-  const n=negated?undefined:dualAt>=(match?.index??-1)?2:match?numberValue(match[1]):undefined;
+  const partial = match && partialNumberPrefix.test(text.slice(0,match.index));
+  const n=negated||partial?undefined:dualAt>=(match?.index??-1)?2:match?numberValue(match[1]):undefined;
   return {mentioned:true,value:n!==undefined&&Number.isInteger(n)&&n>0&&n<=max?n:undefined};
 }
 export function bareDriveParty(text: string) {

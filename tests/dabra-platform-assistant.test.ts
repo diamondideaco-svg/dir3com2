@@ -230,3 +230,43 @@ test('Task217 corrective review: signed and fractional passenger values never be
   assert.match(body.answer,/how many passengers/i);
  }
 });
+
+// F2: whole-span boundary and preference retraction, through the actual handler.
+for(const locale of ['ar','en'] as const){
+ test('Task217 corrective F2 span: unsupported quantities never become a suffix '+locale,async()=>{
+  const forms=locale==='ar'?['.5','مئة وخمسة','مئة و خمسة','٫٥']:['.5','one hundred five','one hundred and five','.25'];
+  for(const value of forms){
+   const message=locale==='ar'?'أحتاج سيارة لخمسة أشخاص في القاهرة لمدة '+value+' أيام. اسألني قبل الاقتراح.':'I need a car for five people in Cairo for '+value+' days. Ask before suggesting a car.';
+   const body=await correctivePost(message,locale);
+   const summary=body.answer.split(/\n\s*\n/)[0];
+   assert.doesNotMatch(summary,locale==='ar'?/\d+\s*أيام/:/\d+\s*days/i);
+   assert.match(body.answer,locale==='ar'?/كم مدة/:/how long/i);
+   assert.doesNotMatch(body.answer,earlyCatalogue);
+  }
+ });
+ test('Task217 corrective F2 span: invalid replacement clears duration on later turns '+locale,async()=>{
+  const initial=correctiveRequests[locale],first=await correctivePost(initial,locale);
+  const history:Array<{role:'user'|'assistant';content:string}>=[{role:'user',content:initial},{role:'assistant',content:first.answer}];
+  const invalid=locale==='ar'?'المدة مئة وخمسة أيام':'Actually, one hundred five days';
+  const unset=await correctivePost(invalid,locale,history);
+  assert.doesNotMatch(unset.answer,locale==='ar'?/\d+\s*أيام/:/\d+\s*days/i);
+  assert.match(unset.answer,locale==='ar'?/كم مدة/:/how long/i);
+  history.push({role:'user',content:invalid},{role:'assistant',content:unset.answer});
+  const later=await correctivePost(locale==='ar'?'الميزانية مفتوحة':'No fixed budget',locale,history);
+  assert.doesNotMatch(later.answer,locale==='ar'?/\d+\s*أيام/:/\d+\s*days/i);
+  assert.match(later.answer,locale==='ar'?/كم مدة/:/how long/i);
+  history.push({role:'user',content:locale==='ar'?'الميزانية مفتوحة':'No fixed budget'},{role:'assistant',content:later.answer});
+  const replacement=await correctivePost(locale==='ar'?'المدة واحد وعشرين يوم':'Twenty one days',locale,history);
+  assert.match(replacement.answer,locale==='ar'?/21 أيام/:/21 days/);
+  assert.doesNotMatch(replacement.answer,earlyCatalogue);
+ });
+ test('Task217 corrective F2 span: the shared passenger span cannot become five '+locale,async()=>{
+  for(const value of locale==='ar'?['.5','مئة وخمسة']:['.5','one hundred five']){
+   const message=locale==='ar'?'أحتاج سيارة في القاهرة لعدد '+value+' أشخاص من 2026-12-10 إلى 2026-12-13 مع سائق والميزانية مفتوحة':'I need a car for a family of '+value+' in Cairo 2026-12-10 to 2026-12-13 with a driver, no fixed budget.';
+   const body=await correctivePost(message,locale);
+   assert.doesNotMatch(body.answer,locale==='ar'?/\d+\s*أشخاص|passengers=\d+/:/\d+\s*passengers|passengers=\d+/i);
+   assert.match(body.answer,locale==='ar'?/كم عدد الأشخاص/:/how many passengers/i);
+   assert.doesNotMatch(body.answer,earlyCatalogue);
+  }
+ });
+}
