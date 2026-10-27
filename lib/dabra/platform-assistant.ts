@@ -191,6 +191,20 @@ function driveCatalogueDestinationEligible(text: string, trip?: SavedTrip | null
   return trip ? ['cairo', 'giza', 'alexandria'].includes(destination ?? '') : !['riyadh', 'jeddah', 'dubai'].includes(destination ?? '');
 }
 
+
+/** Share the existing USER-only plan between clarification and classifier eligibility. */
+function platformDriveDialogue({ message, history, context, trip }: {
+  message: string; history: Turn[]; context: string; trip?: SavedTrip | null;
+}) {
+  const text = normalizePlatformQuery(context);
+  return driveCatalogueDestinationEligible(text, trip) ? driveDialogue([...history.filter(t => t.role === 'user').slice(-4).map(t => normalizePlatformQuery(t.content.slice(0, 500))), normalizePlatformQuery(message)], tripPreferences(text, trip)) : null;
+}
+
+/** A single active Drive dialogue can consume its own follow-up without inference. */
+export function hasActivePlatformDriveDialogue(input: Parameters<typeof platformDriveDialogue>[0]) {
+  return platformFamilies(input.context).join(',') === 'drive'
+    && platformDriveDialogue({ ...input, trip: newTripRequested(input.message) ? null : input.trip }) !== null;
+}
 /** Approved rate catalogue, never live supplier availability. No network or transaction side effects. */
 export function findPlatformDriveOffers(message: string, pricing?: PlatformPricing, trip?: SavedTrip | null): DriveOffer[] {
   const text = normalizePlatformQuery(message);
@@ -230,7 +244,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
   const context = platformContext(message, history, trip), text = normalizePlatformQuery(context), current = withoutNegativeActions(normalizePlatformQuery(message));
   const ar = locale === 'ar';
   const families = familyOverride ? [familyOverride] : platformFamilies(context);
-  const drivePlan = driveCatalogueDestinationEligible(text, trip) ? driveDialogue([...history.filter(t => t.role === 'user').slice(-4).map(t => normalizePlatformQuery(t.content.slice(0, 500))), normalizePlatformQuery(message)], tripPreferences(text, trip)) : null;
+  const drivePlan = platformDriveDialogue({ message, history, context, trip });
   const link = serverReplyLink;
   const lines = serverReplySegments();
   const smallTalk = familyOverride ? null : conversationReply(message, history, locale);

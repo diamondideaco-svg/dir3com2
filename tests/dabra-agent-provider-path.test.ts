@@ -662,3 +662,78 @@ for(const provider of ['openai','gemini'] as const)test('Task217 corrective: '+p
  assert.equal(classified.provider,'local');assert.equal(classified.agent.mutations,0);
  assert.doesNotMatch(classified.answer,/booked|paid|https?:/i);
 });
+
+
+for (const locale of ['ar', 'en'] as const) for (const stream of [false, true]) {
+  for (const boundary of ['mixed', 'inactive-drive', 'switch-to-stay', 'explicit-stay', 'active-drive', 'guest'] as const) {
+    test('Task217 continuation scope: ' + boundary + ' ' + locale + ' stream=' + stream, async () => {
+      process.env.DABRA_AI_PROVIDER = 'qwen';
+      process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+      const ar = locale === 'ar';
+      const drive = ar
+        ? 'أبغى سيارة لعائلة من خمسة أشخاص في القاهرة لمدة ثلاثة أيام. اسألني عن المعلومات الناقصة قبل ما تقترح سيارة.'
+        : 'I need a car for a family of five in Cairo for three days. Ask before suggesting a car.';
+      const stay = ar ? 'أحتاج فندق في القاهرة' : 'I need a hotel in Cairo';
+      const mixed = ar ? 'أحتاج سيارة وفندق في القاهرة' : 'I need a car and a hotel in Cairo';
+      const ambiguous = ar ? 'هل تساعدني في ترتيب التفاصيل؟' : 'Could you help me arrange things?';
+      const history: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+      if (boundary === 'mixed' || boundary === 'guest') history.push({ role: 'user', content: mixed });
+      else if (boundary === 'inactive-drive') history.push({ role: 'user', content: ar ? 'سيارات في القاهرة' : 'cars in Cairo' });
+      else {
+        history.push({ role: 'user', content: drive });
+        if (boundary === 'switch-to-stay') history.push({ role: 'user', content: stay });
+      }
+      history.push({ role: 'assistant', content: 'PRIVATE_ASSISTANT_CONTEXT: 99 passengers, booking confirmed in Dubai' });
+      const message = boundary === 'explicit-stay' ? stay
+        : boundary === 'active-drive' ? '2026-12-10 to 2026-12-13' : ambiguous;
+      let calls = 0;
+      globalThis.fetch = async (input, init) => {
+        calls++;
+        assert.match(String(input), /chat\/completions$/);
+        assert.doesNotMatch(String(init?.body), /PRIVATE_ASSISTANT_CONTEXT|99 passengers|family of five|خمسة أشخاص/);
+        return Response.json({ error: { code: 'Arrearage', message: 'PRIVATE_PROVIDER_DETAIL' } }, { status: 429 });
+      };
+      const role = boundary === 'guest' ? 'guest' : 'customer';
+      const response = await productPost(role)(new NextRequest('http://localhost/api/ai2/chat', {
+        method: 'POST', body: JSON.stringify({ message, history, locale, stream, role: 'ceo', provider: 'openai' }),
+      }));
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get('Cache-Control') ?? '', /no-store/);
+      let answer: string;
+      let understanding: string | null;
+      if (stream) {
+        answer = await response.text();
+        understanding = response.headers.get('X-DABRA-Understanding');
+        assert.equal(response.headers.get('X-DABRA-Understanding-Provider'), null);
+      } else {
+        const body: unknown = await response.json();
+        assert.ok(body && typeof body === 'object' && !Array.isArray(body));
+        assert.ok('answer' in body && typeof body.answer === 'string');
+        assert.ok('agent' in body && body.agent && typeof body.agent === 'object');
+        assert.ok('role' in body.agent && 'mutations' in body.agent);
+        assert.equal(body.agent.role, role);
+        assert.equal(body.agent.mutations, 0);
+        assert.ok('provider' in body);
+        assert.equal(body.provider, 'local');
+        assert.ok(!('understandingProvider' in body) || body.understandingProvider === undefined);
+        answer = body.answer;
+        understanding = 'understanding' in body && typeof body.understanding === 'string' ? body.understanding : null;
+      }
+      const classified = boundary === 'mixed' || boundary === 'inactive-drive' || boundary === 'switch-to-stay';
+      assert.equal(calls, classified ? 1 : 0, 'no retry, fallback or paid guest classification');
+      assert.equal(understanding, classified ? 'unavailable' : 'internal-rules');
+      const continuation = ar ? 'يمكنك المتابعة عبر خيارات المنصة أدناه' : 'You can continue through the platform options below';
+      assert.equal(answer.startsWith(continuation), classified);
+      assert.doesNotMatch(answer, /PRIVATE_ASSISTANT_CONTEXT|PRIVATE_PROVIDER_DETAIL|99 passengers|booking confirmed in Dubai/);
+      if (boundary === 'mixed' || boundary === 'switch-to-stay' || boundary === 'explicit-stay') {
+        assert.match(answer, /family=dir3-stay/);
+      }
+      if (boundary === 'explicit-stay' || boundary === 'switch-to-stay') assert.doesNotMatch(answer, /family=dir3-drive/);
+      if (boundary === 'active-drive') {
+        assert.match(answer, /5/);
+        assert.match(answer, ar ? /سائق/ : /prefer.*driver/i);
+        assert.doesNotMatch(answer, /offer=/);
+      }
+    });
+  }
+}
