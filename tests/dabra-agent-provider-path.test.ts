@@ -644,3 +644,21 @@ test('Task212 exhausted request deadline produces no observation for a skipped f
   assert.equal(q.records[0].fallback_from, null);
   assert.equal(q.records[0].latency_ms, 12000);
 });
+
+for(const provider of ['openai','gemini'] as const)test('Task217 corrective: '+provider+' keeps known Drive followups local and genuine ambiguity classified',async()=>{
+ process.env.DABRA_AI_PROVIDER=provider;
+ let calls=0;globalThis.fetch=async(input)=>{calls++;return providerResponse(String(input));};
+ const post=productPost('customer');
+ const message='I need a car for a family of five in Cairo for three days. Ask before suggesting a car.';
+ const first=await post(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',body:JSON.stringify({message,locale:'en'})}));
+ const body=await first.json();assert.doesNotMatch(body.answer,/offer=/);
+ const followup=await post(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',body:JSON.stringify({message:'2026-12-10 to 2026-12-13',locale:'en',history:[{role:'user',content:message},{role:'assistant',content:body.answer}]})}));
+ const result=await followup.json();
+ assert.match(result.answer,/5 passengers/);assert.match(result.answer,/prefer.*driver/i);
+ assert.equal(result.understanding,'internal-rules');assert.equal(result.understandingProvider,undefined);assert.equal(calls,0);
+ const ambiguous=await post(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',body:JSON.stringify({message:'Could you help me arrange things?',locale:'en'})}));
+ const classified=await ambiguous.json();
+ assert.equal(calls,1);assert.equal(classified.understandingProvider,provider);
+ assert.equal(classified.provider,'local');assert.equal(classified.agent.mutations,0);
+ assert.doesNotMatch(classified.answer,/booked|paid|https?:/i);
+});
