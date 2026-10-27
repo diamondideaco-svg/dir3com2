@@ -6,6 +6,7 @@ export type OutboxItem = {
   id: string; token: string; phone: string; reference: string;
   audience: 'customer' | 'operations'; action: 'created' | 'review' | 'confirm' | 'decline' | 'customer_accept'; language: 'ar' | 'en';
 };
+export type OutboxEnvelope = Omit<OutboxItem, 'action'>;
 export interface NotificationStore {
   rpc(name: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }> & {
     abortSignal?: (signal: AbortSignal) => PromiseLike<{ data: unknown; error: unknown }>;
@@ -18,7 +19,7 @@ export type SenderConfig = {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SID = /^SM[0-9a-f]{32}$/i;
 const PHONE = /^\+[1-9][0-9]{6,14}$/;
-const ACTIONS = ['created', 'review', 'confirm', 'decline', 'customer_accept'];
+const ACTIONS: readonly OutboxItem['action'][] = ['created', 'review', 'confirm', 'decline', 'customer_accept'];
 const CALLBACK_PATH = '/api/webhooks/twilio/whatsapp';
 
 export function secureEqual(left: string, right: string): boolean {
@@ -62,15 +63,20 @@ export function senderConfig(env: Environment): SenderConfig | null {
   } catch { return null; }
 }
 
-export function parseOutboxItem(data: unknown): OutboxItem | null {
+export function parseOutboxEnvelope(data: unknown): OutboxEnvelope | null {
   if (!data || typeof data !== 'object') return null;
   const row = data as Record<string, unknown>;
   if (typeof row.id !== 'string' || !UUID.test(row.id) || typeof row.token !== 'string' || !UUID.test(row.token)
     || typeof row.phone !== 'string' || !PHONE.test(row.phone) || typeof row.reference !== 'string' || !/^REQ-[A-Z0-9]{1,40}$/.test(row.reference)
-    || !['customer', 'operations'].includes(String(row.audience)) || !['ar', 'en'].includes(String(row.language))
-    || !ACTIONS.includes(String(row.action))
-    || (row.audience === 'operations' && !['created', 'customer_accept'].includes(String(row.action)))) return null;
-  return row as OutboxItem;
+    || (row.audience !== 'customer' && row.audience !== 'operations') || (row.language !== 'ar' && row.language !== 'en')) return null;
+  return { id: row.id, token: row.token, phone: row.phone, reference: row.reference, audience: row.audience, language: row.language };
+}
+export function parseOutboxItem(data: unknown): OutboxItem | null {
+  const fields = parseOutboxEnvelope(data);
+  if (!fields || !data || typeof data !== 'object' || !('action' in data)) return null;
+  const action = ACTIONS.find(action => action === data.action);
+  if (!action || (fields.audience === 'operations' && !['created', 'customer_accept'].includes(action))) return null;
+  return { ...fields, action };
 }
 
 export function callbackUrl(config: Pick<SenderConfig, 'callbackUrl'>, item: Pick<OutboxItem, 'id' | 'token'>) {

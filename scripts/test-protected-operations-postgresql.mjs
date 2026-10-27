@@ -7,7 +7,16 @@ import { quote, tableSql } from './production-baseline-contract.mjs';
 
 // Only this explicitly named LOCAL container is reachable. Never accept a URL,
 // project reference, remote hostname or production credentials in this harness.
-const container = 'dir3com-protected-ops-policy-20260909';
+const container = process.env.DIR3COM_PROTECTED_OPS_FIXTURE_CONTAINER ?? 'dir3com-protected-ops-policy-20260909';
+if(process.env.DIR3COM_PROTECTED_OPS_FIXTURE_CONTAINER!==undefined) {
+  assert.match(container,/^dir3com-state-test-[a-f0-9]{12}$/,'Only the explicit owned local fixture name is accepted');
+  const [owned]=JSON.parse(execFileSync('docker',['inspect',container],{encoding:'utf8',timeout:30000}));
+  const [image]=JSON.parse(execFileSync('docker',['image','inspect','postgres:17'],{encoding:'utf8',timeout:30000}));
+  assert.equal(owned.Config.Labels['com.dir3com.fixture'],'task166-current-state');
+  assert.equal(owned.Image,image.Id);assert.equal((owned.HostConfig.Binds??[]).length,0);
+  assert.deepEqual(owned.HostConfig.PortBindings['5432/tcp'],[{HostIp:'127.0.0.1',HostPort:'54339'}]);
+  assert.ok(owned.HostConfig.Tmpfs['/var/lib/postgresql/data']);
+}
 const database = `protected_ops_test_${randomBytes(8).toString('hex')}`;
 assert.match(database, /^protected_ops_test_[a-f0-9]{16}$/);
 const root = new URL('../', import.meta.url);
@@ -78,10 +87,12 @@ try {
   const boundedDriveWhatsApp = files.find(file => file.endsWith('_task199_bounded_whatsapp_execution.sql'));
   const queryDriveWhatsApp = files.find(file => file.endsWith('_task199_provider_query_delivery.sql'));
   const boundedCustomerWhatsApp = files.find(file => file.endsWith('_task166_bounded_customer_notifications.sql'));
+  const currentStateWhatsApp = files.find(file => file.endsWith('_task166_current_state_notices.sql'));
+  const continuousWhatsApp = files.find(file => file.endsWith('_task166_continuous_future_events.sql'));
   // CEO-specific 43-row price release has its own isolated rollback/replay fixture.
   const priceRelease = files.find(file => file.endsWith('_drive_price_reduction_15_percent.sql'));
   assert.ok(migration);
-  for (const file of files.filter(file => file !== priceRelease && file !== migration && file !== managedDrive && file !== managedDriveModelYear && file !== managedDriveAcceptance && file !== managedDriveSeptember && file !== managedDriveWhatsApp && file !== managedDriveKapso && file !== managedDriveCustomer && file !== managedDriveTarget && file !== boundedDriveWhatsApp && file !== queryDriveWhatsApp && file !== boundedCustomerWhatsApp)) sql(read(`supabase/migrations/${file}`));
+  for (const file of files.filter(file => file !== priceRelease && file !== migration && file !== managedDrive && file !== managedDriveModelYear && file !== managedDriveAcceptance && file !== managedDriveSeptember && file !== managedDriveWhatsApp && file !== managedDriveKapso && file !== managedDriveCustomer && file !== managedDriveTarget && file !== boundedDriveWhatsApp && file !== queryDriveWhatsApp && file !== boundedCustomerWhatsApp && file !== currentStateWhatsApp && file !== continuousWhatsApp)) sql(read(`supabase/migrations/${file}`));
   // Fixtures are inserted only in our disposable database; no captured user data.
   for (const [id, role] of [[ceo,'admin'],[admin,'admin'],[staff,'staff'],[customer,'customer'],[partner,'partner']]) {
     sql(`INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES('${id}','${id}@example.invalid','{}');
@@ -120,6 +131,10 @@ try {
     assert.ok(boundedCustomerWhatsApp);
     sql(read(`supabase/migrations/${boundedCustomerWhatsApp}`));
     equal(sql("SELECT to_regclass('drive_notification_private.customer_authorizations') IS NOT NULL AND NOT capture_enabled AND NOT send_enabled FROM drive_notification_private.settings WHERE singleton"),'t','bounded customer forward installed in dependency order with gates OFF');
+    assert.ok(currentStateWhatsApp);sql(read(`supabase/migrations/${currentStateWhatsApp}`));
+    equal(sql("SELECT to_regclass('drive_notification_private.current_state_notices') IS NOT NULL AND NOT capture_enabled AND NOT send_enabled FROM drive_notification_private.settings WHERE singleton"),'t','current-state forward installed after notification prerequisites, not skipped');
+    assert.ok(continuousWhatsApp);sql(read(`supabase/migrations/${continuousWhatsApp}`));
+    equal(sql("SELECT to_regclass('drive_notification_private.continuous_services') IS NOT NULL AND NOT capture_enabled AND NOT send_enabled FROM drive_notification_private.settings WHERE singleton"),'t','continuous forward installed after current-state prerequisites without activation');
     sql(read('tests/sql/drive-managed-request.sql'));
     equal(rows(), before, 'managed Drive regression rolls back fixtures without changing existing business data');
   }
