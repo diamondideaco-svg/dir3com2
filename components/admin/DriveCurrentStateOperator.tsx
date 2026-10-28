@@ -5,7 +5,7 @@ import { useLanguage } from '@/components/i18n/LanguageProvider';
 import type { KapsoTarget } from '@/lib/notifications/kapso-drive-whatsapp';
 
 type Target = KapsoTarget & { category: 'customer.current_state' | 'operations.current_state' };
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const PATH = '/api/admin/drive-whatsapp/current-state';
 const CODES = [
   'ACCEPTED_NOT_DELIVERED', 'IDLE_NO_RESEND', 'NOT_SENT', 'UNKNOWN_DO_NOT_RETRY',

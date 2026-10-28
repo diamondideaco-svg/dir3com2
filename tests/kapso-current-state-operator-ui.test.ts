@@ -195,3 +195,15 @@ test('browser timeout is ambiguous, not cancellation proof, and never retries', 
   const timeout = [...f.timers.values()][0]; assert.ok(timeout); timeout(); await pending; await f.submit();
   assert.equal(f.calls.length, 1); assert.match(f.html(), /may have started/); assert.equal(f.timers.size, 0);
 });
+
+test('native HTML UUID pattern and actual submit both accept uppercase valid selectors', async () => {
+  const f = fixture(); f.fill();
+  const pattern = f.control('requestId').props.pattern;
+  assert.equal(typeof pattern, 'string');
+  if (typeof pattern !== 'string') throw new Error('Missing native pattern');
+  const uppercase = 'A0000000-0000-4000-8000-000000000001';
+  assert.equal(new RegExp(pattern, 'v').test(uppercase), true);
+  f.change('requestId', uppercase); await f.submit();
+  assert.equal(f.calls.length, 1);
+  assert.equal(JSON.parse(String(f.calls[0].options.body)).requestId, uppercase);
+});
