@@ -34,8 +34,33 @@ inspection of durable intent and real receipts, never re-sending. An idle
 response is not evidence of a new send or prior delivery. Database dedupe remains
 authoritative for retries and concurrent operator calls.
 
-No UI/navigation or closed Task199 trial change. Its private targets, old
-approval and OFF cleanup are not reused. Manual invocation does not prove a
-recurring continuous service. Live dispatch requires separate explicit authority
-and an already-prepared eligible target. Local tests inject synthetic RPC and
-HTTP boundaries only, not a real PostgreSQL/provider delivery proof.
+## Visible CEO operator
+
+/admin/drive-whatsapp/current-state renders only after server auth.getUser()
+and the existing fresh isCeoActor check. GET/RSC rendering does not prepare a
+notice, read provider configuration or send. The five selectors come from an
+already-prepared target, with no real default IDs or query/storage autofill.
+Interface language and prepared-target language are separate; selecting English
+does not authorize an English notice outside the existing approved window.
+
+One explicit submission posts JSON to the same existing relative API with
+same-origin credentials, no-store and redirect rejection. Cookies stay in the
+browser and privileged credentials stay in the server adapter. A synchronous
+in-flight lock prevents rapid duplicates. Every HTTP attempt ends in a locked
+terminal state. No retry, polling, batch or automatic second-recipient dispatch.
+Timeout/lost response remains unconfirmed even when the browser aborts: inspect
+durable state and real receipts rather than assuming the server did not send.
+Loading/reloading never submits. Backend dedupe remains authoritative across
+reloads and duplicated tabs.
+
+After an attempt inspect durable intent/receipts before a separate recipient's
+window is opened and a fresh page receives its actual selectors. Accepted and
+idle are never displayed as delivered. The UI cannot prepare/open, reconcile,
+stop or clean up a window. No navigation/global Operations/closed Task199 change.
+Its private targets, old approval and OFF cleanup are not reused.
+
+Manual invocation does not prove recurring service. Live dispatch needs separate
+explicit authority, registered signed Kapso callback, approved template/cost and
+an already-prepared eligible target. Synthetic UI/auth/HTTP checks are not real
+Auth, PostgreSQL, provider delivery or Production evidence. This UI does not
+authorize activation or replace actual AR/EN desktop/mobile browser acceptance.
