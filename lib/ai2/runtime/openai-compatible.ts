@@ -39,6 +39,9 @@ export type OpenAICompatibleParams = {
   extraHeaders?: Record<string, string>;
   // Opt-in for the bounded GPT-5 classifier; legacy provider bodies stay unchanged.
   chatProfile?: 'gpt-5-classifier';
+  // Optional task controls; omitted callers retain their existing behavior.
+  signal?: AbortSignal;
+  maxOutputTokens?: number;
   responseJsonSchema?: { name: string; schema: Record<string, unknown> };
 };
 
@@ -340,7 +343,7 @@ async function callChatCompletions(
         ...(params.extraHeaders ?? {}),
       },
       cache: 'no-store',
-      signal: controller.signal,
+      signal: params.signal ? AbortSignal.any([controller.signal, params.signal]) : controller.signal,
       body: JSON.stringify({
         model,
         messages: [
@@ -349,8 +352,8 @@ async function callChatCompletions(
         ],
         ...(params.responseJsonSchema ? { response_format: { type: 'json_schema', json_schema: { ...params.responseJsonSchema, strict: true } } } : {}),
         ...(params.chatProfile === 'gpt-5-classifier'
-          ? { max_completion_tokens: 700, reasoning_effort: 'minimal' }
-          : { temperature: 0, max_tokens: 700 }),
+          ? { max_completion_tokens: params.maxOutputTokens ?? 700, reasoning_effort: 'minimal' }
+          : { temperature: 0, max_tokens: params.maxOutputTokens ?? 700 }),
       }),
     });
 
