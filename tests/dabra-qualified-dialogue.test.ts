@@ -477,3 +477,39 @@ test('Task217 F2: tighter aggregate policy remains valid for shared classifier a
   const body=await(await post(p,'en',actor(),{message:'Plan my trip'})).json();
   assert.equal(body.provider,'openai');assert.equal(remoteCalls,2);assert.equal(store.reservations.length,2);
 });
+
+const stayRequiredCases = [
+  { name:'dates', prior:{ en:'I need a hotel in Cairo', ar:'أحتاج فندق في القاهرة' }, question:{ en:'What are your start and end dates?', ar:'وش تاريخ البداية والنهاية؟' } },
+  { name:'city', prior:{ en:'I need a hotel', ar:'أحتاج فندق' }, question:{ en:'Which city do you need the service in?', ar:'في أي مدينة تحتاج الخدمة؟' } },
+  { name:'guests', prior:{ en:'I need a hotel in Cairo from 2026-11-01 to 2026-11-03', ar:'أحتاج فندق في القاهرة من 2026-11-01 إلى 2026-11-03' }, question:{ en:'How many guests are travelling?', ar:'كم عدد الضيوف؟' } },
+  { name:'ambiguous destination', prior:{ en:'I need a hotel: Cairo or Giza', ar:'أحتاج فندق: القاهرة أو الجيزة' }, question:{ en:'Which city is your Stay destination? Specify the destination and departure city separately.', ar:'أي مدينة تقصد للإقامة؟ حدّد الوجهة ومدينة المغادرة بشكل منفصل.' } },
+];
+for (const scenario of stayRequiredCases) for (const locale of ['ar','en'] as const) for (const stream of [false,true]) test('Task217 Stay P2: ' + scenario.name + ' required Core question survives general follow-up, ' + locale + ', stream=' + stream, async()=>{
+  const message=locale==='ar'?'خليه أهدأ.':'Make it quieter.', history=[{role:'user',content:scenario.prior[locale]}];
+  const noRemotePolicy={...policy('openai',locale),profiles:[],freeProofs:[],admission:undefined};
+  const core=await(await post(noRemotePolicy,locale,actor(),{message,history})).json();
+  assert.ok(core.answer.includes(scenario.question[locale]),'baseline Core must actually issue the required question for this fixture');
+  assert.equal(remoteCalls,0);
+  globalThis.fetch=async(url,init)=>{
+    remoteCalls++; const {data}=requestData(init);assert.ok(data.general,'general advice remains enabled');
+    return responseFor(String(url),JSON.stringify({kind:'general-travel',advice:advice[locale][1]}));
+  };
+  const response=await post(policy('openai',locale),locale,actor(),{message,history,stream});
+  assert.equal(response.status,200);
+  const body=stream?null:await response.json(),answer=stream?await response.text():body.answer;
+  assert.equal(answer,advice[locale][1]+'\n\n'+scenario.question[locale]);
+  assert.equal(remoteCalls,1);
+  assert.doesNotMatch(answer,/Search hotels inside Stay|ابحث عن الفنادق داخل Stay|family=dir3-stay|marketplace/);
+  if(body){assert.deepEqual(body.sources,core.sources);assert.equal(body.agent.mutations,0);assert.equal(body.groundingStatus,'answered-general');}
+});
+
+for(const locale of ['ar','en'] as const)test('Task217 Stay P2: general advice without active service does not force service-selection question, '+locale,async()=>{
+  globalThis.fetch=async(url,init)=>{
+    remoteCalls++;const {data}=requestData(init);assert.ok(data.general);
+    return responseFor(String(url),JSON.stringify({kind:'general-travel',advice:advice[locale][0]}));
+  };
+  const message=locale==='ar'?'كيف أجهز حقيبة السفر؟':'What should I pack for travel?';
+  const body=await(await post(policy('openai',locale),locale,actor(),{message,history:[]})).json();
+  assert.equal(body.answer,advice[locale][0]);assert.deepEqual(body.sources,[]);assert.equal(remoteCalls,1);
+  assert.doesNotMatch(body.answer,/Which service do you need|وش الخدمة اللي تحتاجها|family=dir3-stay|marketplace/);
+});
