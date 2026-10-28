@@ -86,3 +86,16 @@ export function dialogueCostCeilingMicros(proof: DialogueFundingProof, profile: 
     && cost / 1000000 <= m.costCeilingUsd ? cost : null;
 }
 export function validFundingRequestIdentity(binding: DialogueFundingBinding) { return uuid.test(binding.requestId); }
+
+/** Validate persisted pilot limits without supplying active defaults for malformed server data. */
+export function validFundingDailyLimits(value: unknown, inputCeiling: number, outputCeiling: number): value is DialogueDailyLimits {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== 7) return false;
+  const {uniqueUsers,requestsPerUser,requestsTotal,inputTokensPerUser,outputTokensPerUser,inputTokensTotal,outputTokensTotal} = value as Record<string, unknown>;
+  const positive = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n > 0;
+  return positive(uniqueUsers) && positive(requestsPerUser) && positive(requestsTotal)
+    && positive(inputTokensPerUser) && positive(outputTokensPerUser) && positive(inputTokensTotal) && positive(outputTokensTotal)
+    && uniqueUsers <= 20 && requestsPerUser <= 6 && requestsTotal <= 60 && requestsTotal <= uniqueUsers * requestsPerUser
+    && inputTokensTotal <= 245760 && outputTokensTotal <= 61440
+    && inputTokensPerUser <= requestsPerUser * inputCeiling && outputTokensPerUser <= requestsPerUser * outputCeiling
+    && inputTokensTotal <= requestsTotal * inputCeiling && outputTokensTotal <= requestsTotal * outputCeiling;
+}

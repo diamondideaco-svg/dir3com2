@@ -4,7 +4,7 @@ import { supabaseAdmin } from '../supabase/server';
 import { AGENT_PROVIDER_IDS, type AgentCapabilityProfile } from './agent-capabilities';
 import { PUBLIC_DIALOGUE_DAILY_LIMITS, type AgentDialoguePolicy } from './agent-dialogue';
 import type { AgentContext } from './agent-contract';
-import type { DialogueFundingProof, FundedDialogueReservation, FundingDialogueAdmission } from './dialogue-funding';
+import { validFundingDailyLimits, type DialogueFundingProof, type FundedDialogueReservation, type FundingDialogueAdmission } from './dialogue-funding';
 
 export type FundingRpc = (name: string, params: Record<string, unknown>, signal: AbortSignal) =>
   Promise<{ data: unknown; error: unknown }>;
@@ -81,8 +81,9 @@ export async function loadFundingDialoguePolicy(context?: AgentContext, signal?:
     const { data, error } = await Promise.race([rpc('get_dabra_dialogue_funding_policy', { p_subject_hash: fundingSubject(actor.actorId) }, bounded), stopped])
       .finally(() => { if (stop) bounded.removeEventListener('abort', stop); });
     if (bounded.aborted || error || !object(data) || data.enabled !== true || !Array.isArray(data.profiles)
-      || !Array.isArray(data.proofs) || !integer(data.maxCostMicros) || !await context.isTaskAuthorityCurrent()) return base;
-    return { ...base, profiles: data.profiles.filter(profile),
+      || !Array.isArray(data.proofs) || !integer(data.maxCostMicros)
+      || !validFundingDailyLimits(data.dailyLimits,base.limits.maxInputTokens,base.limits.maxOutputTokens) || !await context.isTaskAuthorityCurrent()) return base;
+    return { ...base, daily: Object.freeze({...data.dailyLimits}), profiles: data.profiles.filter(profile),
       limits: { ...base.limits, maxCostUsd: data.maxCostMicros / 1000000 },
       funding: { kind: 'existing-credit-v2', requestId: base.funding!.requestId, proofs: data.proofs.filter(proof),
         admission: base.funding!.admission } };

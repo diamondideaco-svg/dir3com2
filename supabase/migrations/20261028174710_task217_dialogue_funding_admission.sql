@@ -9,7 +9,7 @@ CREATE SCHEMA IF NOT EXISTS private;
 CREATE TABLE private.dabra_dialogue_funding_control (
   singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
   enabled boolean NOT NULL DEFAULT false,
-  subject_hashes text[] NOT NULL DEFAULT '{}',
+  subject_hashes text[] NOT NULL DEFAULT '{}' CHECK (cardinality(subject_hashes)<=20 AND subject_hashes::text ~ '^[{]([a-f0-9]{64}(,[a-f0-9]{64})*)?[}]$'),
   profiles jsonb NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(profiles)='array'),
   max_attempt_cost_micros bigint NOT NULL DEFAULT 0 CHECK (max_attempt_cost_micros BETWEEN 0 AND 9007199254740991),
   daily_limits jsonb NOT NULL DEFAULT '{"uniqueUsers":10,"requestsPerUser":6,"requestsTotal":60,"inputTokensPerUser":24576,"outputTokensPerUser":6144,"inputTokensTotal":245760,"outputTokensTotal":61440}'::jsonb
@@ -83,9 +83,9 @@ DECLARE c private.dabra_dialogue_funding_control%ROWTYPE; proofs jsonb;
 BEGIN
   IF p_subject_hash IS NULL OR p_subject_hash !~ '^[a-f0-9]{64}$' THEN RETURN NULL; END IF;
   SELECT * INTO c FROM private.dabra_dialogue_funding_control WHERE singleton=true;
-  IF NOT FOUND OR NOT c.enabled OR NOT(p_subject_hash=ANY(c.subject_hashes)) THEN RETURN NULL; END IF;
+  IF NOT FOUND OR NOT c.enabled OR (p_subject_hash=ANY(c.subject_hashes)) IS NOT TRUE THEN RETURN NULL; END IF;
   SELECT coalesce(jsonb_agg(g.proof),'[]'::jsonb) INTO proofs FROM private.dabra_dialogue_funding_grants g WHERE g.enabled;
-  RETURN jsonb_build_object('enabled',true,'profiles',c.profiles,'proofs',proofs,'maxCostMicros',c.max_attempt_cost_micros);
+  RETURN jsonb_build_object('enabled',true,'profiles',c.profiles,'proofs',proofs,'maxCostMicros',c.max_attempt_cost_micros,'dailyLimits',c.daily_limits);
 END $$;
 
 CREATE FUNCTION public.reserve_dabra_dialogue_attempt(
@@ -116,7 +116,7 @@ BEGIN
  IF p_day_start_ms IS DISTINCT FROM v_day OR EXISTS(SELECT 1 FROM private.dabra_dialogue_admissions WHERE attempt_id=p_attempt_id) THEN
   RETURN jsonb_build_object('decision','denied'); END IF;
  SELECT * INTO c FROM private.dabra_dialogue_funding_control WHERE singleton=true FOR SHARE;
- IF NOT FOUND OR NOT c.enabled OR NOT(p_subject_hash=ANY(c.subject_hashes)) OR p_limits IS DISTINCT FROM c.daily_limits
+ IF NOT FOUND OR NOT c.enabled OR (p_subject_hash=ANY(c.subject_hashes)) IS NOT TRUE OR p_limits IS DISTINCT FROM c.daily_limits
   OR p_cost_micros>c.max_attempt_cost_micros THEN RETURN jsonb_build_object('decision','denied'); END IF;
  -- Server-stored limits are bounded again here; no caller can widen them.
  IF (p_limits->>'uniqueUsers')::integer NOT BETWEEN 1 AND 20

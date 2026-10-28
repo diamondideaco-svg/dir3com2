@@ -59,7 +59,9 @@ export const DEFAULT_AGENT_DIALOGUE_POLICY: AgentDialoguePolicy = Object.freeze(
 });
 // New server-only opt-in is unset by default. This source change sets no environment values.
 export async function getAgentDialoguePolicy(context?: AgentContext, signal?: AbortSignal): Promise<AgentDialoguePolicy> {
-  if (process.env.DABRA_DIALOGUE_FUNDING_POLICY !== 'task217-existing-credit-v2') return DEFAULT_AGENT_DIALOGUE_POLICY;
+  const mode = process.env.DABRA_DIALOGUE_FUNDING_POLICY?.trim();
+  if (!mode) return DEFAULT_AGENT_DIALOGUE_POLICY;
+  if (mode !== 'task217-existing-credit-v2') return Object.freeze({...DEFAULT_AGENT_DIALOGUE_POLICY, trial: true});
   const { loadFundingDialoguePolicy } = await import('./dialogue-funding-store');
   return loadFundingDialoguePolicy(context, signal);
 }
