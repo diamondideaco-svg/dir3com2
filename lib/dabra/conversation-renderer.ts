@@ -1,5 +1,12 @@
 import { AI2_DABRA_CONVERSATION_COPY, AI2_DABRA_PROMPT_VERSION } from '../ai2/prompt/contract';
 
+/* Server-only metadata survives object spread; JSON wire serialization ignores symbol keys. */
+export const CORE_REQUIRED_DIALOGUE_UNITS = Symbol('dabra-core-required-dialogue-units');
+export function coreRequiredDialogueUnits(reply: object): readonly string[] {
+  const units: unknown = Reflect.get(reply, CORE_REQUIRED_DIALOGUE_UNITS);
+  return Array.isArray(units) && units.every((unit: unknown): unit is string => typeof unit === 'string') ? units : [];
+}
+
 export type ReplyLocale = 'ar' | 'en';
 export type ReplyTurn = { role: 'user' | 'assistant'; content: string };
 /** Constructed by server tools only, never from provider or history assertions. */

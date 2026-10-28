@@ -1,4 +1,5 @@
 import 'server-only';
+import { coreRequiredDialogueUnits } from './conversation-renderer';
 import { generalTravelContext, GENERAL_TRAVEL_PROMPT } from './agent-general-travel';
 import { APPROVED_AGENT_CAPABILITY_PROFILES, selectQualifiedAgentCapability, type AgentCapabilityProfile, type AgentProviderId, type CapabilityMeasurement } from './agent-capabilities';
 import { agentIntent, type AgentTaskLimits, type AgentContext } from './agent-contract';
@@ -66,7 +67,9 @@ function validPolicy(policy: AgentDialoguePolicy) {
     && Number.isSafeInteger(l.maxElapsedMs) && Number.isSafeInteger(l.maxInputTokens) && l.maxInputTokens > 0 && l.maxInputTokens <= 4096
     && Number.isSafeInteger(l.maxOutputTokens) && l.maxOutputTokens > 0 && l.maxOutputTokens <= 1024
     && Object.values(d).every(n => Number.isSafeInteger(n) && n > 0)
-    && d.uniqueUsers <= 20 && d.requestsPerUser <= 6 && d.requestsTotal <= d.uniqueUsers * d.requestsPerUser
+    && d.uniqueUsers <= 20 && d.requestsPerUser <= 6 && d.requestsTotal <= PUBLIC_DIALOGUE_DAILY_LIMITS.requestsTotal
+    && d.inputTokensTotal <= PUBLIC_DIALOGUE_DAILY_LIMITS.inputTokensTotal && d.outputTokensTotal <= PUBLIC_DIALOGUE_DAILY_LIMITS.outputTokensTotal
+    && d.requestsTotal <= d.uniqueUsers * d.requestsPerUser
     && d.inputTokensPerUser <= d.requestsPerUser * l.maxInputTokens && d.outputTokensPerUser <= d.requestsPerUser * l.maxOutputTokens
     && d.inputTokensTotal <= d.requestsTotal * l.maxInputTokens && d.outputTokensTotal <= d.requestsTotal * l.maxOutputTokens;
 }
@@ -91,7 +94,7 @@ export type PreparedAgentAttempt = Readonly<{
   signal: AbortSignal; isCurrent: () => Promise<boolean>;
 }>;
 export type PreparedPublicDialogue = PreparedAgentAttempt & Readonly<{
-  units: readonly string[]; mode: 'core-composition' | 'general-travel';
+  units: readonly string[]; requiredUnits: readonly string[]; mode: 'core-composition' | 'general-travel';
 }>;
 export async function prepareAgentProviderAttempt(context: AgentContext, locale: 'ar' | 'en', policy: AgentDialoguePolicy,
   request: { capability: 'discover' | 'intent.classify'; provider?: AgentProviderId; message: string; prompt: string; inputDigestValue: unknown },
@@ -142,7 +145,7 @@ export async function preparePublicAgentDialogue(input: Input, core: Reply, poli
   const prepared = await prepareAgentProviderAttempt(input.context, input.locale, policy, {
     capability: 'discover', message: JSON.stringify(payload), prompt: general ? GENERAL_TRAVEL_PROMPT : AGENT_DIALOGUE_PROMPT, inputDigestValue: payload,
   }, deadlineAtMs, signal);
-  return prepared ? { ...prepared, units, mode: general ? 'general-travel' : 'core-composition' } : null;
+  return prepared ? { ...prepared, units, requiredUnits: coreRequiredDialogueUnits(core), mode: general ? 'general-travel' : 'core-composition' } : null;
 }
 export function composePublicAgentDialogue(answer: string, units: readonly string[], locale: 'ar' | 'en'): string | null {
   if (answer.length > 4096) return null;

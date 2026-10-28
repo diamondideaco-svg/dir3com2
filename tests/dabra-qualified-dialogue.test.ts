@@ -414,3 +414,66 @@ test('Gemini total output includes thought tokens before admitting a generated a
   const body = await (await post(policy('gemini','en',store))).json();
   assert.equal(body.provider, 'local'); assert.equal(remoteCalls, 1); assert.equal(store.reservations.length, 1);
 });
+
+const securityFormats = [
+  { name: 'bare credential assignments and Bearer header', text: 'Authorization: Bearer SYNTHETIC_BEARER_VALUE password=SYNTHETIC_PASSWORD_VALUE api_key=SYNTHETIC_APIKEY_VALUE client_secret=SYNTHETIC_CLIENTSECRET_VALUE' },
+  { name: 'quoted mixed-case assignments', text: 'authorization = Bearer SYNTHETIC_BEARER_VALUE "Password": "SYNTHETIC_PASSWORD_VALUE" API-KEY = \'SYNTHETIC_APIKEY_VALUE\' "client_secret": "SYNTHETIC_CLIENTSECRET_VALUE"' },
+];
+for (const format of securityFormats) for (const stream of [false,true]) test('Task217 security redaction: ' + format.name + ', stream=' + stream + ', actual classifier AND answer payloads', async () => {
+  const forbidden = ['SYNTHETIC_BEARER_VALUE','SYNTHETIC_PASSWORD_VALUE','SYNTHETIC_APIKEY_VALUE','SYNTHETIC_CLIENTSECRET_VALUE'];
+  let classifierSeen = 0, answerSeen = 0;
+  const safeAdvice = 'Pack a light bag with water and a spare layer. Keep your family day flexible and leave room for rest. What pace would you prefer?';
+  globalThis.fetch = async (url, init) => {
+    remoteCalls++;
+    const body = JSON.parse(String(init?.body)), content = String(body.messages?.at(-1)?.content);
+    for (const marker of forbidden) assert.equal(content.includes(marker), false, 'known credential value survived the shared redaction boundary');
+    if (String(body.messages?.[0]?.content).startsWith('Classify a DIR3COM')) {
+      classifierSeen++; return responseFor(String(url), '{"tool":"discover"}');
+    }
+    answerSeen++; const data = JSON.parse(content);
+    assert.equal(typeof data.general.question, 'string'); assert.match(data.general.question, /pack/);
+    return responseFor(String(url), JSON.stringify({ kind: 'general-travel', advice: safeAdvice }));
+  };
+  const response = await post(withClassifier(policy()), 'en', actor(), { message: 'What should I pack for a family day? ' + format.text, stream });
+  assert.equal(response.status, 200);
+  if (stream) assert.equal(await response.text(), safeAdvice);
+  else { const body = await response.json(); assert.equal(body.answer, safeAdvice); assert.equal(body.groundingStatus, 'answered-general'); }
+  assert.equal(classifierSeen, 1); assert.equal(answerSeen, 1); assert.equal(remoteCalls, 2);
+});
+
+for (const locale of ['ar','en'] as const) for (const stream of [false,true]) test('Task217 F1: general follow-up retains trusted Core Drive summary and required question, ' + locale + ', stream=' + stream, async () => {
+  const history = [{ role: 'user', content: messages[locale] }];
+  const message = locale === 'ar' ? 'خليه أهدأ.' : 'Make it quieter.';
+  const coreResponse = await post(undefined, locale, actor(), { message, history });
+  const core = await coreResponse.json();
+  assert.match(core.answer, locale === 'ar' ? /تاريخا بدء|تاريخ.*انته/ : /pickup and return dates/);
+  assert.equal(remoteCalls, 0);
+  globalThis.fetch = async (url,init) => {
+    remoteCalls++; const { data } = requestData(init);
+    assert.ok(data.general, 'general guidance must remain available, not disabled for an active journey');
+    return responseFor(String(url), JSON.stringify({ kind: 'general-travel', advice: advice[locale][1] }));
+  };
+  const response = await post(policy('openai',locale), locale, actor(), { message, history, stream });
+  const body = stream ? null : await response.json(), answer = stream ? await response.text() : body.answer;
+  assert.ok(answer.startsWith(advice[locale][1])); assert.ok(answer.endsWith(core.answer));
+  assert.match(answer,/5/); assert.match(answer,/3/); assert.equal(remoteCalls,1);
+  if (body) { assert.deepEqual(body.sources,core.sources); assert.equal(body.agent.mutations,0); }
+});
+for (const [name,change] of [
+  ['61 aggregate requests',{ requestsTotal:61 }],
+  ['aggregate input over cap',{ inputTokensTotal:245761 }],
+  ['aggregate output over cap',{ outputTokensTotal:61441 }],
+] as const) test('Task217 F2: ' + name + ' rejected before shared admission even with 20 users', async () => {
+  let admissions=0; const base=withClassifier(policy('openai','en',{ reserve:async()=>{admissions++;return 'admitted';} }));
+  const p={...base,profiles:base.profiles.map(row=>({...row,measurement:{...row.measurement,inputTokenCeiling:2048}})),daily:{...base.daily,uniqueUsers:20,...change}};
+  globalThis.fetch=classifiedFetch;
+  const body=await(await post(p,'en',actor(),{message:'Plan my trip'})).json();
+  assert.equal(body.provider,'local');assert.equal(remoteCalls,0);assert.equal(admissions,0);
+});
+test('Task217 F2: tighter aggregate policy remains valid for shared classifier and answer',async()=>{
+  const store=new SyntheticAdmission(),base=withClassifier(policy('openai','en',store));
+  const p={...base,daily:{...base.daily,requestsPerUser:2,requestsTotal:2,inputTokensPerUser:8192,outputTokensPerUser:2048,inputTokensTotal:8192,outputTokensTotal:2048}};
+  globalThis.fetch=classifiedFetch;
+  const body=await(await post(p,'en',actor(),{message:'Plan my trip'})).json();
+  assert.equal(body.provider,'openai');assert.equal(remoteCalls,2);assert.equal(store.reservations.length,2);
+});

@@ -314,7 +314,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
             ? parseGeneralTravelAdvice(reply.answer, input.locale)
             : composePublicAgentDialogue(reply.answer, plan.units, input.locale);
           if (answer) composed = plan.mode === 'general-travel'
-            ? { ...result.output, answer, sources: [], groundingStatus: 'answered-general', retrievalMode: 'qualified-dialogue',
+            ? { ...result.output, answer: [answer, ...plan.requiredUnits].join('\n\n'), sources: plan.requiredUnits.length ? result.output.sources : [], groundingStatus: 'answered-general', retrievalMode: 'qualified-dialogue',
               provider: destination.provider, agent: { ...result.output.agent, state: 'general_guidance' } }
             : { ...result.output, answer, provider: destination.provider };
         }

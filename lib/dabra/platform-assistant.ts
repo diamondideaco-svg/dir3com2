@@ -1,6 +1,6 @@
 import { AI2_DABRA_CONVERSATION_COPY } from '../ai2/prompt/contract';
 import { driveQuantities, driveDialogue, driveDialogueCopy, bareDriveParty, dateWithdrawalIndex } from './drive-planning';
-import { conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
+import { CORE_REQUIRED_DIALOGUE_UNITS, conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
 import { DRIVE_OFFERS, vehicleFor, vehicleTitle, type DriveOffer } from '../drive/catalog';
 import { serviceEntryHref } from '../marketplace/public-entry';
 import { cairoInstant } from '../drive/search';
@@ -247,6 +247,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
   const drivePlan = platformDriveDialogue({ message, history, context, trip });
   const link = serverReplyLink;
   const lines = serverReplySegments();
+  const requiredUnits: string[] = [];
   const smallTalk = familyOverride ? null : conversationReply(message, history, locale);
   if (smallTalk) lines.push(smallTalk);
   else if (/cancel|refund|الغاء|الغي|استرد|حجوزاتي|طلباتي|my requests|my bookings|حاله طلبي|حالة الطلب/.test(current)) {
@@ -262,7 +263,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
         if (drivePlan) {
           const copy = driveDialogueCopy(drivePlan, locale);
           lines.push(copy.summary);
-          if (copy.question) { lines.push(copy.question); continue; }
+          if (copy.question) { requiredUnits.push(copy.summary, copy.question); lines.push(copy.question); continue; }
           if (drivePlan.driver === 'without' || drivePlan.budget?.kind === 'amount' && drivePlan.budget.basis === 'trip') {
             lines.push(ar ? 'الكتالوج هنا لخدمات بسائق وأسعار يومية، وليس تأكيدًا لخدمة بدون سائق أو إجمالي الرحلة. تؤكد عمليات مصر التفاصيل حسب متطلباتك.' : 'This catalogue lists chauffeured daily rates. It does not confirm a self-drive service or a trip total. Egypt Operations must verify those requirements.', link(ar ? 'مراجعة متطلبات السيارة' : 'Review car requirements', href));
             continue;
@@ -315,5 +316,5 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
       }
     }
   }
-  return { answer: renderServerReply(lines.segments, locale, message), sources: [{ sourceId: 'dir3com-platform', sourceName: 'dir3com catalogue and service journeys', sourceType: 'internal' as const }], language: locale, groundingStatus: 'grounded' as const, provider: 'local' as const, retrievalMode: 'internal-catalog' as const };
+  return { [CORE_REQUIRED_DIALOGUE_UNITS]: Object.freeze(requiredUnits), answer: renderServerReply(lines.segments, locale, message), sources: [{ sourceId: 'dir3com-platform', sourceName: 'dir3com catalogue and service journeys', sourceType: 'internal' as const }], language: locale, groundingStatus: 'grounded' as const, provider: 'local' as const, retrievalMode: 'internal-catalog' as const };
 }
