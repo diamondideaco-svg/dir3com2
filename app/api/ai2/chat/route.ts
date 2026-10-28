@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
     agentContext = await resolveAgentContext(request);
   }
   const context = platformContext(modelMessage, history, trip);
-  const dialoguePolicy = getAgentDialoguePolicy();
+  const dialoguePolicy = await getAgentDialoguePolicy(agentContext, request.signal);
   let understanding: string = 'internal-rules';
   let understandingProvider: string | undefined;
   let needsClarification = false;

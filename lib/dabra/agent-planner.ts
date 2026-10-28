@@ -65,7 +65,7 @@ export async function planInternalAgentTool(message: string, observation?: Class
       const startedAtMs = Date.now();
       const result = await callInternalAgentProvider(provider, config, outgoing, { prompt: classifierPrompt, language: 'en', classifier: true,
         timeoutMs: Math.min(6000, Math.max(1, (permit?.deadlineAtMs ?? deadline) - Date.now())),
-        ...(permit ? { signal: permit.signal, maxOutputTokens: permit.profile.measurement.outputTokenCeiling } : {}) });
+        ...(permit ? { signal: permit.signal, maxOutputTokens: permit.profile.measurement.outputTokenCeiling, standardBilling: permit.standardBilling } : {}) });
       const completedAtMs = Date.now();
       let tool: AgentTool | null = null;
       if (result.ok && (!permit || (await permit.isCurrent() && result.model === config.model

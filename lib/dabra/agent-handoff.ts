@@ -304,7 +304,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
         const m = destination.measurement;
         const reply = await callInternalAgentProvider(destination.provider, config, plan.message, {
           prompt: plan.prompt, language: input.locale, timeoutMs: Math.max(1, task.deadlineAtMs - Date.now()),
-          maxOutputTokens: m.outputTokenCeiling, signal,
+          maxOutputTokens: m.outputTokenCeiling, signal, standardBilling: plan.standardBilling,
         });
         if (reply.ok && reply.model === m.model && reply.citations.length === 0
           && Number.isSafeInteger(reply.inputTokens) && Number.isSafeInteger(reply.outputTokens)

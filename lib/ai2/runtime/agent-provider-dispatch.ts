@@ -8,10 +8,10 @@ import { AGENT_TOOLS } from '../../dabra/agent-contract';
 /** Shared existing seven transports. One attempt, fixed endpoints, no search/discovery. */
 export async function callInternalAgentProvider(provider: AgentProviderId, config: { apiKey: string; model: string }, message: string, options: {
   prompt: string; language: 'ar' | 'en'; timeoutMs: number; signal?: AbortSignal; maxOutputTokens?: number;
-  classifier?: boolean;
+  classifier?: boolean; standardBilling?: boolean;
 }) {
   if (options.signal?.aborted) return { ok: false, answer: '', citations: [], errorCategory: 'timeout' as const, model: config.model };
-  const common = { ...config, message: options.classifier ? message.slice(0, 500) : message, prompt: options.prompt, timeoutMs: options.timeoutMs, singleAttempt: true,
+  const common = { ...config, message: options.classifier ? message.slice(0, 500) : message, prompt: options.prompt, timeoutMs: options.timeoutMs, singleAttempt: true, standardBilling: options.standardBilling,
     ...(options.signal ? { signal: options.signal } : {}),
     ...(options.maxOutputTokens !== undefined ? { maxOutputTokens: options.maxOutputTokens } : {}) };
   if (provider === 'gemini') return callGeminiGoogleSearch({ ...common, language: options.language, webSearch: false });

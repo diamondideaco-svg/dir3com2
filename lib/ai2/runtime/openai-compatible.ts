@@ -42,6 +42,7 @@ export type OpenAICompatibleParams = {
   // Optional task controls; omitted callers retain their existing behavior.
   signal?: AbortSignal;
   maxOutputTokens?: number;
+  standardBilling?: boolean;
   responseJsonSchema?: { name: string; schema: Record<string, unknown> };
 };
 
@@ -346,6 +347,7 @@ async function callChatCompletions(
       signal: params.signal ? AbortSignal.any([controller.signal, params.signal]) : controller.signal,
       body: JSON.stringify({
         model,
+        ...(params.standardBilling && params.providerName === 'openai' ? { service_tier: 'default' } : {}),
         messages: [
           { role: 'system', content: params.prompt },
           { role: 'user', content: params.message },

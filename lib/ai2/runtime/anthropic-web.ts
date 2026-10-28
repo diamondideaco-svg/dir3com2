@@ -52,6 +52,7 @@ type AnthropicWebCallParams = {
   // Optional task controls; omitted callers retain their existing behavior.
   signal?: AbortSignal;
   maxOutputTokens?: number;
+  standardBilling?: boolean;
   singleAttempt?: boolean;
 };
 
@@ -219,7 +220,7 @@ async function callAnthropicOnce(
   prompt: string,
   message: string,
   timeoutMs: number,
-  controls?: Pick<AnthropicWebCallParams, 'signal' | 'maxOutputTokens'>,
+  controls?: Pick<AnthropicWebCallParams, 'signal' | 'maxOutputTokens' | 'standardBilling'>,
 ): Promise<AnthropicWebCallResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -237,6 +238,7 @@ async function callAnthropicOnce(
       body: JSON.stringify({
         model,
         max_tokens: controls?.maxOutputTokens ?? 700,
+        ...(controls?.standardBilling ? { service_tier: 'standard_only' } : {}),
         system: prompt,
         messages: [{ role: 'user', content: message }],
       }),
