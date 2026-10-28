@@ -207,3 +207,16 @@ test('native HTML UUID pattern and actual submit both accept uppercase valid sel
   assert.equal(f.calls.length, 1);
   assert.equal(JSON.parse(String(f.calls[0].options.body)).requestId, uppercase);
 });
+
+test('server-rendered native form uses POST and never defaults selectors into a GET query before hydration', () => {
+  const f = fixture(); f.fill();
+  for (const locale of ['ar', 'en'] as const) {
+    f.locale(locale);
+    const form = elements(f.render()).find(node => node.type === 'form'); assert.ok(form);
+    assert.equal(form.props.method, 'post');
+    assert.equal(form.props.action, undefined, 'native fallback stays on the page, not the dispatch API');
+    assert.match(f.html(), /<form\b[^>]*\bmethod="post"/);
+    assert.equal(elements(f.render()).some(node => node.props.formMethod || node.props.formAction), false);
+    assert.equal(f.calls.length, 0, 'server rendering without the submit handler never calls the dispatch API');
+  }
+});

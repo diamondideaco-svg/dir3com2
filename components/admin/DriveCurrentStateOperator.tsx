@@ -96,7 +96,7 @@ export default function DriveCurrentStateOperator() {
     <section className="min-w-0 space-y-5" dir={ar ? 'rtl' : 'ltr'} aria-labelledby={id + '-title'}>
       <h1 id={id + '-title'} className="text-2xl font-semibold">{ar ? 'إرسال إشعار حالة الطلب المعتمد' : 'Send an approved request-state notice'}</h1>
       <p className="break-words text-sm">{ar ? 'أدخل معرّفات الهدف المهيّأ مسبقًا. الصلاحية والوجهة والمهلة تُتحقق على الخادم عند الإرسال. هذه الشاشة لا تنشئ طلبًا أو نافذة إرسال أو حجزًا.' : 'Enter the selectors of the already-prepared target. The server verifies authority, destination and expiry when sending. This screen does not create a request, sending window or booking.'}</p>
-      <form onSubmit={submit} aria-busy={state.kind === 'submitting'} autoComplete="off">
+      <form method="post" onSubmit={submit} aria-busy={state.kind === 'submitting'} autoComplete="off">
         <fieldset disabled={locked} className="grid min-w-0 gap-4 border-0 p-0">
           <legend className="sr-only">{ar ? 'الهدف المهيّأ مسبقًا' : 'Already-prepared target'}</legend>
           {ids.map(({ field, ar: arLabel, en }) => (
