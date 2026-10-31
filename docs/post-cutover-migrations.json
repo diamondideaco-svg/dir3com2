@@ -118,5 +118,11 @@
     "sha256": "98a6d32b471018d7cc2ffc661092baef90d4cca4170d4df55252ebc90d71c521",
     "task": "#166",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261028174710_task217_dialogue_funding_admission.sql",
+    "sha256": "520cb58d4c770aecd77915397ae0d9d5cb6f6613867fd40712b50ab68c48d9a8",
+    "task": "#217",
+    "production_apply_authorized": false
   }
 ]
