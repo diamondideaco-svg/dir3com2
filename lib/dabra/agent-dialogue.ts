@@ -101,7 +101,7 @@ function matchesProof(proof: FreeDialogueProof, profile: AgentCapabilityProfile,
 export type PreparedAgentAttempt = Readonly<{
   profile: AgentCapabilityProfile; credentialSha256: string; limits: AgentTaskLimits; standardBilling?: boolean;
   message: string; prompt: string; inputDigestValue: unknown; deadlineAtMs: number;
-  signal: AbortSignal; isCurrent: () => Promise<boolean>;
+  signal: AbortSignal; isCurrent: () => Promise<boolean>; isReadyToDispatch: () => boolean;
 }>;
 export type PreparedPublicDialogue = PreparedAgentAttempt & Readonly<{
   units: readonly string[]; requiredUnits: readonly string[]; mode: 'core-composition' | 'general-travel';
@@ -128,11 +128,17 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
     proof.expiresAtMs, proof.quotaWindowEndMs, dialogueDay(now).dayEndMs));
   if (end <= now) return null;
   const bounded = AbortSignal.any([AbortSignal.timeout(end - now), ...(signal ? [signal] : [])]);
-  const current = async () => !bounded.aborted && Date.now() < end && (fundingProof ? fundingProofCurrent(fundingProof, profile, Date.now()) && dialogueCostCeilingMicros(fundingProof, profile, Date.now()) !== null : matchesProof(proof as FreeDialogueProof, profile, policy, Date.now()))
-    && await context.isTaskAuthorityCurrent!();
+  const isReadyToDispatch = () => {
+    const at = Date.now();
+    return !bounded.aborted && at < end && (fundingProof
+      ? fundingProofCurrent(fundingProof, profile, at) && dialogueCostCeilingMicros(fundingProof, profile, at) !== null
+      : matchesProof(proof as FreeDialogueProof, profile, policy, at));
+  };
+  const current = async () => isReadyToDispatch() && await context.isTaskAuthorityCurrent!() && isReadyToDispatch();
   try {
-    if (!await current()) return null;
-    const costMicros = fundingProof ? dialogueCostCeilingMicros(fundingProof, profile, now) : null;
+    if (!await current() || !isReadyToDispatch()) return null;
+    const costMicros = fundingProof ? dialogueCostCeilingMicros(fundingProof, profile, Date.now()) : null;
+    if (fundingProof && costMicros === null) return null;
     const attemptId = randomUUID();
     const reservation = funded && fundingProof && costMicros !== null
       ? funded.admission.reserve({ policyId: 'task217-existing-credit-v2', attemptId, requestId: funded.requestId, stage: request.capability,
@@ -148,9 +154,9 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
       if (bounded.aborted) resolve('denied');
       else bounded.addEventListener('abort', () => resolve('denied'), { once: true });
     });
-    if (await Promise.race([reservation, stopped]) !== 'admitted' || !await current()) return null;
+    if (await Promise.race([reservation, stopped]) !== 'admitted' || !await current() || !isReadyToDispatch()) return null;
     return { profile, credentialSha256: proof.credentialSha256, limits: policy.limits, standardBilling: fundingProof?.mode === 'existing-credit',
-      ...request, deadlineAtMs: end, signal: bounded, isCurrent: current };
+      ...request, deadlineAtMs: end, signal: bounded, isCurrent: current, isReadyToDispatch };
   } catch { return null; }
 }
 export async function preparePublicAgentDialogue(input: Input, core: Reply, policy: AgentDialoguePolicy, deadlineAtMs: number, signal?: AbortSignal): Promise<PreparedPublicDialogue | null> {

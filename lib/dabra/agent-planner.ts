@@ -63,6 +63,7 @@ export async function planInternalAgentTool(message: string, observation?: Class
       if (governance && (!permit || config.model !== permit.profile.measurement.model
         || createHash('sha256').update(config.apiKey).digest('hex') !== permit.credentialSha256)) return { tool: null, status: 'unavailable', attempts };
       const startedAtMs = Date.now();
+      if (permit && !permit.isReadyToDispatch()) return { tool: null, status: 'unavailable', attempts };
       const result = await callInternalAgentProvider(provider, config, outgoing, { prompt: classifierPrompt, language: 'en', classifier: true,
         timeoutMs: Math.min(6000, Math.max(1, (permit?.deadlineAtMs ?? deadline) - Date.now())),
         ...(permit ? { signal: permit.signal, maxOutputTokens: permit.profile.measurement.outputTokenCeiling, standardBilling: permit.standardBilling } : {}) });

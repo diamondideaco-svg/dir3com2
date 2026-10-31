@@ -302,6 +302,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
       run: async ({ task, signal, destination }) => {
         if (destination.kind !== 'provider' || signal.aborted) throw new Error('task_stopped');
         const m = destination.measurement;
+        if (!plan.isReadyToDispatch()) throw new Error('task_stopped');
         const reply = await callInternalAgentProvider(destination.provider, config, plan.message, {
           prompt: plan.prompt, language: input.locale, timeoutMs: Math.max(1, task.deadlineAtMs - Date.now()),
           maxOutputTokens: m.outputTokenCeiling, signal, standardBilling: plan.standardBilling,
