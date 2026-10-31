@@ -6,6 +6,7 @@ const serverOnlyTests = new Set([
   'dabra-agent-handoff.test.ts',
   'dabra-qualified-dialogue.test.ts',
   'dabra-dialogue-funding.test.ts',
+  'dabra-dialogue-pricing-evidence.test.ts',
   'dabra-dialogue-funding-sql.test.ts',
   'dabra-dialogue-funding-config.test.ts',
   'dabra-agent-task-path.test.ts',

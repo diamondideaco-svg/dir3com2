@@ -1,4 +1,6 @@
 import 'server-only';
+import { createHash } from 'node:crypto';
+import { APPROVED_DIALOGUE_STANDARD_PRICING } from './dialogue-pricing-approvals';
 import type { AgentCapabilityProfile, AgentProviderId, CapabilityMeasurement } from './agent-capabilities';
 import type { DialogueDailyLimits } from './agent-dialogue';
 
@@ -13,7 +15,7 @@ type EvidenceBase = Readonly<{
 export type DialogueFundingProof = EvidenceBase & (
   | Readonly<{ mode: 'existing-credit'; provider: 'openai' | 'anthropic'; currency: 'USD';
       authorizedCreditMicros: number; remainingCreditMicros: number; pricing: 'standard-2026-10-28' | 'synthetic';
-      serviceTier: 'standard'; }>
+      serviceTier: 'standard'; pricingEvidenceSha256?: unknown; }>
   | Readonly<{ mode: 'no-new-charge'; provider: Exclude<AgentProviderId, 'openai' | 'anthropic'>;
       enforcement: 'provider-hard-no-new-charge'; }>
 );
@@ -69,13 +71,44 @@ export function fundingProofCurrent(proof: DialogueFundingProof, profile: AgentC
   return !['openai', 'anthropic'].includes(proof.provider) && proof.mode === 'no-new-charge'
     && proof.enforcement === 'provider-hard-no-new-charge';
 }
+/** A caller can name evidence, but only the compiled server registry can approve it. */
+function reviewedStandardRates(reference: unknown, proof: Extract<DialogueFundingProof, { mode: 'existing-credit' }>, now: number) {
+  if (typeof reference !== 'string' || !digest.test(reference) || !count(now)) return undefined;
+  const matches = APPROVED_DIALOGUE_STANDARD_PRICING.filter(r => r && r.sha256 === reference);
+  if (matches.length !== 1) return undefined;
+  const r = matches[0];
+  if (Object.keys(r).length !== 12 || r.schema !== 'reviewed-standard-pricing-v1'
+    || r.provider !== proof.provider || r.model !== proof.model || typeof r.model !== 'string'
+    || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,99}$/.test(r.model)
+    || r.serviceTier !== 'standard' || r.currency !== 'USD'
+    || !count(r.inputMicrosPerMillion) || !count(r.outputMicrosPerMillion)
+    || (r.inputMicrosPerMillion === 0 && r.outputMicrosPerMillion === 0)
+    || !count(r.observedAtMs) || !count(r.validFromMs) || !count(r.expiresAtMs)
+    || r.observedAtMs > r.validFromMs || r.validFromMs > now || r.expiresAtMs <= now
+    || r.expiresAtMs <= r.validFromMs || r.expiresAtMs - r.observedAtMs > 3600000
+    || typeof r.sourceUrl !== 'string') return undefined;
+  let url: URL;
+  try { url = new URL(r.sourceUrl); } catch { return undefined; }
+  const officialHost = proof.provider === 'openai' ? 'developers.openai.com' : 'platform.claude.com';
+  if (url.protocol !== 'https:' || url.hostname !== officialHost || url.port
+    || url.username || url.password || url.search || url.hash) return undefined;
+  const fingerprint = createHash('sha256').update(JSON.stringify([
+    r.schema, r.provider, r.model, r.serviceTier, r.currency, r.inputMicrosPerMillion, r.outputMicrosPerMillion,
+    r.observedAtMs, r.validFromMs, r.expiresAtMs, r.sourceUrl,
+  ])).digest('hex');
+  return fingerprint === reference ? r : undefined;
+}
 export function dialogueCostCeilingMicros(proof: DialogueFundingProof, profile: AgentCapabilityProfile, now: number): number | null {
   if (!fundingProofCurrent(proof, profile, now)) return null;
   if (proof.mode === 'no-new-charge') return profile.measurement.costCeilingUsd === 0 ? 0 : null;
-  const rates = proof.pricing === 'synthetic' && proof.environment === 'synthetic' && proof.model === 'test-model'
-    ? { inputMicrosPerMillion: 1000000, outputMicrosPerMillion: 2000000 }
-    : proof.pricing === 'standard-2026-10-28' && now >= Date.parse('2026-10-28T00:00:00Z') && now < Date.parse('2026-10-29T00:00:00Z')
-      ? DIALOGUE_STANDARD_RATE_REFERENCES.find(r => r.provider === proof.provider && r.model === proof.model) : undefined;
+  // The old pricing string remains an RPC compatibility tag, not approval of a renewed tariff.
+  // A present but invalid reference never falls back to historical or synthetic rates.
+  const rates = 'pricingEvidenceSha256' in proof
+    ? proof.pricing === 'standard-2026-10-28' ? reviewedStandardRates(proof.pricingEvidenceSha256, proof, now) : undefined
+    : proof.pricing === 'synthetic' && proof.environment === 'synthetic' && proof.model === 'test-model'
+      ? { inputMicrosPerMillion: 1000000, outputMicrosPerMillion: 2000000 }
+      : proof.pricing === 'standard-2026-10-28' && now >= Date.parse('2026-10-28T00:00:00Z') && now < Date.parse('2026-10-29T00:00:00Z')
+        ? DIALOGUE_STANDARD_RATE_REFERENCES.find(r => r.provider === proof.provider && r.model === proof.model) : undefined;
   if (!rates) return null;
   const m = profile.measurement;
   if (!count(m.inputTokenCeiling) || !count(m.outputTokenCeiling)) return null;
