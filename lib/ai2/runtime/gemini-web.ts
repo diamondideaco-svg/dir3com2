@@ -43,6 +43,9 @@ type GeminiWebCallParams = {
   model?: string;
   apiKey: string;
   timeoutMs?: number;
+  // Optional task controls; omitted callers retain their existing behavior.
+  signal?: AbortSignal;
+  maxOutputTokens?: number;
   // Internal intent classification must not invoke web retrieval.
   webSearch?: boolean;
   singleAttempt?: boolean;
@@ -83,7 +86,10 @@ function parseResponse(payload: unknown, status: number, model: string): GeminiW
   const root = payload as Record<string, unknown>;
   const usageMetadata = root.usageMetadata as Record<string, unknown> | undefined;
   const inputTokens = usageMetadata?.promptTokenCount;
-  const outputTokens = usageMetadata?.candidatesTokenCount;
+  const candidateTokens = usageMetadata?.candidatesTokenCount;
+  const thoughtTokens = usageMetadata?.thoughtsTokenCount ?? 0;
+  const outputTokens = typeof candidateTokens === 'number' && Number.isSafeInteger(candidateTokens) && candidateTokens >= 0
+    && typeof thoughtTokens === 'number' && Number.isSafeInteger(thoughtTokens) && thoughtTokens >= 0 ? candidateTokens + thoughtTokens : undefined;
   const usage = {
     ...(typeof inputTokens === 'number' && Number.isSafeInteger(inputTokens) && inputTokens >= 0 ? { inputTokens } : {}),
     ...(typeof outputTokens === 'number' && Number.isSafeInteger(outputTokens) && outputTokens >= 0 ? { outputTokens } : {}),
@@ -151,12 +157,12 @@ async function executeRequest(params: GeminiWebCallParams, model: string, timeou
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': params.apiKey },
       cache: 'no-store',
-      signal: controller.signal,
+      signal: params.signal ? AbortSignal.any([controller.signal, params.signal]) : controller.signal,
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: params.prompt }] },
         contents: [{ role: 'user', parts: [{ text: params.message }] }],
         ...(params.webSearch === false ? {} : { tools: [{ google_search: {} }] }),
-        generationConfig: { maxOutputTokens: 1024 },
+        generationConfig: { maxOutputTokens: params.maxOutputTokens ?? 1024 },
       }),
     });
     const payload = (await response.json().catch(() => null)) as unknown;

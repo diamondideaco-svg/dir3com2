@@ -29,7 +29,7 @@ const quota = (error) => error instanceof Error && 'status' in error && Number.i
   && /^(?:Error response from daemon:\s*)?toomanyrequests: Data limit exceeded\s*$/i.test(error.stderr.trim());
 const repository = (image) => image.slice(0, image.lastIndexOf(':'));
 
-export function ensureSandboxServiceImage(name, { run = docker, pause = sleep, report = (receipt) => console.log('SANDBOX_IMAGE_RECEIPT=' + JSON.stringify(receipt)), reportFailure = (failure) => console.error('SANDBOX_IMAGE_PULL_FAILURE=' + JSON.stringify(failure)) } = {}) {
+export function ensureSandboxServiceImage(name, { run = docker, pause = sleep, report = (receipt) => console.log('SANDBOX_IMAGE_RECEIPT=' + JSON.stringify(receipt)), reportFailure = (failure) => console.error('SANDBOX_IMAGE_PULL_FAILURE=' + JSON.stringify(failure)), reportQuotaEvidence = (evidence) => console.error('SANDBOX_IMAGE_QUOTA_EVIDENCE=' + JSON.stringify(evidence)) } = {}) {
   if (typeof name !== 'string' || !Object.hasOwn(images, name)) throw Error('SANDBOX_IMAGE_UNKNOWN_SERVICE');
   const image = images[name];
   const platform = run(['version', '--format', '{{.Server.Os}}/{{.Server.Arch}}']).trim();
@@ -50,8 +50,34 @@ export function ensureSandboxServiceImage(name, { run = docker, pause = sleep, r
   };
   const receipt = (mode) => report({ status: 'PASS', image: name, mode, platform, digest: pinned ? image.digest : null, identity });
   if (cache()) { receipt('verified-cache'); return image.primary; }
+  const confirmedQuota = (error, source, attempt) => {
+    if (quota(error)) return true;
+    // Reuse GoTrue's native-CLI evidence protocol only for this service's
+    // SAME pinned primary manifest. The translated message alone grants nothing.
+    // https://github.com/moby/moby/blob/464cd50/daemon/containerd/registry_errors.go
+    if (name !== 'postgrest' || !pinned || source !== image.primary || !(error instanceof Error)
+      || !Number.isInteger(error.status) || error.status <= 0 || error.code != null || error.signal != null
+      || typeof error.stderr !== 'string'
+      || !/^(?:Error response from daemon:\s*)?error from registry: Data limit exceeded\s*$/i.test(error.stderr.trim())) return false;
+    let confirmed = false;
+    let evidence;
+    try {
+      run(['manifest', 'inspect', ref(source)]);
+      evidence = { confirmed: false, reason: 'manifest-read-succeeded' };
+    } catch (probe) {
+      confirmed = quota(probe) && probe.code == null && probe.signal == null;
+      evidence = { confirmed,
+        status: Number.isInteger(probe?.status) && probe.status >= 0 && probe.status <= 255 ? probe.status : null,
+        code: ['EACCES', 'EPERM', 'ENOENT', 'ETIMEDOUT', 'ENOBUFS', 'ECONNRESET', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH', 'EPIPE'].includes(probe?.code) ? probe.code : null,
+        signal: ['SIGTERM', 'SIGKILL', 'SIGINT'].includes(probe?.signal) ? probe.signal : null,
+        stderr: sanitizeGoTruePullStderr(probe?.stderr) };
+    }
+    // Reporting cannot grant or remove corroboration, or expose stdout/env.
+    try { reportQuotaEvidence({ service: name, image: ref(source), platform, attempt, ...evidence }); } catch { /* diagnostic only */ }
+    return confirmed;
+  };
   const pull = (source, delays) => {
-    for (const delay of delays) {
+    for (const [index, delay] of delays.entries()) {
       pause(delay * 1000);
       try { run(['pull', ...(pinned ? ['--platform=linux/amd64'] : []), ref(source)]); return true; }
       catch (error) {
@@ -65,7 +91,7 @@ export function ensureSandboxServiceImage(name, { run = docker, pause = sleep, r
             signal: ['SIGTERM', 'SIGKILL', 'SIGINT'].includes(error?.signal) ? error.signal : null,
             stderr: sanitizeGoTruePullStderr(error?.stderr) });
         } catch { /* A failed diagnostic must not alter fail-closed classification. */ }
-        if (!quota(error)) throw Error('SANDBOX_IMAGE_PULL_FAILED_WITHOUT_QUOTA');
+        if (!confirmedQuota(error, source, index + 1)) throw Error('SANDBOX_IMAGE_PULL_FAILED_WITHOUT_QUOTA');
       }
     }
     return false;

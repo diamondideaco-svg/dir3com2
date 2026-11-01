@@ -1,7 +1,10 @@
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { runInternalAgent } from './agent';
-import { selectQualifiedAgentCapability, type AgentCapabilityProfile, type CapabilityMeasurement, type QualifiedAgentDestination } from './agent-capabilities';
+import { parseGeneralTravelAdvice } from './agent-general-travel';
+import { callInternalAgentProvider, internalAgentConfiguration } from '../ai2/runtime/agent-provider-dispatch';
+import { preparePublicAgentDialogue, composePublicAgentDialogue, DEFAULT_AGENT_DIALOGUE_POLICY, type AgentDialoguePolicy } from './agent-dialogue';
+import { selectQualifiedAgentCapability, type AgentCapabilityProfile, type CapabilityMeasurement, type QualifiedAgentDestination, type AgentProviderId } from './agent-capabilities';
 import { AGENT_TOOLS, agentIntent, type AgentIntent, type AgentTaskScope, agentProductRole, type AgentTaskSpec, type AgentTaskAuthority, type AgentTaskState,
   type AgentTaskBlockReason, type AgentTaskEvidence, type AgentTaskConsumption, type AgentTaskAccounting } from './agent-contract';
 
@@ -210,8 +213,12 @@ export class AgentTaskCoordinator {
 
 type CoreInput = Parameters<typeof runInternalAgent>[0];
 type CoreReply = Awaited<ReturnType<typeof runInternalAgent>>;
+type DialogueReply = Omit<CoreReply, 'provider' | 'groundingStatus' | 'retrievalMode'> & {
+  provider: AgentProviderId; groundingStatus: CoreReply['groundingStatus'] | 'answered-general';
+  retrievalMode: CoreReply['retrievalMode'] | 'qualified-dialogue';
+};
 export type AgentCoreTaskResult =
-  | { kind: 'response'; response: CoreReply; task: AgentTaskState }
+  | { kind: 'response'; response: CoreReply | DialogueReply; task: AgentTaskState; dialogueTask?: AgentTaskState }
   | { kind: 'stopped'; task: AgentTaskState };
 function privateTaskScope(intent: AgentIntent, actor: AgentTaskAuthority): AgentTaskScope | null {
   const privateRead = ['my_requests','operations','executive'].includes(intent.tool)
@@ -224,12 +231,12 @@ function privateTaskScope(intent: AgentIntent, actor: AgentTaskAuthority): Agent
 function negativeReply(reply: CoreReply) { return ['authentication_required','forbidden','unavailable'].includes(reply.agent.state); }
 /** Existing Core owns all facts/links/reads. This ledger is request-local, not a durable queue. */
 export async function runInternalAgentTask(input: CoreInput, options: {
-  signal?: AbortSignal; coordinator?: AgentTaskCoordinator; id?: string; idempotencyKey?: string;
+  signal?: AbortSignal; coordinator?: AgentTaskCoordinator; id?: string; idempotencyKey?: string; dialogue?: AgentDialoguePolicy;
 } = {}): Promise<AgentCoreTaskResult> {
   const intent = input.intent ?? agentIntent(input.message);
   const actor = input.context.taskAuthority ?? { kind: 'guest' as const };
   const scope = privateTaskScope(intent, actor);
-  const coordinator = options.coordinator ?? new AgentTaskCoordinator({ capacity: 1 });
+  const coordinator = options.coordinator ?? new AgentTaskCoordinator({ capacity: 2 });
   const id = options.id ?? randomUUID(); const now = Date.now();
   const deny = async (): Promise<AgentCoreTaskResult> => {
     const kind = input.context.taskAuthorityFailure ?? (input.context.role === 'guest' ? 'authentication_required' : 'forbidden');
@@ -267,7 +274,59 @@ export async function runInternalAgentTask(input: CoreInput, options: {
         inputDigest: task.inputDigest, outputDigest: agentArtifactDigest(coreOutput), source: 'dir3com-core' } };
     },
   });
-  if (result.kind === 'completed') return { kind: 'response', response: result.output, task: result.state };
+  if (result.kind === 'completed') {
+    const plan = await preparePublicAgentDialogue({ ...input, intent }, result.output,
+      options.dialogue ?? DEFAULT_AGENT_DIALOGUE_POLICY, spec.deadlineAtMs, options.signal);
+    if (!plan) return { kind: 'response', response: result.output, task: result.state };
+    const config = internalAgentConfiguration(plan.profile.provider);
+    if (!config || config.model !== plan.profile.measurement.model
+      || createHash('sha256').update(config.apiKey).digest('hex') !== plan.credentialSha256) return { kind: 'response', response: result.output, task: result.state };
+    const providerId = randomUUID(), owner = 'dabra-dialogue:' + plan.profile.provider;
+    const providerSpec: AgentTaskSpec = {
+      id: providerId, idempotencyKey: providerId, owner, productRole: 'concierge', capability: 'discover',
+      scope: { kind: 'public' }, language: input.locale, inputDigest: agentArtifactDigest(plan.inputDigestValue),
+      createdAtMs: Date.now(), deadlineAtMs: plan.deadlineAtMs, limits: plan.limits,
+    };
+    const prepared = coordinator.prepare(providerSpec, actor, {
+      kind: 'provider', profiles: [plan.profile], environment: (options.dialogue ?? DEFAULT_AGENT_DIALOGUE_POLICY).environment,
+    });
+    if (prepared.kind === 'rejected') return { kind: 'response', response: result.output, task: result.state,
+      dialogueTask: { kind: 'blocked', reason: prepared.reason } };
+    const acknowledged = coordinator.acknowledge(providerId, owner);
+    if (acknowledged.kind === 'rejected') return { kind: 'response', response: result.output, task: result.state,
+      dialogueTask: { kind: 'blocked', reason: acknowledged.reason } };
+    let composed: DialogueReply | undefined;
+    const dialogue = await coordinator.execute(providerId, owner, {
+      signal: options.signal, isCurrent: plan.isCurrent,
+      validateOutput: (value): value is DialogueReply => composed !== undefined && value === composed,
+      run: async ({ task, signal, destination }) => {
+        if (destination.kind !== 'provider' || signal.aborted) throw new Error('task_stopped');
+        const m = destination.measurement;
+        if (!plan.isReadyToDispatch()) throw new Error('task_stopped');
+        const reply = await callInternalAgentProvider(destination.provider, config, plan.message, {
+          prompt: plan.prompt, language: input.locale, timeoutMs: Math.max(1, task.deadlineAtMs - Date.now()),
+          maxOutputTokens: m.outputTokenCeiling, signal, standardBilling: plan.standardBilling,
+        });
+        if (reply.ok && reply.model === m.model && reply.citations.length === 0
+          && Number.isSafeInteger(reply.inputTokens) && Number.isSafeInteger(reply.outputTokens)
+          && reply.inputTokens! >= 0 && reply.outputTokens! >= 0) {
+          if (reply.inputTokens! > m.inputTokenCeiling || reply.outputTokens! > m.outputTokenCeiling) throw new Error('task_budget');
+          const answer = plan.mode === 'general-travel'
+            ? parseGeneralTravelAdvice(reply.answer, input.locale)
+            : composePublicAgentDialogue(reply.answer, plan.units, input.locale);
+          if (answer) composed = plan.mode === 'general-travel'
+            ? { ...result.output, answer: [answer, ...plan.requiredUnits].join('\n\n'), sources: plan.requiredUnits.length ? result.output.sources : [], groundingStatus: 'answered-general', retrievalMode: 'qualified-dialogue',
+              provider: destination.provider, agent: { ...result.output.agent, state: 'general_guidance' } }
+            : { ...result.output, answer, provider: destination.provider };
+        }
+        return { output: composed ?? null, evidence: { taskId: task.id, owner: task.owner,
+          inputDigest: task.inputDigest, outputDigest: agentArtifactDigest(composed ?? null), source: 'qualified-adapter' } };
+      },
+    });
+    if (options.signal?.aborted || !await input.context.isTaskAuthorityCurrent!()) return { kind: 'stopped', task: dialogue.state };
+    if (dialogue.kind === 'completed') return { kind: 'response', response: dialogue.output, task: dialogue.state };
+    return { kind: 'response', response: result.output, task: result.state, dialogueTask: dialogue.state };
+  }
   if (coreOutput && negativeReply(coreOutput)) return { kind: 'response', response: coreOutput, task: result.state };
   return { kind: 'stopped', task: result.state };
 }
