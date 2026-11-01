@@ -198,12 +198,18 @@ test('the funding RPC wraps only measurement requests and preserves ordinary pro
 });
 test('only a matching enabled server grant loads a measurement; profile-shaped CLI data cannot approve it', async () => {
   const f = fixture(), signal = new AbortController().signal;
-  const server = { enabled: true, profiles: [], proofs: [f.plan.proof], maxCostMicros: 5120, dailyLimits: f.plan.daily };
+  // This loader now requires the fixed pilot; all other accepted fixture/dispatch cases are unchanged.
+  const storedProof = { ...f.plan.proof,
+    pilotEnvelope: { schema: 'task217-seven-provider-pilot-v1', id: 'task217-text-pilot-2026-11-01', maxCostMicros: 1000000, maxAttempts: 28 },
+    allInChargeBound: { schema: 'all-in-charge-bound-v1', currency: 'USD', coverage: 'all-applicable-api-charges',
+      maxAdditionalMicros: 0, observedAtMs: start - 1000, evidenceSha256: 'e'.repeat(64) },
+  };
+  const server = { enabled: true, profiles: [], proofs: [storedProof], maxCostMicros: 5120, dailyLimits: f.plan.daily };
   let data: unknown = server;
   const rpc: FundingRpc = async () => ({ data, error: null });
   assert.ok(await f.store.loadFundingMeasurement(subject, f.plan.permit.planId, sourceSha, signal, rpc));
   for (const bad of [
-    { ...server, enabled: false }, { ...server, proofs: [] }, { ...server, proofs: [f.plan.proof, f.plan.proof] },
+    { ...server, enabled: false }, { ...server, proofs: [] }, { ...server, proofs: [storedProof, storedProof] },
     { ...server, profiles: [{ ...f.plan.permit }], proofs: [] },
   ]) { data = bad; assert.equal(await f.store.loadFundingMeasurement(subject, f.plan.permit.planId, sourceSha, signal, rpc), null); }
   data = server;

@@ -9,7 +9,7 @@ export type DialogueFundingCeilings = Readonly<{
   inputTokenCeiling: number; outputTokenCeiling: number;
 }>;
 type EvidenceBase = Readonly<{
-  measurementPermit?: unknown;
+  measurementPermit?: unknown; pilotEnvelope?: unknown; allInChargeBound?: unknown;
   grantId: string; provider: AgentProviderId; model: string; environment: CapabilityMeasurement['environment'];
   accountId: string; projectId: string; evidenceSha256: string; credentialSha256: string;
   verifiedAtMs: number; expiresAtMs: number; quotaWindowStartMs: number; quotaWindowEndMs: number;
@@ -18,7 +18,7 @@ type EvidenceBase = Readonly<{
   overdraft: 'blocked' | 'allowed' | 'unknown'; concurrentAccountUsage: 'bounded' | 'unknown';
 }>;
 export type DialogueFundingProof = EvidenceBase & (
-  | Readonly<{ mode: 'existing-credit'; provider: 'openai' | 'anthropic'; currency: 'USD';
+  | Readonly<{ mode: 'existing-credit'; provider: AgentProviderId; currency: 'USD';
       authorizedCreditMicros: number; remainingCreditMicros: number; pricing: 'standard-2026-10-28' | 'synthetic';
       serviceTier: 'standard'; pricingEvidenceSha256?: unknown; pricingVerification?: unknown; }>
   | Readonly<{ mode: 'no-new-charge'; provider: Exclude<AgentProviderId, 'openai' | 'anthropic'>;
@@ -56,6 +56,26 @@ export const DIALOGUE_STANDARD_RATE_REFERENCES = Object.freeze([
     source: 'https://platform.claude.com/docs/en/models/sonnet-5-5/overview' }),
 ]);
 export const fundingSubject = (subject: string) => createHash('sha256').update('task217-dialogue:' + subject).digest('hex');
+/** Fixed experiment identity, not an approval supplied by a caller. RPC requires exact stored proof. */
+export const TASK217_PILOT_ENVELOPE = Object.freeze({
+  schema: 'task217-seven-provider-pilot-v1', id: 'task217-text-pilot-2026-11-01', maxCostMicros: 1000000, maxAttempts: 28,
+} as const);
+const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
+export function validTask217PilotEnvelope(value: unknown): value is typeof TASK217_PILOT_ENVELOPE {
+  return object(value) && Object.keys(value).length === 4
+    && Object.entries(TASK217_PILOT_ENVELOPE).every(([key, expected]) => Object.hasOwn(value, key) && value[key] === expected);
+}
+function additionalPilotCost(proof: DialogueFundingProof): number | null {
+  if (!('pilotEnvelope' in proof)) return 0;
+  const v = proof.allInChargeBound;
+  if (!validTask217PilotEnvelope(proof.pilotEnvelope) || !object(v) || Object.keys(v).length !== 6
+    || v.schema !== 'all-in-charge-bound-v1' || v.currency !== 'USD' || v.coverage !== 'all-applicable-api-charges'
+    || typeof v.maxAdditionalMicros !== 'number' || !count(v.maxAdditionalMicros) || v.maxAdditionalMicros > 1000000
+    || typeof v.observedAtMs !== 'number' || !count(v.observedAtMs) || v.observedAtMs > proof.verifiedAtMs
+    || proof.expiresAtMs - v.observedAtMs > 3600000
+    || typeof v.evidenceSha256 !== 'string' || !digest.test(v.evidenceSha256)) return null;
+  return v.maxAdditionalMicros;
+}
 /** Financial identity/ceilings, deliberately independent from capability qualification. */
 export function fundingProofForCeilings(proof: DialogueFundingProof, m: DialogueFundingCeilings, now: number) {
   if (!count(now) || !count(m.inputTokenCeiling) || m.inputTokenCeiling < 1 || m.inputTokenCeiling > 4096
@@ -73,7 +93,9 @@ export function fundingProofForCeilings(proof: DialogueFundingProof, m: Dialogue
     || !count(proof.remainingRequests) || proof.remainingRequests < 1
     || !count(proof.remainingInputTokens) || proof.remainingInputTokens < m.inputTokenCeiling
     || !count(proof.remainingOutputTokens) || proof.remainingOutputTokens < m.outputTokenCeiling) return false;
-  if (proof.mode === 'existing-credit') return (proof.provider === 'openai' || proof.provider === 'anthropic')
+  if ('pilotEnvelope' in proof && (!validTask217PilotEnvelope(proof.pilotEnvelope) || proof.mode !== 'existing-credit')) return false;
+  if (proof.mode === 'existing-credit') return (['openai','anthropic'].includes(proof.provider)
+    || (validTask217PilotEnvelope(proof.pilotEnvelope) && object(proof.measurementPermit)))
     && proof.currency === 'USD' && proof.serviceTier === 'standard'
     && count(proof.authorizedCreditMicros) && proof.authorizedCreditMicros > 0
     && count(proof.remainingCreditMicros);
@@ -97,7 +119,9 @@ function reviewedStandardRates(reference: unknown, proof: Extract<DialogueFundin
     || typeof r.sourceUrl !== 'string') return undefined;
   let url: URL;
   try { url = new URL(r.sourceUrl); } catch { return undefined; }
-  const officialHost = proof.provider === 'openai' ? 'developers.openai.com' : 'platform.claude.com';
+  const officialHosts = { openai: 'developers.openai.com', anthropic: 'platform.claude.com', gemini: 'ai.google.dev',
+    xai: 'docs.x.ai', deepseek: 'api-docs.deepseek.com', qwen: 'www.alibabacloud.com', mistral: 'docs.mistral.ai' };
+  const officialHost = officialHosts[proof.provider];
   if (url.protocol !== 'https:' || url.hostname !== officialHost || url.port
     || url.username || url.password || url.search || url.hash) return undefined;
   if (r.schema === 'reviewed-standard-pricing-v2') {
@@ -148,12 +172,16 @@ export function quoteDialogueFunding(proof: DialogueFundingProof, m: DialogueFun
 
   const numerator = BigInt(m.inputTokenCeiling) * BigInt(rates.inputMicrosPerMillion)
     + BigInt(m.outputTokenCeiling) * BigInt(rates.outputMicrosPerMillion);
-  const cost = Number((numerator + BigInt(999999)) / BigInt(1000000));
+  const extra = additionalPilotCost(proof);
+  if (extra === null) return null;
+  const cost = Number((numerator + BigInt(999999)) / BigInt(1000000) + BigInt(extra));
+  if ('pilotEnvelope' in proof && cost > TASK217_PILOT_ENVELOPE.maxCostMicros) return null;
   return count(cost) && cost > 0 && cost <= proof.authorizedCreditMicros && cost <= proof.remainingCreditMicros
     ? cost : null;
 }
 /** Ordinary calls still select a real qualified profile before reaching this quote. */
 export function dialogueCostCeilingMicros(proof: DialogueFundingProof, profile: AgentCapabilityProfile, now: number): number | null {
+  if ('pilotEnvelope' in proof) return null; // Pilot funding cannot enable ordinary customer dialogue.
   const cost = quoteDialogueFunding(proof, { ...profile.measurement, provider: profile.provider }, now);
   return cost !== null && (proof.mode !== 'no-new-charge' || profile.measurement.costCeilingUsd === 0)
     && cost / 1000000 <= profile.measurement.costCeilingUsd ? cost : null;
