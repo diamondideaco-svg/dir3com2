@@ -1,10 +1,11 @@
 import 'server-only';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { parseFirstProfilePermit, type ApprovedFirstProfilePlan } from './agent-measurement';
 import { supabaseAdmin } from '../supabase/server';
 import { AGENT_PROVIDER_IDS, type AgentCapabilityProfile } from './agent-capabilities';
 import { PUBLIC_DIALOGUE_DAILY_LIMITS, type AgentDialoguePolicy } from './agent-dialogue';
 import type { AgentContext } from './agent-contract';
-import { validFundingDailyLimits, type DialogueFundingProof, type FundedDialogueReservation, type FundingDialogueAdmission } from './dialogue-funding';
+import { fundingSubject, validFundingDailyLimits, type DialogueFundingProof, type FundedDialogueReservation, type FundingDialogueAdmission } from './dialogue-funding';
 
 export type FundingRpc = (name: string, params: Record<string, unknown>, signal: AbortSignal) =>
   Promise<{ data: unknown; error: unknown }>;
@@ -14,7 +15,7 @@ const defaultRpc: FundingRpc = async (name, params, signal) => {
   if (!supabaseAdmin || signal.aborted) return { data: null, error: 'unavailable' };
   return supabaseAdmin.rpc(name, params).abortSignal(signal);
 };
-export const fundingSubject = (subject: string) => createHash('sha256').update('task217-dialogue:' + subject).digest('hex');
+export { fundingSubject } from './dialogue-funding';
 export function createFundingDialogueAdmission(rpc: FundingRpc = defaultRpc): FundingDialogueAdmission {
   return {
     async reserve(r: FundedDialogueReservation, signal: AbortSignal) {
@@ -22,7 +23,7 @@ export function createFundingDialogueAdmission(rpc: FundingRpc = defaultRpc): Fu
       try {
         const { data, error } = await rpc('reserve_dabra_dialogue_attempt', {
           p_attempt_id: r.attemptId, p_request_id: r.requestId, p_stage: r.stage, p_subject_hash: fundingSubject(r.subject),
-          p_grant_id: r.proof.grantId, p_proof: r.proof, p_input_tokens: r.inputTokens, p_output_tokens: r.outputTokens,
+          p_grant_id: r.proof.grantId, p_proof: r.measurementRequest === undefined ? r.proof : { ...r.proof, measurementRequest: r.measurementRequest }, p_input_tokens: r.inputTokens, p_output_tokens: r.outputTokens,
           p_cost_micros: r.costMicros, p_limits: r.limits, p_day_start_ms: r.dayStartMs,
         }, signal);
         // No RPC retry: a timeout or lost claim response may already have committed.
@@ -88,4 +89,29 @@ export async function loadFundingDialoguePolicy(context?: AgentContext, signal?:
       funding: { kind: 'existing-credit-v2', requestId: base.funding!.requestId, proofs: data.proofs.filter(proof),
         admission: base.funding!.admission } };
   } catch { return base; }
+}
+
+/** Server-stored approval only. Neither a CLI argument nor a profile-shaped object approves a measurement. */
+export async function loadFundingMeasurement(subject: string, planId: string, sourceSha: string, signal: AbortSignal,
+  rpc: FundingRpc = defaultRpc): Promise<ApprovedFirstProfilePlan | null> {
+  if (signal.aborted || !/^[a-zA-Z0-9_-]{1,128}$/.test(subject) || !/^[a-f0-9]{40}$/.test(sourceSha)
+    || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(planId)) return null;
+  try {
+    const { data, error } = await rpc('get_dabra_dialogue_funding_policy', { p_subject_hash: fundingSubject(subject) }, signal);
+    if (signal.aborted || error || !object(data) || data.enabled !== true || !Array.isArray(data.proofs)
+      || !integer(data.maxCostMicros) || !validFundingDailyLimits(data.dailyLimits, 4096, 1024)) return null;
+    const matches = data.proofs.filter(proof).filter(p => {
+      const permit = parseFirstProfilePermit(p.measurementPermit);
+      return permit && permit.planId === planId && permit.sourceSha === sourceSha
+        && permit.subjectHash === fundingSubject(subject) && p.environment === 'provider-benchmark';
+    });
+    if (matches.length !== 1) return null;
+    // Snapshot the trusted JSON. Financial refresh requires a fresh load, never mutation during a dispatch.
+    const snapshot: unknown = JSON.parse(JSON.stringify(matches[0]));
+    if (!proof(snapshot)) return null;
+    const permit = parseFirstProfilePermit(snapshot.measurementPermit);
+    if (!permit || Date.now() >= permit.expiresAtMs) return null;
+    return Object.freeze({ subject, proof: Object.freeze(snapshot), permit,
+      daily: Object.freeze({ ...data.dailyLimits }), maxCostMicros: data.maxCostMicros });
+  } catch { return null; }
 }

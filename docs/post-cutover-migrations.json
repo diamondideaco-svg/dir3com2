@@ -130,5 +130,11 @@
     "sha256": "2a07afcb23300ef96ffabeec4a897242a63ddf244f09c623f6486a9b3d759a06",
     "task": "#166",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261101102846_task217_first_profile_measurement_guard.sql",
+    "sha256": "4d6c1be9e7e0d8249254e7aaad49160f3e8e527c32f0d109b36c851950c1e20b",
+    "task": "#217",
+    "production_apply_authorized": false
   }
 ]

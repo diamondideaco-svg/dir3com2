@@ -4,7 +4,12 @@ import { APPROVED_DIALOGUE_STANDARD_PRICING } from './dialogue-pricing-approvals
 import type { AgentCapabilityProfile, AgentProviderId, CapabilityMeasurement } from './agent-capabilities';
 import type { DialogueDailyLimits } from './agent-dialogue';
 
+export type DialogueFundingCeilings = Readonly<{
+  provider: AgentProviderId; model: string; environment: CapabilityMeasurement['environment'];
+  inputTokenCeiling: number; outputTokenCeiling: number;
+}>;
 type EvidenceBase = Readonly<{
+  measurementPermit?: unknown;
   grantId: string; provider: AgentProviderId; model: string; environment: CapabilityMeasurement['environment'];
   accountId: string; projectId: string; evidenceSha256: string; credentialSha256: string;
   verifiedAtMs: number; expiresAtMs: number; quotaWindowStartMs: number; quotaWindowEndMs: number;
@@ -21,6 +26,7 @@ export type DialogueFundingProof = EvidenceBase & (
 );
 export type FundedDialogueReservation = Readonly<{
   policyId: 'task217-existing-credit-v2'; attemptId: string; requestId: string;
+  measurementRequest?: Readonly<{ planId: string; caseId: string }>;
   stage: 'discover' | 'intent.classify'; subject: string; nowMs: number; dayStartMs: number; dayEndMs: number;
   proof: DialogueFundingProof; inputTokens: number; outputTokens: number; costMicros: number; limits: DialogueDailyLimits;
 }>;
@@ -49,9 +55,12 @@ export const DIALOGUE_STANDARD_RATE_REFERENCES = Object.freeze([
   Object.freeze({ provider: 'anthropic', model: 'claude-sonnet-5-5', inputMicrosPerMillion: 2000000, outputMicrosPerMillion: 10000000,
     source: 'https://platform.claude.com/docs/en/models/sonnet-5-5/overview' }),
 ]);
-export function fundingProofCurrent(proof: DialogueFundingProof, profile: AgentCapabilityProfile, now: number) {
-  const m = profile.measurement;
-  if (!uuid.test(proof.grantId) || proof.provider !== profile.provider || proof.model !== m.model || proof.environment !== m.environment
+export const fundingSubject = (subject: string) => createHash('sha256').update('task217-dialogue:' + subject).digest('hex');
+/** Financial identity/ceilings, deliberately independent from capability qualification. */
+export function fundingProofForCeilings(proof: DialogueFundingProof, m: DialogueFundingCeilings, now: number) {
+  if (!count(now) || !count(m.inputTokenCeiling) || m.inputTokenCeiling < 1 || m.inputTokenCeiling > 4096
+    || !count(m.outputTokenCeiling) || m.outputTokenCeiling < 1 || m.outputTokenCeiling > 1024
+    || !uuid.test(proof.grantId) || proof.provider !== m.provider || proof.model !== m.model || proof.environment !== m.environment
     || !identifier.test(proof.accountId) || !identifier.test(proof.projectId)
     || !digest.test(proof.evidenceSha256) || !digest.test(proof.credentialSha256)
     || !Number.isSafeInteger(proof.verifiedAtMs) || proof.verifiedAtMs > now
@@ -70,6 +79,9 @@ export function fundingProofCurrent(proof: DialogueFundingProof, profile: AgentC
     && count(proof.remainingCreditMicros);
   return !['openai', 'anthropic'].includes(proof.provider) && proof.mode === 'no-new-charge'
     && proof.enforcement === 'provider-hard-no-new-charge';
+}
+export function fundingProofCurrent(proof: DialogueFundingProof, profile: AgentCapabilityProfile, now: number) {
+  return fundingProofForCeilings(proof, { ...profile.measurement, provider: profile.provider }, now);
 }
 /** A caller can name evidence, but only the compiled server registry can approve it. */
 function reviewedStandardRates(reference: unknown, proof: Extract<DialogueFundingProof, { mode: 'existing-credit' }>, now: number) {
@@ -98,9 +110,9 @@ function reviewedStandardRates(reference: unknown, proof: Extract<DialogueFundin
   ])).digest('hex');
   return fingerprint === reference ? r : undefined;
 }
-export function dialogueCostCeilingMicros(proof: DialogueFundingProof, profile: AgentCapabilityProfile, now: number): number | null {
-  if (!fundingProofCurrent(proof, profile, now)) return null;
-  if (proof.mode === 'no-new-charge') return profile.measurement.costCeilingUsd === 0 ? 0 : null;
+export function quoteDialogueFunding(proof: DialogueFundingProof, m: DialogueFundingCeilings, now: number): number | null {
+  if (!fundingProofForCeilings(proof, m, now)) return null;
+  if (proof.mode === 'no-new-charge') return 0;
   // The old pricing string remains an RPC compatibility tag, not approval of a renewed tariff.
   // A present but invalid reference never falls back to historical or synthetic rates.
   const rates = 'pricingEvidenceSha256' in proof
@@ -110,13 +122,18 @@ export function dialogueCostCeilingMicros(proof: DialogueFundingProof, profile: 
       : proof.pricing === 'standard-2026-10-28' && now >= Date.parse('2026-10-28T00:00:00Z') && now < Date.parse('2026-10-29T00:00:00Z')
         ? DIALOGUE_STANDARD_RATE_REFERENCES.find(r => r.provider === proof.provider && r.model === proof.model) : undefined;
   if (!rates) return null;
-  const m = profile.measurement;
-  if (!count(m.inputTokenCeiling) || !count(m.outputTokenCeiling)) return null;
+
   const numerator = BigInt(m.inputTokenCeiling) * BigInt(rates.inputMicrosPerMillion)
     + BigInt(m.outputTokenCeiling) * BigInt(rates.outputMicrosPerMillion);
   const cost = Number((numerator + BigInt(999999)) / BigInt(1000000));
   return count(cost) && cost > 0 && cost <= proof.authorizedCreditMicros && cost <= proof.remainingCreditMicros
-    && cost / 1000000 <= m.costCeilingUsd ? cost : null;
+    ? cost : null;
+}
+/** Ordinary calls still select a real qualified profile before reaching this quote. */
+export function dialogueCostCeilingMicros(proof: DialogueFundingProof, profile: AgentCapabilityProfile, now: number): number | null {
+  const cost = quoteDialogueFunding(proof, { ...profile.measurement, provider: profile.provider }, now);
+  return cost !== null && (proof.mode !== 'no-new-charge' || profile.measurement.costCeilingUsd === 0)
+    && cost / 1000000 <= profile.measurement.costCeilingUsd ? cost : null;
 }
 export function validFundingRequestIdentity(binding: DialogueFundingBinding) { return uuid.test(binding.requestId); }
 
