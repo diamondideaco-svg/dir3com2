@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { AGENT_PROVIDER_IDS, APPROVED_AGENT_CAPABILITY_PROFILES, type AgentProviderId } from '../lib/dabra/agent-capabilities';
@@ -324,4 +326,40 @@ test('blocking source verification cannot carry a stale financial timestamp into
     });
     assert.equal(lateDispatches, 0, 'dispatch after expiry position ' + steps);
   }
+});
+
+test('loaded module checkout is checked even when caller cwd is another clean checkout at the same SHA', () => {
+  const moduleUrl = new URL('../scripts/dabra-provider-certification.ts', import.meta.url);
+  const moduleRoot = resolve(dirname(fileURLToPath(moduleUrl)), '..');
+  const callerRoot = resolve(moduleRoot, '..', 'SYNTHETIC-other-clean-checkout');
+  const text = readFileSync(moduleUrl, 'utf8');
+  const sourceFile = ts.createSourceFile(moduleUrl.pathname, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const declaration = sourceFile.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'measurementSourceSha');
+  assert.ok(declaration);
+  // Execute the actual guard body. Only the module URL and child Git process are
+  // controlled; two checkout states exist in memory, never as copied repositories.
+  const body = declaration.getText(sourceFile).replaceAll('import.meta.url', JSON.stringify(moduleUrl.href));
+  const fixtureModule = { exports: {} };
+  let moduleDirty = true, callerDirty = false;
+  const reads: { cwd: string; args: readonly string[] }[] = [];
+  runInNewContext(ts.transpileModule(body, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText, {
+    module: fixtureModule, exports: fixtureModule.exports, resolve, dirname, fileURLToPath,
+    process: { cwd: () => callerRoot },
+    execFileSync: (command: string, args: readonly string[], options?: { cwd?: string }) => {
+      assert.equal(command, 'git');
+      const cwd = options?.cwd ?? callerRoot;
+      reads.push({ cwd, args: [...args] });
+      assert.ok(cwd === moduleRoot || cwd === callerRoot);
+      return args.includes('status') ? ((cwd === moduleRoot ? moduleDirty : callerDirty) ? ' M scripts/dabra-provider-certification.ts\n' : '') : sourceSha + '\n';
+    },
+  });
+  const guard = fixtureModule.exports as Pick<typeof import('../scripts/dabra-provider-certification'), 'measurementSourceSha'>;
+  assert.throws(() => guard.measurementSourceSha(), /measurement_source_dirty/);
+  assert.ok(reads.length >= 2 && reads.every(read => read.cwd === moduleRoot));
+  moduleDirty = false; callerDirty = true; reads.length = 0;
+  assert.equal(guard.measurementSourceSha(), sourceSha);
+  assert.equal(reads.length, 3);
+  assert.ok(reads.every(read => read.cwd === moduleRoot));
 });

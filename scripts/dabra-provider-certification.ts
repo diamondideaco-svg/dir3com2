@@ -669,7 +669,10 @@ async function createLiveDependencies(): Promise<CertificationDependencies> {
 
 /** Verify tracked/index/untracked source as well as HEAD at every existing dispatch boundary. */
 export function measurementSourceSha(readGit: (args: readonly string[]) => string = args =>
-  execFileSync('git', ['--no-optional-locks', ...args], { encoding: 'utf8', windowsHide: true, timeout: 1000 }).trim()): string {
+  execFileSync('git', ['--no-optional-locks', ...args], {
+    cwd: resolve(dirname(fileURLToPath(import.meta.url)), '..'),
+    encoding: 'utf8', windowsHide: true, timeout: 1000,
+  }).trim()): string {
   const before = readGit(['rev-parse', 'HEAD']).trim();
   if (!/^[a-f0-9]{40}$/.test(before)) throw new Error('measurement_source_invalid');
   if (readGit(['status', '--porcelain=v1', '--untracked-files=all']).trim()) throw new Error('measurement_source_dirty');
