@@ -106,3 +106,19 @@ test('Task199 temporary operator stays CEO-only and absent from shared discovery
     assert.equal(items.some((item) => item.href === trialPath), false);
   }
 });
+
+test('current-state notice operator is classified CEO-only without public or shared discovery', () => {
+  const operatorPath = '/admin/drive-whatsapp/current-state';
+  const entries = routeCatalog.filter((entry) => entry.path === operatorPath);
+  assert.equal(entries.length, 1, 'operator needs exactly one explicit classification');
+  const operator = entries[0];
+  assert.equal(operator.audience, 'ceo');
+  assert.equal(operator.protected, true);
+  assert.equal(operator.discoverability, 'internal');
+  assert.equal(operator.parent, '/admin');
+  assert.equal(operator.indexable, false);
+  assert.equal(publicSitemapPaths.includes(operatorPath), false);
+  for (const items of [customerNavigationItems, partnerNavigationItems, protectedNavigationItems, visibleProtectedNavigation(true, []), visibleProtectedNavigation(false, ['admin:full'])]) {
+    assert.equal(items.some((item) => item.href === operatorPath), false);
+  }
+});
