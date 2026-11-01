@@ -136,5 +136,11 @@
     "sha256": "4d6c1be9e7e0d8249254e7aaad49160f3e8e527c32f0d109b36c851950c1e20b",
     "task": "#217",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261101153907_task217_seven_provider_pilot_envelope.sql",
+    "sha256": "9094d0d716356460b1076dee1b8b2122a82a1ae1b7d9ff4b0b3a4d9c09687f4e",
+    "task": "#217",
+    "production_apply_authorized": false
   }
 ]

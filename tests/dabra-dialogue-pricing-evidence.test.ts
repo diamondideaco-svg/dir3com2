@@ -168,3 +168,123 @@ test('pricing evidence: integer arithmetic rejects an unsafe resulting quote', (
 test('pricing evidence: existing synthetic-only quote behavior is preserved', () => {
   assert.equal(dialogueCostCeilingMicros(proof({ model: 'test-model', pricing: 'synthetic' }), profile({ model: 'test-model' }), now), 4608);
 });
+
+
+// Source approval is immutable semantic data. Runtime observations are separate,
+// synthetic, server-stored proof fixtures; these helpers create no live authority.
+function fixtureSnapshot(overrides: Record<string, unknown> = {}) {
+  const fields = {
+    schema: 'reviewed-standard-pricing-v2', provider: 'openai', model: 'SYNTHETIC-PRICING-MODEL',
+    serviceTier: 'standard', currency: 'USD', inputMicrosPerMillion: 1000000, outputMicrosPerMillion: 2000000,
+    sourceUrl: 'https://developers.openai.com/api/docs/pricing', ...overrides,
+  };
+  const sha256 = createHash('sha256').update(JSON.stringify([
+    fields.schema, fields.provider, fields.model, fields.serviceTier, fields.currency,
+    fields.inputMicrosPerMillion, fields.outputMicrosPerMillion, fields.sourceUrl,
+  ])).digest('hex');
+  return Object.freeze({ ...fields, sha256 });
+}
+function runtimeVerification(snapshot = fixtureSnapshot(), overrides: Record<string, unknown> = {}) {
+  return {
+    schema: 'standard-pricing-verification-v1', snapshotSha256: snapshot.sha256,
+    sourceUrl: snapshot.sourceUrl, inputMicrosPerMillion: snapshot.inputMicrosPerMillion,
+    outputMicrosPerMillion: snapshot.outputMicrosPerMillion,
+    observedAtMs: now - 1000, evidenceSha256: '9'.repeat(64), ...overrides,
+  };
+}
+test('pricing snapshot: release taking more than one hour permits a genuinely fresh matching runtime verification', () => {
+  const snapshot = fixtureSnapshot(), quote = quoteWithServerApprovals([snapshot]);
+  const publishedAt = now + 85 * 60000 + 20000;
+  const fresh = proof({
+    pricingEvidenceSha256: snapshot.sha256,
+    pricingVerification: runtimeVerification(snapshot, { observedAtMs: publishedAt - 1000 }),
+    verifiedAtMs: publishedAt - 1, expiresAtMs: publishedAt + 600000,
+    quotaWindowStartMs: publishedAt - 1000, quotaWindowEndMs: publishedAt + 3600000,
+  });
+  assert.equal(quote(fresh, profile({ expiresAtMs: publishedAt + 600000 }), publishedAt), 4608);
+});
+
+test('pricing snapshot: missing runtime evidence, caller JSON and a public URL cannot approve a tariff', () => {
+  const snapshot = fixtureSnapshot(), quote = quoteWithServerApprovals([snapshot]);
+  for (const pricingVerification of [undefined, null, {}, [], true, 'verified', { observedAtMs: now - 1 }]) {
+    assert.equal(quote(proof({ pricingEvidenceSha256: snapshot.sha256, pricingVerification }), profile(), now), null);
+  }
+  const candidate = proof({ pricingEvidenceSha256: snapshot.sha256, pricingVerification: runtimeVerification(snapshot), pricingEvidence: snapshot, approved: true });
+  assert.equal(quoteWithServerApprovals([])(candidate, profile(), now), null);
+  assert.equal(dialogueCostCeilingMicros(candidate, profile(), now), null); // No synthetic model in the real registry.
+  assert.equal(quoteWithServerApprovals([snapshot, snapshot])(candidate, profile(), now), null);
+});
+test('pricing snapshot: runtime receipt must match the snapshot source, exact rates and evidence identity', () => {
+  const snapshot = fixtureSnapshot(), quote = quoteWithServerApprovals([snapshot]);
+  for (const mutation of [
+    { schema: 'unreviewed' }, { snapshotSha256: 'e'.repeat(64) },
+    { sourceUrl: 'https://developers.openai.com/api/docs/models' },
+    { inputMicrosPerMillion: 1 }, { outputMicrosPerMillion: 1 },
+    { evidenceSha256: undefined }, { evidenceSha256: '' }, { evidenceSha256: 'A'.repeat(64) },
+    { evidenceSha256: snapshot.sha256 }, { extra: true },
+  ]) {
+    assert.equal(quote(proof({ pricingEvidenceSha256: snapshot.sha256, pricingVerification: runtimeVerification(snapshot, mutation) }), profile(), now), null, JSON.stringify(mutation));
+  }
+});
+test('pricing snapshot: old, future, fractional and financial-clock-only refreshes fail closed', () => {
+  const snapshot = fixtureSnapshot(), quote = quoteWithServerApprovals([snapshot]);
+  for (const observedAtMs of [now + 1, now, now - 3600001, now - 0.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.equal(quote(proof({ pricingEvidenceSha256: snapshot.sha256,
+      pricingVerification: runtimeVerification(snapshot, { observedAtMs }),
+    }), profile(), now), null, String(observedAtMs));
+  }
+  // Fresh financial timestamps do not re-observe an old price receipt.
+  assert.equal(quote(proof({ pricingEvidenceSha256: snapshot.sha256, verifiedAtMs: now,
+    expiresAtMs: now + 1, pricingVerification: runtimeVerification(snapshot, { observedAtMs: now - 3600000 }),
+  }), profile(), now), null);
+});
+test('pricing snapshot: one-hour runtime window is inclusive in duration and exclusive at expiry', () => {
+  const snapshot = fixtureSnapshot(), quote = quoteWithServerApprovals([snapshot]);
+  const candidate = proof({ pricingEvidenceSha256: snapshot.sha256, expiresAtMs: now + 1,
+    pricingVerification: runtimeVerification(snapshot, { observedAtMs: now - 3599999 }),
+  });
+  assert.equal(quote(candidate, profile(), now), 4608);
+  assert.equal(quote(candidate, profile(), now + 1), null);
+});
+test('pricing snapshot: immutable semantic fields cannot be changed under the approved digest', () => {
+  const snapshot = fixtureSnapshot(), candidate = proof({
+    pricingEvidenceSha256: snapshot.sha256, pricingVerification: runtimeVerification(snapshot),
+  });
+  for (const mutation of [
+    { schema: 'other' }, { provider: 'anthropic' }, { model: 'other' }, { currency: 'EUR' }, { serviceTier: 'flex' },
+    { inputMicrosPerMillion: 1 }, { outputMicrosPerMillion: 1 },
+    { sourceUrl: 'https://developers.openai.com/api/docs/models' }, { observedAtMs: now },
+  ]) {
+    assert.equal(quoteWithServerApprovals([{ ...snapshot, ...mutation }])(candidate, profile(), now), null);
+  }
+});
+test('pricing snapshot: stored credit of USD1 cannot be enlarged by a valid snapshot or runtime receipt', () => {
+  const snapshot = fixtureSnapshot({ inputMicrosPerMillion: 0, outputMicrosPerMillion: 1000000000 });
+  const quote = quoteWithServerApprovals([snapshot]);
+  let remainingCreditMicros = 1000000, held = 0, admittedQuotes = 0;
+  for (let i = 0; i < 6; i++) {
+    const cost = quote(proof({ pricingEvidenceSha256: snapshot.sha256,
+      pricingVerification: runtimeVerification(snapshot), authorizedCreditMicros: 1000000, remainingCreditMicros,
+    }), profile({ costCeilingUsd: 1 }), now);
+    if (cost === null) break;
+    remainingCreditMicros -= cost; held += cost; admittedQuotes++;
+  }
+  assert.equal(admittedQuotes, 3); assert.equal(held, 768000); assert.equal(remainingCreditMicros, 232000);
+  assert.ok(held <= 1000000);
+  assert.equal(quote(proof({ pricingEvidenceSha256: snapshot.sha256,
+    pricingVerification: runtimeVerification(snapshot), authorizedCreditMicros: 1000000, remainingCreditMicros,
+  }), profile({ costCeilingUsd: 1 }), now), null);
+});
+test('pricing snapshot: live-source Anthropic snapshot alone grants no quote, credit or qualification', () => {
+  const snapshot = fixtureSnapshot({ provider: 'anthropic', model: 'claude-sonnet-5-5',
+    inputMicrosPerMillion: 2000000, outputMicrosPerMillion: 10000000,
+    sourceUrl: 'https://platform.claude.com/docs/en/models/sonnet-5-5/overview' });
+  assert.equal(snapshot.sha256, '97078a9f0fe05c81aafc8909295b404348606f4d572983bf2364201ca1737cb4');
+  const candidate = proof({ provider: 'anthropic', model: snapshot.model, environment: 'provider-benchmark',
+    pricingEvidenceSha256: snapshot.sha256, authorizedCreditMicros: 1000000, remainingCreditMicros: 1000000 });
+  const measured = profile({ model: snapshot.model, environment: 'provider-benchmark' }, 'anthropic');
+  assert.equal(dialogueCostCeilingMicros(candidate, measured, now), null);
+  assert.equal(dialogueCostCeilingMicros({ ...candidate, pricingVerification: runtimeVerification(snapshot) }, measured, now), 10752);
+  assert.equal(dialogueCostCeilingMicros({ ...candidate, pricingVerification: runtimeVerification(snapshot), remainingCreditMicros: 10751 }, measured, now), null);
+  assert.equal(dialogueCostCeilingMicros({ ...candidate, pricingVerification: runtimeVerification(snapshot) }, { ...measured, measurement: { ...measured.measurement, costCeilingUsd: 0.010751 } }, now), null);
+});

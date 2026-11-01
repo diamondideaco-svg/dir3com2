@@ -5,7 +5,7 @@ import { supabaseAdmin } from '../supabase/server';
 import { AGENT_PROVIDER_IDS, type AgentCapabilityProfile } from './agent-capabilities';
 import { PUBLIC_DIALOGUE_DAILY_LIMITS, type AgentDialoguePolicy } from './agent-dialogue';
 import type { AgentContext } from './agent-contract';
-import { fundingSubject, validFundingDailyLimits, type DialogueFundingProof, type FundedDialogueReservation, type FundingDialogueAdmission } from './dialogue-funding';
+import { fundingSubject, validFundingDailyLimits, validTask217PilotEnvelope, quoteDialogueFunding, type DialogueFundingProof, type FundedDialogueReservation, type FundingDialogueAdmission } from './dialogue-funding';
 
 export type FundingRpc = (name: string, params: Record<string, unknown>, signal: AbortSignal) =>
   Promise<{ data: unknown; error: unknown }>;
@@ -54,7 +54,7 @@ function proof(value: unknown): value is DialogueFundingProof {
     'autoReload','postpaid','overdraft','concurrentAccountUsage'].every(k => typeof value[k] === 'string')
     && ['verifiedAtMs','expiresAtMs','quotaWindowStartMs','quotaWindowEndMs','remainingRequests','remainingInputTokens','remainingOutputTokens'].every(k => integer(value[k]))
     && (value.mode === 'existing-credit'
-      ? ['openai','anthropic'].includes(String(value.provider)) && value.currency === 'USD' && value.serviceTier === 'standard'
+      ? (['openai','anthropic'].includes(String(value.provider)) || validTask217PilotEnvelope(value.pilotEnvelope)) && value.currency === 'USD' && value.serviceTier === 'standard'
         && ['standard-2026-10-28','synthetic'].includes(String(value.pricing))
         && integer(value.authorizedCreditMicros) && integer(value.remainingCreditMicros)
       : value.mode === 'no-new-charge' && AGENT_PROVIDER_IDS.some(p => p === value.provider)
@@ -86,7 +86,7 @@ export async function loadFundingDialoguePolicy(context?: AgentContext, signal?:
       || !validFundingDailyLimits(data.dailyLimits,base.limits.maxInputTokens,base.limits.maxOutputTokens) || !await context.isTaskAuthorityCurrent()) return base;
     return { ...base, daily: Object.freeze({...data.dailyLimits}), profiles: data.profiles.filter(profile),
       limits: { ...base.limits, maxCostUsd: data.maxCostMicros / 1000000 },
-      funding: { kind: 'existing-credit-v2', requestId: base.funding!.requestId, proofs: data.proofs.filter(proof),
+      funding: { kind: 'existing-credit-v2', requestId: base.funding!.requestId, proofs: data.proofs.filter(proof).filter(p => !('pilotEnvelope' in p)),
         admission: base.funding!.admission } };
   } catch { return base; }
 }
@@ -110,7 +110,9 @@ export async function loadFundingMeasurement(subject: string, planId: string, so
     const snapshot: unknown = JSON.parse(JSON.stringify(matches[0]));
     if (!proof(snapshot)) return null;
     const permit = parseFirstProfilePermit(snapshot.measurementPermit);
-    if (!permit || Date.now() >= permit.expiresAtMs) return null;
+    if (!permit || Date.now() >= permit.expiresAtMs || !validTask217PilotEnvelope(snapshot.pilotEnvelope)
+      || quoteDialogueFunding(snapshot, { provider: snapshot.provider, model: snapshot.model, environment: snapshot.environment,
+        inputTokenCeiling: permit.inputTokenCeiling, outputTokenCeiling: permit.outputTokenCeiling }, Date.now()) === null) return null;
     return Object.freeze({ subject, proof: Object.freeze(snapshot), permit,
       daily: Object.freeze({ ...data.dailyLimits }), maxCostMicros: data.maxCostMicros });
   } catch { return null; }

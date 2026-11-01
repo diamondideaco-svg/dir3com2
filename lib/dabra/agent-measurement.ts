@@ -4,7 +4,7 @@ import { classifierPrompt } from './agent-planner';
 import { parseAgentTool } from './agent-contract';
 import { generalTravelContext, GENERAL_TRAVEL_PROMPT, parseGeneralTravelAdvice } from './agent-general-travel';
 import { dialogueDay, type DialogueDailyLimits } from './agent-dialogue';
-import { fundingSubject, fundingProofForCeilings, quoteDialogueFunding, validFundingDailyLimits,
+import { fundingSubject, fundingProofForCeilings, validTask217PilotEnvelope, quoteDialogueFunding, validFundingDailyLimits,
   type DialogueFundingProof, type FundingDialogueAdmission } from './dialogue-funding';
 import { callInternalAgentProvider, internalAgentConfiguration } from '../ai2/runtime/agent-provider-dispatch';
 
@@ -98,6 +98,8 @@ export async function measureFirstProfile(plan: ApprovedFirstProfilePlan, depend
   if (!permit || JSON.stringify(permit) !== JSON.stringify(plan.permit)
     || !/^[a-zA-Z0-9_-]{1,128}$/.test(plan.subject) || fundingSubject(plan.subject) !== permit.subjectHash
     || !integer(plan.maxCostMicros) || !validFundingDailyLimits(plan.daily, 4096, 1024)) return finish('blocked');
+  const pilot = validTask217PilotEnvelope(plan.proof.pilotEnvelope);
+  const configuration = () => dependencies.configuration(plan.proof.provider, pilot ? plan.proof.model : undefined);
   const ceilings = { provider: plan.proof.provider, model: plan.proof.model, environment: plan.proof.environment,
     inputTokenCeiling: permit.inputTokenCeiling, outputTokenCeiling: permit.outputTokenCeiling };
   for (const fixed of FIRST_PROFILE_CASES) {
@@ -110,7 +112,7 @@ export async function measureFirstProfile(plan: ApprovedFirstProfilePlan, depend
     const stopSignal = AbortSignal.any([controller.signal, AbortSignal.timeout(end - start), ...(signal ? [signal] : [])]);
     const ready = () => {
       if (stopSignal.aborted) return false;
-      const config = dependencies.configuration(plan.proof.provider);
+      const config = configuration();
       if (!config || config.model !== plan.proof.model
         || createHash('sha256').update(config.apiKey).digest('hex') !== plan.proof.credentialSha256
         || dependencies.sourceSha() !== permit.sourceSha) return false;
@@ -132,14 +134,14 @@ export async function measureFirstProfile(plan: ApprovedFirstProfilePlan, depend
         measurementRequest: { planId: permit.planId, caseId: fixed.caseId },
       }, stopSignal), stopSignal);
       if (!ready() || claim?.kind !== 'admitted' || claim.attemptId !== attemptId || !await current() || !ready()) return finish('stopped');
-      const config = dependencies.configuration(plan.proof.provider);
+      const config = configuration();
       if (!config || config.model !== plan.proof.model
         || createHash('sha256').update(config.apiKey).digest('hex') !== plan.proof.credentialSha256 || !ready()) return finish('stopped');
       const dispatchedAt = Date.now();
       const result = await bounded(dependencies.dispatch(plan.proof.provider, config, fixed.message, {
         prompt: fixed.prompt, language: fixed.language, classifier: fixed.stage === 'intent.classify',
         maxOutputTokens: permit.outputTokenCeiling, timeoutMs: Math.max(1, end - Date.now()),
-        signal: stopSignal, standardBilling: plan.proof.mode === 'existing-credit',
+        signal: stopSignal, standardBilling: plan.proof.mode === 'existing-credit', pilotMeasurement: pilot,
       }), stopSignal);
       if (!result) return finish('stopped');
       let schemaValid = false;
