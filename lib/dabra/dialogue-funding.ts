@@ -20,7 +20,7 @@ type EvidenceBase = Readonly<{
 export type DialogueFundingProof = EvidenceBase & (
   | Readonly<{ mode: 'existing-credit'; provider: 'openai' | 'anthropic'; currency: 'USD';
       authorizedCreditMicros: number; remainingCreditMicros: number; pricing: 'standard-2026-10-28' | 'synthetic';
-      serviceTier: 'standard'; pricingEvidenceSha256?: unknown; }>
+      serviceTier: 'standard'; pricingEvidenceSha256?: unknown; pricingVerification?: unknown; }>
   | Readonly<{ mode: 'no-new-charge'; provider: Exclude<AgentProviderId, 'openai' | 'anthropic'>;
       enforcement: 'provider-hard-no-new-charge'; }>
 );
@@ -89,21 +89,44 @@ function reviewedStandardRates(reference: unknown, proof: Extract<DialogueFundin
   const matches = APPROVED_DIALOGUE_STANDARD_PRICING.filter(r => r && r.sha256 === reference);
   if (matches.length !== 1) return undefined;
   const r = matches[0];
-  if (Object.keys(r).length !== 12 || r.schema !== 'reviewed-standard-pricing-v1'
-    || r.provider !== proof.provider || r.model !== proof.model || typeof r.model !== 'string'
+  if (r.provider !== proof.provider || r.model !== proof.model || typeof r.model !== 'string'
     || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,99}$/.test(r.model)
     || r.serviceTier !== 'standard' || r.currency !== 'USD'
     || !count(r.inputMicrosPerMillion) || !count(r.outputMicrosPerMillion)
     || (r.inputMicrosPerMillion === 0 && r.outputMicrosPerMillion === 0)
-    || !count(r.observedAtMs) || !count(r.validFromMs) || !count(r.expiresAtMs)
-    || r.observedAtMs > r.validFromMs || r.validFromMs > now || r.expiresAtMs <= now
-    || r.expiresAtMs <= r.validFromMs || r.expiresAtMs - r.observedAtMs > 3600000
     || typeof r.sourceUrl !== 'string') return undefined;
   let url: URL;
   try { url = new URL(r.sourceUrl); } catch { return undefined; }
   const officialHost = proof.provider === 'openai' ? 'developers.openai.com' : 'platform.claude.com';
   if (url.protocol !== 'https:' || url.hostname !== officialHost || url.port
     || url.username || url.password || url.search || url.hash) return undefined;
+  if (r.schema === 'reviewed-standard-pricing-v2') {
+    // This observation is part of the existing exact server-stored grant proof;
+    // caller JSON, an official URL or a fresh financial timestamp cannot mint it.
+    const v = proof.pricingVerification;
+    const record = (value: unknown): value is Record<string, unknown> =>
+      value !== null && typeof value === 'object' && !Array.isArray(value);
+    if (Object.keys(r).length !== 9 || !record(v) || Object.keys(v).length !== 7
+      || v.schema !== 'standard-pricing-verification-v1' || v.snapshotSha256 !== reference
+      || v.sourceUrl !== r.sourceUrl || v.inputMicrosPerMillion !== r.inputMicrosPerMillion
+      || v.outputMicrosPerMillion !== r.outputMicrosPerMillion
+      || typeof v.observedAtMs !== 'number' || !count(v.observedAtMs) || v.observedAtMs > proof.verifiedAtMs
+      || proof.expiresAtMs - v.observedAtMs > 3600000
+      || typeof v.evidenceSha256 !== 'string' || !digest.test(v.evidenceSha256)
+      || v.evidenceSha256 === reference) return undefined;
+    // Reuse the financial proof's verifiedAt/expiresAt rather than opening a
+    // second expiry window. A financial refresh alone cannot refresh old prices.
+    const fingerprint = createHash('sha256').update(JSON.stringify([
+      r.schema, r.provider, r.model, r.serviceTier, r.currency,
+      r.inputMicrosPerMillion, r.outputMicrosPerMillion, r.sourceUrl,
+    ])).digest('hex');
+    return fingerprint === reference ? r : undefined;
+  }
+  // Preserve v1's exact original time-bound validation and fingerprint.
+  if (r.schema !== 'reviewed-standard-pricing-v1' || Object.keys(r).length !== 12
+    || !count(r.observedAtMs) || !count(r.validFromMs) || !count(r.expiresAtMs)
+    || r.observedAtMs > r.validFromMs || r.validFromMs > now || r.expiresAtMs <= now
+    || r.expiresAtMs <= r.validFromMs || r.expiresAtMs - r.observedAtMs > 3600000) return undefined;
   const fingerprint = createHash('sha256').update(JSON.stringify([
     r.schema, r.provider, r.model, r.serviceTier, r.currency, r.inputMicrosPerMillion, r.outputMicrosPerMillion,
     r.observedAtMs, r.validFromMs, r.expiresAtMs, r.sourceUrl,

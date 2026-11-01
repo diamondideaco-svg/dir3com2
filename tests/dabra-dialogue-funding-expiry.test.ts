@@ -18,20 +18,24 @@ const messages = {
   ar: 'أبغى سيارة لعائلة من خمسة أشخاص في القاهرة لمدة ثلاثة أيام. اسألني عن المعلومات الناقصة قبل ما تقترح سيارة.',
   en: 'I need a car for a family of five in Cairo for three days. Ask me for missing information before suggesting a car.',
 };
-function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing = 'during-await', boundary: Boundary = 'pricing', unknownClaim = false) {
+function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing = 'during-await', boundary: Boundary = 'pricing', unknownClaim = false, runtimeSnapshot = false) {
   let clock = start, authorityChecks = 0, dispatches = 0, reservations = 0, heldMicros = 0, telemetry = 0;
   const external = new AbortController();
   const credential = 'SYNTHETIC-NOT-A-CREDENTIAL', model = 'SYNTHETIC-EXPIRY-MODEL';
-  const fields = {
+  const legacyFields = {
     schema: 'reviewed-standard-pricing-v1', provider: 'openai', model, serviceTier: 'standard', currency: 'USD',
     inputMicrosPerMillion: 1000000, outputMicrosPerMillion: 2000000, observedAtMs: start - 2000,
     validFromMs: start - 1, expiresAtMs: boundary === 'pricing' ? expires : start + 600000,
     sourceUrl: 'https://developers.openai.com/api/docs/pricing',
   };
+  const fields = runtimeSnapshot ? { schema: 'reviewed-standard-pricing-v2', provider: legacyFields.provider, model,
+    serviceTier: legacyFields.serviceTier, currency: legacyFields.currency,
+    inputMicrosPerMillion: legacyFields.inputMicrosPerMillion, outputMicrosPerMillion: legacyFields.outputMicrosPerMillion,
+    sourceUrl: legacyFields.sourceUrl } : legacyFields;
   const pricingEvidenceSha256 = createHash('sha256').update(JSON.stringify([
     fields.schema, fields.provider, fields.model, fields.serviceTier, fields.currency,
-    fields.inputMicrosPerMillion, fields.outputMicrosPerMillion, fields.observedAtMs,
-    fields.validFromMs, fields.expiresAtMs, fields.sourceUrl,
+    fields.inputMicrosPerMillion, fields.outputMicrosPerMillion,
+    ...(runtimeSnapshot ? [] : [legacyFields.observedAtMs, legacyFields.validFromMs, legacyFields.expiresAtMs]), fields.sourceUrl,
   ])).digest('hex');
   const approval = Object.freeze({ ...fields, sha256: pricingEvidenceSha256 });
   const cache = new Map<string, unknown>();
@@ -103,14 +107,24 @@ function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing 
       grantId: '11111111-1111-4111-8111-111111111111', provider: 'openai', model, environment: 'synthetic',
       accountId: 'SYNTHETIC-account', projectId: 'SYNTHETIC-project', evidenceSha256: 'c'.repeat(64),
       credentialSha256: createHash('sha256').update(credential).digest('hex'),
-      verifiedAtMs: start - 1, expiresAtMs: boundary === 'proof' ? expires : start + 600000,
+      verifiedAtMs: start - 1, expiresAtMs: boundary === 'proof' || (runtimeSnapshot && boundary === 'pricing') ? expires : start + 600000,
       quotaWindowStartMs: start - 3600000, quotaWindowEndMs: boundary === 'quota' ? expires : start + 3600000,
       remainingRequests: 1000, remainingInputTokens: 1000000, remainingOutputTokens: 1000000,
       autoReload: 'off', postpaid: 'blocked', overdraft: 'blocked', concurrentAccountUsage: 'bounded',
-      mode: 'existing-credit', currency: 'USD', authorizedCreditMicros: 30000, remainingCreditMicros: 30000,
+      mode: 'existing-credit', currency: 'USD', authorizedCreditMicros: runtimeSnapshot ? 1000000 : 30000, remainingCreditMicros: runtimeSnapshot ? 1000000 : 30000,
       pricing: 'standard-2026-10-28', pricingEvidenceSha256, serviceTier: 'standard',
+      ...(runtimeSnapshot ? { pricingVerification: { schema: 'standard-pricing-verification-v1', snapshotSha256: pricingEvidenceSha256,
+        sourceUrl: fields.sourceUrl, inputMicrosPerMillion: fields.inputMicrosPerMillion, outputMicrosPerMillion: fields.outputMicrosPerMillion,
+        observedAtMs: start - 2, evidenceSha256: '9'.repeat(64) } } : {}),
     }], admission: { reserve: async (request, signal) => {
       assert.equal(signal.aborted, false);
+      if (runtimeSnapshot) {
+        assert.ok(request.proof.mode === 'existing-credit');
+        assert.ok('pricingVerification' in request.proof);
+        assert.equal(request.proof.pricingEvidenceSha256, pricingEvidenceSha256);
+        assert.equal(request.proof.authorizedCreditMicros, 1000000);
+        assert.equal(request.costMicros, 4608);
+      }
       reservations++; heldMicros += request.costMicros;
       return unknownClaim ? { kind: 'denied' } : { kind: 'admitted', attemptId: request.attemptId };
     } } },
@@ -196,6 +210,30 @@ test('expiry permit: the reported isCurrent race now returns false without a tra
 });
 test('expiry unknown claim: no retry, refund or dispatch is introduced', async () => {
   const f = fixture('en', expires, 3, 'during-await', 'pricing', true);
+  await f.run();
+  assert.equal(f.counts.dispatches, 0); assert.equal(f.counts.reservations, 1); assert.equal(f.counts.heldMicros, 4608);
+});
+
+for (const locale of ['ar', 'en'] as const) {
+  test('runtime pricing snapshot ' + locale + ': expiry after predicate resolution stops at actual dispatch and retains admission', async () => {
+    const f = fixture(locale, expires, 3, 'after-predicate', 'pricing', false, true);
+    await f.run();
+    assert.equal(f.counts.dispatches, 0);
+    assert.equal(f.counts.reservations, 1); assert.equal(f.counts.heldMicros, 4608);
+  });
+  test('runtime pricing snapshot ' + locale + ': classifier has the same final expiry guard', async () => {
+    const f = fixture(locale, expires, 2, 'after-prepare', 'pricing', false, true);
+    assert.equal((await f.classify()).status, 'unavailable');
+    assert.equal(f.counts.dispatches, 0); assert.equal(f.counts.reservations, 1); assert.equal(f.counts.heldMicros, 4608);
+  });
+  test('runtime pricing snapshot ' + locale + ': a current receipt dispatches once through existing admission', async () => {
+    const f = fixture(locale, expires - 1, 3, 'during-await', 'pricing', false, true);
+    await f.run();
+    assert.equal(f.counts.dispatches, 1); assert.equal(f.counts.reservations, 1); assert.equal(f.counts.heldMicros, 4608);
+  });
+}
+test('runtime pricing snapshot: unknown claim retains its hold without retry or dispatch', async () => {
+  const f = fixture('en', expires, 3, 'during-await', 'pricing', true, true);
   await f.run();
   assert.equal(f.counts.dispatches, 0); assert.equal(f.counts.reservations, 1); assert.equal(f.counts.heldMicros, 4608);
 });

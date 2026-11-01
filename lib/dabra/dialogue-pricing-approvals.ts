@@ -1,15 +1,25 @@
 import 'server-only';
 
-export type ApprovedDialogueStandardPricing = Readonly<{
-  schema: 'reviewed-standard-pricing-v1'; provider: 'openai' | 'anthropic'; model: string;
-  serviceTier: 'standard'; currency: 'USD'; inputMicrosPerMillion: number; outputMicrosPerMillion: number;
-  observedAtMs: number; validFromMs: number; expiresAtMs: number; sourceUrl: string; sha256: string;
+type StandardPricingFields = Readonly<{
+  provider: 'openai' | 'anthropic'; model: string; serviceTier: 'standard'; currency: 'USD';
+  inputMicrosPerMillion: number; outputMicrosPerMillion: number; sourceUrl: string; sha256: string;
 }>;
+export type ApprovedDialogueStandardPricing = StandardPricingFields & (
+  | Readonly<{ schema: 'reviewed-standard-pricing-v1'; observedAtMs: number; validFromMs: number; expiresAtMs: number }>
+  | Readonly<{ schema: 'reviewed-standard-pricing-v2' }>
+);
 
 /**
- * Source-reviewed server authority, never populated by a request, environment value or URL fetch.
- * Empty until an independently reviewed exact-model Standard tariff and bounded window are approved.
- * Each fingerprint covers the ordered semantic fields verified by dialogue-funding.ts.
- * An entry authorizes pricing only; it grants neither credit, capability qualification nor admission.
+ * Compiled review authority only, never a caller/ENV/URL-fetched approval.
+ * v1 keeps its original bounded historical window. v2 approves semantic tariff
+ * data, not a runtime observation, credit grant, profile or permission to send.
+ * A v2 quote additionally requires fresh evidenced verification in stored proof.
  */
-export const APPROVED_DIALOGUE_STANDARD_PRICING: readonly ApprovedDialogueStandardPricing[] = Object.freeze([]);
+export const APPROVED_DIALOGUE_STANDARD_PRICING: readonly ApprovedDialogueStandardPricing[] = Object.freeze([
+  Object.freeze({
+    schema: 'reviewed-standard-pricing-v2', provider: 'anthropic', model: 'claude-sonnet-5-5',
+    serviceTier: 'standard', currency: 'USD', inputMicrosPerMillion: 2000000, outputMicrosPerMillion: 10000000,
+    sourceUrl: 'https://platform.claude.com/docs/en/models/sonnet-5-5/overview',
+    sha256: '97078a9f0fe05c81aafc8909295b404348606f4d572983bf2364201ca1737cb4',
+  }),
+]);
