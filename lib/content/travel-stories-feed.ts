@@ -2,6 +2,8 @@ import { arabicTravelSources, approvedTravelMediaHosts } from './arabic-travel-s
 import type { TravelStory } from './travel-stories';
 
 const REFRESH_SECONDS = 86_400;
+// One deadline covers source headers, HTML body and thumbnail validation.
+const SOURCE_TIMEOUT_MS = 8_000;
 let staleStories: TravelStory[] = [];
 
 function safeUrl(value: string) {
@@ -28,27 +30,34 @@ function repairMojibake(value: string) {
   }
 }
 
-async function readOfficialSource(source: (typeof arabicTravelSources)[number], index: number): Promise<TravelStory | null> {
-  if (source.type === 'official-youtube' && !source.feedUrl) return null;
-  const url = safeUrl(source.url);
-  if (!url) return null;
-
+async function readSourceResponse(
+  source: (typeof arabicTravelSources)[number], index: number, url: string, signal: AbortSignal,
+): Promise<TravelStory | null> {
+  let response: Response | undefined;
+  let thumbnailResponse: Response | undefined;
   try {
-    const response = await fetch(url, {
+    response = await fetch(url, {
+      signal,
       headers: { Accept: 'text/html,application/xhtml+xml' },
       next: { revalidate: REFRESH_SECONDS },
     });
-    if (!response.ok) return null;
+    if (signal.aborted || !response.ok) return null;
     const html = new TextDecoder('utf-8').decode(await response.arrayBuffer());
+    if (signal.aborted) return null;
     const title = repairMojibake(extractMeta(html, 'og:title') || source.name).normalize('NFC');
     const thumbnail = safeUrl(extractMeta(html, 'og:image'));
     if (!thumbnail) return null;
-    const thumbnailResponse = await fetch(thumbnail, {
+    thumbnailResponse = await fetch(thumbnail, {
+      signal,
       method: 'GET',
       headers: { Accept: 'image/avif,image/webp,image/jpeg,image/png' },
       next: { revalidate: REFRESH_SECONDS },
     });
-    if (!thumbnailResponse.ok || !thumbnailResponse.headers.get('content-type')?.startsWith('image/')) return null;
+    if (signal.aborted || !thumbnailResponse.ok || !thumbnailResponse.headers.get('content-type')?.startsWith('image/')) return null;
+    if (thumbnailResponse.body) {
+      await thumbnailResponse.body.pipeTo(new WritableStream(), { signal });
+    }
+    if (signal.aborted) return null;
 
     return {
       id: `official-${source.id}`,
@@ -73,6 +82,28 @@ async function readOfficialSource(source: (typeof arabicTravelSources)[number], 
     };
   } catch {
     return null;
+  } finally {
+    for (const unused of [response, thumbnailResponse]) {
+      if (unused?.body && !unused.bodyUsed) void unused.body.cancel().catch(() => {});
+    }
+  }
+}
+
+async function readOfficialSource(source: (typeof arabicTravelSources)[number], index: number): Promise<TravelStory | null> {
+  if (source.type === 'official-youtube' && !source.feedUrl) return null;
+  const url = safeUrl(source.url);
+  if (!url) return null;
+
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<null>(resolve => {
+    timer = setTimeout(() => { resolve(null); controller.abort(); }, SOURCE_TIMEOUT_MS);
+  });
+  try {
+    // Also settle if an adapter/cache layer does not propagate cancellation.
+    return await Promise.race([readSourceResponse(source, index, url, controller.signal), deadline]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
