@@ -486,5 +486,6 @@ try {
   checks+=await runProviderQueryAcceptance({db,connectPeer,request,requestId,asUser,operations,customer,other});
  } else { console.log('SKIP targeted concurrent acceptance: requires the explicit isolated PostgreSQL fixture'); }
  }
- console.log(`PASS ${checks} isolated PostgreSQL assertions (${connectPeer ? 'PostgreSQL with two-connection concurrency' : 'PGlite, sequential'}); no remote database or provider calls`);
+ const backend=connectPeer ? (scope==='current_state_resume' && process.env.DRIVE_WHATSAPP_RESUME_SCOPE==='handoff' ? 'PostgreSQL, focused handoff/rollback only' : 'PostgreSQL with two-connection concurrency') : 'PGlite, sequential';
+ console.log(`PASS ${checks} isolated PostgreSQL assertions (${backend}); no remote database or provider calls`);
 } finally { await db.close(); }

@@ -121,7 +121,7 @@
   },
   {
     "path": "supabase/migrations/20261101070938_task166_guarded_current_state_resume.sql",
-    "sha256": "e351cabbbe1e1f4fb935bc9c5e2dd5453bd338e87f72cfe4c30ad92c8c256800",
+    "sha256": "2a07afcb23300ef96ffabeec4a897242a63ddf244f09c623f6486a9b3d759a06",
     "task": "#166",
     "production_apply_authorized": false
   }

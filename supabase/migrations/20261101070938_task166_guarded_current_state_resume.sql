@@ -147,6 +147,19 @@ BEGIN
    AND NOT capture_enabled AND active_continuous_service_id IS NULL;
  GET DIAGNOSTICS changed=ROW_COUNT;
  IF changed<>1 THEN RAISE EXCEPTION 'CLOSED_GATES_REQUIRED' USING ERRCODE='22023'; END IF;
+ IF p_audience='operations' THEN
+  -- The consumed customer's webhook is shared with the replacement. This is
+  -- metadata reconciliation inside the same transaction, not provider cleanup.
+  UPDATE drive_notification_private.execution_windows previous SET deactivation_required=false
+   WHERE previous.id=w.id AND previous.stopped_at IS NOT NULL AND previous.outbox_id=p_customer_outbox
+    AND previous.request_id=n.request_id AND previous.webhook_id=n.webhook_id
+    AND EXISTS(SELECT 1 FROM drive_notification_private.execution_windows replacement
+      WHERE replacement.id=wid AND replacement.request_id=n.request_id AND replacement.outbox_id=p_operations_outbox
+       AND replacement.webhook_id=previous.webhook_id AND replacement.delivery_mode='webhook'
+       AND replacement.stopped_at IS NULL AND replacement.expires_at>clock_timestamp());
+  GET DIAGNOSTICS changed=ROW_COUNT;
+  IF changed<>1 THEN RAISE EXCEPTION 'STATE_RESUMPTION_HANDOFF_CONFLICT' USING ERRCODE='22023'; END IF;
+ END IF;
  SELECT * INTO n FROM drive_notification_private.current_state_notices WHERE id=n.id;
  RETURN jsonb_build_object('notice_id',n.id,'window_id',wid,'expires_at',n.expires_at,'target',
   (SELECT jsonb_build_object('requestId',b.request_id,'outboxId',b.id,'recipientUserId',b.recipient_user_id,
@@ -155,4 +168,50 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.resume_kapso_current_state_window(uuid,uuid,uuid,uuid,text,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.resume_kapso_current_state_window(uuid,uuid,uuid,uuid,text,text) TO service_role;
+
+-- Preserve the existing stop implementation and ACL. Only an already consumed
+-- renewed customer sharing a currently armed Operations webhook suppresses its
+-- obsolete cleanup marker; late receipts must not recreate that marker. The
+-- Operations terminal stop, emergency OFF and every unrelated window retain
+-- their existing behavior.
+CREATE OR REPLACE FUNCTION drive_notification_private.stop_window(p_window_id uuid,p_reason text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE cfg drive_notification_private.settings%ROWTYPE; w drive_notification_private.execution_windows%ROWTYPE;
+ notice uuid; result jsonb;
+BEGIN
+ IF current_setting('role',true) IS DISTINCT FROM 'service_role' THEN RAISE EXCEPTION 'SERVICE_REQUIRED' USING ERRCODE='42501'; END IF;
+ IF p_reason IS NULL OR p_reason NOT IN ('manual','expired','unknown','delivered','failed') THEN RAISE EXCEPTION 'INVALID_STOP' USING ERRCODE='22023'; END IF;
+ SELECT * INTO cfg FROM drive_notification_private.settings WHERE singleton FOR UPDATE;
+ IF cfg.dispatch_mode<>'continuous' THEN
+  result:=drive_notification_private.stop_before_continuous(p_window_id,p_reason);
+  IF cfg.dispatch_mode='target_only' AND cfg.send_enabled AND NOT cfg.capture_enabled AND cfg.active_continuous_service_id IS NULL
+   AND EXISTS(SELECT 1 FROM drive_notification_private.current_state_resumptions a
+    JOIN drive_notification_private.current_state_notices n ON n.id=a.notice_id AND n.request_id=a.request_id
+    JOIN drive_notification_private.current_state_targets t ON t.notice_id=n.id AND t.audience='customer'
+    JOIN drive_notification_private.execution_windows previous ON previous.id=t.window_id AND previous.outbox_id=a.customer_outbox_id
+    JOIN drive_notification_private.current_state_targets sibling ON sibling.notice_id=n.id AND sibling.audience='operations'
+    JOIN drive_notification_private.execution_windows replacement ON replacement.id=sibling.window_id AND replacement.outbox_id=a.operations_outbox_id
+    WHERE previous.id=p_window_id AND previous.stopped_at IS NOT NULL AND previous.send_started_at IS NOT NULL
+     AND cfg.active_window_id=replacement.id AND replacement.id<>previous.id
+     AND previous.request_id=n.request_id AND replacement.request_id=n.request_id
+     AND previous.delivery_mode='webhook' AND replacement.delivery_mode='webhook'
+     AND previous.webhook_id=n.webhook_id AND replacement.webhook_id=n.webhook_id
+     AND replacement.category='operations.current_state' AND replacement.stopped_at IS NULL
+     AND replacement.expires_at=n.expires_at AND n.expires_at=a.expires_at AND n.expires_at>clock_timestamp()) THEN
+   UPDATE drive_notification_private.execution_windows SET deactivation_required=false WHERE id=p_window_id;
+   result:=jsonb_set(result,'{deactivation_required}','false'::jsonb);
+  END IF;
+  RETURN result;
+ END IF;
+ SELECT * INTO w FROM drive_notification_private.execution_windows WHERE id=p_window_id FOR UPDATE;
+ IF NOT FOUND THEN RETURN NULL; END IF;
+ UPDATE drive_notification_private.execution_windows SET stopped_at=coalesce(stopped_at,clock_timestamp()),stop_reason=coalesce(stop_reason,p_reason),
+  deactivation_required=(delivery_mode='webhook' AND NOT EXISTS(SELECT 1 FROM drive_notification_private.continuous_services a WHERE a.id=cfg.active_continuous_service_id AND a.activated_at IS NOT NULL AND a.stopped_at IS NULL AND a.webhook_id=w.webhook_id)) WHERE id=w.id;
+ UPDATE drive_notification_private.customer_authorizations SET stopped_at=coalesce(stopped_at,clock_timestamp()) WHERE window_id=w.id;
+ UPDATE drive_notification_private.current_state_targets SET stopped_at=coalesce(stopped_at,clock_timestamp()) WHERE window_id=w.id RETURNING notice_id INTO notice;
+ IF notice IS NOT NULL AND NOT EXISTS(SELECT 1 FROM drive_notification_private.current_state_targets WHERE notice_id=notice AND stopped_at IS NULL) THEN
+  UPDATE drive_notification_private.current_state_notices SET stopped_at=coalesce(stopped_at,clock_timestamp()) WHERE id=notice;
+ END IF;
+ RETURN jsonb_build_object('window_id',w.id,'webhook_id',w.webhook_id,'deactivation_required',(SELECT deactivation_required FROM drive_notification_private.execution_windows WHERE id=w.id));
+END $$;
 COMMIT;

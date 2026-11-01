@@ -4,6 +4,8 @@ import fs from 'node:fs';
 
 export async function runCurrentStateResumeAcceptance({db,connectPeer,request,requestId,asUser,operations,customer,other}) {
  assert.equal(typeof connectPeer,'function','Two real PostgreSQL peers required');
+ const handoffOnly=process.env.DRIVE_WHATSAPP_RESUME_SCOPE==='handoff';
+ assert.ok(process.env.DRIVE_WHATSAPP_RESUME_SCOPE===undefined || handoffOnly,'Unknown resume delta scope');
  let checks=0,seq=0,current;
  const equal=(a,b,label)=>{assert.deepEqual(a,b,label);checks++;};
  const scalar=async(sql,args=[],client=db)=>Object.values((await client.query(sql,args)).rows[0])[0];
@@ -14,11 +16,13 @@ export async function runCurrentStateResumeAcceptance({db,connectPeer,request,re
  const signature='public.resume_kapso_current_state_window(uuid,uuid,uuid,uuid,text,text)';
  const beforeMigration=await scalar('SELECT to_jsonb(s) FROM drive_notification_private.settings s');
  await db.exec(fs.readFileSync('supabase/migrations/20261101070938_task166_guarded_current_state_resume.sql','utf8'));
+ if(!handoffOnly) {
  equal(await scalar('SELECT to_jsonb(s) FROM drive_notification_private.settings s'),beforeMigration,'migration does not activate or mutate settings');
  for(const role of ['anon','authenticated','service_role']) equal(await scalar('SELECT has_function_privilege($1,$2,\'EXECUTE\')',[role,signature]),role==='service_role','effective RPC ACL including PUBLIC');
  equal(await scalar('SELECT prosecdef AND proconfig @> ARRAY[\'search_path=""\',\'lock_timeout=1s\',\'statement_timeout=4s\']::text[] FROM pg_proc WHERE oid=$1::regprocedure',[signature]),true,'bounded service-only definer');
  equal(await scalar("SELECT relrowsecurity FROM pg_class WHERE oid='drive_notification_private.current_state_resumptions'::regclass"),true,'audit RLS');
  for(const role of ['anon','authenticated','service_role']) for(const grant of ['INSERT','UPDATE','DELETE']) equal(await scalar('SELECT has_table_privilege($1,\'drive_notification_private.current_state_resumptions\',$2)',[role,grant]),false,'audit cannot be edited through caller grants');
+ }
  const customerSub=await scalar("INSERT INTO drive_notification_private.subscriptions(user_id,audience,country,phone,language,consent_reference,verified_at,enabled) VALUES($1,'customer','EG','+10000000001','ar','SYNTHETIC-RESUME-CONSENT',clock_timestamp(),true) RETURNING id",[customer]);
  const opsSub=await scalar("SELECT id FROM drive_notification_private.subscriptions WHERE user_id=$1 AND audience='operations'",[operations]);
  const expire=async n=>db.query("WITH v AS MATERIALIZED(SELECT clock_timestamp() AS at) UPDATE drive_notification_private.current_state_notices SET started_at=v.at-interval '10 minutes',expires_at=v.at-interval '1 minute' FROM v WHERE id=$1",[n.notice_id]);
@@ -36,6 +40,44 @@ export async function runCurrentStateResumeAcceptance({db,connectPeer,request,re
  };
  const snapshot=async f=>scalar("SELECT jsonb_build_object('notice',(SELECT to_jsonb(n) FROM drive_notification_private.current_state_notices n WHERE id=$1),'targets',(SELECT jsonb_agg(to_jsonb(t) ORDER BY id) FROM drive_notification_private.current_state_targets t WHERE notice_id=$1),'outbox',(SELECT jsonb_agg(to_jsonb(o) ORDER BY id) FROM drive_notification_private.outbox o WHERE request_id=$2),'windows',(SELECT coalesce(jsonb_agg(to_jsonb(w) ORDER BY id),'[]'::jsonb) FROM drive_notification_private.execution_windows w WHERE request_id=$2),'audit',(SELECT to_jsonb(a) FROM drive_notification_private.current_state_resumptions a WHERE notice_id=$1),'settings',(SELECT to_jsonb(s) FROM drive_notification_private.settings s))",[f.n.notice_id,f.id]);
  const denied=async(f,pattern,args=f.args,client=db)=>{const before=await snapshot(f);await assert.rejects(()=>service(sql,args,client),pattern);checks++;equal(await snapshot(f),before,'rejection is atomic; no deadline/reset/activation');};
+ const acceptedCustomer=async f=>{
+  const opened=await service(sql,f.args);
+  const row=await service('SELECT public.claim_kapso_drive_whatsapp_target($1,$2,$3,$4,$5)',[f.c.requestId,f.c.outboxId,f.c.recipientUserId,f.c.category,f.c.language]);
+  assert.ok(row,'synthetic customer claimed');
+  assert.equal(await service('SELECT public.begin_kapso_current_state_notice($1,$2,$3,$4)',[row.id,row.token,sender,templates.customer]),true);
+  assert.equal(await service("SELECT public.finish_drive_whatsapp($1,$2,'accepted',$3,NULL)",[row.id,row.token,'wamid.SYNTHETIC_HANDOFF_'+seq]),true);
+  return opened;
+ };
+ {
+  const f=await fresh(),customerWindow=await acceptedCustomer(f);
+  const operationsWindow=await service(sql,[...f.args.slice(0,4),'operations',f.args[5]]);
+  equal(await scalar('SELECT stopped_at IS NOT NULL AND NOT deactivation_required FROM drive_notification_private.execution_windows WHERE id=$1',[customerWindow.window_id]),true,'consumed customer stopped without obsolete OFF work');
+  equal(await scalar('SELECT stopped_at IS NULL AND NOT deactivation_required FROM drive_notification_private.execution_windows WHERE id=$1',[operationsWindow.window_id]),true,'replacement active without OFF work');
+  equal(await scalar('SELECT send_enabled AND NOT capture_enabled AND active_window_id=$1 FROM drive_notification_private.settings',[operationsWindow.window_id]),true,'scoped Operations gate armed');
+  equal(operationsWindow.expires_at,customerWindow.expires_at,'handoff keeps common deadline');
+  equal(await scalar('SELECT count(*)::int FROM drive_notification_private.execution_windows WHERE request_id=$1 AND deactivation_required',[f.id]),0,'no pending webhook deactivation between targets');
+  equal(await service("SELECT public.ingest_kapso_drive_whatsapp_receipt($1,$2,$3,'delivered',NULL,NULL)",['wamid.SYNTHETIC_HANDOFF_'+seq,sender,'+10000000001']),true,'late old-customer receipt');
+  equal(await scalar('SELECT deactivation_required FROM drive_notification_private.execution_windows WHERE id=$1',[customerWindow.window_id]),false,'late receipt cannot recreate stale OFF work');
+  const stoppedAgain=await service("SELECT public.stop_kapso_drive_whatsapp_window($1,'manual')",[customerWindow.window_id]);
+  equal(stoppedAgain.deactivation_required,false,'stop result agrees with reconciled metadata');
+  equal(await scalar('SELECT send_enabled FROM drive_notification_private.settings'),true,'late closure leaves replacement armed');
+  equal(await scalar("SELECT has_function_privilege('service_role','drive_notification_private.stop_window(uuid,text)','EXECUTE')"),false,'private stop ACL unchanged');
+  await service("SELECT public.stop_kapso_drive_whatsapp_window($1,'manual')",[operationsWindow.window_id]);
+  equal(await scalar('SELECT stopped_at IS NOT NULL AND deactivation_required FROM drive_notification_private.execution_windows WHERE id=$1',[operationsWindow.window_id]),true,'final Operations stop retains original cleanup contract');
+  equal(await scalar('SELECT send_enabled FROM drive_notification_private.settings'),false,'terminal gate contract unchanged');
+ }
+ {
+  const f=await fresh(),customerWindow=await acceptedCustomer(f);
+  await db.exec("CREATE FUNCTION public.synthetic_handoff_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'SYNTHETIC_HANDOFF_FAILURE'; END $$; CREATE TRIGGER synthetic_handoff_failure BEFORE INSERT ON drive_notification_private.execution_windows FOR EACH ROW EXECUTE FUNCTION public.synthetic_handoff_failure()");
+  await denied(f,/SYNTHETIC_HANDOFF_FAILURE/,[...f.args.slice(0,4),'operations',f.args[5]]);
+  equal(await scalar('SELECT stopped_at IS NULL AND NOT deactivation_required FROM drive_notification_private.execution_windows WHERE id=$1',[customerWindow.window_id]),true,'failed replacement restores original customer window and marker');
+  equal(await scalar('SELECT send_enabled AND active_window_id=$1 FROM drive_notification_private.settings',[customerWindow.window_id]),true,'failed replacement restores gate and pointer');
+  await db.exec('DROP TRIGGER synthetic_handoff_failure ON drive_notification_private.execution_windows; DROP FUNCTION public.synthetic_handoff_failure()');
+ }
+ if(handoffOnly) {
+  console.log(`PASS ${checks} current-state handoff delta assertions; PostgreSQL; zero provider calls; prior 102 not replayed`);
+  return checks;
+ }
  let f=await fresh();
  await assert.rejects(()=>scalar(sql,f.args),/SERVICE_REQUIRED/);checks++;
  await assert.rejects(()=>asUser(customer,sql,f.args),/permission/);checks++;
