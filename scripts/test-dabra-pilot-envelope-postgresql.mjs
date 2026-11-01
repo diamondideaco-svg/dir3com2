@@ -84,6 +84,12 @@ try{
  check(blocked(paidFive.insert,'dabra_dialogue_funding_grants_check'),'legacy paid-five restriction opened only for fixed marked pilot');
  check(blocked(g.insert+"UPDATE private.dabra_dialogue_funding_grants SET reserved_credit_micros=1 WHERE id="+literal(g.id)+";UPDATE private.dabra_dialogue_funding_grants SET reserved_credit_micros=0 WHERE id="+literal(g.id)+';','DIALOGUE_GRANT_IMMUTABLE'),'reserved hold never decreases');
  const oldRow=(gr,cost,dayOffset=0)=>'INSERT INTO private.dabra_dialogue_admissions(attempt_id,request_id,stage,subject_hash,grant_id,day_start_ms,quota_start_ms,quota_end_ms,input_tokens,output_tokens,cost_micros) VALUES('+[literal(randomUUID()),literal(randomUUID()),"'discover'",literal(gr.permit.subjectHash),literal(gr.id),String(dayOffset),0,1,1,1,cost].join(',')+');';
+ // T217-PILOT-S1 on rejected7325: max(600000,300000)+150000 admitted; per-grant maxima sum to1050000 and must deny.
+ const counterOnly=seed('anthropic'),ledgerOnly=seed('xai'),mixedTarget=seed('gemini',143856);
+ const mixedResult=transaction(counterOnly.insert+ledgerOnly.insert+mixedTarget.insert
+  +'UPDATE private.dabra_dialogue_funding_grants SET reserved_credit_micros=600000 WHERE id='+literal(counterOnly.id)+';'
+  +oldRow(ledgerOnly,300000,-86400000)+claim(mixedTarget));
+ check(mixedTarget.cost===150000&&JSON.parse(mixedResult).decision==='denied','T217-PILOT-S1 mixed per-grant counter600000 plus prior-day ledger300000 blocks all-in150000');
  check(JSON.parse(transaction(g.insert+h.insert+'UPDATE private.dabra_dialogue_funding_grants SET reserved_credit_micros=999000,enabled=false WHERE id='+literal(h.id)+';'+claim(g))).decision==='denied','disabled/expired historical grant holds remain in lifetime budget');
  check(JSON.parse(transaction(g.insert+h.insert+oldRow(h,1000000,-86400000)+claim(g))).decision==='denied','prior-day admission cost survives missing/zero grant hold conservatively');
  const refresh={...g.proof,verifiedAtMs:Date.now()-1000,expiresAtMs:Date.now()+600000,remainingCreditMicros:1000000,quotaWindowStartMs:Date.now()-2000,quotaWindowEndMs:Date.now()+600000};

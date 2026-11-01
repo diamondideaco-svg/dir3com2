@@ -93,7 +93,7 @@ DECLARE
  c private.dabra_dialogue_funding_control%ROWTYPE; g private.dabra_dialogue_funding_grants%ROWTYPE;
  v_now timestamptz; v_now_ms bigint; v_day bigint; q_start bigint; q_end bigint; v_quote bigint;
  total_calls bigint; user_calls bigint; users bigint; total_input bigint; total_output bigint; user_input bigint; user_output bigint;
- v_pilot boolean; pilot_holds numeric; pilot_cost numeric; pilot_calls bigint; v_bound jsonb; v_extra bigint;
+ v_pilot boolean; pilot_holds numeric; pilot_calls bigint; v_bound jsonb; v_extra bigint;
  quota_calls bigint; quota_input bigint; quota_output bigint;
  v_proof jsonb; v_measurement boolean; v_request jsonb; v_permit jsonb; v_case jsonb; v_case_match jsonb;
 BEGIN
@@ -162,10 +162,14 @@ BEGIN
    OR g.proof->'pilotEnvelope' IS DISTINCT FROM '{"schema":"task217-seven-provider-pilot-v1","id":"task217-text-pilot-2026-11-01","maxCostMicros":1000000,"maxAttempts":28}'::jsonb THEN
    RETURN jsonb_build_object('decision','denied');
   END IF;
-  SELECT coalesce(sum(reserved_credit_micros),0) INTO pilot_holds FROM private.dabra_dialogue_funding_grants WHERE proof ? 'pilotEnvelope';
-  SELECT count(*),coalesce(sum(a.cost_micros),0) INTO pilot_calls,pilot_cost
+  -- Reconcile each grant before summing: a counter-only hold on one grant must not hide ledger-only cost on another.
+  SELECT coalesce(sum(greatest(pg.reserved_credit_micros,coalesce(a.cost,0))),0) INTO pilot_holds
+   FROM private.dabra_dialogue_funding_grants pg LEFT JOIN LATERAL (
+    SELECT sum(cost_micros) AS cost FROM private.dabra_dialogue_admissions WHERE grant_id=pg.id
+   ) a ON true WHERE pg.proof ? 'pilotEnvelope';
+  SELECT count(*) INTO pilot_calls
    FROM private.dabra_dialogue_admissions a JOIN private.dabra_dialogue_funding_grants pg ON pg.id=a.grant_id WHERE pg.proof ? 'pilotEnvelope';
-  IF greatest(pilot_holds,pilot_cost)+p_cost_micros>1000000 OR pilot_calls+1>28
+  IF pilot_holds+p_cost_micros>1000000 OR pilot_calls+1>28
    OR (SELECT count(*) FROM private.dabra_dialogue_admissions a JOIN private.dabra_dialogue_funding_grants pg ON pg.id=a.grant_id
      WHERE pg.proof ? 'pilotEnvelope' AND pg.provider=g.provider)>=4 THEN RETURN jsonb_build_object('decision','denied'); END IF;
  END IF;
