@@ -99,11 +99,15 @@ async function readOfficialSource(source: (typeof arabicTravelSources)[number], 
   const deadline = new Promise<null>(resolve => {
     timer = setTimeout(() => { resolve(null); controller.abort(); }, SOURCE_TIMEOUT_MS);
   });
+  let story: TravelStory | null = null;
   try {
     // Also settle if an adapter/cache layer does not propagate cancellation.
-    return await Promise.race([readSourceResponse(source, index, url, controller.signal), deadline]);
+    story = await Promise.race([readSourceResponse(source, index, url, controller.signal), deadline]);
+    return story;
   } finally {
     clearTimeout(timer);
+    // Rejection must stop the same-request cache branch as well as its consumer.
+    if (story === null) controller.abort();
   }
 }
 

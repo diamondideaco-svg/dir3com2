@@ -297,3 +297,23 @@ test('travel feed: cache clone body stalled beyond the budget is aborted with it
   assert.equal(f.calls.find(call => call.url === thumbnail)?.init.signal?.aborted, true);
   assert.equal(f.time.pending(), 0);
 });
+
+
+test('travel feed: cache clone of a rejected thumbnail is aborted before clearing the deadline', async () => {
+  let cacheOutcome = 'pending';
+  const f = fixture(async (url, init) => {
+    if (url === first.url) return new Response(html);
+    if (url !== thumbnail) return unavailable();
+    const body = heldBody(init.signal);
+    const [cacheCopy, consumerCopy] = cloneResponse(new Response(body.response.body, { headers: { 'Content-Type': 'text/html' } }));
+    void cacheCopy.arrayBuffer().then(() => { cacheOutcome = 'complete'; }, () => { cacheOutcome = 'aborted'; });
+    return consumerCopy;
+  });
+  const state = observe(f.read()); await flush();
+  assert.deepEqual(ids(result(state)), []);
+  assert.equal(f.calls.find(call => call.url === thumbnail)?.init.signal?.aborted, true);
+  assert.equal(cacheOutcome, 'aborted', 'rejecting a source must stop its cache branch, not only its consumer');
+  assert.equal(f.time.pending(), 0);
+  await f.time.advance(8000);
+  assert.equal(cacheOutcome, 'aborted');
+});
