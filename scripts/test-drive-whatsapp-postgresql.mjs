@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto';
 let db;
 let connectPeer;
 const scope=process.env.DRIVE_WHATSAPP_TEST_SCOPE;
-assert.ok(scope===undefined || scope==='provider_query' || scope==='customer_bounded' || scope==='current_state' || scope==='continuous','Unknown test scope');
+assert.ok(scope===undefined || ['provider_query','customer_bounded','current_state','continuous','current_state_resume'].includes(scope),'Unknown test scope');
 if(scope)assert.ok(process.env.DRIVE_WHATSAPP_TEST_DATABASE_URL,'Scoped acceptance requires real isolated PostgreSQL');
 if (process.env.DRIVE_WHATSAPP_TEST_DATABASE_URL) {
  const url = new URL(process.env.DRIVE_WHATSAPP_TEST_DATABASE_URL);
@@ -93,17 +93,22 @@ try {
  await db.exec(catalog);
  await db.exec(acceptance);
  await db.exec(migration);
- if(scope==='provider_query' || scope==='customer_bounded' || scope==='current_state' || scope==='continuous') {
+ if(scope==='provider_query' || scope==='customer_bounded' || scope==='current_state' || scope==='continuous' || scope==='current_state_resume') {
   await db.exec(read('supabase/migrations/20261004233934_drive_whatsapp_kapso_operations_created.sql'));
   await db.exec(read('supabase/migrations/20261008115500_drive_whatsapp_customer_categories.sql'));
   await db.exec(read('supabase/migrations/20261012235405_drive_whatsapp_target_claim.sql'));
   await db.query("INSERT INTO drive_notification_private.subscriptions(user_id,audience,country,phone,language,consent_reference,verified_at,enabled) VALUES($1,'operations','EG','+10000000003','ar','SYNTHETIC-CONSENT',clock_timestamp(),true)",[operations]);
-  if(scope==='customer_bounded' || scope==='current_state' || scope==='continuous') {
+  if(scope==='customer_bounded' || scope==='current_state' || scope==='continuous' || scope==='current_state_resume') {
    await db.exec(read('supabase/migrations/20261015212723_task199_bounded_whatsapp_execution.sql'));
    await db.exec(read('supabase/migrations/20261016031829_task199_provider_query_delivery.sql'));
-   if(scope==='current_state' || scope==='continuous') {
+   if(scope==='current_state' || scope==='continuous' || scope==='current_state_resume') {
     await db.exec(read('supabase/migrations/20261026110832_task166_bounded_customer_notifications.sql'));
-    if(scope==='continuous') {
+    if(scope==='current_state_resume') {
+     await db.exec(read('supabase/migrations/20261026191529_task166_current_state_notices.sql'));
+     await db.exec(read('supabase/migrations/20261026204930_task166_continuous_future_events.sql'));
+     const {runCurrentStateResumeAcceptance}=await import('./test-kapso-current-state-resume-postgresql.mjs');
+     checks+=await runCurrentStateResumeAcceptance({db,connectPeer,request,requestId,asUser,operations,customer,other});
+    } else if(scope==='continuous') {
      await db.exec(read('supabase/migrations/20261026191529_task166_current_state_notices.sql'));
      const {runContinuousAcceptance}=await import('./test-kapso-continuous-postgresql.mjs');
      checks+=await runContinuousAcceptance({db,connectPeer,request,requestId,asUser,operations,customer,other});
