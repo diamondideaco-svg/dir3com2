@@ -159,3 +159,49 @@ for (const unknown of [false,true]) test('pilot measurement pins stored model an
   assert.equal(claims, unknown ? 1 : 4); assert.equal(dispatches, unknown ? 0 : 4);
   assert.equal(held, quote(plan.proof)! * claims); assert.equal(result.observations.length, dispatches);
 });
+
+test('DeepSeek off-peak exact registry quote preserves peak pricing and funding boundaries', () => {
+  const peak = fixture('deepseek');
+  const offPeak = APPROVED_DIALOGUE_STANDARD_PRICING.find(r => r.provider === 'deepseek'
+    && r.inputMicrosPerMillion === 150000 && r.outputMicrosPerMillion === 600000);
+  assert.ok(offPeak, 'reviewed applicable off-peak tariff');
+  assert.equal(offPeak.sha256, 'c7c88ce9f8f681e8bb6de4645cb9f31007a0624aa659bcc8044c68667c4b3af7');
+  assert.equal(peak.pricingEvidenceSha256, '760a374be993aa01bd602bbdead31f1e58f642e473207e599816dc0790a28927');
+  const proof: DialogueFundingProof = { ...peak, pricingEvidenceSha256: offPeak.sha256,
+    pricingVerification: { ...peak.pricingVerification, snapshotSha256: offPeak.sha256,
+      inputMicrosPerMillion: offPeak.inputMicrosPerMillion, outputMicrosPerMillion: offPeak.outputMicrosPerMillion } };
+  assert.equal(quote(proof), 1229);
+  assert.equal(quote(peak), 2458);
+  assert.equal(quote({ ...proof, authorizedCreditMicros: 1228 }), null);
+  assert.equal(quote({ ...proof, remainingCreditMicros: 1228 }), null);
+  assert.equal(quote({ ...proof, allInChargeBound: { ...peak.allInChargeBound, maxAdditionalMicros: 700 } }), 1929);
+  assert.equal(quote({ ...proof, allInChargeBound: undefined }), null);
+  assert.equal(quote({ ...proof, pilotEnvelope: undefined }), null);
+});
+
+test('DeepSeek off-peak rejects crossed snapshots or rates and missing or forged observations', () => {
+  const peak = fixture('deepseek');
+  const offPeak = APPROVED_DIALOGUE_STANDARD_PRICING.find(r => r.provider === 'deepseek'
+    && r.inputMicrosPerMillion === 150000 && r.outputMicrosPerMillion === 600000);
+  assert.ok(offPeak, 'reviewed applicable off-peak tariff');
+  const verification = { ...peak.pricingVerification, snapshotSha256: offPeak.sha256,
+    inputMicrosPerMillion: offPeak.inputMicrosPerMillion, outputMicrosPerMillion: offPeak.outputMicrosPerMillion };
+  const proof: DialogueFundingProof = { ...peak, pricingEvidenceSha256: offPeak.sha256, pricingVerification: verification };
+  for (const invalid of [
+    { ...proof, pricingEvidenceSha256: peak.pricingEvidenceSha256 },
+    { ...peak, pricingEvidenceSha256: offPeak.sha256 },
+    { ...proof, pricingVerification: { ...verification,
+      inputMicrosPerMillion: peak.pricingVerification.inputMicrosPerMillion,
+      outputMicrosPerMillion: peak.pricingVerification.outputMicrosPerMillion } },
+    { ...peak, pricingVerification: { ...peak.pricingVerification,
+      inputMicrosPerMillion: offPeak.inputMicrosPerMillion, outputMicrosPerMillion: offPeak.outputMicrosPerMillion } },
+    { ...proof, pricingVerification: undefined },
+    { ...proof, pricingVerification: {} },
+    { ...proof, pricingVerification: { ...verification, evidenceSha256: offPeak.sha256 } },
+    { ...proof, pricingVerification: { ...verification, sourceUrl: 'https://untrusted.invalid/pricing' } },
+    { ...proof, pricingVerification: { ...verification, observedAtMs: now } },
+    { ...proof, pricingVerification: { ...verification, observedAtMs: now - 3600000 } },
+  ]) assert.equal(quote(invalid), null);
+  assert.equal(quote(proof), 1229);
+  assert.equal(quote(peak), 2458);
+});
