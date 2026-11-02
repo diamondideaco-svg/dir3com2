@@ -4,7 +4,7 @@ import { classifierPrompt } from './agent-planner';
 import { parseAgentTool } from './agent-contract';
 import { generalTravelContext, GENERAL_TRAVEL_PROMPT, parseGeneralTravelAdvice } from './agent-general-travel';
 import { dialogueDay, type DialogueDailyLimits } from './agent-dialogue';
-import { fundingSubject, fundingProofForCeilings, validTask217PilotEnvelope, quoteDialogueFunding, validFundingDailyLimits,
+import { fundingSubject, fundingAuthorizationWindow, fundingProofForCeilings, validTask217PilotEnvelope, quoteDialogueFunding, validFundingDailyLimits,
   type DialogueFundingProof, type FundingDialogueAdmission } from './dialogue-funding';
 import { callInternalAgentProvider, internalAgentConfiguration } from '../ai2/runtime/agent-provider-dispatch';
 
@@ -99,6 +99,11 @@ export async function measureFirstProfile(plan: ApprovedFirstProfilePlan, depend
     || !/^[a-zA-Z0-9_-]{1,128}$/.test(plan.subject) || fundingSubject(plan.subject) !== permit.subjectHash
     || !integer(plan.maxCostMicros) || !validFundingDailyLimits(plan.daily, 4096, 1024)) return finish('blocked');
   const pilot = validTask217PilotEnvelope(plan.proof.pilotEnvelope);
+  const window = fundingAuthorizationWindow(plan.proof, Date.now());
+  if (!window) return finish('blocked');
+  // The first durable admission owns this authorization; later cases retain that
+  // owner. A restarted/concurrent process gets a new runId and cannot reuse it.
+  const runId = 'snapshotUse' in plan.proof ? randomUUID() : undefined;
   const configuration = () => dependencies.configuration(plan.proof.provider, pilot ? plan.proof.model : undefined);
   const ceilings = { provider: plan.proof.provider, model: plan.proof.model, environment: plan.proof.environment,
     inputTokenCeiling: permit.inputTokenCeiling, outputTokenCeiling: permit.outputTokenCeiling };
@@ -106,7 +111,7 @@ export async function measureFirstProfile(plan: ApprovedFirstProfilePlan, depend
     const approvedCase = permit.cases.find(c => c.caseId === fixed.caseId);
     if (!approvedCase || signal?.aborted) return finish('stopped');
     const start = Date.now();
-    const end = Math.min(start + 12000, permit.expiresAtMs, plan.proof.expiresAtMs, plan.proof.quotaWindowEndMs, dialogueDay(start).dayEndMs);
+    const end = Math.min(start + 12000, permit.expiresAtMs, window.expiresAtMs, plan.proof.quotaWindowEndMs, dialogueDay(start).dayEndMs);
     if (end <= start || Buffer.byteLength(fixed.prompt + fixed.message, 'utf8') + 128 > permit.inputTokenCeiling) return finish('blocked');
     const controller = new AbortController();
     const stopSignal = AbortSignal.any([controller.signal, AbortSignal.timeout(end - start), ...(signal ? [signal] : [])]);
@@ -118,7 +123,7 @@ export async function measureFirstProfile(plan: ApprovedFirstProfilePlan, depend
         || dependencies.sourceSha() !== permit.sourceSha) return false;
       // Git/config verification is synchronous but may block. Read time AFTER it, not before it.
       const now = Date.now(), cost = quoteDialogueFunding(plan.proof, ceilings, now);
-      return !stopSignal.aborted && now < end && now < permit.expiresAtMs && permit.expiresAtMs <= plan.proof.expiresAtMs
+      return !stopSignal.aborted && now < end && now < permit.expiresAtMs && permit.expiresAtMs <= window.expiresAtMs
         && fundingProofForCeilings(plan.proof, ceilings, now) && cost !== null && cost <= plan.maxCostMicros;
     };
     const current = async () => ready() && await bounded(dependencies.authorityCurrent(stopSignal), stopSignal) === true && ready();
@@ -126,12 +131,12 @@ export async function measureFirstProfile(plan: ApprovedFirstProfilePlan, depend
       if (!await current() || !ready()) return finish('blocked');
       const cost = quoteDialogueFunding(plan.proof, ceilings, Date.now());
       if (cost === null || !ready()) return finish('blocked');
-      const attemptId = randomUUID();
+      const attemptId = runId && fixed.caseId === 'intent-ar' ? runId : randomUUID();
       const claim = await bounded(dependencies.admission.reserve({
         policyId: 'task217-existing-credit-v2', attemptId, requestId: approvedCase.requestId, stage: fixed.stage, subject: plan.subject,
         nowMs: Date.now(), ...dialogueDay(Date.now()), proof: plan.proof, inputTokens: permit.inputTokenCeiling,
         outputTokens: permit.outputTokenCeiling, costMicros: cost, limits: plan.daily,
-        measurementRequest: { planId: permit.planId, caseId: fixed.caseId },
+        measurementRequest: { planId: permit.planId, caseId: fixed.caseId, ...(runId ? { runId } : {}) },
       }, stopSignal), stopSignal);
       if (!ready() || claim?.kind !== 'admitted' || claim.attemptId !== attemptId || !await current() || !ready()) return finish('stopped');
       const config = configuration();

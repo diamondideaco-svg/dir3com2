@@ -5,7 +5,7 @@ import { supabaseAdmin } from '../supabase/server';
 import { AGENT_PROVIDER_IDS, type AgentCapabilityProfile } from './agent-capabilities';
 import { PUBLIC_DIALOGUE_DAILY_LIMITS, type AgentDialoguePolicy } from './agent-dialogue';
 import type { AgentContext } from './agent-contract';
-import { fundingSubject, validFundingDailyLimits, validTask217PilotEnvelope, quoteDialogueFunding, type DialogueFundingProof, type FundedDialogueReservation, type FundingDialogueAdmission } from './dialogue-funding';
+import { fundingSubject, fundingAuthorizationWindow, validFundingDailyLimits, validTask217PilotEnvelope, quoteDialogueFunding, type DialogueFundingProof, type FundedDialogueReservation, type FundingDialogueAdmission } from './dialogue-funding';
 
 export type FundingRpc = (name: string, params: Record<string, unknown>, signal: AbortSignal) =>
   Promise<{ data: unknown; error: unknown }>;
@@ -106,11 +106,12 @@ export async function loadFundingMeasurement(subject: string, planId: string, so
         && permit.subjectHash === fundingSubject(subject) && p.environment === 'provider-benchmark';
     });
     if (matches.length !== 1) return null;
-    // Snapshot the trusted JSON. Financial refresh requires a fresh load, never mutation during a dispatch.
+    // Snapshot trusted JSON, including any private one-use authorization. Never mutate observations during dispatch.
     const snapshot: unknown = JSON.parse(JSON.stringify(matches[0]));
     if (!proof(snapshot)) return null;
-    const permit = parseFirstProfilePermit(snapshot.measurementPermit);
-    if (!permit || Date.now() >= permit.expiresAtMs || !validTask217PilotEnvelope(snapshot.pilotEnvelope)
+    const permit = parseFirstProfilePermit(snapshot.measurementPermit), window = fundingAuthorizationWindow(snapshot, Date.now());
+    if (!permit || !window || ('snapshotUse' in snapshot && permit.expiresAtMs > window.expiresAtMs)
+      || Date.now() >= permit.expiresAtMs || !validTask217PilotEnvelope(snapshot.pilotEnvelope)
       || quoteDialogueFunding(snapshot, { provider: snapshot.provider, model: snapshot.model, environment: snapshot.environment,
         inputTokenCeiling: permit.inputTokenCeiling, outputTokenCeiling: permit.outputTokenCeiling }, Date.now()) === null) return null;
     return Object.freeze({ subject, proof: Object.freeze(snapshot), permit,

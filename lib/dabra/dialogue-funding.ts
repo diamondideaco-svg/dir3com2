@@ -9,7 +9,7 @@ export type DialogueFundingCeilings = Readonly<{
   inputTokenCeiling: number; outputTokenCeiling: number;
 }>;
 type EvidenceBase = Readonly<{
-  measurementPermit?: unknown; pilotEnvelope?: unknown; allInChargeBound?: unknown;
+  measurementPermit?: unknown; pilotEnvelope?: unknown; allInChargeBound?: unknown; snapshotUse?: unknown;
   grantId: string; provider: AgentProviderId; model: string; environment: CapabilityMeasurement['environment'];
   accountId: string; projectId: string; evidenceSha256: string; credentialSha256: string;
   verifiedAtMs: number; expiresAtMs: number; quotaWindowStartMs: number; quotaWindowEndMs: number;
@@ -26,7 +26,7 @@ export type DialogueFundingProof = EvidenceBase & (
 );
 export type FundedDialogueReservation = Readonly<{
   policyId: 'task217-existing-credit-v2'; attemptId: string; requestId: string;
-  measurementRequest?: Readonly<{ planId: string; caseId: string }>;
+  measurementRequest?: Readonly<{ planId: string; caseId: string; runId?: string }>;
   stage: 'discover' | 'intent.classify'; subject: string; nowMs: number; dayStartMs: number; dayEndMs: number;
   proof: DialogueFundingProof; inputTokens: number; outputTokens: number; costMicros: number; limits: DialogueDailyLimits;
 }>;
@@ -65,27 +65,74 @@ export function validTask217PilotEnvelope(value: unknown): value is typeof TASK2
   return object(value) && Object.keys(value).length === 4
     && Object.entries(TASK217_PILOT_ENVELOPE).every(([key, expected]) => Object.hasOwn(value, key) && value[key] === expected);
 }
-function additionalPilotCost(proof: DialogueFundingProof): number | null {
+/**
+ * Bind an operator-stored authorization to the unchanged financial observation and
+ * the exact fixed-case permit. This computes evidence digests; it issues no grant.
+ * Ordered primitive tuples also have an unambiguous PostgreSQL representation.
+ */
+export function fundingSnapshotBindings(proof: DialogueFundingProof) {
+  const p = proof.measurementPermit;
+  if (proof.mode !== 'existing-credit' || !object(p) || Object.keys(p).length !== 9
+    || p.schema !== 'task217-first-profile-v1' || typeof p.planId !== 'string' || !uuid.test(p.planId)
+    || typeof p.sourceSha !== 'string' || !/^[a-f0-9]{40}$/.test(p.sourceSha)
+    || typeof p.caseSetSha !== 'string' || !digest.test(p.caseSetSha)
+    || typeof p.subjectHash !== 'string' || !digest.test(p.subjectHash)
+    || typeof p.expiresAtMs !== 'number' || !count(p.expiresAtMs)
+    || typeof p.inputTokenCeiling !== 'number' || !count(p.inputTokenCeiling) || p.inputTokenCeiling < 1 || p.inputTokenCeiling > 4096
+    || typeof p.outputTokenCeiling !== 'number' || !count(p.outputTokenCeiling) || p.outputTokenCeiling < 1 || p.outputTokenCeiling > 1024
+    || !Array.isArray(p.cases) || p.cases.length !== 4) return null;
+  const cases: string[][] = [];
+  for (const [i, caseId] of ['intent-ar', 'intent-en', 'discover-ar', 'discover-en'].entries()) {
+    const c: unknown = p.cases[i], stage = i < 2 ? 'intent.classify' : 'discover', language = i % 2 ? 'en' : 'ar';
+    if (!object(c) || Object.keys(c).length !== 4 || c.caseId !== caseId || c.stage !== stage || c.language !== language
+      || typeof c.requestId !== 'string' || !uuid.test(c.requestId)) return null;
+    cases.push([caseId, c.requestId, stage, language]);
+  }
+  const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  return {
+    financialSnapshotSha256: hash([proof.grantId, proof.provider, proof.model, proof.environment, proof.accountId, proof.projectId,
+      proof.mode, proof.currency, proof.serviceTier, proof.authorizedCreditMicros, proof.remainingCreditMicros,
+      proof.evidenceSha256, proof.credentialSha256, proof.verifiedAtMs, proof.expiresAtMs,
+      proof.autoReload, proof.postpaid, proof.overdraft, proof.concurrentAccountUsage]),
+    measurementPermitSha256: hash([p.schema, p.planId, p.sourceSha, p.caseSetSha, p.subjectHash,
+      p.expiresAtMs, p.inputTokenCeiling, p.outputTokenCeiling, cases]),
+  };
+}
+/** The customer path always retains its original one-hour financial window. */
+export function fundingAuthorizationWindow(proof: DialogueFundingProof, now: number) {
+  if (!('snapshotUse' in proof)) return { verifiedAtMs: proof.verifiedAtMs, expiresAtMs: proof.expiresAtMs };
+  const a = proof.snapshotUse, bindings = fundingSnapshotBindings(proof);
+  if (!count(now) || !validTask217PilotEnvelope(proof.pilotEnvelope)
+    || proof.environment !== 'provider-benchmark' || !bindings || !object(a) || Object.keys(a).length !== 6
+    || a.schema !== 'task217-funding-snapshot-use-v1'
+    || typeof a.authorizationId !== 'string' || !uuid.test(a.authorizationId)
+    || a.financialSnapshotSha256 !== bindings.financialSnapshotSha256 || a.measurementPermitSha256 !== bindings.measurementPermitSha256
+    || typeof a.authorizedAtMs !== 'number' || !count(a.authorizedAtMs) || a.authorizedAtMs < proof.verifiedAtMs || a.authorizedAtMs > now
+    || typeof a.expiresAtMs !== 'number' || !count(a.expiresAtMs) || a.expiresAtMs <= now
+    || a.expiresAtMs <= a.authorizedAtMs || a.expiresAtMs - a.authorizedAtMs > 3600000) return null;
+  return { verifiedAtMs: a.authorizedAtMs, expiresAtMs: a.expiresAtMs };
+}
+function additionalPilotCost(proof: DialogueFundingProof, now: number): number | null {
   if (!('pilotEnvelope' in proof)) return 0;
-  const v = proof.allInChargeBound;
-  if (!validTask217PilotEnvelope(proof.pilotEnvelope) || !object(v) || Object.keys(v).length !== 6
+  const v = proof.allInChargeBound, window = fundingAuthorizationWindow(proof, now);
+  if (!window || !validTask217PilotEnvelope(proof.pilotEnvelope) || !object(v) || Object.keys(v).length !== 6
     || v.schema !== 'all-in-charge-bound-v1' || v.currency !== 'USD' || v.coverage !== 'all-applicable-api-charges'
     || typeof v.maxAdditionalMicros !== 'number' || !count(v.maxAdditionalMicros) || v.maxAdditionalMicros > 1000000
-    || typeof v.observedAtMs !== 'number' || !count(v.observedAtMs) || v.observedAtMs > proof.verifiedAtMs
-    || proof.expiresAtMs - v.observedAtMs > 3600000
+    || typeof v.observedAtMs !== 'number' || !count(v.observedAtMs) || v.observedAtMs > window.verifiedAtMs
+    || window.expiresAtMs - v.observedAtMs > 3600000
     || typeof v.evidenceSha256 !== 'string' || !digest.test(v.evidenceSha256)) return null;
   return v.maxAdditionalMicros;
 }
 /** Financial identity/ceilings, deliberately independent from capability qualification. */
 export function fundingProofForCeilings(proof: DialogueFundingProof, m: DialogueFundingCeilings, now: number) {
-  const pilot = validTask217PilotEnvelope(proof.pilotEnvelope);
-  if (!count(now) || !count(m.inputTokenCeiling) || m.inputTokenCeiling < 1 || m.inputTokenCeiling > 4096
+  const pilot = validTask217PilotEnvelope(proof.pilotEnvelope), window = fundingAuthorizationWindow(proof, now);
+  if (!window || !count(now) || window.expiresAtMs <= now || !count(m.inputTokenCeiling) || m.inputTokenCeiling < 1 || m.inputTokenCeiling > 4096
     || !count(m.outputTokenCeiling) || m.outputTokenCeiling < 1 || m.outputTokenCeiling > 1024
     || !uuid.test(proof.grantId) || proof.provider !== m.provider || proof.model !== m.model || proof.environment !== m.environment
     || !identifier.test(proof.accountId) || !identifier.test(proof.projectId)
     || !digest.test(proof.evidenceSha256) || !digest.test(proof.credentialSha256)
     || !Number.isSafeInteger(proof.verifiedAtMs) || proof.verifiedAtMs > now
-    || !Number.isSafeInteger(proof.expiresAtMs) || proof.expiresAtMs <= now
+    || !Number.isSafeInteger(proof.expiresAtMs)
     || proof.expiresAtMs <= proof.verifiedAtMs || proof.expiresAtMs - proof.verifiedAtMs > 3600000
     || !Number.isSafeInteger(proof.quotaWindowStartMs) || proof.quotaWindowStartMs > now
     || !Number.isSafeInteger(proof.quotaWindowEndMs) || proof.quotaWindowEndMs <= now
@@ -134,19 +181,19 @@ function reviewedStandardRates(reference: unknown, proof: Extract<DialogueFundin
   if (r.schema === 'reviewed-standard-pricing-v2') {
     // This observation is part of the existing exact server-stored grant proof;
     // caller JSON, an official URL or a fresh financial timestamp cannot mint it.
-    const v = proof.pricingVerification;
+    const v = proof.pricingVerification, window = fundingAuthorizationWindow(proof, now);
     const record = (value: unknown): value is Record<string, unknown> =>
       value !== null && typeof value === 'object' && !Array.isArray(value);
-    if (Object.keys(r).length !== 9 || !record(v) || Object.keys(v).length !== 7
+    if (!window || Object.keys(r).length !== 9 || !record(v) || Object.keys(v).length !== 7
       || v.schema !== 'standard-pricing-verification-v1' || v.snapshotSha256 !== reference
       || v.sourceUrl !== r.sourceUrl || v.inputMicrosPerMillion !== r.inputMicrosPerMillion
       || v.outputMicrosPerMillion !== r.outputMicrosPerMillion
-      || typeof v.observedAtMs !== 'number' || !count(v.observedAtMs) || v.observedAtMs > proof.verifiedAtMs
-      || proof.expiresAtMs - v.observedAtMs > 3600000
+      || typeof v.observedAtMs !== 'number' || !count(v.observedAtMs) || v.observedAtMs > window.verifiedAtMs
+      || window.expiresAtMs - v.observedAtMs > 3600000
       || typeof v.evidenceSha256 !== 'string' || !digest.test(v.evidenceSha256)
       || v.evidenceSha256 === reference) return undefined;
-    // Reuse the financial proof's verifiedAt/expiresAt rather than opening a
-    // second expiry window. A financial refresh alone cannot refresh old prices.
+    // The independent one-hour pricing observation must cover the execution
+    // window. A saved financial snapshot authorization cannot refresh prices.
     const fingerprint = createHash('sha256').update(JSON.stringify([
       r.schema, r.provider, r.model, r.serviceTier, r.currency,
       r.inputMicrosPerMillion, r.outputMicrosPerMillion, r.sourceUrl,
@@ -179,7 +226,7 @@ export function quoteDialogueFunding(proof: DialogueFundingProof, m: DialogueFun
 
   const numerator = BigInt(m.inputTokenCeiling) * BigInt(rates.inputMicrosPerMillion)
     + BigInt(m.outputTokenCeiling) * BigInt(rates.outputMicrosPerMillion);
-  const extra = additionalPilotCost(proof);
+  const extra = additionalPilotCost(proof, now);
   if (extra === null) return null;
   const cost = Number((numerator + BigInt(999999)) / BigInt(1000000) + BigInt(extra));
   if ('pilotEnvelope' in proof && cost > TASK217_PILOT_ENVELOPE.maxCostMicros) return null;

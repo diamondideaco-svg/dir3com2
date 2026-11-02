@@ -1,5 +1,5 @@
 import test from 'node:test';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
@@ -10,7 +10,7 @@ import { fundingSubject } from '../lib/dabra/dialogue-funding';
 import { callInternalAgentProvider } from '../lib/ai2/runtime/agent-provider-dispatch';
 import assert from 'node:assert/strict';
 import { APPROVED_DIALOGUE_STANDARD_PRICING } from '../lib/dabra/dialogue-pricing-approvals';
-import { quoteDialogueFunding, dialogueCostCeilingMicros, type DialogueFundingProof } from '../lib/dabra/dialogue-funding';
+import { quoteDialogueFunding, dialogueCostCeilingMicros, fundingSnapshotBindings, fundingAuthorizationWindow, type FundedDialogueReservation, type DialogueFundingProof } from '../lib/dabra/dialogue-funding';
 import type { AgentCapabilityProfile, AgentProviderId } from '../lib/dabra/agent-capabilities';
 
 // Synthetic observations only. No live account, financial approval, credential or provider request.
@@ -271,4 +271,156 @@ test('pilot ledger scope requires exact stored measurement authority for the fou
     assert.equal(await loadFundingMeasurement(plan.subject, plan.permit.planId, plan.permit.sourceSha, signal, rpc), null);
   }
   assert.equal(dispatches, 4);
+});
+
+
+/** Operator fixture only. No runtime issuer, real balance, credential or network. */
+function savedSnapshotPlan(): ApprovedFirstProfilePlan & { proof: Extract<DialogueFundingProof, { mode: 'existing-credit' }> } {
+  const plan = measurementPlan('openai');
+  assert.ok(plan.proof.mode === 'existing-credit');
+  const proof = { ...plan.proof, verifiedAtMs: now - 7200000, expiresAtMs: now - 6600000 };
+  const bindings = fundingSnapshotBindings(proof); assert.ok(bindings);
+  return { ...plan, proof: { ...proof, snapshotUse: { schema: 'task217-funding-snapshot-use-v1',
+    authorizationId: randomUUID(), ...bindings, authorizedAtMs: now - 500, expiresAtMs: plan.permit.expiresAtMs } } };
+}
+function snapshotDependencies(plan: ApprovedFirstProfilePlan, unknown = false) {
+  const claims: FundedDialogueReservation[] = [], spent = new Set<string>();
+  let dispatches = 0, held = 0;
+  const deps: MeasurementDependencies = {
+    sourceSha: () => plan.permit.sourceSha, authorityCurrent: async () => true,
+    configuration: () => ({ apiKey: 'SYNTHETIC-KEY', model: plan.proof.model }),
+    admission: { reserve: async r => {
+      claims.push(r); await Promise.resolve();
+      if (spent.has(r.requestId)) return { kind: 'denied' };
+      spent.add(r.requestId); held += r.costMicros;
+      return unknown ? { kind: 'denied' } : { kind: 'admitted', attemptId: r.attemptId };
+    } },
+    dispatch: async (_provider, config, message, options) => {
+      const fixed = FIRST_PROFILE_CASES.find(c => c.message === message); assert.ok(fixed);
+      dispatches++; assert.equal(options.prompt, fixed.prompt);
+      assert.equal(options.maxOutputTokens, 1024); assert.equal(options.pilotMeasurement, true);
+      return { ok: true, model: config.model, citations: [], inputTokens: 100, outputTokens: 50,
+        answer: options.classifier ? JSON.stringify({ tool: fixed.language === 'ar' ? 'weather' : 'maps' })
+          : JSON.stringify({ kind: 'general-travel', advice: fixed.language === 'ar'
+            ? 'رتّب حقيبة السفر بأغراض خفيفة، وخذ فترات راحة في الظل مع الأطفال. هل تفضّلون نشاطًا داخليًا أم خارجيًا؟'
+            : 'Pack a light bag and plan quiet rest breaks in the shade with children. Would you prefer an indoor or outdoor stop?' }) };
+    },
+  };
+  return { deps, claims, counts: () => ({ dispatches, held, spent: spent.size }) };
+}
+test('saved snapshot: expired original observation is unchanged and requires exact explicit authorization', () => {
+  const p = savedSnapshotPlan(), serialized = JSON.stringify(p.proof);
+  assert.equal(p.proof.verifiedAtMs, now - 7200000); assert.equal(p.proof.expiresAtMs, now - 6600000);
+  assert.equal(quote(p.proof), quote(measurementPlan('openai').proof));
+  assert.equal(quote({ ...p.proof, snapshotUse: undefined }), null);
+  const without = { ...p.proof }; delete without.snapshotUse;
+  assert.equal(quote(without), null);
+  assert.equal(JSON.stringify(p.proof), serialized, 'quoting does not renew times or relabel the balance');
+  assert.deepEqual(fundingAuthorizationWindow(p.proof, now), { verifiedAtMs: now - 500, expiresAtMs: p.permit.expiresAtMs });
+});
+test('saved snapshot: financial identity, evidence, values, source, subject and cases are bound', () => {
+  const p = savedSnapshotPlan();
+  for (const proof of [
+    { ...p.proof, grantId: randomUUID() }, { ...p.proof, provider: 'anthropic' as const },
+    { ...p.proof, accountId: 'SYNTHETIC-other' }, { ...p.proof, projectId: 'SYNTHETIC-other' },
+    { ...p.proof, model: 'SYNTHETIC-other' }, { ...p.proof, credentialSha256: '9'.repeat(64) },
+    { ...p.proof, evidenceSha256: '9'.repeat(64) }, { ...p.proof, verifiedAtMs: p.proof.verifiedAtMs + 1 },
+    { ...p.proof, expiresAtMs: p.proof.expiresAtMs + 1 },
+    { ...p.proof, remainingCreditMicros: 2000000 },
+    ...[
+      { sourceSha: 'a'.repeat(40) }, { caseSetSha: 'a'.repeat(64) }, { planId: randomUUID() },
+      { subjectHash: 'a'.repeat(64) }, { expiresAtMs: p.permit.expiresAtMs + 1 },
+      { cases: p.permit.cases.map((c,i) => i ? c : { ...c, requestId: randomUUID() }) },
+      { cases: [...p.permit.cases].reverse() },
+    ].map(change => ({ ...p.proof, measurementPermit: { ...p.permit, ...change } })),
+  ]) assert.equal(quote(proof), null);
+});
+test('saved snapshot: expired, future, malformed, renewed or ordinary-path authorizations fail closed', () => {
+  const p = savedSnapshotPlan(); assert.ok(p.proof.snapshotUse && typeof p.proof.snapshotUse === 'object');
+  const a = p.proof.snapshotUse;
+  for (const snapshotUse of [null, {}, { ...a, extra: true }, { ...a, expiresAtMs: now },
+    { ...a, authorizedAtMs: now + 1 }, { ...a, authorizedAtMs: now - 3600001 },
+    { ...a, financialSnapshotSha256: '0'.repeat(64) }, { ...a, measurementPermitSha256: '0'.repeat(64) },
+    { ...a, authorizationId: 'not-a-uuid' }]) assert.equal(quote({ ...p.proof, snapshotUse }), null);
+  assert.equal(quote({ ...p.proof, pilotEnvelope: undefined }), null);
+  const freshOrdinary = { ...p.proof, verifiedAtMs: now - 1000, expiresAtMs: now + 600000 };
+  delete freshOrdinary.snapshotUse; delete freshOrdinary.pilotEnvelope; delete freshOrdinary.measurementPermit;
+  assert.notEqual(quote(freshOrdinary), null);
+  assert.equal(quote({ ...freshOrdinary, verifiedAtMs: now - 7200000, expiresAtMs: now - 6600000 }), null);
+});
+test('saved snapshot: pricing, all-in fees, quotas and permit expiry remain independent blockers', async t => {
+  t.mock.method(Date, 'now', () => now);
+  const p = savedSnapshotPlan(), fresh = fixture('openai', 700);
+  for (const proof of [
+    { ...p.proof, pricingVerification: { ...fresh.pricingVerification, observedAtMs: now - 3600000 } },
+    { ...p.proof, allInChargeBound: { ...fresh.allInChargeBound, observedAtMs: now - 3600000 } },
+    { ...p.proof, pricingVerification: undefined }, { ...p.proof, allInChargeBound: undefined },
+    { ...p.proof, quotaWindowEndMs: now }, { ...p.proof, remainingRequests: 0 },
+  ]) {
+    assert.equal(quote(proof), null);
+    const f = snapshotDependencies({ ...p, proof });
+    assert.equal((await measureFirstProfile({ ...p, proof }, f.deps)).kind, 'blocked');
+    assert.equal(f.counts().dispatches, 0); assert.equal(f.claims.length, 0);
+  }
+  for (const expiry of [now, p.permit.expiresAtMs + 1]) {
+    const permit = { ...p.permit, expiresAtMs: expiry }, proof = { ...p.proof, measurementPermit: permit };
+    const bindings = fundingSnapshotBindings(proof); assert.ok(bindings);
+    const changed = { ...proof, snapshotUse: { schema: 'task217-funding-snapshot-use-v1', authorizationId: randomUUID(),
+      ...bindings, authorizedAtMs: now - 500, expiresAtMs: p.permit.expiresAtMs } };
+    const f = snapshotDependencies({ ...p, proof: changed, permit });
+    assert.equal((await measureFirstProfile({ ...p, proof: changed, permit }, f.deps)).kind, 'blocked');
+    assert.equal(f.counts().dispatches, 0);
+  }
+});
+test('saved snapshot: loader and four-case measurement use one owner without renewing financial times', async t => {
+  t.mock.method(Date, 'now', () => now);
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('synthetic snapshot test forbids network'); });
+  const p = savedSnapshotPlan(), original = JSON.stringify(p.proof);
+  const rpc: FundingRpc = async () => ({ error: null, data: { enabled: true, profiles: [], proofs: [p.proof],
+    maxCostMicros: p.maxCostMicros, dailyLimits: p.daily } });
+  const signal = new AbortController().signal;
+  const loaded = await loadFundingMeasurement(p.subject, p.permit.planId, p.permit.sourceSha, signal, rpc); assert.ok(loaded);
+  assert.equal(await loadFundingMeasurement(p.subject, p.permit.planId, '0'.repeat(40), signal, rpc), null);
+  assert.equal(await loadFundingMeasurement('SYNTHETIC-other', p.permit.planId, p.permit.sourceSha, signal, rpc), null);
+  const f = snapshotDependencies(loaded), result = await measureFirstProfile(loaded, f.deps);
+  assert.equal(result.kind, 'candidate'); assert.equal(result.qualified, false); assert.equal(result.observations.length, 4);
+  assert.equal(f.counts().dispatches, 4); assert.equal(f.counts().held, 4 * quote(p.proof)!);
+  assert.ok(f.claims[0].measurementRequest?.runId);
+  assert.equal(f.claims[0].attemptId, f.claims[0].measurementRequest.runId);
+  assert.equal(new Set(f.claims.map(c => c.measurementRequest?.runId)).size, 1);
+  assert.equal(new Set(f.claims.map(c => c.attemptId)).size, 4);
+  assert.equal(JSON.stringify(p.proof), original);
+  assert.doesNotMatch(JSON.stringify(result), /snapshotUse|accountId|credentialSha256|SYNTHETIC-KEY/);
+});
+test('saved snapshot: concurrent processes and restarts do not issue duplicate case requests', async t => {
+  t.mock.method(Date, 'now', () => now);
+  const p = savedSnapshotPlan(), f = snapshotDependencies(p);
+  const results = await Promise.all([measureFirstProfile(p, f.deps), measureFirstProfile(p, f.deps)]);
+  assert.equal(results.filter(r => r.kind === 'candidate').length, 1);
+  assert.equal(f.counts().dispatches, 4); assert.equal(f.counts().spent, 4);
+  const firstClaims = f.claims.filter(c => c.measurementRequest?.caseId === 'intent-ar');
+  assert.equal(firstClaims.length, 2);
+  assert.notEqual(firstClaims[0].measurementRequest?.runId, firstClaims[1].measurementRequest?.runId);
+  assert.equal((await measureFirstProfile(p, f.deps)).kind, 'stopped');
+  assert.equal(f.counts().dispatches, 4); assert.equal(f.counts().held, 4 * quote(p.proof)!);
+});
+test('saved snapshot: unknown reservation, changed credential/source and expiry cannot dispatch or refund', async t => {
+  t.mock.method(Date, 'now', () => now);
+  const p = savedSnapshotPlan(), f = snapshotDependencies(p, true);
+  assert.equal((await measureFirstProfile(p, f.deps)).kind, 'stopped');
+  assert.equal(f.counts().dispatches, 0); assert.equal(f.counts().held, quote(p.proof));
+  assert.equal((await measureFirstProfile(p, f.deps)).kind, 'stopped');
+  assert.equal(f.counts().held, quote(p.proof));
+  for (const change of [
+    { sourceSha: () => '0'.repeat(40) },
+    { configuration: () => ({ apiKey: 'SYNTHETIC-other', model: p.proof.model }) },
+  ]) {
+    const isolated = snapshotDependencies(p);
+    assert.equal((await measureFirstProfile(p, { ...isolated.deps, ...change })).kind, 'blocked');
+    assert.equal(isolated.claims.length, 0); assert.equal(isolated.counts().dispatches, 0);
+  }
+  t.mock.method(Date, 'now', () => p.permit.expiresAtMs);
+  const expired = snapshotDependencies(p);
+  assert.equal((await measureFirstProfile(p, expired.deps)).kind, 'blocked');
+  assert.equal(expired.claims.length, 0);
 });
