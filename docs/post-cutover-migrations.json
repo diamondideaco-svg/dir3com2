@@ -142,5 +142,11 @@
     "sha256": "9094d0d716356460b1076dee1b8b2122a82a1ae1b7d9ff4b0b3a4d9c09687f4e",
     "task": "#217",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261102043035_task217_pilot_ledger_funding_scope.sql",
+    "sha256": "cf8cfe7a2718984666190cccc5596b8d08517aa1d5ae1b591287b81e59961605",
+    "task": "#217",
+    "production_apply_authorized": false
   }
 ]

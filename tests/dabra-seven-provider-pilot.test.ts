@@ -205,3 +205,70 @@ test('DeepSeek off-peak rejects crossed snapshots or rates and missing or forged
   assert.equal(quote(proof), 1229);
   assert.equal(quote(peak), 2458);
 });
+
+test('pilot ledger scope quotes truthful unknown account properties without rewriting them', () => {
+  const proof = { ...fixture('openai', 103), postpaid: 'unknown', overdraft: 'unknown', concurrentAccountUsage: 'unknown' } as const;
+  assert.equal(quote(proof), 1025);
+  assert.equal(quote({ ...proof, overdraft: 'allowed', postpaid: 'allowed' }), 1025);
+  assert.equal(proof.postpaid, 'unknown');
+  assert.equal(proof.overdraft, 'unknown');
+  assert.equal(proof.concurrentAccountUsage, 'unknown');
+  for (const value of [
+    { ...proof, autoReload: 'on' as const }, { ...proof, autoReload: 'unknown' as const },
+    { ...proof, pilotEnvelope: undefined }, { ...proof, measurementPermit: undefined },
+    { ...proof, allInChargeBound: undefined }, { ...proof, remainingCreditMicros: 0 },
+    { ...proof, expiresAtMs: now - 1 },
+  ]) assert.equal(quote(value), null);
+});
+
+test('pilot ledger scope requires exact stored measurement authority for the four fixed cases', async t => {
+  t.mock.method(Date, 'now', () => now);
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('synthetic test forbids network'); });
+  const base = measurementPlan('openai');
+  const plan = { ...base, proof: { ...base.proof, postpaid: 'unknown', overdraft: 'unknown', concurrentAccountUsage: 'unknown' } } as const;
+  let stored: unknown = plan.proof;
+  const rpc: FundingRpc = async () => ({ error: null, data: { enabled: true, profiles: [], proofs: [stored],
+    maxCostMicros: plan.maxCostMicros, dailyLimits: plan.daily } });
+  const signal = new AbortController().signal;
+  const loaded = await loadFundingMeasurement(plan.subject, plan.permit.planId, plan.permit.sourceSha, signal, rpc);
+  assert.ok(loaded);
+  assert.equal(loaded.proof.overdraft, 'unknown');
+  assert.equal(loaded.proof.concurrentAccountUsage, 'unknown');
+  let claims = 0, dispatches = 0;
+  const requests = new Set<string>();
+  const result = await measureFirstProfile(loaded, {
+    sourceSha: () => plan.permit.sourceSha, authorityCurrent: async () => true,
+    configuration: (_provider, model) => ({ apiKey: 'SYNTHETIC-KEY', model: model! }),
+    admission: { reserve: async r => {
+      claims++; requests.add(r.requestId);
+      assert.equal(r.proof.overdraft, 'unknown'); assert.equal(r.proof.concurrentAccountUsage, 'unknown');
+      assert.equal(r.costMicros, quote(plan.proof)); assert.equal(r.measurementRequest?.planId, plan.permit.planId);
+      return { kind: 'admitted', attemptId: r.attemptId };
+    } },
+    dispatch: async (_provider, config, message, options) => {
+      const fixed = FIRST_PROFILE_CASES[dispatches++];
+      assert.equal(message, fixed.message); assert.equal(options.prompt, fixed.prompt);
+      assert.equal(options.pilotMeasurement, true); assert.equal(options.maxOutputTokens, 1024);
+      return { ok: true, model: config.model, citations: [], inputTokens: 100, outputTokens: 50,
+        answer: options.classifier ? JSON.stringify({ tool: fixed.language === 'ar' ? 'weather' : 'maps' })
+          : JSON.stringify({ kind: 'general-travel', advice: fixed.language === 'ar'
+            ? 'رتّب حقيبة السفر بأغراض خفيفة، وخذ فترات راحة في الظل مع الأطفال. هل تفضّلون نشاطًا داخليًا أم خارجيًا؟'
+            : 'Pack a light bag and plan quiet rest breaks in the shade with children. Would you prefer an indoor or outdoor stop?' }) };
+    },
+  }, signal);
+  assert.equal(result.kind, 'candidate'); assert.equal(result.qualified, false);
+  assert.equal(claims, 4); assert.equal(dispatches, 4); assert.equal(requests.size, 4);
+  for (const invalid of [
+    { ...plan.proof, pilotEnvelope: undefined }, { ...plan.proof, pilotEnvelope: { ...marker, id: 'another-budget' } },
+    { ...plan.proof, measurementPermit: {} }, { ...plan.proof, measurementPermit: undefined },
+    { ...plan.proof, measurementPermit: { ...plan.permit, cases: plan.permit.cases.slice(0, 3) } },
+    { ...plan.proof, measurementPermit: { ...plan.permit, sourceSha: '0'.repeat(40) } },
+    { ...plan.proof, model: 'SYNTHETIC-unreviewed' }, { ...plan.proof, autoReload: 'on' },
+    { ...plan.proof, overdraft: 'fabricated' }, { ...plan.proof, concurrentAccountUsage: 'fabricated' },
+    { ...plan.proof, allInChargeBound: undefined }, { ...plan.proof, remainingCreditMicros: 0 },
+  ]) {
+    stored = invalid;
+    assert.equal(await loadFundingMeasurement(plan.subject, plan.permit.planId, plan.permit.sourceSha, signal, rpc), null);
+  }
+  assert.equal(dispatches, 4);
+});

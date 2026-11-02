@@ -78,6 +78,7 @@ function additionalPilotCost(proof: DialogueFundingProof): number | null {
 }
 /** Financial identity/ceilings, deliberately independent from capability qualification. */
 export function fundingProofForCeilings(proof: DialogueFundingProof, m: DialogueFundingCeilings, now: number) {
+  const pilot = validTask217PilotEnvelope(proof.pilotEnvelope);
   if (!count(now) || !count(m.inputTokenCeiling) || m.inputTokenCeiling < 1 || m.inputTokenCeiling > 4096
     || !count(m.outputTokenCeiling) || m.outputTokenCeiling < 1 || m.outputTokenCeiling > 1024
     || !uuid.test(proof.grantId) || proof.provider !== m.provider || proof.model !== m.model || proof.environment !== m.environment
@@ -88,12 +89,18 @@ export function fundingProofForCeilings(proof: DialogueFundingProof, m: Dialogue
     || proof.expiresAtMs <= proof.verifiedAtMs || proof.expiresAtMs - proof.verifiedAtMs > 3600000
     || !Number.isSafeInteger(proof.quotaWindowStartMs) || proof.quotaWindowStartMs > now
     || !Number.isSafeInteger(proof.quotaWindowEndMs) || proof.quotaWindowEndMs <= now
-    || proof.autoReload !== 'off' || proof.postpaid !== 'blocked' || proof.overdraft !== 'blocked'
-    || proof.concurrentAccountUsage !== 'bounded'
+    || proof.autoReload !== 'off'
+    || !['blocked', 'allowed', 'unknown'].includes(proof.postpaid)
+    || !['blocked', 'allowed', 'unknown'].includes(proof.overdraft)
+    || !['bounded', 'unknown'].includes(proof.concurrentAccountUsage)
+    // Pilot reservations bound this experiment, not all use of the provider account.
+    // Keep truthful account observations; ordinary dialogue retains its stronger requirements.
+    || (!pilot && (proof.postpaid !== 'blocked' || proof.overdraft !== 'blocked' || proof.concurrentAccountUsage !== 'bounded'))
     || !count(proof.remainingRequests) || proof.remainingRequests < 1
     || !count(proof.remainingInputTokens) || proof.remainingInputTokens < m.inputTokenCeiling
     || !count(proof.remainingOutputTokens) || proof.remainingOutputTokens < m.outputTokenCeiling) return false;
-  if ('pilotEnvelope' in proof && (!validTask217PilotEnvelope(proof.pilotEnvelope) || proof.mode !== 'existing-credit')) return false;
+  if ('pilotEnvelope' in proof && (!pilot || proof.mode !== 'existing-credit'
+    || proof.environment !== 'provider-benchmark' || !object(proof.measurementPermit))) return false;
   if (proof.mode === 'existing-credit') return (['openai','anthropic'].includes(proof.provider)
     || (validTask217PilotEnvelope(proof.pilotEnvelope) && object(proof.measurementPermit)))
     && proof.currency === 'USD' && proof.serviceTier === 'standard'

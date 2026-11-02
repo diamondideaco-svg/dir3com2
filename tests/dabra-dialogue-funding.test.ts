@@ -202,3 +202,20 @@ test('ten distinct server subjects share the same v2 cap across server adapters'
  }
  assert.equal(store.ledger.length,10);assert.equal(remote,0);
 });
+
+for (const locale of ['ar', 'en'] as const) test('pilot ledger scope preserves ordinary actual POST rejection of unknown account properties ' + locale, async () => {
+  for (const proof of [
+    { ...evidence(), postpaid: 'unknown' as const },
+    { ...evidence(), overdraft: 'unknown' as const },
+    { ...evidence(), overdraft: 'allowed' as const },
+    { ...evidence(), concurrentAccountUsage: 'unknown' as const },
+  ]) {
+    const store = new RpcFixture();
+    const body = await (await post(policy(store, locale, [proof]), locale)).json();
+    assert.equal(body.provider, 'local');
+    assert.equal(body.agent.mutations, 0);
+    assert.equal(remote, 0);
+    assert.equal(store.calls, 0);
+    assert.equal(store.ledger.length, 0);
+  }
+});
