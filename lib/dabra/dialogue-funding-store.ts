@@ -5,7 +5,7 @@ import { supabaseAdmin } from '../supabase/server';
 import { AGENT_PROVIDER_IDS, type AgentCapabilityProfile } from './agent-capabilities';
 import { PUBLIC_DIALOGUE_DAILY_LIMITS, type AgentDialoguePolicy } from './agent-dialogue';
 import type { AgentContext } from './agent-contract';
-import { fundingSubject, validFundingDailyLimits, validTask217PilotEnvelope, quoteDialogueFunding, type DialogueFundingProof, type FundedDialogueReservation, type FundingDialogueAdmission } from './dialogue-funding';
+import { fundingSubject, fundingAuthorizationWindow, validFundingDailyLimits, validTask217PilotEnvelope, quoteDialogueFunding, type DialogueFundingProof, type FundedDialogueReservation, type FundingDialogueAdmission } from './dialogue-funding';
 
 export type FundingRpc = (name: string, params: Record<string, unknown>, signal: AbortSignal) =>
   Promise<{ data: unknown; error: unknown }>;
@@ -27,8 +27,15 @@ export function createFundingDialogueAdmission(rpc: FundingRpc = defaultRpc): Fu
           p_cost_micros: r.costMicros, p_limits: r.limits, p_day_start_ms: r.dayStartMs,
         }, signal);
         // No RPC retry: a timeout or lost claim response may already have committed.
-        return !signal.aborted && !error && object(data) && data.decision === 'admitted' && data.attempt_id === r.attemptId
-          ? { kind: 'admitted', attemptId: r.attemptId } : { kind: 'denied' };
+        if (signal.aborted || error || !object(data) || data.decision !== 'admitted' || data.attempt_id !== r.attemptId) return { kind: 'denied' };
+        if ('snapshotUse' in r.proof) {
+          // This deadline comes from the same atomic reservation, not caller proof
+          // or a policy reload. A late/missing receipt never releases its hold.
+          const deadline = data.pricing_expires_at_ms;
+          if (!integer(deadline) || deadline <= Date.now()) return { kind: 'denied' };
+          return { kind: 'admitted', attemptId: r.attemptId, pricingExpiresAtMs: deadline };
+        }
+        return { kind: 'admitted', attemptId: r.attemptId };
       } catch { return { kind: 'denied' }; }
     },
   };
@@ -106,11 +113,12 @@ export async function loadFundingMeasurement(subject: string, planId: string, so
         && permit.subjectHash === fundingSubject(subject) && p.environment === 'provider-benchmark';
     });
     if (matches.length !== 1) return null;
-    // Snapshot the trusted JSON. Financial refresh requires a fresh load, never mutation during a dispatch.
+    // Snapshot trusted JSON, including any private one-use authorization. Never mutate observations during dispatch.
     const snapshot: unknown = JSON.parse(JSON.stringify(matches[0]));
     if (!proof(snapshot)) return null;
-    const permit = parseFirstProfilePermit(snapshot.measurementPermit);
-    if (!permit || Date.now() >= permit.expiresAtMs || !validTask217PilotEnvelope(snapshot.pilotEnvelope)
+    const permit = parseFirstProfilePermit(snapshot.measurementPermit), window = fundingAuthorizationWindow(snapshot, Date.now());
+    if (!permit || !window || ('snapshotUse' in snapshot && permit.expiresAtMs > window.expiresAtMs)
+      || Date.now() >= permit.expiresAtMs || !validTask217PilotEnvelope(snapshot.pilotEnvelope)
       || quoteDialogueFunding(snapshot, { provider: snapshot.provider, model: snapshot.model, environment: snapshot.environment,
         inputTokenCeiling: permit.inputTokenCeiling, outputTokenCeiling: permit.outputTokenCeiling }, Date.now()) === null) return null;
     return Object.freeze({ subject, proof: Object.freeze(snapshot), permit,
