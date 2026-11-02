@@ -27,8 +27,15 @@ export function createFundingDialogueAdmission(rpc: FundingRpc = defaultRpc): Fu
           p_cost_micros: r.costMicros, p_limits: r.limits, p_day_start_ms: r.dayStartMs,
         }, signal);
         // No RPC retry: a timeout or lost claim response may already have committed.
-        return !signal.aborted && !error && object(data) && data.decision === 'admitted' && data.attempt_id === r.attemptId
-          ? { kind: 'admitted', attemptId: r.attemptId } : { kind: 'denied' };
+        if (signal.aborted || error || !object(data) || data.decision !== 'admitted' || data.attempt_id !== r.attemptId) return { kind: 'denied' };
+        if ('snapshotUse' in r.proof) {
+          // This deadline comes from the same atomic reservation, not caller proof
+          // or a policy reload. A late/missing receipt never releases its hold.
+          const deadline = data.pricing_expires_at_ms;
+          if (!integer(deadline) || deadline <= Date.now()) return { kind: 'denied' };
+          return { kind: 'admitted', attemptId: r.attemptId, pricingExpiresAtMs: deadline };
+        }
+        return { kind: 'admitted', attemptId: r.attemptId };
       } catch { return { kind: 'denied' }; }
     },
   };

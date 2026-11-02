@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
-import { loadFundingMeasurement, type FundingRpc } from '../lib/dabra/dialogue-funding-store';
+import { loadFundingMeasurement, createFundingDialogueAdmission, type FundingRpc } from '../lib/dabra/dialogue-funding-store';
 import { FIRST_PROFILE_CASES, FIRST_PROFILE_CASE_SET_SHA, measureFirstProfile, type ApprovedFirstProfilePlan, type MeasurementDependencies } from '../lib/dabra/agent-measurement';
 import { PUBLIC_DIALOGUE_DAILY_LIMITS } from '../lib/dabra/agent-dialogue';
 import { fundingSubject } from '../lib/dabra/dialogue-funding';
@@ -293,7 +293,7 @@ function snapshotDependencies(plan: ApprovedFirstProfilePlan, unknown = false) {
       claims.push(r); await Promise.resolve();
       if (spent.has(r.requestId)) return { kind: 'denied' };
       spent.add(r.requestId); held += r.costMicros;
-      return unknown ? { kind: 'denied' } : { kind: 'admitted', attemptId: r.attemptId };
+      return unknown ? { kind: 'denied' } : { kind: 'admitted', attemptId: r.attemptId, pricingExpiresAtMs: plan.permit.expiresAtMs };
     } },
     dispatch: async (_provider, config, message, options) => {
       const fixed = FIRST_PROFILE_CASES.find(c => c.message === message); assert.ok(fixed);
@@ -423,4 +423,92 @@ test('saved snapshot: unknown reservation, changed credential/source and expiry 
   const expired = snapshotDependencies(p);
   assert.equal((await measureFirstProfile(p, expired.deps)).kind, 'blocked');
   assert.equal(expired.claims.length, 0);
+});
+
+
+test('saved snapshot: S1 blocks price expiry across post-admission authority await and retains the hold', async t => {
+  let clock = now;
+  t.mock.method(Date, 'now', () => clock);
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('S1 regression forbids network'); });
+  const p = savedSnapshotPlan(), original = JSON.stringify(p.proof), priceEnd = now + 100;
+  const f = snapshotDependencies(p), used = new Set<string>();
+  let held = 0, calls = 0, crossed = false;
+  const admission = createFundingDialogueAdmission(async (_name, params) => {
+    calls++; await Promise.resolve();
+    const request = String(params.p_request_id);
+    if (clock >= priceEnd || used.has(request)) return { error: null, data: { decision: 'denied' } };
+    used.add(request); held += Number(params.p_cost_micros);
+    return { error: null, data: { decision: 'admitted', attempt_id: params.p_attempt_id, pricing_expires_at_ms: priceEnd } };
+  });
+  const deps = { ...f.deps, admission, authorityCurrent: async () => {
+    if (held) { await Promise.resolve(); clock = priceEnd + 1; crossed = true; }
+    return true; // Reloading the unchanged proof is insufficient to renew the price.
+  } };
+  assert.equal((await measureFirstProfile(p, deps)).kind, 'stopped');
+  assert.equal(f.counts().dispatches, 0); assert.equal(calls, 1);
+  assert.equal(crossed, true); assert.equal(clock, priceEnd + 1);
+  assert.equal(held, quote(p.proof)); assert.equal(used.size, 1);
+  assert.ok(p.permit.expiresAtMs > clock && p.proof.quotaWindowEndMs > clock);
+  assert.ok(fundingAuthorizationWindow(p.proof, clock));
+  assert.notEqual(quoteDialogueFunding(p.proof, { provider: p.proof.provider, model: p.proof.model,
+    environment: p.proof.environment, inputTokenCeiling: 4096, outputTokenCeiling: 1024 }, clock), null);
+  assert.equal(JSON.stringify(p.proof), original);
+  assert.equal((await measureFirstProfile(p, deps)).kind, 'stopped');
+  assert.equal(held, quote(p.proof)); assert.equal(f.counts().dispatches, 0);
+});
+test('saved snapshot: S1 missing, malformed, mismatched or late trusted receipts fail closed without refund', async t => {
+  let clock = now;
+  t.mock.method(Date, 'now', () => clock);
+  for (const deadline of [undefined, null, 'future', NaN, Infinity, now - 1, now, now + 0.5]) {
+    clock = now;
+    const p = savedSnapshotPlan(), f = snapshotDependencies(p), used = new Set<string>();
+    let held = 0;
+    const admission = createFundingDialogueAdmission(async (_name, params) => {
+      const id = String(params.p_request_id);
+      if (used.has(id)) return { error: null, data: { decision: 'denied' } };
+      used.add(id); held += Number(params.p_cost_micros);
+      return { error: null, data: { decision: 'admitted', attempt_id: params.p_attempt_id, pricing_expires_at_ms: deadline } };
+    });
+    assert.equal((await measureFirstProfile(p, { ...f.deps, admission })).kind, 'stopped');
+    assert.equal(f.counts().dispatches, 0); assert.equal(held, quote(p.proof));
+    assert.equal((await measureFirstProfile(p, { ...f.deps, admission })).kind, 'stopped');
+    assert.equal(held, quote(p.proof)); assert.equal(used.size, 1);
+  }
+  for (const mismatch of [false, true]) {
+    clock = now;
+    const p = savedSnapshotPlan(), f = snapshotDependencies(p), priceEnd = now + 100;
+    let held = 0;
+    const admission = createFundingDialogueAdmission(async (_name, params) => {
+      held += Number(params.p_cost_micros); await Promise.resolve();
+      if (!mismatch) clock = priceEnd; // Accepted in SQL, receipt arrives too late.
+      return { error: null, data: { decision: 'admitted', attempt_id: mismatch ? randomUUID() : params.p_attempt_id,
+        pricing_expires_at_ms: priceEnd } };
+    });
+    assert.equal((await measureFirstProfile(p, { ...f.deps, admission })).kind, 'stopped');
+    assert.equal(f.counts().dispatches, 0); assert.equal(held, quote(p.proof));
+  }
+});
+test('saved snapshot: S1 measurement also refuses an admitted receipt without a valid deadline', async t => {
+  t.mock.method(Date, 'now', () => now);
+  for (const pricingExpiresAtMs of [undefined, NaN, now, now - 1]) {
+    const p = savedSnapshotPlan(), f = snapshotDependencies(p); let held = 0;
+    const admission: MeasurementDependencies['admission'] = { reserve: async r => {
+      held += r.costMicros; return { kind: 'admitted', attemptId: r.attemptId, pricingExpiresAtMs };
+    } };
+    assert.equal((await measureFirstProfile(p, { ...f.deps, admission })).kind, 'stopped');
+    assert.equal(f.counts().dispatches, 0); assert.equal(held, quote(p.proof));
+  }
+});
+test('saved snapshot: S1 independent price deadline shortens timeout without widening fixed-case authority', async t => {
+  t.mock.method(Date, 'now', () => now);
+  const p = savedSnapshotPlan(), f = snapshotDependencies(p);
+  const deps: MeasurementDependencies = { ...f.deps, admission: { reserve: async (r, signal) => {
+    const claim = await f.deps.admission.reserve(r, signal);
+    return claim.kind === 'admitted' ? { ...claim, pricingExpiresAtMs: now + 500 } : claim;
+  } }, dispatch: async (provider, config, message, options) => {
+    assert.ok(options.timeoutMs > 0 && options.timeoutMs <= 500);
+    return f.deps.dispatch(provider, config, message, options);
+  } };
+  assert.equal((await measureFirstProfile(p, deps)).kind, 'candidate');
+  assert.equal(f.counts().dispatches, 4); assert.equal(f.counts().held, 4 * quote(p.proof)!);
 });

@@ -31,7 +31,7 @@ export type FundedDialogueReservation = Readonly<{
   proof: DialogueFundingProof; inputTokens: number; outputTokens: number; costMicros: number; limits: DialogueDailyLimits;
 }>;
 export type FundingAdmissionResult =
-  | Readonly<{ kind: 'admitted'; attemptId: string }>
+  | Readonly<{ kind: 'admitted'; attemptId: string; pricingExpiresAtMs?: number }>
   | Readonly<{ kind: 'denied' }>;
 /** Atomic durable claim. Unknown outcomes are denied locally and are never retried or refunded. */
 export interface FundingDialogueAdmission {

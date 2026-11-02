@@ -281,6 +281,12 @@ BEGIN
  INSERT INTO private.dabra_dialogue_admissions(attempt_id,request_id,stage,subject_hash,grant_id,day_start_ms,quota_start_ms,quota_end_ms,input_tokens,output_tokens,cost_micros)
  VALUES(p_attempt_id,p_request_id,p_stage,p_subject_hash,g.id,v_day,q_start,q_end,p_input_tokens,p_output_tokens,p_cost_micros);
  -- Holds never expire/refund/reset automatically, including cancellations, failed/unknown provider results and new application days.
+ IF v_snapshot THEN
+  -- Bind the independent price deadline to this attempt's durable receipt. The
+  -- original proof stays unchanged and policy reloads cannot extend this bound.
+  RETURN jsonb_build_object('decision','admitted','attempt_id',p_attempt_id,
+   'pricing_expires_at_ms',floor(extract(epoch FROM g.pricing_expires_at)*1000)::bigint);
+ END IF;
  RETURN jsonb_build_object('decision','admitted','attempt_id',p_attempt_id);
 END $$;
 CREATE OR REPLACE FUNCTION private.protect_dabra_dialogue_grant()

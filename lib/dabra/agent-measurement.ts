@@ -111,10 +111,10 @@ export async function measureFirstProfile(plan: ApprovedFirstProfilePlan, depend
     const approvedCase = permit.cases.find(c => c.caseId === fixed.caseId);
     if (!approvedCase || signal?.aborted) return finish('stopped');
     const start = Date.now();
-    const end = Math.min(start + 12000, permit.expiresAtMs, window.expiresAtMs, plan.proof.quotaWindowEndMs, dialogueDay(start).dayEndMs);
+    let end = Math.min(start + 12000, permit.expiresAtMs, window.expiresAtMs, plan.proof.quotaWindowEndMs, dialogueDay(start).dayEndMs);
     if (end <= start || Buffer.byteLength(fixed.prompt + fixed.message, 'utf8') + 128 > permit.inputTokenCeiling) return finish('blocked');
     const controller = new AbortController();
-    const stopSignal = AbortSignal.any([controller.signal, AbortSignal.timeout(end - start), ...(signal ? [signal] : [])]);
+    let stopSignal = AbortSignal.any([controller.signal, AbortSignal.timeout(end - start), ...(signal ? [signal] : [])]);
     const ready = () => {
       if (stopSignal.aborted) return false;
       const config = configuration();
@@ -138,11 +138,21 @@ export async function measureFirstProfile(plan: ApprovedFirstProfilePlan, depend
         outputTokens: permit.outputTokenCeiling, costMicros: cost, limits: plan.daily,
         measurementRequest: { planId: permit.planId, caseId: fixed.caseId, ...(runId ? { runId } : {}) },
       }, stopSignal), stopSignal);
+      if (runId && claim?.kind === 'admitted') {
+        if (!integer(claim.pricingExpiresAtMs)) return finish('stopped');
+        end = Math.min(end, claim.pricingExpiresAtMs);
+        const remaining = end - Date.now();
+        if (remaining <= 0) return finish('stopped');
+        // A fresh policy proof cannot renew the stored grant's independent price
+        // deadline. Check it around later awaits and abort transport at that bound.
+        stopSignal = AbortSignal.any([stopSignal, AbortSignal.timeout(remaining)]);
+      }
       if (!ready() || claim?.kind !== 'admitted' || claim.attemptId !== attemptId || !await current() || !ready()) return finish('stopped');
       const config = configuration();
       if (!config || config.model !== plan.proof.model
         || createHash('sha256').update(config.apiKey).digest('hex') !== plan.proof.credentialSha256 || !ready()) return finish('stopped');
       const dispatchedAt = Date.now();
+      if (dispatchedAt >= end || stopSignal.aborted) return finish('stopped');
       const result = await bounded(dependencies.dispatch(plan.proof.provider, config, fixed.message, {
         prompt: fixed.prompt, language: fixed.language, classifier: fixed.stage === 'intent.classify',
         maxOutputTokens: permit.outputTokenCeiling, timeoutMs: Math.max(1, end - Date.now()),

@@ -7,8 +7,8 @@ import { spawnSync, spawn } from 'node:child_process';
 import { randomUUID, createHash } from 'node:crypto';
 const image='sha256:99b1729aeb0bac314445024fc149fbd39306170b61dd50800ccf180327ab3459';
 const scopeArgs=process.argv.slice(2);
-if(scopeArgs.length>1||scopeArgs.some(a=>!['--funding-scope-delta','--snapshot-use-delta'].includes(a)))throw Error('unsupported_pilot_test_argument');
-const scopeDelta=scopeArgs[0]==='--funding-scope-delta',snapshotDelta=scopeArgs[0]==='--snapshot-use-delta';
+if(scopeArgs.length>1||scopeArgs.some(a=>!['--funding-scope-delta','--snapshot-use-delta','--snapshot-price-deadline-delta'].includes(a)))throw Error('unsupported_pilot_test_argument');
+const scopeDelta=scopeArgs[0]==='--funding-scope-delta',snapshotPriceDelta=scopeArgs[0]==='--snapshot-price-deadline-delta',snapshotDelta=snapshotPriceDelta||scopeArgs[0]==='--snapshot-use-delta';
 const parent=process.env.TASK217_PG_WORKDIR;
 if(!parent || !isAbsolute(parent) || (process.platform==='win32' && !/^D:[\\/]/i.test(parent))) throw Error('isolated_D_workdir_required');
 const runId=randomUUID(), name='task217-pilot-'+runId, cluster=join(resolve(parent),name);
@@ -24,7 +24,7 @@ let checks=0,started=false;
 function check(ok,label){assert.ok(ok,label);process.stdout.write('OK '+(++checks)+' '+label+'\n');}
 const marker={schema:'task217-seven-provider-pilot-v1',id:'task217-text-pilot-2026-11-01',maxCostMicros:1000000,maxAttempts:28};
 const providers=['openai','anthropic','gemini','xai','deepseek','qwen','mistral'];
-const subjects=providers.map(p=>createHash('sha256').update('SYNTHETIC-pilot-'+p).digest('hex'));
+const subjects=providers.map(p=>createHash('sha256').update((snapshotPriceDelta?'task217-dialogue:':'')+'SYNTHETIC-pilot-'+p).digest('hex'));
 const cases=[['intent-ar','intent.classify','ar'],['intent-en','intent.classify','en'],['discover-ar','discover','ar'],['discover-en','discover','en']];
 function seed(provider='gemini',extra=100,change={}){
  const id=randomUUID(),now=Date.now(),who=subjects[providers.indexOf(provider)];
@@ -85,7 +85,45 @@ try{
  }
  check(query(aclSQL)===acl,'RPC signatures, SECURITY DEFINER/search path and existing ACL unchanged');check(query(rlsSQL)===rls,'same three private tables, forced RLS and direct table ACL unchanged');
  query('UPDATE private.dabra_dialogue_funding_control SET enabled=true,subject_hashes=ARRAY['+subjects.map(literal).join(',')+'],max_attempt_cost_micros=1000000;');
- if(snapshotDelta){
+ if(snapshotPriceDelta){
+
+  const g=snapshotSeed();
+  const priceSQL="SELECT floor(extract(epoch FROM pricing_expires_at)*1000)::bigint FROM private.dabra_dialogue_funding_grants WHERE id="+literal(g.id)+';';
+  const rows=transaction(g.insert+snapshotClaim(g)+priceSQL+'SELECT reserved_credit_micros FROM private.dabra_dialogue_funding_grants WHERE id='+literal(g.id)+';').split('\n');
+  const receipt=JSON.parse(rows[0]),price=Number(rows[1]);
+  check(receipt.decision==='admitted'&&receipt.pricing_expires_at_ms===price&&Number.isSafeInteger(price),'S1 receipt contains the exact trusted grant price deadline');
+  check(price>Date.now()&&g.proof.expiresAtMs<Date.now()&&Number(rows[2])===g.cost,'S1 saved snapshot retains original expiry and durable hold');
+  const funding={exports:{}},store={exports:{}};
+  const compile=path=>ts.transpileModule(readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+  runInNewContext(compile('lib/dabra/dialogue-funding.ts'),{module:funding,exports:funding.exports,require:id=>{if(id==='server-only')return {};if(id==='node:crypto')return {createHash};if(id==='./dialogue-pricing-approvals')return {APPROVED_DIALOGUE_STANDARD_PRICING:[]};throw Error('unexpected_S1_funding_dependency');}});
+  runInNewContext(compile('lib/dabra/dialogue-funding-store.ts'),{module:store,exports:store.exports,Date,require:id=>{
+   if(id==='server-only')return {};if(id==='node:crypto')return {randomUUID};if(id==='./dialogue-funding')return funding.exports;
+   if(id==='../supabase/server')return {supabaseAdmin:null};if(id==='./agent-measurement')return {};
+   if(id==='./agent-capabilities')return {AGENT_PROVIDER_IDS:providers};if(id==='./agent-dialogue')return {PUBLIC_DIALOGUE_DAILY_LIMITS:{}};
+   throw Error('unexpected_S1_store_dependency');
+  }});
+  const limits=JSON.parse(query('SELECT daily_limits FROM private.dabra_dialogue_funding_control WHERE singleton;'));
+  const admission=store.exports.createFundingDialogueAdmission(async(name,p)=>{
+   assert.equal(name,'reserve_dabra_dialogue_attempt');assert.equal(p.p_attempt_id,receipt.attempt_id);
+   assert.equal(p.p_subject_hash,g.permit.subjectHash);assert.equal(p.p_grant_id,g.id);
+   return {error:null,data:receipt}; // The actual captured SQL receipt, not a second reservation.
+  });
+  const admitted=await admission.reserve({policyId:'task217-existing-credit-v2',attemptId:receipt.attempt_id,requestId:g.permit.cases[0].requestId,
+   measurementRequest:{planId:g.permit.planId,caseId:'intent-ar',runId:g.runId},stage:'intent.classify',subject:'SYNTHETIC-pilot-openai',
+   nowMs:Date.now(),dayStartMs:Math.floor((Date.now()+10800000)/86400000)*86400000-10800000,dayEndMs:Date.now()+86400000,
+   proof:g.proof,inputTokens:4096,outputTokens:1024,costMicros:g.cost,limits},new AbortController().signal);
+  check(admitted.kind==='admitted'&&admitted.pricingExpiresAtMs===price,'S1 actual TS store carries the identical SQL deadline bound to the same attempt');
+  const short=snapshotSeed(),shortInsert=short.insert.replace("clock_timestamp()+interval '10 minutes'","clock_timestamp()+interval '100 milliseconds'");
+  const crossing=transaction(shortInsert+snapshotClaim(short)+"SELECT pg_sleep(0.15);SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint;SELECT reserved_credit_micros FROM private.dabra_dialogue_funding_grants WHERE id="+literal(short.id)+";SELECT count(*) FROM private.dabra_dialogue_admissions WHERE grant_id="+literal(short.id)+';').split('\n').filter(Boolean);
+  const first=JSON.parse(crossing[0]);
+  check(first.decision==='admitted'&&Number(crossing[1])>=first.pricing_expires_at_ms,'S1 admission precedes independent price expiry; later execution clock crosses it');
+  check(Number(crossing[2])===short.cost&&Number(crossing[3])===1,'S1 price expiry neither releases hold nor deletes admission');
+  const ordinary=seed('openai',0,{pilotEnvelope:undefined,measurementPermit:undefined}),profiles=[{provider:'openai',measurement:{model:ordinary.proof.model,capability:'intent.classify'}}];
+  const legacy=JSON.parse(transaction('UPDATE private.dabra_dialogue_funding_control SET profiles='+json(profiles)+';'+ordinary.insert+claim(ordinary,0,{proof:ordinary.proof})));
+  check(legacy.decision==='admitted'&&!Object.hasOwn(legacy,'pricing_expires_at_ms'),'S1 ordinary reservation receipt remains unchanged');
+  check(query("SELECT reserved_credit_micros||':'||(SELECT count(*) FROM private.dabra_dialogue_admissions WHERE grant_id=g.id) FROM private.dabra_dialogue_funding_grants g WHERE provider='anthropic';")==='55296:3','S1 delta retains the three historical holds55296');
+
+ }else if(snapshotDelta){
 
   const g=snapshotSeed();
   const compiled={exports:{}};
@@ -275,4 +313,4 @@ try{
 
  }
 }finally{if(started){docker(['stop','--time','10',name]);check(docker(['inspect',name,'--format','{{.State.Running}}'])==='false','owned cluster stopped; original files/container retained');}}
-process.stdout.write((snapshotDelta?'POSTGRES_SNAPSHOT_USE_DELTA':scopeDelta?'POSTGRES_PILOT_SCOPE_DELTA':'POSTGRES_PILOT_DELTA')+'=PASS CHECKS='+checks+'\nNo provider/API calls; synthetic isolated PostgreSQL only.\n');
+process.stdout.write((snapshotPriceDelta?'POSTGRES_SNAPSHOT_PRICE_DEADLINE_DELTA':snapshotDelta?'POSTGRES_SNAPSHOT_USE_DELTA':scopeDelta?'POSTGRES_PILOT_SCOPE_DELTA':'POSTGRES_PILOT_DELTA')+'=PASS CHECKS='+checks+'\nNo provider/API calls; synthetic isolated PostgreSQL only.\n');

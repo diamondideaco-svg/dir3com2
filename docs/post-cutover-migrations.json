@@ -151,7 +151,7 @@
   },
   {
     "path": "supabase/migrations/20261102182200_task217_saved_funding_snapshot_use.sql",
-    "sha256": "c501d681e1da70505d09568e46248ec3d8595a6434531f58d1544ccfbb28064a",
+    "sha256": "4bd0686a6b62414a2dc773640513d64f4d5f3d7f69f39aab04bd7391d0ce0e2f",
     "task": "#217",
     "production_apply_authorized": false
   }
