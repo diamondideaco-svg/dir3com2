@@ -4,6 +4,9 @@ import { join, resolve, isAbsolute } from 'node:path';
 import { spawnSync, spawn } from 'node:child_process';
 import { randomUUID, createHash } from 'node:crypto';
 const image='sha256:99b1729aeb0bac314445024fc149fbd39306170b61dd50800ccf180327ab3459';
+const scopeArgs=process.argv.slice(2);
+if(scopeArgs.length>1||scopeArgs.some(a=>a!=='--funding-scope-delta'))throw Error('unsupported_pilot_test_argument');
+const scopeDelta=scopeArgs[0]==='--funding-scope-delta';
 const parent=process.env.TASK217_PG_WORKDIR;
 if(!parent || !isAbsolute(parent) || (process.platform==='win32' && !/^D:[\\/]/i.test(parent))) throw Error('isolated_D_workdir_required');
 const runId=randomUUID(), name='task217-pilot-'+runId, cluster=join(resolve(parent),name);
@@ -50,8 +53,63 @@ try{
  const rlsSQL="SELECT relname,relrowsecurity,relforcerowsecurity,relacl::text FROM pg_class WHERE relnamespace='private'::regnamespace AND relkind='r' ORDER BY 1;";
  const acl=query(aclSQL),rls=query(rlsSQL);
  query(readFileSync('supabase/migrations/20261101153907_task217_seven_provider_pilot_envelope.sql','utf8'));
+ query(readFileSync("supabase/migrations/20261102043035_task217_pilot_ledger_funding_scope.sql",'utf8'));
  check(query(aclSQL)===acl,'RPC signatures, SECURITY DEFINER/search path and existing ACL unchanged');check(query(rlsSQL)===rls,'same three private tables, forced RLS and direct table ACL unchanged');
  query('UPDATE private.dabra_dialogue_funding_control SET enabled=true,subject_hashes=ARRAY['+subjects.map(literal).join(',')+'],max_attempt_cost_micros=1000000;');
+ if(scopeDelta){
+
+  const unknown={postpaid:'unknown',overdraft:'unknown',concurrentAccountUsage:'unknown'};
+  const g=seed('openai',100,unknown);
+  check(decision(g)==='admitted','pilot accepts truthful unknown account properties with exact stored permit');
+  const truthful=transaction(g.insert+claim(g)+'SELECT proof->>\'overdraft\'||\':\'||(proof->>\'concurrentAccountUsage\') FROM private.dabra_dialogue_funding_grants WHERE id='+literal(g.id)+';').split('\n');
+  check(truthful.at(-1)==='unknown:unknown','admission does not relabel account observations');
+  check(decision(seed('openai',100,{...unknown,postpaid:'allowed',overdraft:'allowed'}))==='admitted','pilot does not assert provider account-wide guarantees');
+  function ordinary(state){
+    const o=seed('openai',0,{pilotEnvelope:undefined,measurementPermit:undefined,...state});
+    const profiles=[{provider:'openai',measurement:{model:o.proof.model,capability:'intent.classify'}}];
+    return JSON.parse(transaction('UPDATE private.dabra_dialogue_funding_control SET profiles='+json(profiles)+';'+o.insert+claim(o,0,{proof:o.proof}))).decision;
+  }
+  check(ordinary({})==='admitted','ordinary qualified SQL baseline remains admissible');
+  for(const state of [{postpaid:'unknown'},{overdraft:'unknown'},{overdraft:'allowed'},{concurrentAccountUsage:'unknown'}])
+    check(ordinary(state)==='denied','ordinary SQL rejects unproven account-wide condition');
+  for(const state of [{autoReload:'on'},{autoReload:'unknown'},{remainingCreditMicros:0},{expiresAtMs:Date.now()-1},{overdraft:'fabricated'},{concurrentAccountUsage:'fabricated'}])
+    check(decision(seed('openai',100,{...unknown,...state}))==='denied','pilot still rejects recharge, missing credit, expiry or invalid account-state shape');
+  for(const proof of [
+    {...g.proof,accountId:'SYNTHETIC-other'}, {...g.proof,projectId:'SYNTHETIC-other'},
+    {...g.proof,credentialSha256:'8'.repeat(64)}, {...g.proof,model:'SYNTHETIC-other'},
+    {...g.proof,pilotEnvelope:{...marker,id:'another-budget'}},
+    {...g.proof,allInChargeBound:undefined},
+  ])check(decision(g,0,{proof:{...proof,measurementRequest:{planId:g.permit.planId,caseId:'intent-ar'}}})==='denied','caller cannot replace bound identity, model, envelope or all-in proof');
+  check(blocked(seed('openai',100,{...unknown,measurementPermit:undefined}).insert,'DIALOGUE_PILOT_BINDING_REQUIRED'),'pilot requires server-stored measurement permit');
+  const fixed=transaction(g.insert+g.permit.cases.map((_,i)=>claim(g,i)).join('')+claim(g,0,{request:randomUUID()})).split('\n').map(v=>JSON.parse(v).decision);
+  check(fixed.slice(0,4).every(v=>v==='admitted')&&fixed[4]==='denied','only four fixed cases; no fifth or replacement request');
+  const unprivilegedLimits=json(JSON.parse(query('SELECT daily_limits FROM private.dabra_dialogue_funding_control WHERE singleton;')));
+  for(const role of ['anon','authenticated']){
+    const call=claim(g).replace('(SELECT daily_limits FROM private.dabra_dialogue_funding_control WHERE singleton)',unprivilegedLimits);
+    check(blocked(g.insert+'SET LOCAL ROLE '+role+';'+call,'permission denied for function reserve_dabra_dialogue_attempt'),'unprivileged role '+role+' cannot invoke reservation');
+  }
+  const previousDay=Math.floor((Date.now()+10800000)/86400000)*86400000-10800000-86400000;
+  const oldRow=(gr)=>'INSERT INTO private.dabra_dialogue_admissions(attempt_id,request_id,stage,subject_hash,grant_id,day_start_ms,quota_start_ms,quota_end_ms,input_tokens,output_tokens,cost_micros) VALUES('+[literal(randomUUID()),literal(randomUUID()),"'discover'",literal(gr.permit.subjectHash),literal(gr.id),previousDay,0,1,1,1,18432].join(',')+');';
+  const old=seed('anthropic',100);
+  const previous=old.insert+'UPDATE private.dabra_dialogue_funding_grants SET enabled=false,reserved_credit_micros=55296 WHERE id='+literal(old.id)+';'+Array.from({length:3},()=>oldRow(old)).join('');
+  for(const [cost,expected] of [[944704,'admitted'],[944705,'denied']]){
+    const target=seed('openai',cost-6144,unknown);
+    check(JSON.parse(transaction(previous+target.insert+claim(target))).decision===expected,'prior-day55296 retained at lifetime USD1 boundary '+cost);
+  }
+  const a=seed('openai',400000-6144,unknown),b=seed('gemini',400000-6144,unknown);
+  query(previous+a.insert+b.insert);
+  const duplicates=await Promise.all([concurrent(claim(a)),concurrent(claim(a))]);
+  check(duplicates.filter(v=>JSON.parse(v).decision==='admitted').length===1,'concurrent duplicate request admits exactly once');
+  const races=await Promise.all([concurrent(claim(a,1)),concurrent(claim(b))]);
+  check(races.filter(v=>JSON.parse(v).decision==='admitted').length===1,'concurrent providers respect USD1 with retained prior holds');
+  const ledger=query("SELECT sum(reserved_credit_micros)||':'||(SELECT count(*) FROM private.dabra_dialogue_admissions) FROM private.dabra_dialogue_funding_grants;");
+  check(ledger==='855296:5','three previous holds and two new admissions retained exactly');
+  const held=transaction('SELECT reserved_credit_micros FROM private.dabra_dialogue_funding_grants WHERE id='+literal(old.id)+';');
+  check(held==='55296','previous failed or unknown provider holds remain unchanged');
+  check(JSON.parse(query(claim(a,2))).decision==='denied','remaining capacity cannot fund another full case');
+  check(query('SELECT sum(reserved_credit_micros) FROM private.dabra_dialogue_funding_grants;')==='855296','denial does not release or reset any hold');
+
+ }else{
  for(const provider of providers){const g=seed(provider);check(decision(g)==='admitted',provider+' existing-credit pilot admitted without waiting for six other accounts');}
  const g=seed(),h=seed('xai');
  check(decision(g,0,{proof:g.proof})==='denied','pilot cannot reserve through ordinary path');
@@ -104,5 +162,6 @@ try{
  const next=query(claim(a,1));check(JSON.parse(next).decision==='denied','another full quote cannot reopen remaining envelope after unknown result');
  check(query('SELECT sum(reserved_credit_micros) FROM private.dabra_dialogue_funding_grants;')==='500001','denied or unknown outcome never refunds prior hold');
 
+ }
 }finally{if(started){docker(['stop','--time','10',name]);check(docker(['inspect',name,'--format','{{.State.Running}}'])==='false','owned cluster stopped; original files/container retained');}}
-process.stdout.write('POSTGRES_PILOT_DELTA=PASS CHECKS='+checks+'\nNo provider/API calls; synthetic isolated PostgreSQL only.\n');
+process.stdout.write((scopeDelta?'POSTGRES_PILOT_SCOPE_DELTA':'POSTGRES_PILOT_DELTA')+'=PASS CHECKS='+checks+'\nNo provider/API calls; synthetic isolated PostgreSQL only.\n');
