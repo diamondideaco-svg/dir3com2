@@ -34,9 +34,12 @@ function bindings(value: unknown): value is Record<string, string> {
   return record(value) && Object.entries(value).every(([provider, value]) =>
     AGENT_PROVIDER_IDS.some(p => p === provider) && typeof value === 'string' && digest.test(value));
 }
+export function isCredentialBindingCoreProject(hostname: string | null | undefined) {
+  return hostname === productionDatabase;
+}
 function validRuntime(value: RuntimeContext) {
   return value.environment === 'production' && typeof value.sourceSha === 'string'
-    && source.test(value.sourceSha) && value.databaseHostname === productionDatabase;
+    && source.test(value.sourceSha) && isCredentialBindingCoreProject(value.databaseHostname);
 }
 async function bounded<T>(work: () => Promise<T>, signal: AbortSignal): Promise<T | typeof stopped> {
   if (signal.aborted) return stopped;

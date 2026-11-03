@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
+import * as credentialBindingModule from '../lib/dabra/credential-binding';
 import { AGENT_PROVIDER_IDS } from '../lib/dabra/agent-capabilities';
 import { checkRuntimeCredentialBinding, type CredentialBindingDependencies } from '../lib/dabra/credential-binding';
 
@@ -226,11 +227,12 @@ test('credential binding: actual GET uses canonical CEO and existing null-subjec
   const post = actualRoute.replace(/\r\n/g, '\n').split('\n/** CEO-only, read-only diagnostic;')[0];
   assert.equal(createHash('sha256').update(post).digest('hex'), 'bce517bf30b232ea268ecac4b6b7bd165178e1207d8a1bc70011066b6b347a6a');
   const loaded = compileModule('../app/api/ai2/chat/route.ts', id => {
-    if (id === '@/lib/dabra/credential-binding') return { checkRuntimeCredentialBinding };
+    if (id === '@/lib/dabra/credential-binding') return credentialBindingModule;
     if (id === '@/lib/ai2/runtime/agent-provider-dispatch') return { internalAgentCredential: () => key };
     if (id === '@/lib/auth/team-access') return { isCeoActor: async (...args: unknown[]) => { authCalls.push(args); return true; } };
     if (id === '@/lib/supabase/server') return {
       createSupabaseRequestClient: async () => ({ supabase: {}, user: { id: 'SYNTHETIC-CEO' } }),
+      getSupabaseClientHostname: () => runtime().databaseHostname,
       getSupabaseAdminHostname: () => runtime().databaseHostname,
       supabaseAdmin: { rpc: (name: string, params: unknown) => {
         rpcCalls.push({ name, params });
@@ -271,4 +273,90 @@ test('credential binding: forward preserves original financial gate and ACL with
   assert.doesNotMatch(diagnostic, /proofs|profiles|enabled|subject_hashes|max_attempt_cost_micros|daily_limits/);
   for (const provider of AGENT_PROVIDER_IDS) assert.ok(code.includes("credential_bindings ? '" + provider + "'"));
   assert.match(sql, /production_apply_authorized=false/);
+});
+
+async function bindingGetForProject(projectHostname: string | null | undefined) {
+  const calls = { authority: 0, bindingRpc: 0, credential: 0 };
+  const actualClient = {};
+  const loaded = compileModule('../app/api/ai2/chat/route.ts', id => {
+    if (id === '@/lib/dabra/credential-binding') return credentialBindingModule;
+    if (id === '@/lib/ai2/runtime/agent-provider-dispatch') return { internalAgentCredential: () => { calls.credential++; return key; } };
+    if (id === '@/lib/auth/team-access') return { isCeoActor: async (client: unknown) => {
+      assert.equal(client, actualClient); calls.authority++; return true;
+    } };
+    if (id === '@/lib/supabase/server') return {
+      createSupabaseRequestClient: async () => ({ supabase: actualClient, user: { id: 'SYNTHETIC-CEO' } }),
+      getSupabaseClientHostname: (client: unknown) => { assert.equal(client, actualClient); return projectHostname; },
+      getSupabaseAdminHostname: () => runtime().databaseHostname,
+      supabaseAdmin: { rpc: () => { calls.bindingRpc++; return {
+        abortSignal: async () => ({ error: null, data: { credentialBindings: { deepseek: fingerprint } } }),
+      }; } },
+    };
+    if (['next/server', '@/lib/dabra/platform-assistant', '@/lib/dabra/chat-response-contract',
+      '@/lib/security/document-validation', '@/lib/dabra/locale-contract', '@/lib/currency/service',
+      '@/lib/currency/display', '@/lib/dabra/agent-contract', '@/lib/dabra/agent-dialogue',
+      '@/lib/dabra/agent-handoff', '@/lib/dabra/continuity-chat'].includes(id)) return {};
+    throw new Error('UNEXPECTED_ROUTE_DEPENDENCY');
+  }, { VERCEL_ENV: 'production', VERCEL_GIT_COMMIT_SHA: sourceSha,
+    // This independent value deliberately disagrees with the actual client evidence.
+    NEXT_PUBLIC_SUPABASE_URL: projectHostname === runtime().databaseHostname
+      ? 'https://other-project.example.invalid' : 'https://' + runtime().databaseHostname });
+  const get = loaded.GET;
+  if (typeof get !== 'function') throw new Error('MISSING_GET');
+  const result: unknown = await get(request());
+  assert.ok(result instanceof Response);
+  return { result, calls };
+}
+
+for (const [label, hostname] of [
+  ['mismatched actual Auth/profile project', 'other-project.example.invalid'],
+  ['absent actual client project evidence', null],
+  ['undefined actual client project evidence', undefined],
+] as const) {
+  test('T217-BIND-S1 actual GET rejects ' + label + ' before authority, binding RPC or credential read', async () => {
+    const { result, calls } = await bindingGetForProject(hostname);
+    assert.equal(result.status, 403);
+    assert.deepEqual(await body(result), { status: 'DENIED' });
+    assert.deepEqual(calls, { authority: 0, bindingRpc: 0, credential: 0 });
+  });
+}
+
+test('T217-BIND-S1 actual GET retains the proven Core client path despite misleading independent ENV', async () => {
+  const { result, calls } = await bindingGetForProject(runtime().databaseHostname);
+  assert.equal(result.status, 200);
+  assert.deepEqual(await body(result), { status: 'MATCH', provider: 'deepseek', sourceSha });
+  assert.deepEqual(calls, { authority: 2, bindingRpc: 1, credential: 1 });
+});
+
+test('T217-BIND-S1 client project evidence is captured from the exact cookie and bearer constructors, never later ENV or object fields', async () => {
+  for (const configuredHostname of [runtime().databaseHostname, 'other-project.example.invalid']) {
+    for (const mode of ['cookie', 'bearer']) {
+      const constructedUrls: string[] = [];
+      const construct = (url: string) => {
+        constructedUrls.push(url);
+        return { auth: { getUser: async () => ({ data: { user: { id: 'SYNTHETIC-CEO' } }, error: null }) } };
+      };
+      const environment = { NEXT_PUBLIC_SUPABASE_URL: 'https://' + configuredHostname,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: 'SYNTHETIC-PUBLIC-KEY' };
+      const loaded = compileModule('../lib/supabase/server.ts', id => {
+        if (id === '@supabase/supabase-js') return { createClient: construct };
+        if (id === '@supabase/ssr') return { createServerClient: construct };
+        if (id === 'next/headers') return { cookies: async () => ({ getAll: () => [], set: () => {} }) };
+        throw new Error('UNEXPECTED_SERVER_DEPENDENCY');
+      }, environment);
+      const create = loaded.createSupabaseRequestClient, read = loaded.getSupabaseClientHostname;
+      if (typeof create !== 'function' || typeof read !== 'function') throw new Error('MISSING_PROJECT_EVIDENCE_PORT');
+      const auth: unknown = await create(new Request('https://synthetic.example/', {
+        headers: mode === 'bearer' ? { Authorization: 'Bearer SYNTHETIC-SESSION' } : {},
+      }));
+      assert.ok(auth && typeof auth === 'object' && 'supabase' in auth);
+      assert.deepEqual(Object.keys(auth).sort(), ['supabase', 'user']);
+      assert.equal(constructedUrls.at(-1), 'https://' + configuredHostname);
+      assert.equal(read(auth.supabase), configuredHostname);
+      environment.NEXT_PUBLIC_SUPABASE_URL = 'https://changed-after-construction.example.invalid';
+      assert.equal(read(auth.supabase), configuredHostname);
+      assert.equal(read({ supabaseUrl: 'https://' + runtime().databaseHostname }), null);
+      assert.equal(read({}), null);
+    }
+  }
 });

@@ -39,10 +39,17 @@ function getBearerToken(request: NextRequest) {
   return match?.[1] ?? null;
 }
 
+// Captured from each exact client constructor, never from a later ENV read.
+const configuredClientHostnames = new WeakMap<SupabaseClient, string | null>();
+
+export function getSupabaseClientHostname(client: SupabaseClient): string | null {
+  return configuredClientHostnames.get(client) ?? null;
+}
+
 function createSupabaseBearerClient(accessToken: string): SupabaseClient {
   const { supabaseUrl, supabaseAnonKey } = getPublicSupabaseConfig();
 
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  const client = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -54,6 +61,8 @@ function createSupabaseBearerClient(accessToken: string): SupabaseClient {
       },
     },
   });
+  configuredClientHostnames.set(client, projectAdminHostname(supabaseUrl));
+  return client;
 }
 
 let configuredAdminHostname: string | null = null;
@@ -96,7 +105,7 @@ export async function createSupabaseServerClient(): Promise<SupabaseClient> {
   const cookieStore = await cookies();
   const { supabaseUrl: publicUrl, supabaseAnonKey } = getPublicSupabaseConfig();
 
-  return createSupabaseServerClientBase(publicUrl, supabaseAnonKey, {
+  const client = createSupabaseServerClientBase(publicUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -112,6 +121,8 @@ export async function createSupabaseServerClient(): Promise<SupabaseClient> {
       },
     },
   }) as unknown as SupabaseClient;
+  configuredClientHostnames.set(client, projectAdminHostname(publicUrl));
+  return client;
 }
 
 export async function createSupabaseRequestClient(request: NextRequest): Promise<{ supabase: SupabaseClient; user: User } | null> {

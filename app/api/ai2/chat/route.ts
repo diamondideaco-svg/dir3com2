@@ -196,8 +196,8 @@ export async function POST(request: NextRequest) {
 /** CEO-only, read-only diagnostic; the existing POST dialogue path is unchanged. */
 export async function GET(request: NextRequest) {
   try {
-    const [{ checkRuntimeCredentialBinding }, { internalAgentCredential },
-      { createSupabaseRequestClient, supabaseAdmin, getSupabaseAdminHostname }, { isCeoActor }] = await Promise.all([
+    const [{ checkRuntimeCredentialBinding, isCredentialBindingCoreProject }, { internalAgentCredential },
+      { createSupabaseRequestClient, supabaseAdmin, getSupabaseAdminHostname, getSupabaseClientHostname }, { isCeoActor }] = await Promise.all([
       import('@/lib/dabra/credential-binding'),
       import('@/lib/ai2/runtime/agent-provider-dispatch'),
       import('@/lib/supabase/server'),
@@ -206,7 +206,8 @@ export async function GET(request: NextRequest) {
     return await checkRuntimeCredentialBinding(request, {
       async authorize() {
         const auth = await createSupabaseRequestClient(request);
-        return auth && await isCeoActor(auth.supabase, auth.user) ? auth.user.id : null;
+        if (!auth || !isCredentialBindingCoreProject(getSupabaseClientHostname(auth.supabase))) return null;
+        return await isCeoActor(auth.supabase, auth.user) ? auth.user.id : null;
       },
       async readBindings(signal) {
         if (!supabaseAdmin) return { kind: 'error' };
