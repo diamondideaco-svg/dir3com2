@@ -11,6 +11,12 @@ export async function callInternalAgentProvider(provider: AgentProviderId, confi
   classifier?: boolean; standardBilling?: boolean; pilotMeasurement?: boolean;
 }) {
   if (options.signal?.aborted) return { ok: false, answer: '', citations: [], errorCategory: 'timeout' as const, model: config.model };
+  // This pinned Qwen recipe bounds thought + answer tokens, including vendor drift.
+  const boundedQwen = provider === 'qwen' && config.model === 'qwen3.8-flash';
+  const qwenCeiling = options.maxOutputTokens ?? 700;
+  if (boundedQwen && (!Number.isSafeInteger(qwenCeiling) || qwenCeiling <= 10 || qwenCeiling > 1024)) {
+    return { ok: false, answer: '', citations: [], errorCategory: 'invalid_request' as const, model: config.model };
+  }
   const common = { ...config, message: options.classifier ? message.slice(0, 500) : message, prompt: options.prompt, timeoutMs: options.timeoutMs, singleAttempt: true, standardBilling: options.standardBilling,
     ...(options.signal ? { signal: options.signal } : {}),
     ...(options.maxOutputTokens !== undefined ? { maxOutputTokens: options.maxOutputTokens } : {}) };
@@ -22,6 +28,7 @@ export async function callInternalAgentProvider(provider: AgentProviderId, confi
   };
   const lunaStandard = provider === 'openai' && config.model === 'gpt-6-luna' && options.standardBilling === true;
   return callOpenAICompatibleProvider({ ...common, providerName: provider, baseUrl: endpoints[provider],
+    ...(boundedQwen ? { chatProfile: 'qwen-bounded-task' as const } : {}),
     retryCount: 0, preferredModels: [config.model],
     ...(provider === 'xai' && options.classifier ? { responseJsonSchema: { name: 'dir3com_read_tool', schema: {
       type: 'object', properties: { tool: { type: 'string', enum: [...AGENT_TOOLS] } }, required: ['tool'], additionalProperties: false,

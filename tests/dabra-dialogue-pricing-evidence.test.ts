@@ -63,6 +63,8 @@ function quoteWithServerApprovals(approvals: readonly unknown[]) {
       if (id === 'server-only') return {};
       if (id === './agent-capabilities') return { AGENT_PROVIDER_IDS };
       if (id === './dialogue-pricing-approvals') return { APPROVED_DIALOGUE_STANDARD_PRICING: Object.freeze([...approvals]) };
+      if (id === './dialogue-durable-authority') return require('../lib/dabra/dialogue-durable-authority');
+      if (id === './dialogue-pricing-refresh') return require('../lib/dabra/dialogue-pricing-refresh');
       if (id === 'node:crypto') return require(id);
       throw new Error('Unexpected quote dependency: ' + id);
     },

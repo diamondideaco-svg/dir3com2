@@ -24,6 +24,7 @@ const digest = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/;
 function nonnegative(value: number) { return Number.isFinite(value) && value >= 0; }
 function qualified(profile: AgentCapabilityProfile, request: {
   capability: AgentCapability; language: 'ar' | 'en'; environment: CapabilityMeasurement['environment']; nowMs: number;
+  acceptExpiredMeasurement?: (profile: AgentCapabilityProfile) => boolean;
 }) {
   const m = profile.measurement;
   return AGENT_PROVIDER_IDS.includes(profile.provider)
@@ -32,7 +33,8 @@ function qualified(profile: AgentCapabilityProfile, request: {
     && digest.test(m.caseSetSha) && digest.test(m.sourceSha)
     && Number.isSafeInteger(m.cases) && m.cases > 0 && m.passed === m.cases
     && nonnegative(m.measuredAtMs) && m.measuredAtMs <= request.nowMs
-    && Number.isFinite(m.expiresAtMs) && m.expiresAtMs > request.nowMs && m.expiresAtMs > m.measuredAtMs
+    && Number.isFinite(m.expiresAtMs) && m.expiresAtMs > m.measuredAtMs
+    && (m.expiresAtMs > request.nowMs || request.acceptExpiredMeasurement?.(profile) === true)
     && nonnegative(m.latencyMs) && nonnegative(m.costCeilingUsd)
     && Number.isSafeInteger(m.inputTokenCeiling) && m.inputTokenCeiling >= 0
     && Number.isSafeInteger(m.outputTokenCeiling) && m.outputTokenCeiling >= 0;
@@ -42,6 +44,7 @@ export function selectQualifiedAgentCapability(
   request: {
     capability: AgentCapability; language: 'ar' | 'en';
     environment: CapabilityMeasurement['environment']; nowMs: number; limits: AgentTaskLimits;
+    acceptExpiredMeasurement?: (profile: AgentCapabilityProfile) => boolean;
   },
 ): CapabilitySelection {
   const measured = profiles.filter(profile => qualified(profile, request));

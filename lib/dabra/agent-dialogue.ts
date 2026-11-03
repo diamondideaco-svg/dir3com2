@@ -1,6 +1,8 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { dialogueCostCeilingMicros, fundingProofCurrent, fundingAuthorizationWindow, validFundingRequestIdentity, type DialogueFundingBinding } from './dialogue-funding';
+import { durableAuthorityAcceptsProfile, durableProfileSha256 } from './dialogue-durable-authority';
+import type { PublicPricingObservation } from './dialogue-pricing-refresh';
 import { coreRequiredDialogueUnits } from './conversation-renderer';
 import { generalTravelContext, GENERAL_TRAVEL_PROMPT } from './agent-general-travel';
 import { APPROVED_AGENT_CAPABILITY_PROFILES, selectQualifiedAgentCapability, type AgentCapabilityProfile, type AgentProviderId, type CapabilityMeasurement } from './agent-capabilities';
@@ -102,6 +104,7 @@ export type PreparedAgentAttempt = Readonly<{
   profile: AgentCapabilityProfile; credentialSha256: string; limits: AgentTaskLimits; standardBilling?: boolean;
   message: string; prompt: string; inputDigestValue: unknown; deadlineAtMs: number;
   signal: AbortSignal; isCurrent: () => Promise<boolean>; isReadyToDispatch: () => boolean;
+  acceptExpiredMeasurement?: (profile: AgentCapabilityProfile) => boolean;
 }>;
 export type PreparedPublicDialogue = PreparedAgentAttempt & Readonly<{
   units: readonly string[]; requiredUnits: readonly string[]; mode: 'core-composition' | 'general-travel';
@@ -113,26 +116,51 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
   if (!policy.trial || signal?.aborted || now >= deadlineAtMs || !validPolicy(policy) || (!policy.admission && !policy.funding)
     || actor?.kind !== 'customer' || context.role !== 'customer' || actor.actorId !== actor.ownerId
     || !/^[a-zA-Z0-9_-]{1,128}$/.test(actor.actorId) || !context.isTaskAuthorityCurrent) return null;
-  const selection = selectQualifiedAgentCapability(policy.profiles.filter(p => !request.provider || p.provider === request.provider), {
+  const funded = policy.funding, continuous = funded?.proofs.some(p => p.mode === 'bounded-account-charge') === true;
+  const desired = process.env.DABRA_AI_PROVIDER?.trim().toLowerCase() || 'openai';
+  const eligible = policy.profiles.filter(p => (!request.provider || p.provider === request.provider)
+    && (!continuous || desired === 'auto' || p.provider === desired));
+  const accepts = (p: AgentCapabilityProfile) => funded?.proofs.some(proof => proof.mode === 'bounded-account-charge'
+    && durableAuthorityAcceptsProfile(proof, p, Date.now())) === true;
+  const selection = selectQualifiedAgentCapability(eligible, {
     capability: request.capability, language: locale, environment: policy.environment, nowMs: now, limits: policy.limits,
+    ...(continuous ? { acceptExpiredMeasurement: accepts } : {}),
   });
   if (selection.kind !== 'selected') return null;
   const profile: AgentCapabilityProfile = { provider: selection.destination.provider, measurement: selection.destination.measurement };
-  const funded = policy.funding;
-  const fundingProof = funded?.proofs.find(p => fundingProofCurrent(p, profile, now) && dialogueCostCeilingMicros(p, profile, now) !== null);
+  const fundingProof = funded?.proofs.find(p => fundingProofCurrent(p, profile, now)
+    && (continuous ? p.mode === 'bounded-account-charge' && durableAuthorityAcceptsProfile(p, profile, now)
+      : dialogueCostCeilingMicros(p, profile, now) !== null));
   const matchedProof = funded ? undefined : policy.freeProofs.find(p => matchesProof(p, profile, policy, now));
   if (funded ? !fundingProof : !matchedProof) return null;
-  const proof = fundingProof ? Object.freeze({ ...fundingProof }) : Object.freeze({ ...matchedProof! });
+  const candidate = fundingProof ?? matchedProof;
+  if (!candidate) return null;
+  const proof = Object.freeze({ ...candidate });
+  let pricing: PublicPricingObservation | undefined;
+  if (fundingProof?.mode === 'bounded-account-charge') {
+    if (!funded?.refreshPricing) return null;
+    try {
+      if (!await context.isTaskAuthorityCurrent() || Date.now() >= deadlineAtMs) return null;
+      const preparing = AbortSignal.any([AbortSignal.timeout(Math.max(1, deadlineAtMs - Date.now())), ...(signal ? [signal] : [])]);
+      const observation = await funded.refreshPricing(fundingProof, preparing);
+      if (!observation || preparing.aborted || !await context.isTaskAuthorityCurrent()) return null;
+      pricing = observation;
+    } catch { return null; }
+  }
   if (Buffer.byteLength(request.prompt + request.message, 'utf8') + 128 > profile.measurement.inputTokenCeiling) return null;
-  const authorizationEnd = fundingProof ? fundingAuthorizationWindow(fundingProof, now)?.expiresAtMs ?? 0 : proof.expiresAtMs;
-  let end = Math.floor(Math.min(deadlineAtMs, now + policy.limits.maxElapsedMs, profile.measurement.expiresAtMs,
-    authorizationEnd, proof.quotaWindowEndMs, dialogueDay(now).dayEndMs));
-  if (end <= now) return null;
-  let bounded = AbortSignal.any([AbortSignal.timeout(end - now), ...(signal ? [signal] : [])]);
+  const authorizationEnd = fundingProof?.mode === 'bounded-account-charge' ? pricing?.expiresAtMs ?? 0
+    : fundingProof ? fundingAuthorizationWindow(fundingProof, now)?.expiresAtMs ?? 0 : matchedProof?.expiresAtMs ?? 0;
+  const quotaEnd = fundingProof?.mode === 'bounded-account-charge' ? dialogueDay(now).dayEndMs
+    : fundingProof?.quotaWindowEndMs ?? matchedProof?.quotaWindowEndMs ?? 0;
+  let end = Math.floor(Math.min(deadlineAtMs, now + policy.limits.maxElapsedMs,
+    fundingProof?.mode === 'bounded-account-charge' ? deadlineAtMs : profile.measurement.expiresAtMs,
+    authorizationEnd, quotaEnd, dialogueDay(now).dayEndMs));
+  if (end <= Date.now()) return null;
+  let bounded = AbortSignal.any([AbortSignal.timeout(Math.max(1, end - Date.now())), ...(signal ? [signal] : [])]);
   const isReadyToDispatch = () => {
     const at = Date.now();
     return !bounded.aborted && at < end && (fundingProof
-      ? fundingProofCurrent(fundingProof, profile, at) && dialogueCostCeilingMicros(fundingProof, profile, at) !== null
+      ? fundingProofCurrent(fundingProof, profile, at) && dialogueCostCeilingMicros(fundingProof, profile, at, pricing) !== null
       : matchesProof(proof as FreeDialogueProof, profile, policy, at));
   };
   const current = async () => {
@@ -146,13 +174,14 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
   };
   try {
     if (!await current() || !isReadyToDispatch()) return null;
-    const costMicros = fundingProof ? dialogueCostCeilingMicros(fundingProof, profile, Date.now()) : null;
+    const costMicros = fundingProof ? dialogueCostCeilingMicros(fundingProof, profile, Date.now(), pricing) : null;
     if (fundingProof && costMicros === null) return null;
     const attemptId = randomUUID();
     const reservation = funded && fundingProof && costMicros !== null
       ? funded.admission.reserve({ policyId: 'task217-existing-credit-v2', attemptId, requestId: funded.requestId, stage: request.capability,
         subject: actor.actorId, ...dialogueDay(now), nowMs: now, proof: fundingProof, costMicros,
-        inputTokens: profile.measurement.inputTokenCeiling, outputTokens: profile.measurement.outputTokenCeiling, limits: policy.daily }, bounded)
+        inputTokens: profile.measurement.inputTokenCeiling, outputTokens: profile.measurement.outputTokenCeiling, limits: policy.daily,
+        ...(pricing ? { pricing: { observation: pricing, profileSha256: durableProfileSha256(profile) } } : {}) }, bounded)
         .then(result => {
           if (result.kind !== 'admitted' || result.attemptId !== attemptId) return 'denied' as const;
           if ('limitedOperation' in fundingProof) {
@@ -173,7 +202,8 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
       else bounded.addEventListener('abort', () => resolve('denied'), { once: true });
     });
     if (await Promise.race([reservation, stopped]) !== 'admitted' || !await current() || !isReadyToDispatch()) return null;
-    return { profile, credentialSha256: proof.credentialSha256, limits: policy.limits, standardBilling: fundingProof?.mode === 'existing-credit',
+    return { profile, credentialSha256: proof.credentialSha256, limits: policy.limits, standardBilling: fundingProof?.mode === 'existing-credit' || fundingProof?.mode === 'bounded-account-charge',
+      ...(fundingProof?.mode === 'bounded-account-charge' ? { acceptExpiredMeasurement: accepts } : {}),
       ...request, deadlineAtMs: end, signal: bounded, isCurrent: current, isReadyToDispatch };
   } catch { return null; }
 }

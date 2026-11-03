@@ -6,6 +6,8 @@ import { supabaseAdmin } from '../supabase/server';
 import { AGENT_PROVIDER_IDS, type AgentCapabilityProfile } from './agent-capabilities';
 import { PUBLIC_DIALOGUE_DAILY_LIMITS, type AgentDialoguePolicy } from './agent-dialogue';
 import type { AgentContext } from './agent-contract';
+import { validDurableAccountChargeProof } from './dialogue-durable-authority';
+import { refreshPublicDialoguePricing, publicPricingObservationCurrent } from './dialogue-pricing-refresh';
 import { fundingSubject, fundingAuthorizationWindow, validFundingDailyLimits, validTask217PilotEnvelope, validTask217LimitedOperation, quoteDialogueFunding, type DialogueFundingProof, type FundedDialogueReservation, type FundingDialogueAdmission } from './dialogue-funding';
 
 export type FundingRpc = (name: string, params: Record<string, unknown>, signal: AbortSignal) =>
@@ -26,9 +28,19 @@ export function createFundingDialogueAdmission(rpc: FundingRpc = defaultRpc): Fu
     async reserve(r: FundedDialogueReservation, signal: AbortSignal) {
       if (signal.aborted) return { kind: 'denied' };
       try {
+        const continuous = r.proof.mode === 'bounded-account-charge';
+        if (continuous && (!validDurableAccountChargeProof(r.proof, Date.now()) || !r.pricing
+          || !r.proof.limitedOperation.acceptedProfileSha256s.includes(r.pricing.profileSha256)
+          || !publicPricingObservationCurrent(r.pricing.observation, r.proof, Date.now()))) return { kind: 'denied' };
+        if (!continuous && r.pricing) return { kind: 'denied' };
+        const executionPricing = continuous && r.pricing ? { schema: 'task217-execution-pricing-v1',
+          observation: r.pricing.observation, authorityBindingSha256: r.proof.limitedOperation.bindingSha256,
+          profileSha256: r.pricing.profileSha256, attemptId: r.attemptId, requestId: r.requestId,
+          subjectHash: fundingSubject(r.subject), stage: r.stage, inputTokenCeiling: r.inputTokens, outputTokenCeiling: r.outputTokens } : undefined;
+        const serializedProof = executionPricing ? { ...r.proof, executionPricing } : r.proof;
         const { data, error } = await rpc('reserve_dabra_dialogue_attempt', {
           p_attempt_id: r.attemptId, p_request_id: r.requestId, p_stage: r.stage, p_subject_hash: fundingSubject(r.subject),
-          p_grant_id: r.proof.grantId, p_proof: r.measurementRequest === undefined ? r.proof : { ...r.proof, measurementRequest: r.measurementRequest }, p_input_tokens: r.inputTokens, p_output_tokens: r.outputTokens,
+          p_grant_id: r.proof.grantId, p_proof: r.measurementRequest === undefined ? serializedProof : { ...serializedProof, measurementRequest: r.measurementRequest }, p_input_tokens: r.inputTokens, p_output_tokens: r.outputTokens,
           p_cost_micros: r.costMicros, p_limits: r.limits, p_day_start_ms: r.dayStartMs,
         }, signal);
         // No RPC retry: a timeout or lost claim response may already have committed.
@@ -56,6 +68,7 @@ function profile(value: unknown): value is AgentCapabilityProfile {
     && typeof m.costCeilingUsd === 'number' && Number.isFinite(m.costCeilingUsd) && m.costCeilingUsd >= 0;
 }
 function proof(value: unknown): value is DialogueFundingProof {
+  if (object(value) && value.mode === 'bounded-account-charge') return validDurableAccountChargeProof(value, Date.now());
   if (!object(value) || !AGENT_PROVIDER_IDS.some(p => p === value.provider)
     || !['synthetic','provider-benchmark'].includes(String(value.environment))
     || !['off','on','unknown'].includes(String(value.autoReload))
@@ -99,7 +112,7 @@ export async function loadFundingDialoguePolicy(context?: AgentContext, signal?:
     return { ...base, daily: Object.freeze({...data.dailyLimits}), profiles: data.profiles.filter(profile),
       limits: { ...base.limits, maxCostUsd: data.maxCostMicros / 1000000 },
       funding: { kind: 'existing-credit-v2', requestId: base.funding!.requestId, proofs: data.proofs.filter(proof).filter(p => !('pilotEnvelope' in p) && (!('limitedOperation' in p) || (requestId !== undefined && base.funding!.requestId === requestId))),
-        admission: base.funding!.admission,
+        admission: base.funding!.admission, refreshPricing: refreshPublicDialoguePricing,
         async isCurrent(expectedProof, expectedProfile, currentSignal) {
           try {
             const fresh = await rpc('get_dabra_dialogue_funding_policy', { p_subject_hash: fundingSubject(actor.actorId) }, currentSignal);
@@ -123,6 +136,7 @@ export async function loadFundingMeasurement(subject: string, planId: string, so
     if (signal.aborted || error || !object(data) || data.enabled !== true || !Array.isArray(data.proofs)
       || !integer(data.maxCostMicros) || !validFundingDailyLimits(data.dailyLimits, 4096, 1024)) return null;
     const matches = data.proofs.filter(proof).filter(p => {
+      if (p.mode === 'bounded-account-charge') return false;
       const permit = parseFirstProfilePermit(p.measurementPermit);
       return permit && permit.planId === planId && permit.sourceSha === sourceSha
         && permit.subjectHash === fundingSubject(subject) && p.environment === 'provider-benchmark';
@@ -131,6 +145,7 @@ export async function loadFundingMeasurement(subject: string, planId: string, so
     // Snapshot trusted JSON, including any private one-use authorization. Never mutate observations during dispatch.
     const snapshot: unknown = JSON.parse(JSON.stringify(matches[0]));
     if (!proof(snapshot)) return null;
+    if (snapshot.mode === 'bounded-account-charge') return null;
     const permit = parseFirstProfilePermit(snapshot.measurementPermit), window = fundingAuthorizationWindow(snapshot, Date.now());
     if (!permit || !window || ('snapshotUse' in snapshot && permit.expiresAtMs > window.expiresAtMs)
       || Date.now() >= permit.expiresAtMs || !validTask217PilotEnvelope(snapshot.pilotEnvelope)

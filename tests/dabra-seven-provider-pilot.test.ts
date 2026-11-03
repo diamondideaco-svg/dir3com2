@@ -244,6 +244,8 @@ test('pilot ledger scope requires exact stored measurement authority for the fou
     configuration: (_provider, model) => ({ apiKey: 'SYNTHETIC-KEY', model: model! }),
     admission: { reserve: async r => {
       claims++; requests.add(r.requestId);
+      assert.notEqual(r.proof.mode, 'bounded-account-charge');
+      if (r.proof.mode === 'bounded-account-charge') throw Error('PILOT_PROOF_REQUIRED');
       assert.equal(r.proof.overdraft, 'unknown'); assert.equal(r.proof.concurrentAccountUsage, 'unknown');
       assert.equal(r.costMicros, quote(plan.proof)); assert.equal(r.measurementRequest?.planId, plan.permit.planId);
       return { kind: 'admitted', attemptId: r.attemptId };

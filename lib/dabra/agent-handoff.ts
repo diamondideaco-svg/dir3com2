@@ -8,7 +8,7 @@ import { selectQualifiedAgentCapability, type AgentCapabilityProfile, type Capab
 import { AGENT_TOOLS, agentIntent, type AgentIntent, type AgentTaskScope, agentProductRole, type AgentTaskSpec, type AgentTaskAuthority, type AgentTaskState,
   type AgentTaskBlockReason, type AgentTaskEvidence, type AgentTaskConsumption, type AgentTaskAccounting } from './agent-contract';
 
-type Entry = { spec: AgentTaskSpec; fingerprint: string; state: AgentTaskState; accounting: AgentTaskAccounting; destination: { kind: 'core' } | QualifiedAgentDestination; stop?: () => void };
+type Entry = { spec: AgentTaskSpec; fingerprint: string; state: AgentTaskState; accounting: AgentTaskAccounting; destination: { kind: 'core' } | QualifiedAgentDestination; acceptExpiredMeasurement?: (profile: AgentCapabilityProfile) => boolean; stop?: () => void };
 export type TaskDecision = { kind: 'accepted'; taskId: string } | { kind: 'rejected'; reason: AgentTaskBlockReason };
 export type TaskExecution<T> =
   | { kind: 'completed'; output: T; state: Extract<AgentTaskState, { kind: 'completed' }> }
@@ -67,13 +67,14 @@ export class AgentTaskCoordinator {
   private now() { return (this.options.now ?? Date.now)(); }
   prepare(spec: AgentTaskSpec, actor: AgentTaskAuthority, destination: { kind: 'core' } | {
     kind: 'provider'; profiles: readonly AgentCapabilityProfile[]; environment: CapabilityMeasurement['environment'];
+    acceptExpiredMeasurement?: (profile: AgentCapabilityProfile) => boolean;
   } = { kind: 'core' }): TaskDecision {
     if (!validSpec(spec, this.now())) return { kind: 'rejected', reason: 'invalid_task' };
     if (!allowed(spec, actor)) return { kind: 'rejected', reason: 'forbidden' };
     let selected: { kind: 'core' } | QualifiedAgentDestination = { kind: 'core' };
     if (destination.kind === 'provider') {
       const selection = selectQualifiedAgentCapability(destination.profiles, { capability: spec.capability, language: spec.language,
-        environment: destination.environment, nowMs: this.now(), limits: spec.limits });
+        environment: destination.environment, nowMs: this.now(), limits: spec.limits, acceptExpiredMeasurement: destination.acceptExpiredMeasurement });
       if (selection.kind === 'blocked') return { kind: 'rejected', reason: selection.reason };
       selected = selection.destination;
     } else if (spec.capability === 'intent.classify') return { kind: 'rejected', reason: 'unqualified' };
@@ -88,7 +89,7 @@ export class AgentTaskCoordinator {
     if (this.tasks.has(spec.id)) return { kind: 'rejected', reason: 'conflict' };
     const capacity = this.options.capacity ?? 64;
     if (!Number.isSafeInteger(capacity) || capacity < 1 || this.tasks.size >= capacity) return { kind: 'rejected', reason: 'capacity' };
-    this.tasks.set(spec.id, { spec: frozenSpec(spec), fingerprint, destination: selected, accounting: this.accountingSnapshot(selected.kind, { attempts: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 }), state: freezeState({ kind: 'prepared' }) });
+    this.tasks.set(spec.id, { spec: frozenSpec(spec), fingerprint, destination: selected, ...(destination.kind === 'provider' ? { acceptExpiredMeasurement: destination.acceptExpiredMeasurement } : {}), accounting: this.accountingSnapshot(selected.kind, { attempts: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 }), state: freezeState({ kind: 'prepared' }) });
     this.keys.set(key, spec.id);
     return { kind: 'accepted', taskId: spec.id };
   }
@@ -167,7 +168,7 @@ export class AgentTaskCoordinator {
         if (!stillRunning() || !(await options.isCurrent()) || !stillRunning()) return null;
         if (entry.destination.kind === 'provider') {
           const m = entry.destination.measurement;
-          if (this.now() >= m.expiresAtMs) throw new Error('task_unqualified');
+          if (this.now() >= m.expiresAtMs && entry.acceptExpiredMeasurement?.({ provider: entry.destination.provider, measurement: m }) !== true) throw new Error('task_unqualified');
           reserve({ attempts: 1, inputTokens: m.inputTokenCeiling, outputTokens: m.outputTokenCeiling, costUsd: m.costCeilingUsd });
         }
         const result = await options.run({ task: entry.spec, destination: entry.destination, signal: controller.signal, reserve });
@@ -289,6 +290,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
     };
     const prepared = coordinator.prepare(providerSpec, actor, {
       kind: 'provider', profiles: [plan.profile], environment: (options.dialogue ?? DEFAULT_AGENT_DIALOGUE_POLICY).environment,
+      acceptExpiredMeasurement: plan.acceptExpiredMeasurement,
     });
     if (prepared.kind === 'rejected') return { kind: 'response', response: result.output, task: result.state,
       dialogueTask: { kind: 'blocked', reason: prepared.reason } };

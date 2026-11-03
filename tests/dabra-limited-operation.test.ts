@@ -6,7 +6,10 @@ import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { NextRequest, NextResponse } from 'next/server';
+import type { DurableAccountChargeProof } from '../lib/dabra/dialogue-durable-authority';
+import { SYNTHETIC_PUBLIC_PRICING_BODIES } from './fixtures/task217-public-pricing-synthetic';
 import { AGENT_PROVIDER_IDS, type AgentProviderId } from '../lib/dabra/agent-capabilities';
+import { APPROVED_DIALOGUE_STANDARD_PRICING } from '../lib/dabra/dialogue-pricing-approvals';
 
 // Actual POST, policy loader, funding, planner and handoff. Only authenticated
 // identity, database I/O and provider dispatch are synthetic external boundaries.
@@ -19,21 +22,30 @@ test.before(() => { globalThis.fetch = async () => { unexpectedNetwork++; throw 
 test.afterEach(() => { assert.equal(unexpectedNetwork, 0, 'test boundaries must not attempt any network'); });
 test.after(() => { globalThis.fetch = realFetch; });
 
-function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'openai') {
+function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'openai', options: { realTransport?: boolean; continuous?: boolean } = {}) {
+  const realTransport = options.realTransport ? realTaskTransport(provider) : null;
   let clock = instant, actorCurrent = true, dispatches = 0, reservations = 0;
   let postReservePolicyReads = 0, revokeOnPolicyRead = 1, revocations = 0;
-  let fault: 'none' | 'authority-during-policy-read' | 'lost-claim' | 'late-claim' | 'expired-price-receipt' | 'provider-unknown' | 'revoked-during-dispatch' | 'credential-change' | 'grant-revoked' | 'profile-revoked' | 'source-change' | 'consent-revoked' = 'none';
+  let fault: 'none' | 'authority-during-policy-read' | 'lost-claim' | 'late-claim' | 'expired-price-receipt' | 'provider-unknown' | 'revoked-during-dispatch' | 'credential-change' | 'grant-revoked' | 'profile-revoked' | 'source-change' | 'consent-revoked' | 'pricing-expired-during-claim' | 'pricing-unavailable' = 'none';
   let configuredKey = credential;
   const requests = new Set<string>(), payloads: string[] = [], statuses: number[] = [];
-  let held = 61719;
-  const subject = 'SYNTHETIC-customer', model = 'SYNTHETIC-limited';
+  let held = 61719, admittedAttempts = 6, publicFetches = 0;
+  let continuousProof: DurableAccountChargeProof | null = null;
+  const serializedClaims: Record<string, unknown>[] = [];
+  const subject = 'SYNTHETIC-customer', model = options.realTransport ? SEVEN_BOUNDED_MODELS[provider] : 'SYNTHETIC-limited';
   const limits = { uniqueUsers: 10, requestsPerUser: 6, requestsTotal: 60,
     inputTokensPerUser: 24576, outputTokensPerUser: 6144, inputTokensTotal: 245760, outputTokensTotal: 61440 };
-  const rate = { schema: 'reviewed-standard-pricing-v1', provider, model,
+  const legacyRate = { schema: 'reviewed-standard-pricing-v1', provider, model,
     serviceTier: 'standard', currency: 'USD', inputMicrosPerMillion: 1000000, outputMicrosPerMillion: 2000000,
     observedAtMs: instant - 1000, validFromMs: instant - 1, expiresAtMs: instant + 600000,
     sourceUrl: 'https://' + ({ openai: 'developers.openai.com', anthropic: 'platform.claude.com', gemini: 'ai.google.dev', xai: 'docs.x.ai', deepseek: 'api-docs.deepseek.com', qwen: 'www.alibabacloud.com', mistral: 'docs.mistral.ai' })[provider] + '/SYNTHETIC-limited' };
-  const rateSha = createHash('sha256').update(JSON.stringify(Object.values(rate))).digest('hex');
+  const approvedRate = options.realTransport
+    ? APPROVED_DIALOGUE_STANDARD_PRICING.find(r => r.provider === provider && r.model === model) : undefined;
+  if (options.realTransport && !approvedRate) throw Error('APPROVED_MODEL_TARIFF_MISSING');
+  const rate = approvedRate ?? legacyRate;
+  const rateSha = approvedRate?.sha256 ?? createHash('sha256').update(JSON.stringify(Object.values(rate))).digest('hex');
+  const outputCeiling = options.realTransport ? 1024 : 256;
+  const costMicros = Math.ceil((4096 * rate.inputMicrosPerMillion + outputCeiling * rate.outputMicrosPerMillion) / 1000000) + 100;
   const proof = {
     grantId: '11111111-1111-4111-8111-111111111111', provider, model, environment: 'provider-benchmark',
     accountId: 'SYNTHETIC-account', projectId: 'SYNTHETIC-project',
@@ -43,6 +55,9 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
     autoReload: 'off', postpaid: 'blocked', overdraft: 'unknown', concurrentAccountUsage: 'bounded',
     mode: 'existing-credit', currency: 'USD', serviceTier: 'standard',
     pricing: 'standard-2026-10-28', pricingEvidenceSha256: rateSha, authorizedCreditMicros: 1000000, remainingCreditMicros: 1000000,
+    ...(options.realTransport ? { pricingVerification: { schema: 'standard-pricing-verification-v1',
+      snapshotSha256: rateSha, sourceUrl: rate.sourceUrl, inputMicrosPerMillion: rate.inputMicrosPerMillion,
+      outputMicrosPerMillion: rate.outputMicrosPerMillion, observedAtMs: instant - 1, evidenceSha256: 'e'.repeat(64) } } : {}),
     allInChargeBound: { schema: 'all-in-charge-bound-v1', currency: 'USD', coverage: 'all-applicable-api-charges',
       maxAdditionalMicros: 100, observedAtMs: instant - 1000, evidenceSha256: 'd'.repeat(64) },
     limitedOperation: { schema: 'task217-limited-operation-v1', authorizationId: '22222222-2222-4222-8222-222222222222',
@@ -53,12 +68,13 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
   const profiles = (['discover', 'intent.classify'] as const).map(capability => ({ provider, measurement: {
     capability, language, model, environment: 'provider-benchmark', cases: 1, passed: 1,
     caseSetSha: 'b'.repeat(64), sourceSha: 'c'.repeat(40), measuredAtMs: instant - 1, expiresAtMs: instant + 600000,
-    latencyMs: 1, inputTokenCeiling: 4096, outputTokenCeiling: 256, costCeilingUsd: 0.004708,
+    latencyMs: 1, inputTokenCeiling: 4096, outputTokenCeiling: outputCeiling, costCeilingUsd: costMicros / 1000000,
   } }));
   let enabled = true;
   const context = { role: 'customer', taskAuthority: { kind: 'customer', actorId: subject, ownerId: subject },
     isTaskAuthorityCurrent: async () => actorCurrent, readRequests: async () => ({ kind: 'forbidden' }) };
-  const data = { enabled, profiles, proofs: [proof], maxCostMicros: 4708, dailyLimits: limits };
+  const proofRows: unknown[] = [proof];
+  const data = { enabled, profiles, proofs: proofRows, maxCostMicros: costMicros, dailyLimits: limits };
   const rpc = async (name: string, p: Record<string, unknown>, signal: AbortSignal) => {
     if (signal.aborted) return { data: null, error: 'aborted' };
     if (name === 'get_dabra_dialogue_funding_policy') {
@@ -71,20 +87,29 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
     assert.equal(name, 'reserve_dabra_dialogue_attempt');
     reservations++;
     const key = String(p.p_request_id) + ':' + String(p.p_stage);
-    if (requests.has(key) || held + Number(p.p_cost_micros) > 1000000) return { data: { decision: 'denied' }, error: null };
-    requests.add(key); held += Number(p.p_cost_micros);
+    serializedClaims.push(p);
+    if (requests.has(key) || held + Number(p.p_cost_micros) > 1000000 || (options.continuous && admittedAttempts >= 28)) return { data: { decision: 'denied' }, error: null };
+    requests.add(key); held += Number(p.p_cost_micros); admittedAttempts++;
     if (fault === 'lost-claim') return { data: null, error: 'synthetic lost receipt after commit' };
     if (fault === 'late-claim') clock = instant + 600001;
-    if (fault === 'credential-change') configuredKey = 'SYNTHETIC-DIFFERENT-CREDENTIAL';
+    if (fault === 'credential-change') {
+      configuredKey = 'SYNTHETIC-DIFFERENT-CREDENTIAL';
+      const key = { openai:'OPENAI_API_KEY',gemini:'GOOGLE_GENERATIVE_AI_API_KEY',anthropic:'ANTHROPIC_API_KEY',xai:'XAI_API_KEY',deepseek:'DEEPSEEK_API_KEY',qwen:'QWEN_API_KEY',mistral:'MISTRAL_API_KEY' }[provider];
+      if (options.continuous && realTransport) realTransport.env[key] = configuredKey;
+    }
+    if (fault === 'pricing-expired-during-claim') clock += 900001;
     if (fault === 'grant-revoked') data.proofs = [];
     if (fault === 'profile-revoked') data.profiles = [];
     if (fault === 'source-change') data.profiles = data.profiles.map(p => ({ ...p, measurement: { ...p.measurement, sourceSha: 'f'.repeat(40) } }));
     if (fault === 'consent-revoked') enabled = false;
+    const serialized = p.p_proof, execution = isFixtureRecord(serialized) ? serialized.executionPricing : null;
+    const observation = isFixtureRecord(execution) ? execution.observation : null;
+    const receiptExpiry = isFixtureRecord(observation) && typeof observation.expiresAtMs === 'number' ? observation.expiresAtMs : instant + 600000;
     return { data: { decision: 'admitted', attempt_id: p.p_attempt_id,
-      pricing_expires_at_ms: fault === 'expired-price-receipt' ? instant - 1 : instant + 600000 }, error: null };
+      pricing_expires_at_ms: fault === 'expired-price-receipt' ? instant - 1 : receiptExpiry }, error: null };
   };
   const transport = {
-    internalAgentConfiguration: (candidate: string) => candidate === provider ? { apiKey: configuredKey, model } : null,
+    internalAgentConfiguration: (candidate: string) => realTransport ? realTransport.configurationFor(candidate) : candidate === provider ? { apiKey: configuredKey, model } : null,
     callInternalAgentProvider: async (_provider: string, _config: unknown, message: string, options: { classifier?: boolean }) => {
       dispatches++; payloads.push(message);
       if (fault === 'provider-unknown') return { ok: false, model, answer: '', citations: [], errorCategory: 'timeout' };
@@ -95,6 +120,7 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
           ? 'خذ حقيبة خفيفة وماءً للأطفال، ورتب استراحات في الظل. هل تفضلون مكانًا داخليًا أم خارجيًا؟'
           : 'Pack a light bag and water for the children, and plan shaded rest breaks. Would you prefer indoors or outdoors?' }
         : { opening: 'none', paragraphs: input.units.map((_: string, index: number) => [index]) });
+      if (realTransport) { realTransport.respond(answer); return realTransport.dispatch(_provider, _config, message, options); }
       return { ok: true, model, answer, citations: [], inputTokens: 16, outputTokens: 16 };
     },
   };
@@ -102,14 +128,14 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
   class Clock extends Date { static now() { return clock; } }
   const env = { DABRA_INTERNAL_AI_ENABLED: 'true', DABRA_AI_PROVIDER: 'openai',
     DABRA_PROVIDER_FALLBACK_ENABLED: 'false', DABRA_DIALOGUE_FUNDING_POLICY: 'task217-existing-credit-v2' };
-  const names = new Set(['agent-dialogue', 'dialogue-funding', 'dialogue-funding-store', 'agent-planner', 'agent-handoff', 'agent-measurement']);
+  const names = new Set(['agent-dialogue', 'dialogue-funding', 'dialogue-funding-store', 'agent-planner', 'agent-handoff', 'agent-measurement', 'dialogue-durable-authority', 'dialogue-pricing-refresh']);
   function load(name: string): Record<string, unknown> {
     const cached = modules.get(name); if (cached) return cached;
     const file = new URL('../lib/dabra/' + name + '.ts', import.meta.url), require = createRequire(file);
     const output: Record<string, unknown> = {}; modules.set(name, output);
     runInNewContext(ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
-    } }).outputText, { exports: output, module: { exports: output }, require: (id: string) => {
+    } }).outputText + (options.continuous && name === 'dialogue-pricing-refresh' ? '\nexports.testSource=sources;exports.testFragment=fragment;' : ''), { exports: output, module: { exports: output }, require: (id: string) => {
       if (id === 'server-only') return {};
       if (id === '../ai2/observability/provider-attempts') return { createDabraProviderRequestId: randomUUID, mapProviderErrorCategory: (value: unknown) => value };
       if (id === '../supabase/server') return { supabaseAdmin: { rpc: (name: string, params: Record<string, unknown>) => ({
@@ -119,8 +145,53 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
       if (id === '../ai2/runtime/agent-provider-dispatch') return transport;
       if (id.startsWith('./') && names.has(id.slice(2))) return load(id.slice(2));
       return require(id);
-    }, Date: Clock, process: { env }, Buffer, URL, AbortController, AbortSignal, setTimeout, clearTimeout, queueMicrotask, console }, { filename: file.pathname });
+    }, Date: Clock, process: { env }, Buffer, URL, Response, TextDecoder, fetch: async (url: string, init: RequestInit) => {
+      publicFetches++; assert.equal(init.credentials, 'omit'); assert.equal(init.redirect, 'error');
+      assert.equal(new Headers(init.headers).has('Authorization'), false);
+      const response = new Response(fault === 'pricing-unavailable' ? '' : SYNTHETIC_PUBLIC_PRICING_BODIES[provider], {
+        status: fault === 'pricing-unavailable' ? 503 : 200, headers: { 'Content-Type': provider === 'openai' || provider === 'anthropic' ? 'text/markdown' : provider === 'gemini' ? 'text/plain' : 'text/html' },
+      });
+      return Object.defineProperty(response, 'url', { value: url });
+    }, AbortController, AbortSignal, setTimeout, clearTimeout, queueMicrotask, console }, { filename: file.pathname });
     return output;
+  }
+  if (options.continuous) {
+    if (!realTransport || !approvedRate) throw Error('CONTINUOUS_ACTUAL_TRANSPORT_REQUIRED');
+    env.DABRA_AI_PROVIDER = provider;
+    const pricing = load('dialogue-pricing-refresh'), authority = load('dialogue-durable-authority');
+    const call = (module: Record<string, unknown>, name: string, ...args: unknown[]) => {
+      const fn = module[name]; if (typeof fn !== 'function') throw Error('FIXTURE_EXPORT_MISSING');
+      return Reflect.apply(fn, undefined, args);
+    };
+    const source = pricing.testSource;
+    if (!isFixtureRecord(source)) throw Error('SYNTHETIC_SOURCE_REQUIRED');
+    const selected = source[provider]; if (!isFixtureRecord(selected)) throw Error('SYNTHETIC_PROVIDER_REQUIRED');
+    const extracted = call(pricing, 'testFragment', provider, SYNTHETIC_PUBLIC_PRICING_BODIES[provider]);
+    if (typeof extracted !== 'string') throw Error('SYNTHETIC_FRAGMENT_REQUIRED');
+    selected.fragment = createHash('sha256').update(extracted).digest('hex');
+    const contract = call(pricing, 'approvedPublicPricingContract', provider, model, rateSha);
+    if (!isFixtureRecord(contract) || typeof contract.digest !== 'string') throw Error('APPROVED_CONTRACT_REQUIRED');
+    for (const p of profiles) { p.measurement.measuredAtMs = instant - 3600000; p.measurement.expiresAtMs = instant - 1; }
+    const hashes = profiles.map(p => call(authority, 'durableProfileSha256', p));
+    if (!hashes.every((v): v is string => typeof v === 'string')) throw Error('ACCEPTED_PROFILE_DIGEST_REQUIRED');
+    const unbound: DurableAccountChargeProof = {
+      mode: 'bounded-account-charge', grantId: proof.grantId, provider, model, environment: 'provider-benchmark',
+      accountId: proof.accountId, projectId: proof.projectId, credentialSha256: proof.credentialSha256, evidenceSha256: proof.evidenceSha256,
+      currency: 'USD', serviceTier: 'standard', pricingEvidenceSha256: rateSha,
+      accountTerms: { schema: 'task217-account-charge-terms-v1', observedAtMs: instant - 1000, evidenceSha256: 'd'.repeat(64),
+        validity: 'until-contract-change', risks: { autoReload: 'unknown', postpaid: 'allowed', overdraft: 'unknown', concurrentAccountUsage: 'unknown' },
+        fundingChargeProtection: { kind: 'documented-manual-funding-only', evidenceSha256: 'e'.repeat(64) },
+        allInChargeBound: { schema: 'all-in-account-charge-bound-v1', currency: 'USD',
+          coverage: 'all-applicable-api-tax-fx-and-funding-charges', maxAdditionalMicros: 100, evidenceSha256: 'f'.repeat(64) } },
+      limitedOperation: { schema: 'task217-limited-operation-v2', authorizationId: proof.limitedOperation.authorizationId,
+        taskId: 'task217-text-pilot-2026-11-01', dataScope: 'redacted-travel-or-server-units', maxCostMicros: 1000000, maxAttempts: 28,
+        authorizedAtMs: instant - 1, duration: 'until-revoked-or-binding-change', providerRisk: 'bounded-account-liability-with-observed-risks',
+        acceptedProfileSha256s: hashes.sort(), contractSha256: contract.digest, bindingSha256: '0'.repeat(64) },
+    };
+    const binding = call(authority, 'durableAuthorityBindingSha256', unbound);
+    if (typeof binding !== 'string') throw Error('SYNTHETIC_AUTHORITY_BINDING_REQUIRED');
+    continuousProof = { ...unbound, limitedOperation: { ...unbound.limitedOperation, bindingSha256: binding } };
+    data.proofs = [continuousProof];
   }
   const file = new URL('../app/api/ai2/chat/route.ts', import.meta.url), require = createRequire(file);
   const exported: Record<string, unknown> = {};
@@ -134,7 +205,9 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
     return require(id);
   }, Date: Clock, process: { env }, Buffer, URL, File, crypto: globalThis.crypto, AbortController, AbortSignal, console }, { filename: file.pathname });
   const handler = exported.POST; if (typeof handler !== 'function') throw Error('actual_POST_missing');
-  return { proof, data, context, payloads, env, statuses,
+  return { proof, data, context, payloads, env, statuses, realTransport, continuousProof, serializedClaims,
+    publicFetches: () => publicFetches, ledgerState: () => ({ held, admittedAttempts }),
+    seedHistorical: (cost: number, attempts: number) => { held = cost; admittedAttempts = attempts; },
     fail: (value: typeof fault, policyRead = 1) => { fault = value; revokeOnPolicyRead = policyRead; },
     revocations: () => revocations,
     setClock: (value: number) => { clock = value; }, setAuthority: (value: boolean) => { actorCurrent = value; },
@@ -358,4 +431,330 @@ for (const path of ['classifier', 'answer'] as const) test('authority revoked du
  assert.equal(f.counts().dispatches, 0, 'revocation during funding RPC must be rechecked before provider egress');
  if (path === 'answer') { assert.equal(f.statuses[0], 409); assert.equal(result.answer, undefined); }
  else { assert.equal(f.statuses[0], 200); assert.equal(result.provider, 'local'); }
+});
+
+const SEVEN_BOUNDED_MODELS: Record<AgentProviderId, string> = {
+ openai: 'gpt-6-luna', gemini: 'gemini-3.8-flash', anthropic: 'claude-sonnet-5-5',
+ xai: 'grok-4.20-0309-non-reasoning', deepseek: 'deepseek-flash', qwen: 'qwen3.8-flash', mistral: 'mistral-small-2603',
+};
+function isFixtureRecord(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
+function realTaskTransport(provider: AgentProviderId, failureStatus?: number) {
+ const calls: { url: string; body: Record<string, unknown>; headers: Headers }[] = [];
+ const models = SEVEN_BOUNDED_MODELS;
+ const env: Record<string, string> = { OPENAI_API_KEY: credential, GOOGLE_GENERATIVE_AI_API_KEY: credential,
+  GEMINI_API_KEY: 'SYNTHETIC-SECONDARY-IGNORED', ANTHROPIC_API_KEY: credential, XAI_API_KEY: credential,
+  DEEPSEEK_API_KEY: credential, QWEN_API_KEY: credential, DASHSCOPE_API_KEY: 'SYNTHETIC-SECONDARY-IGNORED',
+  MISTRAL_API_KEY: credential, DABRA_INTERNAL_AI_MODEL: models.openai,
+  ...Object.fromEntries(AGENT_PROVIDER_IDS.map(p => ['DABRA_' + p.toUpperCase() + '_MODEL', models[p]])) };
+ const cache = new Map<string, Record<string, unknown>>();
+ let responseAnswer = '{"tool":"discover"}', refusal = failureStatus;
+ const fetch = async (input: string | URL | Request, init?: RequestInit) => {
+  const url = String(input), body: unknown = JSON.parse(String(init?.body));
+  assert.ok(isFixtureRecord(body));
+  calls.push({ url, body, headers: new Headers(init?.headers) });
+  if (refusal) return Response.json({ error: { message: 'SYNTHETIC-refusal' } }, { status: refusal });
+  const answer = responseAnswer, model = models[provider];
+  if (provider === 'gemini') return Response.json({ modelVersion: model, candidates: [{ content: { parts: [{ text: answer }] } }],
+   usageMetadata: { promptTokenCount: 16, candidatesTokenCount: 5, thoughtsTokenCount: 3, totalTokenCount: 24 } });
+  if (provider === 'anthropic') return Response.json({ model, content: [{ type: 'text', text: answer }], usage: { input_tokens: 16, output_tokens: 8 } });
+  return Response.json({ model, choices: [{ message: { content: answer } }], usage: {
+   prompt_tokens: 16, completion_tokens: 8, completion_tokens_details: { reasoning_tokens: 3 } } });
+ };
+ function load(name: string): Record<string, unknown> {
+  const old = cache.get(name); if (old) return old;
+  const file = new URL('../lib/ai2/runtime/' + name + '.ts', import.meta.url), require = createRequire(file);
+  const output: Record<string, unknown> = {}; cache.set(name, output);
+  runInNewContext(ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: {
+   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
+  } }).outputText, { exports: output, module: { exports: output }, require: (id: string) => {
+   if (id === 'server-only') return {};
+   if (id === '@/lib/ai2/runtime/openai-compatible') return load('openai-compatible');
+   if (['./openai-compatible','./anthropic-web','./gemini-web'].includes(id)) return load(id.slice(2));
+   return require(id);
+  }, fetch, process: { env }, Date, Buffer, URL, Response, Request, Headers, AbortSignal, AbortController, setTimeout, clearTimeout }, { filename: file.pathname });
+  return output;
+ }
+ const dispatch = load('agent-provider-dispatch'), configuration = dispatch.internalAgentConfiguration, run = dispatch.callInternalAgentProvider;
+ if (typeof configuration !== 'function' || typeof run !== 'function') throw Error('ACTUAL_DISPATCH_MISSING');
+ return { calls, env, respond: (answer: string) => { responseAnswer = answer; }, refuse: (status: number) => { refusal = status; },
+  configurationFor: (candidate: string) => Reflect.apply(configuration, undefined, [candidate]),
+  dispatch: (...args: unknown[]) => Reflect.apply(run, undefined, args),
+  configuration: () => Reflect.apply(configuration, undefined, [provider]),
+  run: async (outputCeiling = 1024) => Reflect.apply(run, undefined, [provider, Reflect.apply(configuration, undefined, [provider]), 'SYNTHETIC safe request',
+   { prompt: 'SYNTHETIC prompt', language: 'en', timeoutMs: 1000, maxOutputTokens: outputCeiling, standardBilling: true, classifier: true }]) };
+}
+for (const provider of AGENT_PROVIDER_IDS) test('all-seven bounded transport ' + provider + ': actual model, alias, payload and total output ceiling', async () => {
+ const f = realTaskTransport(provider), config: unknown = f.configuration();
+ assert.ok(config && typeof config === 'object' && 'model' in config && 'apiKey' in config);
+ assert.equal(config.model, SEVEN_BOUNDED_MODELS[provider]); assert.equal(config.apiKey, credential);
+ const result: unknown = await f.run();
+ assert.ok(result && typeof result === 'object' && 'ok' in result && 'outputTokens' in result);
+ assert.equal(result.ok, true); assert.equal(result.outputTokens, 8);
+ assert.equal(f.calls.length, 1);
+ const call = f.calls[0], body = call.body;
+ const endpoints = { openai: 'https://api.openai.com/v1/chat/completions',
+  gemini: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',
+  anthropic: 'https://api.anthropic.com/v1/messages', xai: 'https://api.x.ai/v1/chat/completions',
+  deepseek: 'https://api.deepseek.com/v1/chat/completions', qwen: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
+  mistral: 'https://api.mistral.ai/v1/chat/completions' };
+ assert.equal(call.url, endpoints[provider]);
+ assert.equal(body.tools, undefined); assert.equal(body.web_search, undefined);
+ if (provider === 'gemini') {
+  assert.deepEqual(JSON.parse(JSON.stringify(body.generationConfig)), { maxOutputTokens: 1024 });
+  assert.equal(call.headers.get('x-goog-api-key'), credential);
+ } else {
+  assert.equal(body.model, SEVEN_BOUNDED_MODELS[provider]);
+  if (provider === 'openai') {
+   assert.equal(body.max_completion_tokens, 1024); assert.equal(body.max_tokens, undefined);
+   assert.equal(body.reasoning_effort, 'none'); assert.equal(body.service_tier, 'default');
+  } else if (provider === 'qwen') {
+   // The vendor documents up to10 tokens of drift; keep it inside the task ceiling.
+   assert.equal(body.max_completion_tokens, 1014); assert.equal(body.max_tokens, undefined);
+  } else assert.equal(body.max_tokens, 1024);
+ }
+});
+for (const provider of AGENT_PROVIDER_IDS) test('all-seven bounded transport ' + provider + ': safe failure does not retry, discover models or fall back', async () => {
+ const f = realTaskTransport(provider, 503), result: unknown = await f.run();
+ assert.ok(result && typeof result === 'object' && 'ok' in result);
+ assert.equal(result.ok, false); assert.equal(f.calls.length, 1);
+});
+test('all-seven bounded transport qwen: an output ceiling below vendor drift fails before any request', async () => {
+ const f = realTaskTransport('qwen'), result: unknown = await f.run(10);
+ assert.ok(result && typeof result === 'object' && 'ok' in result);
+ assert.equal(result.ok, false); assert.equal(f.calls.length, 0);
+});
+
+for (const provider of AGENT_PROVIDER_IDS) for (const language of ['ar','en'] as const)
+ test('all-seven actual funded POST ' + provider + '/' + language + ': stored policy selects real model/alias/registry and bounded payload', async () => {
+  const f = fixture(language, provider, { realTransport: true }), result = await f.post();
+  assert.ok(f.realTransport);
+  assert.equal(result.provider, provider); assert.equal(result.agent.mutations, 0);
+  assert.match(result.answer, language === 'ar' ? /تاريخ/ : /dates/i);
+  assert.equal(f.realTransport.calls.length, 1); assert.equal(f.counts().reservations, 1);
+  assert.equal(f.counts().held, 61719 + f.data.maxCostMicros);
+  const call = f.realTransport.calls[0];
+  assert.equal(f.proof.model, SEVEN_BOUNDED_MODELS[provider]);
+  assert.doesNotMatch(JSON.stringify(call.body), /SYNTHETIC-customer|SYNTHETIC-account|SYNTHETIC-project/);
+  if (provider === 'gemini') {
+   assert.match(call.url, /gemini-3\.8-flash:generateContent$/);
+   assert.deepEqual(JSON.parse(JSON.stringify(call.body.generationConfig)), { maxOutputTokens: 1024 });
+  } else {
+   assert.equal(call.body.model, SEVEN_BOUNDED_MODELS[provider]);
+   assert.equal(call.body.max_completion_tokens ?? call.body.max_tokens, provider === 'qwen' ? 1014 : 1024);
+  }
+ });
+for (const provider of AGENT_PROVIDER_IDS)
+ test('all-seven actual funded POST ' + provider + ':499 retains hold and stops all retry/fallback stages', async () => {
+  const f = fixture('en', provider, { realTransport: true });
+  assert.ok(f.realTransport); f.realTransport.refuse(499); f.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  const result = await f.post('Make my family day quieter');
+  assert.equal(result.provider, 'local'); assert.equal(f.realTransport.calls.length, 1);
+  assert.equal(f.counts().reservations, 1); assert.equal(f.counts().held, 61719 + f.data.maxCostMicros);
+ });
+
+/** Durable v2 authority tests are synthetic. They neither activate a grant nor
+ * replace the separately required fresh, all-in execution quote. */
+const durableModule: Record<string, unknown> = {};
+const durableRequire = createRequire(new URL('../lib/dabra/dialogue-durable-authority.ts', import.meta.url));
+runInNewContext(ts.transpileModule(readFileSync(new URL('../lib/dabra/dialogue-durable-authority.ts', import.meta.url), 'utf8'),
+  { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, {
+  exports: durableModule, module: { exports: durableModule }, require: (id: string) => id === 'server-only' ? {} : durableRequire(id),
+}, { filename: 'dialogue-durable-authority.ts' });
+function durableCall(name: string, ...args: unknown[]): unknown {
+  const fn = durableModule[name]; if (typeof fn !== 'function') throw Error('DURABLE_EXPORT_MISSING');
+  return Reflect.apply(fn, undefined, args);
+}
+function durableFixture() {
+  const profiles = (['discover','intent.classify'] as const).map(capability => ({
+    provider: 'openai' as const, measurement: { capability, language: 'en' as const, model: 'gpt-6-luna',
+      environment: 'provider-benchmark' as const, caseSetSha: 'b'.repeat(64), sourceSha: 'c'.repeat(40),
+      cases: 1, passed: 1, measuredAtMs: instant - 3600000, expiresAtMs: instant - 1,
+      latencyMs: 1, inputTokenCeiling: 4096, outputTokenCeiling: 1024, costCeilingUsd: .01 },
+  }));
+  const accepted = profiles.map(p => durableCall('durableProfileSha256', p));
+  if (!accepted.every((p): p is string => typeof p === 'string')) throw Error('PROFILE_BINDING_MISSING');
+  const proof = {
+    mode: 'bounded-account-charge', grantId: '11111111-1111-4111-8111-111111111111', provider: 'openai',
+    model: 'gpt-6-luna', environment: 'provider-benchmark', accountId: 'SYNTHETIC-account', projectId: 'SYNTHETIC-project',
+    credentialSha256: 'a'.repeat(64), evidenceSha256: 'b'.repeat(64), currency: 'USD', serviceTier: 'standard',
+    pricingEvidenceSha256: 'c'.repeat(64),
+    accountTerms: { schema: 'task217-account-charge-terms-v1', observedAtMs: instant - 1000, evidenceSha256: 'd'.repeat(64),
+      validity: 'until-contract-change', risks: { autoReload: 'unknown', postpaid: 'allowed', overdraft: 'unknown', concurrentAccountUsage: 'unknown' },
+      fundingChargeProtection: { kind: 'documented-manual-funding-only', evidenceSha256: 'e'.repeat(64) },
+      allInChargeBound: { schema: 'all-in-account-charge-bound-v1', currency: 'USD',
+        coverage: 'all-applicable-api-tax-fx-and-funding-charges', maxAdditionalMicros: 100, evidenceSha256: 'f'.repeat(64) } },
+    limitedOperation: { schema: 'task217-limited-operation-v2', authorizationId: '22222222-2222-4222-8222-222222222222',
+      taskId: 'task217-text-pilot-2026-11-01', dataScope: 'redacted-travel-or-server-units', maxCostMicros: 1000000, maxAttempts: 28,
+      authorizedAtMs: instant - 1, duration: 'until-revoked-or-binding-change', providerRisk: 'bounded-account-liability-with-observed-risks',
+      acceptedProfileSha256s: accepted.sort(), contractSha256: 'a'.repeat(64), bindingSha256: '0'.repeat(64) },
+  };
+  const binding = durableCall('durableAuthorityBindingSha256', proof);
+  if (typeof binding !== 'string') throw Error('AUTHORITY_BINDING_MISSING');
+  proof.limitedOperation.bindingSha256 = binding;
+  return { proof, profiles };
+}
+
+test('durable v2 authority remains the same after an hour, a day and a year, without a fabricated credit or redated evidence', () => {
+  const f = durableFixture(), original = JSON.stringify(f.proof);
+  for (const elapsed of [0,3600001,86400001,365 * 86400000]) {
+    assert.equal(durableCall('validDurableAccountChargeProof', f.proof, instant + elapsed), true);
+    for (const p of f.profiles) assert.equal(durableCall('durableAuthorityAcceptsProfile', f.proof, p, instant + elapsed), true);
+  }
+  assert.equal(JSON.stringify(f.proof), original);
+  assert.equal('expiresAtMs' in f.proof.limitedOperation, false);
+  assert.equal('authorizedCreditMicros' in f.proof, false);
+  assert.equal('remainingCreditMicros' in f.proof, false);
+});
+
+for (const field of ['credentialSha256','model','accountId','projectId','pricingEvidenceSha256'] as const)
+test('durable v2 rejects changed binding without inheriting old authority: ' + field, () => {
+  const f = durableFixture();
+  assert.equal(durableCall('validDurableAccountChargeProof', { ...f.proof,
+    [field]: field.includes('Sha256') ? '9'.repeat(64) : 'SYNTHETIC-changed' }, instant), false);
+});
+
+test('durable v2 requires separate evidence for no automatic funding even when autoReload is unknown', () => {
+  const f = durableFixture();
+  assert.equal(durableCall('validDurableAccountChargeProof', { ...f.proof,
+    accountTerms: { ...f.proof.accountTerms, fundingChargeProtection: undefined } }, instant), false);
+  assert.equal(durableCall('validDurableAccountChargeProof', { ...f.proof,
+    accountTerms: { ...f.proof.accountTerms, fundingChargeProtection: { kind: 'inference-only-key', evidenceSha256: 'e'.repeat(64) } } }, instant), false);
+});
+
+for (const change of [
+  { maxCostMicros: 1250000 }, { maxAttempts: 29 }, { expiresAtMs: Number.MAX_SAFE_INTEGER },
+  { authorizedAtMs: instant + 1 }, { schema: 'task217-limited-operation-v1' }, { providerRisk: 'assume-safe' },
+] as const) test('durable v2 rejects expanded, expiring or inherited authority: ' + Object.keys(change)[0], () => {
+  const f = durableFixture();
+  assert.equal(durableCall('validDurableAccountChargeProof', { ...f.proof,
+    limitedOperation: { ...f.proof.limitedOperation, ...change } }, instant), false);
+});
+
+test('durable v2 preserves measurement provenance and rejects changed contract, outcomes or dates', () => {
+  const f = durableFixture();
+  for (const change of [{ sourceSha: 'a'.repeat(40) }, { passed: 0 }, { expiresAtMs: instant + 100000 }, { measuredAtMs: instant }]) {
+    const p = f.profiles[0];
+    assert.equal(durableCall('durableAuthorityAcceptsProfile', f.proof, { ...p, measurement: { ...p.measurement, ...change } }, instant), false);
+  }
+  assert.equal(durableCall('validDurableAccountChargeProof', { ...f.proof,
+    limitedOperation: { ...f.proof.limitedOperation, contractSha256: '9'.repeat(64) } }, instant), false);
+});
+
+for (const provider of AGENT_PROVIDER_IDS) for (const language of ['ar','en'] as const)
+test('continuous v2 actual POST ' + provider + ' ' + language + ': original measurement and standing authority, private quote before one bounded dispatch', async () => {
+  const f=fixture(language,provider,{realTransport:true,continuous:true}), before=JSON.stringify(f.data.profiles);
+  const body=await f.post();
+  assert.equal(body.provider,provider); assert.equal(body.agent.mutations,0);
+  assert.match(body.answer,language==='ar'?/تاريخ/:/dates/i);
+  assert.equal(f.realTransport?.calls.length,1); assert.equal(f.counts().reservations,1); assert.equal(f.publicFetches(),1);
+  assert.equal(f.ledgerState().admittedAttempts,7); assert.equal(f.counts().held,61719+f.data.maxCostMicros);
+  assert.equal(JSON.stringify(f.data.profiles),before);
+  assert.ok(f.continuousProof); assert.equal('expiresAtMs' in f.continuousProof.limitedOperation,false);
+  const raw=f.serializedClaims[0].p_proof; assert.ok(isFixtureRecord(raw));
+  assert.equal(raw.mode,'bounded-account-charge'); assert.equal('remainingCreditMicros' in raw,false);
+  const execution=raw.executionPricing; assert.ok(isFixtureRecord(execution));
+  assert.equal(execution.attemptId,f.serializedClaims[0].p_attempt_id);
+  assert.equal(execution.requestId,f.serializedClaims[0].p_request_id);
+  assert.equal(execution.subjectHash,f.serializedClaims[0].p_subject_hash);
+  assert.equal(execution.authorityBindingSha256,f.continuousProof.limitedOperation.bindingSha256);
+  const serialized=JSON.stringify(body);
+  for(const privateValue of [credential,'SYNTHETIC-account','SYNTHETIC-project','executionPricing',f.continuousProof.limitedOperation.bindingSha256])
+    assert.equal(serialized.includes(privateValue),false);
+});
+
+for (const provider of AGENT_PROVIDER_IDS)
+test('continuous v2 actual POST ' + provider + ': HTTP499 retains liability and stops classifier chain without fallback or retry', async () => {
+  const f=fixture('en',provider,{realTransport:true,continuous:true});
+  f.realTransport?.refuse(499); f.env.DABRA_PROVIDER_FALLBACK_ENABLED='true';
+  const body=await f.post('Make my family day quieter');
+  assert.equal(body.provider,'local'); assert.equal(f.realTransport?.calls.length,1);
+  assert.equal(f.counts().reservations,1); assert.equal(f.counts().held,61719+f.data.maxCostMicros);
+  assert.equal(f.ledgerState().admittedAttempts,7);
+});
+
+test('continuous v2 actual POST continues after hour and day by renewing public facts, without renewing grant, measurement or lifetime envelope', async () => {
+  const f=fixture('en','openai',{realTransport:true,continuous:true}), authority=JSON.stringify(f.continuousProof), measurements=JSON.stringify(f.data.profiles);
+  for(const at of [instant,instant+3600001,instant+86400001]) { f.setClock(at); assert.equal((await f.post()).provider,'openai'); }
+  assert.equal(f.publicFetches(),3); assert.equal(f.counts().reservations,3);
+  assert.equal(f.counts().held,61719+3*f.data.maxCostMicros);
+  assert.equal(f.ledgerState().admittedAttempts,9); assert.equal(JSON.stringify(f.continuousProof),authority);
+  assert.equal(JSON.stringify(f.data.profiles),measurements);
+});
+
+test('continuous v2 actual POST shares a freshly observed quote between classifier and dialogue but reserves both stages', async () => {
+  const f=fixture('en','openai',{realTransport:true,continuous:true}), body=await f.post('Make my family day quieter');
+  assert.equal(body.provider,'openai'); assert.equal(body.understandingProvider,'openai');
+  assert.equal(f.realTransport?.calls.length,2); assert.equal(f.counts().reservations,2);
+  assert.equal(f.publicFetches(),1); assert.equal(f.counts().held,61719+2*f.data.maxCostMicros);
+});
+
+for(const selected of ['unknown','openai','default','auto'] as const)
+test('continuous v2 actual POST honors explicit provider selection and default despite seven configured keys: '+selected, async () => {
+  const f=fixture('en','anthropic',{realTransport:true,continuous:true});
+  if(selected==='default') Reflect.deleteProperty(f.env,'DABRA_AI_PROVIDER'); else f.env.DABRA_AI_PROVIDER=selected;
+  const body=await f.post(), allowed=selected==='auto';
+  assert.equal(body.provider,allowed?'anthropic':'local');
+  assert.equal(f.realTransport?.calls.length,allowed?1:0); assert.equal(f.publicFetches(),allowed?1:0);
+});
+
+for(const fault of ['lost-claim','expired-price-receipt','pricing-expired-during-claim','credential-change','grant-revoked','profile-revoked','source-change','consent-revoked','authority-during-policy-read'] as const)
+test('continuous v2 actual POST preserves hold and rejects changed authority/quote at awaited boundary: '+fault, async () => {
+  const f=fixture('en','openai',{realTransport:true,continuous:true}); f.fail(fault);
+  const body=await f.post();
+  assert.equal(body.provider,'local'); assert.equal(f.realTransport?.calls.length,0);
+  assert.equal(f.counts().reservations,1); assert.equal(f.counts().held,61719+f.data.maxCostMicros);
+});
+
+test('continuous v2 actual POST stale source failure leaves authority configured and blocks only spending, without stale fallback', async () => {
+  const f=fixture('en','openai',{realTransport:true,continuous:true});
+  assert.equal((await f.post()).provider,'openai'); const authority=JSON.stringify(f.continuousProof), held=f.counts().held;
+  f.setClock(instant+900001); f.fail('pricing-unavailable');
+  assert.equal((await f.post()).provider,'local'); assert.equal(f.publicFetches(),2);
+  assert.equal(f.counts().reservations,1); assert.equal(f.counts().held,held);
+  assert.equal(JSON.stringify(f.continuousProof),authority); assert.equal(f.data.proofs.length,1);
+});
+
+test('continuous v2 actual POST stable request ID never retries a previously held attempt', async () => {
+  const f=fixture('en','openai',{realTransport:true,continuous:true}), id=randomUUID();
+  assert.equal((await f.post(undefined,id)).provider,'openai'); const held=f.counts().held;
+  assert.equal((await f.post(undefined,id)).provider,'local'); assert.equal(f.realTransport?.calls.length,1);
+  assert.equal(f.counts().held,held); assert.equal(f.ledgerState().admittedAttempts,7);
+});
+
+for(const exhausted of ['money','attempts','new-day'] as const)
+test('continuous v2 actual POST cannot reset the shared historical and unknown envelope: '+exhausted, async () => {
+  const f=fixture('en','openai',{realTransport:true,continuous:true});
+  if(exhausted==='money') f.seedHistorical(1000000-f.data.maxCostMicros+1,6);
+  else f.seedHistorical(61719,exhausted==='new-day'?27:28);
+  if(exhausted==='new-day') { assert.equal((await f.post()).provider,'openai'); f.setClock(instant+86400001); }
+  const held=f.counts().held, attempts=f.ledgerState().admittedAttempts, calls=f.realTransport?.calls.length??0;
+  assert.equal((await f.post()).provider,'local'); assert.equal(f.realTransport?.calls.length,calls);
+  assert.equal(f.counts().held,held); assert.equal(f.ledgerState().admittedAttempts,attempts);
+});
+
+for(const field of ['autoReload','postpaid','overdraft','concurrentAccountUsage','funding-kind'] as const)
+test('durable v2 rejects JSON arrays masquerading as risk/funding strings: '+field,()=>{
+  const f=durableFixture(), terms={...f.proof.accountTerms,risks:{...f.proof.accountTerms.risks},fundingChargeProtection:{...f.proof.accountTerms.fundingChargeProtection}};
+  if(field==='funding-kind') Reflect.set(terms.fundingChargeProtection,'kind',[terms.fundingChargeProtection.kind]);
+  else Reflect.set(terms.risks,field,[terms.risks[field]]);
+  const malformed={...f.proof,accountTerms:terms,limitedOperation:{...f.proof.limitedOperation}};
+  const binding=durableCall('durableAuthorityBindingSha256',malformed);assert.equal(typeof binding,'string');
+  if(typeof binding!=='string')throw Error('SYNTHETIC_BINDING_REQUIRED');
+  malformed.limitedOperation.bindingSha256=binding;
+  assert.equal(durableCall('validDurableAccountChargeProof',malformed,instant),false);
+});
+
+for(const field of ['autoReload','postpaid','overdraft','concurrentAccountUsage','funding-kind'] as const)
+test('continuous v2 actual POST rejects non-string JSON funding properties before public fetch or reservation: '+field,async()=>{
+  const f=fixture('en','openai',{realTransport:true,continuous:true});assert.ok(f.continuousProof);
+  const terms={...f.continuousProof.accountTerms,risks:{...f.continuousProof.accountTerms.risks},
+    fundingChargeProtection:{...f.continuousProof.accountTerms.fundingChargeProtection}};
+  if(field==='funding-kind')Reflect.set(terms.fundingChargeProtection,'kind',[terms.fundingChargeProtection.kind]);
+  else Reflect.set(terms.risks,field,[terms.risks[field]]);
+  const malformed={...f.continuousProof,accountTerms:terms,limitedOperation:{...f.continuousProof.limitedOperation}};
+  const binding=durableCall('durableAuthorityBindingSha256',malformed);
+  if(typeof binding!=='string')throw Error('SYNTHETIC_BINDING_REQUIRED');malformed.limitedOperation.bindingSha256=binding;
+  f.data.proofs=[malformed];
+  assert.equal((await f.post()).provider,'local');assert.equal(f.publicFetches(),0);
+  assert.equal(f.counts().reservations,0);assert.equal(f.realTransport?.calls.length,0);
 });

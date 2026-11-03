@@ -62,6 +62,8 @@ function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing 
         if (id === 'server-only') return {};
         if (id === './dialogue-pricing-approvals') return { APPROVED_DIALOGUE_STANDARD_PRICING: Object.freeze([approval]) };
         if (id === './dialogue-funding') return load('dialogue-funding');
+        if (id === './dialogue-durable-authority') return load('dialogue-durable-authority');
+        if (id === './dialogue-pricing-refresh') return load('dialogue-pricing-refresh');
         if (id === './agent-dialogue') return load('agent-dialogue');
         if (id === '../ai2/runtime/agent-provider-dispatch') return transport;
         if (id === '../ai2/observability/provider-attempts') return { createDabraProviderRequestId: randomUUID, mapProviderErrorCategory: (value: unknown) => value };
@@ -72,7 +74,7 @@ function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing 
         if (['node:crypto', './agent-capabilities', './agent-contract', './agent-general-travel', './conversation-renderer'].includes(id)) return require(id);
         throw new Error('Unexpected expiry-fixture dependency: ' + id);
       },
-      Date: Clock, URL, Buffer, AbortController, AbortSignal, setTimeout, clearTimeout, queueMicrotask, console,
+      Date: Clock, URL, Buffer, TextDecoder, AbortController, AbortSignal, setTimeout, clearTimeout, queueMicrotask, console,
       process: { env: { DABRA_INTERNAL_AI_ENABLED: 'true', DABRA_AI_PROVIDER: 'openai', DABRA_PROVIDER_FALLBACK_ENABLED: 'false' } },
     }, { filename: url.pathname });
     return fixtureModule.exports;

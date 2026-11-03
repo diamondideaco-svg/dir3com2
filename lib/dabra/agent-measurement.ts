@@ -59,7 +59,7 @@ export function parseFirstProfilePermit(value: unknown): FirstProfilePermit | nu
     inputTokenCeiling: value.inputTokenCeiling, outputTokenCeiling: value.outputTokenCeiling, cases: Object.freeze(cases) });
 }
 export type ApprovedFirstProfilePlan = Readonly<{
-  subject: string; proof: DialogueFundingProof; permit: FirstProfilePermit; daily: DialogueDailyLimits; maxCostMicros: number;
+  subject: string; proof: Exclude<DialogueFundingProof, { mode: 'bounded-account-charge' }>; permit: FirstProfilePermit; daily: DialogueDailyLimits; maxCostMicros: number;
 }>;
 export type MeasurementObservation = Readonly<{
   caseId: FixedCase['caseId']; requestId: string; attemptId: string; stage: FixedCase['stage']; language: FixedCase['language'];
