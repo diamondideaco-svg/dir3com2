@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
-import type { AgentCapabilityProfile } from '../lib/dabra/agent-capabilities';
+import { AGENT_PROVIDER_IDS, type AgentCapabilityProfile } from '../lib/dabra/agent-capabilities';
 import { dialogueCostCeilingMicros, type DialogueFundingProof } from '../lib/dabra/dialogue-funding';
 
 // These rates, approvals and models are synthetic VM fixtures, never live approval or prices.
@@ -61,6 +61,7 @@ function quoteWithServerApprovals(approvals: readonly unknown[]) {
     module: fixtureModule, exports: fixtureModule.exports,
     require: (id: string) => {
       if (id === 'server-only') return {};
+      if (id === './agent-capabilities') return { AGENT_PROVIDER_IDS };
       if (id === './dialogue-pricing-approvals') return { APPROVED_DIALOGUE_STANDARD_PRICING: Object.freeze([...approvals]) };
       if (id === 'node:crypto') return require(id);
       throw new Error('Unexpected quote dependency: ' + id);
