@@ -7,8 +7,10 @@ import { spawnSync, spawn } from 'node:child_process';
 import { randomUUID, createHash } from 'node:crypto';
 const image='sha256:99b1729aeb0bac314445024fc149fbd39306170b61dd50800ccf180327ab3459';
 const scopeArgs=process.argv.slice(2);
-if(scopeArgs.length>1||scopeArgs.some(a=>!['--funding-scope-delta','--snapshot-use-delta','--snapshot-price-deadline-delta'].includes(a)))throw Error('unsupported_pilot_test_argument');
-const scopeDelta=scopeArgs[0]==='--funding-scope-delta',snapshotPriceDelta=scopeArgs[0]==='--snapshot-price-deadline-delta',snapshotDelta=snapshotPriceDelta||scopeArgs[0]==='--snapshot-use-delta';
+if(scopeArgs.length>1||scopeArgs.some(a=>!['--funding-scope-delta','--snapshot-use-delta','--snapshot-price-deadline-delta','--limited-operation-delta'].includes(a)))throw Error('unsupported_pilot_test_argument');
+const limitedDelta=scopeArgs[0]==='--limited-operation-delta';
+let retainedOpenaiAccount,retainedOpenaiProof,retainedAnthropicProof;
+const scopeDelta=scopeArgs[0]==='--funding-scope-delta',snapshotPriceDelta=scopeArgs[0]==='--snapshot-price-deadline-delta',snapshotDelta=limitedDelta||snapshotPriceDelta||scopeArgs[0]==='--snapshot-use-delta';
 const parent=process.env.TASK217_PG_WORKDIR;
 if(!parent || !isAbsolute(parent) || (process.platform==='win32' && !/^D:[\\/]/i.test(parent))) throw Error('isolated_D_workdir_required');
 const runId=randomUUID(), name='task217-pilot-'+runId, cluster=join(resolve(parent),name);
@@ -61,7 +63,7 @@ const snapshotDecision=(g,index=0,changes={})=>JSON.parse(transaction(g.insert+s
 function storedChange(g,change){const before=json(g.proof);Object.assign(g.proof,change);g.insert=g.insert.replace(before,json(g.proof));return g;}
 
 try{
- docker(['run','--detach','--pull=never','--read-only','--network=none','--name',name,'--user','postgres','--mount','type=bind,source='+cluster+',target=/task217','--env','TMPDIR=/task217/tmp','--entrypoint','/bin/sh',image,'-c','mkdir -p /task217/data /task217/tmp && initdb -D /task217/data -A trust -U task217_pilot_test --encoding=UTF8 --locale=C --no-instructions > /task217/initdb.log 2>&1 && exec postgres -D /task217/data -h 127.0.0.1 -p 5432 -k "" -c shared_buffers=16MB -c max_connections=10 > /task217/postgres.log 2>&1']);started=true;
+ docker(['run','--detach','--pull=never','--read-only','--network=none','--name',name,'--user','postgres','--mount','type=bind,source='+cluster+',target=/task217','--env','TMPDIR=/task217/tmp','--entrypoint','/bin/sh',image,'-c','mkdir -p /task217/data /task217/tmp && initdb -D /task217/data -A trust -U task217_pilot_test --encoding=UTF8 --locale=C --no-instructions > /task217/initdb.log 2>&1 && exec postgres -D /task217/data -h 127.0.0.1 -p 5432 -k "" -c shared_buffers=16MB -c max_connections=20 > /task217/postgres.log 2>&1']);started=true;
  const iso=JSON.parse(docker(['inspect',name,'--format','{{json .HostConfig}}'])),mounts=JSON.parse(docker(['inspect',name,'--format','{{json .Mounts}}']));
  check(iso.NetworkMode==='none'&&iso.ReadonlyRootfs===true&&Object.keys(iso.PortBindings??{}).length===0,'no external network or host ports, read-only image');
  check(mounts.some(m=>m.Destination==='/task217'&&m.Type==='bind'&&m.Source.replaceAll('\\','/').toLowerCase()===cluster.replaceAll('\\','/').toLowerCase()),'cluster/log/temp actually on D');
@@ -76,16 +78,123 @@ try{
  query(readFileSync('supabase/migrations/20261101153907_task217_seven_provider_pilot_envelope.sql','utf8'));
  query(readFileSync("supabase/migrations/20261102043035_task217_pilot_ledger_funding_scope.sql",'utf8'));
  if(snapshotDelta){
-  const old=seed('anthropic'),previousDay=Math.floor((Date.now()+10800000)/86400000)*86400000-10800000-86400000;
+  const old=seed('anthropic',100,limitedDelta?{verifiedAtMs:Date.parse('2026-11-02T12:42:16Z'),expiresAtMs:Date.parse('2026-11-02T13:42:16Z')} : {}),previousDay=Math.floor((Date.now()+10800000)/86400000)*86400000-10800000-86400000;
   const rows=Array.from({length:3},()=>"INSERT INTO private.dabra_dialogue_admissions(attempt_id,request_id,stage,subject_hash,grant_id,day_start_ms,quota_start_ms,quota_end_ms,input_tokens,output_tokens,cost_micros) VALUES ("+[literal(randomUUID()),literal(randomUUID()),"'discover'",literal(old.permit.subjectHash),literal(old.id),previousDay,0,1,1,1,18432].join(',')+");").join('');
   query(old.insert+'UPDATE private.dabra_dialogue_funding_grants SET enabled=false,reserved_credit_micros=55296 WHERE id='+literal(old.id)+';'+rows);
   const dataSQL='SELECT row_to_json(g)::text FROM private.dabra_dialogue_funding_grants g ORDER BY id;SELECT row_to_json(a)::text FROM private.dabra_dialogue_admissions a ORDER BY attempt_id;';
+
+  if(limitedDelta){
+   const second=seed('openai',100,{verifiedAtMs:Date.parse('2026-11-02T12:42:16Z'),expiresAtMs:Date.parse('2026-11-02T13:42:16Z')}),day=previousDay;
+   const extraRows=Array.from({length:3},()=>"INSERT INTO private.dabra_dialogue_admissions(attempt_id,request_id,stage,subject_hash,grant_id,day_start_ms,quota_start_ms,quota_end_ms,input_tokens,output_tokens,cost_micros) VALUES ("+[literal(randomUUID()),literal(randomUUID()),"'discover'",literal(second.permit.subjectHash),literal(second.id),day,0,1,1,1,2141].join(',')+");").join('');
+   query(second.insert+'UPDATE private.dabra_dialogue_funding_grants SET enabled=false,reserved_credit_micros=6423 WHERE id='+literal(second.id)+';'+extraRows);
+   retainedOpenaiAccount=second.proof.accountId;retainedOpenaiProof=second.proof;retainedAnthropicProof=old.proof;
+  }
+
   const before=query(dataSQL);query(readFileSync('supabase/migrations/20261102182200_task217_saved_funding_snapshot_use.sql','utf8'));
   check(query(dataSQL)===before,'new forward preserves original grant and all three admissions/holds exactly');
  }
  check(query(aclSQL)===acl,'RPC signatures, SECURITY DEFINER/search path and existing ACL unchanged');check(query(rlsSQL)===rls,'same three private tables, forced RLS and direct table ACL unchanged');
  query('UPDATE private.dabra_dialogue_funding_control SET enabled=true,subject_hashes=ARRAY['+subjects.map(literal).join(',')+'],max_attempt_cost_micros=1000000;');
- if(snapshotPriceDelta){
+
+ if(limitedDelta){
+  const dataSQL='SELECT row_to_json(g)::text FROM private.dabra_dialogue_funding_grants g ORDER BY id;SELECT row_to_json(a)::text FROM private.dabra_dialogue_admissions a ORDER BY attempt_id;';
+  const preserved=query(dataSQL),aclBefore=query(aclSQL),rlsBefore=query(rlsSQL);
+  query(readFileSync('supabase/migrations/20261103000000_task217_limited_customer_funding.sql','utf8'));
+  check(query(dataSQL)===preserved,'activation forward preserves six synthetic historical admissions and61719 held exactly');
+  check(query(aclSQL)===aclBefore&&query(rlsSQL)===rlsBefore,'activation forward preserves RPC ACL/definer/search_path and forced RLS');
+  check(query('SELECT count(*)||\':\'||sum(cost_micros) FROM private.dabra_dialogue_admissions;')==='6:61719','local baseline is six admissions/61719; no live IDs or credentials');
+  const currentDay="floor((floor(extract(epoch FROM clock_timestamp())*1000)+10800000)::numeric/86400000)::bigint*86400000-10800000";
+  function limitedSeed(provider='openai',change={},account){
+   const g=seed(provider),p={...g.proof,...change};delete p.pilotEnvelope;delete p.measurementPermit;
+   const at=Date.now()-1000;
+   p.pricingVerification={...p.pricingVerification,inputMicrosPerMillion:100000000,outputMicrosPerMillion:200000000};
+   p.overdraft='unknown';p.remainingRequests=60;p.remainingInputTokens=245760;p.remainingOutputTokens=61440;
+   p.limitedOperation={schema:'task217-limited-operation-v1',authorizationId:randomUUID(),taskId:marker.id,maxCostMicros:1000000,maxAttempts:28,
+    dataScope:'redacted-travel-or-server-units',providerRisk:'overdraft-unknown',authorizedAtMs:at,expiresAtMs:at+600000};
+   if(account)p.accountId=account;Object.assign(p,change);
+   const insert='INSERT INTO private.dabra_dialogue_funding_grants(id,provider,account_id,project_id,funding_mode,authorized_credit_micros,input_rate_micros_per_million,output_rate_micros_per_million,pricing_expires_at,enabled,proof,authorized_at) VALUES('+
+    [literal(g.id),literal(provider),literal(p.accountId),literal(p.projectId),"'existing-credit'",1000000,100000000,200000000,"clock_timestamp()+interval '10 minutes'",true,json(p),"clock_timestamp()-interval '2 seconds'"].join(',')+');';
+   const cost=Math.ceil((1000*p.pricingVerification.inputMicrosPerMillion+1000*p.pricingVerification.outputMicrosPerMillion)/1000000)+p.allInChargeBound.maxAdditionalMicros;
+   assert.equal(cost,300100,'synthetic grant token tariff plus all-in bound is consistent before a SQL claim');
+   return{...g,proof:p,insert,cost};
+  }
+  function limitedClaim(g,change={}){
+   const v={attempt:randomUUID(),request:randomUUID(),subject:subjects[0],proof:g.proof,cost:g.cost,...change};
+   return'SELECT public.reserve_dabra_dialogue_attempt('+[literal(v.attempt)+'::uuid',literal(v.request)+'::uuid',"'discover'",literal(v.subject),literal(g.id)+'::uuid',json(v.proof),1000,1000,v.cost,'(SELECT daily_limits FROM private.dabra_dialogue_funding_control WHERE singleton)',currentDay].join(',')+');';
+  }
+  const profiles=providers.map(provider=>({provider,measurement:{model:'SYNTHETIC-'+provider,capability:'discover'}}));
+  query('UPDATE private.dabra_dialogue_funding_control SET profiles='+json(profiles)+' WHERE singleton;');
+  for(const provider of providers){ const candidate=limitedSeed(provider);
+   check(JSON.parse(transaction(candidate.insert+limitedClaim(candidate))).decision==='admitted','existing-credit remains conditional on complete limited authority for '+provider);
+  }
+  const g=limitedSeed();
+  check(JSON.parse(transaction(g.insert+limitedClaim(g))).decision==='admitted','explicit finite customer authorization accepts truthful unknown overdraft before any provider dispatch');
+  check(JSON.parse(transaction(limitedSeed('openai',{},retainedOpenaiAccount).insert+"SELECT json_build_object('decision','admitted');")).decision==='admitted','one independently scoped customer grant can coexist with retained pilot for same provider account');
+  for(const field of ['postpaid','concurrentAccountUsage']){
+   const bad=limitedSeed('openai',{[field]:'unknown'});
+   check(JSON.parse(transaction(bad.insert+limitedClaim(bad))).decision==='denied','customer risk acceptance does not weaken '+field);
+  }
+  const request=randomUUID(),a=limitedSeed(),b=limitedSeed('anthropic');
+  const repeat=transaction(a.insert+b.insert+limitedClaim(a,{request})+limitedClaim(b,{request})).split('\n').map(JSON.parse);
+  check(repeat[0].decision==='admitted'&&repeat[1].decision==='denied','same subject/request/stage cannot spend twice by switching provider/grant');
+  check(blocked(g.insert+"UPDATE private.dabra_dialogue_funding_grants SET proof=proof-'limitedOperation' WHERE id="+literal(g.id)+';','DIALOGUE_LIMITED_IMMUTABLE'),'customer scope cannot be removed to escape global lifetime cap');
+  check(blocked(g.insert+"DELETE FROM private.dabra_dialogue_funding_grants WHERE id="+literal(g.id)+';','DIALOGUE_LIMITED_IMMUTABLE'),'customer grant/holds cannot be deleted');
+  // Build a stored expired scope, not a changed caller proof.
+  const e=limitedSeed();const eOriginal=json(e.proof);e.proof.limitedOperation.authorizedAtMs=Date.now()-20000;e.proof.limitedOperation.expiresAtMs=Date.now()-1;e.insert=e.insert.replace(eOriginal,()=>json(e.proof));
+  check(JSON.parse(transaction(e.insert+limitedClaim(e))).decision==='denied','expired operation window cannot renew through a fresh grant proof');
+  const counter=limitedSeed(),other=limitedSeed('anthropic');
+  check(JSON.parse(transaction(counter.insert+other.insert+'UPDATE private.dabra_dialogue_funding_grants SET reserved_credit_micros=900000 WHERE id='+literal(counter.id)+';'+limitedClaim(other))).decision==='denied','counter-only hold plus retained six reservations participates in the same task cap');
+
+  const financialFields=["grantId","provider","model","environment","accountId","projectId","mode","currency","serviceTier","authorizedCreditMicros","remainingCreditMicros","evidenceSha256","credentialSha256","verifiedAtMs","expiresAtMs","autoReload","postpaid","overdraft","concurrentAccountUsage"];
+  function savedLimited(provider='openai'){
+   const source=provider==='openai'?retainedOpenaiProof:retainedAnthropicProof;
+   const financial=Object.fromEntries(financialFields.filter(k=>k!=='grantId').map(k=>[k,source[k]]));
+   const g=limitedSeed(provider,financial,source.accountId),before=json(g.proof);
+   Object.assign(g.proof.limitedOperation,{sourceGrantId:source.grantId,
+    financialSnapshotSha256:createHash('sha256').update(JSON.stringify(financialFields.map(k=>source[k]))).digest('hex')});
+   g.insert=g.insert.replace(before,()=>json(g.proof));return g;
+  }
+  const saved=savedLimited();
+  check(JSON.parse(transaction(saved.insert+limitedClaim(saved))).decision==='admitted','old unchanged financial observation is accepted only under its exact one-use private source binding');
+  const noOptIn=savedLimited();storedChange(noOptIn,{limitedOperation:Object.fromEntries(Object.entries(noOptIn.proof.limitedOperation).filter(([k])=>!['sourceGrantId','financialSnapshotSha256'].includes(k)))});
+  check(JSON.parse(transaction(noOptIn.insert+limitedClaim(noOptIn))).decision==='denied','old financial observation without the exact opt-in remains denied');
+  for(const kind of ['mismatch','tamper','missing-source']){
+   const bad=savedLimited();
+   if(kind==='mismatch')storedChange(bad,{limitedOperation:{...bad.proof.limitedOperation,financialSnapshotSha256:'0'.repeat(64)}});
+   if(kind==='tamper')storedChange(bad,{remainingCreditMicros:999999});
+   if(kind==='missing-source')storedChange(bad,{limitedOperation:{...bad.proof.limitedOperation,sourceGrantId:randomUUID()}});
+   check(blocked(bad.insert,'DIALOGUE_LIMITED_BINDING_REQUIRED'),'saved financial source binding rejects '+kind);
+  }
+  check(blocked(saved.insert+"UPDATE private.dabra_dialogue_funding_grants SET proof=jsonb_set(proof,'{verifiedAtMs}',to_jsonb((proof->>'verifiedAtMs')::bigint+1)) WHERE id="+literal(saved.proof.limitedOperation.sourceGrantId)+';','DIALOGUE_LIMITED_FINANCIAL_IMMUTABLE'),'original source observation is immutable after acceptance');
+  check(blocked(saved.insert+"UPDATE private.dabra_dialogue_funding_grants SET proof=jsonb_set(proof,'{remainingCreditMicros}','999999'::jsonb) WHERE id="+literal(saved.id)+';','DIALOGUE_LIMITED_FINANCIAL_IMMUTABLE'),'accepted customer observation cannot be retimed or changed');
+  check(blocked(saved.insert+"UPDATE private.dabra_dialogue_funding_grants SET proof=jsonb_set(proof,'{limitedOperation,expiresAtMs}',to_jsonb((proof->'limitedOperation'->>'expiresAtMs')::bigint+1)) WHERE id="+literal(saved.id)+';','DIALOGUE_LIMITED_IMMUTABLE'),'limited source authorization cannot renew its expiry');
+  const reused=savedLimited();
+  check(blocked(saved.insert+reused.insert,'DIALOGUE_LIMITED_BINDING_REQUIRED'),'the saved source cannot be reassigned to a second authorization/grant');
+  const reusedId=savedLimited('anthropic');storedChange(reusedId,{limitedOperation:{...reusedId.proof.limitedOperation,authorizationId:saved.proof.limitedOperation.authorizationId}});
+  check(blocked(saved.insert+reusedId.insert,'DIALOGUE_LIMITED_BINDING_REQUIRED'),'one authorization ID cannot be reused across providers');
+  for(const kind of ['quota','fees','pricing','authority']){
+   const expired=savedLimited();
+   if(kind==='quota')storedChange(expired,{quotaWindowEndMs:Date.now()-1});
+   if(kind==='fees')storedChange(expired,{allInChargeBound:{...expired.proof.allInChargeBound,observedAtMs:Date.now()-7200000}});
+   if(kind==='pricing')expired.insert=expired.insert.replace("clock_timestamp()+interval '10 minutes'","clock_timestamp()-interval '1 second'");
+   if(kind==='authority')storedChange(expired,{limitedOperation:{...expired.proof.limitedOperation,authorizedAtMs:Date.now()-20000,expiresAtMs:Date.now()-1}});
+   check(JSON.parse(transaction(expired.insert+limitedClaim(expired))).decision==='denied','saved financial authority does not refresh expired '+kind);
+  }
+  const lifetime=limitedSeed('anthropic'),probe=limitedSeed();
+  const priorRows=Array.from({length:22},()=>"INSERT INTO private.dabra_dialogue_admissions(attempt_id,request_id,stage,subject_hash,grant_id,day_start_ms,quota_start_ms,quota_end_ms,input_tokens,output_tokens,cost_micros) VALUES ("+
+   [literal(randomUUID()),literal(randomUUID()),"'discover'",literal(subjects[1]),literal(lifetime.id),Date.now()-2*86400000,0,1,1,1,1].join(',')+");").join('');
+  check(JSON.parse(transaction(lifetime.insert+probe.insert+'UPDATE private.dabra_dialogue_funding_grants SET enabled=false WHERE id='+literal(lifetime.id)+';'+priorRows+limitedClaim(probe))).decision==='denied','28 lifetime admissions across disabled grants/days prevent a fresh request independently of remaining budget');
+
+  check(query(dataSQL)===preserved,'all isolated rollback scenarios leave six original rows and holds unchanged');
+  const raceA=limitedSeed(),raceB=limitedSeed('anthropic');
+  query(raceA.insert+raceB.insert);
+  const raced=await Promise.all(Array.from({length:12},(_,i)=>concurrent('BEGIN;'+limitedClaim(i%2?raceA:raceB)+'COMMIT;')));
+  check(raced.map(JSON.parse).filter(x=>x.decision==='admitted').length===3,'concurrent provider/grant requests share remaining938281: only three300100 reservations');
+  check(query('SELECT count(*)||\':\'||sum(cost_micros) FROM private.dabra_dialogue_admissions;')==='9:962019','retained61719 plus new900300, never a per-provider/session budget');
+  check(query('SELECT sum(reserved_credit_micros) FROM private.dabra_dialogue_funding_grants;')==='962019','grant counters agree with durable retained/unknown ledger holds');
+  process.stdout.write('PASS limited customer funding delta '+checks+' checks; synthetic local PostgreSQL only\n');
+ } else if(snapshotPriceDelta){
+
 
   const g=snapshotSeed();
   const priceSQL="SELECT floor(extract(epoch FROM pricing_expires_at)*1000)::bigint FROM private.dabra_dialogue_funding_grants WHERE id="+literal(g.id)+';';
@@ -313,4 +422,4 @@ try{
 
  }
 }finally{if(started){docker(['stop','--time','10',name]);check(docker(['inspect',name,'--format','{{.State.Running}}'])==='false','owned cluster stopped; original files/container retained');}}
-process.stdout.write((snapshotPriceDelta?'POSTGRES_SNAPSHOT_PRICE_DEADLINE_DELTA':snapshotDelta?'POSTGRES_SNAPSHOT_USE_DELTA':scopeDelta?'POSTGRES_PILOT_SCOPE_DELTA':'POSTGRES_PILOT_DELTA')+'=PASS CHECKS='+checks+'\nNo provider/API calls; synthetic isolated PostgreSQL only.\n');
+process.stdout.write((limitedDelta?'POSTGRES_LIMITED_OPERATION_DELTA':snapshotPriceDelta?'POSTGRES_SNAPSHOT_PRICE_DEADLINE_DELTA':snapshotDelta?'POSTGRES_SNAPSHOT_USE_DELTA':scopeDelta?'POSTGRES_PILOT_SCOPE_DELTA':'POSTGRES_PILOT_DELTA')+'=PASS CHECKS='+checks+'\nNo provider/API calls; synthetic isolated PostgreSQL only.\n');

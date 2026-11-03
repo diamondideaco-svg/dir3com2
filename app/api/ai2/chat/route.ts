@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic';
 
 type AI2ChatRequest = {
   message?: string;
+  requestId?: string;
   currency?: string;
   history?: Array<{ role?: string; content?: string }>;
   mode?: 'chat' | 'travel-plan';
@@ -124,6 +125,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const rawRequestId = request.headers.get('X-DABRA-Request-Id') ?? body?.requestId;
+  const requestId = typeof rawRequestId === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(rawRequestId)
+    ? rawRequestId.toLowerCase() : undefined;
+  if (rawRequestId !== undefined && rawRequestId !== null && !requestId) {
+    return NextResponse.json({ error: 'Invalid request.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
+  }
   const history = sanitizeHistory(body?.history);
   let trip = null;
   if (body?.continuityTrip !== undefined) {
@@ -146,7 +153,7 @@ export async function POST(request: NextRequest) {
     agentContext = await resolveAgentContext(request);
   }
   const context = platformContext(modelMessage, history, trip);
-  const dialoguePolicy = await getAgentDialoguePolicy(agentContext, request.signal);
+  let dialoguePolicy = await getAgentDialoguePolicy(agentContext, request.signal, parsed.attachmentCount ? undefined : requestId);
   let understanding: string = 'internal-rules';
   let understandingProvider: string | undefined;
   let needsClarification = false;
@@ -163,6 +170,11 @@ export async function POST(request: NextRequest) {
     needsClarification = planned.status === 'unavailable' || planned.status === 'invalid';
     understandingProvider = planned.status === 'ok' ? planned.provider : undefined;
     if (planned.tool) intent = { ...intent, tool: planned.tool };
+    // An uncertain limited classifier attempt retains its reservation. Do not
+    // follow it with another provider stage or a hidden fallback.
+    if (planned.status !== 'ok' && dialoguePolicy.funding?.proofs.some(proof => 'limitedOperation' in proof)) {
+      dialoguePolicy = { ...dialoguePolicy, profiles: [] };
+    }
   }
   const currency = parseDisplayCurrency(body?.currency) ?? platformCurrency(context);
   const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));

@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
-import {TASK187_DIAGNOSTIC_PREFIX as prefix,task187BrowserDiagnostic,task187BrowserFailure} from '../scripts/sandbox/task187-browser-diagnostics.mjs';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import {TASK187_DIAGNOSTIC_PREFIX as prefix,task187BrowserDiagnostic,task187BrowserExitSummary,task187BrowserFailure} from '../scripts/sandbox/task187-browser-diagnostics.mjs';
 const secret='SYNTHETIC_PASSWORD_JWT_NEVER_PRINT';
 const marker=(value)=>prefix+JSON.stringify(value);
 
@@ -118,4 +120,106 @@ for(const mode of ['spawn-error','ready-error'])test('preflight lifecycle delta 
    assert.equal(stderr.trim(),marker(expected));resolve();
   }catch(failure){reject(failure)}
  }));
+});
+
+
+test('browser exit summary emits only closed scalar metadata from a real failed child',async()=>{
+ const diagnostic={stage:'ar-390-login',reason:'TASK187_BROWSER_WAIT_LOGIN'};
+ const stderr='Error [ERR_MODULE_NOT_FOUND]: '+secret+'\n'+marker(diagnostic)+'\n';
+ const source='console.error('+JSON.stringify(stderr)+');process.exitCode=7';
+ await new Promise((resolve,reject)=>execFile(process.execPath,['-e',source],{maxBuffer:32768},(error,stdout,output)=>{
+  try{
+   assert.ok(error);assert.equal(stdout,'');
+   const summary=task187BrowserExitSummary(error,output);
+   assert.deepEqual(summary,{exitCode:7,spawnCode:null,signal:null,killed:false,stderrBytes:Buffer.byteLength(output),stderrInspection:'bounded',markerCount:1,startupCode:'ERR_MODULE_NOT_FOUND'});
+   assert.ok(!JSON.stringify(summary).includes(secret));
+   assert.equal(task187BrowserFailure(output).error.message,'TASK187_BROWSER_ACCEPTANCE_FAILED:ar-390-login:TASK187_BROWSER_WAIT_LOGIN');resolve();
+  }catch(failure){reject(failure)}
+ }));
+});
+
+test('browser exit summary rejects arbitrary exit, spawn and signal values',()=>{
+ for(const code of ['ENOENT','EACCES','EPERM','EAGAIN','EMFILE','ENFILE','ETIMEDOUT','ERR_CHILD_PROCESS_STDIO_MAXBUFFER']){
+  assert.equal(task187BrowserExitSummary({code},'').spawnCode,code);
+ }
+ for(const code of [-1,256,1.5,NaN,Infinity,'1',secret,{}]){
+  const summary=task187BrowserExitSummary({code},'');assert.equal(summary.exitCode,null);assert.equal(summary.spawnCode,null);
+ }
+ for(const code of [0,1,255])assert.equal(task187BrowserExitSummary({code},'').exitCode,code);
+ for(const signal of ['SIGTERM','SIGKILL','SIGABRT','SIGSEGV','SIGILL','SIGBUS'])assert.equal(task187BrowserExitSummary({signal},'').signal,signal);
+ for(const signal of [secret,1,null,'SIGUSR1'])assert.equal(task187BrowserExitSummary({signal},'').signal,null);
+ assert.equal(task187BrowserExitSummary({killed:true},'').killed,true);
+ for(const killed of [false,1,'true',null])assert.equal(task187BrowserExitSummary({killed},'').killed,false);
+});
+
+test('browser exit summary distinguishes absent and uninspected stderr without coercion',()=>{
+ for(const stderr of [undefined,null,false,0,Buffer.from(secret),{toString(){throw Error(secret)}}]){
+  const summary=task187BrowserExitSummary(null,stderr);
+  assert.deepEqual(summary,{exitCode:null,spawnCode:null,signal:null,killed:false,stderrBytes:null,stderrInspection:'absent',markerCount:null,startupCode:null});
+ }
+ assert.equal(task187BrowserExitSummary(undefined,'').stderrInspection,'bounded');
+ assert.equal(task187BrowserExitSummary(undefined,'').markerCount,0);
+});
+
+test('browser exit summary enforces the exact UTF-8 byte boundary',()=>{
+ const line=marker({stage:'preflight',reason:'ASSERTION_FAILED'})+'\n';
+ const bounded=line+'x'.repeat(32768-Buffer.byteLength(line));
+ assert.equal(Buffer.byteLength(bounded),32768);
+ assert.equal(task187BrowserExitSummary(null,bounded).markerCount,1);
+ for(const text of [bounded+'x','é'.repeat(16385),'😀'.repeat(8193)]){
+  const summary=task187BrowserExitSummary(null,text);
+  assert.equal(summary.stderrBytes,Buffer.byteLength(text));assert.equal(summary.stderrInspection,'oversized');
+  assert.equal(summary.markerCount,null);assert.equal(summary.startupCode,null);
+ }
+ for(const text of ['é'.repeat(16384),'😀'.repeat(8192)]){
+  assert.equal(Buffer.byteLength(text),32768);
+  assert.equal(task187BrowserExitSummary(null,text).stderrInspection,'bounded');
+  assert.equal(task187BrowserExitSummary(null,text).markerCount,0);
+ }
+ assert.equal(task187BrowserFailure(bounded+'x').diagnostic.reason,'DIAGNOSTIC_UNAVAILABLE');
+});
+
+test('browser exit summary counts markers without accepting malformed or ambiguous diagnostics',()=>{
+ const known=marker({stage:'preflight',reason:'ASSERTION_FAILED'});
+ for(const [stderr,count] of [[secret,0],[prefix+'{bad',1],[known+'\n'+known,2]]){
+  assert.equal(task187BrowserExitSummary(null,stderr).markerCount,count);
+  assert.equal(task187BrowserFailure(stderr).error.message,'TASK187_BROWSER_ACCEPTANCE_FAILED:unknown:DIAGNOSTIC_UNAVAILABLE');
+ }
+ assert.equal(task187BrowserExitSummary(null,known).markerCount,1);
+ assert.equal(task187BrowserFailure(known).error.message,'TASK187_BROWSER_ACCEPTANCE_FAILED:preflight:ASSERTION_FAILED');
+});
+
+test('browser exit summary exposes only allowlisted startup hints and never private content',()=>{
+ const privateText=secret+' https://private.invalid/?token='+secret+' C:\\private\\'+secret+' '+JSON.stringify({password:secret});
+ for(const code of ['ERR_MODULE_NOT_FOUND','ERR_UNKNOWN_FILE_EXTENSION','ERR_UNSUPPORTED_DIR_IMPORT','ERR_DLOPEN_FAILED']){
+  const summary=task187BrowserExitSummary({message:privateText,stdout:privateText,stderr:privateText,stack:privateText,args:[privateText]},'Error ['+code+']: '+privateText);
+  assert.equal(summary.startupCode,code);
+  assert.deepEqual(Object.keys(summary).sort(),['exitCode','killed','markerCount','signal','spawnCode','startupCode','stderrBytes','stderrInspection'].sort());
+  for(const text of [secret,'private.invalid','password','C:\\private'])assert.ok(!JSON.stringify(summary).includes(text));
+ }
+ for(const text of ['Error [ERR_'+secret+']: '+privateText,'prefix Error [ERR_MODULE_NOT_FOUND]: '+privateText,'Error [ERR_ASSERTION]: '+privateText]){
+  assert.equal(task187BrowserExitSummary(null,text).startupCode,null);
+ }
+});
+
+for(const mode of ['helper-throws','logging-throws','normal'])test('actual browser wrapper preserves original rejection when '+mode,async()=>{
+ const source=readFileSync(new URL('../scripts/test-customer-upload-local.ts',import.meta.url),'utf8').replace(/\r\n/g,'\n');
+ const start=source.indexOf('report.task187Browser = await new Promise<unknown>');
+ const end=source.indexOf('\n  const browser=',start);
+ assert.ok(start>=0&&end>start);
+ // Execute the actual callback statement; erase only its two TypeScript annotations.
+ const statement=source.slice(start,end).replace('new Promise<unknown>','new Promise').replace('child.stdin!.end','child.stdin.end');
+ const report={},logged=[];
+ const stderr=secret+'\n'+prefix+'{bad';
+ const original=task187BrowserFailure(stderr).error.message;
+ const context={report,process:{execPath:'synthetic-node'},url:'http://127.0.0.1',anon:secret,password:secret,aid:'synthetic-a',bid:'synthetic-b',JSON,
+  task187BrowserFailure,
+  task187BrowserExitSummary:(...args)=>{if(mode==='helper-throws')throw Error(secret);return task187BrowserExitSummary(...args)},
+  console:{error(value){if(mode==='logging-throws')throw Error(secret);logged.push(value)}},
+  execFile(_file,_args,options,callback){assert.equal(options.timeout,300000);assert.equal(options.maxBuffer,32768);queueMicrotask(()=>callback(Object.assign(Error(secret),{code:1}),'',stderr));return {stdin:{end(){}}}},
+ };
+ await assert.rejects(runInNewContext('(async()=>{'+statement+'})()',context),error=>error.message===original);
+ assert.deepEqual(report.task187BrowserFailure,{stage:'unknown',reason:'DIAGNOSTIC_UNAVAILABLE'});
+ for(const value of logged){assert.ok(value.startsWith('TASK187_BROWSER_EXIT='));assert.ok(!value.includes(secret));}
+ if(mode==='normal')assert.equal(logged.length,1);else assert.equal(logged.length,0);
 });

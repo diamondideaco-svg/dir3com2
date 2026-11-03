@@ -1,16 +1,21 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { parseFirstProfilePermit, type ApprovedFirstProfilePlan } from './agent-measurement';
 import { supabaseAdmin } from '../supabase/server';
 import { AGENT_PROVIDER_IDS, type AgentCapabilityProfile } from './agent-capabilities';
 import { PUBLIC_DIALOGUE_DAILY_LIMITS, type AgentDialoguePolicy } from './agent-dialogue';
 import type { AgentContext } from './agent-contract';
-import { fundingSubject, fundingAuthorizationWindow, validFundingDailyLimits, validTask217PilotEnvelope, quoteDialogueFunding, type DialogueFundingProof, type FundedDialogueReservation, type FundingDialogueAdmission } from './dialogue-funding';
+import { fundingSubject, fundingAuthorizationWindow, validFundingDailyLimits, validTask217PilotEnvelope, validTask217LimitedOperation, quoteDialogueFunding, type DialogueFundingProof, type FundedDialogueReservation, type FundingDialogueAdmission } from './dialogue-funding';
 
 export type FundingRpc = (name: string, params: Record<string, unknown>, signal: AbortSignal) =>
   Promise<{ data: unknown; error: unknown }>;
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const integer = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
+// RPC evidence is JSON data. Compare every value independent of its decoding realm.
+function samePolicyData(left: unknown, right: unknown) {
+  return isDeepStrictEqual(JSON.parse(JSON.stringify(left)), JSON.parse(JSON.stringify(right)));
+}
 const defaultRpc: FundingRpc = async (name, params, signal) => {
   if (!supabaseAdmin || signal.aborted) return { data: null, error: 'unavailable' };
   return supabaseAdmin.rpc(name, params).abortSignal(signal);
@@ -28,7 +33,7 @@ export function createFundingDialogueAdmission(rpc: FundingRpc = defaultRpc): Fu
         }, signal);
         // No RPC retry: a timeout or lost claim response may already have committed.
         if (signal.aborted || error || !object(data) || data.decision !== 'admitted' || data.attempt_id !== r.attemptId) return { kind: 'denied' };
-        if ('snapshotUse' in r.proof) {
+        if ('snapshotUse' in r.proof || 'limitedOperation' in r.proof) {
           // This deadline comes from the same atomic reservation, not caller proof
           // or a policy reload. A late/missing receipt never releases its hold.
           const deadline = data.pricing_expires_at_ms;
@@ -61,19 +66,19 @@ function proof(value: unknown): value is DialogueFundingProof {
     'autoReload','postpaid','overdraft','concurrentAccountUsage'].every(k => typeof value[k] === 'string')
     && ['verifiedAtMs','expiresAtMs','quotaWindowStartMs','quotaWindowEndMs','remainingRequests','remainingInputTokens','remainingOutputTokens'].every(k => integer(value[k]))
     && (value.mode === 'existing-credit'
-      ? (['openai','anthropic'].includes(String(value.provider)) || validTask217PilotEnvelope(value.pilotEnvelope)) && value.currency === 'USD' && value.serviceTier === 'standard'
+      ? (['openai','anthropic'].includes(String(value.provider)) || validTask217PilotEnvelope(value.pilotEnvelope) || validTask217LimitedOperation(value, Date.now())) && value.currency === 'USD' && value.serviceTier === 'standard'
         && ['standard-2026-10-28','synthetic'].includes(String(value.pricing))
         && integer(value.authorizedCreditMicros) && integer(value.remainingCreditMicros)
       : value.mode === 'no-new-charge' && AGENT_PROVIDER_IDS.some(p => p === value.provider)
         && !['openai','anthropic'].includes(String(value.provider)) && value.enforcement === 'provider-hard-no-new-charge');
 }
 /** Explicit opt-in only. Missing data/store returns a governed, blocked policy, never the legacy classifier. */
-export async function loadFundingDialoguePolicy(context?: AgentContext, signal?: AbortSignal, rpc: FundingRpc = defaultRpc): Promise<AgentDialoguePolicy> {
+export async function loadFundingDialoguePolicy(context?: AgentContext, signal?: AbortSignal, rpc: FundingRpc = defaultRpc, requestId?: string): Promise<AgentDialoguePolicy> {
   const base: AgentDialoguePolicy = {
     trial: true, environment: 'provider-benchmark', profiles: [], freeProofs: [],
     limits: { maxAttempts: 1, maxElapsedMs: 12000, maxInputTokens: 4096, maxOutputTokens: 1024, maxCostUsd: 0 },
     daily: PUBLIC_DIALOGUE_DAILY_LIMITS,
-    funding: { kind: 'existing-credit-v2', requestId: randomUUID(), proofs: [], admission: createFundingDialogueAdmission(rpc) },
+    funding: { kind: 'existing-credit-v2', requestId: requestId && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(requestId) ? requestId : randomUUID(), proofs: [], admission: createFundingDialogueAdmission(rpc) },
   };
   const actor = context?.taskAuthority;
   if (context?.role !== 'customer' || actor?.kind !== 'customer' || actor.actorId !== actor.ownerId
@@ -93,8 +98,18 @@ export async function loadFundingDialoguePolicy(context?: AgentContext, signal?:
       || !validFundingDailyLimits(data.dailyLimits,base.limits.maxInputTokens,base.limits.maxOutputTokens) || !await context.isTaskAuthorityCurrent()) return base;
     return { ...base, daily: Object.freeze({...data.dailyLimits}), profiles: data.profiles.filter(profile),
       limits: { ...base.limits, maxCostUsd: data.maxCostMicros / 1000000 },
-      funding: { kind: 'existing-credit-v2', requestId: base.funding!.requestId, proofs: data.proofs.filter(proof).filter(p => !('pilotEnvelope' in p)),
-        admission: base.funding!.admission } };
+      funding: { kind: 'existing-credit-v2', requestId: base.funding!.requestId, proofs: data.proofs.filter(proof).filter(p => !('pilotEnvelope' in p) && (!('limitedOperation' in p) || (requestId !== undefined && base.funding!.requestId === requestId))),
+        admission: base.funding!.admission,
+        async isCurrent(expectedProof, expectedProfile, currentSignal) {
+          try {
+            const fresh = await rpc('get_dabra_dialogue_funding_policy', { p_subject_hash: fundingSubject(actor.actorId) }, currentSignal);
+            if (currentSignal.aborted || fresh.error || !object(fresh.data) || fresh.data.enabled !== true
+              || !Array.isArray(fresh.data.proofs) || !Array.isArray(fresh.data.profiles)
+              || fresh.data.maxCostMicros !== data.maxCostMicros || !samePolicyData(fresh.data.dailyLimits, data.dailyLimits)) return false;
+            return fresh.data.proofs.filter(proof).some(p => samePolicyData(p, expectedProof))
+              && fresh.data.profiles.filter(profile).some(p => samePolicyData({ provider: p.provider, measurement: p.measurement }, expectedProfile));
+          } catch { return false; }
+        } } };
   } catch { return base; }
 }
 

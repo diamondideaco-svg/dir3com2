@@ -1,7 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { APPROVED_DIALOGUE_STANDARD_PRICING } from './dialogue-pricing-approvals';
-import type { AgentCapabilityProfile, AgentProviderId, CapabilityMeasurement } from './agent-capabilities';
+import { AGENT_PROVIDER_IDS, type AgentCapabilityProfile, type AgentProviderId, type CapabilityMeasurement } from './agent-capabilities';
 import type { DialogueDailyLimits } from './agent-dialogue';
 
 export type DialogueFundingCeilings = Readonly<{
@@ -9,7 +9,7 @@ export type DialogueFundingCeilings = Readonly<{
   inputTokenCeiling: number; outputTokenCeiling: number;
 }>;
 type EvidenceBase = Readonly<{
-  measurementPermit?: unknown; pilotEnvelope?: unknown; allInChargeBound?: unknown; snapshotUse?: unknown;
+  measurementPermit?: unknown; pilotEnvelope?: unknown; allInChargeBound?: unknown; snapshotUse?: unknown; limitedOperation?: unknown;
   grantId: string; provider: AgentProviderId; model: string; environment: CapabilityMeasurement['environment'];
   accountId: string; projectId: string; evidenceSha256: string; credentialSha256: string;
   verifiedAtMs: number; expiresAtMs: number; quotaWindowStartMs: number; quotaWindowEndMs: number;
@@ -40,6 +40,7 @@ export interface FundingDialogueAdmission {
 export type DialogueFundingBinding = Readonly<{
   kind: 'existing-credit-v2'; requestId: string; proofs: readonly DialogueFundingProof[];
   admission: FundingDialogueAdmission;
+  isCurrent?: (proof: DialogueFundingProof, profile: AgentCapabilityProfile, signal: AbortSignal) => Promise<boolean>;
 }>;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const digest = /^[a-f0-9]{64}$/;
@@ -70,6 +71,20 @@ export function validTask217PilotEnvelope(value: unknown): value is typeof TASK2
  * the exact fixed-case permit. This computes evidence digests; it issues no grant.
  * Ordered primitive tuples also have an unambiguous PostgreSQL representation.
  */
+/** Same ordered financial tuple used by the saved pilot binding; never re-dates evidence. */
+export function fundingFinancialSnapshotSha256(proof: unknown, sourceId?: string) {
+  if (!object(proof) || proof.mode !== 'existing-credit') return null;
+  const sourceGrantId = sourceId ?? proof.grantId;
+  if (typeof sourceGrantId !== 'string' || !uuid.test(sourceGrantId)
+    || !['provider','model','environment','accountId','projectId','currency','serviceTier','evidenceSha256','credentialSha256','autoReload','postpaid','overdraft','concurrentAccountUsage']
+      .every(k => typeof proof[k] === 'string' && /^[a-zA-Z0-9._:-]{1,100}$/.test(proof[k]))
+    || !['authorizedCreditMicros','remainingCreditMicros','verifiedAtMs','expiresAtMs']
+      .every(k => typeof proof[k] === 'number' && count(proof[k]))) return null;
+  return createHash('sha256').update(JSON.stringify([sourceGrantId, proof.provider, proof.model, proof.environment, proof.accountId, proof.projectId,
+    proof.mode, proof.currency, proof.serviceTier, proof.authorizedCreditMicros, proof.remainingCreditMicros,
+    proof.evidenceSha256, proof.credentialSha256, proof.verifiedAtMs, proof.expiresAtMs,
+    proof.autoReload, proof.postpaid, proof.overdraft, proof.concurrentAccountUsage])).digest('hex');
+}
 export function fundingSnapshotBindings(proof: DialogueFundingProof) {
   const p = proof.measurementPermit;
   if (proof.mode !== 'existing-credit' || !object(p) || Object.keys(p).length !== 9
@@ -90,16 +105,45 @@ export function fundingSnapshotBindings(proof: DialogueFundingProof) {
   }
   const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   return {
-    financialSnapshotSha256: hash([proof.grantId, proof.provider, proof.model, proof.environment, proof.accountId, proof.projectId,
-      proof.mode, proof.currency, proof.serviceTier, proof.authorizedCreditMicros, proof.remainingCreditMicros,
-      proof.evidenceSha256, proof.credentialSha256, proof.verifiedAtMs, proof.expiresAtMs,
-      proof.autoReload, proof.postpaid, proof.overdraft, proof.concurrentAccountUsage]),
+    financialSnapshotSha256: fundingFinancialSnapshotSha256(proof),
     measurementPermitSha256: hash([p.schema, p.planId, p.sourceSha, p.caseSetSha, p.subjectHash,
       p.expiresAtMs, p.inputTokenCeiling, p.outputTokenCeiling, cases]),
   };
 }
-/** The customer path always retains its original one-hour financial window. */
+/** Explicit server-stored customer scope. This accepts provider-account risk,
+ * not unlimited spend or evidence fabrication. The durable task ledger remains
+ * shared with all historical pilot holds. Saved observations require the exact
+ * additional source binding below; no measurement mode or live authority is issued. */
+export function validTask217LimitedOperation(proof: unknown, now: number) {
+  if (!object(proof)) return false;
+  const a = proof.limitedOperation;
+  const saved = object(a) && ('financialSnapshotSha256' in a || 'sourceGrantId' in a);
+  return !('pilotEnvelope' in proof) && !('measurementPermit' in proof) && !('snapshotUse' in proof)
+    && proof.mode === 'existing-credit' && AGENT_PROVIDER_IDS.some(p => p === proof.provider)
+    && proof.environment === 'provider-benchmark' && count(now)
+    && object(a) && Object.keys(a).length === (saved ? 11 : 9)
+    && (!saved || (typeof a.sourceGrantId === 'string' && uuid.test(a.sourceGrantId) && a.sourceGrantId !== proof.grantId
+      && typeof a.financialSnapshotSha256 === 'string' && digest.test(a.financialSnapshotSha256)
+      && a.financialSnapshotSha256 === fundingFinancialSnapshotSha256(proof, a.sourceGrantId)))
+    && a.schema === 'task217-limited-operation-v1'
+    && typeof a.authorizationId === 'string' && uuid.test(a.authorizationId)
+    && a.taskId === TASK217_PILOT_ENVELOPE.id && a.maxCostMicros === 1000000 && a.maxAttempts === 28
+    && a.dataScope === 'redacted-travel-or-server-units' && a.providerRisk === 'overdraft-unknown'
+    && typeof a.authorizedAtMs === 'number' && count(a.authorizedAtMs) && typeof proof.verifiedAtMs === 'number' && a.authorizedAtMs >= proof.verifiedAtMs && a.authorizedAtMs <= now
+    && typeof a.expiresAtMs === 'number' && count(a.expiresAtMs) && a.expiresAtMs > now
+    && a.expiresAtMs > a.authorizedAtMs && a.expiresAtMs - a.authorizedAtMs <= 3600000;
+}
+/** Ordinary funding keeps its original window. Only an exact private opt-in
+ * accepts the original financial observation within a separate bounded authority.
+ * Independent pricing, fees and quota windows are never refreshed by this. */
 export function fundingAuthorizationWindow(proof: DialogueFundingProof, now: number) {
+  if ('limitedOperation' in proof) {
+    const a = proof.limitedOperation;
+    if (!validTask217LimitedOperation(proof, now) || !object(a) || typeof a.expiresAtMs !== 'number') return null;
+    if ('financialSnapshotSha256' in a && typeof a.authorizedAtMs === 'number')
+      return { verifiedAtMs: a.authorizedAtMs, expiresAtMs: a.expiresAtMs };
+    return { verifiedAtMs: proof.verifiedAtMs, expiresAtMs: Math.min(proof.expiresAtMs, a.expiresAtMs) };
+  }
   if (!('snapshotUse' in proof)) return { verifiedAtMs: proof.verifiedAtMs, expiresAtMs: proof.expiresAtMs };
   const a = proof.snapshotUse, bindings = fundingSnapshotBindings(proof);
   if (!count(now) || !validTask217PilotEnvelope(proof.pilotEnvelope)
@@ -113,9 +157,9 @@ export function fundingAuthorizationWindow(proof: DialogueFundingProof, now: num
   return { verifiedAtMs: a.authorizedAtMs, expiresAtMs: a.expiresAtMs };
 }
 function additionalPilotCost(proof: DialogueFundingProof, now: number): number | null {
-  if (!('pilotEnvelope' in proof)) return 0;
+  if (!('pilotEnvelope' in proof) && !('limitedOperation' in proof)) return 0;
   const v = proof.allInChargeBound, window = fundingAuthorizationWindow(proof, now);
-  if (!window || !validTask217PilotEnvelope(proof.pilotEnvelope) || !object(v) || Object.keys(v).length !== 6
+  if (!window || (!validTask217PilotEnvelope(proof.pilotEnvelope) && !validTask217LimitedOperation(proof, now)) || !object(v) || Object.keys(v).length !== 6
     || v.schema !== 'all-in-charge-bound-v1' || v.currency !== 'USD' || v.coverage !== 'all-applicable-api-charges'
     || typeof v.maxAdditionalMicros !== 'number' || !count(v.maxAdditionalMicros) || v.maxAdditionalMicros > 1000000
     || typeof v.observedAtMs !== 'number' || !count(v.observedAtMs) || v.observedAtMs > window.verifiedAtMs
@@ -125,7 +169,7 @@ function additionalPilotCost(proof: DialogueFundingProof, now: number): number |
 }
 /** Financial identity/ceilings, deliberately independent from capability qualification. */
 export function fundingProofForCeilings(proof: DialogueFundingProof, m: DialogueFundingCeilings, now: number) {
-  const pilot = validTask217PilotEnvelope(proof.pilotEnvelope), window = fundingAuthorizationWindow(proof, now);
+  const pilot = validTask217PilotEnvelope(proof.pilotEnvelope), limited = validTask217LimitedOperation(proof, now), window = fundingAuthorizationWindow(proof, now);
   if (!window || !count(now) || window.expiresAtMs <= now || !count(m.inputTokenCeiling) || m.inputTokenCeiling < 1 || m.inputTokenCeiling > 4096
     || !count(m.outputTokenCeiling) || m.outputTokenCeiling < 1 || m.outputTokenCeiling > 1024
     || !uuid.test(proof.grantId) || proof.provider !== m.provider || proof.model !== m.model || proof.environment !== m.environment
@@ -142,14 +186,14 @@ export function fundingProofForCeilings(proof: DialogueFundingProof, m: Dialogue
     || !['bounded', 'unknown'].includes(proof.concurrentAccountUsage)
     // Pilot reservations bound this experiment, not all use of the provider account.
     // Keep truthful account observations; ordinary dialogue retains its stronger requirements.
-    || (!pilot && (proof.postpaid !== 'blocked' || proof.overdraft !== 'blocked' || proof.concurrentAccountUsage !== 'bounded'))
+    || (!pilot && (proof.postpaid !== 'blocked' || (proof.overdraft !== 'blocked' && !(limited && proof.overdraft === 'unknown')) || proof.concurrentAccountUsage !== 'bounded'))
     || !count(proof.remainingRequests) || proof.remainingRequests < 1
     || !count(proof.remainingInputTokens) || proof.remainingInputTokens < m.inputTokenCeiling
     || !count(proof.remainingOutputTokens) || proof.remainingOutputTokens < m.outputTokenCeiling) return false;
   if ('pilotEnvelope' in proof && (!pilot || proof.mode !== 'existing-credit'
     || proof.environment !== 'provider-benchmark' || !object(proof.measurementPermit))) return false;
   if (proof.mode === 'existing-credit') return (['openai','anthropic'].includes(proof.provider)
-    || (validTask217PilotEnvelope(proof.pilotEnvelope) && object(proof.measurementPermit)))
+    || limited || (validTask217PilotEnvelope(proof.pilotEnvelope) && object(proof.measurementPermit)))
     && proof.currency === 'USD' && proof.serviceTier === 'standard'
     && count(proof.authorizedCreditMicros) && proof.authorizedCreditMicros > 0
     && count(proof.remainingCreditMicros);

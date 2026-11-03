@@ -97,7 +97,7 @@ test('measurement model pin does not change ordinary ENV or require discovery', 
   assert.equal(api.internalAgentConfiguration('gemini', 'https://untrusted.invalid'), null);
   assert.equal(syntheticEnv.DABRA_INTERNAL_AI_MODEL, 'gpt-5');
 });
-test('exact Luna pilot request bounds total completion and preserves ordinary encoding, no tools/retries', async t => {
+test('pilot and funded Luna share bounded encoding while legacy unfunded transport stays unchanged, no tools/retries', async t => {
   const seen: Record<string, unknown>[] = [];
   t.mock.method(globalThis, 'fetch', async (url: unknown, init?: RequestInit) => {
     assert.equal(url, 'https://api.openai.com/v1/chat/completions');
@@ -110,11 +110,14 @@ test('exact Luna pilot request bounds total completion and preserves ordinary en
   await callInternalAgentProvider('openai', { apiKey: 'SYNTHETIC-KEY', model: 'gpt-6-luna' }, 'SYNTHETIC', { ...opts, pilotMeasurement: true, maxOutputTokens: 2048 });
   await callInternalAgentProvider('openai', { apiKey: 'SYNTHETIC-KEY', model: 'gpt-5' }, 'SYNTHETIC', { ...opts, maxOutputTokens: 128 });
   await callInternalAgentProvider('openai', { apiKey: 'SYNTHETIC-KEY', model: 'gpt-6-luna' }, 'SYNTHETIC', { ...opts, maxOutputTokens: 128 });
-  assert.equal(seen.length, 3);
+  await callInternalAgentProvider('openai', { apiKey: 'SYNTHETIC-KEY', model: 'gpt-6-luna' }, 'SYNTHETIC', { ...opts, standardBilling: false, maxOutputTokens: 128 });
+  assert.equal(seen.length, 4);
   assert.equal(seen[0].reasoning_effort, 'none'); assert.equal(seen[0].max_completion_tokens, 1024);
   assert.equal(seen[0].temperature, undefined); assert.equal(seen[0].max_tokens, undefined); assert.equal(seen[0].service_tier, 'default');
   assert.equal(seen[1].reasoning_effort, 'minimal'); assert.equal(seen[1].max_completion_tokens, 128);
-  assert.equal(seen[2].temperature, 0); assert.equal(seen[2].max_tokens, 128);
+  assert.equal(seen[2].reasoning_effort, 'none'); assert.equal(seen[2].max_completion_tokens, 128);
+  assert.equal(seen[2].temperature, undefined); assert.equal(seen[2].max_tokens, undefined); assert.equal(seen[2].service_tier, 'default');
+  assert.equal(seen[3].temperature, 0); assert.equal(seen[3].max_tokens, 128); assert.equal(seen[3].service_tier, undefined);
   for (const body of seen) { assert.equal(body.tools, undefined); assert.equal(body.web_search, undefined); }
 });
 
