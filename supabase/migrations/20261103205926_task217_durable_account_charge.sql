@@ -254,14 +254,6 @@ BEGIN
    +(v_charge->>'maxAdditionalMicros')::bigint;
  IF v_quote<=0 OR p_cost_micros<>v_quote OR v_quote>1000000 THEN RETURN jsonb_build_object('decision','denied'); END IF;
 
- SELECT coalesce(sum(greatest(pg.reserved_credit_micros,coalesce(a.cost,0))),0) INTO pilot_holds
- FROM private.dabra_dialogue_funding_grants pg LEFT JOIN LATERAL (
-  SELECT sum(cost_micros) cost FROM private.dabra_dialogue_admissions WHERE grant_id=pg.id
- ) a ON true;
- SELECT count(*) INTO pilot_calls FROM private.dabra_dialogue_admissions a
- JOIN private.dabra_dialogue_funding_grants pg ON pg.id=a.grant_id
-;
- IF pilot_holds+p_cost_micros>1000000 OR pilot_calls+1>28 THEN RETURN jsonb_build_object('decision','denied'); END IF;
 
 
  ELSE
@@ -521,6 +513,15 @@ BEGIN
  IF quota_calls+1>(v_proof->>'remainingRequests')::bigint OR quota_input+p_input_tokens>(v_proof->>'remainingInputTokens')::bigint
   OR quota_output+p_output_tokens>(v_proof->>'remainingOutputTokens')::bigint THEN RETURN jsonb_build_object('decision','denied'); END IF;
  END IF;
+ -- T217-CONT-S1: every funding mode uses the same non-renewing task envelope.
+ -- The transaction already holds the shared advisory lock; no network or reset.
+ SELECT coalesce(sum(greatest(pg.reserved_credit_micros,coalesce(a.cost,0))),0) INTO pilot_holds
+ FROM private.dabra_dialogue_funding_grants pg LEFT JOIN LATERAL (
+  SELECT sum(cost_micros) cost FROM private.dabra_dialogue_admissions WHERE grant_id=pg.id
+ ) a ON true;
+ SELECT count(*) INTO pilot_calls FROM private.dabra_dialogue_admissions a
+ JOIN private.dabra_dialogue_funding_grants pg ON pg.id=a.grant_id;
+ IF pilot_holds+p_cost_micros>1000000 OR pilot_calls+1>28 THEN RETURN jsonb_build_object('decision','denied'); END IF;
  UPDATE private.dabra_dialogue_funding_grants SET reserved_credit_micros=reserved_credit_micros+p_cost_micros WHERE id=g.id;
  INSERT INTO private.dabra_dialogue_admissions(attempt_id,request_id,stage,subject_hash,grant_id,day_start_ms,quota_start_ms,quota_end_ms,input_tokens,output_tokens,cost_micros,execution_pricing)
  VALUES(p_attempt_id,p_request_id,p_stage,p_subject_hash,g.id,v_day,q_start,q_end,p_input_tokens,p_output_tokens,p_cost_micros,CASE WHEN v_durable THEN v_execution ELSE NULL END);

@@ -128,9 +128,12 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
   });
   if (selection.kind !== 'selected') return null;
   const profile: AgentCapabilityProfile = { provider: selection.destination.provider, measurement: selection.destination.measurement };
-  const fundingProof = funded?.proofs.find(p => fundingProofCurrent(p, profile, now)
-    && (continuous ? p.mode === 'bounded-account-charge' && durableAuthorityAcceptsProfile(p, profile, now)
-      : dialogueCostCeilingMicros(p, profile, now) !== null));
+  // Select the funding mode from this provider/profile, never from a different
+  // provider's standing authority. An expired measurement cannot borrow v1 freshness.
+  const matchingProofs = funded?.proofs.filter(p => fundingProofCurrent(p, profile, now));
+  const fundingProof = matchingProofs?.find(p => p.mode === 'bounded-account-charge' && durableAuthorityAcceptsProfile(p, profile, now))
+    ?? matchingProofs?.find(p => p.mode !== 'bounded-account-charge' && profile.measurement.expiresAtMs > now
+      && dialogueCostCeilingMicros(p, profile, now) !== null);
   const matchedProof = funded ? undefined : policy.freeProofs.find(p => matchesProof(p, profile, policy, now));
   if (funded ? !fundingProof : !matchedProof) return null;
   const candidate = fundingProof ?? matchedProof;

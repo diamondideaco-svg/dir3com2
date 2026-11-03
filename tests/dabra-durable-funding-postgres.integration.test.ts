@@ -6,6 +6,7 @@ import { Client } from 'pg';
 import { disposableTarget } from '../scripts/sandbox/apply-core-migration-to-db.mjs';
 import { AGENT_PROVIDER_IDS, type AgentProviderId } from '../lib/dabra/agent-capabilities';
 import { APPROVED_DIALOGUE_STANDARD_PRICING } from '../lib/dabra/dialogue-pricing-approvals';
+import type { DialogueFundingProof } from '../lib/dabra/dialogue-funding';
 import { approvedPublicPricingContract } from '../lib/dabra/dialogue-pricing-refresh';
 import { durableAuthorityBindingSha256, durableProfileSha256, type DurableAccountChargeProof } from '../lib/dabra/dialogue-durable-authority';
 
@@ -71,6 +72,26 @@ function claim(g:Grant,requestId=randomUUID(),at=Date.now()-1) {
   const args:unknown[]=[attemptId,requestId,'discover',subject,g.proof.grantId,JSON.stringify(serialized),4096,1024,g.cost,JSON.stringify(daily),day(Date.now())];
   return {args,serialized,attemptId,requestId};
 }
+
+function ordinarySyntheticGrant(g:Grant) {
+  const at=Date.now()-1000, expires=at+600000, cost=Math.ceil((4096*g.rate.inputMicrosPerMillion+1024*g.rate.outputMicrosPerMillion)/1000000);
+  const proof:Extract<DialogueFundingProof,{mode:'existing-credit'}>={
+    grantId:randomUUID(),provider:'openai',model:g.proof.model,environment:'provider-benchmark',
+    accountId:'SYNTHETIC-v1-openai',projectId:'SYNTHETIC-project',evidenceSha256:'b'.repeat(64),credentialSha256:'a'.repeat(64),
+    verifiedAtMs:at,expiresAtMs:expires,quotaWindowStartMs:day(at),quotaWindowEndMs:day(at)+86400000,
+    remainingRequests:60,remainingInputTokens:245760,remainingOutputTokens:61440,
+    autoReload:'off',postpaid:'blocked',overdraft:'blocked',concurrentAccountUsage:'bounded',
+    mode:'existing-credit',currency:'USD',authorizedCreditMicros:1000000,remainingCreditMicros:1000000,
+    serviceTier:'standard',pricing:'standard-2026-10-28',pricingEvidenceSha256:g.rate.sha256,
+    pricingVerification:{schema:'standard-pricing-verification-v1',snapshotSha256:g.rate.sha256,sourceUrl:g.rate.sourceUrl,
+      inputMicrosPerMillion:g.rate.inputMicrosPerMillion,outputMicrosPerMillion:g.rate.outputMicrosPerMillion,
+      observedAtMs:at-1,evidenceSha256:'e'.repeat(64)},
+  };
+  const profile={...g.profiles[0],measurement:{...g.profiles[0].measurement,measuredAtMs:at,expiresAtMs:expires,costCeilingUsd:cost/1000000,sourceSha:'f'.repeat(40)}};
+  const args=():unknown[]=>[randomUUID(),randomUUID(),'discover',subject,proof.grantId,JSON.stringify(proof),4096,1024,cost,JSON.stringify(daily),day(Date.now())];
+  return {proof,cost,expires,profile,args};
+}
+
 const sql='SELECT public.reserve_dabra_dialogue_attempt($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10::jsonb,$11) AS value';
 async function asService(db:Client,args:unknown[]) {
   await db.query('SET LOCAL ROLE service_role'); const result=await db.query(sql,args); await db.query('RESET ROLE');
@@ -101,6 +122,13 @@ test('durable actual PostgreSQL delta: standing authority, atomic public quote, 
     await client.query('UPDATE private.dabra_dialogue_funding_control SET enabled=true,subject_hashes=ARRAY[$1::text],profiles=$2::jsonb,max_attempt_cost_micros=1000000',[subject,JSON.stringify(allProfiles)]);
     for(const g of grants)await client.query('INSERT INTO private.dabra_dialogue_funding_grants(id,provider,account_id,project_id,funding_mode,authorized_credit_micros,input_rate_micros_per_million,output_rate_micros_per_million,enabled,proof,authorized_at) VALUES($1,$2,$3,$4,$5,0,$6,$7,true,$8::jsonb,$9::timestamptz)',
       [g.proof.grantId,g.proof.provider,g.proof.accountId,g.proof.projectId,g.proof.mode,g.rate.inputMicrosPerMillion,g.rate.outputMicrosPerMillion,JSON.stringify(g.proof),new Date(g.proof.limitedOperation.authorizedAtMs).toISOString()]);
+    const ordinary=ordinarySyntheticGrant(grants[0]);
+    await client.query('INSERT INTO private.dabra_dialogue_funding_grants(id,provider,account_id,project_id,funding_mode,authorized_credit_micros,input_rate_micros_per_million,output_rate_micros_per_million,pricing_expires_at,enabled,proof,authorized_at) VALUES($1,$2,$3,$4,$5,1000000,$6,$7,$8::timestamptz,true,$9::jsonb,$10::timestamptz)',
+      [ordinary.proof.grantId,ordinary.proof.provider,ordinary.proof.accountId,ordinary.proof.projectId,ordinary.proof.mode,
+        grants[0].rate.inputMicrosPerMillion,grants[0].rate.outputMicrosPerMillion,new Date(ordinary.expires).toISOString(),
+        JSON.stringify(ordinary.proof),new Date(ordinary.proof.verifiedAtMs).toISOString()]);
+    allProfiles.push(ordinary.profile);
+    await client.query('UPDATE private.dabra_dialogue_funding_control SET profiles=$1::jsonb',[JSON.stringify(allProfiles)]);
     const isolated=async(fn:()=>Promise<void>)=>{await client.query('BEGIN');try{await fn();}finally{await client.query('ROLLBACK');}};
     const rejectWrite=async(text:string,args:unknown[]=[])=>{
       await client.query('SAVEPOINT expected_denial');
@@ -131,6 +159,23 @@ test('durable actual PostgreSQL delta: standing authority, atomic public quote, 
       ];
       for(const change of cases){const c=claim(chosen);change(c);c.args[5]=JSON.stringify(c.serialized);assert.deepEqual(await asService(client,c.args),{decision:'denied'});}
       assert.deepEqual((await client.query('SELECT count(*)::int n,sum(cost_micros)::int held FROM private.dabra_dialogue_admissions')).rows,[{n:6,held:61719}]);
+    }));
+    await t.test('S1 ordinary v1 stays admissible below the shared envelope with all v2 grants configured',()=>isolated(async()=>{
+      const args=ordinary.args(),value=await asService(client,args);assert.ok(record(value));assert.equal(value.decision,'admitted');
+      assert.deepEqual((await client.query('SELECT count(*)::int n,sum(cost_micros)::int held FROM private.dabra_dialogue_admissions')).rows,[{n:7,held:61719+ordinary.cost}]);
+      assert.equal((await client.query('SELECT execution_pricing FROM private.dabra_dialogue_admissions WHERE attempt_id=$1',[args[0]])).rows[0].execution_pricing,null);
+    }));
+    await t.test('S1 ordinary v1 cannot cross USD1 held in another disabled v2 grant',()=>isolated(async()=>{
+      await client.query('UPDATE private.dabra_dialogue_funding_grants SET reserved_credit_micros=$1,enabled=false WHERE id=$2',
+        [1000000-61719-ordinary.cost+1,grants[1].proof.grantId]);
+      assert.deepEqual(await asService(client,ordinary.args()),{decision:'denied'});
+      assert.equal((await client.query('SELECT count(*)::int n FROM private.dabra_dialogue_admissions')).rows[0].n,6);
+    }));
+    await t.test('S1 ordinary v1 cannot become attempt29 by switching mode or quota day',()=>isolated(async()=>{
+      for(let i=0;i<22;i++)await client.query('INSERT INTO private.dabra_dialogue_admissions(attempt_id,request_id,stage,subject_hash,grant_id,day_start_ms,quota_start_ms,quota_end_ms,input_tokens,output_tokens,cost_micros) VALUES($1,$2,$3,$4,$5,0,0,1,1,1,0)',
+        [randomUUID(),randomUUID(),'discover',subject,ordinary.proof.grantId]);
+      assert.deepEqual(await asService(client,ordinary.args()),{decision:'denied'});
+      assert.equal((await client.query('SELECT count(*)::int n FROM private.dabra_dialogue_admissions')).rows[0].n,28);
     }));
     await t.test('disabled grant, changed profile and revoked subject reject the same quote',()=>isolated(async()=>{
       const c=claim(chosen);await client.query('UPDATE private.dabra_dialogue_funding_grants SET enabled=false WHERE id=$1',[chosen.proof.grantId]);

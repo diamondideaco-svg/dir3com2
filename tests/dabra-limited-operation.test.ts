@@ -758,3 +758,38 @@ test('continuous v2 actual POST rejects non-string JSON funding properties befor
   assert.equal((await f.post()).provider,'local');assert.equal(f.publicFetches(),0);
   assert.equal(f.counts().reservations,0);assert.equal(f.realTransport?.calls.length,0);
 });
+
+function mixedFundingFixture(selection:'default'|'explicit'|'auto'|'unknown'|'expired-v1'|'provider-failure'='default') {
+  const f=fixture('en','openai',{realTransport:true}), other=fixture('en','deepseek',{realTransport:true,continuous:true});
+  assert.ok(other.continuousProof);
+  const original=other.continuousProof, foreign={...original,grantId:randomUUID(),
+    limitedOperation:{...original.limitedOperation,authorizationId:randomUUID(),bindingSha256:'0'.repeat(64)}};
+  const digest=durableCall('durableAuthorityBindingSha256',foreign);if(typeof digest!=='string')throw Error('SYNTHETIC_BINDING_REQUIRED');
+  foreign.limitedOperation.bindingSha256=digest;
+  f.data.proofs=[f.proof,foreign];f.data.profiles=[...f.data.profiles,...other.data.profiles];
+  f.data.maxCostMicros=Math.max(f.data.maxCostMicros,other.data.maxCostMicros);
+  if(selection==='default')Reflect.deleteProperty(f.env,'DABRA_AI_PROVIDER');
+  else f.env.DABRA_AI_PROVIDER=selection==='auto'?'auto':selection==='unknown'?'unknown':'openai';
+  if(selection==='expired-v1')f.proof.expiresAtMs=instant-1;
+  if(selection==='provider-failure'){f.realTransport?.refuse(499);f.env.DABRA_PROVIDER_FALLBACK_ENABLED='true';}
+  return {f,other};
+}
+for(const selected of ['default','explicit','auto','unknown','expired-v1','provider-failure'] as const)
+test('T217-CONT-F1 mixed OpenAI/v1 and DeepSeek/v2 respects selected proof: '+selected,async()=>{
+  const {f,other}=mixedFundingFixture(selected),body=await f.post();
+  const admitted=!['unknown','expired-v1'].includes(selected),answered=admitted&&selected!=='provider-failure';
+  assert.equal(body.provider,answered?'openai':'local');
+  assert.equal(f.counts().reservations,admitted?1:0);assert.equal(f.realTransport?.calls.length,admitted?1:0);
+  assert.equal(f.publicFetches(),0,'a different provider durable grant must not force a public-price fetch for v1');
+  assert.equal(other.counts().dispatches,0);assert.equal(other.publicFetches(),0);
+  if(admitted){const serialized=f.serializedClaims[0].p_proof;assert.ok(isFixtureRecord(serialized));
+    assert.equal(serialized.mode,'existing-credit');assert.equal('executionPricing' in serialized,false);}
+});
+
+test('T217-CONT-F1 same-provider expired profile uses its matching durable authority, never borrows v1 freshness',async()=>{
+  const f=fixture('en','openai',{realTransport:true,continuous:true}),legacy=fixture('en','openai',{realTransport:true});
+  assert.ok(f.continuousProof);legacy.proof.grantId=randomUUID();legacy.proof.limitedOperation.authorizationId=randomUUID();
+  f.data.proofs=[legacy.proof,f.continuousProof];
+  assert.equal((await f.post()).provider,'openai');assert.equal(f.publicFetches(),1);
+  const raw=f.serializedClaims[0].p_proof;assert.ok(isFixtureRecord(raw));assert.equal(raw.mode,'bounded-account-charge');
+});
