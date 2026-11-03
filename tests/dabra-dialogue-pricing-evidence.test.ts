@@ -289,3 +289,37 @@ test('pricing snapshot: live-source Anthropic snapshot alone grants no quote, cr
   assert.equal(dialogueCostCeilingMicros({ ...candidate, pricingVerification: runtimeVerification(snapshot), remainingCreditMicros: 10751 }, measured, now), null);
   assert.equal(dialogueCostCeilingMicros({ ...candidate, pricingVerification: runtimeVerification(snapshot) }, { ...measured, measurement: { ...measured.measurement, costCeilingUsd: 0.010751 } }, now), null);
 });
+
+test('pricing snapshot: exact non-reasoning Grok tariff quotes through the real registry without relaxing funding guards', () => {
+  const snapshot = fixtureSnapshot({ provider: 'xai', model: 'grok-4.20-0309-non-reasoning',
+    inputMicrosPerMillion: 1250000, outputMicrosPerMillion: 2500000,
+    sourceUrl: 'https://docs.x.ai/developers/models/grok-4.20-0309-non-reasoning' });
+  assert.equal(snapshot.sha256, 'fa66b834021e2d30ab2f62e32518c39fd7e93243ba476e9faf4c495e8a7904eb');
+  // Authority and fee receipts below are synthetic fixtures, not live eligibility or an all-in price claim.
+  const allInChargeBound = { schema: 'all-in-charge-bound-v1', currency: 'USD', coverage: 'all-applicable-api-charges',
+    maxAdditionalMicros: 0, observedAtMs: now - 1000, evidenceSha256: '8'.repeat(64) };
+  const candidate = proof({ provider: 'xai', model: snapshot.model, environment: 'provider-benchmark',
+    pricingEvidenceSha256: snapshot.sha256, pricingVerification: runtimeVerification(snapshot), allInChargeBound,
+    limitedOperation: { schema: 'task217-limited-operation-v1', authorizationId: '22222222-2222-4222-8222-222222222222',
+      taskId: 'task217-text-pilot-2026-11-01', maxCostMicros: 1000000, maxAttempts: 28,
+      dataScope: 'redacted-travel-or-server-units', providerRisk: 'overdraft-unknown',
+      authorizedAtMs: now - 1, expiresAtMs: now + 600000 } });
+  const measured: AgentCapabilityProfile = { provider: 'xai', measurement: {
+    ...profile({ model: snapshot.model, environment: 'provider-benchmark', outputTokenCeiling: 1024 }).measurement,
+  } };
+  assert.equal(dialogueCostCeilingMicros(candidate, measured, now), 7680);
+  assert.equal(dialogueCostCeilingMicros({ ...candidate, allInChargeBound: { ...allInChargeBound, maxAdditionalMicros: 37 } }, measured, now), 7717);
+  for (const mutation of [
+    { pricingVerification: undefined }, { allInChargeBound: undefined }, { limitedOperation: undefined },
+    { remainingCreditMicros: 7679 }, { pricingEvidenceSha256: '0'.repeat(64) },
+    { pricingVerification: runtimeVerification(snapshot, { observedAtMs: now - 3600001 }) },
+  ]) {
+    assert.equal(dialogueCostCeilingMicros({ ...candidate, ...mutation }, measured, now), null);
+  }
+  for (const model of ['grok-4.20-0309-reasoning', 'grok-4.20-non-reasoning-latest']) {
+    assert.equal(dialogueCostCeilingMicros({ ...candidate, model },
+      { ...measured, measurement: { ...measured.measurement, model } }, now), null);
+  }
+  assert.equal(dialogueCostCeilingMicros(candidate,
+    { ...measured, measurement: { ...measured.measurement, outputTokenCeiling: 1025 } }, now), null);
+});
