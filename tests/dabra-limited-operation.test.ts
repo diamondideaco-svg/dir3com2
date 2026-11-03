@@ -21,7 +21,8 @@ test.after(() => { globalThis.fetch = realFetch; });
 
 function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'openai') {
   let clock = instant, actorCurrent = true, dispatches = 0, reservations = 0;
-  let fault: 'none' | 'lost-claim' | 'late-claim' | 'expired-price-receipt' | 'provider-unknown' | 'revoked-during-dispatch' | 'credential-change' | 'grant-revoked' | 'profile-revoked' | 'source-change' | 'consent-revoked' = 'none';
+  let postReservePolicyReads = 0, revokeOnPolicyRead = 1, revocations = 0;
+  let fault: 'none' | 'authority-during-policy-read' | 'lost-claim' | 'late-claim' | 'expired-price-receipt' | 'provider-unknown' | 'revoked-during-dispatch' | 'credential-change' | 'grant-revoked' | 'profile-revoked' | 'source-change' | 'consent-revoked' = 'none';
   let configuredKey = credential;
   const requests = new Set<string>(), payloads: string[] = [], statuses: number[] = [];
   let held = 61719;
@@ -60,7 +61,13 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
   const data = { enabled, profiles, proofs: [proof], maxCostMicros: 4708, dailyLimits: limits };
   const rpc = async (name: string, p: Record<string, unknown>, signal: AbortSignal) => {
     if (signal.aborted) return { data: null, error: 'aborted' };
-    if (name === 'get_dabra_dialogue_funding_policy') return { data: { ...data, enabled }, error: null };
+    if (name === 'get_dabra_dialogue_funding_policy') {
+      if (reservations > 0) postReservePolicyReads++;
+      if (fault === 'authority-during-policy-read' && postReservePolicyReads === revokeOnPolicyRead) {
+        await Promise.resolve(); actorCurrent = false; revocations++;
+      }
+      return { data: { ...data, enabled }, error: null };
+    }
     assert.equal(name, 'reserve_dabra_dialogue_attempt');
     reservations++;
     const key = String(p.p_request_id) + ':' + String(p.p_stage);
@@ -128,7 +135,8 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
   }, Date: Clock, process: { env }, Buffer, URL, File, crypto: globalThis.crypto, AbortController, AbortSignal, console }, { filename: file.pathname });
   const handler = exported.POST; if (typeof handler !== 'function') throw Error('actual_POST_missing');
   return { proof, data, context, payloads, env, statuses,
-    fail: (value: typeof fault) => { fault = value; },
+    fail: (value: typeof fault, policyRead = 1) => { fault = value; revokeOnPolicyRead = policyRead; },
+    revocations: () => revocations,
     setClock: (value: number) => { clock = value; }, setAuthority: (value: boolean) => { actorCurrent = value; },
     disable: () => { enabled = false; },
     counts: () => ({ dispatches, reservations, held }),
@@ -340,4 +348,14 @@ test('the real client header normalizes the same request identity and prevents a
  const f = fixture(), id = randomUUID();
  await f.post(undefined, id.toUpperCase(), 'header'); await f.post(undefined, id, 'header');
  assert.equal(f.counts().dispatches, 1); assert.equal(f.counts().held, 61719 + 4708);
+});
+
+for (const path of ['classifier', 'answer'] as const) test('authority revoked during the final funding-policy await cannot dispatch: ' + path, async () => {
+ const f = fixture(); f.fail('authority-during-policy-read', path === 'classifier' ? 1 : 2);
+ const result = await f.post(path === 'classifier' ? 'Make my family day quieter' : undefined);
+ assert.equal(f.revocations(), 1, 'the role is revoked inside the final awaited funding-policy read');
+ assert.equal(f.counts().reservations, 1); assert.equal(f.counts().held, 61719 + 4708);
+ assert.equal(f.counts().dispatches, 0, 'revocation during funding RPC must be rechecked before provider egress');
+ if (path === 'answer') { assert.equal(f.statuses[0], 409); assert.equal(result.answer, undefined); }
+ else { assert.equal(f.statuses[0], 200); assert.equal(result.provider, 'local'); }
 });

@@ -139,6 +139,8 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
     if (!isReadyToDispatch() || !await context.isTaskAuthorityCurrent!() || !isReadyToDispatch()) return false;
     if (fundingProof && 'limitedOperation' in fundingProof) {
       if (!funded?.isCurrent || !await funded.isCurrent(fundingProof, profile, bounded) || !isReadyToDispatch()) return false;
+      // Identity may be revoked while the final funding-policy read is pending.
+      if (!await context.isTaskAuthorityCurrent!() || !isReadyToDispatch()) return false;
     }
     return true;
   };
