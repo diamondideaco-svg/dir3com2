@@ -414,7 +414,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
     stickToBottomRef.current = true;
     try {
       const response = await fetch('/api/ai2/chat', {
-        method: 'POST', signal: job.signal, headers: { 'content-type': 'application/json' },
+        method: 'POST', signal: job.signal, headers: { 'content-type': 'application/json', 'X-DABRA-Request-Id': job.id },
         body: JSON.stringify({ message: trimmed, history, locale: continuityRequestLocale(context.lease ? conversation.getSnapshot().preferences : null, locale), currency: getDisplayCurrency(),
           ...(trip && context.lease ? { continuityTrip: { revision: context.lease.revision, generation: context.lease.generation, trip } } : {}) }),
       });

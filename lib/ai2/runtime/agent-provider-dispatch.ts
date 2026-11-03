@@ -20,14 +20,14 @@ export async function callInternalAgentProvider(provider: AgentProviderId, confi
     openai: 'https://api.openai.com/v1', xai: 'https://api.x.ai/v1', deepseek: 'https://api.deepseek.com/v1',
     qwen: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', mistral: 'https://api.mistral.ai/v1',
   };
-  const lunaPilot = provider === 'openai' && config.model === 'gpt-6-luna' && options.pilotMeasurement === true;
+  const lunaStandard = provider === 'openai' && config.model === 'gpt-6-luna' && options.standardBilling === true;
   return callOpenAICompatibleProvider({ ...common, providerName: provider, baseUrl: endpoints[provider],
     retryCount: 0, preferredModels: [config.model],
     ...(provider === 'xai' && options.classifier ? { responseJsonSchema: { name: 'dir3com_read_tool', schema: {
       type: 'object', properties: { tool: { type: 'string', enum: [...AGENT_TOOLS] } }, required: ['tool'], additionalProperties: false,
     } } } : {}),
     ...(provider === 'openai' && /^gpt-5(?:-mini|-nano)?(?:-\d{4}-\d{2}-\d{2})?$/.test(config.model)
-      ? { chatProfile: 'gpt-5-classifier' as const } : lunaPilot ? { chatProfile: 'gpt-6-luna-pilot' as const } : {}),
+      ? { chatProfile: 'gpt-5-classifier' as const } : lunaStandard ? { chatProfile: 'gpt-6-luna-pilot' as const } : {}),
   });
 }
 

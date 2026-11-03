@@ -36,18 +36,25 @@ export async function planInternalAgentTool(message: string, observation?: Class
   policy: AgentDialoguePolicy; context: AgentContext; signal?: AbortSignal;
 }): Promise<AgentPlan> {
   if (process.env.DABRA_INTERNAL_AI_ENABLED !== 'true') return { tool: null, status: 'disabled' };
-  const selected = process.env.DABRA_AI_PROVIDER?.trim().toLowerCase() || 'openai';
+  const deadline = Date.now() + 12000;
+  const limited = governance?.policy.funding?.proofs.some(proof => 'limitedOperation' in proof) === true;
+  const scopedSubject = governance?.context.taskAuthority?.kind === 'customer' ? governance.context.taskAuthority.actorId : '';
+  const scopedPermit = limited && governance ? await prepareAgentProviderAttempt(governance.context, observation?.language ?? 'en', governance.policy, {
+    capability: 'intent.classify', message: redactPublicTravelText(scopedSubject ? message.replaceAll(scopedSubject, '[redacted]') : message),
+    prompt: classifierPrompt, inputDigestValue: { message: redactPublicTravelText(scopedSubject ? message.replaceAll(scopedSubject, '[redacted]') : message) },
+  }, deadline, governance.signal) : undefined;
+  if (limited && !scopedPermit) return { tool: null, status: 'unavailable', attempts: [] };
+  const selected = scopedPermit?.profile.provider ?? (process.env.DABRA_AI_PROVIDER?.trim().toLowerCase() || 'openai');
   const primary = INTERNAL_AGENT_PROVIDERS.find(provider => provider === selected);
   if (!primary || !internalAgentConfiguration(primary)) return { tool: null, status: 'not_configured' };
   if (!governance && !takeBudget()) return { tool: null, status: 'unavailable' };
   const attempts: Attempt[] = [];
-  const deadline = Date.now() + 12000;
   try {
     let requestId: string | undefined;
     try { if (observation) requestId = createDabraProviderRequestId(); }
     catch { console.error('DABRA_CLASSIFIER_TELEMETRY_INIT_FAILED'); }
     let previousTelemetryError: DabraProviderErrorCategory | undefined;
-    const fallback = process.env.DABRA_PROVIDER_FALLBACK_ENABLED === 'true'
+    const fallback = !limited && process.env.DABRA_PROVIDER_FALLBACK_ENABLED === 'true'
       ? INTERNAL_AGENT_PROVIDERS.find(provider => provider !== primary && internalAgentConfiguration(provider)) : undefined;
     for (const provider of fallback ? [primary, fallback] : [primary]) {
       if (attempts.length) {
@@ -57,7 +64,7 @@ export async function planInternalAgentTool(message: string, observation?: Class
       const config = internalAgentConfiguration(provider)!;
       const subject = governance?.context.taskAuthority?.kind === 'customer' ? governance.context.taskAuthority.actorId : '';
       const outgoing = governance ? redactPublicTravelText(subject ? message.replaceAll(subject, '[redacted]') : message) : message;
-      const permit = governance ? await prepareAgentProviderAttempt(governance.context, observation?.language ?? 'en', governance.policy, {
+      const permit = limited ? scopedPermit : governance ? await prepareAgentProviderAttempt(governance.context, observation?.language ?? 'en', governance.policy, {
         capability: 'intent.classify', provider, message: outgoing, prompt: classifierPrompt, inputDigestValue: { message: outgoing },
       }, deadline, governance.signal) : undefined;
       if (governance && (!permit || config.model !== permit.profile.measurement.model

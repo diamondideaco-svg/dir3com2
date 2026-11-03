@@ -154,5 +154,11 @@
     "sha256": "4bd0686a6b62414a2dc773640513d64f4d5f3d7f69f39aab04bd7391d0ce0e2f",
     "task": "#217",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261103000000_task217_limited_customer_funding.sql",
+    "sha256": "bd5a033085b58b7860b66d67843e11059182ed6683f44b6156b41007cbf0ef48",
+    "task": "#217",
+    "production_apply_authorized": false
   }
 ]

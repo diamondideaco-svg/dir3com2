@@ -369,3 +369,45 @@ test('loaded module checkout is checked even when caller cwd is another clean ch
   assert.equal(reads.length, 3);
   assert.ok(reads.every(read => read.cwd === moduleRoot));
 });
+
+for (const boundary of ['credential', 'source', 'authority', 'admission', 'provider', 'output', 'deadline'] as const) {
+  test('measurement stop diagnostic names only the failed boundary: ' + boundary, async () => {
+    const f = fixture();
+    if (boundary === 'credential') f.configuration('SYNTHETIC-ROTATED-SECRET');
+    if (boundary === 'source') f.changeSource();
+    let checks = 0;
+    const deps: MeasurementDependencies = { ...f.deps,
+      authorityCurrent: boundary === 'authority' ? async () => false : async (signal) => {
+        if (boundary === 'deadline' && ++checks === 2) f.advance(start + 12000);
+        return f.deps.authorityCurrent(signal);
+      },
+      admission: boundary === 'admission' ? { reserve: async (...args) => {
+        await f.deps.admission.reserve(...args);
+        throw Error('SYNTHETIC-PRIVATE-ADMISSION-DETAIL');
+      } } : f.deps.admission,
+      dispatch: boundary === 'provider' ? async () => { throw Error('SYNTHETIC-PRIVATE-PROVIDER-DETAIL'); }
+        : boundary === 'output' ? async () => ({ ok: true, model, citations: [], answer: 'SYNTHETIC-INVALID-BODY' })
+        : f.deps.dispatch,
+    };
+    const result = await f.measurement.measureFirstProfile(f.plan, deps);
+    assert.notEqual(result.kind, 'candidate');
+    if (result.kind === 'candidate') throw Error('unexpected_candidate');
+    const expected = boundary === 'admission' ? 'admission-unknown' : boundary === 'provider' ? 'provider-unknown'
+      : boundary === 'output' ? 'provider-output' : boundary;
+    assert.deepEqual(Object.keys(result.diagnostic).sort(), ['caseId', 'reason', 'stage']);
+    assert.equal(result.diagnostic.reason, expected);
+    assert.equal(result.diagnostic.caseId, 'intent-ar');
+    assert.equal(result.diagnostic.stage, 'intent.classify');
+    assert.doesNotMatch(JSON.stringify(result), /SYNTHETIC-PRIVATE|SYNTHETIC-ROTATED|SYNTHETIC-INVALID|credentialSha|evidenceSha/);
+    assert.equal(f.counts().reservations, ['credential', 'source', 'authority'].includes(boundary) ? 0 : 1);
+    if (f.counts().reservations) assert.equal(f.counts().held, 5120, 'diagnostics do not release an unknown hold');
+  });
+}
+test('measurement permit diagnostics have no case or private proof and never qualify a profile', async () => {
+  const f = fixture();
+  const result = await f.measurement.measureFirstProfile({ ...f.plan, subject: 'invalid subject' }, f.deps);
+  assert.equal(result.kind, 'blocked');
+  assert.equal(result.diagnostic.reason, 'permit'); assert.equal(result.diagnostic.caseId, null);
+  assert.equal(result.diagnostic.stage, null); assert.equal(result.qualified, false);
+  assert.equal(f.counts().reservations, 0);
+});

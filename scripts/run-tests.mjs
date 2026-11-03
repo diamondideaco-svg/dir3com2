@@ -12,6 +12,7 @@ const serverOnlyTests = new Set([
   'dabra-dialogue-funding-config.test.ts',
   'dabra-first-profile-measurement.test.ts',
   'dabra-seven-provider-pilot.test.ts',
+  'dabra-limited-operation.test.ts',
   'dabra-agent-task-path.test.ts',
   'dabra-agent-provider-path.test.ts',
   'dabra-compatibility-runtime.test.ts',
