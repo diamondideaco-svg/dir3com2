@@ -192,3 +192,37 @@ export async function POST(request: NextRequest) {
   }
   return NextResponse.json({ ...response, understanding, understandingProvider }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
+
+/** CEO-only, read-only diagnostic; the existing POST dialogue path is unchanged. */
+export async function GET(request: NextRequest) {
+  try {
+    const [{ checkRuntimeCredentialBinding }, { internalAgentCredential },
+      { createSupabaseRequestClient, supabaseAdmin, getSupabaseAdminHostname }, { isCeoActor }] = await Promise.all([
+      import('@/lib/dabra/credential-binding'),
+      import('@/lib/ai2/runtime/agent-provider-dispatch'),
+      import('@/lib/supabase/server'),
+      import('@/lib/auth/team-access'),
+    ]);
+    return await checkRuntimeCredentialBinding(request, {
+      async authorize() {
+        const auth = await createSupabaseRequestClient(request);
+        return auth && await isCeoActor(auth.supabase, auth.user) ? auth.user.id : null;
+      },
+      async readBindings(signal) {
+        if (!supabaseAdmin) return { kind: 'error' };
+        const { data, error } = await supabaseAdmin.rpc('get_dabra_dialogue_funding_policy', {
+          p_subject_hash: null,
+        }).abortSignal(signal);
+        return error ? { kind: 'error' } : { kind: 'ok', data };
+      },
+      readCredential: internalAgentCredential,
+      runtime: () => ({ environment: process.env.VERCEL_ENV, sourceSha: process.env.VERCEL_GIT_COMMIT_SHA,
+        databaseHostname: getSupabaseAdminHostname() }),
+    });
+  } catch {
+    return Response.json({ status: 'ERROR' }, { status: 503, headers: {
+      'Cache-Control': 'private, no-store', 'Cross-Origin-Resource-Policy': 'same-origin',
+      'X-Content-Type-Options': 'nosniff', Vary: 'Cookie, Authorization',
+    } });
+  }
+}

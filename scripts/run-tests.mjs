@@ -10,6 +10,7 @@ const serverOnlyTests = new Set([
   'dabra-dialogue-funding-expiry.test.ts',
   'dabra-dialogue-funding-sql.test.ts',
   'dabra-dialogue-funding-config.test.ts',
+  'dabra-credential-binding.test.ts',
   'dabra-first-profile-measurement.test.ts',
   'dabra-seven-provider-pilot.test.ts',
   'dabra-limited-operation.test.ts',
@@ -33,6 +34,7 @@ const serverOnlyTests = new Set([
   'marketplace-truth-contract.test.ts',
 ]);
 const databaseTests = new Set([
+  'dabra-credential-binding-postgres.integration.test.ts',
   'dabra-continuity-postgres.integration.test.ts',
   'ceo-identity-postgres.integration.test.ts',
   'assignment-schema-postgres.integration.test.ts',

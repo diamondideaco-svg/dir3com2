@@ -32,14 +32,18 @@ export async function callInternalAgentProvider(provider: AgentProviderId, confi
 }
 
 
-export function internalAgentConfiguration(provider: AgentProviderId, approvedMeasurementModel?: string) {
-  if (approvedMeasurementModel !== undefined && !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(approvedMeasurementModel)) return null;
+export function internalAgentCredential(provider: AgentProviderId) {
   const keyNames: Record<AgentProviderId, string[]> = {
     openai: ['OPENAI_API_KEY'], gemini: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY'],
     anthropic: ['ANTHROPIC_API_KEY'], xai: ['XAI_API_KEY'], deepseek: ['DEEPSEEK_API_KEY'],
     qwen: ['QWEN_API_KEY', 'DASHSCOPE_API_KEY'], mistral: ['MISTRAL_API_KEY'],
   };
-  const apiKey = keyNames[provider].map(key => process.env[key]?.trim()).find(Boolean);
+  return keyNames[provider].map(key => process.env[key]?.trim()).find(Boolean);
+}
+
+export function internalAgentConfiguration(provider: AgentProviderId, approvedMeasurementModel?: string) {
+  if (approvedMeasurementModel !== undefined && !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(approvedMeasurementModel)) return null;
+  const apiKey = internalAgentCredential(provider);
   // A validated server-stored measurement plan may pin its model without mutating Production ENV.
   const model = approvedMeasurementModel || (provider === 'openai' ? process.env.DABRA_INTERNAL_AI_MODEL : undefined)?.trim()
     || process.env[`DABRA_${provider.toUpperCase()}_MODEL`]?.trim();
