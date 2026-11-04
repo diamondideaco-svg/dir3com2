@@ -34,8 +34,9 @@ test('Support footer order is component-scoped and desktop-only; no global body 
   assert.match(css, /\.shell\[data-large=true\] > main \{ zoom:1\.06; \}/);
 });
 
-test('Support still offers only its existing contact, privacy and terms links', () => {
+test('Support retains its existing links and the approved bilingual Customer cases destination', () => {
   const body = read('app/support/page.tsx');
-  assert.deepEqual([...body.matchAll(/href="([^"]+)"/g)].map(match => match[1]), ['/contact', '/privacy', '/terms']);
+  assert.deepEqual([...body.matchAll(/href="([^"]+)"/g)].map(match => match[1]), ['/support/cases', '/contact', '/privacy', '/terms']);
+  assert.ok(body.includes('قضايا الدعم الخاصة بي') && body.includes('My support cases'));
   assert.doesNotMatch(body, /<input|<form|<textarea/);
 });

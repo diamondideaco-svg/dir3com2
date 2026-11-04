@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import robots from '../app/robots';
 import { customerNavigationItems, partnerNavigationItems, protectedNavigationItems, publicSitemapPaths, routeCatalog, visibleProtectedNavigation } from '../lib/navigation/route-catalog';
 
 const root = process.cwd();
@@ -121,4 +122,14 @@ test('current-state notice operator is classified CEO-only without public or sha
   for (const items of [customerNavigationItems, partnerNavigationItems, protectedNavigationItems, visibleProtectedNavigation(true, []), visibleProtectedNavigation(false, ['admin:full'])]) {
     assert.equal(items.some((item) => item.href === operatorPath), false);
   }
+});
+
+test('Task217 Customer cases remain protected contextual content outside public indexing and shared navigation',()=>{
+ const casesPath='/support/cases',entries=routeCatalog.filter(entry=>entry.path===casesPath);
+ assert.equal(entries.length,1);
+ assert.deepEqual(entries[0],{path:casesPath,audience:'customer',protected:true,discoverability:'contextual',parent:'/support',indexable:false});
+ assert.equal(publicSitemapPaths.includes(casesPath),false);
+ for(const items of [customerNavigationItems,partnerNavigationItems,protectedNavigationItems])assert.equal(items.some(item=>item.href===casesPath),false);
+ const rules=robots().rules,all=Array.isArray(rules)?rules:[rules];
+ assert.ok(all.some(rule=>rule.userAgent==='*'&&[rule.disallow].flat().includes(casesPath)));
 });

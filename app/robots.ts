@@ -4,6 +4,7 @@ const protectedPrefixes = [
   '/admin/', '/partner-portal/', '/provider-portal/', '/my-account', '/my-bookings',
   '/my-documents', '/my-profile', '/my-wallet', '/my-requests', '/booking', '/dashboard',
   '/profile', '/login', '/register', '/login-success', '/auth/', '/api/',
+  '/support/cases',
 ];
 
 export default function robots(): MetadataRoute.Robots {

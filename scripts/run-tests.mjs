@@ -2,6 +2,7 @@ import { readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const serverOnlyTests = new Set([
+  'dabra-agent-capabilities.test.ts',
   'dabra-qualification-source-invariants.test.ts',
   'dabra-qualification-postgres.integration.test.ts',
   'dabra-platform-qualification.test.ts',
