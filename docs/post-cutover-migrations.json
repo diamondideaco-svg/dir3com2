@@ -169,7 +169,7 @@
   },
   {
     "path": "supabase/migrations/20261103205926_task217_durable_account_charge.sql",
-    "sha256": "6bc280ba926a79754569901c70fb61c0af999f6bdab5c0e127ea7a5f3c406435",
+    "sha256": "751cacce9d592c43112e4a6e285939b0b2b4864c660e887af61b0c17a1d7d539",
     "task": "#217",
     "production_apply_authorized": false
   }

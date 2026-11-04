@@ -116,7 +116,18 @@ test('durable actual PostgreSQL delta: standing authority, atomic public quote, 
     const aclSql="SELECT oid,proowner,proacl::text,prosecdef,proconfig FROM pg_proc WHERE oid=ANY(ARRAY['public.reserve_dabra_dialogue_attempt(uuid,uuid,text,text,uuid,jsonb,integer,integer,bigint,jsonb,bigint)'::regprocedure,'public.get_dabra_dialogue_funding_policy(text)'::regprocedure,'private.protect_dabra_dialogue_grant()'::regprocedure,'private.protect_dabra_pilot_admission()'::regprocedure]) ORDER BY oid";
     const tableAclSql="SELECT relname,relowner,relrowsecurity,relforcerowsecurity,relacl::text FROM pg_class WHERE relnamespace='private'::regnamespace AND relkind='r' ORDER BY relname";
     const beforeFunctions=(await client.query(aclSql)).rows,beforeTables=(await client.query(tableAclSql)).rows;
-    await client.query(readFileSync(new URL('../supabase/migrations/'+forward,import.meta.url),'utf8'));
+    const forwardSql=readFileSync(new URL('../supabase/migrations/'+forward,import.meta.url),'utf8');
+    await t.test('forward verifies the original multi-column counter CHECK and rejects a changed baseline before DDL',async()=>{
+      const predecessor=(await client.query("SELECT conname,regexp_replace(pg_get_constraintdef(oid),'[[:space:]()]','','g') AS definition FROM pg_constraint WHERE conrelid='private.dabra_dialogue_funding_grants'::regclass AND conname='dabra_dialogue_funding_grants_check' AND contype='c' AND convalidated")).rows;
+      assert.deepEqual(predecessor,[{conname:'dabra_dialogue_funding_grants_check',definition:'CHECKreserved_credit_micros>=0ANDreserved_credit_micros<=authorized_credit_micros'}]);
+      await client.query('ALTER TABLE private.dabra_dialogue_funding_grants RENAME CONSTRAINT dabra_dialogue_funding_grants_check TO task217_synthetic_counter_check');
+      try{await assert.rejects(client.query(forwardSql),/DIALOGUE_LIMITED_BASELINE_REQUIRED/);}
+      finally{
+        await client.query('ROLLBACK');
+        await client.query('ALTER TABLE private.dabra_dialogue_funding_grants RENAME CONSTRAINT task217_synthetic_counter_check TO dabra_dialogue_funding_grants_check');
+      }
+    });
+    await client.query(forwardSql);
     assert.deepEqual((await client.query(aclSql)).rows,beforeFunctions);assert.deepEqual((await client.query(tableAclSql)).rows,beforeTables);
     const grants=AGENT_PROVIDER_IDS.map(p=>syntheticGrant(p,Date.now()-1000)),allProfiles=grants.flatMap(g=>g.profiles);
     await client.query('UPDATE private.dabra_dialogue_funding_control SET enabled=true,subject_hashes=ARRAY[$1::text],profiles=$2::jsonb,max_attempt_cost_micros=1000000',[subject,JSON.stringify(allProfiles)]);

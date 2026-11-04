@@ -10,12 +10,16 @@ DO $baseline$ BEGIN
   OR to_regprocedure('private.protect_dabra_dialogue_grant()') IS NULL
   OR to_regprocedure('private.protect_dabra_pilot_admission()') IS NULL
   OR NOT EXISTS(SELECT 1 FROM pg_indexes WHERE schemaname='private' AND indexname='dabra_task217_grant_account_limited')
-  OR NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='private.dabra_dialogue_funding_grants'::regclass AND conname='dabra_dialogue_funding_grants_check1' AND pg_get_constraintdef(oid) LIKE '%limitedOperation%') THEN
+  OR NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='private.dabra_dialogue_funding_grants'::regclass AND conname='dabra_dialogue_funding_grants_check1' AND pg_get_constraintdef(oid) LIKE '%limitedOperation%')
+  -- The original two-column CHECK is table-named by PostgreSQL, not column-named.
+  OR NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='private.dabra_dialogue_funding_grants'::regclass
+    AND conname='dabra_dialogue_funding_grants_check' AND contype='c' AND convalidated
+    AND regexp_replace(pg_get_constraintdef(oid),'[[:space:]()]','','g')='CHECKreserved_credit_micros>=0ANDreserved_credit_micros<=authorized_credit_micros') THEN
   RAISE EXCEPTION 'DIALOGUE_LIMITED_BASELINE_REQUIRED'; END IF;
 END $baseline$;
 ALTER TABLE private.dabra_dialogue_funding_grants DROP CONSTRAINT dabra_dialogue_funding_grants_funding_mode_check;
 ALTER TABLE private.dabra_dialogue_funding_grants ADD CONSTRAINT dabra_dialogue_funding_grants_funding_mode_check CHECK(funding_mode IN('existing-credit','no-new-charge','bounded-account-charge'));
-ALTER TABLE private.dabra_dialogue_funding_grants DROP CONSTRAINT dabra_dialogue_funding_grants_reserved_credit_micros_check;
+ALTER TABLE private.dabra_dialogue_funding_grants DROP CONSTRAINT dabra_dialogue_funding_grants_check;
 ALTER TABLE private.dabra_dialogue_funding_grants ADD CONSTRAINT dabra_dialogue_funding_grants_reserved_credit_micros_check CHECK(
  reserved_credit_micros>=0 AND (CASE WHEN funding_mode='bounded-account-charge' THEN reserved_credit_micros<=1000000 ELSE reserved_credit_micros<=authorized_credit_micros END));
 ALTER TABLE private.dabra_dialogue_funding_grants DROP CONSTRAINT dabra_dialogue_funding_grants_check1;
