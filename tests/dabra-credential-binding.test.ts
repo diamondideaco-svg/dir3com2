@@ -225,7 +225,8 @@ test('credential binding: actual GET uses canonical CEO and existing null-subjec
   const rpcCalls: unknown[] = [], authCalls: unknown[] = [];
   const actualRoute = readFileSync(new URL('../app/api/ai2/chat/route.ts', import.meta.url), 'utf8');
   const post = actualRoute.replace(/\r\n/g, '\n').split('\n/** CEO-only, read-only diagnostic;')[0];
-  assert.equal(createHash('sha256').update(post).digest('hex'), 'bce517bf30b232ea268ecac4b6b7bd165178e1207d8a1bc70011066b6b347a6a');
+  // Freeze the POST prefix accepted on8069a925; the real read-only GET assertions below remain active.
+  assert.equal(createHash('sha256').update(post).digest('hex'), '45737fdfda452da319619d41af8ca56ed7f47ef555177de867c0d58859bd1a96');
   const loaded = compileModule('../app/api/ai2/chat/route.ts', id => {
     if (id === '@/lib/dabra/credential-binding') return credentialBindingModule;
     if (id === '@/lib/ai2/runtime/agent-provider-dispatch') return { internalAgentCredential: () => key };
