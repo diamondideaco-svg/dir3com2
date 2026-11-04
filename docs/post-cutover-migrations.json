@@ -175,7 +175,7 @@
   },
   {
     "path": "supabase/migrations/20261104130000_task217_customer_case_owner.sql",
-    "sha256": "a8bfce92f11fc0ef113a8d9be6160b43d99a16f7d1ab1542aee43ca4c221988b",
+    "sha256": "ebe1f94e64a0966d91fd3016deb8803b7b73872e77601c84b21d8d9108d66755",
     "task": "#217",
     "production_apply_authorized": false
   },

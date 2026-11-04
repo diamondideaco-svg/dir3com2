@@ -86,14 +86,28 @@ test('real disposable PG Customer cases: owner, atomic replay, orphan origin, au
    assert.deepEqual(await receive(a,anonKey),{kind:'conflict'});
   });
   await t.test('owner/origin immutable; deleting Auth parent preserves authenticated orphan and cannot enable anonymous replay',async()=>{
+   const authPrivileges=async()=>(await db.query(
+    "SELECT has_schema_privilege($1::name,'auth','USAGE') AS can_use_auth,has_table_privilege($1::name,'auth.users','SELECT') AS can_read_auth_users",
+    [serviceRole])).rows;
+   const noAuthAccess=[{can_use_auth:false,can_read_auth_users:false}];
+   assert.deepEqual(await authPrivileges(),noAuthAccess);
+   await assert.rejects(()=>service('SELECT 1 FROM auth.users LIMIT 1'),{code:'42501'});
    await assert.rejects(()=>service('UPDATE public.contact_enquiries SET owner_user_id=$2 WHERE id=$1',[caseA.reference,b]),{code:'23514'});
    await assert.rejects(()=>service("UPDATE public.contact_enquiries SET intake_origin='anonymous',owner_user_id=NULL WHERE id=$1",[caseA.reference]),{code:'23514'});
-   await assert.rejects(()=>service("UPDATE public.contact_enquiries SET intake_origin='authenticated',owner_user_id=$2 WHERE id=$1",[legacy.reference,b]));
+   await assert.rejects(()=>service("UPDATE public.contact_enquiries SET intake_origin='authenticated',owner_user_id=$2 WHERE id=$1",[legacy.reference,b]),{code:'23514'});
+   // A restricted direct clear must fail closed, not gain Auth access.
+   await assert.rejects(()=>service('UPDATE public.contact_enquiries SET owner_user_id=NULL WHERE id=$1',[caseA.reference]),{code:'23514'});
+   // A privileged lookup must still reject a clear while the parent exists.
+   await assert.rejects(()=>db.query('UPDATE public.contact_enquiries SET owner_user_id=NULL WHERE id=$1',[caseA.reference]),{code:'23514'});
+   assert.deepEqual((await db.query('SELECT intake_origin,owner_user_id FROM public.contact_enquiries WHERE id=$1',[caseA.reference])).rows,
+    [{intake_origin:'authenticated',owner_user_id:a}]);
+
    await db.query('DELETE FROM auth.users WHERE id=$1',[a]);
    assert.deepEqual((await db.query('SELECT intake_origin,owner_user_id FROM public.contact_enquiries WHERE id=$1',[caseA.reference])).rows,
     [{intake_origin:'authenticated',owner_user_id:null}]);
    const hash=(await db.query('SELECT fingerprint FROM public.contact_enquiries WHERE id=$1',[caseA.reference])).rows[0].fingerprint;
    assert.deepEqual(await anonymous(keyA,hash),{kind:'conflict'});assert.equal((await read(a))?.cases.length,0);
+   assert.deepEqual(await authPrivileges(),noAuthAccess);
   });
   await t.test('current profile/grant/country are checked inside staff write; retries do not append duplicate events',async()=>{
    await assert.rejects(()=>receive(inactive,randomUUID()),{code:'42501'});

@@ -26,13 +26,22 @@ BEGIN
     END IF;
   ELSIF NEW.intake_origin IS DISTINCT FROM OLD.intake_origin
      OR NEW.owner_user_id IS DISTINCT FROM OLD.owner_user_id THEN
-    -- The parent deletion's FK SET NULL is allowed; its stable origin survives.
-    -- A direct reassignment, anonymous conversion or claim of legacy data is not.
-    IF NEW.intake_origin=OLD.intake_origin AND OLD.intake_origin='authenticated'
-       AND OLD.owner_user_id IS NOT NULL AND NEW.owner_user_id IS NULL
-       AND NOT EXISTS(SELECT 1 FROM auth.users u WHERE u.id=OLD.owner_user_id) THEN
-      RETURN NEW;
+    -- Reject structural changes before preparing any Auth lookup.
+    IF NEW.intake_origin IS DISTINCT FROM OLD.intake_origin
+       OR OLD.intake_origin IS DISTINCT FROM 'authenticated'
+       OR OLD.owner_user_id IS NULL OR NEW.owner_user_id IS NOT NULL THEN
+      RAISE EXCEPTION 'CONTACT_OWNERSHIP_IMMUTABLE' USING ERRCODE='23514';
     END IF;
+    -- Only a stable authenticated origin and an owned -> NULL transition
+    -- can be the parent's FK SET NULL. Absence still has to be verified.
+    BEGIN
+      IF NOT EXISTS(SELECT 1 FROM auth.users u WHERE u.id=OLD.owner_user_id) THEN
+        RETURN NEW;
+      END IF;
+    EXCEPTION WHEN insufficient_privilege THEN
+      -- Inability to verify never authorizes a direct ownership change.
+      RAISE EXCEPTION 'CONTACT_OWNERSHIP_IMMUTABLE' USING ERRCODE='23514';
+    END;
     RAISE EXCEPTION 'CONTACT_OWNERSHIP_IMMUTABLE' USING ERRCODE='23514';
   END IF;
   RETURN NEW;
