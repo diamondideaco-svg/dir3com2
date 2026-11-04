@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { classifierPrompt } from '../lib/dabra/agent-planner';
 import { FIRST_PROFILE_CASE_SET_SHA } from '../lib/dabra/agent-measurement';
-import { AGENT_DIALOGUE_PROMPT } from '../lib/dabra/agent-platform-units';
+import { AGENT_DIALOGUE_PROMPT, composePublicAgentDialogue } from '../lib/dabra/agent-platform-units';
 import { canonicalOutputContract, requestOutputContract, profileOutputAccepted, OUTPUT_PARSER_SHA256S,
  CLASSIFIER_PROMPT_SHA256, LEGACY_FIRST_PROFILE_CASE_SET_SHA256, APPROVED_PROFILE_OUTPUT_ACCEPTANCES } from '../lib/dabra/agent-output-contract';
 import { PLATFORM_UNITS_QUALIFICATION_CASES } from '../lib/dabra/agent-qualification-cases';
@@ -62,4 +62,31 @@ test('unknown output binding blocks before quota reservation while valid synthet
  assert.ok(await prepareAgentProviderAttempt(context,'en',accepted,request,now+10000));assert.equal(claims,1);
  assert.equal(requestOutputContract('discover','en','unknown',request.message),null);
  assert.equal(requestOutputContract('discover','en',AGENT_DIALOGUE_PROMPT,JSON.stringify({language:'en',units:['a'],authority:'approve'})),null);
+});
+
+test('T217-QUAL-F1 rejects non-string openings and preserves valid AR/EN unit composition',()=>{
+ for(const fixed of PLATFORM_UNITS_QUALIFICATION_CASES){
+  const paragraphs=fixed.units.map((_,index)=>[index]);
+  for(const opening of [undefined,null,false,true,0,1,{}, {toString:'none'},[],['none'],['understood'],['ready'],['none','ready']]){
+   assert.equal(composePublicAgentDialogue(JSON.stringify({opening,paragraphs}),fixed.units,fixed.language),null,
+    fixed.caseId+': '+JSON.stringify(opening));
+  }
+  for(const opening of ['none','understood','ready']){
+   const answer=composePublicAgentDialogue(JSON.stringify({opening,paragraphs}),fixed.units,fixed.language);
+   assert.ok(answer);for(const unit of fixed.units)assert.ok(answer.includes(unit));
+   if(opening==='none')assert.equal(answer,fixed.units.join('\n\n'));
+  }
+ }
+});
+
+test('T217-QUAL-F1 old platform parser receipts cannot qualify the corrected contract',()=>{
+ const oldDigests={ar:'10470564f364f3170520d8f465533edfc2d6b78b44b5be7a58e9036bce92576a',
+  en:'3d81f78d0b3946c4b7364c4747a08fa38ae919c4c9d7bd80d2970f29ee0df452'} as const;
+ for(const language of ['ar','en'] as const){
+  const base=profile(),p={...base,measurement:{...base.measurement,language}};
+  const contract=canonicalOutputContract('platform-units-v1',language),accepted=syntheticOutputAcceptances([p],now);
+  assert.equal(profileOutputAccepted(p,contract,accepted,now),true);
+  assert.notEqual(contract.digest,oldDigests[language]);
+  assert.equal(profileOutputAccepted(p,contract,[{...accepted[0],contractSha256:oldDigests[language]}],now),false);
+ }
 });

@@ -181,7 +181,7 @@
   },
   {
     "path": "supabase/migrations/20261104133500_task217_output_contract_acceptance.sql",
-    "sha256": "a3f11a0b592f78218edcf07ba12986e39bf828f308ac27378494eef105a2e206",
+    "sha256": "f20aab074f0c1f6f5e4df86160ef283fdcb07e43780d2112f87b403b4cbdd979",
     "task": "#217",
     "production_apply_authorized": false
   },

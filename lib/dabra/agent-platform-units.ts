@@ -5,7 +5,7 @@ export function composePublicAgentDialogue(answer: string, units: readonly strin
   try { value = JSON.parse(answer); } catch { return null; }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const obj = value as Record<string, unknown>;
-  if (Object.keys(obj).length !== 2 || !['none', 'understood', 'ready'].includes(String(obj.opening)) || !Array.isArray(obj.paragraphs)
+  if (Object.keys(obj).length !== 2 || typeof obj.opening !== 'string' || !['none', 'understood', 'ready'].includes(obj.opening) || !Array.isArray(obj.paragraphs)
     || !obj.paragraphs.length || obj.paragraphs.some(row => !Array.isArray(row) || !row.length)) return null;
   const indices: unknown[] = obj.paragraphs.flat();
   if (indices.length !== units.length || indices.some((n, index) => n !== index)) return null;

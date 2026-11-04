@@ -13,7 +13,7 @@ export const LEGACY_FIRST_PROFILE_CASE_SET_SHA256 = '65555baf2b237b05b2cb40e4625
 export const CLASSIFIER_PROMPT_SHA256 = 'a948945b3f927f6408fd501ed6edc50dc4d6f918a81d81cfbb2e554b0cb749e8';
 // Guarded against the actual parser sources by delta tests. Changes need a new
 // canonical contract and genuine semantic acceptance, never an alias of old data.
-export const OUTPUT_PARSER_SHA256S = {"intent-tool-v1":"12e6db3443ea2896414844de135c068562ea7a43d50a93719e80679b7a70448b","general-travel-v1":"99a2c0d437fa0c81affb0891328854e801020a96b9ffcc72a11fd9636131ed6a","platform-units-v1":"50e3ee7d22f2034c8a380dcd6e23f127f2c17580fecc1f67c3f47a18bdc7b68d"} as const;
+export const OUTPUT_PARSER_SHA256S = {"intent-tool-v1":"12e6db3443ea2896414844de135c068562ea7a43d50a93719e80679b7a70448b","general-travel-v1":"99a2c0d437fa0c81affb0891328854e801020a96b9ffcc72a11fd9636131ed6a","platform-units-v1":"77ddbc414839a06c058f9e03b34f93939ba5d4005c8f5d4100b816d0c094bc87"} as const;
 export function canonicalOutputContract(id: AgentOutputContractId, language: 'ar' | 'en') {
  const capability = id === 'intent-tool-v1' ? 'intent.classify' : 'discover';
  const caseSetSha = id === 'platform-units-v1' ? PLATFORM_UNITS_CASE_SET_SHA256 : LEGACY_FIRST_PROFILE_CASE_SET_SHA256;

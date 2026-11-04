@@ -611,3 +611,16 @@ for(const invalid of ['unsourced-advice','missing-core-question','extra-instruct
   assert.equal(body.provider,'local');assert.equal(body.answer,core.answer);assert.deepEqual(body.sources,core.sources);
   assert.equal(remoteCalls,1);assert.equal(store.reservations.length,1);assert.equal(body.agent.mutations,0);
 });
+
+for(const locale of ['ar','en'] as const)test('T217-QUAL-F1 actual handler preserves Core for array opening '+locale,async()=>{
+ const store=new SyntheticAdmission(),p=policy('openai',locale,store);
+ const noRemote={...p,profiles:[],freeProofs:[],admission:undefined};
+ const core=await(await post(noRemote,locale)).json();
+ globalThis.fetch=async(url,init)=>{
+  remoteCalls++;const {data}=requestData(init);
+  return responseFor(String(url),JSON.stringify({opening:['none'],paragraphs:data.units.map((_:string,i:number)=>[i])}));
+ };
+ const body=await(await post(p,locale)).json();
+ assert.equal(body.provider,'local');assert.equal(body.answer,core.answer);assert.deepEqual(body.sources,core.sources);
+ assert.equal(remoteCalls,1);assert.equal(store.reservations.length,1);assert.equal(body.agent.mutations,0);
+});

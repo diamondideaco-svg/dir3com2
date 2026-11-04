@@ -40,7 +40,7 @@ function proofFor(provider:AgentProviderId='openai',languages:readonly ('ar'|'en
    dataScope:'canonical-synthetic-measurement',maxCostMicros:1000000,maxAttempts:28,authorizedAtMs:clock-1,contractSha256:pricing.digest,permit:q,bindingSha256:'0'.repeat(64)}};
  return {...unbound,limitedOperation:{...unbound.limitedOperation,bindingSha256:qualificationAuthorityBindingSha256(unbound)}};
 }
-type Fault='none'|'lost-claim'|'expired-receipt'|'credential'|'source'|'revoked'|'cancel'|'invalid-output'|'unknown-provider'|'bad-pricing';
+type Fault='none'|'lost-claim'|'expired-receipt'|'credential'|'source'|'revoked'|'cancel'|'invalid-output'|'unknown-provider'|'bad-pricing'|'non-string-opening';
 function fixture(languages:readonly ('ar'|'en')[]=['ar','en'],fault:Fault='none') {
  const proof=proofFor('openai',languages),controller=new AbortController();
  let claims=0,queries=0,dispatches=0,publicReads=0,held=61719,currentSource=sourceSha;
@@ -75,7 +75,7 @@ function fixture(languages:readonly ('ar'|'en')[]=['ar','en'],fault:Fault='none'
   assert.equal(body.max_completion_tokens,1024);assert.equal(body.reasoning_effort,'none');
   const input=JSON.parse(body.messages.at(-1).content);
   assert.deepEqual(Object.keys(input).sort(),['language','units']);assert.match(input.units[0],/SYNTHETIC|اصطناعية/);
-  const answer=fault==='invalid-output'?JSON.stringify({opening:'none',paragraphs:[[0]],price:0}):JSON.stringify({opening:'none',paragraphs:input.units.map((_:unknown,i:number)=>[i])});
+  const answer=fault==='invalid-output'?JSON.stringify({opening:'none',paragraphs:[[0]],price:0}):JSON.stringify({opening:fault==='non-string-opening'?['none']:'none',paragraphs:input.units.map((_:unknown,i:number)=>[i])});
   if(fault==='unknown-provider')throw Error('SYNTHETIC_UNKNOWN');
   return Response.json({model:proof.model,choices:[{message:{content:answer}}],usage:{prompt_tokens:32,completion_tokens:24,completion_tokens_details:{reasoning_tokens:0}}});
  };
@@ -132,4 +132,14 @@ test('a plan ID or client-shaped JSON cannot replace stored purpose/subject/sour
  const data={schema:'task217-stored-qualification-plan-v1',proof:{...f.proof,prompt:'override'},dailyLimits:daily,maxCostMicros:1000000};
  assert.equal(await loadFundingQualification(subject,f.proof.limitedOperation.permit.planId,sourceSha,f.controller.signal,async()=>({data,error:null})),null);
  assert.equal(f.counts().claims,0);assert.equal(f.counts().dispatches,0);
+});
+
+for(const language of ['ar','en'] as const)test('T217-QUAL-F1 actual qualification rejects array opening '+language,async()=>{
+ const f=fixture([language],'non-string-opening'),result=await f.run();
+ assert.equal(result.kind,'stopped');assert.equal(result.qualified,false);assert.equal(result.semanticReview,'required');
+ assert.equal(result.observations.length,1);assert.equal(result.observations[0].caseId,'platform-'+language+'-initial');
+ assert.equal(result.observations[0].transportOk,true);assert.equal(result.observations[0].schemaValid,false);
+ assert.equal(result.observations[0].answer,'');
+ assert.equal(f.counts().dispatches,1);assert.equal(f.counts().claims,1);
+ assert.ok(f.counts().held>61719,'invalid output retains its reservation and stops before the follow-up');
 });
