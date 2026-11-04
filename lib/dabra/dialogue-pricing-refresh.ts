@@ -4,6 +4,8 @@ import { APPROVED_DIALOGUE_STANDARD_PRICING } from './dialogue-pricing-approvals
 import type { AgentProviderId } from './agent-capabilities';
 import type { DurableAccountChargeProof } from './dialogue-durable-authority';
 
+export type PublicPricingAuthority = Pick<DurableAccountChargeProof, 'provider' | 'model' | 'pricingEvidenceSha256'> & Readonly<{ limitedOperation: Readonly<{ contractSha256: string }> }>;
+
 const TTL_MS = 900000, MAX_BYTES = 2097152, FETCH_MS = 3000;
 type Source = Readonly<{ model: string; url: string; pricing: string; fragment: string; format: 'markdown' | 'html' | 'gemini'; region: string; tariffBeforeMs: number | null }>;
 /** A URL, parser meaning or rate change requires a new reviewed contract digest.
@@ -105,7 +107,7 @@ export function approvedPublicPricingContract(provider: AgentProviderId, model: 
     'standard','USD',1000000,s.region,4096,1024,'text-only;no-tools;no-search;no-cache-write;nonbatch;no-premium',
     'all-generated-including-thinking',s.tariffBeforeMs]));
   return Object.freeze({ digest: contract, inputMicrosPerMillion: rate.inputMicrosPerMillion,
-    outputMicrosPerMillion: rate.outputMicrosPerMillion });
+    outputMicrosPerMillion: rate.outputMicrosPerMillion, tariffBeforeMs: s.tariffBeforeMs });
 }
 
 export type PublicPricingObservation = Readonly<{
@@ -118,7 +120,7 @@ const issued = new WeakSet<PublicPricingObservation>();
 const cache = new Map<string, PublicPricingObservation>();
 const pending = new Map<string, Promise<PublicPricingObservation | null>>();
 
-export function publicPricingObservationCurrent(value: PublicPricingObservation, proof: DurableAccountChargeProof, now: number) {
+export function publicPricingObservationCurrent(value: PublicPricingObservation, proof: PublicPricingAuthority, now: number) {
   const contract = approvedPublicPricingContract(proof.provider, proof.model, proof.pricingEvidenceSha256);
   return issued.has(value) && contract !== null && Number.isSafeInteger(now) && now >= value.observedAtMs && now < value.expiresAtMs
     && value.expiresAtMs - value.observedAtMs <= TTL_MS && value.approvedContractDigest === contract.digest
@@ -129,7 +131,7 @@ export function publicPricingObservationCurrent(value: PublicPricingObservation,
 
 /** The only observation constructor performs the actual allowlisted public GET.
  * Cache hits retain the original observation time. No raw body/Response is cached. */
-export async function refreshPublicDialoguePricing(proof: DurableAccountChargeProof, signal: AbortSignal): Promise<PublicPricingObservation | null> {
+export async function refreshPublicDialoguePricing(proof: PublicPricingAuthority, signal: AbortSignal): Promise<PublicPricingObservation | null> {
   const contract = approvedPublicPricingContract(proof.provider, proof.model, proof.pricingEvidenceSha256), s = sources[proof.provider];
   if (signal.aborted || !contract || contract.digest !== proof.limitedOperation.contractSha256) return null;
   const before = Date.now();

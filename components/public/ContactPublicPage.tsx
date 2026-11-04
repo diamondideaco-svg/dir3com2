@@ -1,40 +1,44 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { ContentContainer, SectionContainer } from '@/components/design-system';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PublicHero from '@/components/public/PublicHero';
 const empty = { name: '', email: '', phone: '', subject: '', message: '', country: '' };
-export default function ContactPublicPage() {
+export default function ContactPublicPage({ customerCase = false, onSaved }: { customerCase?: boolean; onSaved?: () => void } = {}) {
   const { language } = useLanguage(); const ar = language === 'ar';
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ reference?: string; error?: string } | null>(null);
   const attempt = useRef<{ payload: string; key: string } | null>(null);
   const submitting = useRef(false);
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => { request.current?.abort(); }, []);
   const copy = (arabic: string, english: string) => ar ? arabic : english;
   const update = (key: keyof typeof empty, value: string) => setForm(previous => ({ ...previous, [key]: value }));
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (submitting.current) return;
     submitting.current = true; setBusy(true); setResult(null);
+    const controller = new AbortController(); request.current = controller;
     try {
       const payload = JSON.stringify(form);
       if (attempt.current?.payload !== payload) attempt.current = { payload, key: crypto.randomUUID() };
-      const response = await fetch('/api/contact', { method: 'POST', headers: {
+      const response = await fetch(customerCase ? '/api/support/cases' : '/api/contact', { method: 'POST', credentials: 'same-origin', signal: controller.signal, headers: {
         'Content-Type': 'application/json', 'Idempotency-Key': attempt.current.key,
       }, body: payload });
       const body = await response.json();
+      if (controller.signal.aborted) return;
       if (!response.ok || body.status !== 'received' || typeof body.reference !== 'string') {
         setResult({ error: body.code || 'CONTACT_DELIVERY_UNAVAILABLE' }); return;
       }
-      setResult({ reference: body.reference }); setForm(empty); attempt.current = null;
-    } catch { setResult({ error: 'CONTACT_DELIVERY_UNAVAILABLE' }); }
-    finally { submitting.current = false; setBusy(false); }
+      setResult({ reference: body.reference }); setForm(empty); attempt.current = null; onSaved?.();
+    } catch { if (!controller.signal.aborted) setResult({ error: 'CONTACT_DELIVERY_UNAVAILABLE' }); }
+    finally { if (!controller.signal.aborted) { submitting.current = false; setBusy(false); } }
   }
   const fieldClass = 'mt-2 block w-full min-w-0 rounded-xl border border-slate-300 bg-white p-3 text-slate-900';
   return <div className="page-stack-shell" dir={ar ? 'rtl' : 'ltr'}>
-    <PublicHero eyebrow="CONTACT DIR3COM" title={copy('تواصل معنا', 'Contact us')}
+    <PublicHero eyebrow="CONTACT DIR3COM" title={customerCase ? copy('قضية دعم جديدة', 'New support case') : copy('تواصل معنا', 'Contact us')}
       description={copy('أرسل استفسارك إلى فريق العمليات واحتفظ برقم الاستلام.', 'Send your enquiry to Operations and keep your receipt reference.')}
       highlight="" chips={['dir3com.com']} />
     <SectionContainer className="py-8"><ContentContainer className="max-w-3xl">

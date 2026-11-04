@@ -8,7 +8,7 @@ import ts from 'typescript';
 import { NextRequest, NextResponse } from 'next/server';
 import { INTERNAL_AGENT_PROVIDERS, planInternalAgentTool } from '../lib/dabra/agent-planner';
 import { callOpenAICompatibleProvider } from '../lib/ai2/runtime/openai-compatible';
-import type { AgentContext } from '../lib/dabra/agent-contract';
+import { CLASSIFIABLE_AGENT_TOOLS, type AgentContext } from '../lib/dabra/agent-contract';
 import { createDabraProviderAttemptAfterResponseScheduler, setDabraProviderAttemptWriterForTests, type DabraProviderAttemptRecord } from '../lib/ai2/observability/provider-attempts';
 
 // Execute the production POST module; only the authenticated actor boundary and
@@ -63,6 +63,8 @@ for (const provider of INTERNAL_AGENT_PROVIDERS) test(`${provider}: actual DABRA
       assert.equal(payload.response_format.type, 'json_schema');
       assert.equal(payload.response_format.json_schema.strict, true);
       assert.equal(payload.response_format.json_schema.schema.additionalProperties, false);
+      assert.deepEqual(payload.response_format.json_schema.schema.properties.tool.enum,[...CLASSIFIABLE_AGENT_TOOLS]);
+      assert.equal(payload.response_format.json_schema.schema.properties.tool.enum.includes('support_cases'),false);
       assert.deepEqual(payload.response_format.json_schema.schema.required, ['tool']);
     } else assert.equal(payload.response_format, undefined);
     assert.ok(init?.signal);

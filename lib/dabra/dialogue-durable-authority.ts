@@ -44,7 +44,7 @@ const id = (v: unknown): v is string => typeof v === 'string' && /^[a-zA-Z0-9:_-
 const member = (value: unknown, values: readonly string[]): value is string => typeof value === 'string' && values.includes(value);
 const hash = (tuple: unknown) => createHash('sha256').update(JSON.stringify(tuple)).digest('hex');
 
-function validTerms(v: unknown): v is DurableAccountChargeProof['accountTerms'] {
+export function validDurableAccountTerms(v: unknown): v is DurableAccountChargeProof['accountTerms'] {
   if (!object(v) || !keys(v, ['schema','observedAtMs','evidenceSha256','validity','risks','fundingChargeProtection','allInChargeBound'])
     || v.schema !== 'task217-account-charge-terms-v1' || !count(v.observedAtMs) || !digest(v.evidenceSha256)
     || v.validity !== 'until-contract-change') return false;
@@ -104,7 +104,7 @@ export function validDurableAccountChargeProof(v: unknown, now: number): v is Du
     || typeof v.model !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,99}$/.test(v.model)
     || v.environment !== 'provider-benchmark' || !id(v.accountId) || !id(v.projectId)
     || !digest(v.credentialSha256) || !digest(v.evidenceSha256) || v.currency !== 'USD' || v.serviceTier !== 'standard'
-    || !digest(v.pricingEvidenceSha256) || !validTerms(v.accountTerms) || !validAuthority(v.limitedOperation)
+    || !digest(v.pricingEvidenceSha256) || !validDurableAccountTerms(v.accountTerms) || !validAuthority(v.limitedOperation)
     || v.accountTerms.observedAtMs > v.limitedOperation.authorizedAtMs || v.limitedOperation.authorizedAtMs > now) return false;
   // Build a checked value rather than casting untrusted JSON into an authority.
   const p: DurableAccountChargeProof = {

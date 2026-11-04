@@ -172,5 +172,23 @@
     "sha256": "751cacce9d592c43112e4a6e285939b0b2b4864c660e887af61b0c17a1d7d539",
     "task": "#217",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261104130000_task217_customer_case_owner.sql",
+    "sha256": "a8bfce92f11fc0ef113a8d9be6160b43d99a16f7d1ab1542aee43ca4c221988b",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261104133500_task217_output_contract_acceptance.sql",
+    "sha256": "a3f11a0b592f78218edcf07ba12986e39bf828f308ac27378494eef105a2e206",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261104134000_task217_qualification_bootstrap.sql",
+    "sha256": "81a5e294f1f298fa10c9ee27005de42f430d63d4bf61f308f38200a80aa316d2",
+    "task": "#217",
+    "production_apply_authorized": false
   }
 ]

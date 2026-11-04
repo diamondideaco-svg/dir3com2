@@ -159,7 +159,10 @@ export async function POST(request: NextRequest) {
   let needsClarification = false;
   // Only authenticated ambiguity uses the optional classifier. It cannot read
   // records, grant roles or generate customer-facing facts/actions.
-  if (inferenceEnabled && agentContext.role !== 'guest' && intent.tool === 'discover' && !platformFamilies(message).length
+  const classifierActor = agentContext.taskAuthority;
+  const publicCustomer = agentContext.role === 'customer' && classifierActor?.kind === 'customer'
+    && classifierActor.actorId === classifierActor.ownerId && !!agentContext.isTaskAuthorityCurrent;
+  if (inferenceEnabled && publicCustomer && intent.tool === 'discover' && !platformFamilies(message).length
     && !hasActivePlatformDriveDialogue({ message: modelMessage, history, context, trip })) {
     const { planInternalAgentTool } = await import('@/lib/dabra/agent-planner');
     const { createDabraProviderAttemptAfterResponseScheduler } = await import('@/lib/ai2/observability/provider-attempts');
@@ -180,7 +183,7 @@ export async function POST(request: NextRequest) {
   const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
   const snapshot = needsRates ? await getCurrencySnapshot() : null;
   const taskResult = await runInternalAgentTask({ message: modelMessage, history, locale, context: agentContext, intent, needsClarification,
-    pricing: currency ? { currency, snapshot } : undefined, trip }, { signal: request.signal, dialogue: dialoguePolicy });
+    pricing: currency ? { currency, snapshot } : undefined, trip }, { signal: request.signal, dialogue: dialoguePolicy, responseContract: 'platform-units' });
   if (taskResult.kind === 'stopped') return NextResponse.json({ error: DABRA_LOCALE_ERROR[locale] }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
   const response = taskResult.response;
   if (body?.stream === true) {

@@ -10,7 +10,7 @@ import ts from 'typescript';
 import { AGENT_PROVIDER_IDS, APPROVED_AGENT_CAPABILITY_PROFILES, type AgentProviderId } from '../lib/dabra/agent-capabilities';
 import { prepareAgentProviderAttempt, PUBLIC_DIALOGUE_DAILY_LIMITS } from '../lib/dabra/agent-dialogue';
 import { callInternalAgentProvider } from '../lib/ai2/runtime/agent-provider-dispatch';
-import { firstProfileMeasurementMain, main, measurementSourceSha } from '../scripts/dabra-provider-certification';
+import { firstProfileMeasurementMain, platformUnitsQualificationMain, main, measurementSourceSha } from '../scripts/dabra-provider-certification';
 import type { ApprovedFirstProfilePlan, MeasurementDependencies } from '../lib/dabra/agent-measurement';
 import type { FundingRpc } from '../lib/dabra/dialogue-funding-store';
 
@@ -228,7 +228,12 @@ test('permit and financial quote do not bypass the ordinary qualified-profile gu
   assert.equal(result, null); assert.equal(f.counts().reservations, 0);
 });
 test('reserved measurement namespace never falls into the legacy live matrix on error', async () => {
-  for (const argv of [['--measure-first-profile','--live'], ['--measure-first-profile=malformed','--live'], ['--measurement','--provider=all']]) {
+  for (const argv of [
+    ['--measure-first-profile','--live'], ['--measure-first-profile=malformed','--live'], ['--measurement','--provider=all'],
+    ['--measure-platform-units','--live'], ['--measure-platform-units','--measure-first-profile'],
+    ['--measure-platform-units','--measure-platform-units'], ['--measure-platform-units=malformed','--live'],
+    ['--measure-platform-units','--provider=all'], ['--measure-platform-unit','--live'],
+  ]) {
     await assert.rejects(() => main(argv), /unsupported_measurement_argument/);
   }
   const previous = process.env.DABRA_DIALOGUE_FUNDING_POLICY;
@@ -236,6 +241,35 @@ test('reserved measurement namespace never falls into the legacy live matrix on 
   try { await assert.rejects(() => firstProfileMeasurementMain(['--measure-first-profile']), /measurement_not_authorized/); }
   finally { if (previous === undefined) delete process.env.DABRA_DIALOGUE_FUNDING_POLICY; else process.env.DABRA_DIALOGUE_FUNDING_POLICY = previous; }
 });
+test('platform-units CLI requires existing policy and stored subject/plan before any transport', async () => {
+  const names = ['DABRA_DIALOGUE_FUNDING_POLICY','DABRA_MEASUREMENT_SUBJECT','DABRA_MEASUREMENT_PLAN_ID'] as const;
+  const previous = names.map(name => process.env[name]);
+  const originalFetch = globalThis.fetch;
+  let transportReads = 0;
+  globalThis.fetch = async () => { transportReads++; throw Error('UNEXPECTED_TRANSPORT'); };
+  try {
+    const configurations: ReadonlyArray<readonly (string | undefined)[]> = [
+      [undefined, 'SYNTHETIC-subject', '11111111-1111-4111-8111-111111111111'],
+      ['unsupported-policy', 'SYNTHETIC-subject', '11111111-1111-4111-8111-111111111111'],
+      ['task217-existing-credit-v2', undefined, '11111111-1111-4111-8111-111111111111'],
+      ['task217-existing-credit-v2', 'SYNTHETIC-subject', undefined],
+    ];
+    for (const values of configurations) {
+      names.forEach((name, index) => {
+        if (values[index] === undefined) delete process.env[name]; else process.env[name] = values[index];
+      });
+      await assert.rejects(() => main(['--measure-platform-units']), /measurement_not_authorized/);
+      await assert.rejects(() => platformUnitsQualificationMain(['--measure-platform-units']), /measurement_not_authorized/);
+    }
+    assert.equal(transportReads, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    names.forEach((name, index) => {
+      if (previous[index] === undefined) delete process.env[name]; else process.env[name] = previous[index];
+    });
+  }
+});
+
 test('existing seven single-attempt transports stay bound to exact model, output and no-search controls', async () => {
   const original = globalThis.fetch;
   try {

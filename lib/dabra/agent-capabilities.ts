@@ -45,15 +45,19 @@ export function selectQualifiedAgentCapability(
     capability: AgentCapability; language: 'ar' | 'en';
     environment: CapabilityMeasurement['environment']; nowMs: number; limits: AgentTaskLimits;
     acceptExpiredMeasurement?: (profile: AgentCapabilityProfile) => boolean;
+    isEligibleForTask?: (profile: AgentCapabilityProfile) => boolean;
   },
 ): CapabilitySelection {
   const measured = profiles.filter(profile => qualified(profile, request));
   if (!measured.length) return { kind: 'blocked', reason: 'unqualified' };
-  const eligible = measured.filter(({ measurement: m }) =>
-    m.latencyMs <= request.limits.maxElapsedMs
+  const eligible = measured.filter(profile => {
+    const m = profile.measurement;
+    return m.latencyMs <= request.limits.maxElapsedMs
     && m.inputTokenCeiling <= request.limits.maxInputTokens
     && m.outputTokenCeiling <= request.limits.maxOutputTokens
-    && m.costCeilingUsd <= request.limits.maxCostUsd);
+    && m.costCeilingUsd <= request.limits.maxCostUsd
+    && (request.isEligibleForTask?.(profile) ?? true);
+  });
   eligible.sort((a, b) => a.measurement.latencyMs - b.measurement.latencyMs
     || a.measurement.costCeilingUsd - b.measurement.costCeilingUsd || a.provider.localeCompare(b.provider));
   const chosen = eligible[0];

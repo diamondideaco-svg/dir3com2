@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { runInternalAgent } from './agent';
 import { parseGeneralTravelAdvice } from './agent-general-travel';
 import { callInternalAgentProvider, internalAgentConfiguration } from '../ai2/runtime/agent-provider-dispatch';
-import { preparePublicAgentDialogue, composePublicAgentDialogue, DEFAULT_AGENT_DIALOGUE_POLICY, type AgentDialoguePolicy } from './agent-dialogue';
+import { preparePublicAgentDialogue, composePublicAgentDialogue, DEFAULT_AGENT_DIALOGUE_POLICY, type AgentDialoguePolicy, type AgentDialogueResponseContract } from './agent-dialogue';
 import { selectQualifiedAgentCapability, type AgentCapabilityProfile, type CapabilityMeasurement, type QualifiedAgentDestination, type AgentProviderId } from './agent-capabilities';
 import { AGENT_TOOLS, agentIntent, type AgentIntent, type AgentTaskScope, agentProductRole, type AgentTaskSpec, type AgentTaskAuthority, type AgentTaskState,
   type AgentTaskBlockReason, type AgentTaskEvidence, type AgentTaskConsumption, type AgentTaskAccounting } from './agent-contract';
@@ -36,17 +36,22 @@ function validSpec(s: AgentTaskSpec, now: number) {
 }
 function allowed(s: AgentTaskSpec, actor: AgentTaskAuthority) {
   if (s.productRole === 'ceo' && (actor.kind !== 'operator' || actor.role !== 'ceo')) return false;
+  if (s.scope.kind === 'executive') {
+    return s.capability === 'executive_metrics' && s.productRole === 'ceo' && actor.kind === 'operator'
+      && actor.role === 'ceo' && /^[a-zA-Z0-9_-]{1,128}$/.test(actor.actorId)
+      && s.scope.actorId === actor.actorId && s.scope.authority === 'verified-ceo';
+  }
   if (s.scope.kind === 'public') {
-    return !['operations','executive','my_requests'].includes(s.capability);
+    return !['operations','executive','my_requests','executive_metrics','contact_inbox','support_cases'].includes(s.capability);
   }
   if (s.scope.kind === 'owner') {
     return actor.kind === 'customer' && /^[a-zA-Z0-9_-]{1,128}$/.test(actor.actorId) && actor.actorId === actor.ownerId
       && s.scope.actorId === actor.actorId && s.scope.ownerId === actor.ownerId
-      && ['my_requests','support','call_center'].includes(s.capability);
+      && ['my_requests','support','call_center','support_cases'].includes(s.capability);
   }
   return actor.kind === 'operator' && /^[a-zA-Z0-9_-]{1,128}$/.test(actor.actorId) && actor.country === 'EG' && s.scope.actorId === actor.actorId
     && s.scope.country === 'EG' && s.scope.grant === 'operations:read'
-    && ['operations','executive','support','call_center'].includes(s.capability);
+    && ['operations','executive','support','call_center','contact_inbox'].includes(s.capability);
 }
 function namespace(a: AgentTaskAuthority) { return a.kind === 'guest' ? 'guest' : a.actorId; }
 function frozenSpec(s: AgentTaskSpec): AgentTaskSpec {
@@ -222,7 +227,9 @@ export type AgentCoreTaskResult =
   | { kind: 'response'; response: CoreReply | DialogueReply; task: AgentTaskState; dialogueTask?: AgentTaskState }
   | { kind: 'stopped'; task: AgentTaskState };
 function privateTaskScope(intent: AgentIntent, actor: AgentTaskAuthority): AgentTaskScope | null {
-  const privateRead = ['my_requests','operations','executive'].includes(intent.tool)
+  if (intent.tool === 'executive_metrics') return actor.kind === 'operator' && actor.role === 'ceo'
+    ? { kind: 'executive', actorId: actor.actorId, authority: 'verified-ceo' } : null;
+  const privateRead = ['my_requests','operations','executive','contact_inbox','support_cases'].includes(intent.tool)
     || (intent.reference !== null && ['support','call_center'].includes(intent.tool));
   if (!privateRead) return { kind: 'public' };
   if (actor.kind === 'customer') return { kind: 'owner', actorId: actor.actorId, ownerId: actor.ownerId };
@@ -233,6 +240,7 @@ function negativeReply(reply: CoreReply) { return ['authentication_required','fo
 /** Existing Core owns all facts/links/reads. This ledger is request-local, not a durable queue. */
 export async function runInternalAgentTask(input: CoreInput, options: {
   signal?: AbortSignal; coordinator?: AgentTaskCoordinator; id?: string; idempotencyKey?: string; dialogue?: AgentDialoguePolicy;
+  responseContract?: AgentDialogueResponseContract;
 } = {}): Promise<AgentCoreTaskResult> {
   const intent = input.intent ?? agentIntent(input.message);
   const actor = input.context.taskAuthority ?? { kind: 'guest' as const };
@@ -241,7 +249,9 @@ export async function runInternalAgentTask(input: CoreInput, options: {
   const id = options.id ?? randomUUID(); const now = Date.now();
   const deny = async (): Promise<AgentCoreTaskResult> => {
     const kind = input.context.taskAuthorityFailure ?? (input.context.role === 'guest' ? 'authentication_required' : 'forbidden');
-    const response = await runInternalAgent({ ...input, intent, context: { ...input.context, readRequests: async () => ({ kind }) } });
+    const response = await runInternalAgent({ ...input, intent, context: { ...input.context, readRequests: async () => ({ kind }),
+      readExecutiveMetrics: async () => ({ kind: 'forbidden' }), readContactInbox: async () => ({ kind: 'forbidden' }),
+      readSupportCases: async () => ({ kind: 'forbidden' }) } });
     return { kind: 'response', response, task: { kind: 'blocked', reason: 'forbidden' } };
   };
   if (!scope) return deny();
@@ -277,7 +287,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
   });
   if (result.kind === 'completed') {
     const plan = await preparePublicAgentDialogue({ ...input, intent }, result.output,
-      options.dialogue ?? DEFAULT_AGENT_DIALOGUE_POLICY, spec.deadlineAtMs, options.signal);
+      options.dialogue ?? DEFAULT_AGENT_DIALOGUE_POLICY, spec.deadlineAtMs, options.signal, options.responseContract);
     if (!plan) return { kind: 'response', response: result.output, task: result.state };
     const config = internalAgentConfiguration(plan.profile.provider);
     if (!config || config.model !== plan.profile.measurement.model

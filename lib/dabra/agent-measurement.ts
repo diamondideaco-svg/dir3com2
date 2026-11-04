@@ -1,4 +1,8 @@
 import 'server-only';
+import { parseQualificationProof, quoteQualification, type QualificationCase, type QualificationAdmission, type ApprovedQualificationPlan } from './dialogue-qualification';
+import { PLATFORM_UNITS_QUALIFICATION_CASES } from './agent-qualification-cases';
+import { composePublicAgentDialogue } from './agent-platform-units';
+import { refreshPublicDialoguePricing, type PublicPricingObservation } from './dialogue-pricing-refresh';
 import { createHash, randomUUID } from 'node:crypto';
 import { classifierPrompt } from './agent-planner';
 import { parseAgentTool } from './agent-contract';
@@ -215,4 +219,94 @@ export async function measureFirstProfile(plan: ApprovedFirstProfilePlan, depend
     finally { controller.abort(); }
   }
   return Object.freeze({ kind: 'candidate', qualified: false, semanticReview: 'required', observations: Object.freeze(observations) });
+}
+
+// Qualification is separate from the historical four-case v1 recipe above.
+// It never fabricates or publishes a runtime capability profile.
+export type QualificationObservation = Readonly<Omit<MeasurementObservation,'caseId'> & { caseId: QualificationCase['caseId'] }>;
+export type QualificationMeasurementResult = Readonly<{
+ kind: 'candidate' | 'blocked' | 'stopped'; qualified: false; semanticReview: 'required';
+ observations: readonly QualificationObservation[]; diagnostic?: Readonly<{reason: string; caseId: QualificationCase['caseId'] | null}>;
+}>;
+export type QualificationMeasurementDependencies = Readonly<{
+ admission: QualificationAdmission; authorityCurrent: (signal: AbortSignal) => Promise<boolean>;
+ sourceSha: () => string; configuration: typeof internalAgentConfiguration; dispatch: typeof callInternalAgentProvider;
+}>;
+export async function measurePlatformUnitsProfile(plan: ApprovedQualificationPlan, deps: QualificationMeasurementDependencies,
+ signal?: AbortSignal): Promise<QualificationMeasurementResult> {
+ const observations: QualificationObservation[] = [];
+ const stop=(kind:'blocked'|'stopped',reason:string,fixed?:QualificationCase):QualificationMeasurementResult=>
+  Object.freeze({kind,qualified:false,semanticReview:'required',observations:Object.freeze(observations),
+   diagnostic:Object.freeze({reason,caseId:fixed?.caseId??null})});
+ const proof=parseQualificationProof(plan.proof,Date.now()),permit=proof?.limitedOperation.permit;
+ if (!proof || !permit || JSON.stringify(permit)!==JSON.stringify(plan.permit) || fundingSubject(plan.subject)!==permit.subjectHash
+  || !integer(plan.maxCostMicros) || plan.maxCostMicros>1000000 || !validFundingDailyLimits(plan.daily,4096,1024)) return stop('blocked','permit');
+ const selected=PLATFORM_UNITS_QUALIFICATION_CASES.filter(c=>permit.languages.includes(c.language));
+ const runId=randomUUID();
+ for(const [index,fixed] of selected.entries()) {
+  const approved=permit.cases[index];if(!approved || approved.caseId!==fixed.caseId)return stop('blocked','permit',fixed);
+  const start=Date.now();let end=Math.min(start+12000,permit.expiresAtMs,dialogueDay(start).dayEndMs);
+  if(signal?.aborted || end<=start)return stop('blocked',signal?.aborted?'cancelled':'deadline',fixed);
+  const controller=new AbortController();
+  let boundedSignal=AbortSignal.any([controller.signal,AbortSignal.timeout(end-start),...(signal?[signal]:[])]);
+  let pricing:PublicPricingObservation|null=null,reason='runtime',failure='runtime';
+  const ready=()=>{
+   if(boundedSignal.aborted || Date.now()>=end){reason=signal?.aborted?'cancelled':'deadline';return false;}
+   const config=deps.configuration(proof.provider,proof.model);
+   if(!config || config.model!==proof.model){reason='configuration';return false;}
+   if(createHash('sha256').update(config.apiKey).digest('hex')!==proof.credentialSha256){reason='credential';return false;}
+   if(deps.sourceSha()!==permit.sourceSha){reason='source';return false;}
+   const at=Date.now();
+   if(boundedSignal.aborted || at>=end || !parseQualificationProof(proof,at)){reason='deadline';return false;}
+   if(pricing){const quote=quoteQualification(proof,pricing,at);if(quote===null || quote>plan.maxCostMicros){reason='pricing';return false;}}
+   return true;
+  };
+  const current=async()=>{
+   if(!ready())return false;
+   const allowed=await bounded(deps.authorityCurrent(boundedSignal),boundedSignal);
+   if(allowed!==true){reason=boundedSignal.aborted?'deadline':'authority';return false;}
+   return ready();
+  };
+  try {
+   if(!await current() || !ready())return stop('blocked',reason,fixed);
+   pricing=await bounded(refreshPublicDialoguePricing(proof,boundedSignal),boundedSignal)??null;
+   if(!pricing || !await current() || !ready())return stop('blocked',pricing?reason:'pricing',fixed);
+   const cost=quoteQualification(proof,pricing,Date.now());
+   if(cost===null || cost>plan.maxCostMicros || !ready())return stop('blocked','pricing',fixed);
+   const attemptId=index===0?runId:randomUUID();
+   failure='admission-unknown';
+   const claim=await bounded(deps.admission.reserveQualification({proof,subject:plan.subject,attemptId,runId,caseId:fixed.caseId,
+    costMicros:cost,observation:pricing,limits:plan.daily,dayStartMs:dialogueDay(Date.now()).dayStartMs},boundedSignal),boundedSignal);
+   failure='runtime';
+   if(claim?.kind!=='admitted' || claim.attemptId!==attemptId)return stop('stopped',claim?'admission':'admission-unknown',fixed);
+   if(!integer(claim.pricingExpiresAtMs))return stop('stopped','pricing-deadline',fixed);
+   end=Math.min(end,claim.pricingExpiresAtMs);
+   if(end<=Date.now())return stop('stopped','pricing-deadline',fixed);
+   boundedSignal=AbortSignal.any([boundedSignal,AbortSignal.timeout(end-Date.now())]);
+   if(!await current() || !ready())return stop('stopped',reason,fixed);
+   const config=deps.configuration(proof.provider,proof.model);
+   if(!config || config.model!==proof.model || createHash('sha256').update(config.apiKey).digest('hex')!==proof.credentialSha256)
+    return stop('stopped','configuration',fixed);
+   if(!ready())return stop('stopped',reason,fixed);
+   const dispatchedAt=Date.now();
+   if(dispatchedAt>=end || boundedSignal.aborted)return stop('stopped','deadline',fixed);
+   failure='provider-unknown';
+   const result=await bounded(deps.dispatch(proof.provider,config,fixed.message,{prompt:fixed.prompt,language:fixed.language,
+    classifier:false,maxOutputTokens:permit.outputTokenCeiling,timeoutMs:Math.max(1,end-Date.now()),signal:boundedSignal,
+    standardBilling:true,pilotMeasurement:true}),boundedSignal);
+   failure='runtime';
+   if(!result)return stop('stopped','provider-unknown',fixed);
+   const schemaValid=composePublicAgentDialogue(result.answer,fixed.units,fixed.language)!==null;
+   observations.push(Object.freeze({caseId:fixed.caseId,requestId:approved.requestId,attemptId,stage:fixed.stage,language:fixed.language,
+    model:result.model===proof.model?result.model:null,completedAtMs:Date.now(),latencyMs:Math.max(0,Date.now()-dispatchedAt),
+    inputTokens:integer(result.inputTokens)?result.inputTokens:null,outputTokens:integer(result.outputTokens)?result.outputTokens:null,
+    reservedCostMicros:cost,transportOk:result.ok,schemaValid,answer:schemaValid?result.answer.slice(0,4096):''}));
+   if(!ready())return stop('stopped',reason,fixed);
+   if(!result.ok)return stop('stopped','provider-unknown',fixed);
+   if(!schemaValid || result.model!==proof.model || result.citations.length!==0 || !integer(result.inputTokens) || result.inputTokens>permit.inputTokenCeiling
+    || !integer(result.outputTokens) || result.outputTokens>permit.outputTokenCeiling)return stop('stopped','provider-output',fixed);
+   if(!await current() || !ready())return stop('stopped',reason,fixed);
+  }catch{return stop('stopped',failure,fixed);}finally{controller.abort();}
+ }
+ return Object.freeze({kind:'candidate',qualified:false,semanticReview:'required',observations:Object.freeze(observations)});
 }

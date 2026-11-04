@@ -1,0 +1,9 @@
+{
+  "source": "https://developers.openai.com/api/docs/models/gpt-6-luna.md",
+  "capturedAt": "2026-11-03",
+  "sourceBodySha256": "20b10b062d96a4b0745f7675624c564271a229046c5fafc9e63c76f776dcee59",
+  "fixtureSha256": "d8613c1a62be51b4c5eba820b12f124484e6f748749dab3effd8ef48b79f7dee",
+  "approvedFragmentSha256": "630071998d42a697ad40d324f88b02516d73cf500bdfda5cae18607371c83e77",
+  "words": 180,
+  "liveFetch": false
+}

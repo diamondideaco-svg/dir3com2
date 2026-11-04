@@ -1,3 +1,5 @@
+import { syntheticContractMeasurement, syntheticOutputAcceptances } from './fixtures/task217-output-qualification-synthetic';
+import * as outputContract from '../lib/dabra/agent-output-contract';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -8,7 +10,8 @@ import ts from 'typescript';
 import { NextRequest, NextResponse } from 'next/server';
 import type { DurableAccountChargeProof } from '../lib/dabra/dialogue-durable-authority';
 import { SYNTHETIC_PUBLIC_PRICING_BODIES } from './fixtures/task217-public-pricing-synthetic';
-import { AGENT_PROVIDER_IDS, type AgentProviderId } from '../lib/dabra/agent-capabilities';
+import { AGENT_PROVIDER_IDS, type AgentProviderId, type CapabilityMeasurement } from '../lib/dabra/agent-capabilities';
+type MutableFixtureMeasurement = { -readonly [K in keyof CapabilityMeasurement]: CapabilityMeasurement[K] };
 import { APPROVED_DIALOGUE_STANDARD_PRICING } from '../lib/dabra/dialogue-pricing-approvals';
 
 // Actual POST, policy loader, funding, planner and handoff. Only authenticated
@@ -22,7 +25,7 @@ test.before(() => { globalThis.fetch = async () => { unexpectedNetwork++; throw 
 test.afterEach(() => { assert.equal(unexpectedNetwork, 0, 'test boundaries must not attempt any network'); });
 test.after(() => { globalThis.fetch = realFetch; });
 
-function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'openai', options: { realTransport?: boolean; continuous?: boolean } = {}) {
+function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'openai', options: { realTransport?: boolean; continuous?: boolean; unqualifiedOutput?: boolean } = {}) {
   const realTransport = options.realTransport ? realTaskTransport(provider) : null;
   let clock = instant, actorCurrent = true, dispatches = 0, reservations = 0;
   let postReservePolicyReads = 0, revokeOnPolicyRead = 1, revocations = 0;
@@ -65,9 +68,8 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
       dataScope: 'redacted-travel-or-server-units', providerRisk: 'overdraft-unknown',
       authorizedAtMs: instant - 1, expiresAtMs: instant + 600000 },
   };
-  const profiles = (['discover', 'intent.classify'] as const).map(capability => ({ provider, measurement: {
-    capability, language, model, environment: 'provider-benchmark', cases: 1, passed: 1,
-    caseSetSha: 'b'.repeat(64), sourceSha: 'c'.repeat(40), measuredAtMs: instant - 1, expiresAtMs: instant + 600000,
+  const profiles: Array<{ provider: AgentProviderId; measurement: MutableFixtureMeasurement }> = (['discover', 'intent.classify'] as const).map(capability => ({ provider, measurement: {
+    capability, language, model, environment: 'provider-benchmark' as const, ...syntheticContractMeasurement(capability,language), sourceSha: 'c'.repeat(40), measuredAtMs: instant - 1, expiresAtMs: instant + 600000,
     latencyMs: 1, inputTokenCeiling: 4096, outputTokenCeiling: outputCeiling, costCeilingUsd: costMicros / 1000000,
   } }));
   let enabled = true;
@@ -82,7 +84,7 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
       if (fault === 'authority-during-policy-read' && postReservePolicyReads === revokeOnPolicyRead) {
         await Promise.resolve(); actorCurrent = false; revocations++;
       }
-      return { data: { ...data, enabled }, error: null };
+      return { data: { ...data, enabled, outputAcceptances: options.unqualifiedOutput ? [] : syntheticOutputAcceptances(profiles,instant) }, error: null };
     }
     assert.equal(name, 'reserve_dabra_dialogue_attempt');
     reservations++;
@@ -137,6 +139,7 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
     } }).outputText + (options.continuous && name === 'dialogue-pricing-refresh' ? '\nexports.testSource=sources;exports.testFragment=fragment;' : ''), { exports: output, module: { exports: output }, require: (id: string) => {
       if (id === 'server-only') return {};
+      if (id === './agent-output-contract') return { ...outputContract, get APPROVED_PROFILE_OUTPUT_ACCEPTANCES() { return syntheticOutputAcceptances(profiles,instant); } };
       if (id === '../ai2/observability/provider-attempts') return { createDabraProviderRequestId: randomUUID, mapProviderErrorCategory: (value: unknown) => value };
       if (id === '../supabase/server') return { supabaseAdmin: { rpc: (name: string, params: Record<string, unknown>) => ({
         abortSignal: (signal: AbortSignal) => rpc(name, params, signal),
@@ -792,4 +795,11 @@ test('T217-CONT-F1 same-provider expired profile uses its matching durable autho
   f.data.proofs=[legacy.proof,f.continuousProof];
   assert.equal((await f.post()).provider,'openai');assert.equal(f.publicFetches(),1);
   const raw=f.serializedClaims[0].p_proof;assert.ok(isFixtureRecord(raw));assert.equal(raw.mode,'bounded-account-charge');
+});
+
+
+test('unknown output acceptance blocks actual durable POST before pricing, reservation and provider transport',async()=>{
+ const f=fixture('en','openai',{realTransport:true,continuous:true,unqualifiedOutput:true});
+ const result=await f.post();assert.equal(result.provider,'local');assert.equal(f.counts().reservations,0);
+ assert.equal(f.counts().dispatches,0);assert.equal(f.publicFetches(),0);assert.ok(f.realTransport);assert.equal(f.realTransport.calls.length,0);
 });

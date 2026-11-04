@@ -3,7 +3,7 @@ import { callOpenAICompatibleProvider } from './openai-compatible';
 import { callAnthropicMessagesWeb } from './anthropic-web';
 import { callGeminiGoogleSearch } from './gemini-web';
 import type { AgentProviderId } from '../../dabra/agent-capabilities';
-import { AGENT_TOOLS } from '../../dabra/agent-contract';
+import { CLASSIFIABLE_AGENT_TOOLS } from '../../dabra/agent-contract';
 
 /** Shared existing seven transports. One attempt, fixed endpoints, no search/discovery. */
 export async function callInternalAgentProvider(provider: AgentProviderId, config: { apiKey: string; model: string }, message: string, options: {
@@ -31,7 +31,7 @@ export async function callInternalAgentProvider(provider: AgentProviderId, confi
     ...(boundedQwen ? { chatProfile: 'qwen-bounded-task' as const } : {}),
     retryCount: 0, preferredModels: [config.model],
     ...(provider === 'xai' && options.classifier ? { responseJsonSchema: { name: 'dir3com_read_tool', schema: {
-      type: 'object', properties: { tool: { type: 'string', enum: [...AGENT_TOOLS] } }, required: ['tool'], additionalProperties: false,
+      type: 'object', properties: { tool: { type: 'string', enum: [...CLASSIFIABLE_AGENT_TOOLS] } }, required: ['tool'], additionalProperties: false,
     } } } : {}),
     ...(provider === 'openai' && /^gpt-5(?:-mini|-nano)?(?:-\d{4}-\d{2}-\d{2})?$/.test(config.model)
       ? { chatProfile: 'gpt-5-classifier' as const } : lunaStandard ? { chatProfile: 'gpt-6-luna-pilot' as const } : {}),
