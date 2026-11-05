@@ -63,7 +63,7 @@ function nodes(value:unknown):ReactElement<NodeProps>[] {
 // This is executable semantic UI evidence, not browser/layout acceptance.
 async function formFixture(language:'ar'|'en') {
  const require=createRequire(import.meta.url),slots:unknown[]=[],refs:{current:unknown}[]=[];
- let stateIndex=0,refIndex=0,cleanup:()=>void=()=>{},saved=0;
+ let stateIndex=0,refIndex=0,saved=0; const cleanups:(()=>void)[]=[];
  const requests:{url:string;options:RequestInit}[]=[],late=deferred<Response>();
  const session=new CustomerCaseSession(async(url,options)=>{
   if(url==='/api/dabra/session-identity')return Response.json(identity(a));
@@ -80,7 +80,7 @@ async function formFixture(language:'ar'|'en') {
   require:(name:string)=>({
    react:{useState:(v:unknown)=>{const i=stateIndex++;if(!(i in slots))slots[i]=v;return [slots[i],(next:unknown)=>{slots[i]=typeof next==='function'?next(slots[i]):next;}];},
     useRef:(v:unknown)=>{const i=refIndex++;return refs[i]??(refs[i]={current:v});},
-    useEffect:(effect:()=>()=>void)=>{cleanup=effect();}},
+    useEffect:(effect:()=>void|(()=>void))=>{const cleanup=effect();if(typeof cleanup==='function')cleanups.push(cleanup);}},
    '@/components/i18n/LanguageProvider':{useLanguage:()=>({language})},
    '@/components/design-system':{SectionContainer:empty,ContentContainer:empty},
    '@/components/ui/button':{Button:empty},'@/components/ui/card':{Card:empty,CardContent:empty,CardHeader:empty,CardTitle:empty},
@@ -89,7 +89,7 @@ async function formFixture(language:'ar'|'en') {
  });
  const render=()=>{stateIndex=0;refIndex=0;return exports.default({customerCase:true,submitCustomerCase:(request:{payload:string;signal:AbortSignal})=>session.submitCase({...request,generation}),onSaved:()=>saved++});};
  const form=()=>{const found=nodes(render()).find(n=>n.type==='form');assert.ok(found?.props.onSubmit);return found.props.onSubmit;};
- return {render,form,slots,requests,late,cleanup:()=>cleanup(),saved:()=>saved};
+ return {render,form,slots,requests,late,cleanup:()=>cleanups.forEach(cleanup=>cleanup()),saved:()=>saved};
 }
 
 for(const language of ['ar','en'] as const)test('actual Case form '+language+' uses owned endpoint, one pending submission and drops unmounted late response',async()=>{

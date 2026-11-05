@@ -1,5 +1,7 @@
 import 'server-only';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { channel } from 'node:diagnostics_channel';
+import { internalAgentConfiguration } from '../ai2/runtime/agent-provider-dispatch';
 import { AGENT_DIALOGUE_PROMPT } from './agent-platform-units';
 export { AGENT_DIALOGUE_PROMPT, composePublicAgentDialogue } from './agent-platform-units';
 import { requestOutputContract, profileOutputAccepted, APPROVED_PROFILE_OUTPUT_ACCEPTANCES } from './agent-output-contract';
@@ -110,13 +112,38 @@ export type PreparedAgentAttempt = Readonly<{
   signal: AbortSignal; isCurrent: () => Promise<boolean>; isReadyToDispatch: () => boolean;
   acceptExpiredMeasurement?: (profile: AgentCapabilityProfile) => boolean;
 }>;
+type AgentAttemptBinding = Pick<PreparedAgentAttempt, 'profile' | 'credentialSha256'>;
+type ConfigurationFailure = 'configuration_missing' | 'model_mismatch' | 'credential_mismatch' | 'configuration_unavailable';
+type AgentRuntimeCheck = (binding: AgentAttemptBinding) => ConfigurationFailure | null;
+const preparationDiagnostics = channel('dir3com.dabra.agent-preparation');
+function inspectConfiguration(binding: AgentAttemptBinding) {
+  try {
+    const config = internalAgentConfiguration(binding.profile.provider);
+    if (!config) return { kind: 'configuration_missing' } as const;
+    if (config.model !== binding.profile.measurement.model) return { kind: 'model_mismatch' } as const;
+    if (createHash('sha256').update(config.apiKey).digest('hex') !== binding.credentialSha256)
+      return { kind: 'credential_mismatch' } as const;
+    return { kind: 'configured', config } as const;
+  } catch { return { kind: 'configuration_unavailable' } as const; }
+}
+/** Fresh server configuration bound to the already selected, validated proof. */
+export function agentAttemptConfiguration(binding: AgentAttemptBinding) {
+  const result = inspectConfiguration(binding);
+  return result.kind === 'configured' ? result.config : null;
+}
+/** Runtime callers use this adapter; its guard is compiled code, never policy or request JSON. */
+export function prepareRuntimeAgentProviderAttempt(...args: Parameters<typeof prepareAgentProviderAttempt>) {
+  const [context, locale, policy, request, deadlineAtMs, signal] = args;
+  return prepareAgentProviderAttempt(context, locale, policy, request, deadlineAtMs, signal,
+    binding => { const result = inspectConfiguration(binding); return result.kind === 'configured' ? null : result.kind; });
+}
 export type AgentDialogueResponseContract = 'platform-units' | 'general-travel';
 export type PreparedPublicDialogue = PreparedAgentAttempt & Readonly<{
   units: readonly string[]; requiredUnits: readonly string[]; mode: 'core-composition' | 'general-travel';
 }>;
 export async function prepareAgentProviderAttempt(context: AgentContext, locale: 'ar' | 'en', policy: AgentDialoguePolicy,
   request: { capability: 'discover' | 'intent.classify'; provider?: AgentProviderId; message: string; prompt: string; inputDigestValue: unknown },
-  deadlineAtMs: number, signal?: AbortSignal): Promise<PreparedAgentAttempt | null> {
+  deadlineAtMs: number, signal?: AbortSignal, runtimeCheck?: AgentRuntimeCheck): Promise<PreparedAgentAttempt | null> {
   const now = Date.now(), actor = context.taskAuthority;
   if (!policy.trial || signal?.aborted || now >= deadlineAtMs || !validPolicy(policy) || (!policy.admission && !policy.funding)
     || actor?.kind !== 'customer' || context.role !== 'customer' || actor.actorId !== actor.ownerId
@@ -156,6 +183,20 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
   const candidate = fundingProof ?? matchedProof;
   if (!candidate) return null;
   const proof = Object.freeze({ ...candidate });
+  const binding: AgentAttemptBinding = { profile, credentialSha256: proof.credentialSha256 };
+  let reservationState: 'not_attempted' | 'unknown' | 'accepted' = 'not_attempted', diagnosed = false;
+  // Private, closed instrumentation only. No payload, actor, proof, key, hash or raw error.
+  // An unavailable admission receipt is unknown, never evidence that a hold was released.
+  const diagnose = (reason: ConfigurationFailure | 'readiness_lost' | 'authority_or_policy_unavailable'
+    | 'admission_unavailable' | 'preparation_exception') => {
+    if (diagnosed) return; diagnosed = true;
+    if (preparationDiagnostics.hasSubscribers) preparationDiagnostics.publish(Object.freeze({
+      capability: request.capability, reason, reservation: reservationState,
+      stage: reservationState === 'accepted' ? 'post_admission' : reservationState === 'unknown' ? 'admission' : 'preflight',
+    }));
+  };
+  const configurationFailure = runtimeCheck?.(binding);
+  if (configurationFailure) { diagnose(configurationFailure); return null; }
   let pricing: PublicPricingObservation | undefined;
   if (fundingProof?.mode === 'bounded-account-charge') {
     if (!funded?.refreshPricing) return null;
@@ -165,7 +206,7 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
       const observation = await funded.refreshPricing(fundingProof, preparing);
       if (!observation || preparing.aborted || !await context.isTaskAuthorityCurrent()) return null;
       pricing = observation;
-    } catch { return null; }
+    } catch { diagnose('preparation_exception'); return null; }
   }
   if (Buffer.byteLength(request.prompt + request.message, 'utf8') + 128 > profile.measurement.inputTokenCeiling) return null;
   const authorizationEnd = fundingProof?.mode === 'bounded-account-charge' ? pricing?.expiresAtMs ?? 0
@@ -179,24 +220,37 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
   let bounded = AbortSignal.any([AbortSignal.timeout(Math.max(1, end - Date.now())), ...(signal ? [signal] : [])]);
   const isReadyToDispatch = () => {
     const at = Date.now();
-    return !bounded.aborted && at < end && acceptsOutput(profile, at) && (fundingProof
+    const failure = runtimeCheck?.(binding);
+    if (failure) { diagnose(failure); return false; }
+    const ready = !bounded.aborted && at < end && acceptsOutput(profile, at) && (fundingProof
       ? fundingProofCurrent(fundingProof, profile, at) && dialogueCostCeilingMicros(fundingProof, profile, at, pricing) !== null
       : matchesProof(proof as FreeDialogueProof, profile, policy, at));
+    if (!ready) diagnose('readiness_lost');
+    return ready;
   };
   const current = async () => {
-    if (!isReadyToDispatch() || !await context.isTaskAuthorityCurrent!() || !isReadyToDispatch()) return false;
-    if (fundingProof && 'limitedOperation' in fundingProof) {
-      if (!funded?.isCurrent || !await funded.isCurrent(fundingProof, profile, bounded) || !isReadyToDispatch()) return false;
-      // Identity may be revoked while the final funding-policy read is pending.
-      if (!await context.isTaskAuthorityCurrent!() || !isReadyToDispatch()) return false;
-    }
-    return true;
+    try {
+      if (!isReadyToDispatch() || !await context.isTaskAuthorityCurrent!() || !isReadyToDispatch()) {
+        diagnose('authority_or_policy_unavailable'); return false;
+      }
+      if (fundingProof && 'limitedOperation' in fundingProof) {
+        if (!funded?.isCurrent || !await funded.isCurrent(fundingProof, profile, bounded) || !isReadyToDispatch()) {
+          diagnose('authority_or_policy_unavailable'); return false;
+        }
+        // Identity may be revoked while the final funding-policy read is pending.
+        if (!await context.isTaskAuthorityCurrent!() || !isReadyToDispatch()) {
+          diagnose('authority_or_policy_unavailable'); return false;
+        }
+      }
+      return true;
+    } catch { diagnose('preparation_exception'); return false; }
   };
   try {
     if (!await current() || !isReadyToDispatch()) return null;
     const costMicros = fundingProof ? dialogueCostCeilingMicros(fundingProof, profile, Date.now(), pricing) : null;
     if (fundingProof && costMicros === null) return null;
     const attemptId = randomUUID();
+    reservationState = 'unknown';
     const reservation = funded && fundingProof && costMicros !== null
       ? funded.admission.reserve({ policyId: 'task217-existing-credit-v2', attemptId, requestId: funded.requestId, stage: request.capability,
         subject: actor.actorId, ...dialogueDay(now), nowMs: now, proof: fundingProof, costMicros,
@@ -204,6 +258,7 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
         ...(pricing ? { pricing: { observation: pricing, profileSha256: durableProfileSha256(profile) } } : {}) }, bounded)
         .then(result => {
           if (result.kind !== 'admitted' || result.attemptId !== attemptId) return 'denied' as const;
+          reservationState = 'accepted';
           if ('limitedOperation' in fundingProof) {
             const deadline = result.pricingExpiresAtMs;
             if (typeof deadline !== 'number' || !Number.isSafeInteger(deadline) || deadline <= Date.now()) return 'denied' as const;
@@ -221,11 +276,13 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
       if (bounded.aborted) resolve('denied');
       else bounded.addEventListener('abort', () => resolve('denied'), { once: true });
     });
-    if (await Promise.race([reservation, stopped]) !== 'admitted' || !await current() || !isReadyToDispatch()) return null;
+    if (await Promise.race([reservation, stopped]) !== 'admitted') { diagnose('admission_unavailable'); return null; }
+    reservationState = 'accepted';
+    if (!await current() || !isReadyToDispatch()) return null;
     return { profile, credentialSha256: proof.credentialSha256, limits: policy.limits, standardBilling: fundingProof?.mode === 'existing-credit' || fundingProof?.mode === 'bounded-account-charge',
       ...(fundingProof?.mode === 'bounded-account-charge' ? { acceptExpiredMeasurement: accepts } : {}),
       ...request, deadlineAtMs: end, signal: bounded, isCurrent: current, isReadyToDispatch };
-  } catch { return null; }
+  } catch { diagnose('preparation_exception'); return null; }
 }
 export async function preparePublicAgentDialogue(input: Input, core: Reply, policy: AgentDialoguePolicy, deadlineAtMs: number, signal?: AbortSignal,
   responseContract: AgentDialogueResponseContract = 'general-travel'): Promise<PreparedPublicDialogue | null> {
@@ -237,7 +294,7 @@ export async function preparePublicAgentDialogue(input: Input, core: Reply, poli
   const general = responseContract === 'general-travel'
     ? generalTravelContext(subject ? input.message.replaceAll(subject, '[redacted]') : input.message, input.history) : null;
   const payload = general ? { language: input.locale, general } : { language: input.locale, units };
-  const prepared = await prepareAgentProviderAttempt(input.context, input.locale, policy, {
+  const prepared = await prepareRuntimeAgentProviderAttempt(input.context, input.locale, policy, {
     capability: 'discover', message: JSON.stringify(payload), prompt: general ? GENERAL_TRAVEL_PROMPT : AGENT_DIALOGUE_PROMPT, inputDigestValue: payload,
   }, deadlineAtMs, signal);
   return prepared ? { ...prepared, units, requiredUnits: coreRequiredDialogueUnits(core), mode: general ? 'general-travel' : 'core-composition' } : null;

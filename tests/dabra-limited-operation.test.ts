@@ -3,6 +3,7 @@ import * as outputContract from '../lib/dabra/agent-output-contract';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
+import { channel as diagnosticChannel } from 'node:diagnostics_channel';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
@@ -25,12 +26,12 @@ test.before(() => { globalThis.fetch = async () => { unexpectedNetwork++; throw 
 test.afterEach(() => { assert.equal(unexpectedNetwork, 0, 'test boundaries must not attempt any network'); });
 test.after(() => { globalThis.fetch = realFetch; });
 
-function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'openai', options: { realTransport?: boolean; continuous?: boolean; unqualifiedOutput?: boolean } = {}) {
+function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'openai', options: { realTransport?: boolean; continuous?: boolean; unqualifiedOutput?: boolean; configuration?: 'missing' | 'key-digest-mismatch' | 'model-mismatch' } = {}) {
   const realTransport = options.realTransport ? realTaskTransport(provider) : null;
   let clock = instant, actorCurrent = true, dispatches = 0, reservations = 0;
   let postReservePolicyReads = 0, revokeOnPolicyRead = 1, revocations = 0;
-  let fault: 'none' | 'authority-during-policy-read' | 'lost-claim' | 'late-claim' | 'expired-price-receipt' | 'provider-unknown' | 'revoked-during-dispatch' | 'credential-change' | 'grant-revoked' | 'profile-revoked' | 'source-change' | 'consent-revoked' | 'pricing-expired-during-claim' | 'pricing-unavailable' = 'none';
-  let configuredKey = credential;
+  let fault: 'none' | 'authority-during-policy-read' | 'credential-during-policy-read' | 'authority-throws-after-admission' | 'lost-claim' | 'late-claim' | 'expired-price-receipt' | 'provider-unknown' | 'revoked-during-dispatch' | 'credential-change' | 'grant-revoked' | 'profile-revoked' | 'source-change' | 'consent-revoked' | 'pricing-expired-during-claim' | 'pricing-unavailable' = 'none';
+  let configuredKey = options.configuration === 'missing' ? '' : options.configuration === 'key-digest-mismatch' ? 'SYNTHETIC-DIFFERENT-CREDENTIAL' : credential;
   const requests = new Set<string>(), payloads: string[] = [], statuses: number[] = [];
   let held = 61719, admittedAttempts = 6, publicFetches = 0;
   let continuousProof: DurableAccountChargeProof | null = null;
@@ -74,7 +75,7 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
   } }));
   let enabled = true;
   const context = { role: 'customer', taskAuthority: { kind: 'customer', actorId: subject, ownerId: subject },
-    isTaskAuthorityCurrent: async () => actorCurrent, readRequests: async () => ({ kind: 'forbidden' }) };
+    isTaskAuthorityCurrent: async () => { if (fault === 'authority-throws-after-admission' && reservations > 0) throw Error('SYNTHETIC_PRIVATE_DIAGNOSTIC'); return actorCurrent; }, readRequests: async () => ({ kind: 'forbidden' }) };
   const proofRows: unknown[] = [proof];
   const data = { enabled, profiles, proofs: proofRows, maxCostMicros: costMicros, dailyLimits: limits };
   const rpc = async (name: string, p: Record<string, unknown>, signal: AbortSignal) => {
@@ -83,6 +84,9 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
       if (reservations > 0) postReservePolicyReads++;
       if (fault === 'authority-during-policy-read' && postReservePolicyReads === revokeOnPolicyRead) {
         await Promise.resolve(); actorCurrent = false; revocations++;
+      }
+      if (fault === 'credential-during-policy-read' && postReservePolicyReads === revokeOnPolicyRead) {
+        await Promise.resolve(); configuredKey = 'SYNTHETIC-DIFFERENT-CREDENTIAL';
       }
       return { data: { ...data, enabled, outputAcceptances: options.unqualifiedOutput ? [] : syntheticOutputAcceptances(profiles,instant) }, error: null };
     }
@@ -111,7 +115,7 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
       pricing_expires_at_ms: fault === 'expired-price-receipt' ? instant - 1 : receiptExpiry }, error: null };
   };
   const transport = {
-    internalAgentConfiguration: (candidate: string) => realTransport ? realTransport.configurationFor(candidate) : candidate === provider ? { apiKey: configuredKey, model } : null,
+    internalAgentConfiguration: (candidate: string) => realTransport ? realTransport.configurationFor(candidate) : candidate === provider && configuredKey ? { apiKey: configuredKey, model: options.configuration === 'model-mismatch' ? 'SYNTHETIC-DIFFERENT-MODEL' : model } : null,
     callInternalAgentProvider: async (_provider: string, _config: unknown, message: string, options: { classifier?: boolean }) => {
       dispatches++; payloads.push(message);
       if (fault === 'provider-unknown') return { ok: false, model, answer: '', citations: [], errorCategory: 'timeout' };
@@ -803,3 +807,70 @@ test('unknown output acceptance blocks actual durable POST before pricing, reser
  const result=await f.post();assert.equal(result.provider,'local');assert.equal(f.counts().reservations,0);
  assert.equal(f.counts().dispatches,0);assert.equal(f.publicFetches(),0);assert.ok(f.realTransport);assert.equal(f.realTransport.calls.length,0);
 });
+
+// The real POST selects only the named capability, so a claim from the other
+// route cannot conceal a known configuration rejection.
+for (const language of ['ar', 'en'] as const) for (const path of ['limited-planner', 'handoff'] as const) {
+  for (const configuration of ['missing', 'key-digest-mismatch', 'model-mismatch'] as const) {
+    test('configuration preflight actual POST ' + language + ' ' + path + ': ' + configuration + ' cannot reserve or dispatch', async () => {
+      const f = fixture(language, 'openai', { configuration });
+      const capability = path === 'limited-planner' ? 'intent.classify' : 'discover';
+      f.data.profiles = f.data.profiles.filter(p => p.measurement.capability === capability);
+      await f.post(path === 'limited-planner' ? 'Make my family day quieter' : undefined);
+      assert.ok(f.serializedClaims.every(claim => claim.p_stage === capability), 'only the intended actual path may claim');
+      assert.equal(f.counts().dispatches, 0);
+      assert.equal(f.counts().reservations, 0, 'known invalid configuration must fail before admission');
+      assert.deepEqual(f.ledgerState(), { held: 61719, admittedAttempts: 6 });
+    });
+  }
+  test('configuration preflight actual POST ' + language + ' ' + path + ': matching configuration claims and dispatches once', async () => {
+    const f = fixture(language);
+    const capability = path === 'limited-planner' ? 'intent.classify' : 'discover';
+    f.data.profiles = f.data.profiles.filter(p => p.measurement.capability === capability);
+    await f.post(path === 'limited-planner' ? 'Make my family day quieter' : undefined);
+    assert.equal(f.counts().reservations, 1);
+    assert.equal(f.counts().dispatches, 1);
+    assert.equal(f.serializedClaims[0]?.p_stage, capability);
+    assert.ok(f.ledgerState().held > 61719);
+    assert.equal(f.ledgerState().admittedAttempts, 7);
+  });
+}
+
+for (const language of ['ar', 'en'] as const) test('configuration final recheck actual POST ' + language + ': a binding change during the handoff await preserves one hold and cannot dispatch', async () => {
+  const f = fixture(language);
+  f.data.profiles = f.data.profiles.filter(p => p.measurement.capability === 'discover');
+  f.fail('credential-during-policy-read', 2);
+  await f.post();
+  assert.equal(f.counts().reservations, 1);
+  assert.equal(f.counts().dispatches, 0);
+  assert.ok(f.ledgerState().held > 61719);
+  assert.equal(f.ledgerState().admittedAttempts, 7);
+});
+
+for (const fault of ['configuration-missing', 'authority-throws-after-admission', 'lost-claim'] as const) {
+  test('preparation diagnostic actual POST: ' + fault + ' emits only a closed private outcome', async () => {
+    const f = fixture('en', 'openai', fault === 'configuration-missing' ? { configuration: 'missing' } : {});
+    f.data.profiles = f.data.profiles.filter(p => p.measurement.capability === 'discover');
+    if (fault !== 'configuration-missing') f.fail(fault);
+    const diagnostics: unknown[] = [];
+    const observe = (value: unknown) => { diagnostics.push(value); };
+    const privateChannel = diagnosticChannel('dir3com.dabra.agent-preparation');
+    privateChannel.subscribe(observe);
+    let body: unknown;
+    try { body = await f.post(); } finally { privateChannel.unsubscribe(observe); }
+    assert.equal(f.counts().dispatches, 0);
+    assert.equal(f.counts().reservations, fault === 'configuration-missing' ? 0 : 1);
+    assert.equal(diagnostics.length, 1);
+    const event = diagnostics[0];
+    assert.ok(isFixtureRecord(event));
+    assert.deepEqual(Object.keys(event).sort(), ['capability', 'reason', 'reservation', 'stage']);
+    assert.equal(event.capability, 'discover');
+    assert.equal(event.reservation, fault === 'configuration-missing' ? 'not_attempted' : fault === 'lost-claim' ? 'unknown' : 'accepted');
+    assert.equal(event.stage, fault === 'configuration-missing' ? 'preflight' : fault === 'lost-claim' ? 'admission' : 'post_admission');
+    assert.equal(event.reason, fault === 'configuration-missing' ? 'configuration_missing' : fault === 'lost-claim' ? 'admission_unavailable' : 'preparation_exception');
+    for (const value of [JSON.stringify(body), JSON.stringify(event)]) {
+      assert.doesNotMatch(value, /SYNTHETIC_PRIVATE_DIAGNOSTIC|SYNTHETIC-NOT-A-CREDENTIAL|SYNTHETIC-account|credentialSha256|stack|proof/);
+    }
+    if (fault !== 'configuration-missing') { assert.ok(f.ledgerState().held > 61719); assert.equal(f.ledgerState().admittedAttempts, 7); }
+  });
+}

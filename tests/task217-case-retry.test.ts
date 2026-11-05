@@ -46,7 +46,9 @@ function elements(value: unknown): ReactElement<Props>[] {
 }
 function formFixture(w: Wire, language: 'ar' | 'en', customer = true) {
   const require = createRequire(import.meta.url), slots: unknown[] = [], refs: { current: unknown }[] = [];
-  let stateIndex = 0, refIndex = 0, cleanup: (() => void) | undefined, saved = 0;
+  let stateIndex = 0, refIndex = 0, effectIndex = 0, saved = 0, blocked = false;
+  const effects: { deps: readonly unknown[]; cleanup?: () => void }[] = [];
+  let pendingEffects: (() => void)[] = [];
   const generation = w.session.getSnapshot().generation, empty = ({ children }: Props) => children ?? null;
   const publicPosts: { url: string; options: RequestInit; reply: ReturnType<typeof deferred<Response>> }[] = [];
   const exports: { default?: (props: unknown) => ReactElement } = {};
@@ -59,7 +61,12 @@ function formFixture(w: Wire, language: 'ar' | 'en', customer = true) {
       react: { useState: (initial: unknown) => { const i = stateIndex++; if (!(i in slots)) slots[i] = initial;
         return [slots[i], (next: unknown) => { slots[i] = typeof next === 'function' ? next(slots[i]) : next; }]; },
         useRef: (initial: unknown) => { const i = refIndex++; return refs[i] ?? (refs[i] = { current: initial }); },
-        useEffect: (effect: () => () => void) => { cleanup ??= effect(); } },
+        useEffect: (effect: () => void | (() => void), deps: readonly unknown[] = []) => {
+          const i = effectIndex++, previous = effects[i];
+          if (!previous || deps.some((value, j) => value !== previous.deps[j])) pendingEffects.push(() => {
+            previous?.cleanup?.(); effects[i] = { deps, cleanup: effect() || undefined };
+          });
+        } },
       '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language }) },
       '@/components/design-system': { SectionContainer: empty, ContentContainer: empty },
       '@/components/ui/button': { Button: empty },
@@ -67,15 +74,17 @@ function formFixture(w: Wire, language: 'ar' | 'en', customer = true) {
       '@/components/public/PublicHero': { default: (props: { title: string }) => props.title },
     }[name] ?? require(name)),
   });
-  const render = () => { stateIndex = 0; refIndex = 0; assert.ok(exports.default);
-    return exports.default(customer ? { customerCase: true,
+  const render = () => { stateIndex = 0; refIndex = 0; effectIndex = 0; pendingEffects = []; assert.ok(exports.default);
+    const tree = exports.default(customer ? { customerCase: true, blocked,
       submitCustomerCase: (request: { payload: string; signal: AbortSignal }) => w.session.submitCase({ ...request, generation }),
-      onSaved: () => { saved++; } } : {}); };
+      onSaved: () => { saved++; } } : {});
+    pendingEffects.forEach(run => run()); return tree; };
   const send = () => { const form = elements(render()).find(element => element.type === 'form'); assert.ok(form?.props.onSubmit);
     return form.props.onSubmit({ preventDefault() {} }); };
   render();
   return { render, send, fill: (message = details.message) => { slots[0] = { ...details, message }; },
-    cleanup: () => cleanup?.(), saved: () => saved, publicPosts };
+    cleanup: () => effects.forEach(effect => effect.cleanup?.()), saved: () => saved, publicPosts,
+    block: (value: boolean) => { blocked = value; return render(); } };
 }
 
 for (const language of ['ar', 'en'] as const) test('retry: actual ' + language + ' form keeps unknown key across remount and edited manual retries', async () => {
@@ -275,4 +284,113 @@ for (const target of ['Auth', 'Cases'] as const) test('retry: rejected ' + targe
   await w.session.refreshIdentity(); const fresh = submit(w), post = w.posts.at(-1)!; assert.notEqual(post.key, key);
   post.reply.done(receipt()); const result = await fresh; assert.equal(result.kind, 'saved');
   if (result.kind === 'saved') assert.equal(result.commit(), true);
+});
+
+
+// Actual parent and form handlers under controlled hooks. Not browser/layout evidence.
+function correctivePageFixture(w: Wire, language: 'ar' | 'en') {
+  const require = createRequire(import.meta.url), empty = ({ children }: Props) => children ?? null;
+  const Contact = () => null;
+  const exports: { default?: () => ReactElement } = {};
+  runInNewContext(ts.transpileModule(readFileSync('components/public/CustomerCasesPage.tsx', 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText, { exports, require: (name: string) => ({
+    react: { useState: () => [w.session], useSyncExternalStore: () => w.session.getSnapshot(), useEffect() {} },
+    'next/link': { default: empty },
+    '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language }) },
+    '@/components/design-system': { SectionContainer: empty, ContentContainer: empty },
+    '@/components/ui/button': { Button: empty },
+    '@/components/public/ContactPublicPage': { default: Contact },
+    '@/lib/contact/customer-case-session': { CustomerCaseSession },
+    '@/lib/supabase/client': { supabase: { auth: {} } },
+  }[name] ?? require(name)) });
+  const render = () => { assert.ok(exports.default); return exports.default(); };
+  const form = () => {
+    const tree = render(), node = elements(tree).find(element => element.type === Contact);
+    const hidden = elements(tree).some(element => (element.props as { hidden?: boolean }).hidden === true
+      && elements(element.props.children).some(child => child === node));
+    return { tree, node, hidden };
+  };
+  return { render, form };
+}
+
+for (const language of ['ar', 'en'] as const) {
+  test('corrective UI: ' + language + ' same-account draft remains mounted hidden and blocked until both checks pass', async () => {
+    const w = wire(); await w.session.refreshIdentity(); const page = correctivePageFixture(w, language);
+    const original = page.form(); assert.ok(original.node);
+    const form = formFixture(w, language); form.fill();
+    const auth = deferred<Response>(), cases = deferred<Response>(); w.identityNext(auth.promise); w.casesNext(cases.promise);
+    const refresh = w.session.refreshIdentity({ sameAccountRefresh: true, userId: a });
+    const pending = page.form(); assert.ok(pending.node, 'same mounted form must survive pending validation');
+    assert.equal(pending.node.key, original.node.key); assert.equal(pending.hidden, true);
+    assert.equal((pending.node.props as { blocked?: boolean }).blocked, true);
+    form.block(true); await form.send(); assert.equal(w.posts.length, 0);
+    assert.ok(elements(form.render()).filter(element => element.type === 'fieldset').every(element => (element.props as { disabled?: boolean }).disabled));
+    auth.done(identity(a)); await tick(); assert.equal(page.form().hidden, true);
+    cases.done(owned()); await refresh;
+    const resumed = page.form(); assert.equal(resumed.node?.key, original.node.key); assert.equal(resumed.hidden, false);
+    form.block(false); assert.ok(renderToStaticMarkup(form.render()).includes(details.message));
+    for (const fault of ['logout', 'actor', 'failed'] as const) {
+      const next = wire(); await next.session.refreshIdentity(); const parent = correctivePageFixture(next, language), key = parent.form().node?.key;
+      if (fault === 'actor') next.setActor(b);
+      if (fault === 'failed') next.identityNext(Promise.resolve(Response.json({}, { status: 503 })));
+      const change = next.session.refreshIdentity({ sameAccountRefresh: fault !== 'logout', userId: fault === 'logout' ? null : a });
+      if (fault === 'logout') assert.notEqual(parent.form().node?.key, key, 'logout remounts before await');
+      await change; assert.notEqual(parent.form().node?.key, key, fault + ' cannot retain a private form');
+    }
+    assert.ok(!JSON.stringify(w.session).includes(details.message), 'draft stays in this form only');
+    form.cleanup(); w.session.clear();
+  });
+
+  test('corrective UI: ' + language + ' pending abort resumes without stuck busy and ignores a stale response', async () => {
+    const w = wire(); await w.session.refreshIdentity(); const form = formFixture(w, language); form.fill();
+    const first = form.send(), key = w.posts[0].key;
+    const refresh = w.session.refreshIdentity({ sameAccountRefresh: true, userId: a });
+    form.block(true); assert.equal(w.posts[0].options.signal?.aborted, true); await refresh;
+    form.block(false); const second = form.send();
+    assert.equal(w.posts.length, 2, 'aborted mounted form must become usable after verification');
+    assert.equal(w.posts[1].key, key, 'accepted or unknown nonce is never rotated');
+    w.posts[0].reply.done(receipt()); await first; assert.equal(form.saved(), 0);
+    await form.send(); assert.equal(w.posts.length, 2, 'stale finally cannot unlock a newer pending attempt');
+    w.posts[1].reply.done(Response.json({}, { status: 503 })); await second;
+    assert.match(renderToStaticMarkup(form.render()), language === 'ar' ? /تعذر تأكيد/ : /unconfirmed/);
+    const third = form.send(); assert.equal(w.posts[2].key, key);
+    w.posts[2].reply.done(receipt()); await third; assert.equal(form.saved(), 1); form.cleanup(); w.session.clear();
+  });
+
+  test('corrective UI: ' + language + ' current unavailable/busy rejection gives safe feedback but stale rejection is silent', async () => {
+    for (const fault of ['cases-null', 'busy'] as const) {
+      const w = wire(); await w.session.refreshIdentity(); let original: Promise<Awaited<ReturnType<typeof submit>>> | undefined;
+      if (fault === 'cases-null') { w.casesNext(Promise.resolve(Response.json({}, { status: 503 }))); await w.session.reload(); }
+      else original = submit(w);
+      const before = w.posts.length, form = formFixture(w, language); form.fill(); await form.send();
+      assert.equal(w.posts.length, before, 'rejection must not dispatch or reserve a new nonce');
+      const html = renderToStaticMarkup(form.render());
+      assert.match(html, /role="alert"/); assert.ok(!html.includes('CASE-' + caseId));
+      assert.match(html, language === 'ar' ? /تحقق|انتظر/ : /verify|pending/i);
+      if (original) { w.posts[0].reply.done(receipt()); const result = await original; if (result.kind === 'saved') result.commit(); }
+      form.cleanup(); w.session.clear();
+    }
+    const w = wire(); await w.session.refreshIdentity();
+    w.casesNext(Promise.resolve(Response.json({}, { status: 503 }))); await w.session.reload();
+    const form = formFixture(w, language); form.fill(); const pending = form.send();
+    w.session.clear('authentication_required'); await pending;
+    assert.ok(!renderToStaticMarkup(form.render()).includes('role="alert"'), 'old actor cannot show feedback after await');
+    assert.equal(w.posts.length, 0); form.cleanup();
+  });
+}
+
+test('corrective UI: absence of AbortSignal.any does not break bounded reads or abort/retry ownership', async () => {
+  const original = Object.getOwnPropertyDescriptor(AbortSignal, 'any');
+  try {
+    Object.defineProperty(AbortSignal, 'any', { value: undefined, configurable: true });
+    const w = wire(); await w.session.refreshIdentity(); assert.equal(w.session.getSnapshot().identity, 'customer');
+    const controller = new AbortController(), first = submit(w, payload, controller.signal);
+    const key = w.posts[0].key; controller.abort(); assert.equal(w.posts[0].options.signal?.aborted, true);
+    const second = submit(w); assert.equal(w.posts[1].key, key);
+    w.posts[0].reply.done(receipt()); assert.equal((await first).kind, 'inactive');
+    w.posts[1].reply.done(receipt()); const result = await second;
+    assert.equal(result.kind, 'saved'); if (result.kind === 'saved') assert.equal(result.commit(), true);
+    w.session.clear();
+  } finally { if (original) Object.defineProperty(AbortSignal, 'any', original); }
 });

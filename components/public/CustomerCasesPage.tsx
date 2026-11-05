@@ -50,6 +50,9 @@ export default function CustomerCasesPage() {
         </article>)}</div>
       </>}
     </ContentContainer></SectionContainer>
-    {state.identity === 'customer' && <ContactPublicPage key={state.generation} customerCase submitCustomerCase={request => session.submitCase({ ...request, generation: state.generation })} onSaved={() => void session.reload()} />}
+    <div hidden={state.identity !== 'customer'} aria-hidden={state.identity !== 'customer'}>
+      <ContactPublicPage key={state.generation} customerCase blocked={state.identity !== 'customer'}
+        submitCustomerCase={request => session.submitCase({ ...request, generation: state.generation })} onSaved={() => void session.reload()} />
+    </div>
   </main>;
 }

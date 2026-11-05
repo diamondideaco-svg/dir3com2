@@ -1,6 +1,5 @@
 import 'server-only';
-import { createHash } from 'node:crypto';
-import { prepareAgentProviderAttempt, type AgentDialoguePolicy } from './agent-dialogue';
+import { prepareRuntimeAgentProviderAttempt as prepareAgentProviderAttempt, agentAttemptConfiguration, type AgentDialoguePolicy } from './agent-dialogue';
 import { redactPublicTravelText } from './agent-general-travel';
 import { callInternalAgentProvider, internalAgentConfiguration } from '../ai2/runtime/agent-provider-dispatch';
 import { createDabraProviderRequestId, mapProviderErrorCategory, type DabraProviderAttemptScheduler, type DabraProviderErrorCategory } from '../ai2/observability/provider-attempts';
@@ -67,27 +66,28 @@ export async function planInternalAgentTool(message: string, observation?: Class
       const permit = limited ? scopedPermit : governance ? await prepareAgentProviderAttempt(governance.context, observation?.language ?? 'en', governance.policy, {
         capability: 'intent.classify', provider, message: outgoing, prompt: classifierPrompt, inputDigestValue: { message: outgoing },
       }, deadline, governance.signal) : undefined;
-      if (governance && (!permit || config.model !== permit.profile.measurement.model
-        || createHash('sha256').update(config.apiKey).digest('hex') !== permit.credentialSha256)) return { tool: null, status: 'unavailable', attempts };
+      if (governance && (!permit || !agentAttemptConfiguration(permit))) return { tool: null, status: 'unavailable', attempts };
+      const dispatchConfig = permit ? agentAttemptConfiguration(permit) : config;
+      if (!dispatchConfig) return { tool: null, status: 'unavailable', attempts };
       const startedAtMs = Date.now();
       if (permit && !permit.isReadyToDispatch()) return { tool: null, status: 'unavailable', attempts };
-      const result = await callInternalAgentProvider(provider, config, outgoing, { prompt: classifierPrompt, language: 'en', classifier: true,
+      const result = await callInternalAgentProvider(provider, dispatchConfig, outgoing, { prompt: classifierPrompt, language: 'en', classifier: true,
         timeoutMs: Math.min(6000, Math.max(1, (permit?.deadlineAtMs ?? deadline) - Date.now())),
         ...(permit ? { signal: permit.signal, maxOutputTokens: permit.profile.measurement.outputTokenCeiling, standardBilling: permit.standardBilling } : {}) });
       const completedAtMs = Date.now();
       let tool: AgentTool | null = null;
-      if (result.ok && (!permit || (await permit.isCurrent() && result.model === config.model
+      if (result.ok && (!permit || (await permit.isCurrent() && result.model === dispatchConfig.model
         && Number.isSafeInteger(result.inputTokens) && result.inputTokens! >= 0 && result.inputTokens! <= permit.profile.measurement.inputTokenCeiling
         && Number.isSafeInteger(result.outputTokens) && result.outputTokens! >= 0 && result.outputTokens! <= permit.profile.measurement.outputTokenCeiling))) {
         try { tool = parseAgentTool(JSON.parse(result.answer)); } catch { /* invalid output is never an answer */ }
       }
-      attempts.push({ provider, model: config.model, outcome: result.ok ? (tool ? 'ok' : 'invalid') : (result.errorCategory ?? 'upstream_error') });
+      attempts.push({ provider, model: dispatchConfig.model, outcome: result.ok ? (tool ? 'ok' : 'invalid') : (result.errorCategory ?? 'upstream_error') });
       if (observation && requestId) {
         const errorCategory = result.ok && tool ? undefined
           : mapProviderErrorCategory(result.ok ? 'malformed_response' : result.errorCategory, result.status);
         try {
           observation.scheduleAttempt({
-            requestId, provider, model: result.model ?? config.model, intentClass: 'internal',
+            requestId, provider, model: result.model ?? dispatchConfig.model, intentClass: 'internal',
             language: observation.language, route: 'fast-chat', startedAtMs, completedAtMs,
             success: Boolean(tool), errorCategory,
             fallbackFrom: attempts.at(-2)?.provider, fallbackReason: previousTelemetryError,

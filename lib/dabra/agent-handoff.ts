@@ -2,8 +2,8 @@ import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { runInternalAgent } from './agent';
 import { parseGeneralTravelAdvice } from './agent-general-travel';
-import { callInternalAgentProvider, internalAgentConfiguration } from '../ai2/runtime/agent-provider-dispatch';
-import { preparePublicAgentDialogue, composePublicAgentDialogue, DEFAULT_AGENT_DIALOGUE_POLICY, type AgentDialoguePolicy, type AgentDialogueResponseContract } from './agent-dialogue';
+import { callInternalAgentProvider } from '../ai2/runtime/agent-provider-dispatch';
+import { agentAttemptConfiguration, preparePublicAgentDialogue, composePublicAgentDialogue, DEFAULT_AGENT_DIALOGUE_POLICY, type AgentDialoguePolicy, type AgentDialogueResponseContract } from './agent-dialogue';
 import { selectQualifiedAgentCapability, type AgentCapabilityProfile, type CapabilityMeasurement, type QualifiedAgentDestination, type AgentProviderId } from './agent-capabilities';
 import { AGENT_TOOLS, agentIntent, type AgentIntent, type AgentTaskScope, agentProductRole, type AgentTaskSpec, type AgentTaskAuthority, type AgentTaskState,
   type AgentTaskBlockReason, type AgentTaskEvidence, type AgentTaskConsumption, type AgentTaskAccounting } from './agent-contract';
@@ -289,9 +289,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
     const plan = await preparePublicAgentDialogue({ ...input, intent }, result.output,
       options.dialogue ?? DEFAULT_AGENT_DIALOGUE_POLICY, spec.deadlineAtMs, options.signal, options.responseContract);
     if (!plan) return { kind: 'response', response: result.output, task: result.state };
-    const config = internalAgentConfiguration(plan.profile.provider);
-    if (!config || config.model !== plan.profile.measurement.model
-      || createHash('sha256').update(config.apiKey).digest('hex') !== plan.credentialSha256) return { kind: 'response', response: result.output, task: result.state };
+    if (!agentAttemptConfiguration(plan)) return { kind: 'response', response: result.output, task: result.state };
     const providerId = randomUUID(), owner = 'dabra-dialogue:' + plan.profile.provider;
     const providerSpec: AgentTaskSpec = {
       id: providerId, idempotencyKey: providerId, owner, productRole: 'concierge', capability: 'discover',
@@ -314,8 +312,9 @@ export async function runInternalAgentTask(input: CoreInput, options: {
       run: async ({ task, signal, destination }) => {
         if (destination.kind !== 'provider' || signal.aborted) throw new Error('task_stopped');
         const m = destination.measurement;
-        if (!plan.isReadyToDispatch()) throw new Error('task_stopped');
-        const reply = await callInternalAgentProvider(destination.provider, config, plan.message, {
+        const dispatchConfig = agentAttemptConfiguration(plan);
+        if (!dispatchConfig || !plan.isReadyToDispatch()) throw new Error('task_stopped');
+        const reply = await callInternalAgentProvider(destination.provider, dispatchConfig, plan.message, {
           prompt: plan.prompt, language: input.locale, timeoutMs: Math.max(1, task.deadlineAtMs - Date.now()),
           maxOutputTokens: m.outputTokenCeiling, signal, standardBilling: plan.standardBilling,
         });
