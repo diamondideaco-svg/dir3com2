@@ -90,10 +90,11 @@ try {
   const currentStateWhatsApp = files.find(file => file.endsWith('_task166_current_state_notices.sql'));
   const continuousWhatsApp = files.find(file => file.endsWith('_task166_continuous_future_events.sql'));
   const currentStateResume = files.find(file => file === '20261101070938_task166_guarded_current_state_resume.sql');
+  const workerBinding = files.find(file => file === '20261105081501_task166_existing_worker_binding.sql');
   // CEO-specific 43-row price release has its own isolated rollback/replay fixture.
   const priceRelease = files.find(file => file.endsWith('_drive_price_reduction_15_percent.sql'));
   assert.ok(migration);
-  for (const file of files.filter(file => file !== priceRelease && file !== migration && file !== managedDrive && file !== managedDriveModelYear && file !== managedDriveAcceptance && file !== managedDriveSeptember && file !== managedDriveWhatsApp && file !== managedDriveKapso && file !== managedDriveCustomer && file !== managedDriveTarget && file !== boundedDriveWhatsApp && file !== queryDriveWhatsApp && file !== boundedCustomerWhatsApp && file !== currentStateWhatsApp && file !== continuousWhatsApp && file !== currentStateResume)) sql(read(`supabase/migrations/${file}`));
+  for (const file of files.filter(file => file !== priceRelease && file !== migration && file !== managedDrive && file !== managedDriveModelYear && file !== managedDriveAcceptance && file !== managedDriveSeptember && file !== managedDriveWhatsApp && file !== managedDriveKapso && file !== managedDriveCustomer && file !== managedDriveTarget && file !== boundedDriveWhatsApp && file !== queryDriveWhatsApp && file !== boundedCustomerWhatsApp && file !== currentStateWhatsApp && file !== continuousWhatsApp && file !== currentStateResume && file !== workerBinding)) sql(read(`supabase/migrations/${file}`));
   // Fixtures are inserted only in our disposable database; no captured user data.
   for (const [id, role] of [[ceo,'admin'],[admin,'admin'],[staff,'staff'],[customer,'customer'],[partner,'partner']]) {
     sql(`INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES('${id}','${id}@example.invalid','{}');
@@ -138,6 +139,8 @@ try {
     equal(sql("SELECT to_regclass('drive_notification_private.continuous_services') IS NOT NULL AND NOT capture_enabled AND NOT send_enabled FROM drive_notification_private.settings WHERE singleton"),'t','continuous forward installed after current-state prerequisites without activation');
     assert.ok(currentStateResume);sql(read(`supabase/migrations/${currentStateResume}`));
     equal(sql("SELECT to_regclass('drive_notification_private.current_state_resumptions') IS NOT NULL AND to_regprocedure('public.resume_kapso_current_state_window(uuid,uuid,uuid,uuid,text,text)') IS NOT NULL AND NOT capture_enabled AND NOT send_enabled FROM drive_notification_private.settings WHERE singleton"),'t','guarded resume forward installed after continuous prerequisites without activation');
+    // The binding forward requires the notification schema; do not load it before Drive.
+    assert.ok(workerBinding);sql(read(`supabase/migrations/${workerBinding}`));
     sql(read('tests/sql/drive-managed-request.sql'));
     equal(rows(), before, 'managed Drive regression rolls back fixtures without changing existing business data');
   }
