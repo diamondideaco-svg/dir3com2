@@ -121,3 +121,20 @@ No local PostgreSQL repair, alternate live database or manual workflow retry sub
 New UI browser/Preview acceptance is not asserted from static markup or old-head Preview evidence.
 
 The final packet records exact commands/results, preserved historical gates, current artifact hashes, independent reviews still required, and the absence of live/paid changes.
+
+
+## Customer Case retry scope
+
+The existing CustomerCaseSession owns one random submission nonce and its pending/unknown state in memory. It does not retain the submitted body, a body hash, a receipt, or persistent browser storage.
+A child form remount or an explicit retry with edited fields keeps the unresolved nonce. No POST is sent automatically.
+A valid Customer receipt is consumed only while actor, generation, nonce and the specific request remain current. The UI checks that consumption after its await; an older completion cannot release a later invocation even when a retry reuses the same nonce.
+HTTP409,400,429,202, malformed/foreign receipts, network loss and abort never establish that an earlier unknown submission did not commit. There is no definitiveNoWrite release path.
+
+While revalidating a known account, private display state is hidden, the existing generation stays stable, the request is suspended and POST is blocked.
+Auth identity alone is insufficient. The existing authenticated Cases GET must also confirm current Customer access before the form can resume.
+USER_UPDATED uses the same server-verified identity path as SIGNED_IN/TOKEN_REFRESHED. Changed/absent/failed identity or Customer verification clears the nonce and old private state; stale responses cannot rebind it.
+A full page reload, destruction of the parent Session or logout ends this memory-only guarantee. The form explains that boundary and asks the user to check existing cases before a new submission; a case list never programmatically acknowledges a nonce.
+The public anonymous form retains its existing endpoint and mounted-form retry behavior. Neither interface sends email or WhatsApp.
+
+The shared intake policy remains100 accepted new cases/hour across origins and3 per sender/Customer owner. It does not reserve capacity for authenticated Customers.
+No R was chosen, no SQL or quotas changed, and no priority/capacity guarantee is asserted by this client correction.

@@ -5,8 +5,13 @@ import { ContentContainer, SectionContainer } from '@/components/design-system';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PublicHero from '@/components/public/PublicHero';
+import type { CustomerCaseSubmit } from '@/lib/contact/customer-case-session';
 const empty = { name: '', email: '', phone: '', subject: '', message: '', country: '' };
-export default function ContactPublicPage({ customerCase = false, onSaved }: { customerCase?: boolean; onSaved?: () => void } = {}) {
+type ContactPageProps =
+  | { customerCase?: false; onSaved?: () => void; submitCustomerCase?: never }
+  | { customerCase: true; onSaved?: () => void; submitCustomerCase: CustomerCaseSubmit };
+export default function ContactPublicPage(props: ContactPageProps = {}) {
+  const customerCase = props.customerCase === true, onSaved = props.onSaved;
   const { language } = useLanguage(); const ar = language === 'ar';
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
@@ -23,8 +28,15 @@ export default function ContactPublicPage({ customerCase = false, onSaved }: { c
     const controller = new AbortController(); request.current = controller;
     try {
       const payload = JSON.stringify(form);
+      if (props.customerCase) {
+        const result = await props.submitCustomerCase({ payload, signal: controller.signal });
+        if (controller.signal.aborted || result.kind === 'inactive' || result.kind === 'busy' || !result.commit()) return;
+        if (result.kind === 'saved') { setResult({ reference: result.reference }); setForm(empty); onSaved?.(); }
+        else setResult({ error: result.code });
+        return;
+      }
       if (attempt.current?.payload !== payload) attempt.current = { payload, key: crypto.randomUUID() };
-      const response = await fetch(customerCase ? '/api/support/cases' : '/api/contact', { method: 'POST', credentials: 'same-origin', signal: controller.signal, headers: {
+      const response = await fetch('/api/contact', { method: 'POST', credentials: 'same-origin', signal: controller.signal, headers: {
         'Content-Type': 'application/json', 'Idempotency-Key': attempt.current.key,
       }, body: payload });
       const body = await response.json();
@@ -45,10 +57,13 @@ export default function ContactPublicPage({ customerCase = false, onSaved }: { c
       <Card><CardHeader><CardTitle>{copy('رسالتك لفريق العمليات', 'Your message to Operations')}</CardTitle></CardHeader>
         <CardContent>
           <p className="mb-5 text-sm">{copy('استلام الرسالة لا يعني حجزًا أو دفعًا، ولا يؤكد إرسال بريد أو واتساب. لا ترسل كلمات مرور أو بيانات دفع.', 'A receipt is not a booking or payment and does not confirm email or WhatsApp delivery. Do not send passwords or payment details.')}</p>
+          {customerCase && <p className="mb-5 text-sm">{copy('لا يُحفظ النص عند مغادرة النموذج. بعد تحديث الصفحة بالكامل أو تسجيل الخروج، راجع قضاياك قبل إرسال طلب جديد؛ ينتهي ضمان إعادة المحاولة في هذه الجلسة.', 'Text is not retained when you leave the form. If you reload the page or sign out, check your cases before making a new submission; this session retry guarantee ends.')}</p>}
           {result && <div role={result.error ? 'alert' : 'status'} className="mb-5 break-words rounded-xl border p-4">
             {result.reference ? <>{copy('حُفظت رسالتك في صندوق العمليات. رقم الاستلام:', 'Your message was saved in the Operations inbox. Receipt:')} <span dir="ltr" className="block break-all">{result.reference}</span></>
               : result.error === 'CONTACT_RATE_LIMITED' ? copy('وصلت الرسائل إلى الحد المسموح. احتفظ بنصك وحاول بعد ساعة.', 'The message limit has been reached. Keep your text and try again in an hour.')
               : result.error === 'CONTACT_INVALID' ? copy('راجع الحقول المطلوبة وصيغة البريد وحدود النص.', 'Check required fields, email format and text limits.')
+              : customerCase && result.error === 'CONTACT_KEY_CONFLICT' ? copy('المحاولة السابقة غير محسومة. أعد إدخال تفاصيلها الأصلية أو راجع قضاياك قبل إرسال طلب جديد.', 'The earlier submission is unresolved. Reenter its original details or check your cases before making a new submission.')
+              : customerCase ? copy('تعذر تأكيد الحفظ. إعادة المحاولة في هذه الجلسة تستخدم الطلب نفسه حتى لو عدّلت الحقول؛ استخدم التفاصيل الأصلية.', 'Saving is unconfirmed. A retry in this session uses the same submission even if you edit fields; use the original details.')
               : copy('تعذر تأكيد استلام الرسالة. احتفظ بالنص وأعد المحاولة بنفس البيانات؛ لن تتكرر الرسالة عند إعادة المحاولة.', 'We could not confirm receipt. Keep your text and retry with the same details; retries of this submission are deduplicated.')}
           </div>}
           <form onSubmit={submit} className="space-y-4">

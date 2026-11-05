@@ -48,9 +48,10 @@ test('same-account SDK hint preserves form generation only after server verifica
   if(url==='/api/dabra/session-identity')return Response.json(identity(current));calls++;return Response.json(own());
  });
  await session.refreshIdentity();const previous=session.getSnapshot();
- await session.refreshIdentity({sameAccountRefresh:true,userId:a});assert.equal(session.getSnapshot(),previous);assert.equal(calls,1);
+ await session.refreshIdentity({sameAccountRefresh:true,userId:a});assert.equal(session.getSnapshot().generation,previous.generation);assert.deepEqual(session.getSnapshot().cases,previous.cases);assert.equal(calls,2);
  current=b;await session.refreshIdentity({sameAccountRefresh:true,userId:a});
- assert.ok(session.getSnapshot().generation>previous.generation);assert.equal(calls,2);
+ // Initial A, freshly verified A, then B each require their own Customer read.
+ assert.ok(session.getSnapshot().generation>previous.generation);assert.equal(calls,3);
 });
 
 type NodeProps={children?:unknown;onSubmit?:(e:{preventDefault:()=>void})=>Promise<void>;onChange?:(e:{target:{value:string}})=>void;value?:string;type?:string;required?:boolean};
@@ -60,10 +61,16 @@ function nodes(value:unknown):ReactElement<NodeProps>[] {
 }
 // Actual component/event handlers with controlled hook slots and external IO.
 // This is executable semantic UI evidence, not browser/layout acceptance.
-function formFixture(language:'ar'|'en') {
+async function formFixture(language:'ar'|'en') {
  const require=createRequire(import.meta.url),slots:unknown[]=[],refs:{current:unknown}[]=[];
  let stateIndex=0,refIndex=0,cleanup:()=>void=()=>{},saved=0;
  const requests:{url:string;options:RequestInit}[]=[],late=deferred<Response>();
+ const session=new CustomerCaseSession(async(url,options)=>{
+  if(url==='/api/dabra/session-identity')return Response.json(identity(a));
+  if(options?.method!=='POST')return Response.json(own());
+  requests.push({url:String(url),options});return late.promise;
+ });
+ await session.refreshIdentity();const generation=session.getSnapshot().generation;
  const empty=(props:{children?:unknown})=>props.children??null;
  const exports={} as {default:(props:unknown)=>ReactElement};
  runInNewContext(ts.transpileModule(readFileSync('components/public/ContactPublicPage.tsx','utf8'),{
@@ -80,13 +87,13 @@ function formFixture(language:'ar'|'en') {
    '@/components/public/PublicHero':{default:(p:{title:string})=>p.title},
   }[name]??require(name)),
  });
- const render=()=>{stateIndex=0;refIndex=0;return exports.default({customerCase:true,onSaved:()=>saved++});};
+ const render=()=>{stateIndex=0;refIndex=0;return exports.default({customerCase:true,submitCustomerCase:(request:{payload:string;signal:AbortSignal})=>session.submitCase({...request,generation}),onSaved:()=>saved++});};
  const form=()=>{const found=nodes(render()).find(n=>n.type==='form');assert.ok(found?.props.onSubmit);return found.props.onSubmit;};
  return {render,form,slots,requests,late,cleanup:()=>cleanup(),saved:()=>saved};
 }
 
 for(const language of ['ar','en'] as const)test('actual Case form '+language+' uses owned endpoint, one pending submission and drops unmounted late response',async()=>{
- const f=formFixture(language),html=renderToStaticMarkup(f.render());assert.match(html,language==='ar'?/dir="rtl"/:/dir="ltr"/);
+ const f=await formFixture(language),html=renderToStaticMarkup(f.render());assert.match(html,language==='ar'?/dir="rtl"/:/dir="ltr"/);
  f.slots[0]={name:'SYNTHETIC',email:'synthetic@example.invalid',phone:'',country:'EG',subject:'service',message:'PRIVATE'};
  const submit=f.form()!;const first=submit({preventDefault(){}});await submit({preventDefault(){}});
  assert.equal(f.requests.length,1);assert.equal(f.requests[0].url,'/api/support/cases');

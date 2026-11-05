@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   async headers() {
     return [{
+      source: '/support/cases',
+      headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' }],
+    }, {
       source: '/admin/server-binding',
       headers: [
         { key: 'Cache-Control', value: 'private, no-store, max-age=0, must-revalidate' },
