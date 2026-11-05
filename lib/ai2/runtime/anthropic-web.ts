@@ -49,6 +49,10 @@ type AnthropicWebCallParams = {
   model?: string;
   apiKey: string;
   timeoutMs?: number;
+  // Optional task controls; omitted callers retain their existing behavior.
+  signal?: AbortSignal;
+  maxOutputTokens?: number;
+  standardBilling?: boolean;
   singleAttempt?: boolean;
 };
 
@@ -216,6 +220,7 @@ async function callAnthropicOnce(
   prompt: string,
   message: string,
   timeoutMs: number,
+  controls?: Pick<AnthropicWebCallParams, 'signal' | 'maxOutputTokens' | 'standardBilling'>,
 ): Promise<AnthropicWebCallResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -229,10 +234,11 @@ async function callAnthropicOnce(
         'content-type': 'application/json',
       },
       cache: 'no-store',
-      signal: controller.signal,
+      signal: controls?.signal ? AbortSignal.any([controller.signal, controls.signal]) : controller.signal,
       body: JSON.stringify({
         model,
-        max_tokens: 700,
+        max_tokens: controls?.maxOutputTokens ?? 700,
+        ...(controls?.standardBilling ? { service_tier: 'standard_only' } : {}),
         system: prompt,
         messages: [{ role: 'user', content: message }],
       }),
@@ -312,10 +318,10 @@ export async function callAnthropicMessagesWeb(params: AnthropicWebCallParams): 
   const model = discoveredModel ?? configuredModel;
 
   if (remainingMs() <= 0) return { ok: false, answer: '', citations: [], errorCategory: 'timeout', model };
-  let result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, remainingMs());
+  let result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, remainingMs(), params);
   if (!params.singleAttempt && !result.ok && (result.errorCategory === 'timeout' || result.errorCategory === 'upstream_error')) {
     if (remainingMs() <= 0) return { ...result, errorCategory: 'timeout' };
-    result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, remainingMs());
+    result = await callAnthropicOnce(params.apiKey, model, params.prompt, params.message, remainingMs(), params);
   }
 
   return result;

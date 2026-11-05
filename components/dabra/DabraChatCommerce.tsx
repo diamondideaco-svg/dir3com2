@@ -460,7 +460,7 @@ function DabraChatCommerceSession() {
       for (const item of pendingAttachments) form.append('attachment', item.file, item.safeName);
       const response = await fetch('/api/ai2/chat', {
         method: 'POST',
-        headers: { Accept: 'text/plain' },
+        headers: { Accept: 'text/plain', 'X-DABRA-Request-Id': job.id },
         body: form,
         signal,
       });

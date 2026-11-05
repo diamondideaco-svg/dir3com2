@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { isDeepStrictEqual } from 'node:util';
 import { closeSync, constants, fchmodSync, fstatSync, lstatSync, openSync, realpathSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -100,6 +102,11 @@ type ProbeWorkerMessage =
 
 const SAFE_TERMINAL_ERRORS = new Set([
   'unsupported_argument',
+  'unsupported_measurement_argument',
+  'measurement_not_authorized',
+  'measurement_source_dirty',
+  'measurement_source_changed',
+  'measurement_source_invalid',
   'unsupported_provider',
   'logical_probe_limit_exceeded',
   'live_intent_missing',
@@ -181,7 +188,8 @@ export function parseCertificationArgs(argv: readonly string[]): CertificationOp
       continue;
     }
     const match = /^--([^=]+)=(.*)$/.exec(argument);
-    if (!match) throw new Error('unsupported_argument');
+    if (!match || !['provider','target-project-ref','confirm-live','manifest'].includes(match[1])
+      || values.has(match[1])) throw new Error('unsupported_argument');
     values.set(match[1], match[2]);
   }
   const provider = values.get('provider') ?? 'all';
@@ -652,7 +660,56 @@ async function createLiveDependencies(): Promise<CertificationDependencies> {
   };
 }
 
+
+/**
+ * This mode can only name the plan already approved in the shared funding store.
+ * It never loads dotenv, copies deployment secrets, invokes the legacy matrix,
+ * publishes profiles, refunds holds, or retries an unknown reserve/send.
+ */
+
+/** Verify tracked/index/untracked source as well as HEAD at every existing dispatch boundary. */
+export function measurementSourceSha(readGit: (args: readonly string[]) => string = args =>
+  execFileSync('git', ['--no-optional-locks', ...args], {
+    cwd: resolve(dirname(fileURLToPath(import.meta.url)), '..'),
+    encoding: 'utf8', windowsHide: true, timeout: 1000,
+  }).trim()): string {
+  const before = readGit(['rev-parse', 'HEAD']).trim();
+  if (!/^[a-f0-9]{40}$/.test(before)) throw new Error('measurement_source_invalid');
+  if (readGit(['status', '--porcelain=v1', '--untracked-files=all']).trim()) throw new Error('measurement_source_dirty');
+  if (readGit(['rev-parse', 'HEAD']).trim() !== before) throw new Error('measurement_source_changed');
+  return before;
+}
+
+export async function firstProfileMeasurementMain(argv: readonly string[]): Promise<number> {
+  if (argv.length !== 1 || argv[0] !== '--measure-first-profile') throw new Error('unsupported_measurement_argument');
+  if (process.env.DABRA_DIALOGUE_FUNDING_POLICY !== 'task217-existing-credit-v2') throw new Error('measurement_not_authorized');
+  const subject = process.env.DABRA_MEASUREMENT_SUBJECT;
+  const planId = process.env.DABRA_MEASUREMENT_PLAN_ID;
+  if (!subject || !planId) throw new Error('measurement_not_authorized');
+  const sourceSha = () => measurementSourceSha();
+  const { loadFundingMeasurement, createFundingDialogueAdmission } = await import('../lib/dabra/dialogue-funding-store');
+  const { measureFirstProfile } = await import('../lib/dabra/agent-measurement');
+  const { callInternalAgentProvider, internalAgentConfiguration } = await import('../lib/ai2/runtime/agent-provider-dispatch');
+  const signal = AbortSignal.timeout(60000);
+  const plan = await loadFundingMeasurement(subject, planId, sourceSha(), signal);
+  if (signal.aborted || !plan) throw new Error('measurement_not_authorized');
+  const result = await measureFirstProfile(plan, {
+    admission: createFundingDialogueAdmission(), sourceSha,
+    configuration: internalAgentConfiguration, dispatch: callInternalAgentProvider,
+    authorityCurrent: async boundedSignal => {
+      const fresh = await loadFundingMeasurement(subject, planId, sourceSha(), boundedSignal);
+      return !boundedSignal.aborted && fresh !== null && isDeepStrictEqual(fresh, plan);
+    },
+  }, signal);
+  // Only fixed public prompts/responses and actual returned metrics. No financial proof/config is logged.
+  process.stdout.write(JSON.stringify({ mode: 'FIRST_PROFILE_MEASUREMENT', planId, sourceSha: plan.permit.sourceSha,
+    caseSetSha: plan.permit.caseSetSha, provider: plan.proof.provider, model: plan.proof.model, ...result }) + '\n');
+  return result.kind === 'candidate' ? 0 : 1;
+}
+
 export async function main(argv = process.argv.slice(2)): Promise<number> {
+  // Detect the whole reserved namespace first. Invalid measurement arguments never fall into --live.
+  if (argv.some(argument => argument.startsWith('--measure'))) return firstProfileMeasurementMain(argv);
   const options = parseCertificationArgs(argv);
   const plan = buildProbePlan(options.provider);
   if (!options.live) {

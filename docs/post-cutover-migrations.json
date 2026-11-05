@@ -120,9 +120,45 @@
     "production_apply_authorized": false
   },
   {
+    "path": "supabase/migrations/20261028174710_task217_dialogue_funding_admission.sql",
+    "sha256": "520cb58d4c770aecd77915397ae0d9d5cb6f6613867fd40712b50ab68c48d9a8",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
     "path": "supabase/migrations/20261101070938_task166_guarded_current_state_resume.sql",
     "sha256": "2a07afcb23300ef96ffabeec4a897242a63ddf244f09c623f6486a9b3d759a06",
     "task": "#166",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261101102846_task217_first_profile_measurement_guard.sql",
+    "sha256": "4d6c1be9e7e0d8249254e7aaad49160f3e8e527c32f0d109b36c851950c1e20b",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261101153907_task217_seven_provider_pilot_envelope.sql",
+    "sha256": "9094d0d716356460b1076dee1b8b2122a82a1ae1b7d9ff4b0b3a4d9c09687f4e",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261102043035_task217_pilot_ledger_funding_scope.sql",
+    "sha256": "cf8cfe7a2718984666190cccc5596b8d08517aa1d5ae1b591287b81e59961605",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261102182200_task217_saved_funding_snapshot_use.sql",
+    "sha256": "4bd0686a6b62414a2dc773640513d64f4d5f3d7f69f39aab04bd7391d0ce0e2f",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261103000000_task217_limited_customer_funding.sql",
+    "sha256": "bd5a033085b58b7860b66d67843e11059182ed6683f44b6156b41007cbf0ef48",
+    "task": "#217",
     "production_apply_authorized": false
   },
   {

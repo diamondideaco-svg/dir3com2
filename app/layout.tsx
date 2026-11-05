@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Montserrat, Playfair_Display, Tajawal } from 'next/font/google';
+import { Montserrat, Tajawal } from 'next/font/google';
+import localFont from 'next/font/local';
 import { cookies } from 'next/headers';
 import { LanguageProvider } from '@/components/i18n/LanguageProvider';
 import SiteShell from '@/components/layout/SiteShell';
@@ -9,7 +10,15 @@ import { DEFAULT_LANGUAGE, LANGUAGE_COOKIE_NAME, languageDirection, normalizeLan
 
 const tajawal = Tajawal({ subsets: ['arabic', 'latin'], weight: ['400', '500', '700'], variable: '--font-tajawal', display: 'swap' });
 const montserrat = Montserrat({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-montserrat', display: 'swap' });
-const playfair = Playfair_Display({ subsets: ['latin'], weight: ['500', '600', '700'], variable: '--font-playfair', display: 'swap' });
+// Unmodified Google Fonts source and OFL: https://github.com/google/fonts/tree/8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5/ofl/playfairdisplay
+const playfair = localFont({
+  src: './fonts/playfair-display/PlayfairDisplay[wght].ttf',
+  weight: '500 700',
+  style: 'normal',
+  variable: '--font-playfair',
+  display: 'swap',
+  adjustFontFallback: 'Times New Roman',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://dir3com.com'),

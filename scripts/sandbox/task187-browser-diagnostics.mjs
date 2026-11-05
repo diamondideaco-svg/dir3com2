@@ -39,6 +39,31 @@ export function task187BrowserDiagnostic(error,stage){
  }
  return {stage:where,reason};
 }
+const browserSpawnCodes=new Set(['ENOENT','EACCES','EPERM','EAGAIN','EMFILE','ENFILE','ETIMEDOUT','ERR_CHILD_PROCESS_STDIO_MAXBUFFER']);
+const browserExitSignals=new Set(['SIGTERM','SIGKILL','SIGABRT','SIGSEGV','SIGILL','SIGBUS']);
+const browserStartupCodes=new Set(['ERR_MODULE_NOT_FOUND','ERR_UNKNOWN_FILE_EXTENSION','ERR_UNSUPPORTED_DIR_IMPORT','ERR_DLOPEN_FAILED']);
+/** Closed exit metadata only. Startup codes are observed hints, not proven causes.
+ * @param {unknown} error @param {unknown} stderr
+ */
+export function task187BrowserExitSummary(error,stderr){
+ const value=error&&typeof error==='object'?error:{};
+ const code='code' in value?value.code:null;
+ const signal='signal' in value?value.signal:null;
+ const stderrBytes=typeof stderr==='string'?Buffer.byteLength(stderr,'utf8'):null;
+ const stderrInspection=stderrBytes===null?'absent':stderrBytes>32768?'oversized':'bounded';
+ const text=typeof stderr==='string'&&stderrInspection==='bounded'?stderr:null;
+ const match=text?.match(/^Error \[(ERR_[A-Z_]+)\]:/m);
+ return {
+  exitCode:Number.isSafeInteger(code)&&typeof code==='number'&&code>=0&&code<=255?code:null,
+  spawnCode:typeof code==='string'&&browserSpawnCodes.has(code)?code:null,
+  signal:typeof signal==='string'&&browserExitSignals.has(signal)?signal:null,
+  killed:'killed' in value&&value.killed===true,
+  stderrBytes,stderrInspection,
+  markerCount:text===null?null:text.split(/\r?\n/).filter(line=>line.startsWith(TASK187_DIAGNOSTIC_PREFIX)).length,
+  startupCode:match&&browserStartupCodes.has(match[1])?match[1]:null,
+ };
+}
+
 /** Never return raw stderr, error messages, identities, tokens or DOM content. @param {unknown} stderr */
 export function task187BrowserFailure(stderr){
  let diagnostic={stage:'unknown',reason:'DIAGNOSTIC_UNAVAILABLE'};

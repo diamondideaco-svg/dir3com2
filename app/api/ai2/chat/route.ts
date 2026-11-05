@@ -7,12 +7,14 @@ import { DABRA_LOCALE_ERROR, parseDabraLocale } from '@/lib/dabra/locale-contrac
 import { getCurrencySnapshot } from '@/lib/currency/service';
 import { parseDisplayCurrency } from '@/lib/currency/display';
 import { agentIntent, type AgentContext } from '@/lib/dabra/agent-contract';
+import { getAgentDialoguePolicy } from '@/lib/dabra/agent-dialogue';
 import { runInternalAgentTask } from '@/lib/dabra/agent-handoff';
 import { parseContinuityChatTrip } from '@/lib/dabra/continuity-chat';
 export const dynamic = 'force-dynamic';
 
 type AI2ChatRequest = {
   message?: string;
+  requestId?: string;
   currency?: string;
   history?: Array<{ role?: string; content?: string }>;
   mode?: 'chat' | 'travel-plan';
@@ -123,6 +125,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const rawRequestId = request.headers.get('X-DABRA-Request-Id') ?? body?.requestId;
+  const requestId = typeof rawRequestId === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(rawRequestId)
+    ? rawRequestId.toLowerCase() : undefined;
+  if (rawRequestId !== undefined && rawRequestId !== null && !requestId) {
+    return NextResponse.json({ error: 'Invalid request.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
+  }
   const history = sanitizeHistory(body?.history);
   let trip = null;
   if (body?.continuityTrip !== undefined) {
@@ -145,6 +153,7 @@ export async function POST(request: NextRequest) {
     agentContext = await resolveAgentContext(request);
   }
   const context = platformContext(modelMessage, history, trip);
+  let dialoguePolicy = await getAgentDialoguePolicy(agentContext, request.signal, parsed.attachmentCount ? undefined : requestId);
   let understanding: string = 'internal-rules';
   let understandingProvider: string | undefined;
   let needsClarification = false;
@@ -155,17 +164,23 @@ export async function POST(request: NextRequest) {
     const { planInternalAgentTool } = await import('@/lib/dabra/agent-planner');
     const { createDabraProviderAttemptAfterResponseScheduler } = await import('@/lib/ai2/observability/provider-attempts');
     const planned = await planInternalAgentTool(message, { language: locale,
-      scheduleAttempt: createDabraProviderAttemptAfterResponseScheduler(after) });
+      scheduleAttempt: createDabraProviderAttemptAfterResponseScheduler(after) }, dialoguePolicy.trial
+      ? { policy: dialoguePolicy, context: agentContext, signal: request.signal } : undefined);
     understanding = planned.status;
     needsClarification = planned.status === 'unavailable' || planned.status === 'invalid';
     understandingProvider = planned.status === 'ok' ? planned.provider : undefined;
     if (planned.tool) intent = { ...intent, tool: planned.tool };
+    // An uncertain limited classifier attempt retains its reservation. Do not
+    // follow it with another provider stage or a hidden fallback.
+    if (planned.status !== 'ok' && dialoguePolicy.funding?.proofs.some(proof => 'limitedOperation' in proof)) {
+      dialoguePolicy = { ...dialoguePolicy, profiles: [] };
+    }
   }
   const currency = parseDisplayCurrency(body?.currency) ?? platformCurrency(context);
   const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
   const snapshot = needsRates ? await getCurrencySnapshot() : null;
   const taskResult = await runInternalAgentTask({ message: modelMessage, history, locale, context: agentContext, intent, needsClarification,
-    pricing: currency ? { currency, snapshot } : undefined, trip }, { signal: request.signal });
+    pricing: currency ? { currency, snapshot } : undefined, trip }, { signal: request.signal, dialogue: dialoguePolicy });
   if (taskResult.kind === 'stopped') return NextResponse.json({ error: DABRA_LOCALE_ERROR[locale] }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
   const response = taskResult.response;
   if (body?.stream === true) {
