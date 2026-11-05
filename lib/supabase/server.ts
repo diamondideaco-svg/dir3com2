@@ -92,11 +92,12 @@ export function getSupabaseAdminHostname(): string | null {
   return supabaseAdmin ? configuredAdminHostname : null;
 }
 
-export async function createSupabaseServerClient(): Promise<SupabaseClient> {
+export async function createSupabaseServerClient(fetcher?: typeof fetch): Promise<SupabaseClient> {
   const cookieStore = await cookies();
   const { supabaseUrl: publicUrl, supabaseAnonKey } = getPublicSupabaseConfig();
 
   return createSupabaseServerClientBase(publicUrl, supabaseAnonKey, {
+    ...(fetcher ? { global: { fetch: fetcher } } : {}),
     cookies: {
       getAll() {
         return cookieStore.getAll();
