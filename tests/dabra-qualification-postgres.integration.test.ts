@@ -185,3 +185,174 @@ test('real disposable PG qualification delta: exact permit, common lifetime ledg
   });
  }finally{try{await db?.end();}finally{try{if(created)await root.query('DROP DATABASE '+database);}finally{await root.end();}}}
 });
+
+
+// Forward-only delta. Historical baseline assertions above remain unchanged.
+// The private baseline phase is for an actual RED run; the same positive
+// assertions must fail there. CI defaults to the reviewed forward.
+test('qualification provider-bound forward', { timeout: 120000 }, async t => {
+ const phase=process.env.TASK217_BOUND_FIXTURE_PHASE??'forward';
+ assert.ok(phase==='baseline'||phase==='forward');
+ const forward='20261105193011_task217_qualification_provider_bound.sql';
+ const config=target(process.env.CONTINUITY_TEST_DATABASE_URL);
+ const limits={...daily,uniqueUsers:1,requestsPerUser:4,requestsTotal:4,inputTokensPerUser:16384,
+  outputTokensPerUser:4096,inputTokensTotal:16384,outputTokensTotal:4096};
+ type History={provider:AgentProviderId;count:number;held?:number;ordinary?:boolean};
+ type Request=ReturnType<typeof request>;
+ type Fixture={
+  client:Client;database:string;install(g:Grant):Promise<unknown>;
+  reserve(r:Request,connection?:Client):Promise<{decision:string}>;
+  direct(g:Grant,r:Request):Promise<void>;count():Promise<number>;held():Promise<number>;
+  history():Promise<unknown[]>;next(g:Grant,index?:number,runId?:string):Request;
+ };
+ const withFixture=async(entries:readonly History[],run:(f:Fixture)=>Promise<void>)=>{
+  const database='dir3com_bound5_'+randomUUID().replaceAll('-',''),root=new Client(config);
+  let client:Client|undefined,created=false;await root.connect();
+  try{
+   await root.query('CREATE DATABASE '+database);created=true;client=new Client({...config,database});await client.connect();const db=client;
+   assert.equal(Math.floor(Number((await db.query("SELECT current_setting('server_version_num') AS n")).rows[0].n)/10000),17);
+   await db.query(['anon','authenticated','service_role'].map(role=>'DO $$ BEGIN CREATE ROLE '+role+' NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;').join('\n'));
+   await db.query(sql(parents[0]));
+   const historyIds:string[]=[];
+   for(const entry of entries){
+    const id=randomUUID();historyIds.push(id);
+    // Disabled ordinary + pilot rows count together. Excess retained liability
+    // models an unsettled/unknown outcome, never a refundable missing receipt.
+    const envelope={schema:'task217-seven-provider-pilot-v1',id:'task217-text-pilot-2026-11-01',maxCostMicros:1000000,maxAttempts:28};
+    // Only the original two providers support existing-credit at this
+    // historical baseline. Other providers use valid ordinary no-new-charge
+    // rows; their ledger costs still count above their zero retained counters.
+    const credit=entry.provider==='openai'||entry.provider==='anthropic';
+    await db.query('INSERT INTO private.dabra_dialogue_funding_grants(id,provider,account_id,project_id,funding_mode,authorized_credit_micros,reserved_credit_micros,enabled,proof,authorized_at) VALUES($1,$2,$3,$4,$5,$6,$7,false,$8::jsonb,clock_timestamp())',
+     [id,entry.provider,'SYNTHETIC-bound-history-'+id,'SYNTHETIC-project',credit?'existing-credit':'no-new-charge',credit?1000000:0,
+      credit?(entry.held??entry.count):0,JSON.stringify(credit&&!entry.ordinary?{pilotEnvelope:envelope}:{})]);
+    await db.query("INSERT INTO private.dabra_dialogue_admissions(attempt_id,request_id,stage,subject_hash,grant_id,day_start_ms,quota_start_ms,quota_end_ms,input_tokens,output_tokens,cost_micros) SELECT gen_random_uuid(),gen_random_uuid(),'intent.classify',repeat('a',64),$1,0,0,1,1,1,1 FROM generate_series(1,$2)",[id,entry.count]);
+   }
+   for(const parent of parents.slice(1))await db.query(sql(parent));
+   await db.query(sql(outputForward));await db.query(sql(bootstrapForward));
+   const functionSql="SELECT oid,proname,proowner,proacl::text,prosecdef,proconfig,md5(prosrc) AS body FROM pg_proc WHERE oid=ANY(ARRAY['public.reserve_dabra_dialogue_attempt(uuid,uuid,text,text,uuid,jsonb,integer,integer,bigint,jsonb,bigint)'::regprocedure,'private.reserve_dabra_qualification_attempt(uuid,uuid,text,text,uuid,jsonb,integer,integer,bigint,jsonb,bigint)'::regprocedure,'private.protect_dabra_qualification_insert()'::regprocedure,'private.protect_dabra_dialogue_grant()'::regprocedure,'private.protect_dabra_pilot_admission()'::regprocedure,'private.valid_dabra_qualification_execution(private.dabra_dialogue_funding_grants,uuid,uuid,text,text,integer,integer,bigint,jsonb,bigint)'::regprocedure,'public.get_dabra_dialogue_qualification_plan(uuid,text)'::regprocedure,'public.get_dabra_dialogue_funding_policy(text)'::regprocedure]) ORDER BY oid";
+   const tableSql="SELECT oid,relname,relowner,relacl::text,relrowsecurity,relforcerowsecurity FROM pg_class WHERE relnamespace='private'::regnamespace AND relkind='r' ORDER BY oid";
+   const beforeFunctions=(await db.query(functionSql)).rows,beforeTables=(await db.query(tableSql)).rows;
+   const beforeControl=(await db.query('SELECT to_jsonb(c) AS v FROM private.dabra_dialogue_funding_control c')).rows;
+   if(phase==='forward')await db.query(sql(forward));
+   const afterFunctions=(await db.query(functionSql)).rows;
+   const metadata=(row:Record<string,unknown>)=>{const copy={...row};delete copy.body;return copy;};
+   assert.deepEqual(afterFunctions.map(metadata),beforeFunctions.map(metadata),'OID/owner/ACL/security/search_path changed');
+   const changed=afterFunctions.filter((row,index)=>row.body!==beforeFunctions[index].body).map(row=>row.proname).sort();
+   assert.deepEqual(changed,phase==='forward'?['protect_dabra_qualification_insert','reserve_dabra_qualification_attempt']:[],
+    'ordinary-v2 or a non-target function body changed');
+   assert.deepEqual((await db.query(tableSql)).rows,beforeTables);
+   assert.deepEqual((await db.query('SELECT to_jsonb(c) AS v FROM private.dabra_dialogue_funding_control c')).rows,beforeControl);
+   await db.query('UPDATE private.dabra_dialogue_funding_control SET enabled=true,max_attempt_cost_micros=1000000,daily_limits=$1::jsonb,subject_hashes=ARRAY[$2::text]',
+    [JSON.stringify(limits),fundingSubject('SYNTHETIC-CUSTOMER')]);
+   const next=(g:Grant,index=0,runId=randomUUID())=>{const r=request(g,index,runId);r.args[9]=JSON.stringify(limits);return r;};
+   const reserve=async(r:Request,connection=db)=>{
+    await connection.query('BEGIN');
+    try{await connection.query('SET LOCAL ROLE service_role');const row=(await connection.query(reserveSql,r.args)).rows[0].v;
+     await connection.query('COMMIT');return row as {decision:string};}
+    catch(error){await connection.query('ROLLBACK');throw error;}
+   };
+   const install=(g:Grant)=>db.query('INSERT INTO private.dabra_dialogue_funding_grants(id,provider,account_id,project_id,funding_mode,authorized_credit_micros,input_rate_micros_per_million,output_rate_micros_per_million,enabled,proof,authorized_at) VALUES($1,$2,$3,$4,$5,0,$6,$7,true,$8::jsonb,$9::timestamptz)',
+    [g.proof.grantId,g.proof.provider,g.proof.accountId,g.proof.projectId,g.proof.mode,g.rate.inputMicrosPerMillion,g.rate.outputMicrosPerMillion,JSON.stringify(g.proof),new Date(g.proof.limitedOperation.authorizedAtMs).toISOString()]);
+   const count=async()=>Number((await db.query('SELECT count(*) AS n FROM private.dabra_dialogue_admissions')).rows[0].n);
+   const held=async()=>Number((await db.query('SELECT coalesce(sum(greatest(g.reserved_credit_micros,coalesce(a.cost,0))),0) AS n FROM private.dabra_dialogue_funding_grants g LEFT JOIN LATERAL(SELECT sum(cost_micros) cost FROM private.dabra_dialogue_admissions WHERE grant_id=g.id)a ON true')).rows[0].n);
+   const history=async()=>[
+    (await db.query('SELECT id,provider,enabled,reserved_credit_micros,proof FROM private.dabra_dialogue_funding_grants WHERE id=ANY($1::uuid[]) ORDER BY id',[historyIds])).rows,
+    (await db.query('SELECT attempt_id,request_id,grant_id,cost_micros FROM private.dabra_dialogue_admissions WHERE grant_id=ANY($1::uuid[]) ORDER BY attempt_id',[historyIds])).rows,
+   ];
+   const direct=async(g:Grant,r:Request)=>{
+    await db.query('BEGIN');
+    try{
+     await db.query('UPDATE private.dabra_dialogue_funding_grants SET reserved_credit_micros=reserved_credit_micros+$2 WHERE id=$1',[g.proof.grantId,g.cost]);
+     await db.query('INSERT INTO private.dabra_dialogue_admissions(attempt_id,request_id,stage,subject_hash,grant_id,day_start_ms,quota_start_ms,quota_end_ms,input_tokens,output_tokens,cost_micros,execution_pricing) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)',
+      [r.args[0],r.args[1],r.args[2],r.args[3],r.args[4],r.args[10],g.permit.authorizedAtMs,g.permit.expiresAtMs,r.args[6],r.args[7],r.args[8],JSON.stringify(r.proof.executionPricing)]);
+    }finally{await db.query('ROLLBACK');}
+   };
+   await run({client:db,database,install,reserve,direct,count,held,history,next});
+  }finally{try{await client?.end();}finally{try{if(created)await root.query('DROP DATABASE '+database);}finally{await root.end();}}}
+ };
+ for(const provider of ['openai','anthropic']as const){
+  await t.test('qualification provider-bound forward: '+provider+' 3+2 accepts fifth; sixth denied by RPC/insert; all history retained',()=>withFixture(
+   [{provider,count:2,held:1000},{provider,count:1,held:100,ordinary:true}],async f=>{
+    const prior=await f.history(),beforeHeld=await f.held(),g=grant(provider,['ar']);await f.install(g);
+    const first=f.next(g);assert.equal((await f.reserve(first)).decision,'admitted');
+    assert.equal((await f.reserve(f.next(g,1,first.runId))).decision,'admitted');
+    assert.equal(await f.count(),5);assert.equal(await f.held(),beforeHeld+g.cost*2);
+    const next=grant(provider,['en']);await f.install(next);const denied=f.next(next),held=await f.held();
+    assert.equal((await f.reserve(denied)).decision,'denied');
+    await assert.rejects(()=>f.direct(next,denied),/DIALOGUE_QUALIFICATION_ENVELOPE/);
+    assert.equal(await f.count(),5);assert.equal(await f.held(),held);assert.deepEqual(await f.history(),prior);
+   }));
+  await t.test('qualification provider-bound forward: '+provider+' 4+2 refuses before first reservation',()=>withFixture(
+   [{provider,count:2,held:1000},{provider,count:2,held:100,ordinary:true}],async f=>{
+    const prior=await f.history(),held=await f.held(),g=grant(provider,['ar']);await f.install(g);
+    assert.equal((await f.reserve(f.next(g))).decision,'denied');
+    assert.equal(await f.count(),4);assert.equal(await f.held(),held);assert.deepEqual(await f.history(),prior);
+   }));
+ }
+ for(const provider of ['gemini','xai','deepseek','qwen','mistral']as const){
+  await t.test('qualification provider-bound forward: '+provider+' fourth accepts; fifth denied by RPC/insert',()=>withFixture(
+   [{provider,count:1,held:1000},{provider,count:1,held:100,ordinary:true}],async f=>{
+    const prior=await f.history(),held=await f.held(),g=grant(provider,['ar']);await f.install(g);const first=f.next(g);
+    assert.equal((await f.reserve(first)).decision,'admitted');assert.equal((await f.reserve(f.next(g,1,first.runId))).decision,'admitted');
+    assert.equal(await f.count(),4);assert.equal(await f.held(),held+g.cost*2);
+    const next=grant(provider,['en']);await f.install(next);const denied=f.next(next),before=await f.held();
+    assert.equal((await f.reserve(denied)).decision,'denied');
+    await assert.rejects(()=>f.direct(next,denied),/DIALOGUE_QUALIFICATION_ENVELOPE/);
+    assert.equal(await f.count(),4);assert.equal(await f.held(),before);assert.deepEqual(await f.history(),prior);
+   }));
+ }
+ await t.test('qualification provider-bound forward: shared 28 remains exact across all grants',()=>withFixture(
+  [{provider:'openai',count:3},{provider:'anthropic',count:3},{provider:'gemini',count:4},{provider:'xai',count:4},
+   {provider:'deepseek',count:4},{provider:'qwen',count:4},{provider:'mistral',count:4}],async f=>{
+   const prior=await f.history(),g=grant('openai',['ar']);await f.install(g);const first=f.next(g);
+   assert.equal((await f.reserve(first)).decision,'admitted');assert.equal((await f.reserve(f.next(g,1,first.runId))).decision,'admitted');
+   assert.equal(await f.count(),28);
+   const other=grant('anthropic',['ar']);await f.install(other);const denied=f.next(other),held=await f.held();
+   assert.equal((await f.reserve(denied)).decision,'denied');
+   await assert.rejects(()=>f.direct(other,denied),/DIALOGUE_QUALIFICATION_ENVELOPE/);
+   assert.equal(await f.count(),28);assert.equal(await f.held(),held);assert.deepEqual(await f.history(),prior);
+  }));
+ const priced=grant('openai',['ar']);
+ await t.test('qualification provider-bound forward: shared USD1 includes retained unknown liability',()=>withFixture(
+  [{provider:'openai',count:3,held:1000000-priced.cost*2}],async f=>{
+   const prior=await f.history(),g=grant('openai',['ar']);assert.equal(g.cost,priced.cost);await f.install(g);const first=f.next(g);
+   assert.equal((await f.reserve(first)).decision,'admitted');assert.equal((await f.reserve(f.next(g,1,first.runId))).decision,'admitted');
+   assert.equal(await f.held(),1000000);
+   const other=grant('gemini',['ar']);await f.install(other);const denied=f.next(other);
+   assert.equal((await f.reserve(denied)).decision,'denied');
+   await assert.rejects(()=>f.direct(other,denied),/DIALOGUE_QUALIFICATION_ENVELOPE/);
+   assert.equal(await f.count(),5);assert.equal(await f.held(),1000000);assert.deepEqual(await f.history(),prior);
+  }));
+ await t.test('qualification provider-bound forward: daily four is unchanged across providers',()=>withFixture([],async f=>{
+  for(const provider of ['openai','gemini']as const){const g=grant(provider,['ar']);await f.install(g);const first=f.next(g);
+   assert.equal((await f.reserve(first)).decision,'admitted');assert.equal((await f.reserve(f.next(g,1,first.runId))).decision,'admitted');}
+  const g=grant('qwen',['ar']);await f.install(g);const before=await f.held();
+  assert.equal((await f.reserve(f.next(g))).decision,'denied');assert.equal(await f.count(),4);assert.equal(await f.held(),before);
+ }));
+ await t.test('qualification provider-bound forward: concurrent fifth slot cannot duplicate admission',()=>withFixture(
+  [{provider:'openai',count:3,held:1000}],async f=>{
+   const a=grant('openai',['ar']),b=grant('openai',['ar']);await f.install(a);await f.install(b);
+   const ra=f.next(a),rb=f.next(b),second=new Client({...config,database:f.database});await second.connect();
+   try{
+    const results=await Promise.all([f.reserve(ra),f.reserve(rb,second)]);
+    assert.deepEqual(results.map(r=>r.decision).sort(),['admitted','denied']);
+    const winner=results[0].decision==='admitted'?a:b,run=results[0].decision==='admitted'?ra.runId:rb.runId;
+    const responses=await Promise.all([f.reserve(f.next(winner,1,run)),f.reserve(f.next(winner,1,run),second)]);
+    assert.deepEqual(responses.map(r=>r.decision).sort(),['admitted','denied']);assert.equal(await f.count(),5);
+   }finally{await second.end();}
+  }));
+ await t.test('qualification provider-bound forward: unknown accepted intent remains held; disabled/replacement cannot retry or refund',()=>withFixture(
+  [{provider:'anthropic',count:3,held:1000}],async f=>{
+   const g=grant('anthropic',['ar']);await f.install(g);const r=f.next(g),held=await f.held();
+   await f.reserve(r); // Simulate a lost result; no provider send or settlement is performed.
+   assert.equal(await f.count(),4);assert.equal(await f.held(),held+g.cost);
+   await f.client.query('UPDATE private.dabra_dialogue_funding_grants SET enabled=false WHERE id=$1',[g.proof.grantId]);
+   assert.equal((await f.reserve(f.next(g,1,r.runId))).decision,'denied');
+   const replacement=grant('anthropic',['ar']);await f.install(replacement);
+   assert.equal((await f.reserve(f.next(replacement))).decision,'denied');
+   await assert.rejects(()=>f.client.query('UPDATE private.dabra_dialogue_funding_grants SET reserved_credit_micros=0 WHERE id=$1',[g.proof.grantId]),/IMMUTABLE/);
+   await assert.rejects(()=>f.client.query('DELETE FROM private.dabra_dialogue_admissions WHERE attempt_id=$1',[r.attempt]),/IMMUTABLE/);
+   assert.equal(await f.count(),4);assert.equal(await f.held(),held+g.cost);
+  }));
+});
