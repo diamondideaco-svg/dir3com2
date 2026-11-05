@@ -76,7 +76,7 @@ function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing 
           answer: 'SYNTHETIC Core question', language: locale, provider: 'local', sources: [],
           groundingStatus: 'answered-general', retrievalMode: 'local', agent: { tool: 'discover', role: 'customer', mutations: 0, state: 'needs_info' },
         }) };
-        if (['node:crypto', './agent-capabilities', './agent-contract', './agent-general-travel', './conversation-renderer'].includes(id)) return require(id);
+        if (['node:crypto', 'node:diagnostics_channel', './agent-capabilities', './agent-contract', './agent-general-travel', './conversation-renderer'].includes(id)) return require(id);
         throw new Error('Unexpected expiry-fixture dependency: ' + id);
       },
       Date: Clock, URL, Buffer, TextDecoder, AbortController, AbortSignal, setTimeout, clearTimeout, queueMicrotask, console,
