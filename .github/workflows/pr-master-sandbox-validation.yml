@@ -127,6 +127,19 @@ jobs:
           CONTINUITY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/dir3com_test
         run: |
           set -o pipefail
+          export TASK166_BINDING_TEST_CONTAINER="task166-binding-${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}"
+          binding_container_id=''
+          trap 'if [ -n "$binding_container_id" ]; then docker rm --force "$binding_container_id"; fi' EXIT
+          binding_container_id=$(docker run --detach --pull=never \
+            --name "$TASK166_BINDING_TEST_CONTAINER" --network none \
+            --label dir3com.task166.synthetic=true \
+            --tmpfs /var/lib/postgresql/data:rw,nosuid,nodev,size=256m \
+            --env POSTGRES_HOST_AUTH_METHOD=trust postgres:17)
+          for attempt in $(seq 1 30); do
+            if docker exec "$binding_container_id" pg_isready -U postgres; then break; fi
+            sleep 1
+          done
+          docker exec "$binding_container_id" pg_isready -U postgres
           npm run test:all 2>&1 | tee test-all.log
           test_exit=${PIPESTATUS[0]}
           if [ "$test_exit" -ne 0 ]; then
