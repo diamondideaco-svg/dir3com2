@@ -26,7 +26,7 @@ export default function DriveWorkerBindingSetup({ approvalId, readiness }: Worke
 
   const connected = outcome === 'bound' || outcome === 'already-bound';
   const message = connected
-    ? ['تم ربط واتساب. لم يُؤكَّد التشغيل التلقائي بعد.', 'WhatsApp is connected. Automatic operation is not yet confirmed.']
+    ? ['تم ربط اعتماد العامل. لا تثبت هذه الخطوة اتصال واتساب أو التشغيل التلقائي.', 'Worker credential linked. This step does not confirm WhatsApp connectivity or automatic operation.']
     : outcome === 'unknown'
       ? ['تعذّر تأكيد نتيجة الربط. توقفت المحاولة لحين التحقق.', 'The connection result could not be confirmed. The attempt is stopped pending verification.']
       : readiness !== 'ready' || outcome === 'unavailable'

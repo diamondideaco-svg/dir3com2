@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import type * as Diagnostic from '../lib/admin/server-binding-diagnostic';
+import { isBindingApprovalId } from '../lib/admin/drive-worker-binding-ui';
 
 type Row = Record<string, unknown>;
 function load<T>(path: string, dependencies: Record<string, unknown>, env: Record<string, string | undefined> = {}): T {
@@ -162,6 +163,7 @@ test('page waits for the request, denies anonymous/non-CEO, and cannot render un
       setupReads++; assert.equal(result.status, 'verified'); assert.equal(approvalId, 'synthetic-setup-id');
       return { approvalId: null, readiness: 'unavailable' };
     } },
+    '@/lib/admin/drive-worker-binding-ui': { isBindingApprovalId },
     '@/components/admin/DriveWorkerBindingSetup': { default: 'setup-button' },
     'react/jsx-runtime': { jsx, jsxs: jsx },
   });

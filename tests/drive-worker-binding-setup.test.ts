@@ -177,6 +177,79 @@ test('bilingual setup UI renders without a network call and unavailable/bound st
     assert.equal(html.includes('disabled=""'), readiness !== 'ready');
     assert.ok(!html.includes(approvalId), 'approval ID is not displayed as input or text');
     assert.ok(!html.includes(secretId));
-    if (readiness === 'bound') assert.match(html, /Automatic operation is not yet confirmed/);
+    if (readiness === 'bound') {
+      assert.match(html, /تم ربط اعتماد العامل/);
+      assert.match(html, /لا تثبت هذه الخطوة اتصال واتساب أو التشغيل التلقائي/);
+      assert.match(html, /Worker credential linked/);
+      assert.match(html, /This step does not confirm WhatsApp connectivity or automatic operation/);
+      assert.doesNotMatch(html, /WhatsApp is connected|تم ربط واتساب/);
+    }
+  }
+});
+
+function setupPageFixture() {
+  const f = setupFixture();
+  const page = load<{ default(props: { searchParams: Promise<{ setup?: string | string[] }> }): Promise<React.ReactElement> }>(
+    'app/admin/server-binding/page.tsx', {
+      'next/server': { connection: async () => {} },
+      'next/navigation': { redirect: (url: string) => { throw new Error('REDIRECT:' + url); },
+        notFound: () => { throw new Error('NOT_FOUND'); } },
+      '@/lib/admin/server-binding-diagnostic': { readServerBindingDiagnostic: async () => f.state.authenticated
+        ? { status: 'verified', hostname: f.state.hostname, deployment: identity, observedAt: '2026-11-06T00:00:00Z' }
+        : { status: 'anonymous' } },
+      '@/lib/admin/drive-worker-binding-setup': f.setup,
+      '@/lib/admin/drive-worker-binding-ui': ui,
+      '@/components/admin/DriveWorkerBindingSetup': { default: (props: Setup.WorkerBindingSetup) =>
+        React.createElement('div', { 'data-readiness': props.readiness }) },
+      'react/jsx-runtime': jsx,
+    });
+  return { ...f, page };
+}
+
+test('setup login return preserves a valid identifier and freshly revalidates the permit after login', async () => {
+  for (const expired of [false, true]) {
+    const f = setupPageFixture();
+    f.state.authenticated = false;
+    let loginUrl = '';
+    await assert.rejects(f.page.default({ searchParams: Promise.resolve({ setup: approvalId }) }), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /^REDIRECT:/);
+      loginUrl = error.message.slice('REDIRECT:'.length);
+      return true;
+    });
+    const login = new URL(loginUrl, 'https://app.example.invalid');
+    const destination = '/admin/server-binding?setup=' + approvalId;
+    assert.equal(login.pathname, '/login');
+    assert.equal(login.searchParams.get('redirect'), destination);
+    assert.equal(login.searchParams.get('next'), destination);
+    assert.deepEqual(f.calls, { auth: 0, ceo: 0, rpc: 0, retry: [] });
+    const returned = new URL(destination, login.origin);
+    f.state.authenticated = true;
+    if (expired) f.state.data = { code: 'EXPIRED' };
+    const html = renderToStaticMarkup(await f.page.default({
+      searchParams: Promise.resolve({ setup: returned.searchParams.get('setup')! }),
+    }));
+    assert.match(html, expired ? /data-readiness="unavailable"/ : /data-readiness="ready"/);
+    assert.deepEqual(f.calls, { auth: 1, ceo: 1, rpc: 1, retry: [false] });
+  }
+});
+
+test('setup login return drops malformed or repeated identifiers and cannot select another destination', async () => {
+  for (const setup of [undefined, '', '//evil.example', approvalId + '&next=//evil.example',
+    [approvalId], [approvalId, approvalId]]) {
+    const f = setupPageFixture();
+    f.state.authenticated = false;
+    await assert.rejects(f.page.default({ searchParams: Promise.resolve({ setup }) }), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /^REDIRECT:/);
+      const login = new URL(error.message.slice('REDIRECT:'.length), 'https://app.example.invalid');
+      assert.equal(login.origin, 'https://app.example.invalid');
+      assert.equal(login.pathname, '/login');
+      assert.equal(login.searchParams.get('redirect'), '/admin/server-binding');
+      assert.equal(login.searchParams.get('next'), '/admin/server-binding');
+      assert.equal([...login.searchParams].length, 2);
+      return true;
+    });
+    assert.deepEqual(f.calls, { auth: 0, ceo: 0, rpc: 0, retry: [] });
   }
 });
