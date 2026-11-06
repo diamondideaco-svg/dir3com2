@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseDriveTrip, validateDriveOfferRequest } from './request';
 import { driveRequestModelYears } from './catalog';
+import { scheduleCreatedDriveWake } from '@/lib/notifications/drive-created-wake';
 
 export async function createDriveRequest(supabase: SupabaseClient, body: Record<string, unknown>, key: string | null) {
   if (!key || !/^[A-Za-z0-9:_-]{16,120}$/.test(key)) return NextResponse.json({ error: 'INVALID_IDEMPOTENCY_KEY' }, { status: 400 });
@@ -20,5 +21,8 @@ export async function createDriveRequest(supabase: SupabaseClient, body: Record<
     const status = error.code === '42501' ? 403 : error.code === '23505' ? 409 : ['22023','22007','22008'].includes(error.code) ? 400 : 503;
     return NextResponse.json({ error: status === 409 ? 'IDEMPOTENCY_CONFLICT' : status === 403 ? 'REQUEST_NOT_AUTHORIZED' : status === 400 ? 'INVALID_TRIP' : 'REQUEST_SERVICE_UNAVAILABLE' }, { status });
   }
+  // The RPC has committed its request and outbox before returning. A retry only
+  // recovers that request; it must not become a notification replay mechanism.
+  if (data.replayed === false) scheduleCreatedDriveWake();
   return NextResponse.json({ request: { request_reference: data.reference, status: data.status }, replayed: data.replayed }, { status: data.replayed ? 200 : 201 });
 }

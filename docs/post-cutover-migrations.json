@@ -192,6 +192,12 @@
     "production_apply_authorized": false
   },
   {
+    "path": "supabase/migrations/20261105081501_task166_existing_worker_binding.sql",
+    "sha256": "fbaa2b79596f79ac8cbaec3a869e5d8a54ce9811159d8abbaa92e18dc1917688",
+    "task": "#166",
+    "production_apply_authorized": false
+  },
+  {
     "path": "supabase/migrations/20261105193011_task217_qualification_provider_bound.sql",
     "sha256": "42cbf7298463bdd783c9f019f9d551692169071fe22f5c221826387542d3dc48",
     "task": "#217",
