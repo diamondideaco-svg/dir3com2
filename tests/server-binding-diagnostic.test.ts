@@ -151,19 +151,33 @@ test('success returns only hostname, deployment identity and observation time; r
 });
 test('page waits for the request, denies anonymous/non-CEO, and cannot render unavailable hostname', async () => {
   let connected = false;
+  let setupReads = 0;
   let result: Row = { status: 'anonymous' };
   const jsx = (type: unknown, props: unknown) => ({ type, props });
-  const page = load<{ default(): Promise<unknown> }>('app/admin/server-binding/page.tsx', {
+  const page = load<{ default(props: { searchParams: Promise<{ setup?: string }> }): Promise<unknown> }>('app/admin/server-binding/page.tsx', {
     'next/server': { connection: async () => { connected = true; } },
     'next/navigation': { redirect: (url: string) => { throw new Error('REDIRECT:' + url); }, notFound: () => { throw new Error('NOT_FOUND'); } },
     '@/lib/admin/server-binding-diagnostic': { readServerBindingDiagnostic: async () => { assert.equal(connected, true); return result; } },
+    '@/lib/admin/drive-worker-binding-setup': { readWorkerBindingSetup: async (approvalId: unknown) => {
+      setupReads++; assert.equal(result.status, 'verified'); assert.equal(approvalId, 'synthetic-setup-id');
+      return { approvalId: null, readiness: 'unavailable' };
+    } },
+    '@/components/admin/DriveWorkerBindingSetup': { default: 'setup-button' },
     'react/jsx-runtime': { jsx, jsxs: jsx },
   });
-  await assert.rejects(page.default(), /REDIRECT:\/login\?redirect=%2Fadmin%2Fserver-binding/);
-  result = { status: 'forbidden' }; await assert.rejects(page.default(), /NOT_FOUND/);
+  const render = () => page.default({ searchParams: Promise.resolve({ setup: 'synthetic-setup-id' }) });
+  await assert.rejects(render(), /REDIRECT:\/login\?redirect=%2Fadmin%2Fserver-binding/);
+  result = { status: 'forbidden' }; await assert.rejects(render(), /NOT_FOUND/);
   result = { status: 'unavailable' };
-  const rendered = JSON.stringify(await page.default());
+  const rendered = JSON.stringify(await render());
   assert.match(rendered, /Binding unavailable/); assert.doesNotMatch(rendered, /supabase\.co|service-key|private-value/);
+  assert.equal(setupReads, 0, 'unverified requests cannot inspect a permit');
+  result = { status: 'verified', hostname: 'server-test.supabase.co', deployment: {
+    deploymentId: platform.VERCEL_DEPLOYMENT_ID, deploymentUrl: 'https://' + platform.VERCEL_URL,
+    sha: platform.VERCEL_GIT_COMMIT_SHA,
+  }, observedAt: '2026-11-06T00:00:00Z' };
+  assert.match(JSON.stringify(await render()), /setup-button/);
+  assert.equal(setupReads, 1);
 });
 test('private no-cache policy covers the exact page without widening other admin routes', async () => {
   const config = load<{ default: { headers(): Promise<{ source: string; headers: { key: string; value: string }[] }[]> } }>('next.config.ts', {});
