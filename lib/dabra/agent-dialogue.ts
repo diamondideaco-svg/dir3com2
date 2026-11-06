@@ -145,8 +145,6 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
   request: { capability: 'discover' | 'intent.classify'; provider?: AgentProviderId; message: string; prompt: string; inputDigestValue: unknown },
   deadlineAtMs: number, signal?: AbortSignal, runtimeCheck?: AgentRuntimeCheck): Promise<PreparedAgentAttempt | null> {
   const now = Date.now(), actor = context.taskAuthority;
-  // Public/disabled dialogue is an expected Core path, not a failed funded attempt.
-  if (!policy.trial || context.role !== 'customer' || actor?.kind !== 'customer') return null;
   let reservationState: 'not_attempted' | 'unknown' | 'accepted' = 'not_attempted', diagnosed = false;
   // Closed server-only events: never include selection values, payload, actor,
   // account, proof, key, digest, URL or raw error. Logging cannot relax a guard.
@@ -154,7 +152,8 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
     | 'admission_unavailable' | 'preparation_exception' | 'policy_or_actor_unavailable'
     | 'output_contract_unavailable' | 'provider_selection_unavailable' | 'funding_proof_unavailable'
     | 'pricing_refresh_unavailable' | 'input_ceiling_exceeded' | 'authorization_window_expired'
-    | 'cost_ceiling_unavailable' | 'request_aborted' | 'request_deadline_expired' | 'preparation_timeout') => {
+    | 'cost_ceiling_unavailable' | 'request_aborted' | 'request_deadline_expired' | 'preparation_timeout'
+    | 'context_unavailable' | 'request_timeout') => {
     if (diagnosed) return; diagnosed = true;
     const event = Object.freeze({
       capability: request.capability === 'discover' ? 'discover' : 'intent.classify', reason, reservation: reservationState,
@@ -164,10 +163,14 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
     if (preparationDiagnostics.hasSubscribers) preparationDiagnostics.publish(event);
   };
   const requestStopped = () => {
-    if (signal?.aborted) { diagnose('request_aborted'); return true; }
+    if (signal?.aborted) { diagnose(signal.reason?.name === 'TimeoutError' ? 'request_timeout' : 'request_aborted'); return true; }
     if (Date.now() >= deadlineAtMs) { diagnose('request_deadline_expired'); return true; }
     return false;
   };
+  // An internal context failure is not an anonymous visit. Only its closed code is emitted.
+  if (context.taskAuthorityFailure === 'unavailable') { diagnose('context_unavailable'); return null; }
+  // Ordinary public/disabled dialogue remains a silent Core path.
+  if (!policy.trial || context.role !== 'customer' || actor?.kind !== 'customer') return null;
   if (requestStopped()) return null;
   if (!validPolicy(policy) || (!policy.admission && !policy.funding) || actor.actorId !== actor.ownerId
     || !/^[a-zA-Z0-9_-]{1,128}$/.test(actor.actorId) || !context.isTaskAuthorityCurrent) { diagnose('policy_or_actor_unavailable'); return null; }

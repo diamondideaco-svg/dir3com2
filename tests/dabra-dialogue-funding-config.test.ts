@@ -104,3 +104,40 @@ for(const trial of [false,true]) test('ordinary guest Core path is silent, funde
   assert.equal(result,null);assert.equal(events.length,0);assert.equal(claims,0);
  }finally{console.warn=savedWarn;}
 });
+
+for(const failure of ['authentication_required','forbidden','unavailable'] as const) for(const trial of [false,true])
+test('context outcome remains distinct from an ordinary guest: '+failure+'/trial='+trial,async()=>{
+ const savedWarn=console.warn,savedFetch=globalThis.fetch;const events:unknown[][]=[];
+ let claims=0,network=0,privateReads=0,runtimeChecks=0;
+ try{
+  console.warn=(...args:unknown[])=>{events.push(args);};
+  globalThis.fetch=async()=>{network++;throw Error('UNEXPECTED_NETWORK');};
+  const guest:AgentContext={role:'guest',taskAuthority:{kind:'guest'},taskAuthorityFailure:failure,
+   readRequests:async()=>{privateReads++;throw Error('SYNTHETIC-PRIVATE-CONTEXT-ERROR');}};
+  const p={...DEFAULT_AGENT_DIALOGUE_POLICY,trial,admission:{reserve:async()=>{claims++;return 'denied' as const;}}};
+  const result=await prepareAgentProviderAttempt(guest,'en',p,{capability:'discover',message:JSON.stringify(payload),prompt:AGENT_DIALOGUE_PROMPT,inputDigestValue:payload},Date.now()+1000,undefined,()=>{runtimeChecks++;return null;});
+  assert.equal(result,null);assert.equal(claims,0);assert.equal(network,0);assert.equal(privateReads,0);assert.equal(runtimeChecks,0);
+  assert.equal(events.length,failure==='unavailable'?1:0);
+  if(failure==='unavailable'){
+   assert.equal(events[0][0],'DABRA_AGENT_PREPARATION');
+   assert.deepEqual(JSON.parse(String(events[0][1])),{capability:'discover',reason:'context_unavailable',reservation:'not_attempted',stage:'preflight'});
+   assert.equal(JSON.stringify(events).includes('SYNTHETIC-PRIVATE-CONTEXT-ERROR'),false);
+   assert.equal(JSON.stringify(events).includes(payload.units[0]),false);
+  }
+ }finally{console.warn=savedWarn;globalThis.fetch=savedFetch;}
+});
+test('caller AbortSignal timeout before task deadline is request_timeout, never explicit cancellation',async()=>{
+ const savedWarn=console.warn;const events:unknown[][]=[];let claims=0;
+ const signal=AbortSignal.timeout(1);
+ await new Promise<void>(resolve=>{const keepAlive=setTimeout(resolve,100);signal.addEventListener('abort',()=>{clearTimeout(keepAlive);resolve();},{once:true});});
+ assert.equal(signal.aborted,true);
+ const deadline=Date.now()+10000;
+ try{
+  console.warn=(...args:unknown[])=>{events.push(args);};
+  const p={...DEFAULT_AGENT_DIALOGUE_POLICY,trial:true,admission:{reserve:async()=>{claims++;return 'denied' as const;}}};
+  const result=await prepareAgentProviderAttempt(context,'en',p,{capability:'discover',message:JSON.stringify(payload),prompt:AGENT_DIALOGUE_PROMPT,inputDigestValue:payload},deadline,signal);
+  assert.equal(result,null);assert.equal(claims,0);assert.ok(Date.now()<deadline);
+  assert.equal(events.length,1);
+  assert.deepEqual(JSON.parse(String(events[0][1])),{capability:'discover',reason:'request_timeout',reservation:'not_attempted',stage:'preflight'});
+ }finally{console.warn=savedWarn;}
+});
