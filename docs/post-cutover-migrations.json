@@ -162,9 +162,51 @@
     "production_apply_authorized": false
   },
   {
+    "path": "supabase/migrations/20261103170449_task217_credential_binding_readonly.sql",
+    "sha256": "b8b3f22333cb4c02884261d0dd2170ab3feeebdb172ffec76d681c36403027f1",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261103205926_task217_durable_account_charge.sql",
+    "sha256": "751cacce9d592c43112e4a6e285939b0b2b4864c660e887af61b0c17a1d7d539",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261104130000_task217_customer_case_owner.sql",
+    "sha256": "ebe1f94e64a0966d91fd3016deb8803b7b73872e77601c84b21d8d9108d66755",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261104133500_task217_output_contract_acceptance.sql",
+    "sha256": "f20aab074f0c1f6f5e4df86160ef283fdcb07e43780d2112f87b403b4cbdd979",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261104134000_task217_qualification_bootstrap.sql",
+    "sha256": "81a5e294f1f298fa10c9ee27005de42f430d63d4bf61f308f38200a80aa316d2",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
     "path": "supabase/migrations/20261105081501_task166_existing_worker_binding.sql",
     "sha256": "fbaa2b79596f79ac8cbaec3a869e5d8a54ce9811159d8abbaa92e18dc1917688",
     "task": "#166",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261105193011_task217_qualification_provider_bound.sql",
+    "sha256": "42cbf7298463bdd783c9f019f9d551692169071fe22f5c221826387542d3dc48",
+    "task": "#217",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261106161631_task166_worker_binding_fingerprint.sql",
+    "sha256": "86eae6389a3e4c1c16146616bb9a76f1133da481a643066beb447d2b40cef7d0",
+    "task": "#217 (linked #166)",
     "production_apply_authorized": false
   }
 ]

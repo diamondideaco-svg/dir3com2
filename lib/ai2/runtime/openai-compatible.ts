@@ -38,7 +38,7 @@ export type OpenAICompatibleParams = {
   preferredModels: string[];
   extraHeaders?: Record<string, string>;
   // Opt-in for the bounded GPT-5 classifier; legacy provider bodies stay unchanged.
-  chatProfile?: 'gpt-5-classifier' | 'gpt-6-luna-pilot';
+  chatProfile?: 'gpt-5-classifier' | 'gpt-6-luna-pilot' | 'qwen-bounded-task';
   // Optional task controls; omitted callers retain their existing behavior.
   signal?: AbortSignal;
   maxOutputTokens?: number;
@@ -357,6 +357,10 @@ async function callChatCompletions(
           ? { max_completion_tokens: Math.min(params.maxOutputTokens ?? 700, 1024), reasoning_effort: 'none' }
           : params.chatProfile === 'gpt-5-classifier'
           ? { max_completion_tokens: params.maxOutputTokens ?? 700, reasoning_effort: 'minimal' }
+          : params.chatProfile === 'qwen-bounded-task'
+          // Qwen max_tokens excludes thinking. The documented total cap may drift by10.
+          // https://help.aliyun.com/en/model-studio/qwen-api-via-openai-chat-completions
+          ? { temperature: 0, max_completion_tokens: (params.maxOutputTokens ?? 700) - 10, reasoning_effort: 'none' }
           : { temperature: 0, max_tokens: params.maxOutputTokens ?? 700 }),
       }),
     });

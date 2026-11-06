@@ -1,6 +1,8 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { APPROVED_DIALOGUE_STANDARD_PRICING } from './dialogue-pricing-approvals';
+import { validDurableAccountChargeProof, type DurableAccountChargeProof } from './dialogue-durable-authority';
+import { publicPricingObservationCurrent, type PublicPricingObservation } from './dialogue-pricing-refresh';
 import { AGENT_PROVIDER_IDS, type AgentCapabilityProfile, type AgentProviderId, type CapabilityMeasurement } from './agent-capabilities';
 import type { DialogueDailyLimits } from './agent-dialogue';
 
@@ -17,18 +19,20 @@ type EvidenceBase = Readonly<{
   autoReload: 'off' | 'on' | 'unknown'; postpaid: 'blocked' | 'allowed' | 'unknown';
   overdraft: 'blocked' | 'allowed' | 'unknown'; concurrentAccountUsage: 'bounded' | 'unknown';
 }>;
-export type DialogueFundingProof = EvidenceBase & (
+type LegacyDialogueFundingProof = EvidenceBase & (
   | Readonly<{ mode: 'existing-credit'; provider: AgentProviderId; currency: 'USD';
       authorizedCreditMicros: number; remainingCreditMicros: number; pricing: 'standard-2026-10-28' | 'synthetic';
       serviceTier: 'standard'; pricingEvidenceSha256?: unknown; pricingVerification?: unknown; }>
   | Readonly<{ mode: 'no-new-charge'; provider: Exclude<AgentProviderId, 'openai' | 'anthropic'>;
       enforcement: 'provider-hard-no-new-charge'; }>
 );
+export type DialogueFundingProof = LegacyDialogueFundingProof | DurableAccountChargeProof;
 export type FundedDialogueReservation = Readonly<{
   policyId: 'task217-existing-credit-v2'; attemptId: string; requestId: string;
   measurementRequest?: Readonly<{ planId: string; caseId: string; runId?: string }>;
   stage: 'discover' | 'intent.classify'; subject: string; nowMs: number; dayStartMs: number; dayEndMs: number;
   proof: DialogueFundingProof; inputTokens: number; outputTokens: number; costMicros: number; limits: DialogueDailyLimits;
+  pricing?: Readonly<{ observation: PublicPricingObservation; profileSha256: string }>;
 }>;
 export type FundingAdmissionResult =
   | Readonly<{ kind: 'admitted'; attemptId: string; pricingExpiresAtMs?: number }>
@@ -40,6 +44,7 @@ export interface FundingDialogueAdmission {
 export type DialogueFundingBinding = Readonly<{
   kind: 'existing-credit-v2'; requestId: string; proofs: readonly DialogueFundingProof[];
   admission: FundingDialogueAdmission;
+  refreshPricing?: (proof: DurableAccountChargeProof, signal: AbortSignal) => Promise<PublicPricingObservation | null>;
   isCurrent?: (proof: DialogueFundingProof, profile: AgentCapabilityProfile, signal: AbortSignal) => Promise<boolean>;
 }>;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
@@ -86,6 +91,7 @@ export function fundingFinancialSnapshotSha256(proof: unknown, sourceId?: string
     proof.autoReload, proof.postpaid, proof.overdraft, proof.concurrentAccountUsage])).digest('hex');
 }
 export function fundingSnapshotBindings(proof: DialogueFundingProof) {
+  if (proof.mode === 'bounded-account-charge') return null;
   const p = proof.measurementPermit;
   if (proof.mode !== 'existing-credit' || !object(p) || Object.keys(p).length !== 9
     || p.schema !== 'task217-first-profile-v1' || typeof p.planId !== 'string' || !uuid.test(p.planId)
@@ -137,6 +143,7 @@ export function validTask217LimitedOperation(proof: unknown, now: number) {
  * accepts the original financial observation within a separate bounded authority.
  * Independent pricing, fees and quota windows are never refreshed by this. */
 export function fundingAuthorizationWindow(proof: DialogueFundingProof, now: number) {
+  if (proof.mode === 'bounded-account-charge') return null; // permanent authority has no artificial expiry
   if ('limitedOperation' in proof) {
     const a = proof.limitedOperation;
     if (!validTask217LimitedOperation(proof, now) || !object(a) || typeof a.expiresAtMs !== 'number') return null;
@@ -156,7 +163,7 @@ export function fundingAuthorizationWindow(proof: DialogueFundingProof, now: num
     || a.expiresAtMs <= a.authorizedAtMs || a.expiresAtMs - a.authorizedAtMs > 3600000) return null;
   return { verifiedAtMs: a.authorizedAtMs, expiresAtMs: a.expiresAtMs };
 }
-function additionalPilotCost(proof: DialogueFundingProof, now: number): number | null {
+function additionalPilotCost(proof: LegacyDialogueFundingProof, now: number): number | null {
   if (!('pilotEnvelope' in proof) && !('limitedOperation' in proof)) return 0;
   const v = proof.allInChargeBound, window = fundingAuthorizationWindow(proof, now);
   if (!window || (!validTask217PilotEnvelope(proof.pilotEnvelope) && !validTask217LimitedOperation(proof, now)) || !object(v) || Object.keys(v).length !== 6
@@ -169,6 +176,10 @@ function additionalPilotCost(proof: DialogueFundingProof, now: number): number |
 }
 /** Financial identity/ceilings, deliberately independent from capability qualification. */
 export function fundingProofForCeilings(proof: DialogueFundingProof, m: DialogueFundingCeilings, now: number) {
+  if (proof.mode === 'bounded-account-charge') return validDurableAccountChargeProof(proof, now)
+    && proof.provider === m.provider && proof.model === m.model && proof.environment === m.environment
+    && count(m.inputTokenCeiling) && m.inputTokenCeiling >= 1 && m.inputTokenCeiling <= 4096
+    && count(m.outputTokenCeiling) && m.outputTokenCeiling >= 1 && m.outputTokenCeiling <= 1024;
   const pilot = validTask217PilotEnvelope(proof.pilotEnvelope), limited = validTask217LimitedOperation(proof, now), window = fundingAuthorizationWindow(proof, now);
   if (!window || !count(now) || window.expiresAtMs <= now || !count(m.inputTokenCeiling) || m.inputTokenCeiling < 1 || m.inputTokenCeiling > 4096
     || !count(m.outputTokenCeiling) || m.outputTokenCeiling < 1 || m.outputTokenCeiling > 1024
@@ -255,7 +266,14 @@ function reviewedStandardRates(reference: unknown, proof: Extract<DialogueFundin
   ])).digest('hex');
   return fingerprint === reference ? r : undefined;
 }
-export function quoteDialogueFunding(proof: DialogueFundingProof, m: DialogueFundingCeilings, now: number): number | null {
+export function quoteDialogueFunding(proof: DialogueFundingProof, m: DialogueFundingCeilings, now: number, observation?: PublicPricingObservation): number | null {
+  if (proof.mode === 'bounded-account-charge') {
+    if (!fundingProofForCeilings(proof, m, now) || !observation || !publicPricingObservationCurrent(observation, proof, now)) return null;
+    const numerator = BigInt(m.inputTokenCeiling) * BigInt(observation.inputMicrosPerMillion)
+      + BigInt(m.outputTokenCeiling) * BigInt(observation.outputMicrosPerMillion);
+    const cost = Number((numerator + BigInt(999999)) / BigInt(1000000) + BigInt(proof.accountTerms.allInChargeBound.maxAdditionalMicros));
+    return count(cost) && cost > 0 && cost <= proof.limitedOperation.maxCostMicros ? cost : null;
+  }
   if (!fundingProofForCeilings(proof, m, now)) return null;
   if (proof.mode === 'no-new-charge') return 0;
   // The old pricing string remains an RPC compatibility tag, not approval of a renewed tariff.
@@ -278,9 +296,9 @@ export function quoteDialogueFunding(proof: DialogueFundingProof, m: DialogueFun
     ? cost : null;
 }
 /** Ordinary calls still select a real qualified profile before reaching this quote. */
-export function dialogueCostCeilingMicros(proof: DialogueFundingProof, profile: AgentCapabilityProfile, now: number): number | null {
+export function dialogueCostCeilingMicros(proof: DialogueFundingProof, profile: AgentCapabilityProfile, now: number, observation?: PublicPricingObservation): number | null {
   if ('pilotEnvelope' in proof) return null; // Pilot funding cannot enable ordinary customer dialogue.
-  const cost = quoteDialogueFunding(proof, { ...profile.measurement, provider: profile.provider }, now);
+  const cost = quoteDialogueFunding(proof, { ...profile.measurement, provider: profile.provider }, now, observation);
   return cost !== null && (proof.mode !== 'no-new-charge' || profile.measurement.costCeilingUsd === 0)
     && cost / 1000000 <= profile.measurement.costCeilingUsd ? cost : null;
 }

@@ -1,4 +1,5 @@
 import 'server-only';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
@@ -25,10 +26,10 @@ function reportMissingCount(query: string) {
   console.error('[executive-dashboard] authoritative count unavailable', { query });
 }
 
-export async function getExecutiveDashboardData(): Promise<ExecutiveDashboardData> {
-  const supabase = await createSupabaseServerClient();
+export async function getExecutiveDashboardData(requestClient?: SupabaseClient, signal?: AbortSignal): Promise<ExecutiveDashboardData> {
+  const supabase = requestClient ?? await createSupabaseServerClient();
 
-  const [bookingsRes, settlementsRes, refundsRes, verificationsRes] = await Promise.all([
+  const queries = [
     supabase
       .from('bookings')
       .select('id, booking_reference, status, payment_status, total_amount, currency, synthetic, environment, source_channel')
@@ -47,7 +48,10 @@ export async function getExecutiveDashboardData(): Promise<ExecutiveDashboardDat
       .from('verification_requests')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'Pending'),
-  ]);
+  ];
+  const [bookingsRes, settlementsRes, refundsRes, verificationsRes] = await Promise.all(
+    queries.map(query => signal ? query.abortSignal(signal) : query),
+  );
 
   const queryResults = [
     ['production-bookings', bookingsRes],

@@ -159,7 +159,10 @@ export async function POST(request: NextRequest) {
   let needsClarification = false;
   // Only authenticated ambiguity uses the optional classifier. It cannot read
   // records, grant roles or generate customer-facing facts/actions.
-  if (inferenceEnabled && agentContext.role !== 'guest' && intent.tool === 'discover' && !platformFamilies(message).length
+  const classifierActor = agentContext.taskAuthority;
+  const publicCustomer = agentContext.role === 'customer' && classifierActor?.kind === 'customer'
+    && classifierActor.actorId === classifierActor.ownerId && !!agentContext.isTaskAuthorityCurrent;
+  if (inferenceEnabled && publicCustomer && intent.tool === 'discover' && !platformFamilies(message).length
     && !hasActivePlatformDriveDialogue({ message: modelMessage, history, context, trip })) {
     const { planInternalAgentTool } = await import('@/lib/dabra/agent-planner');
     const { createDabraProviderAttemptAfterResponseScheduler } = await import('@/lib/ai2/observability/provider-attempts');
@@ -180,7 +183,7 @@ export async function POST(request: NextRequest) {
   const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
   const snapshot = needsRates ? await getCurrencySnapshot() : null;
   const taskResult = await runInternalAgentTask({ message: modelMessage, history, locale, context: agentContext, intent, needsClarification,
-    pricing: currency ? { currency, snapshot } : undefined, trip }, { signal: request.signal, dialogue: dialoguePolicy });
+    pricing: currency ? { currency, snapshot } : undefined, trip }, { signal: request.signal, dialogue: dialoguePolicy, responseContract: 'platform-units' });
   if (taskResult.kind === 'stopped') return NextResponse.json({ error: DABRA_LOCALE_ERROR[locale] }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
   const response = taskResult.response;
   if (body?.stream === true) {
@@ -191,4 +194,39 @@ export async function POST(request: NextRequest) {
     return streamed;
   }
   return NextResponse.json({ ...response, understanding, understandingProvider }, { headers: { 'Cache-Control': 'private, no-store' } });
+}
+
+/** CEO-only, read-only diagnostic; the existing POST dialogue path is unchanged. */
+export async function GET(request: NextRequest) {
+  try {
+    const [{ checkRuntimeCredentialBinding, isCredentialBindingCoreProject }, { internalAgentCredential },
+      { createSupabaseRequestClient, supabaseAdmin, getSupabaseAdminHostname, getSupabaseClientHostname }, { isCeoActor }] = await Promise.all([
+      import('@/lib/dabra/credential-binding'),
+      import('@/lib/ai2/runtime/agent-provider-dispatch'),
+      import('@/lib/supabase/server'),
+      import('@/lib/auth/team-access'),
+    ]);
+    return await checkRuntimeCredentialBinding(request, {
+      async authorize() {
+        const auth = await createSupabaseRequestClient(request);
+        if (!auth || !isCredentialBindingCoreProject(getSupabaseClientHostname(auth.supabase))) return null;
+        return await isCeoActor(auth.supabase, auth.user) ? auth.user.id : null;
+      },
+      async readBindings(signal) {
+        if (!supabaseAdmin) return { kind: 'error' };
+        const { data, error } = await supabaseAdmin.rpc('get_dabra_dialogue_funding_policy', {
+          p_subject_hash: null,
+        }).abortSignal(signal);
+        return error ? { kind: 'error' } : { kind: 'ok', data };
+      },
+      readCredential: internalAgentCredential,
+      runtime: () => ({ environment: process.env.VERCEL_ENV, sourceSha: process.env.VERCEL_GIT_COMMIT_SHA,
+        databaseHostname: getSupabaseAdminHostname() }),
+    });
+  } catch {
+    return Response.json({ status: 'ERROR' }, { status: 503, headers: {
+      'Cache-Control': 'private, no-store', 'Cross-Origin-Resource-Policy': 'same-origin',
+      'X-Content-Type-Options': 'nosniff', Vary: 'Cookie, Authorization',
+    } });
+  }
 }

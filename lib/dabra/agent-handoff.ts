@@ -2,13 +2,13 @@ import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { runInternalAgent } from './agent';
 import { parseGeneralTravelAdvice } from './agent-general-travel';
-import { callInternalAgentProvider, internalAgentConfiguration } from '../ai2/runtime/agent-provider-dispatch';
-import { preparePublicAgentDialogue, composePublicAgentDialogue, DEFAULT_AGENT_DIALOGUE_POLICY, type AgentDialoguePolicy } from './agent-dialogue';
+import { callInternalAgentProvider } from '../ai2/runtime/agent-provider-dispatch';
+import { agentAttemptConfiguration, preparePublicAgentDialogue, composePublicAgentDialogue, DEFAULT_AGENT_DIALOGUE_POLICY, type AgentDialoguePolicy, type AgentDialogueResponseContract } from './agent-dialogue';
 import { selectQualifiedAgentCapability, type AgentCapabilityProfile, type CapabilityMeasurement, type QualifiedAgentDestination, type AgentProviderId } from './agent-capabilities';
 import { AGENT_TOOLS, agentIntent, type AgentIntent, type AgentTaskScope, agentProductRole, type AgentTaskSpec, type AgentTaskAuthority, type AgentTaskState,
   type AgentTaskBlockReason, type AgentTaskEvidence, type AgentTaskConsumption, type AgentTaskAccounting } from './agent-contract';
 
-type Entry = { spec: AgentTaskSpec; fingerprint: string; state: AgentTaskState; accounting: AgentTaskAccounting; destination: { kind: 'core' } | QualifiedAgentDestination; stop?: () => void };
+type Entry = { spec: AgentTaskSpec; fingerprint: string; state: AgentTaskState; accounting: AgentTaskAccounting; destination: { kind: 'core' } | QualifiedAgentDestination; acceptExpiredMeasurement?: (profile: AgentCapabilityProfile) => boolean; stop?: () => void };
 export type TaskDecision = { kind: 'accepted'; taskId: string } | { kind: 'rejected'; reason: AgentTaskBlockReason };
 export type TaskExecution<T> =
   | { kind: 'completed'; output: T; state: Extract<AgentTaskState, { kind: 'completed' }> }
@@ -36,17 +36,22 @@ function validSpec(s: AgentTaskSpec, now: number) {
 }
 function allowed(s: AgentTaskSpec, actor: AgentTaskAuthority) {
   if (s.productRole === 'ceo' && (actor.kind !== 'operator' || actor.role !== 'ceo')) return false;
+  if (s.scope.kind === 'executive') {
+    return s.capability === 'executive_metrics' && s.productRole === 'ceo' && actor.kind === 'operator'
+      && actor.role === 'ceo' && /^[a-zA-Z0-9_-]{1,128}$/.test(actor.actorId)
+      && s.scope.actorId === actor.actorId && s.scope.authority === 'verified-ceo';
+  }
   if (s.scope.kind === 'public') {
-    return !['operations','executive','my_requests'].includes(s.capability);
+    return !['operations','executive','my_requests','executive_metrics','contact_inbox','support_cases'].includes(s.capability);
   }
   if (s.scope.kind === 'owner') {
     return actor.kind === 'customer' && /^[a-zA-Z0-9_-]{1,128}$/.test(actor.actorId) && actor.actorId === actor.ownerId
       && s.scope.actorId === actor.actorId && s.scope.ownerId === actor.ownerId
-      && ['my_requests','support','call_center'].includes(s.capability);
+      && ['my_requests','support','call_center','support_cases'].includes(s.capability);
   }
   return actor.kind === 'operator' && /^[a-zA-Z0-9_-]{1,128}$/.test(actor.actorId) && actor.country === 'EG' && s.scope.actorId === actor.actorId
     && s.scope.country === 'EG' && s.scope.grant === 'operations:read'
-    && ['operations','executive','support','call_center'].includes(s.capability);
+    && ['operations','executive','support','call_center','contact_inbox'].includes(s.capability);
 }
 function namespace(a: AgentTaskAuthority) { return a.kind === 'guest' ? 'guest' : a.actorId; }
 function frozenSpec(s: AgentTaskSpec): AgentTaskSpec {
@@ -67,13 +72,14 @@ export class AgentTaskCoordinator {
   private now() { return (this.options.now ?? Date.now)(); }
   prepare(spec: AgentTaskSpec, actor: AgentTaskAuthority, destination: { kind: 'core' } | {
     kind: 'provider'; profiles: readonly AgentCapabilityProfile[]; environment: CapabilityMeasurement['environment'];
+    acceptExpiredMeasurement?: (profile: AgentCapabilityProfile) => boolean;
   } = { kind: 'core' }): TaskDecision {
     if (!validSpec(spec, this.now())) return { kind: 'rejected', reason: 'invalid_task' };
     if (!allowed(spec, actor)) return { kind: 'rejected', reason: 'forbidden' };
     let selected: { kind: 'core' } | QualifiedAgentDestination = { kind: 'core' };
     if (destination.kind === 'provider') {
       const selection = selectQualifiedAgentCapability(destination.profiles, { capability: spec.capability, language: spec.language,
-        environment: destination.environment, nowMs: this.now(), limits: spec.limits });
+        environment: destination.environment, nowMs: this.now(), limits: spec.limits, acceptExpiredMeasurement: destination.acceptExpiredMeasurement });
       if (selection.kind === 'blocked') return { kind: 'rejected', reason: selection.reason };
       selected = selection.destination;
     } else if (spec.capability === 'intent.classify') return { kind: 'rejected', reason: 'unqualified' };
@@ -88,7 +94,7 @@ export class AgentTaskCoordinator {
     if (this.tasks.has(spec.id)) return { kind: 'rejected', reason: 'conflict' };
     const capacity = this.options.capacity ?? 64;
     if (!Number.isSafeInteger(capacity) || capacity < 1 || this.tasks.size >= capacity) return { kind: 'rejected', reason: 'capacity' };
-    this.tasks.set(spec.id, { spec: frozenSpec(spec), fingerprint, destination: selected, accounting: this.accountingSnapshot(selected.kind, { attempts: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 }), state: freezeState({ kind: 'prepared' }) });
+    this.tasks.set(spec.id, { spec: frozenSpec(spec), fingerprint, destination: selected, ...(destination.kind === 'provider' ? { acceptExpiredMeasurement: destination.acceptExpiredMeasurement } : {}), accounting: this.accountingSnapshot(selected.kind, { attempts: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 }), state: freezeState({ kind: 'prepared' }) });
     this.keys.set(key, spec.id);
     return { kind: 'accepted', taskId: spec.id };
   }
@@ -167,7 +173,7 @@ export class AgentTaskCoordinator {
         if (!stillRunning() || !(await options.isCurrent()) || !stillRunning()) return null;
         if (entry.destination.kind === 'provider') {
           const m = entry.destination.measurement;
-          if (this.now() >= m.expiresAtMs) throw new Error('task_unqualified');
+          if (this.now() >= m.expiresAtMs && entry.acceptExpiredMeasurement?.({ provider: entry.destination.provider, measurement: m }) !== true) throw new Error('task_unqualified');
           reserve({ attempts: 1, inputTokens: m.inputTokenCeiling, outputTokens: m.outputTokenCeiling, costUsd: m.costCeilingUsd });
         }
         const result = await options.run({ task: entry.spec, destination: entry.destination, signal: controller.signal, reserve });
@@ -221,7 +227,9 @@ export type AgentCoreTaskResult =
   | { kind: 'response'; response: CoreReply | DialogueReply; task: AgentTaskState; dialogueTask?: AgentTaskState }
   | { kind: 'stopped'; task: AgentTaskState };
 function privateTaskScope(intent: AgentIntent, actor: AgentTaskAuthority): AgentTaskScope | null {
-  const privateRead = ['my_requests','operations','executive'].includes(intent.tool)
+  if (intent.tool === 'executive_metrics') return actor.kind === 'operator' && actor.role === 'ceo'
+    ? { kind: 'executive', actorId: actor.actorId, authority: 'verified-ceo' } : null;
+  const privateRead = ['my_requests','operations','executive','contact_inbox','support_cases'].includes(intent.tool)
     || (intent.reference !== null && ['support','call_center'].includes(intent.tool));
   if (!privateRead) return { kind: 'public' };
   if (actor.kind === 'customer') return { kind: 'owner', actorId: actor.actorId, ownerId: actor.ownerId };
@@ -232,6 +240,7 @@ function negativeReply(reply: CoreReply) { return ['authentication_required','fo
 /** Existing Core owns all facts/links/reads. This ledger is request-local, not a durable queue. */
 export async function runInternalAgentTask(input: CoreInput, options: {
   signal?: AbortSignal; coordinator?: AgentTaskCoordinator; id?: string; idempotencyKey?: string; dialogue?: AgentDialoguePolicy;
+  responseContract?: AgentDialogueResponseContract;
 } = {}): Promise<AgentCoreTaskResult> {
   const intent = input.intent ?? agentIntent(input.message);
   const actor = input.context.taskAuthority ?? { kind: 'guest' as const };
@@ -240,7 +249,9 @@ export async function runInternalAgentTask(input: CoreInput, options: {
   const id = options.id ?? randomUUID(); const now = Date.now();
   const deny = async (): Promise<AgentCoreTaskResult> => {
     const kind = input.context.taskAuthorityFailure ?? (input.context.role === 'guest' ? 'authentication_required' : 'forbidden');
-    const response = await runInternalAgent({ ...input, intent, context: { ...input.context, readRequests: async () => ({ kind }) } });
+    const response = await runInternalAgent({ ...input, intent, context: { ...input.context, readRequests: async () => ({ kind }),
+      readExecutiveMetrics: async () => ({ kind: 'forbidden' }), readContactInbox: async () => ({ kind: 'forbidden' }),
+      readSupportCases: async () => ({ kind: 'forbidden' }) } });
     return { kind: 'response', response, task: { kind: 'blocked', reason: 'forbidden' } };
   };
   if (!scope) return deny();
@@ -276,11 +287,9 @@ export async function runInternalAgentTask(input: CoreInput, options: {
   });
   if (result.kind === 'completed') {
     const plan = await preparePublicAgentDialogue({ ...input, intent }, result.output,
-      options.dialogue ?? DEFAULT_AGENT_DIALOGUE_POLICY, spec.deadlineAtMs, options.signal);
+      options.dialogue ?? DEFAULT_AGENT_DIALOGUE_POLICY, spec.deadlineAtMs, options.signal, options.responseContract);
     if (!plan) return { kind: 'response', response: result.output, task: result.state };
-    const config = internalAgentConfiguration(plan.profile.provider);
-    if (!config || config.model !== plan.profile.measurement.model
-      || createHash('sha256').update(config.apiKey).digest('hex') !== plan.credentialSha256) return { kind: 'response', response: result.output, task: result.state };
+    if (!agentAttemptConfiguration(plan)) return { kind: 'response', response: result.output, task: result.state };
     const providerId = randomUUID(), owner = 'dabra-dialogue:' + plan.profile.provider;
     const providerSpec: AgentTaskSpec = {
       id: providerId, idempotencyKey: providerId, owner, productRole: 'concierge', capability: 'discover',
@@ -289,6 +298,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
     };
     const prepared = coordinator.prepare(providerSpec, actor, {
       kind: 'provider', profiles: [plan.profile], environment: (options.dialogue ?? DEFAULT_AGENT_DIALOGUE_POLICY).environment,
+      acceptExpiredMeasurement: plan.acceptExpiredMeasurement,
     });
     if (prepared.kind === 'rejected') return { kind: 'response', response: result.output, task: result.state,
       dialogueTask: { kind: 'blocked', reason: prepared.reason } };
@@ -302,8 +312,9 @@ export async function runInternalAgentTask(input: CoreInput, options: {
       run: async ({ task, signal, destination }) => {
         if (destination.kind !== 'provider' || signal.aborted) throw new Error('task_stopped');
         const m = destination.measurement;
-        if (!plan.isReadyToDispatch()) throw new Error('task_stopped');
-        const reply = await callInternalAgentProvider(destination.provider, config, plan.message, {
+        const dispatchConfig = agentAttemptConfiguration(plan);
+        if (!dispatchConfig || !plan.isReadyToDispatch()) throw new Error('task_stopped');
+        const reply = await callInternalAgentProvider(destination.provider, dispatchConfig, plan.message, {
           prompt: plan.prompt, language: input.locale, timeoutMs: Math.max(1, task.deadlineAtMs - Date.now()),
           maxOutputTokens: m.outputTokenCeiling, signal, standardBilling: plan.standardBilling,
         });

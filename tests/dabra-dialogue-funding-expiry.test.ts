@@ -1,3 +1,6 @@
+import { syntheticContractMeasurement, withSyntheticOutputAcceptances } from './fixtures/task217-output-qualification-synthetic';
+import * as outputContract from '../lib/dabra/agent-output-contract';
+import { AGENT_DIALOGUE_PROMPT } from '../lib/dabra/agent-platform-units';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -60,8 +63,12 @@ function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing 
       module: fixtureModule, exports: fixtureModule.exports,
       require: (id: string) => {
         if (id === 'server-only') return {};
+        if (id === './agent-output-contract') return outputContract;
+        if (id === './agent-platform-units') return require(id);
         if (id === './dialogue-pricing-approvals') return { APPROVED_DIALOGUE_STANDARD_PRICING: Object.freeze([approval]) };
         if (id === './dialogue-funding') return load('dialogue-funding');
+        if (id === './dialogue-durable-authority') return load('dialogue-durable-authority');
+        if (id === './dialogue-pricing-refresh') return load('dialogue-pricing-refresh');
         if (id === './agent-dialogue') return load('agent-dialogue');
         if (id === '../ai2/runtime/agent-provider-dispatch') return transport;
         if (id === '../ai2/observability/provider-attempts') return { createDabraProviderRequestId: randomUUID, mapProviderErrorCategory: (value: unknown) => value };
@@ -69,10 +76,10 @@ function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing 
           answer: 'SYNTHETIC Core question', language: locale, provider: 'local', sources: [],
           groundingStatus: 'answered-general', retrievalMode: 'local', agent: { tool: 'discover', role: 'customer', mutations: 0, state: 'needs_info' },
         }) };
-        if (['node:crypto', './agent-capabilities', './agent-contract', './agent-general-travel', './conversation-renderer'].includes(id)) return require(id);
+        if (['node:crypto', 'node:diagnostics_channel', './agent-capabilities', './agent-contract', './agent-general-travel', './conversation-renderer'].includes(id)) return require(id);
         throw new Error('Unexpected expiry-fixture dependency: ' + id);
       },
-      Date: Clock, URL, Buffer, AbortController, AbortSignal, setTimeout, clearTimeout, queueMicrotask, console,
+      Date: Clock, URL, Buffer, TextDecoder, AbortController, AbortSignal, setTimeout, clearTimeout, queueMicrotask, console,
       process: { env: { DABRA_INTERNAL_AI_ENABLED: 'true', DABRA_AI_PROVIDER: 'openai', DABRA_PROVIDER_FALLBACK_ENABLED: 'false' } },
     }, { filename: url.pathname });
     return fixtureModule.exports;
@@ -94,11 +101,10 @@ function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing 
       return true;
     },
   };
-  const policy: AgentDialoguePolicy = {
+  const policy: AgentDialoguePolicy = withSyntheticOutputAcceptances({
     trial: true, environment: 'synthetic', freeProofs: [],
     profiles: (['discover', 'intent.classify'] as const).map(capability => ({ provider: 'openai', measurement: {
-      capability, language: locale, model, environment: 'synthetic', caseSetSha: 'a'.repeat(64), sourceSha: 'b'.repeat(40),
-      cases: 1, passed: 1, measuredAtMs: start - 1, expiresAtMs: start + 600000, latencyMs: 1,
+      capability, language: locale, model, environment: 'synthetic', ...syntheticContractMeasurement(capability,locale), sourceSha: 'b'.repeat(40), measuredAtMs: start - 1, expiresAtMs: start + 600000, latencyMs: 1,
       inputTokenCeiling: 4096, outputTokenCeiling: 256, costCeilingUsd: 0.004608,
     } })),
     limits: { maxAttempts: 1, maxElapsedMs: 12000, maxInputTokens: 4096, maxOutputTokens: 1024, maxCostUsd: 0.004608 },
@@ -128,11 +134,11 @@ function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing 
       reservations++; heldMicros += request.costMicros;
       return unknownClaim ? { kind: 'denied' } : { kind: 'admitted', attemptId: request.attemptId };
     } } },
-  };
+  },start);
   return {
     get counts() { return { clock, authorityChecks, dispatches, reservations, heldMicros, telemetry }; },
     prepare: () => dialogue.prepareAgentProviderAttempt(context, locale, policy, {
-      capability: 'discover', message: '{}', prompt: 'SYNTHETIC prompt', inputDigestValue: {},
+      capability: 'discover', message: JSON.stringify({language:locale,units:['SYNTHETIC Core question']}), prompt: AGENT_DIALOGUE_PROMPT, inputDigestValue: {},
     }, boundary === 'deadline' ? expires : start + 12000, external.signal),
     run: () => handoff.runInternalAgentTask({ message: messages[locale], locale, history: [], context }, { dialogue: policy, signal: external.signal }),
     classify: () => planner.planInternalAgentTool(messages[locale], { language: locale, scheduleAttempt: () => { telemetry++; } }, { policy, context, signal: external.signal }),

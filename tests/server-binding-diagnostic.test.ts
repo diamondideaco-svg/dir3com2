@@ -184,8 +184,14 @@ test('page waits for the request, denies anonymous/non-CEO, and cannot render un
 test('private no-cache policy covers the exact page without widening other admin routes', async () => {
   const config = load<{ default: { headers(): Promise<{ source: string; headers: { key: string; value: string }[] }[]> } }>('next.config.ts', {});
   const policies = await config.default.headers();
-  assert.equal(policies.length, 1); assert.equal(policies[0].source, '/admin/server-binding');
-  const headers = Object.fromEntries(policies[0].headers.map(({ key, value }) => [key, value]));
+  // Both exact private routes are intentional; no wildcard or other route may inherit these policies.
+  assert.deepEqual(Array.from(policies, ({ source }) => source).sort(), ['/admin/server-binding', '/support/cases']);
+  const binding = policies.find(({ source }) => source === '/admin/server-binding');
+  assert.ok(binding);
+  const cases = policies.find(({ source }) => source === '/support/cases');
+  assert.ok(cases);
+  assert.deepEqual(Array.from(cases.headers, header => ({ ...header })), [{ key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' }]);
+  const headers = Object.fromEntries(binding.headers.map(({ key, value }) => [key, value]));
   assert.match(headers['Cache-Control'], /private.*no-store/);
   assert.equal(headers['CDN-Cache-Control'], 'no-store'); assert.equal(headers['Vercel-CDN-Cache-Control'], 'no-store');
   assert.equal(headers['Referrer-Policy'], 'no-referrer'); assert.match(headers['X-Robots-Tag'], /noindex/);

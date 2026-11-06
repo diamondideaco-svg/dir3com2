@@ -704,6 +704,9 @@ try {
     await partnerWaiter.query('SET ROLE service_role');
     const waiterPid = (await partnerWaiter.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
     const pendingHandoff = partnerWaiter.query(`SELECT * FROM public.start_partner_marketplace_request_handoff($1,$2,$3)`, [partnerId, deactivationRequestId, '966532867009']);
+    // Rejection can arrive before the locker receives COMMIT. Observe it now;
+    // await the original promise below to verify the exact denial.
+    void pendingHandoff.catch(() => {});
     await waitForDatabaseLock(testClient, waiterPid, 'partner deactivation race');
     await partnerLocker.query('COMMIT');
     try {

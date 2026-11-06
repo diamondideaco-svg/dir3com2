@@ -20,6 +20,7 @@ export default function SupportPage() {
             <p>{arabic ? 'لمراجعة الإطار العام لاستخدام المنصة والطلبات، راجع الشروط والأحكام.' : 'See the terms and conditions for the general framework governing platform use and requests.'}</p>
           </div>
           <div className="mt-8 flex flex-wrap gap-3">
+            <Link href="/support/cases" className={buttonVariants({ variant: 'outline', size: 'lg' })}>{arabic ? 'قضايا الدعم الخاصة بي' : 'My support cases'}</Link>
             <Link href="/contact" className={buttonVariants({ variant: 'gold', size: 'lg' })}>{arabic ? 'تواصل معنا' : 'Contact us'}</Link>
             <Link href="/privacy" className={buttonVariants({ variant: 'outline', size: 'lg' })}>{arabic ? 'سياسة الخصوصية' : 'Privacy policy'}</Link>
             <Link href="/terms" className={buttonVariants({ variant: 'outline', size: 'lg' })}>{arabic ? 'الشروط والأحكام' : 'Terms and conditions'}</Link>

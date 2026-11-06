@@ -6,6 +6,7 @@ import { getWeatherSnapshot } from '../weather/service';
 import { convertCurrency } from '../currency/service';
 import { displayPrice, parseDisplayCurrency } from '../currency/display';
 import type { SavedTrip } from './continuity-contract';
+import { parseCustomerCaseReference } from '../contact/customer-cases';
 
 type Input = {
   message: string; locale: 'ar' | 'en'; history: Array<{ role: 'user' | 'assistant'; content: string }>;
@@ -73,6 +74,79 @@ export async function runInternalAgent({ message, locale, history, context, pric
     }
   } else if (intent.tool === 'maps') {
     text.push(ar ? 'افتح أداة خريطة الوجهة داخل المنصة وحدد المدينة أو المطار. لا أستخدم تتبع الموقع أو أخمّن مدة الطريق.' : 'Open the platform destination-map tool and choose a city or airport. I do not track location or invent a travel duration.', link(ar ? 'خريطة الوجهة' : 'Destination map', '/#home-map'));
+  } else if (intent.tool === 'support_cases' || (intent.tool === 'call_center' && parseCustomerCaseReference(intent.reference))) {
+    if (context.role !== 'customer') {
+      state = context.role === 'guest' ? 'authentication_required' : 'forbidden';
+      text.push(ar ? 'قضايا الدعم هنا خاصة بحساب العميل المصادق؛ المرجع أو الدور المكتوب لا يمنح الوصول.' : 'Support cases here belong to the authenticated Customer; a reference or typed role does not grant access.');
+    } else {
+      const read = context.readSupportCases ? await context.readSupportCases(intent.reference) : { kind: 'unavailable' as const };
+      state = read.kind;
+      if (read.kind !== 'ready') text.push(read.kind === 'forbidden' || read.kind === 'authentication_required'
+        ? (ar ? 'تعذر تأكيد صلاحية حسابك الحالية لقراءة هذه القضية.' : 'Current account authority to read this case could not be verified.')
+        : (ar ? 'تعذرت قراءة قضايا الدعم من المنصة؛ لا يعني ذلك أن القائمة فارغة.' : 'Support cases could not be read from the platform; this does not mean the list is empty.'));
+      else {
+        sourceId = 'dir3com-customer-cases';
+        text.push((ar ? 'قضايا حسابك فقط — وقت القراءة: ' : 'Your own cases only — retrieved at: ') + read.retrievedAt);
+        if (intent.draft || intent.tool === 'call_center') text.push(ar ? 'ملخص أو مسودة متابعة للمراجعة فقط؛ لم تبدأ مكالمة ولم تُرسل رسالة.' : 'Summary or follow-up draft for review only; no call was started and no message was sent.');
+        if (!read.cases.length) text.push(ar ? 'لا توجد قضية مطابقة ضمن حسابك المصرح به.' : 'No matching case exists within your authorized account.');
+        const statuses = { received: ar ? 'مستلمة' : 'Received', in_progress: ar ? 'قيد المتابعة' : 'In progress', closed: ar ? 'مغلقة' : 'Closed' };
+        for (const item of read.cases) text.push(item.reference + ': ' + statuses[item.status]);
+        if (read.truncated) text.push(ar ? 'المعروض أحدث 20 قضية فقط.' : 'Only the latest 20 cases are displayed.');
+        text.push(ar ? 'يمكنك تسجيل قضية جديدة صراحة من مساحة الدعم؛ لم تُنشأ قضية أو تُعدّل حالتها من المحادثة.' : 'You can explicitly submit a new case in the support workspace; chat has not created or changed a case.',
+          link(ar ? 'قضايا الدعم في حسابي' : 'My support cases', '/support/cases'));
+      }
+    }
+  } else if (intent.tool === 'executive_metrics') {
+    if (context.role !== 'ceo') {
+      state = context.role === 'guest' ? 'authentication_required' : 'forbidden';
+      text.push(ar ? 'مؤشرات المكتب التنفيذي تتطلب هوية CEO المعتمدة؛ نص المحادثة لا يمنحها.' : 'Executive metrics require the verified CEO identity; chat text cannot grant it.');
+    } else {
+      const read = context.readExecutiveMetrics ? await context.readExecutiveMetrics() : { kind: 'unavailable' as const };
+      state = read.kind;
+      if (read.kind !== 'ready') text.push(read.kind === 'forbidden'
+        ? (ar ? 'تعذر تأكيد صلاحية المكتب التنفيذي الحالية؛ لم أعرض مؤشرات.' : 'Current executive authority could not be verified; no metrics were shown.')
+        : (ar ? 'تعذر قراءة مؤشرات اللوحة من مصدرها؛ لا يعني ذلك أن القيم صفر.' : 'Dashboard metrics could not be read from their source; this does not mean the values are zero.'));
+      else {
+        sourceId = 'dir3com-executive-dashboard';
+        text.push(ar ? 'من بيانات لوحة المؤشرات المأذونة؛ مؤشرات الحجوزات والإيراد تخص السجلات الإنتاجية المعادة، وليست إجماليًا شاملًا مثبتًا للمنصة.' : 'From the authorized dashboard data; booking and revenue metrics cover returned production records, not a proven platform-wide total.');
+        const labels = {
+          productionBookings: ar ? 'الحجوزات الإنتاجية المعروضة' : 'Displayed production bookings',
+          confirmedProductionRevenue: ar ? 'الإيراد المؤكد ضمن السجلات المعادة (SAR)' : 'Confirmed revenue within returned records (SAR)',
+          pendingSettlements: ar ? 'التسويات المعلقة' : 'Pending settlements',
+          pendingRefunds: ar ? 'طلبات الاسترداد المعلقة' : 'Pending refunds',
+          pendingVerifications: ar ? 'طلبات التحقق المعلقة' : 'Pending verifications',
+          failedNotifications: ar ? 'إخفاقات تسليم الإشعارات' : 'Failed notification deliveries',
+        };
+        for (const key of Object.keys(labels) as Array<keyof typeof labels>) {
+          const metric = read.metrics[key];
+          text.push(labels[key] + ': ' + (metric.status === 'available' ? String(metric.value) : (ar ? 'غير متاح' : 'Unavailable')));
+        }
+        text.push((ar ? 'وقت القراءة: ' : 'Retrieved at: ') + read.retrievedAt, link(ar ? 'لوحة المؤشرات التنفيذية' : 'Executive dashboard', '/admin/dashboard'));
+        text.push(ar ? 'قراءة فقط؛ لم تُجر تسوية أو دفعة أو استرداد أو تعديل.' : 'Read only; no settlement, payment, refund or update was performed.');
+      }
+    }
+  } else if (intent.tool === 'contact_inbox') {
+    if (!operational) {
+      state = context.role === 'guest' ? 'authentication_required' : 'forbidden';
+      text.push(ar ? 'صندوق التواصل الداخلي يتطلب صلاحية العمليات الحالية؛ لا يعرض قضايا العملاء لحساب آخر.' : 'The internal contact inbox requires current Operations access; it does not expose cases to another account.');
+    } else {
+      const read = context.readContactInbox ? await context.readContactInbox() : { kind: 'unavailable' as const };
+      state = read.kind;
+      if (read.kind !== 'ready') text.push(read.kind === 'forbidden'
+        ? (ar ? 'لا توجد صلاحية حالية لقراءة صندوق مصر.' : 'There is no current authority to read the Egypt inbox.')
+        : (ar ? 'تعذرت قراءة الصندوق؛ لا يعني ذلك أنه فارغ.' : 'The inbox could not be read; this does not mean it is empty.'));
+      else {
+        sourceId = 'dir3com-contact-inbox';
+        text.push(ar ? 'ملخص حالات آخر رسائل التواصل المعروضة في مصر ضمن صلاحياتك، دون بيانات تواصل أو نصوص أو ملاحظات داخلية.' : 'Status summary of recent displayed Egypt enquiries within your scope, without contact details, message text or internal notes.');
+        text.push((ar ? 'المعروض: ' : 'Displayed: ') + read.displayed,
+          (ar ? 'مستلمة: ' : 'Received: ') + read.counts.received,
+          (ar ? 'قيد المتابعة: ' : 'In progress: ') + read.counts.in_progress,
+          (ar ? 'مغلقة: ' : 'Closed: ') + read.counts.closed);
+        if (read.truncated) text.push(ar ? 'المعروض أحدث 100 رسالة فقط؛ هذا ليس إجمالي الصندوق.' : 'Only the latest 100 enquiries are displayed; this is not the inbox total.');
+        text.push((ar ? 'وقت القراءة: ' : 'Retrieved at: ') + read.retrievedAt, link(ar ? 'صندوق التواصل المأذون' : 'Authorized contact inbox', '/admin/operations/contact'));
+        text.push(ar ? 'قراءة فقط؛ لم تُغلق قضية أو تُكتب ملاحظة أو تُرسل رسالة.' : 'Read only; no case was closed, note written or message sent.');
+      }
+    }
   } else if (intent.tool === 'capabilities') {
     text.push(ar ? 'أساعدك في اختيار سيارات مصر ومقارنتها، تجهيز مواعيد الطلب، استكشاف Stay التجريبي، ومتابعة طلبك وعرض السعر من بيانات حسابك.' : 'I help compare Egypt cars, prepare request dates, explore Sandbox Stay, and read your request and quote from your account.');
     if (operational) text.push(ar ? 'يمكنك طلب قائمة عمليات مصر أو مسودة رد لمرجع REQ محدد؛ القراءة تخضع لصلاحياتك الحالية.' : 'Ask for the Egypt Operations queue or a reply draft for a specific REQ reference; reads use your current permissions.');
@@ -112,5 +186,5 @@ export async function runInternalAgent({ message, locale, history, context, pric
       text.push(ar ? 'هذه قراءة للحالة أو مسودة فقط؛ لم يتم قبول عرض أو تأكيد مورد أو حجز أو دفع أو إرسال رسالة.' : 'This is a state read or draft only; no quote acceptance, supplier confirmation, booking, payment or message was executed.');
     }
   }
-  return { answer: renderServerReply(text.segments, locale, message, state === 'unavailable' ? 'unavailable' : 'read_only'), sources: [{ sourceId, sourceName: sourceId === 'dir3com-authorized-requests' ? 'Authorized DIR3COM request records' : sourceId === 'dir3com-weather' ? 'DIR3COM weather tool / Open-Meteo' : sourceId === 'dir3com-currency' ? 'DIR3COM currency tool / Frankfurter' : 'dir3com service journeys', sourceType: 'internal' as const }], language: locale, groundingStatus: state === 'unavailable' ? 'fallback-no-source' as const : 'grounded' as const, provider: 'local' as const, retrievalMode: 'internal-tools' as const, agent: { role: context.role, tool: intent.tool, state, mutations: 0 } };
+  return { answer: renderServerReply(text.segments, locale, message, state === 'unavailable' ? 'unavailable' : 'read_only'), sources: [{ sourceId, sourceName: sourceId === 'dir3com-authorized-requests' ? 'Authorized DIR3COM request records' : sourceId === 'dir3com-weather' ? 'DIR3COM weather tool / Open-Meteo' : sourceId === 'dir3com-currency' ? 'DIR3COM currency tool / Frankfurter' : sourceId === 'dir3com-customer-cases' ? 'Authorized own Customer support case states' : sourceId === 'dir3com-executive-dashboard' ? 'Authorized DIR3COM executive dashboard' : sourceId === 'dir3com-contact-inbox' ? 'Authorized DIR3COM contact inbox status counts' : 'dir3com service journeys', sourceType: 'internal' as const }], language: locale, groundingStatus: state === 'unavailable' ? 'fallback-no-source' as const : 'grounded' as const, provider: 'local' as const, retrievalMode: 'internal-tools' as const, agent: { role: context.role, tool: intent.tool, state, mutations: 0 } };
 }

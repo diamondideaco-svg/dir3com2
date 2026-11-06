@@ -11,12 +11,14 @@ import * as team from '../lib/auth/team-access';
 
 import * as requests from '../lib/marketplace/customer-requests';
 import * as contract from '../lib/dabra/agent-contract';
+import * as dashboardContract from '../lib/integration/executive-dashboard-contract';
+import { isCredentialBindingCoreProject } from '../lib/dabra/credential-binding';
 import { runInternalAgent } from '../lib/dabra/agent';
 import { planInternalAgentTool } from '../lib/dabra/agent-planner';
 
 function loadModule<T>(file:string, dependencies:Record<string,unknown>):T {
  const require=createRequire(import.meta.url);const exports={};
- runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:(id:string)=>id in dependencies?dependencies[id]:require(id),Date},{filename:file});
+ runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:(id:string)=>id in dependencies?dependencies[id]:require(id),Date,AbortSignal},{filename:file});
  return exports as T;
 }
 const admin=loadModule<typeof import('../lib/auth/admin')>('lib/auth/admin.ts',{
@@ -26,13 +28,13 @@ const admin=loadModule<typeof import('../lib/auth/admin')>('lib/auth/admin.ts',{
 
 const customerId='11111111-1111-4111-8111-111111111111';
 const otherId='22222222-2222-4222-8222-222222222222';
-type Fixture = { role: string; id?: string; active?: boolean; grant?: boolean; country?: string; permission?: string; authError?: boolean; dataError?: boolean; revoked?: boolean };
+type Fixture = { role: string; id?: string; active?: boolean; grant?: boolean; country?: string; permission?: string; authError?: boolean; dataError?: boolean; revoked?: boolean; project?: string|null; adminProject?: string|null; adminPresent?: boolean; contactRows?: number; contactError?: boolean; badContactStatus?: boolean; metricsError?: boolean; missingCount?: boolean; onDataRead?:()=>void };
 function setup(config: Fixture) {
  const id=config.id??customerId;
  const seen: URL[]=[];
  const transport: typeof fetch=async(input,init)=>{
   const url=new URL(typeof input==='string'?input:input instanceof URL?input:input.url);seen.push(url);
-  assert.equal(init?.method??'GET','GET','all data access is read only');
+  assert.ok(['GET','HEAD'].includes(init?.method??'GET'),'all data access is read only');
   let data: unknown=null;
   if(url.pathname.endsWith('/profiles')) data=config.active===false?null:{id,role:config.role,status:'active',deleted_at:null,full_name:'QA'};
   else if(url.pathname.endsWith('/team_access_grants')) data=config.grant?{id:'grant',invited_user_id:id,email:'staff@example.invalid',access_level:'scoped_staff',country_scope:[config.country??'EG'],permissions:[config.permission??'operations:read'],status:config.revoked?'inactive':'active'}:null;
@@ -41,17 +43,42 @@ function setup(config: Fixture) {
    const rows=[{user_id:customerId,request_reference:'REQ-12345678',status:'awaiting_payment',quote_amount:100,quote_currency:'USD'}, {user_id:otherId,request_reference:'REQ-87654321',status:'request_submitted',quote_amount:200,quote_currency:'USD'}];
    const scoped=rows.filter(row=>(!url.searchParams.has('user_id')||url.searchParams.get('user_id')===`eq.${row.user_id}`)&&(!url.searchParams.has('request_reference')||url.searchParams.get('request_reference')===`eq.${row.request_reference}`));
    data=String(new Headers(init?.headers).get('accept')).includes('object')?(scoped[0]??null):scoped;
+  } else if(url.pathname.endsWith('/bookings')) {
+   assert.equal(url.port,'59999','metrics must use the authenticated request client');
+   assert.equal(url.searchParams.get('synthetic'),'eq.false');assert.equal(url.searchParams.get('environment'),'eq.production');assert.equal(url.searchParams.get('deleted_at'),'is.null');
+   config.onDataRead?.();
+   if(config.metricsError)return Response.json({message:'PRIVATE_QUERY_ERROR'},{status:500});
+   data=[{id:'PRIVATE_BOOKING_ID',booking_reference:'LIVE-PRIVATE',status:'confirmed',payment_status:'paid',total_amount:125,currency:'SAR',synthetic:false,environment:'production',source_channel:'marketplace'},
+     {id:'SYNTHETIC_ROW',status:'confirmed',payment_status:'paid',total_amount:9999,currency:'SAR',synthetic:true,environment:'sandbox'}];
+  } else if(['/partner_settlements','/refund_requests','/verification_requests'].some(p=>url.pathname.endsWith(p))) {
+   assert.equal(url.port,'59999');assert.equal(init?.method,'HEAD');
+   config.onDataRead?.();
+   return new Response(null,{headers:config.missingCount?{}:{'content-range':'0-0/2'}});
+  } else if(url.pathname.endsWith('/contact_enquiries')) {
+   assert.equal(url.port,'59998','the existing privileged inbox is gated and separate');
+   assert.equal(url.searchParams.get('select'),'status');assert.equal(url.searchParams.get('limit'),'101');
+   assert.match(url.searchParams.get('country')??'',/EG/);assert.doesNotMatch(url.searchParams.get('country')??'',/SA/);
+   config.onDataRead?.();
+   if(config.contactError)return Response.json({message:'PRIVATE_CONTACT_ERROR'},{status:500});
+   data=Array.from({length:config.contactRows??3},(_,i)=>({status:config.badContactStatus?'not-a-state':['received','in_progress','closed'][i%3]}));
   } else throw new Error(`Unexpected table ${url.pathname}`);
   return Response.json(data);
  };
  const client=createClient('http://127.0.0.1:59999','test-public-key',{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:transport}});
+ const adminClient=createClient('http://127.0.0.1:59998','SYNTHETIC-NOT-A-KEY',{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:transport}});
+ const coreHost='ynupwivgvwcyrsdhtkcc.supabase.co';
+
+ const dashboard=loadModule<typeof import('../lib/integration/dashboard-engine')>('lib/integration/dashboard-engine.ts',{
+  'server-only':{},'@/lib/supabase/server':{createSupabaseServerClient:async()=>{throw new Error('Metrics must use the actual request client, not ambient cookies');}},
+  '@/lib/integration/executive-dashboard-contract':dashboardContract,
+ });
  const require=createRequire(import.meta.url);const exports: Record<string,unknown>={};
  const dependencies:Record<string,unknown>={
-  'server-only':{},'@/lib/supabase/server':{createSupabaseRequestClient:async()=>config.authError?null:({supabase:client,user:{id,user_metadata:{role:'ceo'}}})},
+  'server-only':{},'@/lib/supabase/server':{createSupabaseRequestClient:async()=>config.authError?null:({supabase:client,user:{id,user_metadata:{role:'ceo'}}}),supabaseAdmin:config.adminPresent===false?null:adminClient,getSupabaseClientHostname:(c:unknown)=>c===client?(config.project===undefined?coreHost:config.project):null,getSupabaseAdminHostname:()=>config.adminProject===undefined?coreHost:config.adminProject},'@/lib/integration/dashboard-engine':dashboard,'./credential-binding':{isCredentialBindingCoreProject},
   '@/lib/auth/identity':identity,'@/lib/auth/admin':admin,'@/lib/auth/team-access':team,
   '@/lib/marketplace/customer-requests':requests,'./agent-contract':contract,
  };
- runInNewContext(ts.transpileModule(readFileSync('lib/dabra/agent-context.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:(id:string)=>id in dependencies?dependencies[id]:require(id),Date},{filename:'agent-context.ts'});
+ runInNewContext(ts.transpileModule(readFileSync('lib/dabra/agent-context.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:(id:string)=>id in dependencies?dependencies[id]:require(id),Date,AbortSignal},{filename:'agent-context.ts'});
  const resolve=exports.resolveAgentContext as typeof import('../lib/dabra/agent-context').resolveAgentContext;
  return {seen,resolve:()=>resolve(new NextRequest('http://localhost/api/ai2/chat'))};
 }
@@ -200,4 +227,67 @@ test('Task217: executive product authority retains canonical CEO verification', 
  assert.equal(ceo.taskAuthority?.kind, 'operator');
  if (ceo.taskAuthority?.kind === 'operator') assert.equal(ceo.taskAuthority.role, 'ceo');
  assert.equal(await ceo.isTaskAuthorityCurrent?.(), true);
+});
+
+test('Task217 role delta: CEO metrics use the same actual request client and return aggregates only',async()=>{
+ const fixture=setup({role:'admin',id:team.CEO_USER_ID});const context=await fixture.resolve();
+ const result=await context.readExecutiveMetrics!();assert.equal(result.kind,'ready');
+ if(result.kind==='ready'){
+  assert.deepEqual(result.metrics.productionBookings,{status:'available',value:1});
+  assert.deepEqual(result.metrics.confirmedProductionRevenue,{status:'available',value:125});
+  assert.deepEqual(JSON.parse(JSON.stringify(result.metrics.failedNotifications)),{status:'unavailable'});
+ }
+ assert.doesNotMatch(JSON.stringify(result),/PRIVATE_|LIVE-PRIVATE|SYNTHETIC_ROW|9999/);
+ assert.equal(fixture.seen.filter(u=>u.pathname.endsWith('/bookings')).length,1);
+});
+for(const config of [
+ {role:'customer'},{role:'partner'},{role:'admin',grant:true},
+ {role:'admin',id:team.CEO_USER_ID,active:false},
+])test('Task217 role delta: non-CEO cannot read dashboard '+JSON.stringify(config),async()=>{
+ const fixture=setup(config);const context=await fixture.resolve();const result=await context.readExecutiveMetrics?.();
+ assert.ok(!result||result.kind==='forbidden');assert.equal(fixture.seen.filter(u=>u.pathname.endsWith('/bookings')).length,0);
+});
+for(const config of [
+ {project:'wrong.supabase.co',adminProject:'wrong.supabase.co'},
+ {project:null},{adminProject:null},{adminProject:'wrong.supabase.co'},{adminPresent:false},
+])test('Task217 role delta: unknown or non-Core inbox provenance rejects before data '+JSON.stringify(config),async()=>{
+ const fixture=setup({role:'staff',grant:true,...config});const context=await fixture.resolve();
+ assert.equal((await context.readContactInbox!()).kind,'unavailable');
+ assert.equal(fixture.seen.filter(u=>u.pathname.endsWith('/contact_enquiries')).length,0);
+});
+test('Task217 role delta: CEO metrics require the actual pinned Core client',async()=>{
+ const fixture=setup({role:'admin',id:team.CEO_USER_ID,project:'wrong.supabase.co'});const context=await fixture.resolve();
+ assert.equal((await context.readExecutiveMetrics!()).kind,'unavailable');assert.equal(fixture.seen.filter(u=>u.pathname.endsWith('/bookings')).length,0);
+});
+for(const role of ['staff','admin'] as const)test('Task217 role delta: scoped inbox returns bounded state counts only, '+role,async()=>{
+ const fixture=setup({role,grant:true,contactRows:101});const context=await fixture.resolve();
+ const result=await context.readContactInbox!();assert.equal(result.kind,'ready');
+ if(result.kind==='ready'){assert.equal(result.displayed,100);assert.equal(result.truncated,true);assert.equal(result.country,'EG');assert.equal(Object.values(result.counts).reduce((a,b)=>a+b,0),100);}
+ assert.doesNotMatch(JSON.stringify(result),/email|phone|message|internal_note|user_id/i);
+});
+for(const config of [
+ {role:'customer',grant:true},{role:'partner',grant:true},{role:'staff',grant:true,country:'SA'},
+ {role:'staff',grant:true,permission:'products:read'},{role:'staff',grant:false},
+])test('Task217 role delta: inbox ownership/country/permission deny '+JSON.stringify(config),async()=>{
+ const fixture=setup(config);const context=await fixture.resolve();
+ assert.equal((await context.readContactInbox!()).kind,'forbidden');assert.equal(fixture.seen.filter(u=>u.pathname.endsWith('/contact_enquiries')).length,0);
+});
+for(const error of ['contactError','badContactStatus'] as const)test('Task217 role delta: inbox '+error+' is unavailable, never empty',async()=>{
+ const fixture=setup({role:'staff',grant:true,[error]:true});const context=await fixture.resolve();
+ assert.equal((await context.readContactInbox!()).kind,'unavailable');
+});
+test('Task217 role delta: missing metrics evidence remains unavailable, never zero',async()=>{
+ const fixture=setup({role:'admin',id:team.CEO_USER_ID,metricsError:true,missingCount:true});const context=await fixture.resolve();
+ const result=await context.readExecutiveMetrics!();assert.equal(result.kind,'ready');
+ if(result.kind==='ready')for(const metric of Object.values(result.metrics))assert.deepEqual(JSON.parse(JSON.stringify(metric)),{status:'unavailable'});
+});
+test('Task217 role delta: post-await grant revocation discards inbox data',async()=>{
+ const config:Fixture={role:'staff',grant:true};config.onDataRead=()=>{config.revoked=true;};
+ const fixture=setup(config);const context=await fixture.resolve();
+ assert.equal((await context.readContactInbox!()).kind,'forbidden');
+});
+test('Task217 role delta: post-await CEO deactivation discards metrics',async()=>{
+ const config:Fixture={role:'admin',id:team.CEO_USER_ID};config.onDataRead=()=>{config.active=false;};
+ const fixture=setup(config);const context=await fixture.resolve();
+ assert.equal((await context.readExecutiveMetrics!()).kind,'forbidden');
 });

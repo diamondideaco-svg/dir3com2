@@ -3,7 +3,7 @@ import { callOpenAICompatibleProvider } from './openai-compatible';
 import { callAnthropicMessagesWeb } from './anthropic-web';
 import { callGeminiGoogleSearch } from './gemini-web';
 import type { AgentProviderId } from '../../dabra/agent-capabilities';
-import { AGENT_TOOLS } from '../../dabra/agent-contract';
+import { CLASSIFIABLE_AGENT_TOOLS } from '../../dabra/agent-contract';
 
 /** Shared existing seven transports. One attempt, fixed endpoints, no search/discovery. */
 export async function callInternalAgentProvider(provider: AgentProviderId, config: { apiKey: string; model: string }, message: string, options: {
@@ -11,6 +11,12 @@ export async function callInternalAgentProvider(provider: AgentProviderId, confi
   classifier?: boolean; standardBilling?: boolean; pilotMeasurement?: boolean;
 }) {
   if (options.signal?.aborted) return { ok: false, answer: '', citations: [], errorCategory: 'timeout' as const, model: config.model };
+  // This pinned Qwen recipe bounds thought + answer tokens, including vendor drift.
+  const boundedQwen = provider === 'qwen' && config.model === 'qwen3.8-flash';
+  const qwenCeiling = options.maxOutputTokens ?? 700;
+  if (boundedQwen && (!Number.isSafeInteger(qwenCeiling) || qwenCeiling <= 10 || qwenCeiling > 1024)) {
+    return { ok: false, answer: '', citations: [], errorCategory: 'invalid_request' as const, model: config.model };
+  }
   const common = { ...config, message: options.classifier ? message.slice(0, 500) : message, prompt: options.prompt, timeoutMs: options.timeoutMs, singleAttempt: true, standardBilling: options.standardBilling,
     ...(options.signal ? { signal: options.signal } : {}),
     ...(options.maxOutputTokens !== undefined ? { maxOutputTokens: options.maxOutputTokens } : {}) };
@@ -22,9 +28,10 @@ export async function callInternalAgentProvider(provider: AgentProviderId, confi
   };
   const lunaStandard = provider === 'openai' && config.model === 'gpt-6-luna' && options.standardBilling === true;
   return callOpenAICompatibleProvider({ ...common, providerName: provider, baseUrl: endpoints[provider],
+    ...(boundedQwen ? { chatProfile: 'qwen-bounded-task' as const } : {}),
     retryCount: 0, preferredModels: [config.model],
     ...(provider === 'xai' && options.classifier ? { responseJsonSchema: { name: 'dir3com_read_tool', schema: {
-      type: 'object', properties: { tool: { type: 'string', enum: [...AGENT_TOOLS] } }, required: ['tool'], additionalProperties: false,
+      type: 'object', properties: { tool: { type: 'string', enum: [...CLASSIFIABLE_AGENT_TOOLS] } }, required: ['tool'], additionalProperties: false,
     } } } : {}),
     ...(provider === 'openai' && /^gpt-5(?:-mini|-nano)?(?:-\d{4}-\d{2}-\d{2})?$/.test(config.model)
       ? { chatProfile: 'gpt-5-classifier' as const } : lunaStandard ? { chatProfile: 'gpt-6-luna-pilot' as const } : {}),
@@ -32,14 +39,18 @@ export async function callInternalAgentProvider(provider: AgentProviderId, confi
 }
 
 
-export function internalAgentConfiguration(provider: AgentProviderId, approvedMeasurementModel?: string) {
-  if (approvedMeasurementModel !== undefined && !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(approvedMeasurementModel)) return null;
+export function internalAgentCredential(provider: AgentProviderId) {
   const keyNames: Record<AgentProviderId, string[]> = {
     openai: ['OPENAI_API_KEY'], gemini: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY'],
     anthropic: ['ANTHROPIC_API_KEY'], xai: ['XAI_API_KEY'], deepseek: ['DEEPSEEK_API_KEY'],
     qwen: ['QWEN_API_KEY', 'DASHSCOPE_API_KEY'], mistral: ['MISTRAL_API_KEY'],
   };
-  const apiKey = keyNames[provider].map(key => process.env[key]?.trim()).find(Boolean);
+  return keyNames[provider].map(key => process.env[key]?.trim()).find(Boolean);
+}
+
+export function internalAgentConfiguration(provider: AgentProviderId, approvedMeasurementModel?: string) {
+  if (approvedMeasurementModel !== undefined && !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(approvedMeasurementModel)) return null;
+  const apiKey = internalAgentCredential(provider);
   // A validated server-stored measurement plan may pin its model without mutating Production ENV.
   const model = approvedMeasurementModel || (provider === 'openai' ? process.env.DABRA_INTERNAL_AI_MODEL : undefined)?.trim()
     || process.env[`DABRA_${provider.toUpperCase()}_MODEL`]?.trim();

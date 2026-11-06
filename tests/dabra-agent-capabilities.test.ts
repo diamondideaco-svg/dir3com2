@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import { FIRST_PROFILE_CASE_SET_SHA } from '../lib/dabra/agent-measurement';
+import { classifierPrompt } from '../lib/dabra/agent-planner';
+import { parseAgentTool } from '../lib/dabra/agent-contract';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AGENT_PROVIDER_IDS, APPROVED_AGENT_CAPABILITY_PROFILES, selectQualifiedAgentCapability, type AgentCapabilityProfile, type AgentProviderId } from '../lib/dabra/agent-capabilities';
@@ -45,4 +49,11 @@ test('Task217: a selected evidence snapshot cannot be changed through the source
   const selected = selectQualifiedAgentCapability([{ provider: 'gemini', measurement }], request);
   measurement.model = 'tampered-model'; assert.equal(selected.kind, 'selected');
   if (selected.kind === 'selected') assert.equal(selected.destination.measurement.model, 'measured-model');
+});
+
+// Frozen e269 contract digests; this check also works in shallow CI checkouts.
+test('Task217: Core-only tools preserve the historical classifier and measurement recipe',()=>{
+ assert.equal(createHash('sha256').update(classifierPrompt).digest('hex'),"a948945b3f927f6408fd501ed6edc50dc4d6f918a81d81cfbb2e554b0cb749e8");
+ assert.equal(FIRST_PROFILE_CASE_SET_SHA,"65555baf2b237b05b2cb40e46250d9667326ec06c23c9079566c6daa882da056");
+ assert.equal(parseAgentTool({tool:'executive_metrics'}),null);assert.equal(parseAgentTool({tool:'contact_inbox'}),null);
 });

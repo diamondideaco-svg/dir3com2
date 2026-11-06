@@ -34,6 +34,7 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   ...['/login', '/register', '/auth/signin', '/auth/verify-email', '/auth/forgot-password', '/auth/reset-password', '/login-success'].map((path) => ({ path, audience: 'auth' as const, protected: false, discoverability: path === '/login' || path === '/register' ? 'direct' as const : 'contextual' as const })),
 
   ...['/my-account', '/my-bookings', '/my-wallet', '/my-documents', '/favorites', '/my-profile', '/support'].map((path) => ({ path, audience: 'customer' as const, protected: path !== '/support', discoverability: 'direct' as const })),
+  { path: '/support/cases', audience: 'customer', protected: true, discoverability: 'contextual', parent: '/support', indexable: false },
   { path: '/booking', audience: 'customer', protected: true, discoverability: 'contextual', parent: '/marketplace' },
   { path: '/my-requests/[reference]', audience: 'customer', protected: true, discoverability: 'contextual', parent: '/my-account' },
   { path: '/my-requests/[reference]/drive', audience: 'customer', protected: true, discoverability: 'contextual', parent: '/my-account' },

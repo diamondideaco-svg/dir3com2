@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 const execute = promisify(execFile);
 const container = process.env.TASK166_BINDING_TEST_CONTAINER;
@@ -12,6 +13,8 @@ const approval='00000000-0000-4000-8000-000000000166';
 const revision='a'.repeat(40);
 const deployment='dpl_SYNTHETIC1660000';
 const worker='SYNTHETIC-ONLY-NOT-A-REAL-WORKER-CREDENTIAL';
+const fingerprintForward=readFileSync('supabase/migrations/20261106161631_task166_worker_binding_fingerprint.sql','utf8');
+const fingerprintSql=(value:string)=>`'${createHash('sha256').update('task166-existing-worker-v1:'+value,'utf8').digest('hex')}'`;
 const migration=readFileSync('supabase/migrations/20261105081501_task166_existing_worker_binding.sql','utf8');
 
 async function sql(text:string,user='postgres'):Promise<string>{
@@ -24,11 +27,11 @@ async function sql(text:string,user='postgres'):Promise<string>{
 }
 function actorQuery(query:string,uid=ceo){return `BEGIN; SET LOCAL "request.jwt.claim.sub"='${uid}'; ${query}; COMMIT;`;}
 async function state(uid=ceo){return JSON.parse(await sql(actorQuery(`SELECT public.get_task166_worker_binding_state('${approval}')`,uid),'authenticated'));}
-async function bind(uid=ceo,sha=revision,dep=deployment){return JSON.parse(await sql(actorQuery(`SELECT public.bind_task166_existing_worker('${approval}','${sha}','${dep}','${worker}')`,uid),'authenticated'));}
+async function bind(uid=ceo,sha=revision,dep=deployment,value=worker){return JSON.parse(await sql(actorQuery(`SELECT public.bind_task166_existing_worker('${approval}','${sha}','${dep}','${value}')`,uid),'authenticated'));}
 async function reset(){await sql(`TRUNCATE drive_notification_private.task166_worker_binding_permit,vault.secrets;
   UPDATE public.profiles SET role='admin',status='active',deleted_at=NULL WHERE id='${ceo}';
-  INSERT INTO drive_notification_private.task166_worker_binding_permit(approval_id,source_sha,deployment_id,expires_at)
-  VALUES('${approval}','${revision}','${deployment}',clock_timestamp()+interval '4 minutes');`);}
+  INSERT INTO drive_notification_private.task166_worker_binding_permit(approval_id,source_sha,deployment_id,expires_at,expected_worker_sha256)
+  VALUES('${approval}','${revision}','${deployment}',clock_timestamp()+interval '4 minutes',${fingerprintSql(worker)});`);}
 async function counts(){return (await sql(`SELECT json_build_array((SELECT count(*) FROM vault.secrets),
   (SELECT count(*) FROM drive_notification_private.task166_worker_binding_permit WHERE consumed_at IS NOT NULL));`));}
 
@@ -60,6 +63,22 @@ test('binding isolated PostgreSQL authorization, one-time races and rollback',as
         IF current_setting('fixture.vault_delay',true)='on' THEN PERFORM pg_sleep(3); END IF;
         RETURN result;END$$;`);
     await sql(migration);
+    await t.test('RED baseline: original RPC accepts a worker different from the trusted permit proof',async()=>{
+      const wrong='DIFFERENT-SYNTHETIC-ONLY-WORKER-CREDENTIAL';
+      const result=JSON.parse(await sql(`BEGIN;
+        ALTER TABLE drive_notification_private.task166_worker_binding_permit ADD COLUMN expected_worker_sha256 text;
+        INSERT INTO drive_notification_private.task166_worker_binding_permit
+          (approval_id,source_sha,deployment_id,expires_at,expected_worker_sha256)
+          VALUES('${approval}','${revision}','${deployment}',clock_timestamp()+interval '4 minutes',${fingerprintSql(worker)});
+        SET LOCAL ROLE authenticated;SET LOCAL "request.jwt.claim.sub"='${ceo}';
+        SELECT public.bind_task166_existing_worker('${approval}','${revision}','${deployment}','${wrong}');
+        ROLLBACK;`));
+      assert.equal(result.code,'BOUND','Reproduces the reviewed defect only in a rollback-isolated synthetic DB');
+      assert.deepEqual(JSON.parse(await counts()),[0,0]);
+    });
+    const originalAcl=await sql("SELECT json_agg(json_build_array(oid::text,proacl::text) ORDER BY proname) FROM pg_proc WHERE oid IN ('public.bind_task166_existing_worker(uuid,text,text,text)'::regprocedure,'public.get_task166_worker_binding_state(uuid)'::regprocedure)");
+    await sql(fingerprintForward);
+    assert.equal(await sql("SELECT json_agg(json_build_array(oid::text,proacl::text) ORDER BY proname) FROM pg_proc WHERE oid IN ('public.bind_task166_existing_worker(uuid,text,text,text)'::regprocedure,'public.get_task166_worker_binding_state(uuid)'::regprocedure)"),originalAcl,'Forward retains exact RPC OIDs and ACLs');
     await t.test('migration creates no permit, secret or activation',async()=>assert.deepEqual(JSON.parse(await counts()),[0,0]));
     await t.test('RPC owners, definer/search_path, RLS and ACLs are least privilege',async()=>{
       const roles=JSON.parse(await sql("SELECT json_agg(json_build_object('name',rolname,'super',rolsuper,'login',rolcanlogin,'bypass',rolbypassrls)) FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role')"));
@@ -130,6 +149,30 @@ test('binding isolated PostgreSQL authorization, one-time races and rollback',as
       const result=JSON.parse(await sql(actorQuery(`SELECT public.bind_task166_existing_worker('${approval}','${revision}','${deployment}',NULL)`),'authenticated'));
       assert.equal(result.code,'WORKER_UNAVAILABLE');assert.deepEqual(JSON.parse(await counts()),[0,0]);
     });
+    await t.test('GREEN wrong worker is rejected before Vault and cannot consume the pinned permit',async()=>{
+      const before=await sql("SELECT CASE WHEN is_called THEN last_value ELSE 0 END FROM vault.synthetic_create_count");
+      assert.deepEqual(await bind(ceo,revision,deployment,'DIFFERENT-SYNTHETIC-ONLY-WORKER-CREDENTIAL'),{code:'WORKER_IDENTITY_MISMATCH'});
+      assert.deepEqual(JSON.parse(await counts()),[0,0]);
+      assert.equal(await sql("SELECT CASE WHEN is_called THEN last_value ELSE 0 END FROM vault.synthetic_create_count"),before,'Vault function was not entered');
+      assert.equal(await sql(`SELECT expected_worker_sha256=${fingerprintSql(worker)} FROM drive_notification_private.task166_worker_binding_permit WHERE approval_id='${approval}'`),'t');
+      const good=await bind();assert.equal(good.code,'BOUND');assert.deepEqual(JSON.parse(await counts()),[1,1]);
+      assert.equal(await sql("SELECT synthetic_value FROM vault.secrets"),worker);
+    });
+    await reset();
+    await t.test('authenticated caller cannot replace the trusted fingerprint or supply one to the RPC',async()=>{
+      await assert.rejects(sql(`UPDATE drive_notification_private.task166_worker_binding_permit SET expected_worker_sha256=${fingerprintSql('DIFFERENT-SYNTHETIC-ONLY-WORKER-CREDENTIAL')}`,'authenticated'),/permission denied/);
+      await assert.rejects(sql(actorQuery(`SELECT public.bind_task166_existing_worker('${approval}','${revision}','${deployment}','${worker}','${'a'.repeat(64)}')`),'authenticated'),/does not exist/);
+      assert.deepEqual(JSON.parse(await counts()),[0,0]);
+    });
+    await t.test('legacy unfinished permit without proof fails closed without renewal or consumption',async()=>{
+      await sql('UPDATE drive_notification_private.task166_worker_binding_permit SET expected_worker_sha256=NULL');
+      const before=await sql("SELECT row_to_json(p)::text FROM drive_notification_private.task166_worker_binding_permit p");
+      assert.deepEqual(await state(),{code:'WORKER_BINDING_PROOF_REQUIRED'});
+      assert.deepEqual(await bind(),{code:'WORKER_BINDING_PROOF_REQUIRED'});
+      assert.deepEqual(JSON.parse(await counts()),[0,0]);
+      assert.equal(await sql("SELECT row_to_json(p)::text FROM drive_notification_private.task166_worker_binding_permit p"),before);
+    });
+    await reset();
     await t.test('Vault failure rolls back both writes and scrubs the exception',async()=>{
       const result=JSON.parse(await sql(actorQuery(`SET LOCAL fixture.vault_failure='on';SELECT public.bind_task166_existing_worker('${approval}','${revision}','${deployment}','${worker}')`),'authenticated'));
       assert.deepEqual(result,{code:'UNCONFIRMED_CHECK_METADATA'});assert.deepEqual(JSON.parse(await counts()),[0,0]);
@@ -161,12 +204,19 @@ test('binding isolated PostgreSQL authorization, one-time races and rollback',as
       const before=await state();assert.equal(before.code,'BOUND');const again=await bind();assert.equal(again.code,'ALREADY_BOUND');
       assert.equal(again.secretId,before.secretId);assert.ok(!JSON.stringify(again).includes(worker));assert.deepEqual(JSON.parse(await counts()),[1,1]);
     });
+    await t.test('completed legacy binding without fingerprint stays bound and is never replaced',async()=>{
+      await sql('UPDATE drive_notification_private.task166_worker_binding_permit SET expected_worker_sha256=NULL');
+      const before=await state();assert.equal(before.code,'BOUND');
+      const replay=await bind(ceo,revision,deployment,'DIFFERENT-SYNTHETIC-ONLY-WORKER-CREDENTIAL');
+      assert.equal(replay.code,'ALREADY_BOUND');assert.equal(replay.secretId,before.secretId);
+      assert.deepEqual(JSON.parse(await counts()),[1,1]);assert.equal(await sql("SELECT synthetic_value FROM vault.secrets"),worker);
+    });
     await t.test('missing consumed reference is fail-closed, not recreated',async()=>{
       await sql('DELETE FROM vault.secrets');assert.equal((await state()).code,'INCONSISTENT_STOP');assert.equal((await bind()).code,'INCONSISTENT_STOP');assert.deepEqual(JSON.parse(await counts()),[0,1]);
     });
     await t.test('permit constraints reject broad targets, extra lifetime and mismatched consume pair',async()=>{
       await reset();for(const update of ["reference_name='other'","actor_uuid='"+other+"'","vercel_project_id='other'",
-        "supabase_project_ref='other'","expires_at=issued_at+interval '6 minutes'","consumed_at=clock_timestamp()"]){
+        "supabase_project_ref='other'","expires_at=issued_at+interval '6 minutes'","consumed_at=clock_timestamp()","expected_worker_sha256='not-a-digest'"]){
         await assert.rejects(sql('UPDATE drive_notification_private.task166_worker_binding_permit SET '+update),/check constraint/);
       }
     });

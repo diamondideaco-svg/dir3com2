@@ -1,8 +1,11 @@
 import { normalizePlatformQuery } from './platform-assistant';
 import { isMarketplaceRequestReference } from '../marketplace/customer-requests';
 import { withoutNegativeActions } from './intent-constraints';
+import { parseCustomerCaseReference } from '../contact/customer-cases';
 
-export const AGENT_TOOLS = ['discover', 'my_requests', 'operations', 'executive', 'support', 'call_center', 'capabilities', 'weather', 'currency', 'maps'] as const;
+// Keep the historical external classifier/measurement contract unchanged.
+export const CLASSIFIABLE_AGENT_TOOLS = ['discover', 'my_requests', 'operations', 'executive', 'support', 'call_center', 'capabilities', 'weather', 'currency', 'maps'] as const;
+export const AGENT_TOOLS = [...CLASSIFIABLE_AGENT_TOOLS, 'executive_metrics', 'contact_inbox', 'support_cases'] as const;
 export type AgentTool = typeof AGENT_TOOLS[number];
 export type AgentRole = 'guest' | 'customer' | 'partner' | 'staff' | 'admin' | 'ceo';
 export type AgentIntent = { tool: AgentTool; reference: string | null; draft: boolean };
@@ -17,21 +20,37 @@ export type AgentReadResult =
   | { kind: 'authentication_required' }
   | { kind: 'forbidden' }
   | { kind: 'unavailable' };
+export type AgentExecutiveReadResult =
+  | { kind: 'ready'; metrics: import('../integration/executive-dashboard-contract').ExecutiveDashboardData; retrievedAt: string }
+  | { kind: 'forbidden' | 'unavailable' };
+export type AgentContactInboxReadResult =
+  | { kind: 'ready'; country: 'EG'; counts: { received: number; in_progress: number; closed: number }; displayed: number; truncated: boolean; retrievedAt: string }
+  | { kind: 'forbidden' | 'unavailable' };
 export type AgentContext = {
   role: AgentRole;
   taskAuthority?: AgentTaskAuthority;
   taskAuthorityFailure?: 'authentication_required' | 'forbidden' | 'unavailable';
   isTaskAuthorityCurrent?: () => Promise<boolean>;
   readRequests: (reference: string | null, operational: boolean) => Promise<AgentReadResult>;
+  readExecutiveMetrics?: () => Promise<AgentExecutiveReadResult>;
+  readContactInbox?: () => Promise<AgentContactInboxReadResult>;
+  readSupportCases?: (reference: string | null) => Promise<import('../contact/customer-cases').CustomerCaseRead>;
 };
 
 export function agentIntent(message: string): AgentIntent {
   const text = normalizePlatformQuery(message);
   const candidate = message.toUpperCase().match(/\bREQ-[A-Z0-9]+\b/)?.[0] ?? '';
-  const reference = isMarketplaceRequestReference(candidate) ? candidate : null;
+  const caseCandidate = message.match(/\bCASE-[0-9a-f-]{36}\b/i)?.[0];
+  const caseReference = parseCustomerCaseReference(caseCandidate);
+  const reference = caseReference?.reference ?? (isMarketplaceRequestReference(candidate) ? candidate : null);
   const draft = /\bdraft\b|compose|reply|مسوده|صياغه|جهز رد|اكتب رد/.test(text);
   let tool: AgentTool = 'discover';
-  if (/\bceo\b|executive|المكتب التنفيذي|تقرير الاداره العليا|ملخص تنفيذي/.test(text)) tool = 'executive';
+  if (caseReference || /my support cases|support cases|قضايا الدعم|قضايا دعمي|قضيه الدعم/.test(text)) {
+    tool = /call cent(?:er|re)|\bcall\b|كول سنتر|مركز الاتصال|مكالم/.test(text) ? 'call_center' : 'support_cases';
+  }
+  else if (/\bkpis?\b|executive metrics|dashboard metrics|مؤشرات الاداء|مؤشرات المكتب التنفيذي|مؤشرات اللوحه|ايرادات المنصه/.test(text)) tool = 'executive_metrics';
+  else if (/contact inbox|contact enquiries|support inbox|صندوق التواصل|رسائل التواصل|صندوق الدعم/.test(text)) tool = 'contact_inbox';
+  else if (/\bceo\b|executive|المكتب التنفيذي|تقرير الاداره العليا|ملخص تنفيذي/.test(text)) tool = 'executive';
   else if (/operations|\badmin\b|طابور|طلبات العملاء|العمليات|لوحه الاداره|لوحة الاداره/.test(text)) tool = 'operations';
   else if (/call cent(?:er|re)|\bcall\b|اتصل|كول سنتر|مركز الاتصال|مكالم/.test(text)) tool = 'call_center';
   else if (/capabilit|what can you|what do you|ماذا تستطيع|شو بتقدر|ايش تقدر|امكانيات|قدرات/.test(text)) tool = 'capabilities';
@@ -48,7 +67,7 @@ export function parseAgentTool(value: unknown): AgentTool | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
   if (Object.keys(record).length !== 1) return null;
-  return AGENT_TOOLS.find(tool => tool === record.tool) ?? null;
+  return CLASSIFIABLE_AGENT_TOOLS.find(tool => tool === record.tool) ?? null;
 }
 
 const statusCopy: Record<string, { ar: string; en: string }> = {
@@ -88,7 +107,8 @@ export type AgentCapability = AgentTool | 'intent.classify';
 export type AgentTaskScope =
   | { kind: 'public' }
   | { kind: 'owner'; actorId: string; ownerId: string }
-  | { kind: 'country'; actorId: string; country: 'EG'; grant: 'operations:read' };
+  | { kind: 'country'; actorId: string; country: 'EG'; grant: 'operations:read' }
+  | { kind: 'executive'; actorId: string; authority: 'verified-ceo' };
 export type AgentTaskLimits = Readonly<{
   maxAttempts: number; maxElapsedMs: number; maxInputTokens: number; maxOutputTokens: number; maxCostUsd: number;
 }>;
@@ -120,10 +140,10 @@ export type AgentTaskState =
 
 export function agentProductRole(tool: AgentCapability): AgentProductRole {
   switch (tool) {
-    case 'operations': return 'admin';
-    case 'executive': return 'ceo';
+    case 'operations': case 'contact_inbox': return 'admin';
+    case 'executive': case 'executive_metrics': return 'ceo';
     case 'call_center': return 'call_center';
-    case 'my_requests': case 'support': return 'customer_service';
+    case 'my_requests': case 'support': case 'support_cases': return 'customer_service';
     case 'discover': case 'capabilities': case 'weather': case 'currency': case 'maps': case 'intent.classify': return 'concierge';
   }
 }
