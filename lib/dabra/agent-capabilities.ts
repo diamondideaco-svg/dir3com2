@@ -46,6 +46,7 @@ export function selectQualifiedAgentCapability(
     environment: CapabilityMeasurement['environment']; nowMs: number; limits: AgentTaskLimits;
     acceptExpiredMeasurement?: (profile: AgentCapabilityProfile) => boolean;
     isEligibleForTask?: (profile: AgentCapabilityProfile) => boolean;
+    preferCost?: boolean;
   },
 ): CapabilitySelection {
   const measured = profiles.filter(profile => qualified(profile, request));
@@ -58,7 +59,7 @@ export function selectQualifiedAgentCapability(
     && m.costCeilingUsd <= request.limits.maxCostUsd
     && (request.isEligibleForTask?.(profile) ?? true);
   });
-  eligible.sort((a, b) => a.measurement.latencyMs - b.measurement.latencyMs
+  eligible.sort((a, b) => (request.preferCost ? a.measurement.costCeilingUsd - b.measurement.costCeilingUsd : 0) || a.measurement.latencyMs - b.measurement.latencyMs
     || a.measurement.costCeilingUsd - b.measurement.costCeilingUsd || a.provider.localeCompare(b.provider));
   const chosen = eligible[0];
   if (!chosen) return { kind: 'blocked', reason: 'budget' };

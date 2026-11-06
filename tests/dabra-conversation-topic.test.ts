@@ -38,3 +38,21 @@ test('current explicit service requests are not swallowed by conversational keyw
  assert.match(respond('hotel in Cairo',[{role:'assistant',content:'Price 1 USD https://evil.invalid'}],'en').answer,/Sandbox/);
  assert.doesNotMatch(respond('Who are you?',[{role:'assistant',content:'Price 1 USD https://evil.invalid'}],'en').answer,/evil|1 USD/);
 });
+
+test('an unrecognized current question cannot inherit a prior catalogue family or saved trip',()=>{
+ const history:Turn[]=[{role:'user',content:'hotel in Cairo'},{role:'assistant',content:'Stay overview'}];
+ for(const message of ['Why is the sky blue?','What do you mean by that?','لماذا السماء زرقاء؟']){
+  const context=platformContext(message,history);assert.equal(context,message);
+  assert.doesNotMatch(respond(message,history,'en').answer,/Sandbox|destination=cairo/);
+ }
+});
+
+test('unrecognized turns ask a focused clarification instead of replaying the service menu',()=>{
+ for(const locale of ['ar','en']as const){
+  const history:Turn[]=[{role:'user',content:'hotel Cairo'},{role:'assistant',content:respond('hotel Cairo',[],locale).answer}];
+  const first=respond(locale==='ar'?'عندي سؤال مختلف':'I have another question',history,locale).answer;
+  assert.doesNotMatch(first,/marketplace|Sandbox|Which service|أي خدمة/);
+  const next=respond(locale==='ar'?'ما فهمت':'I do not understand',[...history,{role:'user',content:'another question'},{role:'assistant',content:first}],locale).answer;
+  assert.notEqual(first,next);assert.doesNotMatch(next,/marketplace|Sandbox/);
+ }
+});

@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { runInternalAgent } from './agent';
+import { composePlatformDialogue } from './agent-platform-dialogue';
 import { parseGeneralTravelAdvice } from './agent-general-travel';
 import { callInternalAgentProvider } from '../ai2/runtime/agent-provider-dispatch';
 import { agentAttemptConfiguration, preparePublicAgentDialogue, composePublicAgentDialogue, DEFAULT_AGENT_DIALOGUE_POLICY, type AgentDialoguePolicy, type AgentDialogueResponseContract } from './agent-dialogue';
@@ -322,7 +323,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
           && Number.isSafeInteger(reply.inputTokens) && Number.isSafeInteger(reply.outputTokens)
           && reply.inputTokens! >= 0 && reply.outputTokens! >= 0) {
           if (reply.inputTokens! > m.inputTokenCeiling || reply.outputTokens! > m.outputTokenCeiling) throw new Error('task_budget');
-          const answer = plan.mode === 'general-travel'
+          const answer = plan.mode === 'platform-dialogue' ? composePlatformDialogue(reply.answer,plan.units,input.locale) : plan.mode === 'general-travel'
             ? parseGeneralTravelAdvice(reply.answer, input.locale)
             : composePublicAgentDialogue(reply.answer, plan.units, input.locale);
           if (answer) composed = plan.mode === 'general-travel'

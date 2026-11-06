@@ -1,3 +1,4 @@
+import { conversationIntent } from '@/lib/dabra/conversation-renderer';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { platformCurrency, platformContext, platformFamilies, refinePlatformTrip, hasActivePlatformDriveDialogue } from '@/lib/dabra/platform-assistant';
 type AI2ChatTurn = { role: 'user' | 'assistant'; content: string };
@@ -133,12 +134,15 @@ export async function POST(request: NextRequest) {
   }
   const history = sanitizeHistory(body?.history);
   let trip = null;
+  let tripIsCurrent: (() => Promise<boolean>) | undefined;
   if (body?.continuityTrip !== undefined) {
     const input = parseContinuityChatTrip(body.continuityTrip);
     if (!input) return NextResponse.json({ error: 'Invalid continuity context.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
     try {
       const { resolveContinuityChatTrip } = await import('@/lib/dabra/continuity-chat-server');
       trip = await resolveContinuityChatTrip(request, input);
+      const original=JSON.stringify(trip);
+      tripIsCurrent=async()=>{try{const fresh=await resolveContinuityChatTrip(request,input);return !!fresh&&JSON.stringify(fresh)===original;}catch{return false;}};
     } catch { /* Unavailable authenticated continuity fails closed. */ }
     if (!trip) return NextResponse.json({ error: 'Continuity context expired or changed.' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
     trip = refinePlatformTrip(trip, message);
@@ -152,6 +156,11 @@ export async function POST(request: NextRequest) {
     const { resolveAgentContext } = await import('@/lib/dabra/agent-context');
     agentContext = await resolveAgentContext(request);
   }
+  if (tripIsCurrent && agentContext.isTaskAuthorityCurrent) {
+    const authIsCurrent=agentContext.isTaskAuthorityCurrent;
+    const ownedTripIsCurrent=tripIsCurrent;
+    agentContext={...agentContext,isTaskAuthorityCurrent:async()=>await authIsCurrent()&&await ownedTripIsCurrent()&&await authIsCurrent()};
+  }
   const context = platformContext(modelMessage, history, trip);
   let dialoguePolicy = await getAgentDialoguePolicy(agentContext, request.signal, parsed.attachmentCount ? undefined : requestId);
   let understanding: string = 'internal-rules';
@@ -162,7 +171,7 @@ export async function POST(request: NextRequest) {
   const classifierActor = agentContext.taskAuthority;
   const publicCustomer = agentContext.role === 'customer' && classifierActor?.kind === 'customer'
     && classifierActor.actorId === classifierActor.ownerId && !!agentContext.isTaskAuthorityCurrent;
-  if (inferenceEnabled && publicCustomer && intent.tool === 'discover' && !platformFamilies(message).length
+  if (inferenceEnabled && !dialoguePolicy.publicMonthly && !conversationIntent(message) && publicCustomer && intent.tool === 'discover' && !platformFamilies(message).length
     && !hasActivePlatformDriveDialogue({ message: modelMessage, history, context, trip })) {
     const { planInternalAgentTool } = await import('@/lib/dabra/agent-planner');
     const { createDabraProviderAttemptAfterResponseScheduler } = await import('@/lib/ai2/observability/provider-attempts');
@@ -183,7 +192,7 @@ export async function POST(request: NextRequest) {
   const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
   const snapshot = needsRates ? await getCurrencySnapshot() : null;
   const taskResult = await runInternalAgentTask({ message: modelMessage, history, locale, context: agentContext, intent, needsClarification,
-    pricing: currency ? { currency, snapshot } : undefined, trip }, { signal: request.signal, dialogue: dialoguePolicy, responseContract: 'platform-units' });
+    pricing: currency ? { currency, snapshot } : undefined, trip }, { signal: request.signal, dialogue: dialoguePolicy, responseContract: dialoguePolicy.publicMonthly ? 'platform-dialogue' : 'platform-units' });
   if (taskResult.kind === 'stopped') return NextResponse.json({ error: DABRA_LOCALE_ERROR[locale] }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
   const response = taskResult.response;
   if (body?.stream === true) {

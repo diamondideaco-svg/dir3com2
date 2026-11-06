@@ -70,3 +70,10 @@ export function renderServerReply(segments: readonly ServerReplySegment[], local
   else if (/\b(?:anxious|worried|scared)\b|قلقان|خايف|خائف|متوتر/.test(message.toLowerCase())) lines.unshift(copy.anxiety);
   return lines.join('\n\n');
 }
+
+/** Transcript presence selects a clarification step, never supplies factual content. */
+export function conversationClarification(history:ReplyTurn[],locale:ReplyLocale) {
+ const first=locale==='ar'?'حتى أجاوبك بدقة، ما النقطة التي تريدها تحديدًا؟ يمكنك كتابة السؤال مباشرة.':'To answer accurately, which point would you like help with? You can ask the question directly.';
+ const second=locale==='ar'?'جرّب توضيح المطلوب بمثال قصير: ما الذي تريد معرفته أو الوصول إليه؟':'Could you give a short example of what you want to know or achieve?';
+ return history.at(-1)?.role==='assistant'&&history.at(-1)!.content.includes(first)?second:first;
+}

@@ -1,6 +1,6 @@
 import { AI2_DABRA_CONVERSATION_COPY } from '../ai2/prompt/contract';
 import { driveQuantities, driveDialogue, driveDialogueCopy, bareDriveParty, dateWithdrawalIndex } from './drive-planning';
-import { CORE_REQUIRED_DIALOGUE_UNITS, conversationIntent, conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
+import { CORE_REQUIRED_DIALOGUE_UNITS, conversationIntent, conversationClarification, conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
 import { DRIVE_OFFERS, vehicleFor, vehicleTitle, type DriveOffer } from '../drive/catalog';
 import { serviceEntryHref } from '../marketplace/public-entry';
 import { cairoInstant } from '../drive/search';
@@ -32,9 +32,16 @@ export function normalizePlatformQuery(input: string) {
     .replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
     .replace(/جي\s*كلاس/g, 'g class').replace(/سبورت/g, 'sport').replace(/رينج روفر|رانج روفر|رنج روفر/g, 'range rover').replace(/مرسيدس بنز/g, 'مرسيدس').replace(/رانج|رنج/g, 'رينج').replace(/صاني/g, 'صني').replace(/\s+/g, ' ').trim();
 }
+function platformRooms(text:string) {
+  const roomMatches = [...text.matchAll(/(?:^|\s)([1-8])\s*(?:rooms?|غرف(?:ه)?)(?=\s|[.,،]|$)/g)];
+  return roomMatches.at(-1)?.[1] ?? (/\bone room\b|غرفه واحده/.test(text) ? '1' : undefined);
+}
 export function platformFamilies(message: string): PlatformFamily[] {
   const text = normalizePlatformQuery(message);
-  return (Object.keys(familyTerms) as PlatformFamily[]).filter(f => familyTerms[f].test(text));
+  const families=(Object.keys(familyTerms) as PlatformFamily[]).filter(f => familyTerms[f].test(text));
+  // A bounded room count is itself a Stay preference, even after old turns leave the transcript window.
+  if (!families.includes('stay') && platformRooms(text)) families.push('stay');
+  return families;
 }
 export function platformContext(message: string, history: Turn[] = [], trip?: SavedTrip | null) {
   // A conversation turn is not a travel refinement. Saved continuity is untouched.
@@ -49,7 +56,16 @@ export function platformContext(message: string, history: Turn[] = [], trip?: Sa
     const content = turn.content.slice(0, 500);
     reconstructed.push({ role: turn.role, content: turn.role === 'user' ? contextualStayGuests(content, reconstructed) ?? contextualDriveParty(content, reconstructed) ?? content : content });
   }
-  const context = preferenceContext(contextualStayGuests(message, reconstructed) ?? contextualDriveParty(message, reconstructed) ?? message, reconstructed);
+  const currentMessage=contextualStayGuests(message,reconstructed) ?? contextualDriveParty(message,reconstructed) ?? message;
+  const currentPreferences=tripPreferences(normalizePlatformQuery(currentMessage));
+  // Inherit a service only for a real bounded preference/answer, not every
+  // unrecognized sentence. Assistant turns indicate question position, not facts.
+  const followup=platformFamilies(currentMessage).length>0 || currentPreferences.city || currentPreferences.ambiguous
+    || currentPreferences.hasDates || currentPreferences.partyMentioned || currentPreferences.durationMentioned || currentPreferences.rooms
+    || platformCurrency(currentMessage) || /^(?:yes|no|not sure|نعم|لا|مش عارف|ما ادري)$/.test(normalizePlatformQuery(currentMessage))
+    || /\b(?:cheaper|cheapest|expensive|budget|manual|automatic|sport|quiet|quieter|slower|relaxed|shade|indoor|outdoor|accessible)\b|ارخص|أرخص|اغلى|أغلى|ميزاني|اقتصادي|اهدا|أهدأ|اهدأ|هادئ|هادي|خليه اهدى/.test(normalizePlatformQuery(currentMessage));
+  if (!followup) return currentMessage;
+  const context = preferenceContext(currentMessage, reconstructed);
   if (!trip || newTripRequested(message)) return context;
   // Routing receives the typed trip separately. This projection only supplies
   // non-location preferences; no human-readable summary supplies city roles.
@@ -77,7 +93,9 @@ function preferenceContext(message: string, history: Turn[]) {
     const prior = relevant.slice(0, -1).reverse().find(turn => platformFamilies(turn).length);
     // Retain catalogue refinements (model/budget), but never private/request text.
     if (prior && !/\bREQ-|طلباتي|my requests|operations|\bceo\b/i.test(prior)) {
-      carry.push(current.ambiguous ? platformFamilies(prior).join(' ') : current.city ? withoutRoutingCities(prior) : prior);
+      const priorText=normalizePlatformQuery(prior);
+      const roomRefinement=platformRooms(priorText) && !Object.values(familyTerms).some(term=>term.test(priorText));
+      carry.push(current.ambiguous || roomRefinement ? platformFamilies(prior).join(' ') : current.city ? withoutRoutingCities(prior) : prior);
     }
   }
   if (!current.city && !current.ambiguous) { const city = previous.find(p => p.city || p.ambiguous); if (city?.city) carry.push(`destination: ${city.city}`); }
@@ -153,8 +171,7 @@ function tripPreferences(text: string, trip?: SavedTrip | null) {
   const safeDates = dates.filter(date => validSearchDate(date.slice(0, 10)) && (!date.includes('t') || /t(?:[01]\d|2[0-3]):[0-5]\d$/.test(date)));
   const quantities = driveQuantities(text);
   const party = quantities.party.value ? String(quantities.party.value) : undefined;
-  const roomMatches = [...text.matchAll(/(?:^|\s)([1-8])\s*(?:rooms?|غرف(?:ه)?)(?=\s|[.,،]|$)/g)];
-  const rooms = roomMatches.at(-1)?.[1] ?? (/\bone room\b|غرفه واحده/.test(text) ? '1' : undefined);
+  const rooms=platformRooms(text);
   return { city, ambiguous: roles.ambiguous, dates: !dateWithdrawn && safeDates.length === dates.length ? safeDates : [], hasDates: iso.length > 0 || Boolean(range) || dateWithdrawn, dateWithdrawn, party, rooms,
     partyMentioned: quantities.party.mentioned, durationDays: quantities.days.value, durationMentioned: quantities.days.mentioned };
 }
@@ -307,7 +324,9 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
       } else lines.push(ar ? 'راجع عروض VIP المنشورة داخل المنصة. تفاصيل الخدمة والسعر والتوفر تتحدد في العرض ومراجعة العمليات.' : 'Review published VIP options inside dir3com. The listing and Operations review determine details, price and availability.', link(ar ? 'استكشاف VIP' : 'Explore VIP', href));
     }
     const copy = AI2_DABRA_CONVERSATION_COPY[locale];
-    if (!lines.length) {
+    if (!lines.length && history.some(turn=>turn.role==='assistant')) {
+      lines.push(conversationClarification(history,locale));
+    } else if (!lines.length) {
       if (!history.slice(-8).some(turn => turn.role === 'assistant')) lines.push(copy.identity);
       lines.push(copy.serviceQuestion);
       lines.push(link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntry('drive', context, locale, pricing?.currency)), link(ar ? 'بحث الإقامة' : 'Stay search', platformEntry('stay', context, locale, pricing?.currency)), link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
