@@ -202,5 +202,11 @@
     "sha256": "42cbf7298463bdd783c9f019f9d551692169071fe22f5c221826387542d3dc48",
     "task": "#217",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261106161631_task166_worker_binding_fingerprint.sql",
+    "sha256": "86eae6389a3e4c1c16146616bb9a76f1133da481a643066beb447d2b40cef7d0",
+    "task": "#217 (linked #166)",
+    "production_apply_authorized": false
   }
 ]
