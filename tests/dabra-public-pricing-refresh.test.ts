@@ -12,7 +12,10 @@ const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 const require = createRequire(import.meta.url), now = Date.parse('2026-11-03T20:00:00Z');
 function fixture(provider: AgentProviderId = 'openai') {
   let clock = now, calls = 0, mode: 'ok' | 'http' | 'content-type' | 'redirect' | 'changed' | 'huge' | 'stalled' | 'ambiguous' | 'wrong-units' | 'missing-units' | 'wrong-currency' | 'wrong-tier' | 'regional' = 'ok';
-  let canceled = 0;
+  let canceled = 0, loggerFails = false;
+  const diagnostics: unknown[][] = [];
+  let markReaderWaiting = () => {};
+  const readerWaiting = new Promise<void>(resolve => { markReaderWaiting = resolve; });
   const requests: { url: string; init: RequestInit }[] = [];
   const modules = new Map<string, Record<string, unknown>>();
   class Clock extends Date { static now() { return clock; } }
@@ -25,6 +28,7 @@ function fixture(provider: AgentProviderId = 'openai') {
       exports: output, module: { exports: output }, require: (id: string) => id === 'server-only' ? {}
         : id === './dialogue-pricing-approvals' ? load('dialogue-pricing-approvals') : require(id),
       Date: Clock, AbortController, AbortSignal, TextDecoder,
+      console: { warn: (...args: unknown[]) => { if (loggerFails) throw Error('SYNTHETIC-PRIVATE-LOGGER'); diagnostics.push(args); } },
       fetch: async (url: string, init: RequestInit) => {
         calls++; requests.push({ url, init });
         if (mode === 'http') return Object.defineProperty(new Response('', { status: 503 }), 'url', { value: url });
@@ -37,8 +41,9 @@ function fixture(provider: AgentProviderId = 'openai') {
           : mode === 'regional' ? plain[provider].replace('aria-checked="false"','aria-checked="true"') : plain[provider];
         const stream = mode === 'huge' || mode === 'stalled' ? new ReadableStream<Uint8Array>({
           start(controller) { if (mode === 'huge') controller.enqueue(new Uint8Array(2097153)); },
+          pull() { markReaderWaiting(); },
           cancel() { canceled++; },
-        }) : body;
+        }, { highWaterMark: 0 }) : body;
         const response = new Response(stream, { headers: { 'content-type': mode === 'content-type' ? 'application/json'
           : provider === 'openai' || provider === 'anthropic' ? 'text/markdown' : provider === 'gemini' ? 'text/plain' : 'text/html' } });
         return Object.defineProperty(response, 'url', { value: mode === 'redirect' ? 'https://untrusted.invalid/' : url });
@@ -64,7 +69,7 @@ function fixture(provider: AgentProviderId = 'openai') {
   const contract = call('approvedPublicPricingContract', provider, model, pricing);
   if (!contract || typeof contract !== 'object') throw Error('MISSING_APPROVED_CONTRACT');
   const proof = { provider, model, pricingEvidenceSha256: pricing, limitedOperation: { contractSha256: Reflect.get(contract, 'digest') } };
-  return { requests, proof,
+  return { requests, proof, diagnostics, readerWaiting, loggerFails: () => { loggerFails = true; },
     calls: () => calls, canceled: () => canceled,
     mode: (value: typeof mode) => { mode = value; },
     advance: (ms: number) => { clock += ms; },
@@ -107,4 +112,46 @@ test('public pricing concurrent requests share only a public observation, not a 
 for(const mode of ['wrong-units','missing-units','wrong-currency','wrong-tier','regional'] as const)
 test('public pricing mistral rejects changed billing contract state: '+mode,async()=>{
   const f=fixture('mistral');f.mode(mode);assert.equal(await f.refresh(),null);assert.equal(f.calls(),1);
+});
+
+for (const [mode, reason] of [
+ ['http','http'],['redirect','redirect'],['content-type','content_type'],
+ ['ambiguous','extraction_failed'],['changed','fragment_hash_mismatch'],['huge','body_limit'],
+] as const) test('pricing diagnostic exposes only a closed reason without weakening rejection: ' + mode, async () => {
+ const f=fixture(); f.mode(mode);
+ assert.equal(await f.refresh(),null); assert.equal(f.calls(),1);
+ assert.equal(f.diagnostics.length,1);
+ assert.equal(f.diagnostics[0][0],'DABRA_PUBLIC_PRICING');
+ assert.deepEqual(JSON.parse(String(f.diagnostics[0][1])),{reason,stage:'preflight'});
+ assert.equal(JSON.stringify(f.diagnostics).includes(String(f.proof.model)),false);
+ assert.equal(JSON.stringify(f.diagnostics).includes('https://'),false);
+ assert.equal(JSON.stringify(f.diagnostics).includes(String(f.proof.pricingEvidenceSha256)),false);
+});
+test('pricing contract rejection is diagnosed before any public GET',async()=>{
+ const f=fixture();Reflect.set(f.proof.limitedOperation,'contractSha256','0'.repeat(64));
+ assert.equal(await f.refresh(),null);assert.equal(f.calls(),0);
+ assert.deepEqual(JSON.parse(String(f.diagnostics[0][1])),{reason:'contract_mismatch',stage:'preflight'});
+});
+test('pricing timeout stays bounded and never logs raw errors',async()=>{
+ const f=fixture();f.mode('stalled');
+ assert.equal(await f.refresh(AbortSignal.timeout(30)),null);assert.equal(f.calls(),1);
+ assert.equal(f.diagnostics.length,1);
+ assert.equal(JSON.parse(String(f.diagnostics[0][1])).reason,'timeout');
+ for(const e of f.diagnostics) assert.deepEqual(Object.keys(JSON.parse(String(e[1]))).sort(),['reason','stage']);
+ assert.ok(f.canceled()>0);
+});
+test('logging failure cannot authorize rejected pricing',async()=>{
+ const f=fixture();f.mode('changed');f.loggerFails();
+ assert.equal(await f.refresh(),null);assert.equal(f.calls(),1);
+});
+
+test('explicit caller cancellation during pricing wait is aborted, never timeout',async()=>{
+ const f=fixture();f.mode('stalled');const cancellation=new AbortController();
+ const pending=f.refresh(cancellation.signal);
+ await f.readerWaiting;
+ cancellation.abort('SYNTHETIC-PRIVATE-CANCELLATION');
+ assert.equal(await pending,null);assert.equal(f.calls(),1);assert.ok(f.canceled()>0);
+ assert.equal(f.diagnostics.length,1);
+ assert.deepEqual(JSON.parse(String(f.diagnostics[0][1])),{reason:'aborted',stage:'preflight'});
+ assert.equal(JSON.stringify(f.diagnostics).includes('SYNTHETIC-PRIVATE-CANCELLATION'),false);
 });

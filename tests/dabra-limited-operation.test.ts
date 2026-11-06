@@ -30,7 +30,7 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
   const realTransport = options.realTransport ? realTaskTransport(provider) : null;
   let clock = instant, actorCurrent = true, dispatches = 0, reservations = 0;
   let postReservePolicyReads = 0, revokeOnPolicyRead = 1, revocations = 0;
-  let fault: 'none' | 'authority-during-policy-read' | 'credential-during-policy-read' | 'authority-throws-after-admission' | 'lost-claim' | 'late-claim' | 'expired-price-receipt' | 'provider-unknown' | 'revoked-during-dispatch' | 'credential-change' | 'grant-revoked' | 'profile-revoked' | 'source-change' | 'consent-revoked' | 'pricing-expired-during-claim' | 'pricing-unavailable' = 'none';
+  let fault: 'none' | 'authority-during-policy-read' | 'credential-during-policy-read' | 'authority-throws-after-admission' | 'lost-claim' | 'late-claim' | 'expired-price-receipt' | 'provider-unknown' | 'revoked-during-dispatch' | 'credential-change' | 'grant-revoked' | 'profile-revoked' | 'source-change' | 'consent-revoked' | 'pricing-expired-during-claim' | 'pricing-unavailable' | 'authority-during-public-pricing' = 'none';
   let configuredKey = options.configuration === 'missing' ? '' : options.configuration === 'key-digest-mismatch' ? 'SYNTHETIC-DIFFERENT-CREDENTIAL' : credential;
   const requests = new Set<string>(), payloads: string[] = [], statuses: number[] = [];
   let held = 61719, admittedAttempts = 6, publicFetches = 0;
@@ -154,6 +154,7 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
       return require(id);
     }, Date: Clock, process: { env }, Buffer, URL, Response, TextDecoder, fetch: async (url: string, init: RequestInit) => {
       publicFetches++; assert.equal(init.credentials, 'omit'); assert.equal(init.redirect, 'error');
+      if (fault === 'authority-during-public-pricing') { await Promise.resolve(); actorCurrent = false; revocations++; }
       assert.equal(new Headers(init.headers).has('Authorization'), false);
       const response = new Response(fault === 'pricing-unavailable' ? '' : SYNTHETIC_PUBLIC_PRICING_BODIES[provider], {
         status: fault === 'pricing-unavailable' ? 503 : 200, headers: { 'Content-Type': provider === 'openai' || provider === 'anthropic' ? 'text/markdown' : provider === 'gemini' ? 'text/plain' : 'text/html' },
@@ -874,3 +875,19 @@ for (const fault of ['configuration-missing', 'authority-throws-after-admission'
     if (fault !== 'configuration-missing') { assert.ok(f.ledgerState().held > 61719); assert.equal(f.ledgerState().admittedAttempts, 7); }
   });
 }
+
+test('pricing success followed by authority loss is not mislabeled as pricing failure',async()=>{
+ const f=fixture('en','openai',{realTransport:true,continuous:true});
+ f.data.profiles=f.data.profiles.filter(p=>p.measurement.capability==='discover');
+ f.fail('authority-during-public-pricing');
+ const events:unknown[]=[];const observe=(value:unknown)=>{events.push(value);};
+ const privateChannel=diagnosticChannel('dir3com.dabra.agent-preparation');
+ privateChannel.subscribe(observe);
+ try{const body=await f.post();assert.equal(body.provider,'local');}finally{privateChannel.unsubscribe(observe);}
+ assert.equal(f.publicFetches(),1);assert.equal(f.revocations(),1);
+ assert.equal(f.counts().reservations,0);assert.equal(f.counts().dispatches,0);
+ assert.equal(f.realTransport?.calls.length,0);
+ assert.deepEqual(f.ledgerState(),{held:61719,admittedAttempts:6});
+ assert.equal(events.length,1);const event=events[0];assert.ok(isFixtureRecord(event));
+ assert.equal(event.reason,'authority_or_policy_unavailable');assert.equal(event.reservation,'not_attempted');assert.equal(event.stage,'preflight');
+});

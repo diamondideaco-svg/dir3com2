@@ -132,10 +132,25 @@ export function publicPricingObservationCurrent(value: PublicPricingObservation,
 /** The only observation constructor performs the actual allowlisted public GET.
  * Cache hits retain the original observation time. No raw body/Response is cached. */
 export async function refreshPublicDialoguePricing(proof: PublicPricingAuthority, signal: AbortSignal): Promise<PublicPricingObservation | null> {
+  let diagnosed = false;
+  const reject = (reason: 'aborted' | 'contract_mismatch' | 'tariff_expired' | 'http'
+    | 'redirect' | 'content_type' | 'body_unavailable' | 'body_limit' | 'extraction_failed'
+    | 'fragment_hash_mismatch' | 'timeout' | 'fetch_or_decode_failed' | 'observation_invalid') => {
+    if (!diagnosed) {
+      diagnosed = true;
+      // Fixed codes only. Never emit the source body, URL, proof, model or error.
+      try { console.warn('DABRA_PUBLIC_PRICING', JSON.stringify({ reason, stage: 'preflight' })); } catch { /* No logging fallback. */ }
+    }
+    return null;
+  };
+  // A caller may cancel explicitly or supply AbortSignal.timeout. Classify only
+  // the standard name; never log the caller's reason or error.
+  const stopReason = () => signal.aborted && signal.reason?.name !== 'TimeoutError' ? 'aborted' as const : 'timeout' as const;
   const contract = approvedPublicPricingContract(proof.provider, proof.model, proof.pricingEvidenceSha256), s = sources[proof.provider];
-  if (signal.aborted || !contract || contract.digest !== proof.limitedOperation.contractSha256) return null;
+  if (signal.aborted) return reject(stopReason());
+  if (!contract || contract.digest !== proof.limitedOperation.contractSha256) return reject('contract_mismatch');
   const before = Date.now();
-  if (s.tariffBeforeMs !== null && before >= s.tariffBeforeMs) return null;
+  if (s.tariffBeforeMs !== null && before >= s.tariffBeforeMs) return reject('tariff_expired');
   const key = contract.digest, hit = cache.get(key);
   if (hit && publicPricingObservationCurrent(hit, proof, before)) return hit;
   cache.delete(key);
@@ -147,31 +162,34 @@ export async function refreshPublicDialoguePricing(proof: PublicPricingAuthority
       let stop: (() => void) | undefined;
       try {
         const stopped = new Promise<null>(resolve => {
-          stop = () => { controller.abort(); void reader?.cancel().catch(() => {}); resolve(null); };
+          stop = () => { controller.abort(); void reader?.cancel().catch(() => {}); resolve(reject(stopReason())); };
           if (bounded.aborted) stop(); else bounded.addEventListener('abort', stop, { once: true });
         });
         const read = (async () => {
           const response = await fetch(s.url, { method: 'GET', redirect: 'error', credentials: 'omit', cache: 'no-store',
             headers: { Accept: s.format === 'html' ? 'text/html' : 'text/markdown,text/plain' }, signal: bounded });
           const contentType = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
-          if (!response.ok || response.redirected || response.url !== s.url
-            || !(s.format === 'html' ? contentType === 'text/html' : ['text/markdown','text/plain'].includes(contentType ?? ''))
-            || !response.body) return null;
+          if (!response.ok) return reject('http');
+          if (response.redirected || response.url !== s.url) return reject('redirect');
+          if (!(s.format === 'html' ? contentType === 'text/html' : ['text/markdown','text/plain'].includes(contentType ?? ''))) return reject('content_type');
+          if (!response.body) return reject('body_unavailable');
           const length = response.headers.get('content-length');
-          if (length && (!/^[0-9]+$/.test(length) || Number(length) > MAX_BYTES)) return null;
+          if (length && (!/^[0-9]+$/.test(length) || Number(length) > MAX_BYTES)) return reject('body_limit');
           reader = response.body.getReader();
           const decoder = new TextDecoder('utf-8', { fatal: true }); let bytes = 0, body = '';
           while (true) {
             const part = await reader.read();
-            if (bounded.aborted) return null;
+            if (bounded.aborted) return reject(stopReason());
             if (part.done) break;
             bytes += part.value.byteLength;
-            if (bytes > MAX_BYTES) return null;
+            if (bytes > MAX_BYTES) return reject('body_limit');
             body += decoder.decode(part.value, { stream: true });
           }
           body += decoder.decode();
           const extracted = fragment(proof.provider, body);
-          if (!extracted || sha(extracted) !== s.fragment || bounded.aborted) return null;
+          if (!extracted) return reject('extraction_failed');
+          if (sha(extracted) !== s.fragment) return reject('fragment_hash_mismatch');
+          if (bounded.aborted) return reject(stopReason());
           const at = Date.now(), end = Math.min(at + TTL_MS, s.tariffBeforeMs ?? at + TTL_MS);
           const observation: PublicPricingObservation = Object.freeze({
             schema: 'task217-public-pricing-observation-v1', provider: proof.provider, model: proof.model,
@@ -183,7 +201,7 @@ export async function refreshPublicDialoguePricing(proof: PublicPricingAuthority
           return observation;
         })();
         return await Promise.race([read, stopped]);
-      } catch { return null; }
+      } catch { return reject(bounded.aborted ? stopReason() : 'fetch_or_decode_failed'); }
       finally {
         if (stop) bounded.removeEventListener('abort', stop);
         controller.abort(); void reader?.cancel().catch(() => {});
@@ -193,7 +211,9 @@ export async function refreshPublicDialoguePricing(proof: PublicPricingAuthority
     void work.finally(() => { if (pending.get(key) === work) pending.delete(key); });
   }
   const observation = await work;
-  if (signal.aborted || !observation || !publicPricingObservationCurrent(observation, proof, Date.now())) return null;
+  if (signal.aborted) return reject(stopReason());
+  if (!observation) return null;
+  if (!publicPricingObservationCurrent(observation, proof, Date.now())) return reject('observation_invalid');
   cache.set(key, observation);
   return observation;
 }

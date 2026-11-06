@@ -52,3 +52,55 @@ test('Task217 policy config: explicit invalid mode blocks; absence preserves exi
   const p=await getAgentDialoguePolicy(context);assert.equal(p.trial,true);assert.equal(p.profiles.length,0);
  }finally{if(saved===undefined)delete process.env.DABRA_DIALOGUE_FUNDING_POLICY;else process.env.DABRA_DIALOGUE_FUNDING_POLICY=saved;}
 });
+
+for (const failure of ['selection', 'contract', 'configuration', 'actor', 'logger', 'abort', 'deadline'] as const)
+test('closed preparation diagnostic retains pre-admission denial: ' + failure, async () => {
+ const savedWarn = console.warn, savedFetch = globalThis.fetch;
+ const events: unknown[][] = [];
+ let claims = 0, network = 0;
+ try {
+  console.warn = (...args: unknown[]) => { if (failure === 'logger') throw Error('SYNTHETIC-PRIVATE-LOGGER'); events.push(args); };
+  globalThis.fetch = async () => { network++; throw Error('UNEXPECTED_NETWORK'); };
+  const p = await loadFundingDialoguePolicy(context, undefined, async (name, params) => {
+   if (name === 'get_dabra_dialogue_funding_policy') return { error:null, data:{enabled:true,profiles:[profile],proofs:[proof],outputAcceptances,maxCostMicros:0,dailyLimits:PUBLIC_DIALOGUE_DAILY_LIMITS} };
+   claims++;
+   return {error:null,data:{decision:'admitted',attempt_id:params.p_attempt_id}};
+  });
+  const unchanged = JSON.stringify(p);
+  const selected = failure === 'selection' ? {...p,profiles:[]} : p;
+  const cancellation = new AbortController();
+  if (failure === 'abort') cancellation.abort('SYNTHETIC-PRIVATE-CANCELLATION');
+  const result = await prepareAgentProviderAttempt(failure === 'actor' ? {...context,isTaskAuthorityCurrent:undefined} : context, 'en', selected,
+   {capability:'discover',message:JSON.stringify(payload),prompt:failure === 'contract' ? 'SYNTHETIC-PRIVATE-PROMPT' : AGENT_DIALOGUE_PROMPT,inputDigestValue:payload},
+   failure === 'deadline' ? Date.now()-1 : Date.now()+1000, cancellation.signal, () => 'model_mismatch');
+  assert.equal(result,null);
+  assert.equal(claims,0,'diagnostics must not reserve or refund');
+  assert.equal(network,0,'diagnostics must not dispatch or fetch');
+  assert.equal(JSON.stringify(p),unchanged,'policy and proof remain unchanged');
+  if (failure === 'logger') assert.equal(events.length,0);
+  else {
+   assert.equal(events.length,1);
+   assert.equal(events[0][0],'DABRA_AGENT_PREPARATION');
+   const event = JSON.parse(String(events[0][1]));
+   assert.deepEqual(Object.keys(event).sort(),['capability','reason','reservation','stage']);
+   assert.equal(event.reason, failure === 'selection' ? 'provider_selection_unavailable' : failure === 'contract' ? 'output_contract_unavailable' : failure === 'actor' ? 'policy_or_actor_unavailable' : failure === 'abort' ? 'request_aborted' : failure === 'deadline' ? 'request_deadline_expired' : 'model_mismatch');
+   assert.equal(event.stage,'preflight'); assert.equal(event.reservation,'not_attempted');
+   assert.equal(event.capability,'discover');
+   for (const privateValue of [context.taskAuthority && 'actorId' in context.taskAuthority ? context.taskAuthority.actorId : '', proof.accountId, proof.credentialSha256, profile.measurement.model, 'SYNTHETIC-PRIVATE-PROMPT']) {
+    assert.equal(String(events[0][1]).includes(privateValue),false);
+   }
+  }
+ } finally {console.warn=savedWarn;globalThis.fetch=savedFetch;}
+});
+
+for(const trial of [false,true]) test('ordinary guest Core path is silent, funded failures stay diagnostic: trial='+trial,async()=>{
+ const savedWarn=console.warn;const events:unknown[][]=[];
+ let claims=0;
+ try{
+  console.warn=(...args:unknown[])=>{events.push(args);};
+  const guest:AgentContext={role:'guest',taskAuthority:{kind:'guest'},readRequests:async()=>({kind:'authentication_required'})};
+  const p={...DEFAULT_AGENT_DIALOGUE_POLICY,trial,admission:{reserve:async()=>{claims++;return 'denied' as const;}}};
+  const result=await prepareAgentProviderAttempt(guest,'en',p,{capability:'discover',message:JSON.stringify(payload),prompt:AGENT_DIALOGUE_PROMPT,inputDigestValue:payload},Date.now()+1000);
+  assert.equal(result,null);assert.equal(events.length,0);assert.equal(claims,0);
+ }finally{console.warn=savedWarn;}
+});

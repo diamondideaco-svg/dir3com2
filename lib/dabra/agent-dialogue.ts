@@ -145,11 +145,34 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
   request: { capability: 'discover' | 'intent.classify'; provider?: AgentProviderId; message: string; prompt: string; inputDigestValue: unknown },
   deadlineAtMs: number, signal?: AbortSignal, runtimeCheck?: AgentRuntimeCheck): Promise<PreparedAgentAttempt | null> {
   const now = Date.now(), actor = context.taskAuthority;
-  if (!policy.trial || signal?.aborted || now >= deadlineAtMs || !validPolicy(policy) || (!policy.admission && !policy.funding)
-    || actor?.kind !== 'customer' || context.role !== 'customer' || actor.actorId !== actor.ownerId
-    || !/^[a-zA-Z0-9_-]{1,128}$/.test(actor.actorId) || !context.isTaskAuthorityCurrent) return null;
+  // Public/disabled dialogue is an expected Core path, not a failed funded attempt.
+  if (!policy.trial || context.role !== 'customer' || actor?.kind !== 'customer') return null;
+  let reservationState: 'not_attempted' | 'unknown' | 'accepted' = 'not_attempted', diagnosed = false;
+  // Closed server-only events: never include selection values, payload, actor,
+  // account, proof, key, digest, URL or raw error. Logging cannot relax a guard.
+  const diagnose = (reason: ConfigurationFailure | 'readiness_lost' | 'authority_or_policy_unavailable'
+    | 'admission_unavailable' | 'preparation_exception' | 'policy_or_actor_unavailable'
+    | 'output_contract_unavailable' | 'provider_selection_unavailable' | 'funding_proof_unavailable'
+    | 'pricing_refresh_unavailable' | 'input_ceiling_exceeded' | 'authorization_window_expired'
+    | 'cost_ceiling_unavailable' | 'request_aborted' | 'request_deadline_expired' | 'preparation_timeout') => {
+    if (diagnosed) return; diagnosed = true;
+    const event = Object.freeze({
+      capability: request.capability === 'discover' ? 'discover' : 'intent.classify', reason, reservation: reservationState,
+      stage: reservationState === 'accepted' ? 'post_admission' : reservationState === 'unknown' ? 'admission' : 'preflight',
+    });
+    try { console.warn('DABRA_AGENT_PREPARATION', JSON.stringify(event)); } catch { /* No logging fallback. */ }
+    if (preparationDiagnostics.hasSubscribers) preparationDiagnostics.publish(event);
+  };
+  const requestStopped = () => {
+    if (signal?.aborted) { diagnose('request_aborted'); return true; }
+    if (Date.now() >= deadlineAtMs) { diagnose('request_deadline_expired'); return true; }
+    return false;
+  };
+  if (requestStopped()) return null;
+  if (!validPolicy(policy) || (!policy.admission && !policy.funding) || actor.actorId !== actor.ownerId
+    || !/^[a-zA-Z0-9_-]{1,128}$/.test(actor.actorId) || !context.isTaskAuthorityCurrent) { diagnose('policy_or_actor_unavailable'); return null; }
   const outputContract = requestOutputContract(request.capability, locale, request.prompt, request.message);
-  if (!outputContract) return null;
+  if (!outputContract) { diagnose('output_contract_unavailable'); return null; }
   const acceptsOutput = (p: AgentCapabilityProfile, at: number) => profileOutputAccepted(p, outputContract,
     policy.outputAcceptances ?? APPROVED_PROFILE_OUTPUT_ACCEPTANCES, at);
   const funded = policy.funding, continuous = funded?.proofs.some(p => p.mode === 'bounded-account-charge') === true;
@@ -173,42 +196,38 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
     isEligibleForTask: p => acceptsOutput(p, now) && payloadBytes <= p.measurement.inputTokenCeiling
       && (funded ? matchingFundingProof(p) !== undefined : policy.freeProofs.some(proof => matchesProof(proof, p, policy, now))),
   });
-  if (selection.kind !== 'selected') return null;
+  if (selection.kind !== 'selected') { diagnose('provider_selection_unavailable'); return null; }
   const profile: AgentCapabilityProfile = { provider: selection.destination.provider, measurement: selection.destination.measurement };
   // Select the funding mode from this provider/profile, never from a different
   // provider's standing authority. An expired measurement cannot borrow v1 freshness.
   const fundingProof = matchingFundingProof(profile);
   const matchedProof = funded ? undefined : policy.freeProofs.find(p => matchesProof(p, profile, policy, now));
-  if (funded ? !fundingProof : !matchedProof) return null;
+  if (funded ? !fundingProof : !matchedProof) { diagnose('funding_proof_unavailable'); return null; }
   const candidate = fundingProof ?? matchedProof;
-  if (!candidate) return null;
+  if (!candidate) { diagnose('funding_proof_unavailable'); return null; }
   const proof = Object.freeze({ ...candidate });
   const binding: AgentAttemptBinding = { profile, credentialSha256: proof.credentialSha256 };
-  let reservationState: 'not_attempted' | 'unknown' | 'accepted' = 'not_attempted', diagnosed = false;
-  // Private, closed instrumentation only. No payload, actor, proof, key, hash or raw error.
-  // An unavailable admission receipt is unknown, never evidence that a hold was released.
-  const diagnose = (reason: ConfigurationFailure | 'readiness_lost' | 'authority_or_policy_unavailable'
-    | 'admission_unavailable' | 'preparation_exception') => {
-    if (diagnosed) return; diagnosed = true;
-    if (preparationDiagnostics.hasSubscribers) preparationDiagnostics.publish(Object.freeze({
-      capability: request.capability, reason, reservation: reservationState,
-      stage: reservationState === 'accepted' ? 'post_admission' : reservationState === 'unknown' ? 'admission' : 'preflight',
-    }));
-  };
   const configurationFailure = runtimeCheck?.(binding);
   if (configurationFailure) { diagnose(configurationFailure); return null; }
   let pricing: PublicPricingObservation | undefined;
   if (fundingProof?.mode === 'bounded-account-charge') {
-    if (!funded?.refreshPricing) return null;
+    if (!funded?.refreshPricing) { diagnose('pricing_refresh_unavailable'); return null; }
     try {
-      if (!await context.isTaskAuthorityCurrent() || Date.now() >= deadlineAtMs) return null;
+      const authorizedBeforePricing = await context.isTaskAuthorityCurrent();
+      if (requestStopped()) return null;
+      if (!authorizedBeforePricing) { diagnose('authority_or_policy_unavailable'); return null; }
       const preparing = AbortSignal.any([AbortSignal.timeout(Math.max(1, deadlineAtMs - Date.now())), ...(signal ? [signal] : [])]);
       const observation = await funded.refreshPricing(fundingProof, preparing);
-      if (!observation || preparing.aborted || !await context.isTaskAuthorityCurrent()) return null;
+      if (requestStopped()) return null;
+      if (preparing.aborted) { diagnose('preparation_timeout'); return null; }
+      if (!observation) { diagnose('pricing_refresh_unavailable'); return null; }
+      const authorizedAfterPricing = await context.isTaskAuthorityCurrent();
+      if (requestStopped()) return null;
+      if (!authorizedAfterPricing) { diagnose('authority_or_policy_unavailable'); return null; }
       pricing = observation;
     } catch { diagnose('preparation_exception'); return null; }
   }
-  if (Buffer.byteLength(request.prompt + request.message, 'utf8') + 128 > profile.measurement.inputTokenCeiling) return null;
+  if (Buffer.byteLength(request.prompt + request.message, 'utf8') + 128 > profile.measurement.inputTokenCeiling) { diagnose('input_ceiling_exceeded'); return null; }
   const authorizationEnd = fundingProof?.mode === 'bounded-account-charge' ? pricing?.expiresAtMs ?? 0
     : fundingProof ? fundingAuthorizationWindow(fundingProof, now)?.expiresAtMs ?? 0 : matchedProof?.expiresAtMs ?? 0;
   const quotaEnd = fundingProof?.mode === 'bounded-account-charge' ? dialogueDay(now).dayEndMs
@@ -216,7 +235,7 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
   let end = Math.floor(Math.min(deadlineAtMs, now + policy.limits.maxElapsedMs,
     fundingProof?.mode === 'bounded-account-charge' ? deadlineAtMs : profile.measurement.expiresAtMs,
     authorizationEnd, quotaEnd, dialogueDay(now).dayEndMs));
-  if (end <= Date.now()) return null;
+  if (end <= Date.now()) { diagnose('authorization_window_expired'); return null; }
   let bounded = AbortSignal.any([AbortSignal.timeout(Math.max(1, end - Date.now())), ...(signal ? [signal] : [])]);
   const isReadyToDispatch = () => {
     const at = Date.now();
@@ -248,7 +267,7 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
   try {
     if (!await current() || !isReadyToDispatch()) return null;
     const costMicros = fundingProof ? dialogueCostCeilingMicros(fundingProof, profile, Date.now(), pricing) : null;
-    if (fundingProof && costMicros === null) return null;
+    if (fundingProof && costMicros === null) { diagnose('cost_ceiling_unavailable'); return null; }
     const attemptId = randomUUID();
     reservationState = 'unknown';
     const reservation = funded && fundingProof && costMicros !== null
