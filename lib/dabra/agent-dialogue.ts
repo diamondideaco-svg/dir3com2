@@ -153,7 +153,7 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
     | 'output_contract_unavailable' | 'provider_selection_unavailable' | 'funding_proof_unavailable'
     | 'pricing_refresh_unavailable' | 'input_ceiling_exceeded' | 'authorization_window_expired'
     | 'cost_ceiling_unavailable' | 'request_aborted' | 'request_deadline_expired' | 'preparation_timeout'
-    | 'context_unavailable' | 'request_timeout') => {
+    | 'context_unavailable' | 'request_timeout' | 'admission_wait_timeout' | 'admission_wait_aborted') => {
     if (diagnosed) return; diagnosed = true;
     const event = Object.freeze({
       capability: request.capability === 'discover' ? 'discover' : 'intent.classify', reason, reservation: reservationState,
@@ -294,11 +294,17 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
         provider: profile.provider, model: profile.measurement.model, proof: proof as FreeDialogueProof,
         inputTokens: profile.measurement.inputTokenCeiling, outputTokens: profile.measurement.outputTokenCeiling, limits: policy.daily,
       }, bounded);
-    const stopped = new Promise<'denied'>(resolve => {
-      if (bounded.aborted) resolve('denied');
-      else bounded.addEventListener('abort', () => resolve('denied'), { once: true });
+    const stopped = new Promise<'stopped'>(resolve => {
+      if (bounded.aborted) resolve('stopped');
+      else bounded.addEventListener('abort', () => resolve('stopped'), { once: true });
     });
-    if (await Promise.race([reservation, stopped]) !== 'admitted') { diagnose('admission_unavailable'); return null; }
+    const admissionResult = await Promise.race([reservation, stopped]);
+    if (admissionResult !== 'admitted') {
+      diagnose(admissionResult === 'stopped'
+        ? bounded.reason?.name === 'TimeoutError' ? 'admission_wait_timeout' : 'admission_wait_aborted'
+        : 'admission_unavailable');
+      return null;
+    }
     reservationState = 'accepted';
     if (!await current() || !isReadyToDispatch()) return null;
     return { profile, credentialSha256: proof.credentialSha256, limits: policy.limits, standardBilling: fundingProof?.mode === 'existing-credit' || fundingProof?.mode === 'bounded-account-charge',

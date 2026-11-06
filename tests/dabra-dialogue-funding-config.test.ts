@@ -53,6 +53,38 @@ test('Task217 policy config: explicit invalid mode blocks; absence preserves exi
  }finally{if(saved===undefined)delete process.env.DABRA_DIALOGUE_FUNDING_POLICY;else process.env.DABRA_DIALOGUE_FUNDING_POLICY=saved;}
 });
 
+for(const outcome of ['denied','aborted','timeout'] as const)
+test('closed admission wait diagnostic: '+outcome,async()=>{
+ const savedWarn=console.warn,savedFetch=globalThis.fetch;const events:unknown[][]=[];
+ const controller=new AbortController();let claims=0,network=0;let waiting!:()=>void;
+ const started=new Promise<void>(resolve=>{waiting=resolve;});
+ let keepAlive:ReturnType<typeof setTimeout>|undefined;
+ try{
+  console.warn=(...args:unknown[])=>{events.push(args);};
+  globalThis.fetch=async()=>{network++;throw Error('UNEXPECTED_NETWORK');};
+  const p=await loadFundingDialoguePolicy(context,undefined,async(name)=>{
+   assert.equal(name,'get_dabra_dialogue_funding_policy');
+   return{error:null,data:{enabled:true,profiles:[profile],proofs:[proof],outputAcceptances,maxCostMicros:0,dailyLimits:PUBLIC_DIALOGUE_DAILY_LIMITS}};
+  });
+  const selected={...p,funding:{...p.funding!,admission:{reserve:async()=>{
+   claims++;waiting();
+   return outcome==='denied'?{kind:'denied' as const}:new Promise<never>(()=>{});
+  }}}};
+  const unchanged=JSON.stringify(selected);
+  const pending=prepareAgentProviderAttempt(context,'en',selected,{capability:'discover',message:JSON.stringify(payload),
+   prompt:AGENT_DIALOGUE_PROMPT,inputDigestValue:payload},Date.now()+(outcome==='timeout'?500:10000),controller.signal,()=>null);
+  await started;
+  if(outcome==='aborted')controller.abort('SYNTHETIC-PRIVATE-ABORT');
+  // AbortSignal.timeout timers are unref'd; keep this isolated test alive.
+  if(outcome==='timeout')keepAlive=setTimeout(()=>{},1500);
+  assert.equal(await pending,null);assert.equal(claims,1);assert.equal(network,0);
+  assert.equal(JSON.stringify(selected),unchanged);
+  assert.deepEqual(events,[['DABRA_AGENT_PREPARATION',JSON.stringify({capability:'discover',
+   reason:outcome==='denied'?'admission_unavailable':outcome==='timeout'?'admission_wait_timeout':'admission_wait_aborted',
+   reservation:'unknown',stage:'admission'})]]);
+ }finally{if(keepAlive)clearTimeout(keepAlive);console.warn=savedWarn;globalThis.fetch=savedFetch;}
+});
+
 for (const failure of ['selection', 'contract', 'configuration', 'actor', 'logger', 'abort', 'deadline'] as const)
 test('closed preparation diagnostic retains pre-admission denial: ' + failure, async () => {
  const savedWarn = console.warn, savedFetch = globalThis.fetch;

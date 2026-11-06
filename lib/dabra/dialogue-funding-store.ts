@@ -30,34 +30,51 @@ export function createFundingDialogueAdmission(rpc: FundingRpc = defaultRpc): Fu
   return {
     ...createQualificationAdmission(rpc),
     async reserve(r: FundedDialogueReservation, signal: AbortSignal) {
-      if (signal.aborted) return { kind: 'denied' };
+      // Closed server-only outcomes; never expose RPC errors or reservation data.
+      let rpcStarted = false;
+      const denied = (reason: 'signal_aborted_before_rpc' | 'local_precondition_failed' | 'signal_aborted_after_rpc'
+        | 'rpc_error' | 'rpc_exception' | 'local_exception' | 'response_malformed' | 'decision_denied'
+        | 'decision_unrecognized' | 'attempt_id_mismatch' | 'receipt_deadline_invalid' | 'receipt_deadline_expired') => {
+        try { console.warn('DABRA_FUNDING_ADMISSION', JSON.stringify({ reason })); } catch { /* Logging never changes admission. */ }
+        return { kind: 'denied' as const };
+      };
+      if (signal.aborted) return denied('signal_aborted_before_rpc');
       try {
         const continuous = r.proof.mode === 'bounded-account-charge';
         if (continuous && (!validDurableAccountChargeProof(r.proof, Date.now()) || !r.pricing
           || !r.proof.limitedOperation.acceptedProfileSha256s.includes(r.pricing.profileSha256)
-          || !publicPricingObservationCurrent(r.pricing.observation, r.proof, Date.now()))) return { kind: 'denied' };
-        if (!continuous && r.pricing) return { kind: 'denied' };
+          || !publicPricingObservationCurrent(r.pricing.observation, r.proof, Date.now()))) return denied('local_precondition_failed');
+        if (!continuous && r.pricing) return denied('local_precondition_failed');
         const executionPricing = continuous && r.pricing ? { schema: 'task217-execution-pricing-v1',
           observation: r.pricing.observation, authorityBindingSha256: r.proof.limitedOperation.bindingSha256,
           profileSha256: r.pricing.profileSha256, attemptId: r.attemptId, requestId: r.requestId,
           subjectHash: fundingSubject(r.subject), stage: r.stage, inputTokenCeiling: r.inputTokens, outputTokenCeiling: r.outputTokens } : undefined;
         const serializedProof = executionPricing ? { ...r.proof, executionPricing } : r.proof;
-        const { data, error } = await rpc('reserve_dabra_dialogue_attempt', {
+        const params = {
           p_attempt_id: r.attemptId, p_request_id: r.requestId, p_stage: r.stage, p_subject_hash: fundingSubject(r.subject),
           p_grant_id: r.proof.grantId, p_proof: r.measurementRequest === undefined ? serializedProof : { ...serializedProof, measurementRequest: r.measurementRequest }, p_input_tokens: r.inputTokens, p_output_tokens: r.outputTokens,
           p_cost_micros: r.costMicros, p_limits: r.limits, p_day_start_ms: r.dayStartMs,
-        }, signal);
+        };
+        rpcStarted = true;
+        const { data, error } = await rpc('reserve_dabra_dialogue_attempt', params, signal);
         // No RPC retry: a timeout or lost claim response may already have committed.
-        if (signal.aborted || error || !object(data) || data.decision !== 'admitted' || data.attempt_id !== r.attemptId) return { kind: 'denied' };
+        if (signal.aborted) return denied('signal_aborted_after_rpc');
+        if (error) return denied('rpc_error');
+        if (!object(data)) return denied('response_malformed');
+        if (data.decision === 'denied') return denied('decision_denied');
+        if (data.decision !== 'admitted') return denied('decision_unrecognized');
+        if (data.attempt_id !== r.attemptId) return denied('attempt_id_mismatch');
         if ('snapshotUse' in r.proof || 'limitedOperation' in r.proof) {
           // This deadline comes from the same atomic reservation, not caller proof
           // or a policy reload. A late/missing receipt never releases its hold.
           const deadline = data.pricing_expires_at_ms;
-          if (!integer(deadline) || deadline <= Date.now()) return { kind: 'denied' };
+          if (!integer(deadline)) return denied('receipt_deadline_invalid');
+          if (deadline <= Date.now()) return denied('receipt_deadline_expired');
           return { kind: 'admitted', attemptId: r.attemptId, pricingExpiresAtMs: deadline };
         }
         return { kind: 'admitted', attemptId: r.attemptId };
-      } catch { return { kind: 'denied' }; }
+      } catch { return denied(signal.aborted ? rpcStarted ? 'signal_aborted_after_rpc' : 'signal_aborted_before_rpc'
+        : rpcStarted ? 'rpc_exception' : 'local_exception'); }
     },
   };
 }

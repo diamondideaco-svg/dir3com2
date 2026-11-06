@@ -12,7 +12,7 @@ import { type AgentContext } from '../lib/dabra/agent-contract';
 import { runInternalAgentTask } from '../lib/dabra/agent-handoff';
 import { planInternalAgentTool } from '../lib/dabra/agent-planner';
 import { prepareAgentProviderAttempt, PUBLIC_DIALOGUE_DAILY_LIMITS, dialogueDay, type AgentDialoguePolicy } from '../lib/dabra/agent-dialogue';
-import { dialogueCostCeilingMicros, fundingProofCurrent, type DialogueFundingProof } from '../lib/dabra/dialogue-funding';
+import { dialogueCostCeilingMicros, fundingProofCurrent, type DialogueFundingProof, type FundedDialogueReservation } from '../lib/dabra/dialogue-funding';
 import { createFundingDialogueAdmission, loadFundingDialoguePolicy, type FundingRpc } from '../lib/dabra/dialogue-funding-store';
 import type { AgentCapabilityProfile } from '../lib/dabra/agent-capabilities';
 
@@ -75,6 +75,70 @@ function handler(p:AgentDialoguePolicy,context=actor()){
 }
 const car={en:'I need a car for five people in Cairo for three days. Ask for missing information first.',ar:'أبغى سيارة لعائلة من خمسة أشخاص في القاهرة لمدة ثلاثة أيام. اسألني عن المعلومات الناقصة.'};
 const post=(p:AgentDialoguePolicy,locale:'ar'|'en'='en',message=car[locale],context=actor())=>handler(p,context)(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',body:JSON.stringify({locale,message})}));
+for (const reason of ['signal_aborted_before_rpc','local_precondition_failed','signal_aborted_after_rpc','rpc_error',
+ 'rpc_exception','response_malformed','decision_denied','decision_unrecognized','attempt_id_mismatch',
+ 'receipt_deadline_invalid','receipt_deadline_expired','admitted'] as const)
+test('closed funding admission diagnostic: '+reason,async()=>{
+ const savedWarn=console.warn;const events:unknown[][]=[];let calls=0,retainedHold=0;
+ const controller=new AbortController();
+ const storedProof=evidence();
+ if(storedProof.mode==='bounded-account-charge')throw Error('Expected synthetic legacy proof');
+ let request:FundedDialogueReservation={policyId:'task217-existing-credit-v2',attemptId:randomUUID(),requestId:randomUUID(),
+  stage:'discover',subject:'SYNTHETIC-PRIVATE-SUBJECT',...dialogueDay(clock),nowMs:clock,
+  proof:{...storedProof,snapshotUse:{}},inputTokens:4096,outputTokens:256,costMicros:4608,limits:PUBLIC_DIALOGUE_DAILY_LIMITS};
+ if(reason==='signal_aborted_before_rpc')controller.abort('SYNTHETIC-PRIVATE-ABORT');
+ if(reason==='local_precondition_failed')request={...request,proof:{...request.proof,mode:'bounded-account-charge'} as DialogueFundingProof};
+ const before=JSON.stringify(request);
+ try{
+  console.warn=(...args:unknown[])=>{events.push(args);};
+  const admission=createFundingDialogueAdmission(async(_name,p)=>{
+   calls++;retainedHold+=4608;
+   if(reason==='signal_aborted_after_rpc')controller.abort('SYNTHETIC-PRIVATE-ABORT');
+   if(reason==='rpc_exception')throw Error('SYNTHETIC-PRIVATE-RPC-ERROR');
+   if(reason==='rpc_error')return{data:null,error:{message:'SYNTHETIC-PRIVATE-RPC-ERROR'}};
+   if(reason==='response_malformed')return{data:null,error:null};
+   if(reason==='decision_denied')return{data:{decision:'denied',private:'SYNTHETIC-PRIVATE-RESULT'},error:null};
+   if(reason==='decision_unrecognized')return{data:{decision:'SYNTHETIC-PRIVATE-RESULT'},error:null};
+   return{data:{decision:'admitted',attempt_id:reason==='attempt_id_mismatch'?randomUUID():p.p_attempt_id,
+    pricing_expires_at_ms:reason==='receipt_deadline_invalid'?'SYNTHETIC-PRIVATE-DEADLINE':reason==='receipt_deadline_expired'?clock:clock+1000},error:null};
+  });
+  const result=await admission.reserve(request,controller.signal);
+  assert.equal(result.kind,reason==='admitted'?'admitted':'denied');
+  assert.equal(calls,['signal_aborted_before_rpc','local_precondition_failed'].includes(reason)?0:1);
+  assert.equal(retainedHold,calls*4608,'no retry or refund after an uncertain response');
+  assert.equal(JSON.stringify(request),before);
+  assert.equal(remote,0);
+  assert.equal(events.length,reason==='admitted'?0:1);
+  if(reason!=='admitted')assert.deepEqual(events,[['DABRA_FUNDING_ADMISSION',JSON.stringify({reason})]]);
+ }finally{console.warn=savedWarn;}
+});
+
+test('closed funding admission diagnostic: parameter preparation is local_exception before any RPC',async()=>{
+ const savedWarn=console.warn;const events:unknown[][]=[];let calls=0;
+ try{
+  console.warn=(...args:unknown[])=>{events.push(args);};
+  const admission=createFundingDialogueAdmission(async()=>{calls++;throw Error('UNEXPECTED_RPC');});
+  const result=await admission.reserve({policyId:'task217-existing-credit-v2',attemptId:randomUUID(),requestId:randomUUID(),
+   stage:'discover',get subject():string{throw Error('SYNTHETIC-PRIVATE-PARAMETER-ERROR');},
+   ...dialogueDay(clock),nowMs:clock,proof:evidence(),inputTokens:4096,outputTokens:256,costMicros:4608,
+   limits:PUBLIC_DIALOGUE_DAILY_LIMITS},new AbortController().signal);
+  assert.deepEqual(result,{kind:'denied'});assert.equal(calls,0);assert.equal(remote,0);
+  assert.deepEqual(events,[['DABRA_FUNDING_ADMISSION',JSON.stringify({reason:'local_exception'})]]);
+ }finally{console.warn=savedWarn;}
+});
+
+test('closed funding admission diagnostic: logger failure preserves denial and held charge',async()=>{
+ const savedWarn=console.warn;let calls=0,held=0;
+ try{
+  console.warn=()=>{throw Error('SYNTHETIC-PRIVATE-LOGGER');};
+  const admission=createFundingDialogueAdmission(async()=>{calls++;held+=4608;return{data:null,error:'SYNTHETIC-PRIVATE-ERROR'};});
+  const result=await admission.reserve({policyId:'task217-existing-credit-v2',attemptId:randomUUID(),requestId:randomUUID(),
+   stage:'discover',subject:'SYNTHETIC-PRIVATE-SUBJECT',...dialogueDay(clock),nowMs:clock,proof:evidence(),
+   inputTokens:4096,outputTokens:256,costMicros:4608,limits:PUBLIC_DIALOGUE_DAILY_LIMITS},new AbortController().signal);
+  assert.deepEqual(result,{kind:'denied'});assert.equal(calls,1);assert.equal(held,4608);assert.equal(remote,0);
+ }finally{console.warn=savedWarn;}
+});
+
 for(const locale of ['ar','en']as const)test('credit actual POST '+locale+': one held charge and Core question survive',async()=>{
  const store=new RpcFixture();const body=await(await post(policy(store,locale),locale)).json();
  assert.equal(body.provider,'openai');assert.equal(remote,1);assert.equal(store.held.get(grantA),4608);assert.equal(store.ledger.length,1);assert.equal(store.ledger[0].stage,'discover');
