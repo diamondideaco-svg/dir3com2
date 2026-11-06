@@ -198,3 +198,26 @@ test('actual POST reconstructs accepted user counts across bounded Stay refineme
     }
   } finally { globalThis.fetch=previous; }
 });
+
+
+test('actual POST: topic interruption and repair do not replay travel or invoke a provider', async () => {
+  const previous=globalThis.fetch; let network=0;
+  globalThis.fetch=async()=>{network++;throw new Error('No network allowed for this local regression');};
+  const beforeEnv=process.env.DABRA_INTERNAL_AI_ENABLED; process.env.DABRA_INTERNAL_AI_ENABLED='false';
+  const post=async(message:string,locale:'ar'|'en',history:Array<{role:'user'|'assistant';content:string}>)=>{
+    const r=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message,locale,stream:false,history})}));
+    assert.equal(r.status,200); const body=await r.json(); assert.equal(body.provider,'local'); assert.equal(body.agent.mutations,0); return body.answer as string;
+  };
+  try {
+    for(const locale of ['ar','en'] as const) {
+      const initial=locale==='ar'?'أحتاج فندق في القاهرة':'I need a hotel in Cairo';
+      const history:Array<{role:'user'|'assistant';content:string}>=[{role:'user',content:initial},{role:'assistant',content:await post(initial,locale,[])}];
+      for(const message of locale==='ar'?['مين أنت؟','كيف حالك؟','ليش بتكرر نفس الرد؟','طيب فهمني','وقف موضوع الفندق']:['Who are you?','How are you?','Why do you keep repeating yourself?','Explain that','I am asking something else']) {
+        const answer=await post(message,locale,history);assert.doesNotMatch(answer,/destination=cairo|Sandbox|checkIn=/);
+        history.push({role:'user',content:message},{role:'assistant',content:answer});
+      }
+      assert.doesNotMatch(await post(locale==='ar'?'شيء آخر':'something else',locale,history),/destination=cairo|Sandbox/);
+    }
+    assert.equal(network,0);
+  } finally {globalThis.fetch=previous;if(beforeEnv===undefined)delete process.env.DABRA_INTERNAL_AI_ENABLED;else process.env.DABRA_INTERNAL_AI_ENABLED=beforeEnv;}
+});

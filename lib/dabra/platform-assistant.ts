@@ -1,6 +1,6 @@
 import { AI2_DABRA_CONVERSATION_COPY } from '../ai2/prompt/contract';
 import { driveQuantities, driveDialogue, driveDialogueCopy, bareDriveParty, dateWithdrawalIndex } from './drive-planning';
-import { CORE_REQUIRED_DIALOGUE_UNITS, conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
+import { CORE_REQUIRED_DIALOGUE_UNITS, conversationIntent, conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
 import { DRIVE_OFFERS, vehicleFor, vehicleTitle, type DriveOffer } from '../drive/catalog';
 import { serviceEntryHref } from '../marketplace/public-entry';
 import { cairoInstant } from '../drive/search';
@@ -37,6 +37,10 @@ export function platformFamilies(message: string): PlatformFamily[] {
   return (Object.keys(familyTerms) as PlatformFamily[]).filter(f => familyTerms[f].test(text));
 }
 export function platformContext(message: string, history: Turn[] = [], trip?: SavedTrip | null) {
+  // A conversation turn is not a travel refinement. Saved continuity is untouched.
+  if (conversationIntent(message)) return message;
+  const boundary = history.findLastIndex(turn => turn.role === 'user' && conversationIntent(turn.content) === 'topic_change');
+  if (boundary >= 0) { history = history.slice(boundary + 1); trip = null; }
   // Replay contextual USER answers in order, so an accepted bare count has the
   // same preference semantics as a qualified count on subsequent refinements.
   // The bounded transcript is not mutated and assistant assertions are never facts.
@@ -307,7 +311,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
       if (!history.slice(-8).some(turn => turn.role === 'assistant')) lines.push(copy.identity);
       lines.push(copy.serviceQuestion);
       lines.push(link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntry('drive', context, locale, pricing?.currency)), link(ar ? 'بحث الإقامة' : 'Stay search', platformEntry('stay', context, locale, pricing?.currency)), link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
-    } else if (families.length === 1 && (families[0] === 'drive' || families[0] === 'stay') && !(families[0] === 'drive' && drivePlan)) {
+    } else if (!smallTalk && families.length === 1 && (families[0] === 'drive' || families[0] === 'stay') && !(families[0] === 'drive' && drivePlan)) {
       const preferences = tripPreferences(text, trip);
       // Ask for only the next missing preference, using bounded user context.
       if (!preferences.ambiguous) {
