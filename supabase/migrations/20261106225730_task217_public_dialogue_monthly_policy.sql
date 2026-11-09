@@ -71,7 +71,14 @@ BEGIN
   OR NEW.profile-ARRAY['provider','measurement']::text[]<>'{}'::jsonb
   OR (SELECT count(*) FROM jsonb_object_keys(NEW.profile->'measurement'))<>14
   OR EXISTS(SELECT 1 FROM unnest(ARRAY['cases','passed','measuredAtMs','expiresAtMs','latencyMs','inputTokenCeiling','outputTokenCeiling']) k
-    WHERE jsonb_typeof(NEW.profile->'measurement'->k) IS DISTINCT FROM 'number' OR coalesce(NEW.profile->'measurement'->>k,'')!~'^[0-9]{1,16} OR NOT EXISTS(
+    WHERE jsonb_typeof(NEW.profile->'measurement'->k) IS DISTINCT FROM 'number' OR coalesce(NEW.profile->'measurement'->>k,'')!~'^[0-9]{1,16}$')
+  OR jsonb_typeof(NEW.profile->'measurement'->'costCeilingUsd') IS DISTINCT FROM 'number'
+  OR (NEW.profile->'measurement'->>'costCeilingUsd')::numeric NOT BETWEEN 0.000001 AND 0.25
+  OR (NEW.profile->'measurement'->>'measuredAtMs')::numeric>floor(extract(epoch FROM NEW.authorized_at)*1000)
+  OR (NEW.profile->'measurement'->>'expiresAtMs')::numeric<=floor(extract(epoch FROM clock_timestamp())*1000)
+  OR (NEW.output_acceptance->>'reviewedAtMs')::numeric>floor(extract(epoch FROM NEW.authorized_at)*1000)
+  THEN RAISE EXCEPTION 'DABRA_PUBLIC_PROFILE_REQUIRED'; END IF;
+ IF NEW.authorized_at>clock_timestamp() OR NOT EXISTS(
   SELECT 1 FROM private.dabra_dialogue_funding_grants g WHERE g.id=NEW.source_grant_id
    AND g.enabled AND g.funding_mode='bounded-account-charge' AND g.proof=NEW.source_proof
    AND NEW.profile->>'provider'=g.provider AND NEW.profile->'measurement'->>'model'=g.proof->>'model'
@@ -198,154 +205,6 @@ DECLARE body text; anchor text:='v_now:=clock_timestamp(); v_now_ms:=floor(extra
 BEGIN
  SELECT pg_get_functiondef('public.reserve_dabra_dialogue_attempt(uuid,uuid,text,text,uuid,jsonb,integer,integer,bigint,jsonb,bigint)'::regprocedure) INTO body;
  IF (length(body)-length(replace(body,anchor,'')))<>length(anchor) THEN RAISE EXCEPTION 'DABRA_PILOT_CLOCK_BASELINE_MISMATCH'; END IF;
- body:=replace(body,anchor,anchor||$insert$
- IF EXISTS(SELECT 1 FROM private.dabra_public_dialogue_control WHERE singleton AND enabled) AND (
-  EXISTS(SELECT 1 FROM private.dabra_public_dialogue_admissions WHERE request_id=p_request_id OR attempt_id=p_attempt_id)
-  OR private.dabra_monthly_liability(
-    floor(extract(epoch FROM (date_trunc('month',v_now AT TIME ZONE 'Asia/Riyadh') AT TIME ZONE 'Asia/Riyadh'))*1000)::bigint,
-    floor(extract(epoch FROM ((date_trunc('month',v_now AT TIME ZONE 'Asia/Riyadh')+interval '1 month') AT TIME ZONE 'Asia/Riyadh'))*1000)::bigint
-   )+p_cost_micros>25000000) THEN RETURN jsonb_build_object('decision','denied'); END IF;
- $insert$);
- EXECUTE body;
-END $guard$;
-
-REVOKE ALL ON FUNCTION private.protect_dabra_public_authority(),private.protect_dabra_public_admission(),private.dabra_monthly_liability(bigint,bigint),private.dabra_public_actor_active(uuid) FROM PUBLIC,anon,authenticated,service_role;
-REVOKE ALL ON FUNCTION public.get_dabra_public_dialogue_policy(uuid),public.reserve_dabra_public_dialogue_attempt(uuid,uuid,uuid,uuid,jsonb,integer,integer,bigint) FROM PUBLIC,anon,authenticated,service_role;
-GRANT EXECUTE ON FUNCTION public.get_dabra_public_dialogue_policy(uuid),public.reserve_dabra_public_dialogue_attempt(uuid,uuid,uuid,uuid,jsonb,integer,integer,bigint) TO service_role;
-COMMIT;
-)
-  OR jsonb_typeof(NEW.profile->'measurement'->'costCeilingUsd') IS DISTINCT FROM 'number'
-  OR (NEW.profile->'measurement'->>'costCeilingUsd')::numeric NOT BETWEEN 0.000001 AND 0.25
-  OR (NEW.profile->'measurement'->>'measuredAtMs')::numeric>floor(extract(epoch FROM NEW.authorized_at)*1000)
-  OR (NEW.profile->'measurement'->>'expiresAtMs')::numeric<=floor(extract(epoch FROM clock_timestamp())*1000)
-  OR (NEW.output_acceptance->>'reviewedAtMs')::numeric>floor(extract(epoch FROM NEW.authorized_at)*1000)
-  THEN RAISE EXCEPTION 'DABRA_PUBLIC_PROFILE_REQUIRED'; END IF;
- IF NEW.authorized_at>clock_timestamp() OR NOT EXISTS(
-  SELECT 1 FROM private.dabra_dialogue_funding_grants g WHERE g.id=NEW.source_grant_id
-   AND g.enabled AND g.funding_mode='bounded-account-charge' AND g.proof=NEW.source_proof
-   AND NEW.profile->>'provider'=g.provider AND NEW.profile->'measurement'->>'model'=g.proof->>'model'
-   AND NEW.profile->'measurement'->>'environment'='provider-benchmark'
-   AND NEW.profile->'measurement'->>'capability'='discover')
-  OR NOT private.valid_dabra_output_acceptances(jsonb_build_array(NEW.output_acceptance),jsonb_build_array(NEW.profile))
-  OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(private.task217_output_contract_manifest()->'contracts') c
-    WHERE c->>'id'='platform-dialogue-v2' AND c->>'digest'=NEW.output_acceptance->>'contractSha256')
-  THEN RAISE EXCEPTION 'DABRA_PUBLIC_AUTHORITY_EVIDENCE_REQUIRED'; END IF;
- RETURN NEW;
-END $$;
-CREATE TRIGGER protect_dabra_public_authority BEFORE INSERT OR UPDATE OR DELETE ON private.dabra_public_dialogue_authorities
- FOR EACH ROW EXECUTE FUNCTION private.protect_dabra_public_authority();
-CREATE FUNCTION private.protect_dabra_public_admission()
-RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $$
-BEGIN RAISE EXCEPTION 'DABRA_PUBLIC_HOLD_IMMUTABLE'; END $$;
-CREATE TRIGGER protect_dabra_public_admission BEFORE UPDATE OR DELETE ON private.dabra_public_dialogue_admissions
- FOR EACH ROW EXECUTE FUNCTION private.protect_dabra_public_admission();
-
--- The caller holds the same transaction lock as the original pilot RPC.
--- Include unmatched conservative grant counters, even if their month is unknown.
-CREATE FUNCTION private.dabra_monthly_liability(p_month_start_ms bigint,p_month_end_ms bigint)
-RETURNS numeric LANGUAGE sql STABLE SECURITY INVOKER SET search_path='' AS $$
- SELECT coalesce((SELECT sum(cost_micros) FROM private.dabra_public_dialogue_admissions WHERE month_start_ms=p_month_start_ms),0)
-  +coalesce((SELECT sum(cost_micros) FROM private.dabra_dialogue_admissions
-    WHERE reserved_at>=to_timestamp(p_month_start_ms::numeric/1000) AND reserved_at<to_timestamp(p_month_end_ms::numeric/1000)),0)
-  +coalesce((SELECT sum(greatest(g.reserved_credit_micros-coalesce(a.cost,0),0))
-    FROM private.dabra_dialogue_funding_grants g LEFT JOIN
-      (SELECT grant_id,sum(cost_micros) cost FROM private.dabra_dialogue_admissions GROUP BY grant_id) a ON a.grant_id=g.id),0)
-$$;
-
-CREATE FUNCTION private.dabra_public_actor_active(p_actor_id uuid)
-RETURNS boolean LANGUAGE sql STABLE SECURITY INVOKER SET search_path='' AS $$
- SELECT EXISTS(SELECT 1 FROM auth.users u JOIN public.profiles p ON p.id=u.id
-  WHERE u.id=p_actor_id AND u.deleted_at IS NULL AND NOT coalesce(u.is_anonymous,false)
-   AND (u.banned_until IS NULL OR u.banned_until<=clock_timestamp())
-   AND p.status='active' AND p.deleted_at IS NULL
-   AND p.role IN('client','customer','partner','staff','admin','super_admin'))
-$$;
-
-CREATE FUNCTION public.get_dabra_public_dialogue_policy(p_actor_id uuid)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
-DECLARE result jsonb;
-BEGIN
- IF NOT private.dabra_public_actor_active(p_actor_id) OR NOT EXISTS(
-  SELECT 1 FROM private.dabra_public_dialogue_control WHERE singleton AND enabled) THEN RETURN NULL; END IF;
- SELECT jsonb_build_object('policyId','dabra-public-monthly-v1','authorities',coalesce(jsonb_agg(to_jsonb(a)),'[]'::jsonb)) INTO result
- FROM private.dabra_public_dialogue_authorities a JOIN private.dabra_dialogue_funding_grants g ON g.id=a.source_grant_id
- WHERE a.enabled AND a.authorized_at<=clock_timestamp() AND g.enabled AND g.proof=a.source_proof;
- RETURN result;
-END $$;
-
-CREATE FUNCTION public.reserve_dabra_public_dialogue_attempt(
- p_attempt_id uuid,p_request_id uuid,p_actor_id uuid,p_authority_id uuid,p_execution jsonb,
- p_input_tokens integer,p_output_tokens integer,p_cost_micros bigint)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
-DECLARE a private.dabra_public_dialogue_authorities%ROWTYPE; g private.dabra_dialogue_funding_grants%ROWTYPE;
- c private.dabra_public_dialogue_control%ROWTYPE; v_now timestamptz; v_ms bigint; v_day bigint; v_month bigint; v_end bigint;
- v_subject text; o jsonb; r jsonb; m jsonb; calls bigint; day_calls bigint; held numeric; v_quote numeric;
-BEGIN
- IF p_attempt_id IS NULL OR p_request_id IS NULL OR p_actor_id IS NULL OR p_authority_id IS NULL
-  OR p_input_tokens IS NULL OR p_input_tokens NOT BETWEEN 1 AND 4096 OR p_output_tokens IS NULL OR p_output_tokens NOT BETWEEN 1 AND 1024
-  OR p_cost_micros IS NULL OR p_cost_micros NOT BETWEEN 1 AND 250000 OR jsonb_typeof(p_execution) IS DISTINCT FROM 'object'
-  THEN RETURN jsonb_build_object('decision','denied'); END IF;
- PERFORM pg_advisory_xact_lock(hashtextextended('task217-existing-credit-v2',0));
- v_now:=clock_timestamp();v_ms:=floor(extract(epoch FROM v_now)*1000)::bigint;
- v_day:=floor((v_ms+10800000)::numeric/86400000)::bigint*86400000-10800000;
- v_month:=floor(extract(epoch FROM (date_trunc('month',v_now AT TIME ZONE 'Asia/Riyadh') AT TIME ZONE 'Asia/Riyadh'))*1000)::bigint;
- v_end:=floor(extract(epoch FROM ((date_trunc('month',v_now AT TIME ZONE 'Asia/Riyadh')+interval '1 month') AT TIME ZONE 'Asia/Riyadh'))*1000)::bigint;
- SELECT * INTO c FROM private.dabra_public_dialogue_control WHERE singleton FOR SHARE;
- IF NOT FOUND OR NOT c.enabled OR NOT private.dabra_public_actor_active(p_actor_id)
-  OR EXISTS(SELECT 1 FROM private.dabra_public_dialogue_admissions WHERE request_id=p_request_id OR attempt_id=p_attempt_id)
-  OR EXISTS(SELECT 1 FROM private.dabra_dialogue_admissions WHERE request_id=p_request_id OR attempt_id=p_attempt_id)
-  THEN RETURN jsonb_build_object('decision','denied'); END IF;
- SELECT * INTO a FROM private.dabra_public_dialogue_authorities WHERE id=p_authority_id FOR SHARE;
- IF NOT FOUND OR NOT a.enabled OR a.authorized_at>v_now THEN RETURN jsonb_build_object('decision','denied'); END IF;
- SELECT * INTO g FROM private.dabra_dialogue_funding_grants WHERE id=a.source_grant_id FOR SHARE;
- IF NOT FOUND OR NOT g.enabled OR g.funding_mode<>'bounded-account-charge' OR g.proof IS DISTINCT FROM a.source_proof
-  OR NOT private.valid_dabra_output_acceptances(jsonb_build_array(a.output_acceptance),jsonb_build_array(a.profile)) THEN
-  RETURN jsonb_build_object('decision','denied'); END IF;
- v_subject:=encode(sha256(convert_to('task217-dialogue:'||p_actor_id::text,'UTF8')),'hex');
- m:=a.profile->'measurement';o:=p_execution->'observation';
- IF (SELECT count(*) FROM jsonb_object_keys(p_execution))<>6
-  OR p_execution-ARRAY['schema','authorityId','profileSha256','attemptId','requestId','observation']::text[]<>'{}'::jsonb
-  OR p_execution->>'schema' IS DISTINCT FROM 'dabra-public-execution-v1' OR p_execution->>'authorityId' IS DISTINCT FROM a.id::text
-  OR p_execution->>'profileSha256' IS DISTINCT FROM a.output_acceptance->>'profileSha256'
-  OR p_execution->>'attemptId' IS DISTINCT FROM p_attempt_id::text OR p_execution->>'requestId' IS DISTINCT FROM p_request_id::text
-  OR m->'inputTokenCeiling' IS DISTINCT FROM to_jsonb(p_input_tokens) OR m->'outputTokenCeiling' IS DISTINCT FROM to_jsonb(p_output_tokens)
-  OR (m->>'latencyMs')::numeric>12000 OR (m->>'expiresAtMs')::numeric<=v_ms
-  OR jsonb_typeof(o) IS DISTINCT FROM 'object' THEN RETURN jsonb_build_object('decision','denied'); END IF;
- SELECT value INTO r FROM jsonb_array_elements(private.task217_output_contract_manifest()->'pricing')
-  WHERE value->>'provider'=g.provider AND value->>'model'=g.proof->>'model' AND value->>'pricingEvidenceSha256'=g.proof->>'pricingEvidenceSha256';
- IF NOT FOUND OR (SELECT count(*) FROM jsonb_object_keys(o))<>12
-  OR o-ARRAY['schema','provider','model','approvedPricingDigest','approvedContractDigest','currency','unitTokens','inputMicrosPerMillion','outputMicrosPerMillion','observedAtMs','expiresAtMs','bodySha256']::text[]<>'{}'::jsonb
-  OR o->>'schema' IS DISTINCT FROM 'task217-public-pricing-observation-v1' OR o->>'provider' IS DISTINCT FROM g.provider
-  OR o->>'model' IS DISTINCT FROM g.proof->>'model' OR o->>'approvedPricingDigest' IS DISTINCT FROM r->>'pricingEvidenceSha256'
-  OR o->>'approvedContractDigest' IS DISTINCT FROM r->>'digest' OR o->>'currency' IS DISTINCT FROM 'USD'
-  OR o->'unitTokens' IS DISTINCT FROM '1000000'::jsonb OR o->'inputMicrosPerMillion' IS DISTINCT FROM r->'inputMicrosPerMillion'
-  OR o->'outputMicrosPerMillion' IS DISTINCT FROM r->'outputMicrosPerMillion' OR coalesce(o->>'bodySha256','')!~'^[a-f0-9]{64}$'
-  OR EXISTS(SELECT 1 FROM unnest(ARRAY['observedAtMs','expiresAtMs']) k WHERE jsonb_typeof(o->k) IS DISTINCT FROM 'number' OR coalesce(o->>k,'')!~'^[0-9]{1,16}$')
-  THEN RETURN jsonb_build_object('decision','denied'); END IF;
- IF (o->>'observedAtMs')::numeric>v_ms OR (o->>'expiresAtMs')::numeric<=v_ms
-  OR (o->>'expiresAtMs')::numeric-(o->>'observedAtMs')::numeric NOT BETWEEN 1 AND 900000
-  OR (r->>'tariffBeforeMs' IS NOT NULL AND (o->>'expiresAtMs')::numeric>(r->>'tariffBeforeMs')::numeric)
-  THEN RETURN jsonb_build_object('decision','denied'); END IF;
- v_quote:=ceil((p_input_tokens::numeric*(r->>'inputMicrosPerMillion')::numeric+p_output_tokens::numeric*(r->>'outputMicrosPerMillion')::numeric)/1000000)
-  +(g.proof->'accountTerms'->'allInChargeBound'->>'maxAdditionalMicros')::numeric;
- IF v_quote IS NULL OR v_quote<>p_cost_micros OR p_cost_micros::numeric/1000000>(m->>'costCeilingUsd')::numeric THEN RETURN jsonb_build_object('decision','denied'); END IF;
- SELECT count(*),count(*) FILTER(WHERE day_start_ms=v_day),coalesce(sum(cost_micros),0) INTO calls,day_calls,held
-  FROM private.dabra_public_dialogue_admissions WHERE month_start_ms=v_month AND subject_hash=v_subject;
- IF calls>=c.account_monthly_requests OR day_calls>=c.account_daily_requests OR held+p_cost_micros>c.account_monthly_cost_micros
-  OR private.dabra_monthly_liability(v_month,v_end)+p_cost_micros>c.monthly_cost_micros THEN RETURN jsonb_build_object('decision','denied'); END IF;
- INSERT INTO private.dabra_public_dialogue_admissions(attempt_id,request_id,subject_hash,authority_id,source_grant_id,day_start_ms,month_start_ms,input_tokens,output_tokens,cost_micros,execution_pricing)
- VALUES(p_attempt_id,p_request_id,v_subject,a.id,g.id,v_day,v_month,p_input_tokens,p_output_tokens,p_cost_micros,p_execution);
- RETURN jsonb_build_object('decision','admitted','attempt_id',p_attempt_id,'pricing_expires_at_ms',(o->>'expiresAtMs')::bigint);
-EXCEPTION WHEN data_exception THEN RETURN jsonb_build_object('decision','denied');
-END $$;
-
--- Preserve the original pilot body/signature/ACL and add only the common monthly
--- aggregate guard at its existing locked DB-clock point. No pilot allowance reset.
-DO $guard$
-DECLARE body text; anchor text:='v_now:=clock_timestamp(); v_now_ms:=floor(extract(epoch FROM v_now)*1000)::bigint;';
-BEGIN
- SELECT pg_get_functiondef('public.reserve_dabra_dialogue_attempt(uuid,uuid,text,text,uuid,jsonb,integer,integer,bigint,jsonb,bigint)'::regprocedure) INTO body;
- IF position(anchor IN body)=0 THEN RAISE EXCEPTION 'DABRA_PILOT_CLOCK_BASELINE_MISMATCH'; END IF;
  body:=replace(body,anchor,anchor||$insert$
  IF EXISTS(SELECT 1 FROM private.dabra_public_dialogue_control WHERE singleton AND enabled) AND (
   EXISTS(SELECT 1 FROM private.dabra_public_dialogue_admissions WHERE request_id=p_request_id OR attempt_id=p_attempt_id)

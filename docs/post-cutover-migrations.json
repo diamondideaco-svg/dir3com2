@@ -211,7 +211,7 @@
   },
   {
     "path": "supabase/migrations/20261106225730_task217_public_dialogue_monthly_policy.sql",
-    "sha256": "5cea6126b05b6bf1fe095772f69cb49534028243c0e02070fb80df274dc135fa",
+    "sha256": "03b8475855937bff8ef192c5d4f78170a2387b1f88aec5fb6a76ae53a77dbd37",
     "task": "#217",
     "production_apply_authorized": false
   }
