@@ -10,6 +10,7 @@ import {NextRequest} from 'next/server';
 import {loadPublicDialoguePolicy} from '../lib/dabra/public-dialogue-store';
 import {runInternalAgentTask} from '../lib/dabra/agent-handoff';
 import {canonicalOutputContract,profileOutputAccepted,OUTPUT_PARSER_SHA256S} from '../lib/dabra/agent-output-contract';
+import {PLATFORM_UNITS_QUALIFICATION_CASES,qualificationInputSha256} from '../lib/dabra/agent-qualification-cases';
 import {durableAuthorityBindingSha256,durableProfileSha256,type DurableAccountChargeProof} from '../lib/dabra/dialogue-durable-authority';
 import {approvedPublicPricingContract} from '../lib/dabra/dialogue-pricing-refresh';
 const pricingBody=readFileSync(new URL('./fixtures/task217-approved-openai-pricing.md',import.meta.url),'utf8');
@@ -118,7 +119,16 @@ test('SQL manifest preserves old contracts and binds the exact new parser/cases'
  const old=JSON.parse(readFileSync('supabase/migrations/20261104133500_task217_output_contract_acceptance.sql','utf8').split('$manifest$')[1]);
  const files=realDirectory();const name=files.find(n=>n.endsWith('_task217_public_dialogue_monthly_policy.sql'));assert.ok(name);
  const current=JSON.parse(readFileSync('supabase/migrations/'+name,'utf8').split('$manifest$')[1]);
- assert.deepEqual(current.contracts.filter((c:{id:string})=>c.id!=='platform-dialogue-v2'),old.contracts);assert.deepEqual(current.pricing,old.pricing);assert.deepEqual(current.cases,old.cases);
+ const additions=(['general-travel-v1','platform-units-v1','platform-dialogue-v2']as const).flatMap(id=>(['ar','en']as const).map(language=>canonicalOutputContract(id,language)));
+ const versionedCases=PLATFORM_UNITS_QUALIFICATION_CASES.map(c=>({caseId:c.caseId,stage:c.stage,language:c.language,inputSha256:qualificationInputSha256(c),
+  contractSha256:canonicalOutputContract('platform-units-v1',c.language).digest,inputBytes:Buffer.byteLength(c.prompt+c.message,'utf8')+128}));
+ assert.deepEqual(current.contracts,[...old.contracts,...additions]);assert.deepEqual(current.pricing,old.pricing);assert.deepEqual(current.cases,[...old.cases,...versionedCases]);
+ assert.equal(new Set(current.contracts.map((c:{digest:string})=>c.digest)).size,12);
+ assert.equal(new Set(current.cases.map((c:{caseId:string;contractSha256:string})=>JSON.stringify([c.caseId,c.contractSha256]))).size,8);
+ for(const id of ['general-travel-v1','platform-units-v1']as const)for(const language of ['ar','en']as const){
+  const historical=old.contracts.find((c:{id:string;language:string})=>c.id===id&&c.language===language);
+  assert.ok(historical);assert.notEqual(historical.digest,canonicalOutputContract(id,language).digest);
+ }
  for(const language of ['ar','en']as const)assert.deepEqual(current.contracts.find((c:{id:string;language:string})=>c.id==='platform-dialogue-v2'&&c.language===language),canonicalOutputContract('platform-dialogue-v2',language));
  assert.equal(createHash('sha256').update(readFileSync('lib/dabra/agent-platform-dialogue.ts','utf8').replace(/\r\n/g,'\n')).digest('hex'),OUTPUT_PARSER_SHA256S['platform-dialogue-v2']);
 });
@@ -142,4 +152,16 @@ for(const fault of ['project-mismatch','project-changed-after-claim'])test('publ
 test('public funding missing client provenance cannot use synthetic stored authorities',async()=>{
  const f=fixture(),policy=await loadPublicDialoguePolicy({...f.context,isDialogueFundingProjectCurrent:undefined},undefined,f.requestId,f.rpc);
  assert.equal(policy.profiles.length,0);assert.equal(f.stats().reads,0);assert.equal(f.stats().claims,0);assert.equal(f.stats().models,0);
+});
+
+for(const id of ['general-travel-v1','platform-units-v1']as const)for(const language of ['ar','en']as const)
+test('historical receipt cannot authorize current input contract: '+id+'/'+language,()=>{
+ const old=JSON.parse(readFileSync('supabase/migrations/20261104133500_task217_output_contract_acceptance.sql','utf8').split('$manifest$')[1]);
+ const historical=old.contracts.find((c:{id:string;language:string})=>c.id===id&&c.language===language);assert.ok(historical);
+ const f=fixture(),contract=canonicalOutputContract(id,language),source=f.profiles.find(p=>p.measurement.language===language);assert.ok(source);
+ const p={...source,measurement:{...source.measurement,caseSetSha:contract.caseSetSha,cases:contract.cases,passed:contract.cases}};
+ const acceptance={...f.authorities.find(a=>a.profile.measurement.language===language)!.output_acceptance,
+  profileSha256:durableProfileSha256(p),caseSetSha:contract.caseSetSha,contractSha256:contract.digest};
+ assert.equal(profileOutputAccepted(p,contract,[acceptance],Date.now()),true);
+ assert.equal(profileOutputAccepted(p,contract,[{...acceptance,contractSha256:historical.digest}],Date.now()),false);
 });
