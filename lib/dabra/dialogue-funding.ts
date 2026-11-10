@@ -28,7 +28,7 @@ type LegacyDialogueFundingProof = EvidenceBase & (
 );
 export type DialogueFundingProof = LegacyDialogueFundingProof | DurableAccountChargeProof;
 export type FundedDialogueReservation = Readonly<{
-  policyId: 'task217-existing-credit-v2'; attemptId: string; requestId: string;
+  policyId: 'task217-existing-credit-v2' | 'dabra-public-monthly-v1'; attemptId: string; requestId: string;
   measurementRequest?: Readonly<{ planId: string; caseId: string; runId?: string }>;
   stage: 'discover' | 'intent.classify'; subject: string; nowMs: number; dayStartMs: number; dayEndMs: number;
   proof: DialogueFundingProof; inputTokens: number; outputTokens: number; costMicros: number; limits: DialogueDailyLimits;
@@ -42,7 +42,7 @@ export interface FundingDialogueAdmission {
   reserve(request: FundedDialogueReservation, signal: AbortSignal): Promise<FundingAdmissionResult>;
 }
 export type DialogueFundingBinding = Readonly<{
-  kind: 'existing-credit-v2'; requestId: string; proofs: readonly DialogueFundingProof[];
+  kind: 'existing-credit-v2' | 'public-monthly-v1'; requestId: string; proofs: readonly DialogueFundingProof[];
   admission: FundingDialogueAdmission;
   refreshPricing?: (proof: DurableAccountChargeProof, signal: AbortSignal) => Promise<PublicPricingObservation | null>;
   isCurrent?: (proof: DialogueFundingProof, profile: AgentCapabilityProfile, signal: AbortSignal) => Promise<boolean>;

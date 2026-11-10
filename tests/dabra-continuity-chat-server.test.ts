@@ -7,6 +7,8 @@ import { NextRequest } from 'next/server';
 import { POST } from '../app/api/ai2/chat/route';
 import * as service from '../lib/dabra/continuity-service';
 import * as chat from '../lib/dabra/continuity-chat';
+import * as contract from '../lib/dabra/continuity-contract';
+import { refinePlatformTrip } from '../lib/dabra/platform-assistant';
 const trip={id:'11111111-1111-4111-8111-111111111111',origin:'Cairo',destination:'Riyadh',startDate:null,endDate:null,adults:2,children:0,rooms:1,budget:5000,currency:'EUR',families:['stay']} as const;
 const input=chat.parseContinuityChatTrip({revision:1,generation:0,trip})!;
 const state={revision:1,generation:0,consentEnabled:true,consentVersion:'task187-v1',preferences:null,preferencesExpiresAt:null,trip,tripExpiresAt:'2027-01-01T00:00:00Z',updatedAt:null};
@@ -15,19 +17,27 @@ function fixture(enabled=true,role:string|null='customer') {
   const dependencies:Record<string,unknown>={
     '../supabase/server':{createSupabaseRequestClient:async()=>{authCalls++;return role?{user:{id:'authenticated-A'},supabase:{rpc:async(...args:unknown[])=>{reads.push(args);return io;}}}:null;}},
     '../auth/identity':{resolveCanonicalActiveProfile:async(_client:unknown,id:string)=>{assert.equal(id,'authenticated-A');return role?{role}:null;}},
-    './continuity-service':service,'./continuity-chat':chat,
+    './continuity-service':service,'./continuity-chat':chat,'./continuity-contract':contract,
   };
   const compiled=ts.transpileModule(readFileSync(new URL('../lib/dabra/continuity-chat-server.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   const exports={} as {resolveContinuityChatTrip:(r:NextRequest,i:chat.ContinuityChatTrip)=>Promise<unknown>};
   runInNewContext(compiled,{exports,require:(id:string)=>{assert.ok(id in dependencies,id);return dependencies[id];},process:{env:{DABRA_CONTINUITY_ENABLED:enabled?'true':undefined}},Date},{filename:'continuity-chat-server.ts'});
-  return {resolve:()=>exports.resolveContinuityChatTrip(new NextRequest('http://localhost/api/ai2/chat'),input),reads,io,authCalls:()=>authCalls};
+  return {resolve:(selected=input)=>exports.resolveContinuityChatTrip(new NextRequest('http://localhost/api/ai2/chat'),selected),reads,io,authCalls:()=>authCalls};
 }
 test('actual server resolver uses authenticated customer RPC ownership, not client actor metadata',async()=>{
-  const f=fixture();assert.deepEqual(await f.resolve(),input.trip);
+  const f=fixture();assert.deepEqual(await f.resolve(),state.trip);
   assert.deepEqual(f.reads,[['dabra_continuity_read',undefined]]);
   assert.equal(f.authCalls(),1);
   for(const role of [null,'partner','admin','staff']){const denied=fixture(true,role);assert.equal(await denied.resolve(),null);assert.equal(denied.reads.length,0);}
   const disabled=fixture(false);assert.equal(await disabled.resolve(),null);assert.equal(disabled.authCalls(),0);
+});
+test('restored facts come from the authenticated saved state; explicit current refinements remain separate',async()=>{
+ const f=fixture(),forged=chat.parseContinuityChatTrip({...input,trip:{...input.trip,origin:'Dubai',destination:'Cairo',adults:8,rooms:3,budget:9000,currency:'USD'}});assert.ok(forged);
+ const before=JSON.stringify(state),restored=contract.parseSavedTrip(await f.resolve(forged));assert.ok(restored);
+ assert.deepEqual(restored,state.trip);assert.notDeepEqual(restored,forged.trip);
+ const refined=refinePlatformTrip(restored,'instead in Cairo');assert.equal(refined.destination,'cairo');assert.equal(restored.destination,'Riyadh');
+ assert.equal(refined.budget,5000);assert.equal(refined.currency,'EUR');assert.equal(refined.adults,2);assert.equal(JSON.stringify(state),before);
+ assert.deepEqual(f.reads,[['dabra_continuity_read',undefined]]);
 });
 test('actual resolver rejects delete, revoke, expiry and another accounts stored trip',async()=>{
   for(const value of [{...state,revision:2}, {...state,generation:1,consentEnabled:false,consentVersion:null,trip:null,tripExpiresAt:null}, {...state,trip:null,tripExpiresAt:null}, {...state,tripExpiresAt:'2020-01-01T00:00:00Z'}, {...state,trip:{...trip,id:'22222222-2222-4222-8222-222222222222'}}]){const f=fixture();f.io.data=value;assert.equal(await f.resolve(),null);}

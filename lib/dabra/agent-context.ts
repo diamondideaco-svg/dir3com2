@@ -43,6 +43,10 @@ export async function resolveAgentContext(request: NextRequest): Promise<AgentCo
     };
     return {
       role, taskAuthority, isTaskAuthorityCurrent: authorityCurrent,
+      isDialogueFundingProjectCurrent() {
+        const source = getSupabaseClientHostname(auth.supabase);
+        return !!source && source === getSupabaseAdminHostname();
+      },
       async readExecutiveMetrics() {
         try {
           if (!executive || !await authorityCurrent()) return { kind: 'forbidden' };

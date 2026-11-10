@@ -1,3 +1,4 @@
+import { syntheticClassifierPolicy } from './fixtures/task217-classifier-governance-synthetic';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -8,6 +9,7 @@ import { NextRequest } from 'next/server';
 import { planInternalAgentTool } from '../lib/dabra/agent-planner';
 import * as service from '../lib/dabra/continuity-service';
 import * as continuity from '../lib/dabra/continuity-chat';
+import * as continuityContract from '../lib/dabra/continuity-contract';
 import type { SavedTrip } from '../lib/dabra/continuity-contract';
 
 const trip: SavedTrip = { id: '11111111-1111-4111-8111-111111111111', origin: 'Cairo', destination: 'Riyadh', startDate: '2026-12-12', endDate: '2026-12-14', adults: 2, children: 0, rooms: 1, budget: null, currency: 'USD', families: ['stay'] };
@@ -20,6 +22,7 @@ function fixture() {
     '../supabase/server': { createSupabaseRequestClient: async () => ({ user: {id: 'authenticated-A'}, supabase: { rpc: async () => { authReads++; return {data: state.value, error: state.error}; } } }) },
     '../auth/identity': { resolveCanonicalActiveProfile: async () => ({role: state.role}) },
     './continuity-service': service, './continuity-chat': continuity,
+    './continuity-contract': continuityContract,
   };
   const serverExports = {};
   runInNewContext(ts.transpileModule(readFileSync('lib/dabra/continuity-chat-server.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
@@ -28,10 +31,34 @@ function fixture() {
     '@/lib/dabra/continuity-chat-server': serverExports,
     '@/lib/dabra/agent-context': {resolveAgentContext:async()=>({role:'customer',taskAuthority:{kind:'customer',actorId:'authenticated-A',ownerId:'authenticated-A'},isTaskAuthorityCurrent:async()=>state.role==='customer',readRequests:async()=>({kind:'unavailable'})})},
     '@/lib/dabra/agent-planner': {planInternalAgentTool},
+    '@/lib/dabra/agent-dialogue': {getAgentDialoguePolicy:()=>syntheticClassifierPolicy('synthetic-key')},
   };
   const exports = {};
+  // Exact direct imports of the route VM; transitive Node imports are not sandboxed.
+  const realDependencies: readonly string[] = [
+    'next/server',
+    '@/lib/dabra/conversation-renderer',
+    '@/lib/dabra/platform-assistant',
+    '@/lib/dabra/chat-response-contract',
+    '@/lib/security/document-validation',
+    '@/lib/dabra/locale-contract',
+    '@/lib/currency/service',
+    '@/lib/currency/display',
+    '@/lib/dabra/agent-contract',
+    '@/lib/dabra/agent-handoff',
+    '@/lib/dabra/continuity-chat',
+    '@/lib/ai2/observability/provider-attempts',
+    '@/lib/dabra/credential-binding',
+    '@/lib/ai2/runtime/agent-provider-dispatch',
+    '@/lib/supabase/server',
+    '@/lib/auth/team-access',
+  ];
   runInNewContext(ts.transpileModule(readFileSync('app/api/ai2/chat/route.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
-    {exports,require:(id:string)=>dependencies[id]??require(id),process,Date});
+    {exports,require: (id: string) => {
+    if (Object.hasOwn(dependencies, id)) return dependencies[id];
+    if (realDependencies.includes(id)) return require(id);
+    throw new Error('Unexpected route VM dependency: ' + id);
+  },process,Date});
   return { post:(exports as typeof import('../app/api/ai2/chat/route')).POST,state,reads:()=>authReads };
 }
 const envNames = ['DABRA_CONTINUITY_ENABLED','DABRA_INTERNAL_AI_ENABLED','DABRA_AI_PROVIDER','DABRA_PROVIDER_FALLBACK_ENABLED','DABRA_QWEN_MODEL','QWEN_API_KEY','DASHSCOPE_API_KEY','OPENAI_API_KEY','DABRA_INTERNAL_AI_MODEL','GOOGLE_GENERATIVE_AI_API_KEY','GEMINI_API_KEY','ANTHROPIC_API_KEY','XAI_API_KEY','DEEPSEEK_API_KEY','MISTRAL_API_KEY'];
@@ -60,14 +87,14 @@ function stayParams(text:string){const match=text.match(/\((\/marketplace[^)]+)\
 for(const locale of ['ar','en'] as const)for(const stream of [false,true])for(const failure of failures){
  test(`${locale} stream=${stream} ${failure.status}/${failure.error.code}: saved trip survives recovery and correction with one inference`,async()=>{
   const f=fixture();let calls=0;
-  globalThis.fetch=async(input,init)=>{calls++;assert.match(String(input),/chat\/completions$/);assert.doesNotMatch(String(init?.body),/PRIVATE_HISTORY_MARKER|Riyadh|Cairo/);
+  globalThis.fetch=async(input,init)=>{calls++;assert.equal(f.reads(),3,'initial continuity read plus pre/post-admission owned-trip revalidation');assert.match(String(input),/chat\/completions$/);assert.doesNotMatch(String(init?.body),/PRIVATE_HISTORY_MARKER|Riyadh|Cairo/);
     return calls===1?Response.json({error:failure.error},{status:failure.status}):Response.json({choices:[{message:{content:'{"tool":"discover"}'}}]});};
-  const response=await f.post(request(locale,stream,locale==='en'?'2 rooms':'2 غرف'));assert.equal(response.status,200);
+  const response=await f.post(request(locale,stream,locale==='en'?'Could you help me arrange things?':'هل تساعدني في ترتيب التفاصيل؟'));assert.equal(response.status,200);
   const text=await answer(response,stream);assert.ok(text.startsWith(locale==='en'?'You can continue through the platform options below':'يمكنك المتابعة عبر خيارات المنصة أدناه'));
-  const params=stayParams(text);assert.equal(params.get('destination'),'riyadh');assert.equal(params.get('checkIn'),'2026-12-12');assert.equal(params.get('checkOut'),'2026-12-14');assert.equal(params.get('adults'),'2');assert.equal(params.get('rooms'),'2');
-  assert.doesNotMatch(text,/PRIVATE_|Booked|Dubai|booking confirmed/);assert.equal(calls,1);assert.equal(f.reads(),1);assert.equal(trip.rooms,1,'saved snapshot not mutated');
-  const corrected=await f.post(request(locale,stream,locale==='en'?'hotels in Jeddah':'فنادق في جدة',{...trip,rooms:2}));assert.equal(corrected.status,200);
-  const next=stayParams(await answer(corrected,stream));assert.equal(next.get('destination'),'jeddah');assert.equal(next.get('rooms'),'2');assert.equal(next.get('checkIn'),'2026-12-12');assert.equal(calls,1,'explicit service correction adds no classifier inference');
+  const params=stayParams(text);assert.equal(params.get('destination'),'riyadh');assert.equal(params.get('checkIn'),'2026-12-12');assert.equal(params.get('checkOut'),'2026-12-14');assert.equal(params.get('adults'),'2');assert.equal(params.get('rooms'),'1');
+  assert.doesNotMatch(text,/PRIVATE_|Booked|Dubai|booking confirmed/);assert.equal(calls,1);assert.equal(f.reads(),3);assert.equal(trip.rooms,1,'saved snapshot not mutated');
+  const corrected=await f.post(request(locale,stream,locale==='en'?'hotels in Jeddah, 2 rooms':'فنادق في جدة، 2 غرف',{...trip,rooms:2}));assert.equal(corrected.status,200);
+  const next=stayParams(await answer(corrected,stream));assert.equal(next.get('destination'),'jeddah');assert.equal(next.get('rooms'),'2');assert.equal(next.get('checkIn'),'2026-12-12');assert.equal(calls,1,'explicit service correction adds no classifier inference');assert.equal(f.reads(),4,'explicit correction adds only its initial continuity read');assert.equal(trip.rooms,1,'explicit correction does not mutate saved snapshot');
  });
 }
 for(const locale of ['ar','en'] as const)for(const stream of [false,true])for(const change of ['delete','revoke','expiry','account','read-error'] as const){

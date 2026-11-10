@@ -31,10 +31,36 @@ export function serverReplyLink(label: string, href: string): ServerReplySegment
 
 export const PLATFORM_CHARACTER_VERSION = AI2_DABRA_PROMPT_VERSION;
 
+/** Explicit abandonment only. A compound turn retains its new question. */
+export function conversationTopicChange(message: string): string | null {
+  const text = message.normalize('NFKC').replace(/[\u064b-\u065f\u0670\u0640]/g, '').toLowerCase().replace(/[أإآ]/g, 'ا').trim().replace(/[!?.؟]+$/g, '').trim();
+  const prefix = /^(?:(?:stop|drop|forget|leave) (?:the )?(?:hotel|car|trip|previous) (?:topic|discussion)|stop talking about (?:the )?(?:hotel|car|trip)|وقف موضوع (?:الفندق|السيارة|الرحلة)|خلص موضوع (?:الفندق|السيارة|الرحلة)|غير الموضوع|i am asking something else|let[’']?s change the subject)(?=$|[\s.!?؟،;:])/i.exec(text);
+  if (!prefix) return null;
+  const rest = text.slice(prefix[0].length).replace(/^[\s.!?؟،;:]+/, '');
+  return rest.replace(/^(?:and\s+)?(?:let(?:[’']s| us)\s+(?:talk\s+about|discuss)\s+)|^(?:و\s*)?(?:خلينا|دعنا)\s+(?:نحكي|نتكلم|نتحدث)\s+(?:عن|في)\s+|^and\s+/i, '').trim();
+}
+
+/** Current-turn dialogue takes precedence over inherited catalogue preferences. */
+export function conversationIntent(message: string) {
+  const text = message.normalize('NFKC').replace(/[\u064b-\u065f\u0670\u0640]/g, '').toLowerCase().replace(/[أإآ]/g, 'ا').trim().replace(/[!?.؟]+$/g, '').trim();
+  if (/^(?:who are you|what is your name|مين انت|من انت|اسمك ايه|شو اسمك)$/.test(text)) return 'identity';
+  if (/^(?:how are you|كيف حالك|كيفك|عامل ايه|شلونك)$/.test(text)) return 'social';
+  if (/^(?:why (?:do you|are you) (?:keep )?repeating(?: yourself| the same (?:answer|reply))?|ليش بتكرر نفس الرد|ليه بتكرر نفس الرد|ليش تكرر نفس الرد)$/.test(text)) return 'repair';
+  if (/^(?:explain(?: that| it)?(?: to me)?|طيب فهمني|فهمني|وضح لي)$/.test(text)) return 'explain';
+  if (conversationTopicChange(message) === '') return 'topic_change';
+  return null;
+}
+
 /** Exact bounded small-talk recognition; this is not an NLU/model replacement. */
 export function conversationReply(message: string, history: ReplyTurn[], locale: ReplyLocale) {
   const text = message.normalize('NFKC').replace(/[\u064b-\u065f\u0670\u0640]/g, '').trim().toLowerCase().replace(/[!?.،؟]+$/g, '').trim();
   const copy = AI2_DABRA_CONVERSATION_COPY[locale];
+  const intent = conversationIntent(message), ar = locale === 'ar';
+  if (intent === 'identity') return copy.identity;
+  if (intent === 'social') return ar ? 'أنا جاهزة أساعدك. كيف أقدر أخدمك اليوم؟' : 'I am ready to help. What would you like to work on today?';
+  if (intent === 'repair') return ar ? 'معك حق، ردي السابق لم يتابع سؤالك. اكتب النقطة التي تريدها وسأركز عليها بدل تكرار عرض الخدمة.' : 'You are right: my last reply did not address your question. Tell me the point you want to discuss and I will focus on it instead of repeating the service overview.';
+  if (intent === 'topic_change') return ar ? 'حاضر، نترك الموضوع السابق. ما الذي تريد الحديث عنه الآن؟' : 'Of course, let us leave that topic. What would you like to discuss now?';
+  if (intent === 'explain') return ar ? 'أي جزء تريد توضيحه: الخيارات، السعر، أم الخطوة التالية؟ سأشرحه مباشرة دون إعادة العرض كاملًا.' : 'Which part would you like me to explain: the options, the price, or the next step? I will explain that part without repeating the whole overview.';
   if (/^(?:thanks|thank you|شكرا|شكراً|مشكور|تسلم)$/.test(text)) return copy.thanks;
   if (/^(?:hi|hello|hey|good morning|good evening|مرحبا|هلا|اهلا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/.test(text)) {
     // Presence is used only to suppress introduction, never as verified facts or memory.
@@ -52,4 +78,11 @@ export function renderServerReply(segments: readonly ServerReplySegment[], local
   if (outcome === 'unavailable') lines.unshift(copy.unavailable);
   else if (/\b(?:anxious|worried|scared)\b|قلقان|خايف|خائف|متوتر/.test(message.toLowerCase())) lines.unshift(copy.anxiety);
   return lines.join('\n\n');
+}
+
+/** Transcript presence selects a clarification step, never supplies factual content. */
+export function conversationClarification(history:ReplyTurn[],locale:ReplyLocale) {
+ const first=locale==='ar'?'حتى أجاوبك بدقة، ما النقطة التي تريدها تحديدًا؟ يمكنك كتابة السؤال مباشرة.':'To answer accurately, which point would you like help with? You can ask the question directly.';
+ const second=locale==='ar'?'جرّب توضيح المطلوب بمثال قصير: ما الذي تريد معرفته أو الوصول إليه؟':'Could you give a short example of what you want to know or achieve?';
+ return history.at(-1)?.role==='assistant'&&history.at(-1)!.content.includes(first)?second:first;
 }

@@ -1,5 +1,6 @@
+import { conversationIntent } from '@/lib/dabra/conversation-renderer';
 import { after, NextRequest, NextResponse } from 'next/server';
-import { platformCurrency, platformContext, platformFamilies, refinePlatformTrip, hasActivePlatformDriveDialogue } from '@/lib/dabra/platform-assistant';
+import { platformCurrency, platformContext, platformConversationScope, platformFamilies, refinePlatformTrip, hasActivePlatformDriveDialogue } from '@/lib/dabra/platform-assistant';
 type AI2ChatTurn = { role: 'user' | 'assistant'; content: string };
 import { createDabraAssistantTextResponse } from '@/lib/dabra/chat-response-contract';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
@@ -104,9 +105,11 @@ export async function POST(request: NextRequest) {
 
   const message = typeof body?.message === 'string' ? body.message.trim().slice(0, MAX_TURN_LENGTH) : '';
 
-  const modelMessage = message && parsed.attachmentCount
-    ? `${message}\n\n${locale === 'ar' ? `[أرفق المستخدم ${parsed.attachmentCount} ملفًا تحقق الخادم من سلامة نوعه. محتوى الملفات غير مُرسل إلى مزود الذكاء الاصطناعي، فلا تدّعِ قراءته.]` : `[The user attached ${parsed.attachmentCount} server-validated file(s). Their contents are not sent to the AI provider, so do not claim to have read them.]`}`
-    : message ?? '';
+  // Intent and topic scope use user text only; this note is server-owned model context.
+  const serverAttachmentNote = parsed.attachmentCount
+    ? (locale === 'ar' ? `[أرفق المستخدم ${parsed.attachmentCount} ملفًا تحقق الخادم من سلامة نوعه. محتوى الملفات غير مُرسل إلى مزود الذكاء الاصطناعي، فلا تدّعِ قراءته.]` : `[The user attached ${parsed.attachmentCount} server-validated file(s). Their contents are not sent to the AI provider, so do not claim to have read them.]`)
+    : undefined;
+  let scopedMessage = message;
 
   if (!message) {
     if (body?.stream === true) {
@@ -131,20 +134,24 @@ export async function POST(request: NextRequest) {
   if (rawRequestId !== undefined && rawRequestId !== null && !requestId) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
   }
-  const history = sanitizeHistory(body?.history);
+  let history = sanitizeHistory(body?.history);
   let trip = null;
+  let tripIsCurrent: (() => Promise<boolean>) | undefined;
   if (body?.continuityTrip !== undefined) {
     const input = parseContinuityChatTrip(body.continuityTrip);
     if (!input) return NextResponse.json({ error: 'Invalid continuity context.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
     try {
       const { resolveContinuityChatTrip } = await import('@/lib/dabra/continuity-chat-server');
       trip = await resolveContinuityChatTrip(request, input);
+      const original=JSON.stringify(trip);
+      tripIsCurrent=async()=>{try{const fresh=await resolveContinuityChatTrip(request,input);return !!fresh&&JSON.stringify(fresh)===original;}catch{return false;}};
     } catch { /* Unavailable authenticated continuity fails closed. */ }
     if (!trip) return NextResponse.json({ error: 'Continuity context expired or changed.' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
     trip = refinePlatformTrip(trip, message);
   }
   if (body?.currency !== undefined && !parseDisplayCurrency(body.currency)) return NextResponse.json({ error: 'Invalid currency.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
-  let intent = agentIntent(message);
+  ({ message: scopedMessage, history, trip } = platformConversationScope(scopedMessage, history, trip));
+  let intent = agentIntent(scopedMessage);
   let agentContext: AgentContext = { role: 'guest', readRequests: async () => ({ kind: 'authentication_required' }) };
   const inferenceEnabled = process.env.DABRA_INTERNAL_AI_ENABLED === 'true';
   const publicUtility = ['weather', 'currency', 'maps'].includes(intent.tool);
@@ -152,7 +159,12 @@ export async function POST(request: NextRequest) {
     const { resolveAgentContext } = await import('@/lib/dabra/agent-context');
     agentContext = await resolveAgentContext(request);
   }
-  const context = platformContext(modelMessage, history, trip);
+  if (tripIsCurrent && trip && agentContext.isTaskAuthorityCurrent) {
+    const authIsCurrent=agentContext.isTaskAuthorityCurrent;
+    const ownedTripIsCurrent=tripIsCurrent;
+    agentContext={...agentContext,isTaskAuthorityCurrent:async()=>await authIsCurrent()&&await ownedTripIsCurrent()&&await authIsCurrent()};
+  }
+  const context = platformContext(scopedMessage, history, trip);
   let dialoguePolicy = await getAgentDialoguePolicy(agentContext, request.signal, parsed.attachmentCount ? undefined : requestId);
   let understanding: string = 'internal-rules';
   let understandingProvider: string | undefined;
@@ -162,13 +174,14 @@ export async function POST(request: NextRequest) {
   const classifierActor = agentContext.taskAuthority;
   const publicCustomer = agentContext.role === 'customer' && classifierActor?.kind === 'customer'
     && classifierActor.actorId === classifierActor.ownerId && !!agentContext.isTaskAuthorityCurrent;
-  if (inferenceEnabled && publicCustomer && intent.tool === 'discover' && !platformFamilies(message).length
-    && !hasActivePlatformDriveDialogue({ message: modelMessage, history, context, trip })) {
+  if (inferenceEnabled && dialoguePolicy.trial && (dialoguePolicy.admission || dialoguePolicy.funding)
+    && !dialoguePolicy.publicMonthly && !conversationIntent(scopedMessage) && publicCustomer && intent.tool === 'discover' && !platformFamilies(scopedMessage).length
+    && !hasActivePlatformDriveDialogue({ message: scopedMessage, history, context, trip })) {
     const { planInternalAgentTool } = await import('@/lib/dabra/agent-planner');
     const { createDabraProviderAttemptAfterResponseScheduler } = await import('@/lib/ai2/observability/provider-attempts');
-    const planned = await planInternalAgentTool(message, { language: locale,
-      scheduleAttempt: createDabraProviderAttemptAfterResponseScheduler(after) }, dialoguePolicy.trial
-      ? { policy: dialoguePolicy, context: agentContext, signal: request.signal } : undefined);
+    const planned = await planInternalAgentTool(scopedMessage, { language: locale,
+      scheduleAttempt: createDabraProviderAttemptAfterResponseScheduler(after) },
+      { policy: dialoguePolicy, context: agentContext, signal: request.signal });
     understanding = planned.status;
     needsClarification = planned.status === 'unavailable' || planned.status === 'invalid';
     understandingProvider = planned.status === 'ok' ? planned.provider : undefined;
@@ -182,8 +195,8 @@ export async function POST(request: NextRequest) {
   const currency = parseDisplayCurrency(body?.currency) ?? platformCurrency(context);
   const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
   const snapshot = needsRates ? await getCurrencySnapshot() : null;
-  const taskResult = await runInternalAgentTask({ message: modelMessage, history, locale, context: agentContext, intent, needsClarification,
-    pricing: currency ? { currency, snapshot } : undefined, trip }, { signal: request.signal, dialogue: dialoguePolicy, responseContract: 'platform-units' });
+  const taskResult = await runInternalAgentTask({ message: scopedMessage, serverAttachmentNote, history, locale, context: agentContext, intent, needsClarification,
+    pricing: currency ? { currency, snapshot } : undefined, trip }, { signal: request.signal, dialogue: dialoguePolicy, responseContract: dialoguePolicy.publicMonthly ? 'platform-dialogue' : 'platform-units' });
   if (taskResult.kind === 'stopped') return NextResponse.json({ error: DABRA_LOCALE_ERROR[locale] }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
   const response = taskResult.response;
   if (body?.stream === true) {

@@ -14,12 +14,16 @@ const customer='supabase/migrations/20261104130000_task217_customer_case_owner.s
 const read=(path:string)=>readFileSync(path,'utf8').replace(/\r\n/g,'\n');
 // Source invariants only. None of these assertions is PostgreSQL execution or
 // proof that the functions install/behave correctly in a real database.
-test('new local forward manifest is generated from the actual canonical contracts, inputs and approved pricing',()=>{
+test('historical manifest is frozen and current contracts have separate exact definitions',()=>{
  const text=read(output),match=text.match(/\$manifest\$([\s\S]*?)\$manifest\$/);assert.ok(match);
- const manifest=JSON.parse(match[1]);
- assert.deepEqual(manifest.contracts,(['intent-tool-v1','general-travel-v1','platform-units-v1']as const).flatMap(id=>(['ar','en']as const).map(lang=>canonicalOutputContract(id,lang))));
- assert.deepEqual(manifest.cases,PLATFORM_UNITS_QUALIFICATION_CASES.map(c=>({caseId:c.caseId,stage:c.stage,language:c.language,inputSha256:qualificationInputSha256(c),
-  contractSha256:canonicalOutputContract('platform-units-v1',c.language).digest,inputBytes:Buffer.byteLength(c.prompt+c.message,'utf8')+128})));
+ const historical=JSON.parse(match[1]);
+ // Pin every historical tuple/case/pricing field independently of current code.
+ assert.equal(createHash('sha256').update(match[1]).digest('hex'),'b6fe1c6926eea0da0e9f192d4ae06ebe8b779432981111404f20f31d7d22c1cb');
+ const current=read('supabase/migrations/20261106225730_task217_public_dialogue_monthly_policy.sql').match(/\$manifest\$([\s\S]*?)\$manifest\$/);assert.ok(current);
+ const manifest=JSON.parse(current[1]);
+ assert.deepEqual(manifest.contracts,[...historical.contracts,...(['general-travel-v1','platform-units-v1','platform-dialogue-v2']as const).flatMap(id=>(['ar','en']as const).map(lang=>canonicalOutputContract(id,lang)))]);
+ assert.deepEqual(manifest.cases,[...historical.cases,...PLATFORM_UNITS_QUALIFICATION_CASES.map(c=>({caseId:c.caseId,stage:c.stage,language:c.language,inputSha256:qualificationInputSha256(c),
+  contractSha256:canonicalOutputContract('platform-units-v1',c.language).digest,inputBytes:Buffer.byteLength(c.prompt+c.message,'utf8')+128}))]);
  assert.deepEqual(manifest.pricing,AGENT_PROVIDER_IDS.map(provider=>{
   const r=APPROVED_DIALOGUE_STANDARD_PRICING.find(r=>r.provider===provider&&approvedPublicPricingContract(provider,r.model,r.sha256));assert.ok(r);
   return {provider,model:r.model,pricingEvidenceSha256:r.sha256,...approvedPublicPricingContract(provider,r.model,r.sha256)};
@@ -43,4 +47,14 @@ test('three new forwards have exact registry hashes, denied Production applicati
   assert.doesNotMatch(sql,/END \$;/);const delimiters=sql.match(/\$(?:[a-z_][a-z0-9_]*)?\$/gi)??[];
   for(const tag of new Set(delimiters))assert.equal(delimiters.filter(t=>t===tag).length%2,0,tag);
  }
+});
+
+test('versioned qualification changes only registry resolution and preserves every existing guard',()=>{
+ const functionBody=(sql:string)=>sql.match(/CREATE (?:OR REPLACE )?FUNCTION private\.valid_dabra_qualification_proof\(p jsonb,p_now bigint\)[\s\S]*?\nEND \$\$;/)?.[0];
+ const historical=functionBody(read(bootstrap)),current=functionBody(read('supabase/migrations/20261106225730_task217_public_dialogue_monthly_policy.sql'));
+ assert.ok(historical&&current);
+ const oldLookup=" IF q->>'caseSetSha' IS DISTINCT FROM (SELECT value->>'caseSetSha' FROM jsonb_array_elements(manifest->'contracts') WHERE value->>'id'='platform-units-v1' LIMIT 1) THEN RETURN false; END IF;\n FOR expected IN SELECT value FROM jsonb_array_elements(manifest->'cases') WITH ORDINALITY e(value,ord) WHERE q->'languages' ? (value->>'language') ORDER BY ord LOOP";
+ const versionedLookup=" -- Each declared language must supply exactly two cases under one contract.\n -- Case labels are unique within a permit because execution resolves by caseId.\n IF (SELECT count(DISTINCT chosen->>'caseId') FROM jsonb_array_elements(q->'cases') chosen)<>jsonb_array_length(q->'cases')\n  OR EXISTS(SELECT 1 FROM jsonb_array_elements_text(q->'languages') declared(language)\n   WHERE (SELECT count(*) FROM jsonb_array_elements(q->'cases') chosen\n    WHERE chosen->>'language'=declared.language)<>2\n    OR (SELECT count(DISTINCT chosen->>'contractSha256') FROM jsonb_array_elements(q->'cases') chosen\n     WHERE chosen->>'language'=declared.language)<>1) THEN RETURN false; END IF;\n -- Resolve the full versioned contract, never the first matching id.\n -- A permit selects one contract per language through its bound case digests.\n IF EXISTS(SELECT 1 FROM jsonb_array_elements(q->'cases') chosen\n  WHERE (SELECT count(*) FROM jsonb_array_elements(manifest->'contracts') contract\n   WHERE contract->>'id'='platform-units-v1'\n    AND contract->>'digest'=chosen->>'contractSha256'\n    AND contract->>'language'=chosen->>'language'\n    AND contract->>'caseSetSha'=q->>'caseSetSha')<>1) THEN RETURN false; END IF;\n -- Registry case labels are disambiguated by the single contract selected\n -- for each language; duplicate labels within this permit were rejected above.\n FOR expected IN SELECT value FROM jsonb_array_elements(manifest->'cases') WITH ORDINALITY e(value,ord)\n  WHERE q->'languages' ? (value->>'language')\n   AND EXISTS(SELECT 1 FROM jsonb_array_elements(q->'cases') chosen\n    WHERE chosen->>'language'=e.value->>'language'\n     AND chosen->>'contractSha256'=e.value->>'contractSha256')\n  -- Keep the canonical case-label order across languages, even when their\n  -- independently bound contracts select different historical/current versions.\n  ORDER BY (SELECT min(baseline.ord) FROM jsonb_array_elements(manifest->'cases') WITH ORDINALITY baseline(value,ord)\n   WHERE baseline.value->>'caseId'=e.value->>'caseId'),ord LOOP";
+ assert.equal(current.split(versionedLookup).length,2);
+ assert.equal(current.replace('CREATE OR REPLACE FUNCTION','CREATE FUNCTION').replace(versionedLookup,oldLookup),historical);
 });

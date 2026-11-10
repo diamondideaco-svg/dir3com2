@@ -1,6 +1,6 @@
 import { AI2_DABRA_CONVERSATION_COPY } from '../ai2/prompt/contract';
 import { driveQuantities, driveDialogue, driveDialogueCopy, bareDriveParty, dateWithdrawalIndex } from './drive-planning';
-import { CORE_REQUIRED_DIALOGUE_UNITS, conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
+import { CORE_REQUIRED_DIALOGUE_UNITS, conversationIntent, conversationTopicChange, conversationClarification, conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
 import { DRIVE_OFFERS, vehicleFor, vehicleTitle, type DriveOffer } from '../drive/catalog';
 import { serviceEntryHref } from '../marketplace/public-entry';
 import { cairoInstant } from '../drive/search';
@@ -32,11 +32,43 @@ export function normalizePlatformQuery(input: string) {
     .replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
     .replace(/جي\s*كلاس/g, 'g class').replace(/سبورت/g, 'sport').replace(/رينج روفر|رانج روفر|رنج روفر/g, 'range rover').replace(/مرسيدس بنز/g, 'مرسيدس').replace(/رانج|رنج/g, 'رينج').replace(/صاني/g, 'صني').replace(/\s+/g, ' ').trim();
 }
+function platformRooms(text:string) {
+  const roomMatches = [...text.matchAll(/(?:^|\s)([1-8])\s*(?:rooms?|غرف(?:ه)?)(?=\s|[.,،]|$)/g)];
+  return roomMatches.at(-1)?.[1] ?? (/\bone room\b|غرفه واحده/.test(text) ? '1' : undefined);
+}
 export function platformFamilies(message: string): PlatformFamily[] {
   const text = normalizePlatformQuery(message);
-  return (Object.keys(familyTerms) as PlatformFamily[]).filter(f => familyTerms[f].test(text));
+  const families=(Object.keys(familyTerms) as PlatformFamily[]).filter(f => familyTerms[f].test(text));
+  // A bounded room count is itself a Stay preference, even after old turns leave the transcript window.
+  if (!families.includes('stay') && platformRooms(text)) families.push('stay');
+  return families;
+}
+/** A resume request selects only the separately supplied, server-owned trip. */
+function resumePlatformTripRequested(message: string) {
+  if (newTripRequested(message)) return false;
+  const text = normalizePlatformQuery(message);
+  return /^(?:(?:resume|continue|reopen) (?:my |the )?(?:saved|previous) trip|(?:return|go) (?:back )?to (?:my |the )?(?:saved|previous) trip)\b/.test(text)
+    || /^(?:(?:استانف|استكمل|اكمل|واصل) (?:رحلتي(?: (?:المحفوظه|السابقه))?|الرحله (?:المحفوظه|السابقه))|(?:ارجع|عد) (?:الي )?(?:لرحلتي|للرحله (?:المحفوظه|السابقه)|رحلتي|الرحله (?:المحفوظه|السابقه)))(?=$|[\s.!?؟،;:])/.test(text);
+}
+/** One ephemeral topic boundary for Core planning and provider input, never a saved-trip write. */
+export function platformConversationScope(message: string, history: Turn[] = [], trip?: SavedTrip | null) {
+  const current = conversationTopicChange(message);
+  const currentMessage = current ?? message;
+  if (resumePlatformTripRequested(currentMessage)) return { message: currentMessage, history: [], trip: trip ?? null };
+  if (current !== null) return { message: current || message, history: [], trip: null };
+  const boundary = history.findLastIndex(turn => turn.role === 'user' && (conversationTopicChange(turn.content) !== null
+    || resumePlatformTripRequested(turn.content)));
+  if (boundary >= 0) {
+    const next = conversationTopicChange(history[boundary].content) ?? history[boundary].content;
+    history = [...(next ? [{ role: 'user' as const, content: next }] : []), ...history.slice(boundary + 1)];
+    if (!resumePlatformTripRequested(next)) trip = null;
+  }
+  return { message, history, trip: newTripRequested(message) ? null : trip ?? null };
 }
 export function platformContext(message: string, history: Turn[] = [], trip?: SavedTrip | null) {
+  ({ message, history, trip } = platformConversationScope(message, history, trip));
+  // A conversation turn is not a travel refinement. Saved continuity is untouched.
+  if (conversationIntent(message)) return message;
   // Replay contextual USER answers in order, so an accepted bare count has the
   // same preference semantics as a qualified count on subsequent refinements.
   // The bounded transcript is not mutated and assistant assertions are never facts.
@@ -45,7 +77,17 @@ export function platformContext(message: string, history: Turn[] = [], trip?: Sa
     const content = turn.content.slice(0, 500);
     reconstructed.push({ role: turn.role, content: turn.role === 'user' ? contextualStayGuests(content, reconstructed) ?? contextualDriveParty(content, reconstructed) ?? content : content });
   }
-  const context = preferenceContext(contextualStayGuests(message, reconstructed) ?? contextualDriveParty(message, reconstructed) ?? message, reconstructed);
+  const currentMessage=contextualStayGuests(message,reconstructed) ?? contextualDriveParty(message,reconstructed) ?? message;
+  const currentPreferences=tripPreferences(normalizePlatformQuery(currentMessage));
+  const planningContinuation = /^(?:plan my trip|خطط رحلتي|could you help me arrange things|هل تساعدني في ترتيب التفاصيل)[.!?؟،,;:]*$/.test(normalizePlatformQuery(currentMessage));
+  // Inherit a service only for a bounded planning continuation or preference/answer, not every
+  // unrecognized sentence. Assistant turns indicate question position, not facts.
+  const followup=planningContinuation || resumePlatformTripRequested(currentMessage) || platformFamilies(currentMessage).length>0 || currentPreferences.city || currentPreferences.ambiguous
+    || currentPreferences.hasDates || currentPreferences.partyMentioned || currentPreferences.durationMentioned || currentPreferences.rooms
+    || platformCurrency(currentMessage) || /^(?:yes|no|not sure|نعم|لا|مش عارف|ما ادري)$/.test(normalizePlatformQuery(currentMessage))
+    || /\b(?:cheaper|cheapest|expensive|budget|manual|automatic|sport|quiet|quieter|slower|relaxed|shade|indoor|outdoor|accessible)\b|ارخص|أرخص|اغلى|أغلى|ميزاني|اقتصادي|اهدا|أهدأ|اهدأ|هادئ|هادي|خليه اهدى/.test(normalizePlatformQuery(currentMessage));
+  if (!followup) return currentMessage;
+  const context = preferenceContext(currentMessage, reconstructed);
   if (!trip || newTripRequested(message)) return context;
   // Routing receives the typed trip separately. This projection only supplies
   // non-location preferences; no human-readable summary supplies city roles.
@@ -73,7 +115,9 @@ function preferenceContext(message: string, history: Turn[]) {
     const prior = relevant.slice(0, -1).reverse().find(turn => platformFamilies(turn).length);
     // Retain catalogue refinements (model/budget), but never private/request text.
     if (prior && !/\bREQ-|طلباتي|my requests|operations|\bceo\b/i.test(prior)) {
-      carry.push(current.ambiguous ? platformFamilies(prior).join(' ') : current.city ? withoutRoutingCities(prior) : prior);
+      const priorText=normalizePlatformQuery(prior);
+      const roomRefinement=platformRooms(priorText) && !Object.values(familyTerms).some(term=>term.test(priorText));
+      carry.push(current.ambiguous || roomRefinement ? platformFamilies(prior).join(' ') : current.city ? withoutRoutingCities(prior) : prior);
     }
   }
   if (!current.city && !current.ambiguous) { const city = previous.find(p => p.city || p.ambiguous); if (city?.city) carry.push(`destination: ${city.city}`); }
@@ -149,8 +193,7 @@ function tripPreferences(text: string, trip?: SavedTrip | null) {
   const safeDates = dates.filter(date => validSearchDate(date.slice(0, 10)) && (!date.includes('t') || /t(?:[01]\d|2[0-3]):[0-5]\d$/.test(date)));
   const quantities = driveQuantities(text);
   const party = quantities.party.value ? String(quantities.party.value) : undefined;
-  const roomMatches = [...text.matchAll(/(?:^|\s)([1-8])\s*(?:rooms?|غرف(?:ه)?)(?=\s|[.,،]|$)/g)];
-  const rooms = roomMatches.at(-1)?.[1] ?? (/\bone room\b|غرفه واحده/.test(text) ? '1' : undefined);
+  const rooms=platformRooms(text);
   return { city, ambiguous: roles.ambiguous, dates: !dateWithdrawn && safeDates.length === dates.length ? safeDates : [], hasDates: iso.length > 0 || Boolean(range) || dateWithdrawn, dateWithdrawn, party, rooms,
     partyMentioned: quantities.party.mentioned, durationDays: quantities.days.value, durationMentioned: quantities.days.mentioned };
 }
@@ -202,8 +245,10 @@ function platformDriveDialogue({ message, history, context, trip }: {
 
 /** A single active Drive dialogue can consume its own follow-up without inference. */
 export function hasActivePlatformDriveDialogue(input: Parameters<typeof platformDriveDialogue>[0]) {
-  return platformFamilies(input.context).join(',') === 'drive'
-    && platformDriveDialogue({ ...input, trip: newTripRequested(input.message) ? null : input.trip }) !== null;
+  const scoped = platformConversationScope(input.message, input.history, input.trip);
+  const context = platformContext(scoped.message, scoped.history, scoped.trip);
+  return platformFamilies(context).join(',') === 'drive'
+    && platformDriveDialogue({ ...scoped, context }) !== null;
 }
 /** Approved rate catalogue, never live supplier availability. No network or transaction side effects. */
 export function findPlatformDriveOffers(message: string, pricing?: PlatformPricing, trip?: SavedTrip | null): DriveOffer[] {
@@ -240,7 +285,7 @@ export function findPlatformDriveOffers(message: string, pricing?: PlatformPrici
 
 /** Public DABRA uses platform capabilities only. Environment flags cannot enable a web fallback. */
 export function buildPlatformAssistantResponse(message: string, history: Turn[] = [], locale: Locale = 'ar', now = Date.now(), familyOverride?: PlatformFamily, pricing?: PlatformPricing, trip?: SavedTrip | null) {
-  if (newTripRequested(message)) trip = null;
+  ({ message, history, trip } = platformConversationScope(message, history, trip));
   const context = platformContext(message, history, trip), text = normalizePlatformQuery(context), current = withoutNegativeActions(normalizePlatformQuery(message));
   const ar = locale === 'ar';
   const families = familyOverride ? [familyOverride] : platformFamilies(context);
@@ -256,7 +301,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
   } else if (/pay|payment|ادفع|دفع|تحويل|كاش/.test(current) && !families.length) {
     lines.push(ar ? 'راجع المبلغ وطريقة التحصيل مع العمليات من طلبك. لا أسجّل دفعًا أو تأكيدًا من المحادثة.' : 'Review the amount and collection method with Operations in your request. Chat does not record payment or confirmation.', link(ar ? 'متابعة الطلب' : 'View requests', '/my-requests'));
   } else {
-    if (!families.length && /trip|itinerary|رحله|برنامج|خطه سفر/.test(current)) families.push('drive', 'stay');
+    if (!families.length && /trip|itinerary|رحله|برنامج|خطه سفر|(?:^|[^\p{L}\p{N}_])رحل(?:تي|تنا)(?=$|[^\p{L}\p{N}_])/u.test(current)) families.push('drive', 'stay');
     for (const family of families) {
       const href = platformEntry(family, context, locale, pricing?.currency, trip);
       if (family === 'drive') {
@@ -303,11 +348,13 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
       } else lines.push(ar ? 'راجع عروض VIP المنشورة داخل المنصة. تفاصيل الخدمة والسعر والتوفر تتحدد في العرض ومراجعة العمليات.' : 'Review published VIP options inside dir3com. The listing and Operations review determine details, price and availability.', link(ar ? 'استكشاف VIP' : 'Explore VIP', href));
     }
     const copy = AI2_DABRA_CONVERSATION_COPY[locale];
-    if (!lines.length) {
+    if (!lines.length && history.some(turn=>turn.role==='assistant')) {
+      lines.push(conversationClarification(history,locale));
+    } else if (!lines.length) {
       if (!history.slice(-8).some(turn => turn.role === 'assistant')) lines.push(copy.identity);
       lines.push(copy.serviceQuestion);
       lines.push(link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntry('drive', context, locale, pricing?.currency)), link(ar ? 'بحث الإقامة' : 'Stay search', platformEntry('stay', context, locale, pricing?.currency)), link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
-    } else if (families.length === 1 && (families[0] === 'drive' || families[0] === 'stay') && !(families[0] === 'drive' && drivePlan)) {
+    } else if (!smallTalk && families.length === 1 && (families[0] === 'drive' || families[0] === 'stay') && !(families[0] === 'drive' && drivePlan)) {
       const preferences = tripPreferences(text, trip);
       // Ask for only the next missing preference, using bounded user context.
       if (!preferences.ambiguous) {

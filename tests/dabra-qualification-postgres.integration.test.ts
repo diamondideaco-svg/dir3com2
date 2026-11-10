@@ -21,6 +21,13 @@ const outputForward='20261104133500_task217_output_contract_acceptance.sql',boot
 const subject=fundingSubject('SYNTHETIC-QUALIFICATION'),sourceSha='a'.repeat(40);
 const daily={uniqueUsers:10,requestsPerUser:6,requestsTotal:60,inputTokensPerUser:24576,outputTokensPerUser:6144,inputTokensTotal:245760,outputTokensTotal:61440};
 const sha=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+// These disposable fixtures stop at the historical output-contract manifest.
+// Preserve its complete v1 tuple; current runtime contracts remain unchanged.
+function historicalOutputContract(language:'ar'|'en') {
+ const contract={...canonicalOutputContract('platform-units-v1',language),inputVersion:'server-language-numbered-units-v1'};
+ return Object.freeze({...contract,digest:sha(['task217-canonical-output-contract-v1',contract.id,contract.capability,
+  contract.language,contract.caseSetSha,contract.promptSha256,contract.inputVersion,contract.outputVersion,contract.parserSha256,contract.cases])});
+}
 const sql=(file:string)=>readFileSync(new URL('../supabase/migrations/'+file,import.meta.url),'utf8');
 function target(url:string|undefined) {
  assert.ok(url,'CONTINUITY_TEST_DATABASE_URL required; SQL is never silently skipped');
@@ -38,7 +45,7 @@ function grant(provider:AgentProviderId,languages:readonly ('ar'|'en')[]=['ar','
  const permit={schema:'task217-platform-units-measurement-v1' as const,purpose:'profile-qualification' as const,planId:randomUUID(),sourceSha,
   caseSetSha:PLATFORM_UNITS_CASE_SET_SHA256,subjectHash:subject,languages,authorizedAtMs:at,expiresAtMs:at+600000,inputTokenCeiling:4096,outputTokenCeiling:1024,
   cases:PLATFORM_UNITS_QUALIFICATION_CASES.filter(c=>languages.includes(c.language)).map(c=>({caseId:c.caseId,requestId:randomUUID(),stage:c.stage,language:c.language,
-   inputSha256:qualificationInputSha256(c),contractSha256:canonicalOutputContract('platform-units-v1',c.language).digest}))};
+   inputSha256:qualificationInputSha256(c),contractSha256:historicalOutputContract(c.language).digest}))};
  const unbound:QualificationAccountChargeProof={mode:'bounded-account-qualification',grantId:randomUUID(),provider,model:rate.model,environment:'provider-benchmark',
   accountId:'SYNTHETIC-'+provider,projectId:'SYNTHETIC-project',credentialSha256:'b'.repeat(64),evidenceSha256:'c'.repeat(64),currency:'USD',serviceTier:'standard',pricingEvidenceSha256:rate.sha256,
   accountTerms:{schema:'task217-account-charge-terms-v1',observedAtMs:at-1,evidenceSha256:'d'.repeat(64),validity:'until-contract-change',
@@ -156,7 +163,9 @@ test('real disposable PG qualification delta: exact permit, common lifetime ledg
   await t.test('stored independent mapping binds exact original profile tuple and canonical contract; future install needs no new source PR',async()=>{
    const at=Date.now()-1000,profile={provider:g.proof.provider,measurement:{capability:'discover' as const,language:'ar' as const,model:g.proof.model,environment:'provider-benchmark' as const,
     caseSetSha:PLATFORM_UNITS_CASE_SET_SHA256,sourceSha,cases:2,passed:2,measuredAtMs:at,expiresAtMs:at+600000,latencyMs:1,inputTokenCeiling:4096,outputTokenCeiling:1024,costCeilingUsd:g.cost/1000000}};
-   const receipts=syntheticOutputAcceptances([profile],Date.now());assert.equal(receipts.length,1);
+   const receipts=syntheticOutputAcceptances([profile],Date.now()).map(receipt=>({
+    ...receipt,contractSha256:historicalOutputContract(receipt.language).digest
+   }));assert.equal(receipts.length,1);
    // Synthetic semantic receipt ONLY in this disposable database. No real
    // model/profile/reviewer acceptance is installed by any source/test fixture.
    await client.query('UPDATE private.dabra_dialogue_funding_control SET profiles=$1::jsonb,output_acceptances=$2::jsonb',[JSON.stringify([profile]),JSON.stringify(receipts)]);

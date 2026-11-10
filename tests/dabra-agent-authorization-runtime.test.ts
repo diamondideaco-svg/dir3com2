@@ -1,3 +1,4 @@
+import { syntheticClassifierContext, syntheticClassifierPolicy } from './fixtures/task217-classifier-governance-synthetic';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
@@ -16,9 +17,18 @@ import { isCredentialBindingCoreProject } from '../lib/dabra/credential-binding'
 import { runInternalAgent } from '../lib/dabra/agent';
 import { planInternalAgentTool } from '../lib/dabra/agent-planner';
 
+function planGovernedInternalAgentTool(message: string) {
+ return planInternalAgentTool(message, undefined, {
+  policy: syntheticClassifierPolicy('qa-placeholder'), context: syntheticClassifierContext(),
+ });
+}
+
 function loadModule<T>(file:string, dependencies:Record<string,unknown>):T {
- const require=createRequire(import.meta.url);const exports={};
- runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:(id:string)=>id in dependencies?dependencies[id]:require(id),Date,AbortSignal},{filename:file});
+ const exports={};
+ runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:(id:string)=>{
+  if(Object.hasOwn(dependencies,id))return dependencies[id];
+  throw new Error('Unexpected mapped VM dependency: '+id);
+ },Date,AbortSignal},{filename:file});
  return exports as T;
 }
 const admin=loadModule<typeof import('../lib/auth/admin')>('lib/auth/admin.ts',{
@@ -78,7 +88,11 @@ function setup(config: Fixture) {
   '@/lib/auth/identity':identity,'@/lib/auth/admin':admin,'@/lib/auth/team-access':team,
   '@/lib/marketplace/customer-requests':requests,'./agent-contract':contract,
  };
- runInNewContext(ts.transpileModule(readFileSync('lib/dabra/agent-context.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:(id:string)=>id in dependencies?dependencies[id]:require(id),Date,AbortSignal},{filename:'agent-context.ts'});
+ runInNewContext(ts.transpileModule(readFileSync('lib/dabra/agent-context.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:(id:string)=>{
+  if(Object.hasOwn(dependencies,id))return dependencies[id];
+  if(id==='@/lib/contact/customer-cases-server')return require(id);
+  throw new Error('Unexpected agent-context VM dependency: '+id);
+ },Date,AbortSignal},{filename:'agent-context.ts'});
  const resolve=exports.resolveAgentContext as typeof import('../lib/dabra/agent-context').resolveAgentContext;
  return {seen,resolve:()=>resolve(new NextRequest('http://localhost/api/ai2/chat'))};
 }
@@ -129,9 +143,9 @@ test('optional model classifier has no web tools, no private records, and valida
  try{
   delete process.env.DABRA_INTERNAL_AI_ENABLED;
   globalThis.fetch=async()=>{throw new Error('Disabled model called network');};
-  assert.equal((await planInternalAgentTool('hello')).status,'disabled');
+  assert.equal((await planGovernedInternalAgentTool('hello')).status,'disabled');
   process.env.DABRA_INTERNAL_AI_ENABLED='true';delete process.env.OPENAI_API_KEY;
-  assert.equal((await planInternalAgentTool('hello')).status,'not_configured');
+  assert.equal((await planGovernedInternalAgentTool('hello')).status,'not_configured');
   process.env.OPENAI_API_KEY='qa-placeholder';process.env.DABRA_INTERNAL_AI_MODEL='test-model';
   let content='{"tool":"operations"}';
   globalThis.fetch=async(url,init)=>{
@@ -140,10 +154,10 @@ test('optional model classifier has no web tools, no private records, and valida
    assert.equal(payload.messages[1].content,'show work queue');assert.equal(payload.model,'test-model');
    assert.equal(payload.max_tokens,700);assert.equal(payload.temperature,0);
    assert.equal(payload.max_completion_tokens,undefined);assert.equal(payload.reasoning_effort,undefined);
-   return Response.json({choices:[{message:{content}}]});
+   return Response.json({model:process.env.DABRA_INTERNAL_AI_MODEL,usage:{prompt_tokens:16,completion_tokens:16},choices:[{message:{content}}]});
   };
-  assert.equal((await planInternalAgentTool('show work queue')).tool,'operations');
-  content='{"tool":"executive","role":"ceo"}';assert.equal((await planInternalAgentTool('show work queue')).status,'invalid');
+  assert.equal((await planGovernedInternalAgentTool('show work queue')).tool,'operations');
+  content='{"tool":"executive","role":"ceo"}';assert.equal((await planGovernedInternalAgentTool('show work queue')).status,'invalid');
  }finally{
   globalThis.fetch=originalFetch;
   for(const [key,value]of Object.entries({DABRA_INTERNAL_AI_ENABLED:before.enabled,OPENAI_API_KEY:before.key,DABRA_INTERNAL_AI_MODEL:before.model}))if(value===undefined)delete process.env[key];else process.env[key]=value;
@@ -165,17 +179,17 @@ test('approved GPT-5 classifier uses bounded compatible parameters without retri
    assert.equal(payload.tools,undefined);assert.equal(payload.messages.length,2);
    assert.equal(payload.messages[1].content.length,500);
    assert.ok(init?.signal);
-   return Response.json({choices:[{message:{content:'{"tool":"my_requests"}'}}]});
+   return Response.json({model:process.env.DABRA_INTERNAL_AI_MODEL,usage:{prompt_tokens:16,completion_tokens:16},choices:[{message:{content:'{"tool":"my_requests"}'}}]});
   };
   for(const model of ['gpt-5','gpt-5-2025-08-07','gpt-5-mini','gpt-5-nano']){
    process.env.DABRA_INTERNAL_AI_MODEL=model;
-   const result = await planInternalAgentTool('x'.repeat(600));
+   const result = await planGovernedInternalAgentTool('x'.repeat(600));
    assert.equal(result.tool, 'my_requests'); assert.equal(result.status, 'ok');
    assert.deepEqual(result.attempts, [{ provider: 'openai', model, outcome: 'ok' }]);
   }
   assert.equal(calls,4);
   globalThis.fetch=async()=>{calls++;return Response.json({error:{code:'invalid_request_error'}},{status:400});};
-  const rejected = await planInternalAgentTool('hello');
+  const rejected = await planGovernedInternalAgentTool('hello');
   assert.equal(rejected.tool, null); assert.equal(rejected.status, 'unavailable');
   assert.equal(rejected.attempts?.[0].outcome, 'invalid_request');
   assert.equal(calls,5,'a rejected classifier request is not retried');

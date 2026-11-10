@@ -10,6 +10,8 @@ import { parseCustomerCaseReference } from '../contact/customer-cases';
 
 type Input = {
   message: string; locale: 'ar' | 'en'; history: Array<{ role: 'user' | 'assistant'; content: string }>;
+  /** Constructed by the server after attachment validation; never part of user intent. */
+  serverAttachmentNote?: string;
   context: AgentContext; pricing?: PlatformPricing; intent?: AgentIntent; trip?: SavedTrip | null; needsClarification?: boolean;
 };
 

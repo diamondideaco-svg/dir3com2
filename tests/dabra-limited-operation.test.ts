@@ -75,6 +75,8 @@ function fixture(language: 'ar' | 'en' = 'en', provider: AgentProviderId = 'open
   } }));
   let enabled = true;
   const context = { role: 'customer', taskAuthority: { kind: 'customer', actorId: subject, ownerId: subject },
+    // Both authenticated context and funding RPC belong to this fixture's synthetic database project.
+    isDialogueFundingProjectCurrent: () => true,
     isTaskAuthorityCurrent: async () => { if (fault === 'authority-throws-after-admission' && reservations > 0) throw Error('SYNTHETIC_PRIVATE_DIAGNOSTIC'); return actorCurrent; }, readRequests: async () => ({ kind: 'forbidden' }) };
   const proofRows: unknown[] = [proof];
   const data = { enabled, profiles, proofs: proofRows, maxCostMicros: costMicros, dailyLimits: limits };

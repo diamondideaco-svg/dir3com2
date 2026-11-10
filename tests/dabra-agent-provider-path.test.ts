@@ -1,3 +1,4 @@
+import { SyntheticClassifierAdmission, syntheticClassifierContext, syntheticClassifierPolicy } from './fixtures/task217-classifier-governance-synthetic';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -11,8 +12,15 @@ import { callOpenAICompatibleProvider } from '../lib/ai2/runtime/openai-compatib
 import { CLASSIFIABLE_AGENT_TOOLS, type AgentContext } from '../lib/dabra/agent-contract';
 import { createDabraProviderAttemptAfterResponseScheduler, setDabraProviderAttemptWriterForTests, type DabraProviderAttemptRecord } from '../lib/ai2/observability/provider-attempts';
 
-// Execute the production POST module; only the authenticated actor boundary and
-// provider transport are isolated. Not a claim of live credentials/browser auth.
+function planGovernedInternalAgentTool(message: string, observation?: Parameters<typeof planInternalAgentTool>[1]) {
+  return planInternalAgentTool(message, observation, {
+    policy: syntheticClassifierPolicy('isolated-test-placeholder'), context: syntheticClassifierContext(),
+  });
+}
+
+// Execute the production POST module; authenticated actor, governed synthetic
+// policy/admission and provider transport are isolated. No live approval is installed.
+// The real planner, qualification, proof checks and runtime guards remain active.
 function productPost(role: AgentContext['role'], registerAfterResponse: (task: () => void | Promise<void>) => void = () => {}) {
   const require = createRequire(import.meta.url);
   const exports = {};
@@ -22,10 +30,34 @@ function productPost(role: AgentContext['role'], registerAfterResponse: (task: (
       taskAuthority: role === 'customer' ? { kind: 'customer', actorId: 'authenticated-test-customer', ownerId: 'authenticated-test-customer' } : { kind: 'guest' },
       isTaskAuthorityCurrent: async () => role === 'customer', readRequests: async () => { throw new Error('Unexpected account read'); } }) },
     '@/lib/dabra/agent-planner': { planInternalAgentTool },
+    '@/lib/dabra/agent-dialogue': { getAgentDialoguePolicy: () => syntheticClassifierPolicy('isolated-test-placeholder') },
   };
+  // Exact direct imports of the route VM; transitive Node imports are not sandboxed.
+  const realDependencies: readonly string[] = [
+    '@/lib/dabra/conversation-renderer',
+    '@/lib/dabra/platform-assistant',
+    '@/lib/dabra/chat-response-contract',
+    '@/lib/security/document-validation',
+    '@/lib/dabra/locale-contract',
+    '@/lib/currency/service',
+    '@/lib/currency/display',
+    '@/lib/dabra/agent-contract',
+    '@/lib/dabra/agent-handoff',
+    '@/lib/dabra/continuity-chat',
+    '@/lib/ai2/observability/provider-attempts',
+    '@/lib/dabra/credential-binding',
+    '@/lib/ai2/runtime/agent-provider-dispatch',
+    '@/lib/supabase/server',
+    '@/lib/auth/team-access',
+    '@/lib/dabra/continuity-chat-server',
+  ];
   runInNewContext(ts.transpileModule(readFileSync('app/api/ai2/chat/route.ts', 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { exports, require: (id: string) => dependencies[id] ?? require(id), process, Date }, { filename: 'chat-route.ts' });
+  }).outputText, { exports, require: (id: string) => {
+    if (Object.hasOwn(dependencies, id)) return dependencies[id];
+    if (realDependencies.includes(id)) return require(id);
+    throw new Error('Unexpected route VM dependency: ' + id);
+  }, process, Date }, { filename: 'chat-route.ts' });
   return (exports as typeof import('../app/api/ai2/chat/route')).POST;
 }
 const keys = ['OPENAI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY', 'ANTHROPIC_API_KEY', 'XAI_API_KEY', 'DEEPSEEK_API_KEY', 'QWEN_API_KEY', 'DASHSCOPE_API_KEY', 'MISTRAL_API_KEY'];
@@ -48,9 +80,9 @@ test.afterEach(() => {
   for (const [name, value] of Object.entries(initial)) if (value === undefined) delete process.env[name]; else process.env[name] = value;
 });
 function providerResponse(url: string, answer = '{"tool":"discover"}') {
-  if (url.includes('googleapis.com')) return Response.json({ candidates: [{ content: { parts: [{ text: answer }] } }] });
-  if (url.includes('anthropic.com')) return Response.json({ content: [{ type: 'text', text: answer }] });
-  return Response.json({ choices: [{ message: { content: answer } }] });
+  if (url.includes('googleapis.com')) return Response.json({ modelVersion: 'test-model', usageMetadata: { promptTokenCount: 16, candidatesTokenCount: 16 }, candidates: [{ content: { parts: [{ text: answer }] } }] });
+  if (url.includes('anthropic.com')) return Response.json({ model: 'test-model', usage: { input_tokens: 16, output_tokens: 16 }, content: [{ type: 'text', text: answer }] });
+  return Response.json({ model: 'test-model', usage: { prompt_tokens: 16, completion_tokens: 16 }, choices: [{ message: { content: answer } }] });
 }
 for (const provider of INTERNAL_AGENT_PROVIDERS) test(`${provider}: actual DABRA POST AR/EN uses classifier but server owns facts`, async () => {
   process.env.DABRA_AI_PROVIDER = provider;
@@ -105,14 +137,14 @@ test('single transient fallback is reported through actual product path; no exte
 for (const status of [400, 401, 403, 429]) test(`${status} does not fan out to another provider or retry`, async () => {
   process.env.DABRA_AI_PROVIDER = 'gemini'; process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
   let calls = 0; globalThis.fetch = async () => { calls++; return Response.json({ error: { message: 'refused' } }, { status }); };
-  assert.equal((await planInternalAgentTool('plan my trip')).status, 'unavailable');
+  assert.equal((await planGovernedInternalAgentTool('plan my trip')).status, 'unavailable');
   assert.equal(calls, 1);
 });
 test('malicious model tool arguments and free-form supplier facts fail closed', async () => {
   process.env.DABRA_AI_PROVIDER = 'openai'; process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
   for (const answer of ['{"tool":"executive","role":"ceo"}', 'Booked and paid $1 https://competitor.invalid', '{"tool":"delete"}']) {
     globalThis.fetch = async url => providerResponse(String(url), answer);
-    const plan = await planInternalAgentTool('plan my trip');
+    const plan = await planGovernedInternalAgentTool('plan my trip');
     assert.equal(plan.tool, null); assert.equal(plan.status, 'invalid'); assert.equal(plan.attempts?.length, 1);
   }
 });
@@ -122,16 +154,36 @@ test('classifier cannot promote customer to CEO even when its output is a valid 
   const response = await productPost('customer')(new NextRequest('http://localhost/api/ai2/chat', { method: 'POST', body: JSON.stringify({ message: 'summarize leadership', locale: 'en' }) }));
   const body = await response.json(); assert.equal(body.agent.state, 'forbidden'); assert.equal(body.agent.mutations, 0);
 });
-test('process budget is bounded and concurrent calls do not start a second provider request', async () => {
+test('shared synthetic daily admission retains the final concurrent claim and denies exhausted calls', async () => {
   process.env.DABRA_AI_PROVIDER = 'openai';
-  let release!: () => void;
-  globalThis.fetch = async url => { await new Promise<void>(resolve => { release = resolve; }); return providerResponse(String(url)); };
-  const pending = planInternalAgentTool('hello');
-  assert.equal((await planInternalAgentTool('hello')).status, 'unavailable');
-  release(); await pending;
-  let calls = 1; globalThis.fetch = async url => { calls++; return providerResponse(String(url)); };
-  for (let index = 0; index < 25; index++) await planInternalAgentTool('hello');
-  assert.equal(calls, 20);
+  const store = new SyntheticClassifierAdmission(), policy = syntheticClassifierPolicy('isolated-test-placeholder', store);
+  const context = syntheticClassifierContext();
+  const classify = () => planInternalAgentTool('hello', undefined, { policy, context });
+  assert.equal(policy.daily.requestsPerUser, 6);
+  let calls = 0;
+  globalThis.fetch = async url => { calls++; return providerResponse(String(url)); };
+  for (let index = 0; index < policy.daily.requestsPerUser - 1; index++) assert.equal((await classify()).status, 'ok');
+  let entered!: () => void, release!: () => void;
+  const ready = new Promise<void>(resolve => { entered = resolve; });
+  const held = new Promise<void>(resolve => { release = resolve; });
+  globalThis.fetch = async url => { calls++; entered(); await held; return providerResponse(String(url)); };
+  const pending = classify();
+  try {
+    await Promise.race([ready, pending]);
+    assert.equal(calls, 6); assert.equal(store.reservations.length, 6);
+    const denied = await classify();
+    assert.equal(denied.status, 'unavailable'); assert.equal(denied.tool, null); assert.deepEqual(denied.attempts, []);
+    assert.equal(calls, 6); assert.equal(store.reservations.length, 6);
+  } finally { release(); }
+  assert.equal((await pending).status, 'ok');
+  globalThis.fetch = async url => { calls++; return providerResponse(String(url)); };
+  for (let index = 0; index < 25; index++) {
+    const denied = await classify();
+    assert.equal(denied.status, 'unavailable'); assert.equal(denied.tool, null); assert.deepEqual(denied.attempts, []);
+  }
+  assert.equal(calls, 6); assert.equal(store.reservations.length, 6);
+  assert.equal(store.reservations.reduce((sum, r) => sum + r.inputTokens, 0), 6 * 4096);
+  assert.equal(store.reservations.reduce((sum, r) => sum + r.outputTokens, 0), 6 * 700);
 });
 
 const costSafeFailures = [
@@ -155,7 +207,7 @@ for (const failure of costSafeFailures) test(`${failure.name}: distinguish error
   process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
   let calls = 0;
   globalThis.fetch = async () => { calls++; return Response.json({ error: failure.error }, { status: failure.status }); };
-  const plan = await planInternalAgentTool('plan my trip');
+  const plan = await planGovernedInternalAgentTool('plan my trip');
   assert.equal(plan.attempts?.[0].outcome, failure.category);
   assert.equal(plan.attempts?.length, 1);
   assert.equal(plan.status, 'unavailable');
@@ -322,7 +374,7 @@ for (const provider of ['qwen', 'mistral'] as const) for (const status of [500, 
     assert.equal(oldPlan.status, 'unavailable');
     assert.equal(oldPlannerCalls, 1);
     calls = 0;
-    const plan = await planInternalAgentTool('plan my trip');
+    const plan = await planGovernedInternalAgentTool('plan my trip');
     assert.equal(plan.status, 'unavailable');
     assert.equal(plan.tool, null);
     assert.equal(plan.attempts?.length, 1);
@@ -343,10 +395,10 @@ function task212Queue(timeoutMs = 20) {
   };
 }
 
-function task212Response(provider: string, answer = '{"tool":"discover"}', inputTokens: unknown = 37, outputTokens: unknown = 11) {
-  if (provider === 'gemini') return Response.json({ candidates: [{ content: { parts: [{ text: answer }] } }], usageMetadata: { promptTokenCount: inputTokens, candidatesTokenCount: outputTokens } });
-  if (provider === 'anthropic') return Response.json({ content: [{ type: 'text', text: answer }], usage: { input_tokens: inputTokens, output_tokens: outputTokens } });
-  return Response.json({ choices: [{ message: { content: answer } }], usage: { prompt_tokens: inputTokens, completion_tokens: outputTokens } });
+function task212Response(provider: string, answer = '{"tool":"discover"}', inputTokens: unknown = 37, outputTokens: unknown = 11, model = 'test-model') {
+  if (provider === 'gemini') return Response.json({ modelVersion: model, candidates: [{ content: { parts: [{ text: answer }] } }], usageMetadata: { promptTokenCount: inputTokens, candidatesTokenCount: outputTokens } });
+  if (provider === 'anthropic') return Response.json({ model, content: [{ type: 'text', text: answer }], usage: { input_tokens: inputTokens, output_tokens: outputTokens } });
+  return Response.json({ model, choices: [{ message: { content: answer } }], usage: { prompt_tokens: inputTokens, completion_tokens: outputTokens } });
 }
 
 const task212Keys = [
@@ -420,7 +472,7 @@ test('Task212 transient fallback: exactly two linked observations without extra 
     now += 9;
     return task212Response('gemini');
   };
-  const plan = await planInternalAgentTool('PRIVATE_CUSTOMER_INPUT', q.observation);
+  const plan = await planGovernedInternalAgentTool('PRIVATE_CUSTOMER_INPUT', q.observation);
   assert.equal(plan.status, 'ok');
   assert.equal(calls, 2);
   assert.equal(q.tasks.length, 2);
@@ -453,7 +505,7 @@ for (const [status, error, expected] of [
   const q = task212Queue();
   let calls = 0;
   globalThis.fetch = async () => { calls++; now += 6; return Response.json({ error }, { status }); };
-  const plan = await planInternalAgentTool('PRIVATE_CUSTOMER_INPUT', q.observation);
+  const plan = await planGovernedInternalAgentTool('PRIVATE_CUSTOMER_INPUT', q.observation);
   assert.equal(plan.status, 'unavailable');
   assert.equal(calls, 1);
   await q.flush();
@@ -473,7 +525,7 @@ test('Task212 invalid classifier output is a measured failure and cannot trigger
   const q = task212Queue();
   let calls = 0;
   globalThis.fetch = async () => { calls++; return task212Response('openai', '{"tool":"executive","role":"ceo","text":"PRIVATE_OUTPUT"}'); };
-  const plan = await planInternalAgentTool('PRIVATE_INPUT', q.observation);
+  const plan = await planGovernedInternalAgentTool('PRIVATE_INPUT', q.observation);
   assert.equal(plan.status, 'invalid');
   assert.equal(plan.tool, null);
   assert.equal(calls, 1);
@@ -485,20 +537,34 @@ test('Task212 invalid classifier output is a measured failure and cannot trigger
   assert.doesNotMatch(JSON.stringify(q.records), /PRIVATE_|executive|ceo/);
 });
 
-test('Task212 missing and invalid usage remains unknown; expired official pricing is never treated as zero cost', async () => {
+test('Task212 missing and invalid usage fails closed with retained admission; expired pricing remains unknown', async () => {
   process.env.DABRA_AI_PROVIDER = 'openai';
   process.env.DABRA_INTERNAL_AI_MODEL = 'gpt-4.1-mini';
-  const q = task212Queue();
+  process.env.DABRA_PROVIDER_FALLBACK_ENABLED = 'true';
+  const q = task212Queue(), store = new SyntheticClassifierAdmission();
+  const policy = syntheticClassifierPolicy('isolated-test-placeholder', store), context = syntheticClassifierContext();
+  let calls = 0, cases = 0;
   for (const [input, output, expectedInput, expectedOutput] of [[null, null, null, null], [-1, 11, null, 11], [2.5, 11, null, 11], [37, 11, 37, 11]] as const) {
-    globalThis.fetch = async () => task212Response('openai', '{"tool":"discover"}', input, output);
-    assert.equal((await planInternalAgentTool('hello', q.observation)).status, 'ok');
+    cases++;
+    globalThis.fetch = async () => { calls++; return task212Response('openai', '{"tool":"discover"}', input, output, 'gpt-4.1-mini'); };
+    const valid = input === 37 && output === 11;
+    const plan = await planInternalAgentTool('hello', q.observation, { policy, context });
+    assert.equal(plan.status, valid ? 'ok' : 'invalid'); assert.equal(plan.tool, valid ? 'discover' : null);
+    assert.deepEqual(plan.attempts, [{ provider: 'openai', model: 'gpt-4.1-mini', outcome: valid ? 'ok' : 'invalid' }]);
+    assert.equal(calls, cases); assert.equal(store.reservations.length, cases); assert.equal(q.tasks.length, 1);
     await q.flush();
+    assert.equal(q.records.length, cases);
     const record = q.records.at(-1)!;
+    assert.equal(record.success, valid); assert.equal(record.error_category, valid ? null : 'provider_error');
+    assert.equal(record.fallback_hop, 0); assert.equal(record.fallback_from, null);
     assert.equal(record.input_tokens, expectedInput);
     assert.equal(record.output_tokens, expectedOutput);
     assert.equal(record.estimated_cost_usd, null);
     assert.equal(record.pricing_version, null);
   }
+  assert.equal(cases, 4); assert.equal(calls, 4); assert.equal(store.reservations.length, 4);
+  assert.equal(store.reservations.reduce((sum, r) => sum + r.inputTokens, 0), 4 * 4096);
+  assert.equal(store.reservations.reduce((sum, r) => sum + r.outputTokens, 0), 4 * 700);
 });
 
 test('Task212 skipped disabled, unconfigured, guest and explicit-rule paths never schedule attempts', async () => {
@@ -506,10 +572,10 @@ test('Task212 skipped disabled, unconfigured, guest and explicit-rule paths neve
   let calls = 0;
   globalThis.fetch = async () => { calls++; throw new Error('Unexpected provider call'); };
   process.env.DABRA_INTERNAL_AI_ENABLED = 'false';
-  assert.equal((await planInternalAgentTool('hello', q.observation)).status, 'disabled');
+  assert.equal((await planGovernedInternalAgentTool('hello', q.observation)).status, 'disabled');
   process.env.DABRA_INTERNAL_AI_ENABLED = 'true';
   process.env.DABRA_AI_PROVIDER = 'not-a-provider';
-  assert.equal((await planInternalAgentTool('hello', q.observation)).status, 'not_configured');
+  assert.equal((await planGovernedInternalAgentTool('hello', q.observation)).status, 'not_configured');
   process.env.DABRA_AI_PROVIDER = 'openai';
   for (const [role, message] of [['guest', 'Plan my trip'], ['customer', 'I need a hotel in Cairo']] as const) {
     const response = await productPost(role, q.register)(new NextRequest('http://localhost/api/ai2/chat', { method: 'POST', body: JSON.stringify({ message, locale: 'en' }) }));
@@ -521,24 +587,41 @@ test('Task212 skipped disabled, unconfigured, guest and explicit-rule paths neve
   assert.equal(q.records.length, 0);
 });
 
-test('Task212 concurrent and hourly-budget skips create no phantom observations; actual calls remain capped at20', async () => {
+test('Task212 shared synthetic daily-admission denial creates no phantom observations and retains concurrent claims', async () => {
   process.env.DABRA_AI_PROVIDER = 'openai';
-  const q = task212Queue();
-  let release: () => void = () => { throw new Error('Provider not started'); };
+  const q = task212Queue(), store = new SyntheticClassifierAdmission();
+  const policy = syntheticClassifierPolicy('isolated-test-placeholder', store), context = syntheticClassifierContext();
+  const classify = () => planInternalAgentTool('hello', q.observation, { policy, context });
+  assert.equal(policy.daily.requestsPerUser, 6);
   let calls = 0;
-  globalThis.fetch = async () => { calls++; await new Promise<void>(resolve => { release = resolve; }); return task212Response('openai'); };
-  const pending = planInternalAgentTool('hello', q.observation);
-  assert.equal((await planInternalAgentTool('hello', q.observation)).status, 'unavailable');
-  assert.equal(q.tasks.length, 0);
-  release();
-  assert.equal((await pending).status, 'ok');
   globalThis.fetch = async () => { calls++; return task212Response('openai'); };
-  for (let index = 0; index < 25; index++) await planInternalAgentTool('hello', q.observation);
-  assert.equal(calls, 20);
-  assert.equal(q.tasks.length, 20);
+  for (let index = 0; index < policy.daily.requestsPerUser - 1; index++) assert.equal((await classify()).status, 'ok');
+  assert.equal(q.tasks.length, 5); await q.flush(); assert.equal(q.records.length, 5);
+  let entered!: () => void, release!: () => void;
+  const ready = new Promise<void>(resolve => { entered = resolve; });
+  const held = new Promise<void>(resolve => { release = resolve; });
+  globalThis.fetch = async () => { calls++; entered(); await held; return task212Response('openai'); };
+  const pending = classify();
+  try {
+    await Promise.race([ready, pending]);
+    assert.equal(calls, 6); assert.equal(store.reservations.length, 6);
+    const denied = await classify();
+    assert.equal(denied.status, 'unavailable'); assert.equal(denied.tool, null); assert.deepEqual(denied.attempts, []);
+    assert.equal(q.tasks.length, 0); assert.equal(q.records.length, 5); assert.equal(calls, 6);
+  } finally { release(); }
+  assert.equal((await pending).status, 'ok'); assert.equal(q.tasks.length, 1);
+  globalThis.fetch = async () => { calls++; return task212Response('openai'); };
+  for (let index = 0; index < 25; index++) {
+    const denied = await classify();
+    assert.equal(denied.status, 'unavailable'); assert.equal(denied.tool, null); assert.deepEqual(denied.attempts, []);
+  }
+  assert.equal(calls, 6); assert.equal(q.tasks.length, 1); assert.equal(store.reservations.length, 6);
   await q.flush();
-  assert.equal(q.records.length, 20);
-  assert.equal(new Set(q.records.map(record => record.request_id)).size, 20);
+  assert.equal(q.records.length, 6); assert.equal(q.tasks.length, 0);
+  assert.equal(new Set(q.records.map(record => record.request_id)).size, 6);
+  assert.ok(q.records.every(record => record.success && record.fallback_hop === 0));
+  assert.equal(store.reservations.reduce((sum, r) => sum + r.inputTokens, 0), 6 * 4096);
+  assert.equal(store.reservations.reduce((sum, r) => sum + r.outputTokens, 0), 6 * 700);
 });
 
 test('Task212 a throwing scheduler cannot alter classifier output, release of in-flight guard or provider call count', async () => {
@@ -551,7 +634,7 @@ test('Task212 a throwing scheduler cannot alter classifier output, release of in
   try {
     const observation = { language: 'en' as const, scheduleAttempt: () => { throw new Error('PRIVATE_SCHEDULER_ERROR'); } };
     for (let index = 0; index < 2; index++) {
-      const result = await planInternalAgentTool('PRIVATE_CUSTOMER_INPUT', observation);
+      const result = await planGovernedInternalAgentTool('PRIVATE_CUSTOMER_INPUT', observation);
       assert.equal(result.status, 'ok');
       assert.equal(result.tool, 'discover');
       assert.equal(result.attempts?.length, 1);
@@ -597,7 +680,7 @@ for (const failure of ['insert', 'timeout'] as const) test(`Task212 ${failure} p
   const originalError = console.error;
   console.error = (...args) => { errors.push(args.join(' ')); };
   try {
-    const result = await planInternalAgentTool('PRIVATE_INPUT', q.observation);
+    const result = await planGovernedInternalAgentTool('PRIVATE_INPUT', q.observation);
     assert.equal(result.status, 'ok');
     assert.equal(writes, 0, 'after-response work has not started');
     assert.equal(q.tasks.length, 1);
@@ -621,7 +704,7 @@ test('Task212 provider timeout is observed once and links only the existing sing
     if (String(input).includes('api.openai.com')) throw new Error('aborted PRIVATE_PROVIDER_ERROR');
     return task212Response('gemini');
   };
-  assert.equal((await planInternalAgentTool('PRIVATE_INPUT', q.observation)).status, 'ok');
+  assert.equal((await planGovernedInternalAgentTool('PRIVATE_INPUT', q.observation)).status, 'ok');
   await q.flush();
   assert.equal(calls, 2);
   assert.equal(q.records.length, 2);
@@ -638,7 +721,7 @@ test('Task212 exhausted request deadline produces no observation for a skipped f
   const q = task212Queue();
   let calls = 0;
   globalThis.fetch = async () => { calls++; now += 12000; return Response.json({ error: { message: 'temporary' } }, { status: 503 }); };
-  assert.equal((await planInternalAgentTool('hello', q.observation)).status, 'unavailable');
+  assert.equal((await planGovernedInternalAgentTool('hello', q.observation)).status, 'unavailable');
   await q.flush();
   assert.equal(calls, 1);
   assert.equal(q.records.length, 1);

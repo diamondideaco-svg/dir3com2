@@ -36,7 +36,7 @@ test.beforeEach(()=>{
  };
 });
 test.afterEach(()=>{Date.now=realNow;globalThis.fetch=realFetch;for(const[n,v]of Object.entries(original))if(v===undefined)delete process.env[n];else process.env[n]=v;});
-function actor(subject='synthetic-customer',current=async()=>true):AgentContext{return{role:'customer',taskAuthority:{kind:'customer',actorId:subject,ownerId:subject},isTaskAuthorityCurrent:current,readRequests:async()=>({kind:'forbidden'})};}
+function actor(subject='synthetic-customer',current=async()=>true):AgentContext{return{role:'customer',taskAuthority:{kind:'customer',actorId:subject,ownerId:subject},isTaskAuthorityCurrent:current,isDialogueFundingProjectCurrent:()=>true,readRequests:async()=>({kind:'forbidden'})};}
 function measurement(provider:'openai'|'gemini'='openai',language:'ar'|'en'='en',capability:'discover'|'intent.classify'='discover'):AgentCapabilityProfile{return{provider,measurement:{capability,language,model:'test-model',environment:'synthetic',...syntheticContractMeasurement(capability,language),sourceSha:'b'.repeat(40),measuredAtMs:clock-1,expiresAtMs:clock+600000,latencyMs:provider==='openai'?1:2,inputTokenCeiling:4096,outputTokenCeiling:256,costCeilingUsd:provider==='openai'?0.004608:0}};}
 function evidence(provider:'openai'|'gemini'='openai',ceiling=30000):DialogueFundingProof{
  const base={grantId:provider==='openai'?grantA:grantB,provider,model:'test-model',environment:'synthetic' as const,accountId:'SYNTHETIC-account',projectId:'SYNTHETIC-project',evidenceSha256:'c'.repeat(64),credentialSha256:createHash('sha256').update(credential).digest('hex'),verifiedAtMs:clock-1,expiresAtMs:clock+600000,quotaWindowStartMs:clock-3600000,quotaWindowEndMs:clock+3600000,remainingRequests:1000,remainingInputTokens:1000000,remainingOutputTokens:1000000,autoReload:'off' as const,postpaid:'blocked' as const,overdraft:'blocked' as const,concurrentAccountUsage:'bounded' as const};
@@ -64,7 +64,7 @@ class RpcFixture{
  };
 }
 function policy(fixture=new RpcFixture(),locale:'ar'|'en'='en',proofs:DialogueFundingProof[]=[evidence()]):AgentDialoguePolicy{
- return withSyntheticOutputAcceptances({trial:true,environment:'synthetic',profiles:[measurement('openai',locale),measurement('openai',locale,'intent.classify')],freeProofs:[],daily:PUBLIC_DIALOGUE_DAILY_LIMITS,limits:{maxAttempts:1,maxElapsedMs:12000,maxInputTokens:4096,maxOutputTokens:1024,maxCostUsd:0.004608},funding:{kind:'existing-credit-v2',requestId:randomUUID(),proofs,admission:createFundingDialogueAdmission(fixture.rpc)}});
+ return withSyntheticOutputAcceptances({trial:true,environment:'synthetic',profiles:[measurement('openai',locale),measurement('openai',locale,'intent.classify')],freeProofs:[],daily:PUBLIC_DIALOGUE_DAILY_LIMITS,limits:{maxAttempts:1,maxElapsedMs:12000,maxInputTokens:4096,maxOutputTokens:1024,maxCostUsd:0.004608},funding:{kind:'existing-credit-v2',requestId:randomUUID(),proofs,admission:createFundingDialogueAdmission(fixture.rpc),isCurrent:async(proof,profile,signal)=>!signal.aborted&&fundingProofCurrent(proof,profile,clock)}});
 }
 function handler(p:AgentDialoguePolicy,context=actor()){
  p=withSyntheticOutputAcceptances(p);
@@ -252,8 +252,10 @@ test('Standard tier is explicit only on funded OpenAI/Claude requests; total thi
 });
 test('aborted policy read returns blocked Core policy even if the RPC fixture ignores cancellation',async()=>{
  const c=new AbortController();let calls=0;
- const pending=loadFundingDialoguePolicy(actor(),c.signal,async()=>{calls++;return new Promise(()=>{});});
- await Promise.resolve();c.abort();const p=await pending;
+ let entered!:()=>void;
+ const rpcEntered=new Promise<void>(resolve=>{entered=resolve;});
+ const pending=loadFundingDialoguePolicy(actor(),c.signal,async()=>{calls++;entered();return new Promise(()=>{});});
+ await Promise.race([rpcEntered,pending]);c.abort();const p=await pending;
  assert.equal(p.trial,true);assert.equal(p.profiles.length,0);assert.equal(p.funding?.proofs.length,0);assert.equal(calls,1);
 });
 test('server RPC payload contains hashes and reservation metadata without raw message or actor text',async()=>{
