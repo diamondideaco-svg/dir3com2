@@ -219,6 +219,7 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
     && (!continuous || desired === 'auto' || p.provider === desired));
   const accepts = (p: AgentCapabilityProfile) => funded?.proofs.some(proof => proof.mode === 'bounded-account-charge'
     && (policy.publicMonthly ? policy.publicProfileAuthorized?.(proof,p) === true && p.measurement.expiresAtMs > Date.now() : durableAuthorityAcceptsProfile(proof, p, Date.now()))) === true;
+  let soleConfigurationFailure: ConfigurationFailure | null = null;
   const selection = selectQualifiedAgentCapability(eligible, {
     capability: request.capability, language: locale, environment: policy.environment, nowMs: now, limits: policy.limits, preferCost: policy.publicMonthly,
     ...(continuous ? { acceptExpiredMeasurement: accepts } : {}),
@@ -229,10 +230,13 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
       const proof = funded ? matchingFundingProof(p) : policy.freeProofs.find(proof => matchesProof(proof, p, policy, now));
       // Exclude unconfigured candidates before ranking, without reserving or
       // dispatching to them. The selected binding is still checked afresh below.
-      return !!proof && !runtimeCheck?.({ profile: p, credentialSha256: proof.credentialSha256 });
+      if (!proof) return false;
+      const failure = runtimeCheck?.({ profile: p, credentialSha256: proof.credentialSha256 });
+      if (eligible.length === 1) soleConfigurationFailure = failure ?? null;
+      return !failure;
     },
   });
-  if (selection.kind !== 'selected') { diagnose('provider_selection_unavailable'); return null; }
+  if (selection.kind !== 'selected') { diagnose(soleConfigurationFailure ?? 'provider_selection_unavailable'); return null; }
   const profile: AgentCapabilityProfile = { provider: selection.destination.provider, measurement: selection.destination.measurement };
   // Select the funding mode from this provider/profile, never from a different
   // provider's standing authority. An expired measurement cannot borrow v1 freshness.

@@ -252,8 +252,10 @@ test('Standard tier is explicit only on funded OpenAI/Claude requests; total thi
 });
 test('aborted policy read returns blocked Core policy even if the RPC fixture ignores cancellation',async()=>{
  const c=new AbortController();let calls=0;
- const pending=loadFundingDialoguePolicy(actor(),c.signal,async()=>{calls++;return new Promise(()=>{});});
- await Promise.resolve();c.abort();const p=await pending;
+ let entered!:()=>void;
+ const rpcEntered=new Promise<void>(resolve=>{entered=resolve;});
+ const pending=loadFundingDialoguePolicy(actor(),c.signal,async()=>{calls++;entered();return new Promise(()=>{});});
+ await Promise.race([rpcEntered,pending]);c.abort();const p=await pending;
  assert.equal(p.trial,true);assert.equal(p.profiles.length,0);assert.equal(p.funding?.proofs.length,0);assert.equal(calls,1);
 });
 test('server RPC payload contains hashes and reservation metadata without raw message or actor text',async()=>{

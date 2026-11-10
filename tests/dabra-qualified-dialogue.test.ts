@@ -258,12 +258,16 @@ test('abort stops the same transport signal and suppresses late output without r
   const pending = runInternalAgentTask({ message: messages.en, history: [], locale: 'en', context: actor(), intent: agentIntent(messages.en) }, { dialogue: policy(), signal: controller.signal });
   await ready; controller.abort(); assert.equal((await pending).kind, 'stopped'); assert.equal(remoteCalls, 1);
 });
-test('deadline bounds a hanging provider; only Core fallback survives and no retry starts', async () => {
+test('deadline stops a hanging provider with HTTP409, retained admission and no retry', async () => {
   let aborted = false;
   globalThis.fetch = async (_url, init) => { remoteCalls++; await new Promise<void>((_resolve, reject) => init?.signal?.addEventListener('abort', () => { aborted = true; reject(new Error('aborted')); }, { once: true })); throw new Error('unreachable'); };
-  const p = { ...policy(), limits: { ...policy().limits, maxElapsedMs: 25 } };
-  const body = await (await post(p)).json();
-  assert.equal(body.provider, 'local'); assert.equal(remoteCalls, 1); assert.equal(aborted, true);
+  const store = new SyntheticAdmission(), base = policy('openai', 'en', store);
+  const p = { ...base, limits: { ...base.limits, maxElapsedMs: 25 } };
+  const response = await post(p), body = await response.json();
+  assert.equal(response.status, 409); assert.deepEqual(Object.keys(body), ['error']); assert.equal(typeof body.error, 'string');
+  assert.match(response.headers.get('Cache-Control') ?? '', /private, no-store/);
+  assert.equal(remoteCalls, 1); assert.equal(aborted, true); assert.equal(store.reservations.length, 1);
+  assert.equal(store.reservations[0].inputTokens, 4096); assert.equal(store.reservations[0].outputTokens, 256);
 });
 test('over-ceiling usage is rejected without refund or alternate provider', async () => {
   globalThis.fetch = async url => { remoteCalls++; return responseFor(String(url), '{"opening":"none","paragraphs":[[0]]}', 10000); };
@@ -355,14 +359,17 @@ async function classifiedFetch(url: string | URL | Request, init?: RequestInit) 
   return syntheticFetch(url, init);
 }
 for (const failure of ['no-proof','no-binding','reservation-denied','exhausted-proof'] as const) test('actual handler inference=true: classifier before handoff is governed, ' + failure, async () => {
-  let p = withClassifier(policy());
+  const store = new SyntheticAdmission();
+  let p = withClassifier(policy('openai', 'en', store));
   if (failure === 'no-proof') p = { ...p, freeProofs: [] };
   if (failure === 'no-binding') p = { ...p, admission: undefined };
   if (failure === 'reservation-denied') p = { ...p, admission: { reserve: async () => 'denied' } };
   if (failure === 'exhausted-proof') p = { ...p, freeProofs: p.freeProofs.map(proof => ({ ...proof, remainingRequests: 0 })) };
   globalThis.fetch = classifiedFetch;
   const body = await (await post(p, 'en', actor(), { message: 'Plan my trip' })).json();
-  assert.equal(body.provider, 'local'); assert.equal(body.understanding, 'unavailable'); assert.equal(remoteCalls, 0);
+  assert.equal(body.provider, 'local'); assert.equal(body.understanding, failure === 'no-binding' ? 'internal-rules' : 'unavailable');
+  assert.equal(remoteCalls, 0); assert.equal(store.reservations.length, 0);
+  if (failure === 'no-binding') { assert.equal(body.understandingProvider, undefined); assert.equal(body.agent.mutations, 0); }
 });
 test('classifier AND answer share one per-user counter; client identity/limit fields cannot reset it', async () => {
   const store = new SyntheticAdmission(), p = withClassifier(policy('openai','en',store));
@@ -546,7 +553,7 @@ for (const locale of ['ar','en'] as const) test('Task217 routing delta: actual p
       : {kind:'general-travel',advice:advice[locale][0]}));
   };
   const message=locale==='ar'?'كيف أجهز حقيبة السفر؟':'What should I pack for travel?';
-  const noRemote={...policy('openai',locale),profiles:[],freeProofs:[],admission:undefined};
+  const noRemote={...policy('openai',locale),profiles:[],freeProofs:[]};
   const core=await(await post(noRemote,locale,actor(),{message})).json();
   const body=await(await post(policy('openai',locale),locale,actor(),{
     message,responseContract:'general-travel',mode:'general-travel',
@@ -582,7 +589,7 @@ for(const scenario of platformFollowUps) for(const locale of ['ar','en'] as cons
   const message=locale==='ar'?'خليه أهدأ.':'Make it quieter.';
   const history=[{role:'user',content:scenario.prior[locale]}];
   const base=policy('openai',locale),store=new SyntheticAdmission();
-  const core=await(await post({...base,profiles:[],freeProofs:[],admission:undefined},locale,actor(),{message,history})).json();
+  const core=await(await post({...base,profiles:[],freeProofs:[]},locale,actor(),{message,history})).json();
   assert.ok(core.answer.includes(scenario.question[locale]));
   globalThis.fetch=async(url,init)=>{
     remoteCalls++;const {data,body}=requestData(init);

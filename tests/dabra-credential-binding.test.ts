@@ -225,8 +225,10 @@ test('credential binding: actual GET uses canonical CEO and existing null-subjec
   const rpcCalls: unknown[] = [], authCalls: unknown[] = [];
   const actualRoute = readFileSync(new URL('../app/api/ai2/chat/route.ts', import.meta.url), 'utf8');
   const post = actualRoute.replace(/\r\n/g, '\n').split('\n/** CEO-only, read-only diagnostic;')[0];
-  // Freeze the POST prefix accepted on8069a925; the real read-only GET assertions below remain active.
-  assert.equal(createHash('sha256').update(post).digest('hex'), '45737fdfda452da319619d41af8ca56ed7f47ef555177de867c0d58859bd1a96');
+  // Pin the complete POST prefix at50bf8509bf7f8d4e8f2d0cb909062ce858797b24.
+  // Task217 changed topic scope, governed dialogue and owned-trip revalidation since8069a925.
+  // Baseline maintenance requires independent review of that full delta; GET assertions remain active.
+  assert.equal(createHash('sha256').update(post).digest('hex'), 'f3c7e053a4a2fbf6cba3cd8989dedcccd1282e3f2079c4b3d869e010ac7f6e3e');
   const loaded = compileModule('../app/api/ai2/chat/route.ts', id => {
     if (id === '@/lib/dabra/credential-binding') return credentialBindingModule;
     if (id === '@/lib/ai2/runtime/agent-provider-dispatch') return { internalAgentCredential: () => key };
@@ -243,7 +245,7 @@ test('credential binding: actual GET uses canonical CEO and existing null-subjec
     const originalImports = ['next/server', '@/lib/dabra/platform-assistant', '@/lib/dabra/chat-response-contract',
       '@/lib/security/document-validation', '@/lib/dabra/locale-contract', '@/lib/currency/service',
       '@/lib/currency/display', '@/lib/dabra/agent-contract', '@/lib/dabra/agent-dialogue',
-      '@/lib/dabra/agent-handoff', '@/lib/dabra/continuity-chat'];
+      '@/lib/dabra/agent-handoff', '@/lib/dabra/continuity-chat', '@/lib/dabra/conversation-renderer'];
     if (originalImports.includes(id)) return {};
     throw new Error('UNEXPECTED_ROUTE_DEPENDENCY');
   }, { VERCEL_ENV: 'production', VERCEL_GIT_COMMIT_SHA: sourceSha });
@@ -296,7 +298,7 @@ async function bindingGetForProject(projectHostname: string | null | undefined) 
     if (['next/server', '@/lib/dabra/platform-assistant', '@/lib/dabra/chat-response-contract',
       '@/lib/security/document-validation', '@/lib/dabra/locale-contract', '@/lib/currency/service',
       '@/lib/currency/display', '@/lib/dabra/agent-contract', '@/lib/dabra/agent-dialogue',
-      '@/lib/dabra/agent-handoff', '@/lib/dabra/continuity-chat'].includes(id)) return {};
+      '@/lib/dabra/agent-handoff', '@/lib/dabra/continuity-chat', '@/lib/dabra/conversation-renderer'].includes(id)) return {};
     throw new Error('UNEXPECTED_ROUTE_DEPENDENCY');
   }, { VERCEL_ENV: 'production', VERCEL_GIT_COMMIT_SHA: sourceSha,
     // This independent value deliberately disagrees with the actual client evidence.
