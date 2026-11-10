@@ -89,12 +89,12 @@ for(const locale of ['ar','en'] as const)for(const stream of [false,true])for(co
   const f=fixture();let calls=0;
   globalThis.fetch=async(input,init)=>{calls++;assert.equal(f.reads(),3,'initial continuity read plus pre/post-admission owned-trip revalidation');assert.match(String(input),/chat\/completions$/);assert.doesNotMatch(String(init?.body),/PRIVATE_HISTORY_MARKER|Riyadh|Cairo/);
     return calls===1?Response.json({error:failure.error},{status:failure.status}):Response.json({choices:[{message:{content:'{"tool":"discover"}'}}]});};
-  const response=await f.post(request(locale,stream,locale==='en'?'2 rooms':'2 غرف'));assert.equal(response.status,200);
+  const response=await f.post(request(locale,stream,locale==='en'?'Could you help me arrange things?':'هل تساعدني في ترتيب التفاصيل؟'));assert.equal(response.status,200);
   const text=await answer(response,stream);assert.ok(text.startsWith(locale==='en'?'You can continue through the platform options below':'يمكنك المتابعة عبر خيارات المنصة أدناه'));
-  const params=stayParams(text);assert.equal(params.get('destination'),'riyadh');assert.equal(params.get('checkIn'),'2026-12-12');assert.equal(params.get('checkOut'),'2026-12-14');assert.equal(params.get('adults'),'2');assert.equal(params.get('rooms'),'2');
+  const params=stayParams(text);assert.equal(params.get('destination'),'riyadh');assert.equal(params.get('checkIn'),'2026-12-12');assert.equal(params.get('checkOut'),'2026-12-14');assert.equal(params.get('adults'),'2');assert.equal(params.get('rooms'),'1');
   assert.doesNotMatch(text,/PRIVATE_|Booked|Dubai|booking confirmed/);assert.equal(calls,1);assert.equal(f.reads(),3);assert.equal(trip.rooms,1,'saved snapshot not mutated');
-  const corrected=await f.post(request(locale,stream,locale==='en'?'hotels in Jeddah':'فنادق في جدة',{...trip,rooms:2}));assert.equal(corrected.status,200);
-  const next=stayParams(await answer(corrected,stream));assert.equal(next.get('destination'),'jeddah');assert.equal(next.get('rooms'),'2');assert.equal(next.get('checkIn'),'2026-12-12');assert.equal(calls,1,'explicit service correction adds no classifier inference');assert.equal(f.reads(),4,'explicit correction adds only its initial continuity read');
+  const corrected=await f.post(request(locale,stream,locale==='en'?'hotels in Jeddah, 2 rooms':'فنادق في جدة، 2 غرف',{...trip,rooms:2}));assert.equal(corrected.status,200);
+  const next=stayParams(await answer(corrected,stream));assert.equal(next.get('destination'),'jeddah');assert.equal(next.get('rooms'),'2');assert.equal(next.get('checkIn'),'2026-12-12');assert.equal(calls,1,'explicit service correction adds no classifier inference');assert.equal(f.reads(),4,'explicit correction adds only its initial continuity read');assert.equal(trip.rooms,1,'explicit correction does not mutate saved snapshot');
  });
 }
 for(const locale of ['ar','en'] as const)for(const stream of [false,true])for(const change of ['delete','revoke','expiry','account','read-error'] as const){

@@ -79,9 +79,10 @@ export function platformContext(message: string, history: Turn[] = [], trip?: Sa
   }
   const currentMessage=contextualStayGuests(message,reconstructed) ?? contextualDriveParty(message,reconstructed) ?? message;
   const currentPreferences=tripPreferences(normalizePlatformQuery(currentMessage));
-  // Inherit a service only for a real bounded preference/answer, not every
+  const planningContinuation = /^(?:plan my trip|خطط رحلتي|could you help me arrange things|هل تساعدني في ترتيب التفاصيل)[.!?؟،,;:]*$/.test(normalizePlatformQuery(currentMessage));
+  // Inherit a service only for a bounded planning continuation or preference/answer, not every
   // unrecognized sentence. Assistant turns indicate question position, not facts.
-  const followup=resumePlatformTripRequested(currentMessage) || platformFamilies(currentMessage).length>0 || currentPreferences.city || currentPreferences.ambiguous
+  const followup=planningContinuation || resumePlatformTripRequested(currentMessage) || platformFamilies(currentMessage).length>0 || currentPreferences.city || currentPreferences.ambiguous
     || currentPreferences.hasDates || currentPreferences.partyMentioned || currentPreferences.durationMentioned || currentPreferences.rooms
     || platformCurrency(currentMessage) || /^(?:yes|no|not sure|نعم|لا|مش عارف|ما ادري)$/.test(normalizePlatformQuery(currentMessage))
     || /\b(?:cheaper|cheapest|expensive|budget|manual|automatic|sport|quiet|quieter|slower|relaxed|shade|indoor|outdoor|accessible)\b|ارخص|أرخص|اغلى|أغلى|ميزاني|اقتصادي|اهدا|أهدأ|اهدأ|هادئ|هادي|خليه اهدى/.test(normalizePlatformQuery(currentMessage));
@@ -300,7 +301,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
   } else if (/pay|payment|ادفع|دفع|تحويل|كاش/.test(current) && !families.length) {
     lines.push(ar ? 'راجع المبلغ وطريقة التحصيل مع العمليات من طلبك. لا أسجّل دفعًا أو تأكيدًا من المحادثة.' : 'Review the amount and collection method with Operations in your request. Chat does not record payment or confirmation.', link(ar ? 'متابعة الطلب' : 'View requests', '/my-requests'));
   } else {
-    if (!families.length && /trip|itinerary|رحله|برنامج|خطه سفر/.test(current)) families.push('drive', 'stay');
+    if (!families.length && /trip|itinerary|رحله|برنامج|خطه سفر|(?:^|[^\p{L}\p{N}_])رحل(?:تي|تنا)(?=$|[^\p{L}\p{N}_])/u.test(current)) families.push('drive', 'stay');
     for (const family of families) {
       const href = platformEntry(family, context, locale, pricing?.currency, trip);
       if (family === 'drive') {
