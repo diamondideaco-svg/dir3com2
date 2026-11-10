@@ -23,6 +23,9 @@ const messages = {
 };
 function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing = 'during-await', boundary: Boundary = 'pricing', unknownClaim = false, runtimeSnapshot = false) {
   let clock = start, authorityChecks = 0, dispatches = 0, reservations = 0, heldMicros = 0, telemetry = 0;
+  // Funded phases now validate identity before AND after stored-policy revalidation.
+  // Keep the first pre-claim probe; later probes target the final check in that phase.
+  const authorityBoundary = check === 1 ? 1 : check * 2;
   const external = new AbortController();
   const credential = 'SYNTHETIC-NOT-A-CREDENTIAL', model = 'SYNTHETIC-EXPIRY-MODEL';
   const legacyFields = {
@@ -76,7 +79,7 @@ function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing 
           answer: 'SYNTHETIC Core question', language: locale, provider: 'local', sources: [],
           groundingStatus: 'answered-general', retrievalMode: 'local', agent: { tool: 'discover', role: 'customer', mutations: 0, state: 'needs_info' },
         }) };
-        if (['node:crypto', 'node:diagnostics_channel', './agent-capabilities', './agent-contract', './agent-general-travel', './conversation-renderer'].includes(id)) return require(id);
+        if (['node:crypto', 'node:diagnostics_channel', './agent-capabilities', './agent-contract', './agent-general-travel', './conversation-renderer', './platform-assistant', './public-dialogue-policy', './agent-platform-dialogue'].includes(id)) return require(id);
         throw new Error('Unexpected expiry-fixture dependency: ' + id);
       },
       Date: Clock, URL, Buffer, TextDecoder, AbortController, AbortSignal, setTimeout, clearTimeout, queueMicrotask, console,
@@ -87,12 +90,14 @@ function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing 
   const dialogue = load('agent-dialogue') as typeof import('../lib/dabra/agent-dialogue');
   const handoff = load('agent-handoff') as typeof import('../lib/dabra/agent-handoff');
   const planner = load('agent-planner') as typeof import('../lib/dabra/agent-planner');
+  const funding = load('dialogue-funding') as typeof import('../lib/dabra/dialogue-funding');
   const context: AgentContext = {
     role: 'customer', taskAuthority: { kind: 'customer', actorId: 'SYNTHETIC-customer', ownerId: 'SYNTHETIC-customer' },
     readRequests: async () => ({ kind: 'forbidden' }),
+    isDialogueFundingProjectCurrent: () => true,
     isTaskAuthorityCurrent: async () => {
       authorityChecks++;
-      if (authorityChecks === check) {
+      if (authorityChecks === authorityBoundary) {
         const advance = () => { if (boundary === 'cancel') external.abort(); else clock = at; };
         if (timing === 'during-await') { await Promise.resolve(); advance(); }
         else if (timing === 'after-predicate') queueMicrotask(() => queueMicrotask(advance));
@@ -122,7 +127,7 @@ function fixture(locale: 'ar' | 'en', at: number, check: number, timing: Timing 
       ...(runtimeSnapshot ? { pricingVerification: { schema: 'standard-pricing-verification-v1', snapshotSha256: pricingEvidenceSha256,
         sourceUrl: fields.sourceUrl, inputMicrosPerMillion: fields.inputMicrosPerMillion, outputMicrosPerMillion: fields.outputMicrosPerMillion,
         observedAtMs: start - 2, evidenceSha256: '9'.repeat(64) } } : {}),
-    }], admission: { reserve: async (request, signal) => {
+    }], isCurrent: async (proof, profile, signal) => !signal.aborted && funding.fundingProofCurrent(proof, profile, clock), admission: { reserve: async (request, signal) => {
       assert.equal(signal.aborted, false);
       if (runtimeSnapshot) {
         assert.ok(request.proof.mode === 'existing-credit');
@@ -151,7 +156,7 @@ for (const locale of ['ar', 'en'] as const) {
       const f = fixture(locale, at, 3);
       const result = await f.run();
       assert.equal(result.kind, 'response'); // Core remains available; response/HTTP success alone is not the assertion.
-      assert.equal(f.counts.authorityChecks, 4);
+      assert.equal(f.counts.authorityChecks, 7);
       assert.equal(f.counts.dispatches, 0);
       assert.equal(f.counts.reservations, 1); assert.equal(f.counts.heldMicros, 4608);
     });

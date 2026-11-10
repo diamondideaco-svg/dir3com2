@@ -219,7 +219,7 @@ test('only a matching enabled server grant loads a measurement; profile-shaped C
 test('permit and financial quote do not bypass the ordinary qualified-profile guard', async () => {
   const f = fixture(), now = Date.now();
   const context = { role: 'customer' as const, taskAuthority: { kind: 'customer' as const, actorId: subject, ownerId: subject },
-    readRequests: async () => ({ kind: 'forbidden' as const }), isTaskAuthorityCurrent: async () => true };
+    readRequests: async () => ({ kind: 'forbidden' as const }), isTaskAuthorityCurrent: async () => true, isDialogueFundingProjectCurrent: () => true };
   const result = await prepareAgentProviderAttempt(context, 'en', {
     trial: true, environment: 'provider-benchmark', profiles: [], freeProofs: [], daily: f.plan.daily,
     limits: { maxAttempts: 1, maxElapsedMs: 12000, maxInputTokens: 4096, maxOutputTokens: 1024, maxCostUsd: 1 },

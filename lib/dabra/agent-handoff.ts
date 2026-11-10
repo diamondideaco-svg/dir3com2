@@ -1,10 +1,11 @@
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { runInternalAgent } from './agent';
+import { platformConversationScope } from './platform-assistant';
 import { composePlatformDialogue } from './agent-platform-dialogue';
 import { parseGeneralTravelAdvice } from './agent-general-travel';
 import { callInternalAgentProvider } from '../ai2/runtime/agent-provider-dispatch';
-import { agentAttemptConfiguration, preparePublicAgentDialogue, composePublicAgentDialogue, DEFAULT_AGENT_DIALOGUE_POLICY, type AgentDialoguePolicy, type AgentDialogueResponseContract } from './agent-dialogue';
+import { agentAttemptConfiguration, preparePublicAgentDialogue, composePublicAgentDialogue, isAgentTaskAuthorityCurrent, DEFAULT_AGENT_DIALOGUE_POLICY, type AgentDialoguePolicy, type AgentDialogueResponseContract } from './agent-dialogue';
 import { selectQualifiedAgentCapability, type AgentCapabilityProfile, type CapabilityMeasurement, type QualifiedAgentDestination, type AgentProviderId } from './agent-capabilities';
 import { AGENT_TOOLS, agentIntent, type AgentIntent, type AgentTaskScope, agentProductRole, type AgentTaskSpec, type AgentTaskAuthority, type AgentTaskState,
   type AgentTaskBlockReason, type AgentTaskEvidence, type AgentTaskConsumption, type AgentTaskAccounting } from './agent-contract';
@@ -243,6 +244,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
   signal?: AbortSignal; coordinator?: AgentTaskCoordinator; id?: string; idempotencyKey?: string; dialogue?: AgentDialoguePolicy;
   responseContract?: AgentDialogueResponseContract;
 } = {}): Promise<AgentCoreTaskResult> {
+  input = { ...input, ...platformConversationScope(input.message, input.history, input.trip) };
   const intent = input.intent ?? agentIntent(input.message);
   const actor = input.context.taskAuthority ?? { kind: 'guest' as const };
   const scope = privateTaskScope(intent, actor);
@@ -323,7 +325,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
           && Number.isSafeInteger(reply.inputTokens) && Number.isSafeInteger(reply.outputTokens)
           && reply.inputTokens! >= 0 && reply.outputTokens! >= 0) {
           if (reply.inputTokens! > m.inputTokenCeiling || reply.outputTokens! > m.outputTokenCeiling) throw new Error('task_budget');
-          const answer = plan.mode === 'platform-dialogue' ? composePlatformDialogue(reply.answer,plan.units,input.locale) : plan.mode === 'general-travel'
+          const answer = plan.mode === 'platform-dialogue' ? composePlatformDialogue(reply.answer,plan.units,input.locale,plan.guidanceOptions) : plan.mode === 'general-travel'
             ? parseGeneralTravelAdvice(reply.answer, input.locale)
             : composePublicAgentDialogue(reply.answer, plan.units, input.locale);
           if (answer) composed = plan.mode === 'general-travel'
@@ -335,7 +337,12 @@ export async function runInternalAgentTask(input: CoreInput, options: {
           inputDigest: task.inputDigest, outputDigest: agentArtifactDigest(composed ?? null), source: 'qualified-adapter' } };
       },
     });
-    if (options.signal?.aborted || !await input.context.isTaskAuthorityCurrent!()) return { kind: 'stopped', task: dialogue.state };
+    // The coordinator's execution signal is closed on completion; the plan retains the request deadline.
+    const responseStopped = () => options.signal?.aborted || plan.signal.aborted || Date.now() >= plan.deadlineAtMs;
+    try {
+      if (responseStopped() || !await isAgentTaskAuthorityCurrent(input.context, plan.signal) || responseStopped())
+        return { kind: 'stopped', task: dialogue.state };
+    } catch { return { kind: 'stopped', task: dialogue.state }; }
     if (dialogue.kind === 'completed') return { kind: 'response', response: dialogue.output, task: dialogue.state };
     return { kind: 'response', response: result.output, task: result.state, dialogueTask: dialogue.state };
   }

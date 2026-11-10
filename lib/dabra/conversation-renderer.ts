@@ -31,6 +31,15 @@ export function serverReplyLink(label: string, href: string): ServerReplySegment
 
 export const PLATFORM_CHARACTER_VERSION = AI2_DABRA_PROMPT_VERSION;
 
+/** Explicit abandonment only. A compound turn retains its new question. */
+export function conversationTopicChange(message: string): string | null {
+  const text = message.normalize('NFKC').replace(/[\u064b-\u065f\u0670\u0640]/g, '').toLowerCase().replace(/[أإآ]/g, 'ا').trim().replace(/[!?.؟]+$/g, '').trim();
+  const prefix = /^(?:(?:stop|drop|forget|leave) (?:the )?(?:hotel|car|trip|previous) (?:topic|discussion)|stop talking about (?:the )?(?:hotel|car|trip)|وقف موضوع (?:الفندق|السيارة|الرحلة)|خلص موضوع (?:الفندق|السيارة|الرحلة)|غير الموضوع|i am asking something else|let[’']?s change the subject)(?=$|[\s.!?؟،;:])/i.exec(text);
+  if (!prefix) return null;
+  const rest = text.slice(prefix[0].length).replace(/^[\s.!?؟،;:]+/, '');
+  return rest.replace(/^(?:and\s+)?(?:let(?:[’']s| us)\s+(?:talk\s+about|discuss)\s+)|^(?:و\s*)?(?:خلينا|دعنا)\s+(?:نحكي|نتكلم|نتحدث)\s+(?:عن|في)\s+|^and\s+/i, '').trim();
+}
+
 /** Current-turn dialogue takes precedence over inherited catalogue preferences. */
 export function conversationIntent(message: string) {
   const text = message.normalize('NFKC').replace(/[\u064b-\u065f\u0670\u0640]/g, '').toLowerCase().replace(/[أإآ]/g, 'ا').trim().replace(/[!?.؟]+$/g, '').trim();
@@ -38,7 +47,7 @@ export function conversationIntent(message: string) {
   if (/^(?:how are you|كيف حالك|كيفك|عامل ايه|شلونك)$/.test(text)) return 'social';
   if (/^(?:why (?:do you|are you) (?:keep )?repeating(?: yourself| the same (?:answer|reply))?|ليش بتكرر نفس الرد|ليه بتكرر نفس الرد|ليش تكرر نفس الرد)$/.test(text)) return 'repair';
   if (/^(?:explain(?: that| it)?(?: to me)?|طيب فهمني|فهمني|وضح لي)$/.test(text)) return 'explain';
-  if (/^(?:(?:stop|drop|forget) (?:the )?(?:hotel|car|trip|previous) (?:topic|discussion)|stop talking about (?:the )?(?:hotel|car|trip)|وقف موضوع (?:الفندق|السيارة|الرحلة)|خلص موضوع (?:الفندق|السيارة|الرحلة)|غير الموضوع|i am asking something else|let[’']?s change the subject)$/.test(text)) return 'topic_change';
+  if (conversationTopicChange(message) === '') return 'topic_change';
   return null;
 }
 

@@ -1,6 +1,6 @@
 import { AI2_DABRA_CONVERSATION_COPY } from '../ai2/prompt/contract';
 import { driveQuantities, driveDialogue, driveDialogueCopy, bareDriveParty, dateWithdrawalIndex } from './drive-planning';
-import { CORE_REQUIRED_DIALOGUE_UNITS, conversationIntent, conversationClarification, conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
+import { CORE_REQUIRED_DIALOGUE_UNITS, conversationIntent, conversationTopicChange, conversationClarification, conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
 import { DRIVE_OFFERS, vehicleFor, vehicleTitle, type DriveOffer } from '../drive/catalog';
 import { serviceEntryHref } from '../marketplace/public-entry';
 import { cairoInstant } from '../drive/search';
@@ -43,11 +43,32 @@ export function platformFamilies(message: string): PlatformFamily[] {
   if (!families.includes('stay') && platformRooms(text)) families.push('stay');
   return families;
 }
+/** A resume request selects only the separately supplied, server-owned trip. */
+function resumePlatformTripRequested(message: string) {
+  if (newTripRequested(message)) return false;
+  const text = normalizePlatformQuery(message);
+  return /^(?:(?:resume|continue|reopen) (?:my |the )?(?:saved|previous) trip|(?:return|go) (?:back )?to (?:my |the )?(?:saved|previous) trip)\b/.test(text)
+    || /^(?:(?:استانف|استكمل|اكمل|واصل) (?:رحلتي(?: (?:المحفوظه|السابقه))?|الرحله (?:المحفوظه|السابقه))|(?:ارجع|عد) (?:الي )?(?:لرحلتي|للرحله (?:المحفوظه|السابقه)|رحلتي|الرحله (?:المحفوظه|السابقه)))(?=$|[\s.!?؟،;:])/.test(text);
+}
+/** One ephemeral topic boundary for Core planning and provider input, never a saved-trip write. */
+export function platformConversationScope(message: string, history: Turn[] = [], trip?: SavedTrip | null) {
+  const current = conversationTopicChange(message);
+  const currentMessage = current ?? message;
+  if (resumePlatformTripRequested(currentMessage)) return { message: currentMessage, history: [], trip: trip ?? null };
+  if (current !== null) return { message: current || message, history: [], trip: null };
+  const boundary = history.findLastIndex(turn => turn.role === 'user' && (conversationTopicChange(turn.content) !== null
+    || resumePlatformTripRequested(turn.content)));
+  if (boundary >= 0) {
+    const next = conversationTopicChange(history[boundary].content) ?? history[boundary].content;
+    history = [...(next ? [{ role: 'user' as const, content: next }] : []), ...history.slice(boundary + 1)];
+    if (!resumePlatformTripRequested(next)) trip = null;
+  }
+  return { message, history, trip: newTripRequested(message) ? null : trip ?? null };
+}
 export function platformContext(message: string, history: Turn[] = [], trip?: SavedTrip | null) {
+  ({ message, history, trip } = platformConversationScope(message, history, trip));
   // A conversation turn is not a travel refinement. Saved continuity is untouched.
   if (conversationIntent(message)) return message;
-  const boundary = history.findLastIndex(turn => turn.role === 'user' && conversationIntent(turn.content) === 'topic_change');
-  if (boundary >= 0) { history = history.slice(boundary + 1); trip = null; }
   // Replay contextual USER answers in order, so an accepted bare count has the
   // same preference semantics as a qualified count on subsequent refinements.
   // The bounded transcript is not mutated and assistant assertions are never facts.
@@ -60,7 +81,7 @@ export function platformContext(message: string, history: Turn[] = [], trip?: Sa
   const currentPreferences=tripPreferences(normalizePlatformQuery(currentMessage));
   // Inherit a service only for a real bounded preference/answer, not every
   // unrecognized sentence. Assistant turns indicate question position, not facts.
-  const followup=platformFamilies(currentMessage).length>0 || currentPreferences.city || currentPreferences.ambiguous
+  const followup=resumePlatformTripRequested(currentMessage) || platformFamilies(currentMessage).length>0 || currentPreferences.city || currentPreferences.ambiguous
     || currentPreferences.hasDates || currentPreferences.partyMentioned || currentPreferences.durationMentioned || currentPreferences.rooms
     || platformCurrency(currentMessage) || /^(?:yes|no|not sure|نعم|لا|مش عارف|ما ادري)$/.test(normalizePlatformQuery(currentMessage))
     || /\b(?:cheaper|cheapest|expensive|budget|manual|automatic|sport|quiet|quieter|slower|relaxed|shade|indoor|outdoor|accessible)\b|ارخص|أرخص|اغلى|أغلى|ميزاني|اقتصادي|اهدا|أهدأ|اهدأ|هادئ|هادي|خليه اهدى/.test(normalizePlatformQuery(currentMessage));
@@ -223,8 +244,10 @@ function platformDriveDialogue({ message, history, context, trip }: {
 
 /** A single active Drive dialogue can consume its own follow-up without inference. */
 export function hasActivePlatformDriveDialogue(input: Parameters<typeof platformDriveDialogue>[0]) {
-  return platformFamilies(input.context).join(',') === 'drive'
-    && platformDriveDialogue({ ...input, trip: newTripRequested(input.message) ? null : input.trip }) !== null;
+  const scoped = platformConversationScope(input.message, input.history, input.trip);
+  const context = platformContext(scoped.message, scoped.history, scoped.trip);
+  return platformFamilies(context).join(',') === 'drive'
+    && platformDriveDialogue({ ...scoped, context }) !== null;
 }
 /** Approved rate catalogue, never live supplier availability. No network or transaction side effects. */
 export function findPlatformDriveOffers(message: string, pricing?: PlatformPricing, trip?: SavedTrip | null): DriveOffer[] {
@@ -261,7 +284,7 @@ export function findPlatformDriveOffers(message: string, pricing?: PlatformPrici
 
 /** Public DABRA uses platform capabilities only. Environment flags cannot enable a web fallback. */
 export function buildPlatformAssistantResponse(message: string, history: Turn[] = [], locale: Locale = 'ar', now = Date.now(), familyOverride?: PlatformFamily, pricing?: PlatformPricing, trip?: SavedTrip | null) {
-  if (newTripRequested(message)) trip = null;
+  ({ message, history, trip } = platformConversationScope(message, history, trip));
   const context = platformContext(message, history, trip), text = normalizePlatformQuery(context), current = withoutNegativeActions(normalizePlatformQuery(message));
   const ar = locale === 'ar';
   const families = familyOverride ? [familyOverride] : platformFamilies(context);

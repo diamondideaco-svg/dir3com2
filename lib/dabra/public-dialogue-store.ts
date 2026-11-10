@@ -3,7 +3,7 @@ import {isDeepStrictEqual} from 'node:util';
 import {supabaseAdmin} from '../supabase/server';
 import {publicDialogueActor,PUBLIC_DIALOGUE_POLICY} from './public-dialogue-policy';
 import type {AgentContext} from './agent-contract';
-import {DEFAULT_AGENT_DIALOGUE_POLICY,type AgentDialoguePolicy} from './agent-dialogue';
+import {DEFAULT_AGENT_DIALOGUE_POLICY,isAgentTaskAuthorityCurrent,type AgentDialoguePolicy} from './agent-dialogue';
 import {validDurableAccountChargeProof,durableProfileSha256,type DurableAccountChargeProof} from './dialogue-durable-authority';
 import {canonicalOutputContract,profileOutputAccepted} from './agent-output-contract';
 import {publicPricingObservationCurrent,refreshPublicDialoguePricing} from './dialogue-pricing-refresh';
@@ -28,40 +28,42 @@ export async function loadPublicDialoguePolicy(context:AgentContext|undefined,si
  const blocked:AgentDialoguePolicy={...DEFAULT_AGENT_DIALOGUE_POLICY,trial:true,publicMonthly:true,profiles:[],outputAcceptances:[],
   limits:{...DEFAULT_AGENT_DIALOGUE_POLICY.limits,maxCostUsd:PUBLIC_DIALOGUE_POLICY.accountMonthlyCostMicros/1_000_000}};
  const actor=context&&publicDialogueActor(context);
- if(!actor||!uuid(actor)||!uuid(requestId)||signal?.aborted)return blocked;
+ const projectCurrent=()=>{try{return context?.isDialogueFundingProjectCurrent?.()===true;}catch{return false;}};
+ if(!actor||!uuid(actor)||!uuid(requestId)||signal?.aborted||!projectCurrent())return blocked;
  const read=async(currentSignal:AbortSignal)=>{
+  if(currentSignal.aborted||!projectCurrent())return null;
   let stop:(()=>void)|undefined;
   const aborted=new Promise<{data:unknown;error:unknown}>(resolve=>{stop=()=>resolve({data:null,error:'aborted'});if(currentSignal.aborted)stop();else currentSignal.addEventListener('abort',stop,{once:true});});
   const result=await Promise.race([rpc('get_dabra_public_dialogue_policy',{p_actor_id:actor},currentSignal),aborted]).finally(()=>{if(stop)currentSignal.removeEventListener('abort',stop);});
-  if(currentSignal.aborted||result.error||!object(result.data)||result.data.policyId!==PUBLIC_DIALOGUE_POLICY.id||!Array.isArray(result.data.authorities)||result.data.authorities.length>56)return null;
+  if(currentSignal.aborted||!projectCurrent()||result.error||!object(result.data)||result.data.policyId!==PUBLIC_DIALOGUE_POLICY.id||!Array.isArray(result.data.authorities)||result.data.authorities.length>56)return null;
   // Reject the affected provider/profile without hiding independent valid authorities.
   return result.data.authorities.filter((v):v is Authority=>authority(v,Date.now()));
  };
  try {
   const bounded=AbortSignal.any([AbortSignal.timeout(1000),...(signal?[signal]:[])]);
-  if(!await context!.isTaskAuthorityCurrent!())return blocked;
+  if(!await isAgentTaskAuthorityCurrent(context,bounded)||bounded.aborted||!projectCurrent())return blocked;
   const authorities=await read(bounded);
-  if(!authorities||bounded.aborted||!await context!.isTaskAuthorityCurrent!())return blocked;
+  if(!authorities||bounded.aborted||!await isAgentTaskAuthorityCurrent(context,bounded)||bounded.aborted||!projectCurrent())return blocked;
   // Strong routing requires a separately demonstrated need. No automatic Sonnet
   // quota, fixed split or fallback is inferred from the public budget approval.
   const eligible=authorities.filter(a=>a.model_tier==='economy');
   const forProfile=(proof:DurableAccountChargeProof,profile:AgentCapabilityProfile)=>eligible.find(a=>a.source_grant_id===proof.grantId&&isDeepStrictEqual(a.source_proof,proof)&&durableProfileSha256(a.profile)===durableProfileSha256(profile));
   return {...blocked,profiles:eligible.map(a=>a.profile),outputAcceptances:eligible.map(a=>a.output_acceptance),
-   publicProfileAuthorized:(proof,profile)=>proof.mode==='bounded-account-charge'&&!!forProfile(proof,profile),
+   publicProfileAuthorized:(proof,profile)=>projectCurrent()&&proof.mode==='bounded-account-charge'&&!!forProfile(proof,profile),
    funding:{kind:'public-monthly-v1',requestId,proofs:eligible.map(a=>a.source_proof),refreshPricing:refreshPublicDialoguePricing,
     async isCurrent(proof,profile,currentSignal){
      const fresh=await read(currentSignal);return !!fresh&&isDeepStrictEqual(fresh,authorities)&&proof.mode==='bounded-account-charge'&&!!forProfile(proof,profile);
     },
     admission:{async reserve(r,currentSignal){
      try {
-      if(currentSignal.aborted||r.policyId!=='dabra-public-monthly-v1'||r.stage!=='discover'||r.subject!==actor||r.requestId!==requestId
+      if(currentSignal.aborted||!projectCurrent()||r.policyId!=='dabra-public-monthly-v1'||r.stage!=='discover'||r.subject!==actor||r.requestId!==requestId
        ||r.proof.mode!=='bounded-account-charge'||!r.pricing||!publicPricingObservationCurrent(r.pricing.observation,r.proof,Date.now()))return {kind:'denied'};
       const matches=eligible.filter(a=>a.source_grant_id===r.proof.grantId&&a.output_acceptance&&durableProfileSha256(a.profile)===r.pricing!.profileSha256);
       if(matches.length!==1)return {kind:'denied'};
       const a=matches[0],execution={schema:'dabra-public-execution-v1',authorityId:a.id,profileSha256:r.pricing.profileSha256,attemptId:r.attemptId,requestId:r.requestId,observation:r.pricing.observation};
       const {data,error}=await rpc('reserve_dabra_public_dialogue_attempt',{p_attempt_id:r.attemptId,p_request_id:r.requestId,p_actor_id:actor,p_authority_id:a.id,p_execution:execution,p_input_tokens:r.inputTokens,p_output_tokens:r.outputTokens,p_cost_micros:r.costMicros},currentSignal);
       // One RPC only. Unknown/late replies preserve any committed hold.
-      if(currentSignal.aborted||error||!object(data)||data.decision!=='admitted'||data.attempt_id!==r.attemptId||typeof data.pricing_expires_at_ms!=='number'||!Number.isSafeInteger(data.pricing_expires_at_ms)||data.pricing_expires_at_ms<=Date.now())return {kind:'denied'};
+      if(currentSignal.aborted||!projectCurrent()||error||!object(data)||data.decision!=='admitted'||data.attempt_id!==r.attemptId||typeof data.pricing_expires_at_ms!=='number'||!Number.isSafeInteger(data.pricing_expires_at_ms)||data.pricing_expires_at_ms<=Date.now())return {kind:'denied'};
       return {kind:'admitted',attemptId:r.attemptId,pricingExpiresAtMs:data.pricing_expires_at_ms};
      }catch{return {kind:'denied'};}
     }}},

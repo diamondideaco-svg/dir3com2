@@ -12,13 +12,20 @@ function topic(text: string): Topic | null {
   if (/\b(?:travel advice|travel tips|trip advice|prepare for travel)\b|نصائح.*سفر|استعد.*سفر/.test(text)) return 'preparation';
   return null;
 }
-export function redactPublicTravelText(value: string) {
+/** No truncation: also used to inspect the complete serialized provider payload. */
+export function redactPublicTravelSensitiveText(value: string) {
   // Known credential formats are removed before BOTH trial classifier and
   // general-answer dispatch. This is a narrow boundary, not a secrets scanner.
   const withoutCredentials = value
+    .replace(/\b(?:sk-[a-z0-9_-]+|sb_secret_[a-z0-9_-]+|AIza[a-z0-9_-]{20,}|gh[pousr]_[a-z0-9_]+|github_pat_[a-z0-9_]+|xox[bp]-[a-z0-9-]+|sk_live_[a-z0-9_]+|AKIA[a-z0-9]{16})/gi, '[redacted]')
+    .replace(/\bxai-[a-z0-9_-]{20,}(?![a-z0-9_-])/gi, '[redacted]')
+    .replace(/\beyJ[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+/gi, '[redacted]')
     .replace(/(?:\bauthorization\s*[:=]\s*)?\bbearer\s+[^\s,;<>"']+/gi, '[redacted]')
     .replace(/["']?\b(?:password|api[_-]?key|client[_-]?secret)["']?\s*[:=]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;&<>"']+)/gi, '[redacted]');
-  return withoutCredentials.replace(/\b(?:my name is|my account id is)\s+[^.!?\n]{1,100}|(?:اسمي|معرف حسابي)\s+[^.؟!\n]{1,100}/gi, '[redacted]').replace(/https?:\/\/\S+|www\.\S+|[\w.+-]+@[\w.-]+\.[a-z]{2,}|\bREQ-[A-Z0-9]+\b|\b[0-9a-f]{8}-[0-9a-f-]{27,}\b|\+?[\d\u0660-\u0669\u06f0-\u06f9][\d\u0660-\u0669\u06f0-\u06f9 ()-]{6,}/gi, '[redacted]')
+  return withoutCredentials.replace(/\b(?:my name is|my account id is)\s+[^.!?\n]{1,100}|(?:اسمي|معرف حسابي)\s+[^.؟!\n]{1,100}/gi, '[redacted]').replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}|\bREQ-[A-Z0-9]+\b|\b[0-9a-f]{8}-[0-9a-f-]{27,}\b|\+?[\d\u0660-\u0669\u06f0-\u06f9][\d\u0660-\u0669\u06f0-\u06f9 ()-]{6,}/gi, '[redacted]');
+}
+export function redactPublicTravelText(value: string) {
+  return redactPublicTravelSensitiveText(value).replace(/https?:\/\/\S+|www\.\S+/gi, '[redacted]')
     .replace(/<[^>]*>|[\u0000-\u001f]/g, ' ').trim().slice(0, 500);
 }
 export type GeneralTravelContext = Readonly<{

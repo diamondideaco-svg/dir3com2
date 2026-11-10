@@ -31,6 +31,8 @@ export type AgentContext = {
   taskAuthority?: AgentTaskAuthority;
   taskAuthorityFailure?: 'authentication_required' | 'forbidden' | 'unavailable';
   isTaskAuthorityCurrent?: () => Promise<boolean>;
+  /** Server client provenance only; does not change Core read/tool authority. */
+  isDialogueFundingProjectCurrent?: () => boolean;
   readRequests: (reference: string | null, operational: boolean) => Promise<AgentReadResult>;
   readExecutiveMetrics?: () => Promise<AgentExecutiveReadResult>;
   readContactInbox?: () => Promise<AgentContactInboxReadResult>;

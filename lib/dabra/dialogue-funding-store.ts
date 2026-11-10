@@ -7,7 +7,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { parseFirstProfilePermit, type ApprovedFirstProfilePlan } from './agent-measurement';
 import { supabaseAdmin } from '../supabase/server';
 import { AGENT_PROVIDER_IDS, type AgentCapabilityProfile } from './agent-capabilities';
-import { PUBLIC_DIALOGUE_DAILY_LIMITS, type AgentDialoguePolicy } from './agent-dialogue';
+import { PUBLIC_DIALOGUE_DAILY_LIMITS, isAgentTaskAuthorityCurrent, type AgentDialoguePolicy } from './agent-dialogue';
 import type { AgentContext } from './agent-contract';
 import { validDurableAccountChargeProof } from './dialogue-durable-authority';
 import { refreshPublicDialoguePricing, publicPricingObservationCurrent } from './dialogue-pricing-refresh';
@@ -108,28 +108,44 @@ function proof(value: unknown): value is DialogueFundingProof {
 }
 /** Explicit opt-in only. Missing data/store returns a governed, blocked policy, never the legacy classifier. */
 export async function loadFundingDialoguePolicy(context?: AgentContext, signal?: AbortSignal, rpc: FundingRpc = defaultRpc, requestId?: string): Promise<AgentDialoguePolicy> {
+  const projectCurrent = () => { try { return context?.isDialogueFundingProjectCurrent?.() === true; } catch { return false; } };
+  const projectRpc: FundingRpc = async (name, params, currentSignal) => {
+    if (currentSignal.aborted || !projectCurrent()) return { data: null, error: 'unavailable' };
+    let stop: (() => void) | undefined;
+    const stopped = new Promise<{ data: unknown; error: unknown }>(resolve => {
+      stop = () => resolve({ data: null, error: 'unavailable' });
+      if (currentSignal.aborted) stop(); else currentSignal.addEventListener('abort', stop, { once: true });
+    });
+    try {
+      if (currentSignal.aborted) return { data: null, error: 'unavailable' };
+      // Race the caller's existing deadline even when transport ignores abort.
+      // The pending RPC may already have committed; never retry or release it.
+      const result = await Promise.race([rpc(name, params, currentSignal), stopped]);
+      return currentSignal.aborted || !projectCurrent() ? { data: null, error: 'unavailable' } : result;
+    } finally { if (stop) currentSignal.removeEventListener('abort', stop); }
+  };
   const base: AgentDialoguePolicy = {
     trial: true, environment: 'provider-benchmark', profiles: [], freeProofs: [],
     limits: { maxAttempts: 1, maxElapsedMs: 12000, maxInputTokens: 4096, maxOutputTokens: 1024, maxCostUsd: 0 },
     daily: PUBLIC_DIALOGUE_DAILY_LIMITS,
-    funding: { kind: 'existing-credit-v2', requestId: requestId && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(requestId) ? requestId : randomUUID(), proofs: [], admission: createFundingDialogueAdmission(rpc) },
+    funding: { kind: 'existing-credit-v2', requestId: requestId && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(requestId) ? requestId : randomUUID(), proofs: [], admission: createFundingDialogueAdmission(projectRpc) },
   };
   const actor = context?.taskAuthority;
   if (context?.role !== 'customer' || actor?.kind !== 'customer' || actor.actorId !== actor.ownerId
-    || !/^[a-zA-Z0-9_-]{1,128}$/.test(actor.actorId) || !context.isTaskAuthorityCurrent || signal?.aborted) return base;
+    || !/^[a-zA-Z0-9_-]{1,128}$/.test(actor.actorId) || !context.isTaskAuthorityCurrent || signal?.aborted || !projectCurrent()) return base;
   try {
     const bounded = AbortSignal.any([AbortSignal.timeout(1000), ...(signal ? [signal] : [])]);
-    if (!await context.isTaskAuthorityCurrent()) return base;
+    if (!await isAgentTaskAuthorityCurrent(context, bounded) || bounded.aborted || !projectCurrent()) return base;
     let stop: (() => void) | undefined;
     const stopped = new Promise<{data: unknown; error: unknown}>(resolve => {
       stop = () => resolve({data: null, error: 'aborted'});
       if (bounded.aborted) stop(); else bounded.addEventListener('abort', stop, {once: true});
     });
-    const { data, error } = await Promise.race([rpc('get_dabra_dialogue_funding_policy', { p_subject_hash: fundingSubject(actor.actorId) }, bounded), stopped])
+    const { data, error } = await Promise.race([projectRpc('get_dabra_dialogue_funding_policy', { p_subject_hash: fundingSubject(actor.actorId) }, bounded), stopped])
       .finally(() => { if (stop) bounded.removeEventListener('abort', stop); });
-    if (bounded.aborted || error || !object(data) || data.enabled !== true || !Array.isArray(data.profiles)
+    if (bounded.aborted || !projectCurrent() || error || !object(data) || data.enabled !== true || !Array.isArray(data.profiles)
       || !Array.isArray(data.proofs) || !integer(data.maxCostMicros)
-      || !validFundingDailyLimits(data.dailyLimits,base.limits.maxInputTokens,base.limits.maxOutputTokens) || !await context.isTaskAuthorityCurrent()) return base;
+      || !validFundingDailyLimits(data.dailyLimits,base.limits.maxInputTokens,base.limits.maxOutputTokens) || !await isAgentTaskAuthorityCurrent(context, bounded) || bounded.aborted || !projectCurrent()) return base;
     const outputAcceptances: readonly unknown[] = Array.isArray(data.outputAcceptances) && data.outputAcceptances.length<=28
       ? Object.freeze(JSON.parse(JSON.stringify(data.outputAcceptances))) : [];
     return { ...base, outputAcceptances, daily: Object.freeze({...data.dailyLimits}), profiles: data.profiles.filter(profile),
@@ -138,7 +154,7 @@ export async function loadFundingDialoguePolicy(context?: AgentContext, signal?:
         admission: base.funding!.admission, refreshPricing: refreshPublicDialoguePricing,
         async isCurrent(expectedProof, expectedProfile, currentSignal) {
           try {
-            const fresh = await rpc('get_dabra_dialogue_funding_policy', { p_subject_hash: fundingSubject(actor.actorId) }, currentSignal);
+            const fresh = await projectRpc('get_dabra_dialogue_funding_policy', { p_subject_hash: fundingSubject(actor.actorId) }, currentSignal);
             if (currentSignal.aborted || fresh.error || !object(fresh.data) || fresh.data.enabled !== true
               || !Array.isArray(fresh.data.proofs) || !Array.isArray(fresh.data.profiles)
               || fresh.data.maxCostMicros !== data.maxCostMicros || !samePolicyData(fresh.data.dailyLimits, data.dailyLimits) || !samePolicyData(fresh.data.outputAcceptances ?? [], outputAcceptances)) return false;

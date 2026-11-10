@@ -112,7 +112,7 @@ test('canonical permits reject partial-language, prompt/input/contract/ID swaps 
 test('valid qualification proof does not enter the normal Customer funding loader',async()=>{
  const f=fixture(['en']);
  const policy=await loadFundingDialoguePolicy({role:'customer',taskAuthority:{kind:'customer',actorId:subject,ownerId:subject},
-  isTaskAuthorityCurrent:async()=>true,readRequests:async()=>({kind:'forbidden'})},f.controller.signal,f.rpc,randomUUID());
+  isTaskAuthorityCurrent:async()=>true,isDialogueFundingProjectCurrent:()=>true,readRequests:async()=>({kind:'forbidden'})},f.controller.signal,f.rpc,randomUUID());
  assert.equal(policy.funding?.proofs.length,0);assert.equal(f.counts().dispatches,0);assert.equal(f.counts().claims,0);
 });
 for(const fault of ['lost-claim','expired-receipt','credential','source','revoked','cancel'] as const)test('qualification stops after one reserved/unknown attempt without dispatch or retry: '+fault,async()=>{
