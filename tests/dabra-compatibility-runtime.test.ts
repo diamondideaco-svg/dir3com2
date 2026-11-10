@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server';
 import { planInternalAgentTool } from '../lib/dabra/agent-planner';
 import * as service from '../lib/dabra/continuity-service';
 import * as continuity from '../lib/dabra/continuity-chat';
+import * as continuityContract from '../lib/dabra/continuity-contract';
 import type { SavedTrip } from '../lib/dabra/continuity-contract';
 
 const trip: SavedTrip = { id: '11111111-1111-4111-8111-111111111111', origin: 'Cairo', destination: 'Riyadh', startDate: '2026-12-12', endDate: '2026-12-14', adults: 2, children: 0, rooms: 1, budget: null, currency: 'USD', families: ['stay'] };
@@ -20,6 +21,7 @@ function fixture() {
     '../supabase/server': { createSupabaseRequestClient: async () => ({ user: {id: 'authenticated-A'}, supabase: { rpc: async () => { authReads++; return {data: state.value, error: state.error}; } } }) },
     '../auth/identity': { resolveCanonicalActiveProfile: async () => ({role: state.role}) },
     './continuity-service': service, './continuity-chat': continuity,
+    './continuity-contract': continuityContract,
   };
   const serverExports = {};
   runInNewContext(ts.transpileModule(readFileSync('lib/dabra/continuity-chat-server.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
