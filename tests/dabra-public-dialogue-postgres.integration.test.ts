@@ -65,11 +65,11 @@ test('actual PostgreSQL public monthly policy: atomic caps, role scope, idempote
      assert.equal(await validate(bound(permit)),true);
      if(schema==='task217-platform-dialogue-measurement-v2')dialoguePlans.push(bound(permit));
      // Rebind deliberate mutations so failures prove recipe validation, not merely a stale digest.
-     for(const q of [{...permit,cases:permit.cases.slice(1)},{...permit,cases:[...permit.cases].reverse()},
+     const invalidPermits:QualificationPermit[]=[{...permit,cases:permit.cases.slice(1)},{...permit,cases:[...permit.cases].reverse()},
       {...permit,cases:permit.cases.map(c=>({...c,requestId:permit.cases[0].requestId}))},
       {...permit,cases:permit.cases.map(c=>({...c,inputSha256:'0'.repeat(64)}))},
-      {...permit,cases:permit.cases.map(c=>({...c,contractSha256:canonicalOutputContract(recipe.contractId==='platform-dialogue-v2'?'platform-units-v1':'platform-dialogue-v2',c.language).digest}))}])
-      assert.equal(await validate(bound(q)),false);
+      {...permit,cases:permit.cases.map(c=>({...c,contractSha256:canonicalOutputContract(recipe.contractId==='platform-dialogue-v2'?'platform-units-v1':'platform-dialogue-v2',c.language).digest}))}];
+     for(const invalidPermit of invalidPermits)assert.equal(await validate(bound(invalidPermit)),false);
      if(schema==='task217-platform-dialogue-measurement-v2')assert.equal(await validate(bound({...permit,schema:'task217-platform-units-measurement-v1'})),false);
     }
    }
