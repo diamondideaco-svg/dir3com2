@@ -8,7 +8,7 @@ import {canonicalOutputContract} from '../lib/dabra/agent-output-contract';
 import {durableAuthorityBindingSha256,durableProfileSha256,type DurableAccountChargeProof} from '../lib/dabra/dialogue-durable-authority';
 import {approvedPublicPricingContract} from '../lib/dabra/dialogue-pricing-refresh';
 import {publicDialogueCalendar} from '../lib/dabra/public-dialogue-policy';
-import {qualificationRecipe,qualificationAuthorityBindingSha256,qualificationCaseKey,type QualificationAccountChargeProof} from '../lib/dabra/dialogue-qualification';
+import {qualificationRecipe,qualificationAuthorityBindingSha256,qualificationCaseKey,type QualificationAccountChargeProof,type QualificationPermit} from '../lib/dabra/dialogue-qualification';
 import {qualificationInputSha256} from '../lib/dabra/agent-qualification-cases';
 import {fundingSubject} from '../lib/dabra/dialogue-funding';
 
@@ -55,13 +55,13 @@ test('actual PostgreSQL public monthly policy: atomic caps, role scope, idempote
    for(const schema of ['task217-platform-units-measurement-v1','task217-platform-dialogue-measurement-v2']as const){
     const recipe=qualificationRecipe(schema);assert.ok(recipe);
     for(const languages of [['ar'],['en'],['ar','en']]as const){
-     const permit={schema,purpose:'profile-qualification' as const,planId:randomUUID(),sourceSha:'a'.repeat(40),caseSetSha:recipe.caseSetSha,subjectHash:fundingSubject('SYNTHETIC-DIALOGUE-V2'),languages,
+     const permit:QualificationPermit={schema,purpose:'profile-qualification' as const,planId:randomUUID(),sourceSha:'a'.repeat(40),caseSetSha:recipe.caseSetSha,subjectHash:fundingSubject('SYNTHETIC-DIALOGUE-V2'),languages,
       authorizedAtMs:now-1,expiresAtMs:now+300000,inputTokenCeiling:4096,outputTokenCeiling:1024,
       cases:recipe.cases.filter(c=>languages.some(l=>l===c.language)).map(c=>({caseId:c.caseId,requestId:randomUUID(),stage:c.stage,language:c.language,inputSha256:qualificationInputSha256(c),contractSha256:canonicalOutputContract(recipe.contractId,c.language).digest}))};
      const unbound:QualificationAccountChargeProof={mode:'bounded-account-qualification',grantId:randomUUID(),provider:'openai',model:'gpt-6-luna',environment:'provider-benchmark',accountId:'SYNTHETIC-qualification',projectId:'SYNTHETIC-project',credentialSha256:'b'.repeat(64),evidenceSha256:'c'.repeat(64),currency:'USD',serviceTier:'standard',pricingEvidenceSha256:pricingDigest,
       accountTerms:{schema:'task217-account-charge-terms-v1',observedAtMs:now-2,evidenceSha256:'d'.repeat(64),validity:'until-contract-change',risks:{autoReload:'unknown',postpaid:'allowed',overdraft:'unknown',concurrentAccountUsage:'unknown'},fundingChargeProtection:{kind:'documented-manual-funding-only',evidenceSha256:'e'.repeat(64)},allInChargeBound:{schema:'all-in-account-charge-bound-v1',currency:'USD',coverage:'all-applicable-api-tax-fx-and-funding-charges',maxAdditionalMicros:0,evidenceSha256:'f'.repeat(64)}},
       limitedOperation:{schema:'task217-profile-qualification-authority-v1',authorizationId:randomUUID(),taskId:'task217-text-pilot-2026-11-01',dataScope:'canonical-synthetic-measurement',maxCostMicros:1000000,maxAttempts:28,authorizedAtMs:now-1,contractSha256:price.digest,permit,bindingSha256:'0'.repeat(64)}};
-     const bound=(q:typeof permit)=>{const p={...unbound,limitedOperation:{...unbound.limitedOperation,permit:q}};return {...p,limitedOperation:{...p.limitedOperation,bindingSha256:qualificationAuthorityBindingSha256(p)}};};
+     const bound=(q:QualificationPermit):QualificationAccountChargeProof=>{const p={...unbound,limitedOperation:{...unbound.limitedOperation,permit:q}};return {...p,limitedOperation:{...p.limitedOperation,bindingSha256:qualificationAuthorityBindingSha256(p)}};};
      assert.equal(await validate(bound(permit)),true);
      if(schema==='task217-platform-dialogue-measurement-v2')dialoguePlans.push(bound(permit));
      // Rebind deliberate mutations so failures prove recipe validation, not merely a stale digest.

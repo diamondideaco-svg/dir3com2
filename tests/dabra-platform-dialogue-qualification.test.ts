@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { PLATFORM_DIALOGUE_CASES, PLATFORM_DIALOGUE_CASE_SET_SHA256 } from '../lib/dabra/platform-dialogue-cases';
 import { PLATFORM_DIALOGUE_QUALIFICATION_CASES } from '../lib/dabra/platform-dialogue-qualification-cases';
 import { PLATFORM_DIALOGUE_PROMPT, platformDialoguePayload, composePlatformDialogue } from '../lib/dabra/agent-platform-dialogue';
+import { platformConversationScope } from '../lib/dabra/platform-assistant';
 import { qualificationInputSha256 } from '../lib/dabra/agent-qualification-cases';
 import { canonicalOutputContract } from '../lib/dabra/agent-output-contract';
 import { qualificationRecipe, parseQualificationPermit, parseQualificationProof, qualificationAuthorityBindingSha256,
@@ -85,10 +86,24 @@ test('dialogue measurement uses eight immutable canonical cases and the actual b
  assert.equal(sha(PLATFORM_DIALOGUE_CASES),PLATFORM_DIALOGUE_CASE_SET_SHA256);assert.equal(PLATFORM_DIALOGUE_QUALIFICATION_CASES.length,8);
  for(const [i,fixed]of PLATFORM_DIALOGUE_QUALIFICATION_CASES.entries()){
   const c=PLATFORM_DIALOGUE_CASES[i],trip=c.trip?{...c.trip,id:'00000000-0000-4000-8000-000000000001',families:[...c.trip.families]}:null;
-  assert.equal(fixed.prompt,PLATFORM_DIALOGUE_PROMPT);assert.equal(fixed.message,JSON.stringify(platformDialoguePayload(c.language,c.question,c.units,trip)));
+  const scoped=platformConversationScope(c.question,[],trip);
+  assert.equal(fixed.prompt,PLATFORM_DIALOGUE_PROMPT);assert.equal(fixed.message,JSON.stringify(platformDialoguePayload(c.language,scoped.message,c.units,scoped.trip,'',scoped.history)));
   assert.ok(Object.isFrozen(fixed)&&Object.isFrozen(fixed.units)&&Object.isFrozen(fixed.guidanceOptions));
   assert.ok(Buffer.byteLength(fixed.prompt+fixed.message,'utf8')+128<=4096);
   assert.ok(!fixed.message.includes('00000000-0000-4000-8000-000000000001'));
+ }
+});
+test('topic-change measurement matches production scope in AR and EN and rejects the obsolete input digest',()=>{
+ for(const language of ['ar','en']as const){
+  const c=PLATFORM_DIALOGUE_CASES.find(c=>c.caseId===`dialogue-${language}-topic-change`)!;
+  const fixed=PLATFORM_DIALOGUE_QUALIFICATION_CASES.find(item=>item.caseId===c.caseId)!;
+  const scoped=platformConversationScope(c.question),expected=platformDialoguePayload(language,scoped.message,c.units,scoped.trip,'',scoped.history);
+  const obsolete=JSON.stringify(platformDialoguePayload(language,c.question,c.units,null));
+  assert.ok(expected);assert.notEqual(scoped.message,c.question);assert.equal(scoped.trip,null);
+  assert.doesNotMatch(expected.question,/hotel|فندق/i);assert.equal(fixed.message,JSON.stringify(expected));assert.notEqual(fixed.message,obsolete);
+  const p=proofFor([language]).limitedOperation.permit,oldInput=qualificationInputSha256({...fixed,message:obsolete});
+  assert.notEqual(qualificationInputSha256(fixed),oldInput);
+  assert.equal(parseQualificationPermit({...p,cases:p.cases.map(item=>item.caseId===fixed.caseId?{...item,inputSha256:oldInput}:item)}),null);
  }
 });
 test('new permits require four complete cases per selected language and do not relabel old evidence',()=>{

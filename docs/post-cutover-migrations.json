@@ -217,7 +217,7 @@
   },
   {
     "path": "supabase/migrations/20261110220000_task217_dialogue_v2_qualification.sql",
-    "sha256": "6d67412812451c332c7eb1f5acbf438d1f667f4873ee1b5b571a98a58e97d881",
+    "sha256": "0b6fbf9e93e837ba645825f5ef5c0dc215abd46f897ccaebb8d32e1b66a68744",
     "task": "#217",
     "production_apply_authorized": false
   }
