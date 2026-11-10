@@ -1,6 +1,6 @@
 import 'server-only';
-import { createQualificationAdmission, parseQualificationProof, type QualificationAdmission, type ApprovedQualificationPlan } from './dialogue-qualification';
-import { measurePlatformUnitsProfile, type QualificationMeasurementDependencies } from './agent-measurement';
+import { createQualificationAdmission, parseQualificationProof, qualificationRecipe, type QualificationContract, type QualificationAdmission, type ApprovedQualificationPlan } from './dialogue-qualification';
+import { measurePlatformUnitsProfile, measurePlatformDialogueProfile, type QualificationMeasurementDependencies } from './agent-measurement';
 import { callInternalAgentProvider, internalAgentConfiguration } from '../ai2/runtime/agent-provider-dispatch';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -197,7 +197,7 @@ export async function loadFundingMeasurement(subject: string, planId: string, so
 
 /** Qualification-only stored authority. Never exposed as Customer funding/profile approval. */
 export async function loadFundingQualification(subject: string, planId: string, sourceSha: string, signal: AbortSignal,
- rpc: FundingRpc = defaultRpc): Promise<ApprovedQualificationPlan | null> {
+ rpc: FundingRpc = defaultRpc, contractId: QualificationContract = 'platform-units-v1'): Promise<ApprovedQualificationPlan | null> {
  if(signal.aborted || !/^[a-zA-Z0-9_-]{1,128}$/.test(subject) || !/^[a-f0-9]{40}$/.test(sourceSha)
   || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(planId))return null;
  const bounded=AbortSignal.any([signal,AbortSignal.timeout(1000)]);
@@ -211,8 +211,10 @@ export async function loadFundingQualification(subject: string, planId: string, 
    || result.data.schema!=='task217-stored-qualification-plan-v1' || !integer(result.data.maxCostMicros) || result.data.maxCostMicros>1000000
    || !validFundingDailyLimits(result.data.dailyLimits,4096,1024))return null;
   const snapshot:unknown=JSON.parse(JSON.stringify(result.data.proof)),proof=parseQualificationProof(snapshot,Date.now()),permit=proof?.limitedOperation.permit;
-  if(!proof || !permit || permit.planId!==planId || permit.sourceSha!==sourceSha || permit.subjectHash!==fundingSubject(subject))return null;
-  return Object.freeze({kind:'platform-units-qualification',subject,proof,permit,daily:Object.freeze({...result.data.dailyLimits}),maxCostMicros:result.data.maxCostMicros});
+  const recipe=qualificationRecipe(permit?.schema);
+  if(!proof || !permit || !recipe || recipe.contractId!==contractId
+   || permit.planId!==planId || permit.sourceSha!==sourceSha || permit.subjectHash!==fundingSubject(subject))return null;
+  return Object.freeze({kind:recipe.kind,subject,proof,permit,daily:Object.freeze({...result.data.dailyLimits}),maxCostMicros:result.data.maxCostMicros});
  }catch{return null;}finally{if(stopped)bounded.removeEventListener('abort',stopped);}
 }
 /** Actual loader -> fresh stored authority -> shared reserve -> existing dispatch.
@@ -220,14 +222,16 @@ export async function loadFundingQualification(subject: string, planId: string, 
 export async function runFundingQualification(subject: string, planId: string, signal: AbortSignal, rpc: FundingRpc = defaultRpc,
  runtime: Pick<QualificationMeasurementDependencies,'configuration'|'dispatch'|'sourceSha'> = {
   configuration:internalAgentConfiguration,dispatch:callInternalAgentProvider,sourceSha:()=>process.env.VERCEL_GIT_COMMIT_SHA??'',
- }) {
- const plan=await loadFundingQualification(subject,planId,runtime.sourceSha(),signal,rpc);
+ }, contractId: QualificationContract = 'platform-units-v1') {
+ const plan=await loadFundingQualification(subject,planId,runtime.sourceSha(),signal,rpc,contractId);
  if(!plan)return Object.freeze({kind:'blocked' as const,qualified:false as const,semanticReview:'required' as const,observations:Object.freeze([])});
- const result = await measurePlatformUnitsProfile(plan,{...runtime,admission:createFundingDialogueAdmission(rpc),
+ const measure=contractId==='platform-dialogue-v2'?measurePlatformDialogueProfile:measurePlatformUnitsProfile;
+ const result = await measure(plan,{...runtime,admission:createFundingDialogueAdmission(rpc),
   authorityCurrent:async currentSignal=>{
-   const fresh=await loadFundingQualification(subject,planId,runtime.sourceSha(),currentSignal,rpc);
+   const fresh=await loadFundingQualification(subject,planId,runtime.sourceSha(),currentSignal,rpc,contractId);
    return fresh!==null && samePolicyData(fresh,plan);
   }},signal);
- return Object.freeze({scope:Object.freeze({provider:plan.proof.provider,approvedModel:plan.proof.model,sourceSha:plan.permit.sourceSha,
+ return Object.freeze({scope:Object.freeze({...(contractId==='platform-dialogue-v2'?{contractId,permitSchema:plan.permit.schema}:{}),
+  provider:plan.proof.provider,approvedModel:plan.proof.model,sourceSha:plan.permit.sourceSha,
   caseSetSha:plan.permit.caseSetSha,languages:plan.permit.languages,inputTokenCeiling:plan.permit.inputTokenCeiling,outputTokenCeiling:plan.permit.outputTokenCeiling}),...result});
 }

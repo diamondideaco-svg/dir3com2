@@ -5,13 +5,27 @@ import { validDurableAccountTerms, type DurableAccountChargeProof } from './dial
 import { approvedPublicPricingContract, publicPricingObservationCurrent, type PublicPricingObservation } from './dialogue-pricing-refresh';
 import { canonicalOutputContract } from './agent-output-contract';
 import { PLATFORM_UNITS_QUALIFICATION_CASES, PLATFORM_UNITS_CASE_SET_SHA256, qualificationInputSha256 } from './agent-qualification-cases';
+import { PLATFORM_DIALOGUE_QUALIFICATION_CASES } from './platform-dialogue-qualification-cases';
+import { PLATFORM_DIALOGUE_CASE_SET_SHA256 } from './platform-dialogue-cases';
 import { fundingSubject, validFundingDailyLimits, type FundingAdmissionResult } from './dialogue-funding';
 import type { DialogueDailyLimits } from './agent-dialogue';
 import type { FundingRpc } from './dialogue-funding-store';
 
-export type QualificationCase = typeof PLATFORM_UNITS_QUALIFICATION_CASES[number];
+export type QualificationContract = 'platform-units-v1' | 'platform-dialogue-v2';
+export type QualificationCase = typeof PLATFORM_UNITS_QUALIFICATION_CASES[number] | typeof PLATFORM_DIALOGUE_QUALIFICATION_CASES[number];
+export function qualificationRecipe(schema: unknown) {
+ if (schema === 'task217-platform-units-measurement-v1') return Object.freeze({
+  kind: 'platform-units-qualification' as const, contractId: 'platform-units-v1' as const,
+  caseSetSha: PLATFORM_UNITS_CASE_SET_SHA256, casesPerLanguage: 2, cases: PLATFORM_UNITS_QUALIFICATION_CASES,
+ });
+ if (schema === 'task217-platform-dialogue-measurement-v2') return Object.freeze({
+  kind: 'platform-dialogue-qualification' as const, contractId: 'platform-dialogue-v2' as const,
+  caseSetSha: PLATFORM_DIALOGUE_CASE_SET_SHA256, casesPerLanguage: 4, cases: PLATFORM_DIALOGUE_QUALIFICATION_CASES,
+ });
+ return null;
+}
 export type QualificationPermit = Readonly<{
- schema: 'task217-platform-units-measurement-v1'; purpose: 'profile-qualification'; planId: string;
+ schema: 'task217-platform-units-measurement-v1' | 'task217-platform-dialogue-measurement-v2'; purpose: 'profile-qualification'; planId: string;
  sourceSha: string; caseSetSha: string; subjectHash: string; languages: readonly ('ar' | 'en')[]; authorizedAtMs: number; expiresAtMs: number;
  inputTokenCeiling: number; outputTokenCeiling: number;
  cases: readonly Readonly<{ caseId: QualificationCase['caseId']; requestId: string; stage: 'discover'; language: 'ar' | 'en'; inputSha256: string; contractSha256: string }>[];
@@ -26,7 +40,7 @@ export type QualificationAccountChargeProof = Readonly<Omit<DurableAccountCharge
  }>;
 }>;
 export type ApprovedQualificationPlan = Readonly<{
- kind: 'platform-units-qualification'; subject: string; proof: QualificationAccountChargeProof;
+ kind: 'platform-units-qualification' | 'platform-dialogue-qualification'; subject: string; proof: QualificationAccountChargeProof;
  permit: QualificationPermit; daily: DialogueDailyLimits; maxCostMicros: number;
 }>;
 const record = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -41,19 +55,20 @@ function freeze<T>(value: T): Readonly<T> {
  return Object.freeze(value);
 }
 export function parseQualificationPermit(v: unknown): QualificationPermit | null {
+ const recipe = record(v) ? qualificationRecipe(v.schema) : null;
  if (!record(v) || !exact(v,['schema','purpose','planId','sourceSha','caseSetSha','subjectHash','languages','authorizedAtMs','expiresAtMs','inputTokenCeiling','outputTokenCeiling','cases'])
-  || v.schema !== 'task217-platform-units-measurement-v1' || v.purpose !== 'profile-qualification' || !uuid(v.planId)
-  || typeof v.sourceSha !== 'string' || !/^[a-f0-9]{40}$/.test(v.sourceSha) || v.caseSetSha !== PLATFORM_UNITS_CASE_SET_SHA256 || !digest(v.subjectHash)
+  || !recipe || (v.schema !== 'task217-platform-units-measurement-v1' && v.schema !== 'task217-platform-dialogue-measurement-v2') || v.purpose !== 'profile-qualification' || !uuid(v.planId)
+  || typeof v.sourceSha !== 'string' || !/^[a-f0-9]{40}$/.test(v.sourceSha) || v.caseSetSha !== recipe.caseSetSha || !digest(v.subjectHash)
   || !count(v.authorizedAtMs) || !count(v.expiresAtMs) || v.expiresAtMs <= v.authorizedAtMs || v.expiresAtMs - v.authorizedAtMs > 3600000
   || !count(v.inputTokenCeiling) || v.inputTokenCeiling < 1 || v.inputTokenCeiling > 4096
   || !count(v.outputTokenCeiling) || v.outputTokenCeiling < 1 || v.outputTokenCeiling > 1024
   || !Array.isArray(v.languages) || !(['["ar"]','["en"]','["ar","en"]'].includes(JSON.stringify(v.languages)))
-  || !Array.isArray(v.cases) || v.cases.length !== v.languages.length * 2) return null;
+  || !Array.isArray(v.cases) || v.cases.length !== v.languages.length * recipe.casesPerLanguage) return null;
  const languages: Array<'ar' | 'en'> = v.languages.filter((item): item is 'ar' | 'en' => item === 'ar' || item === 'en');
- const selected = PLATFORM_UNITS_QUALIFICATION_CASES.filter(c => languages.includes(c.language));
+ const selected = recipe.cases.filter(c => languages.includes(c.language));
  const cases: QualificationPermit['cases'][number][] = [];
  for (const [i,fixed] of selected.entries()) {
-  const row: unknown = v.cases[i], contract = canonicalOutputContract('platform-units-v1',fixed.language);
+  const row: unknown = v.cases[i], contract = canonicalOutputContract(recipe.contractId,fixed.language);
   if (!record(row) || !exact(row,['caseId','requestId','stage','language','inputSha256','contractSha256'])
    || row.caseId !== fixed.caseId || !uuid(row.requestId) || row.stage !== fixed.stage || row.language !== fixed.language
    || row.inputSha256 !== qualificationInputSha256(fixed) || row.contractSha256 !== contract.digest

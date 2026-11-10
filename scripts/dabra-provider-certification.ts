@@ -711,6 +711,17 @@ export async function firstProfileMeasurementMain(argv: readonly string[]): Prom
  * credential, custom prompt, profile install or fallback to the legacy matrix. */
 export async function platformUnitsQualificationMain(argv: readonly string[]): Promise<number> {
   if (argv.length !== 1 || argv[0] !== '--measure-platform-units') throw new Error('unsupported_measurement_argument');
+  return platformQualificationMain('platform-units-v1');
+}
+
+/** A distinct operator choice and stored permit are mandatory for dialogue-v2.
+ * This never converts a platform-units plan or installs semantic acceptance. */
+export async function platformDialogueQualificationMain(argv: readonly string[]): Promise<number> {
+ if (argv.length !== 1 || argv[0] !== '--measure-platform-dialogue') throw new Error('unsupported_measurement_argument');
+ return platformQualificationMain('platform-dialogue-v2');
+}
+
+async function platformQualificationMain(contractId: 'platform-units-v1' | 'platform-dialogue-v2'): Promise<number> {
   if (process.env.DABRA_DIALOGUE_FUNDING_POLICY !== 'task217-existing-credit-v2') throw new Error('measurement_not_authorized');
   const subject = process.env.DABRA_MEASUREMENT_SUBJECT, planId = process.env.DABRA_MEASUREMENT_PLAN_ID;
   if (!subject || !planId) throw new Error('measurement_not_authorized');
@@ -718,16 +729,17 @@ export async function platformUnitsQualificationMain(argv: readonly string[]): P
   const { internalAgentConfiguration, callInternalAgentProvider } = await import('../lib/ai2/runtime/agent-provider-dispatch');
   const result = await runFundingQualification(subject, planId, AbortSignal.timeout(60000), undefined, {
     sourceSha: () => measurementSourceSha(), configuration: internalAgentConfiguration, dispatch: callInternalAgentProvider,
-  });
+  }, contractId);
   // Only canonical public outputs and bound non-secret measurement scope.
   // Every observation keeps its actual date/model/usage. No candidate is installed.
-  process.stdout.write(JSON.stringify({ mode: 'PLATFORM_UNITS_QUALIFICATION', planId, ...result }) + '\n');
+  process.stdout.write(JSON.stringify({ mode: contractId === 'platform-dialogue-v2' ? 'PLATFORM_DIALOGUE_QUALIFICATION' : 'PLATFORM_UNITS_QUALIFICATION', planId, ...result }) + '\n');
   return result.kind === 'candidate' ? 0 : 1;
 }
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
   // Detect the whole reserved namespace first. Invalid measurement arguments never fall into --live.
   if (argv.some(argument => argument.startsWith('--measure'))) {
+    if (argv.includes('--measure-platform-dialogue')) return platformDialogueQualificationMain(argv);
     return argv.includes('--measure-platform-units') ? platformUnitsQualificationMain(argv) : firstProfileMeasurementMain(argv);
   }
   const options = parseCertificationArgs(argv);

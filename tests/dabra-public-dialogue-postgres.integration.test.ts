@@ -8,6 +8,9 @@ import {canonicalOutputContract} from '../lib/dabra/agent-output-contract';
 import {durableAuthorityBindingSha256,durableProfileSha256,type DurableAccountChargeProof} from '../lib/dabra/dialogue-durable-authority';
 import {approvedPublicPricingContract} from '../lib/dabra/dialogue-pricing-refresh';
 import {publicDialogueCalendar} from '../lib/dabra/public-dialogue-policy';
+import {qualificationRecipe,qualificationAuthorityBindingSha256,qualificationCaseKey,type QualificationAccountChargeProof,type QualificationPermit} from '../lib/dabra/dialogue-qualification';
+import {qualificationInputSha256} from '../lib/dabra/agent-qualification-cases';
+import {fundingSubject} from '../lib/dabra/dialogue-funding';
 
 const sql=(file:string)=>readFileSync(new URL('../supabase/migrations/'+file,import.meta.url),'utf8');
 const parents=['20261028174710_task217_dialogue_funding_admission.sql','20261101102846_task217_first_profile_measurement_guard.sql','20261101153907_task217_seven_provider_pilot_envelope.sql','20261102043035_task217_pilot_ledger_funding_scope.sql','20261102182200_task217_saved_funding_snapshot_use.sql','20261103000000_task217_limited_customer_funding.sql','20261103170449_task217_credential_binding_readonly.sql','20261103205926_task217_durable_account_charge.sql','20261104133500_task217_output_contract_acceptance.sql','20261104134000_task217_qualification_bootstrap.sql','20261105193011_task217_qualification_provider_bound.sql'];
@@ -42,6 +45,36 @@ test('actual PostgreSQL public monthly policy: atomic caps, role scope, idempote
   assert.equal((await client.query('SELECT count(*)::int AS n FROM private.dabra_public_dialogue_control')).rows[0].n,0,'no policy enabled by migration');
   const grantId=randomUUID(),authorityId=randomUUID(),actor=randomUUID(),pricingDigest='f9083848feedd98bc6da2a74371778a40dfd959a6bc60ed0019956b253ba4b5a';
   const price=approvedPublicPricingContract('openai','gpt-6-luna',pricingDigest);assert.ok(price);
+  const dialoguePlans:QualificationAccountChargeProof[]=[];
+  await t.test('dialogue-v2 forward preserves history and validates only its complete, bound canonical recipe',async()=>{
+   const state=await snapshot(),beforeACL=(await client.query("SELECT oid,proowner,proacl::text,prosecdef,proconfig FROM pg_proc WHERE oid=ANY(ARRAY['private.task217_output_contract_manifest()'::regprocedure,'private.valid_dabra_qualification_proof(jsonb,bigint)'::regprocedure]) ORDER BY oid")).rows;
+   await client.query(sql('20261110220000_task217_dialogue_v2_qualification.sql'));
+   assert.deepEqual(await snapshot(),state);
+   assert.deepEqual((await client.query("SELECT oid,proowner,proacl::text,prosecdef,proconfig FROM pg_proc WHERE oid=ANY(ARRAY['private.task217_output_contract_manifest()'::regprocedure,'private.valid_dabra_qualification_proof(jsonb,bigint)'::regprocedure]) ORDER BY oid")).rows,beforeACL);
+   const validate=async(p:unknown)=>(await client.query('SELECT private.valid_dabra_qualification_proof($1::jsonb,$2) AS valid',[p,now])).rows[0].valid;
+   for(const schema of ['task217-platform-units-measurement-v1','task217-platform-dialogue-measurement-v2']as const){
+    const recipe=qualificationRecipe(schema);assert.ok(recipe);
+    for(const languages of [['ar'],['en'],['ar','en']]as const){
+     const permit:QualificationPermit={schema,purpose:'profile-qualification' as const,planId:randomUUID(),sourceSha:'a'.repeat(40),caseSetSha:recipe.caseSetSha,subjectHash:fundingSubject('SYNTHETIC-DIALOGUE-V2'),languages,
+      authorizedAtMs:now-1,expiresAtMs:now+300000,inputTokenCeiling:4096,outputTokenCeiling:1024,
+      cases:recipe.cases.filter(c=>languages.some(l=>l===c.language)).map(c=>({caseId:c.caseId,requestId:randomUUID(),stage:c.stage,language:c.language,inputSha256:qualificationInputSha256(c),contractSha256:canonicalOutputContract(recipe.contractId,c.language).digest}))};
+     const unbound:QualificationAccountChargeProof={mode:'bounded-account-qualification',grantId:randomUUID(),provider:'openai',model:'gpt-6-luna',environment:'provider-benchmark',accountId:'SYNTHETIC-qualification',projectId:'SYNTHETIC-project',credentialSha256:'b'.repeat(64),evidenceSha256:'c'.repeat(64),currency:'USD',serviceTier:'standard',pricingEvidenceSha256:pricingDigest,
+      accountTerms:{schema:'task217-account-charge-terms-v1',observedAtMs:now-2,evidenceSha256:'d'.repeat(64),validity:'until-contract-change',risks:{autoReload:'unknown',postpaid:'allowed',overdraft:'unknown',concurrentAccountUsage:'unknown'},fundingChargeProtection:{kind:'documented-manual-funding-only',evidenceSha256:'e'.repeat(64)},allInChargeBound:{schema:'all-in-account-charge-bound-v1',currency:'USD',coverage:'all-applicable-api-tax-fx-and-funding-charges',maxAdditionalMicros:0,evidenceSha256:'f'.repeat(64)}},
+      limitedOperation:{schema:'task217-profile-qualification-authority-v1',authorizationId:randomUUID(),taskId:'task217-text-pilot-2026-11-01',dataScope:'canonical-synthetic-measurement',maxCostMicros:1000000,maxAttempts:28,authorizedAtMs:now-1,contractSha256:price.digest,permit,bindingSha256:'0'.repeat(64)}};
+     const bound=(q:QualificationPermit):QualificationAccountChargeProof=>{const p={...unbound,limitedOperation:{...unbound.limitedOperation,permit:q}};return {...p,limitedOperation:{...p.limitedOperation,bindingSha256:qualificationAuthorityBindingSha256(p)}};};
+     assert.equal(await validate(bound(permit)),true);
+     if(schema==='task217-platform-dialogue-measurement-v2')dialoguePlans.push(bound(permit));
+     // Rebind deliberate mutations so failures prove recipe validation, not merely a stale digest.
+     const invalidPermits:QualificationPermit[]=[{...permit,cases:permit.cases.slice(1)},{...permit,cases:[...permit.cases].reverse()},
+      {...permit,cases:permit.cases.map(c=>({...c,requestId:permit.cases[0].requestId}))},
+      {...permit,cases:permit.cases.map(c=>({...c,inputSha256:'0'.repeat(64)}))},
+      {...permit,cases:permit.cases.map(c=>({...c,contractSha256:canonicalOutputContract(recipe.contractId==='platform-dialogue-v2'?'platform-units-v1':'platform-dialogue-v2',c.language).digest}))}];
+     for(const invalidPermit of invalidPermits)assert.equal(await validate(bound(invalidPermit)),false);
+     if(schema==='task217-platform-dialogue-measurement-v2')assert.equal(await validate(bound({...permit,schema:'task217-platform-units-measurement-v1'})),false);
+    }
+   }
+   assert.deepEqual(await snapshot(),state);
+  });
   const contract=canonicalOutputContract('platform-dialogue-v2','en');
   const profile={provider:'openai' as const,measurement:{capability:'discover' as const,language:'en' as const,model:'gpt-6-luna',environment:'provider-benchmark' as const,sourceSha:'b'.repeat(40),caseSetSha:contract.caseSetSha,cases:4,passed:4,measuredAtMs:now-5000,expiresAtMs:now+600000,latencyMs:1,inputTokenCeiling:4096,outputTokenCeiling:1024,costCeilingUsd:0.002141}};
   const unbound:DurableAccountChargeProof={mode:'bounded-account-charge',grantId,provider:'openai',model:'gpt-6-luna',environment:'provider-benchmark',accountId:'SYNTHETIC-public',projectId:'SYNTHETIC-project',credentialSha256:'c'.repeat(64),evidenceSha256:'d'.repeat(64),currency:'USD',serviceTier:'standard',pricingEvidenceSha256:pricingDigest,accountTerms:{schema:'task217-account-charge-terms-v1',observedAtMs:now-6000,evidenceSha256:'e'.repeat(64),validity:'until-contract-change',risks:{autoReload:'off',postpaid:'blocked',overdraft:'blocked',concurrentAccountUsage:'bounded'},fundingChargeProtection:{kind:'documented-manual-funding-only',evidenceSha256:'f'.repeat(64)},allInChargeBound:{schema:'all-in-account-charge-bound-v1',currency:'USD',coverage:'all-applicable-api-tax-fx-and-funding-charges',maxAdditionalMicros:0,evidenceSha256:'a'.repeat(64)}},limitedOperation:{schema:'task217-limited-operation-v2',authorizationId:randomUUID(),taskId:'task217-text-pilot-2026-11-01',dataScope:'redacted-travel-or-server-units',maxCostMicros:1000000,maxAttempts:28,authorizedAtMs:now-4000,duration:'until-revoked-or-binding-change',providerRisk:'bounded-account-liability-with-observed-risks',acceptedProfileSha256s:['f'.repeat(64)],contractSha256:price.digest,bindingSha256:'0'.repeat(64)}};
@@ -82,6 +115,67 @@ test('actual PostgreSQL public monthly policy: atomic caps, role scope, idempote
   await t.test('global aggregate includes both historical unmatched holds and public attempts',async()=>{
    const expected=61719+Number((await client.query('SELECT coalesce(sum(cost_micros),0) AS n FROM private.dabra_public_dialogue_admissions WHERE month_start_ms=$1',[calendar.monthStartMs])).rows[0].n);
    assert.equal(Number((await client.query('SELECT private.dabra_monthly_liability($1,$2) AS n',[calendar.monthStartMs,calendar.monthEndMs])).rows[0].n),expected);
+  });
+  await t.test('dialogue-v2 actual admission: complete group, insufficient capacity and committed unknown hold',async()=>{
+   assert.equal(dialoguePlans.length,3);
+   const limits={uniqueUsers:10,requestsPerUser:6,requestsTotal:60,inputTokensPerUser:24576,outputTokensPerUser:6144,inputTokensTotal:245760,outputTokensTotal:61440};
+   await client.query('UPDATE private.dabra_dialogue_funding_control SET enabled=true,max_attempt_cost_micros=1000000,daily_limits=$1::jsonb',[limits]);
+   const install=async(p:QualificationAccountChargeProof)=>{
+    const rate=approvedPublicPricingContract(p.provider,p.model,p.pricingEvidenceSha256);assert.ok(rate);
+    await client.query('INSERT INTO private.dabra_dialogue_funding_grants(id,provider,account_id,project_id,funding_mode,authorized_credit_micros,input_rate_micros_per_million,output_rate_micros_per_million,enabled,proof,authorized_at) VALUES($1,$2,$3,$4,$5,0,$6,$7,true,$8::jsonb,to_timestamp($9::numeric/1000))',
+     [p.grantId,p.provider,p.accountId,p.projectId,p.mode,rate.inputMicrosPerMillion,rate.outputMicrosPerMillion,p,p.limitedOperation.authorizedAtMs]);
+   };
+   const request=(p:QualificationAccountChargeProof,index=0,runId=randomUUID())=>{
+    const q=p.limitedOperation.permit,c=q.cases[index],attemptId=index===0?runId:randomUUID(),rate=approvedPublicPricingContract(p.provider,p.model,p.pricingEvidenceSha256);assert.ok(rate);
+    const observation={schema:'task217-public-pricing-observation-v1',provider:p.provider,model:p.model,approvedPricingDigest:p.pricingEvidenceSha256,
+     approvedContractDigest:rate.digest,currency:'USD',unitTokens:1000000,inputMicrosPerMillion:rate.inputMicrosPerMillion,outputMicrosPerMillion:rate.outputMicrosPerMillion,
+     observedAtMs:now,expiresAtMs:Math.min(now+300000,rate.tariffBeforeMs??now+300000),bodySha256:'b'.repeat(64)};
+    const cost=Math.ceil((4096*rate.inputMicrosPerMillion+1024*rate.outputMicrosPerMillion)/1000000)+p.accountTerms.allInChargeBound.maxAdditionalMicros;
+    const executionPricing={schema:'task217-qualification-execution-v1',observation,authorityBindingSha256:p.limitedOperation.bindingSha256,
+     planId:q.planId,caseId:c.caseId,runId,inputSha256:c.inputSha256,contractSha256:c.contractSha256,qualificationKey:qualificationCaseKey(p,c.caseId),
+     attemptId,requestId:c.requestId,subjectHash:q.subjectHash,stage:c.stage,language:c.language,inputTokenCeiling:4096,outputTokenCeiling:1024};
+    return {attemptId,runId,cost,args:[attemptId,c.requestId,c.stage,q.subjectHash,p.grantId,
+     {...p,measurementRequest:{planId:q.planId,caseId:c.caseId,runId},executionPricing},4096,1024,cost,limits,calendar.dayStartMs]};
+   };
+   const reserve=async(r:ReturnType<typeof request>)=>{
+    await client.query('BEGIN');try{await client.query('SET LOCAL ROLE service_role');
+     const out=await client.query('SELECT public.reserve_dabra_dialogue_attempt($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10::jsonb,$11) AS v',r.args);
+     await client.query('COMMIT');return out.rows[0].v;
+    }catch(e){await client.query('ROLLBACK');throw e;}
+   };
+   const held=async(p:QualificationAccountChargeProof)=>Number((await client.query('SELECT reserved_credit_micros AS n FROM private.dabra_dialogue_funding_grants WHERE id=$1',[p.grantId])).rows[0].n);
+   const rows=async(p:QualificationAccountChargeProof)=>(await client.query('SELECT * FROM private.dabra_dialogue_admissions WHERE grant_id=$1 ORDER BY reserved_at,attempt_id',[p.grantId])).rows;
+   const historyBefore=(await client.query('SELECT * FROM private.dabra_dialogue_admissions WHERE grant_id=$1',[historical])).rows;
+   // Eight cases cannot fit OpenAI's existing lifetime ceiling, even though the permit is valid.
+   const tooLarge=dialoguePlans[2];await install(tooLarge);const before=await snapshot();
+   assert.equal((await reserve(request(tooLarge))).decision,'denied');assert.deepEqual(await snapshot(),before);
+   const complete=dialoguePlans[0];assert.equal(complete.limitedOperation.permit.cases.length,4);await install(complete);
+   const first=request(complete);
+   assert.equal((await reserve(request(complete,1,first.runId))).decision,'denied','cannot skip the initial case');
+   for(let index=0;index<4;index++)assert.equal((await reserve(index===0?first:request(complete,index,first.runId))).decision,'admitted');
+   const completed=await rows(complete);assert.equal(completed.length,4);assert.equal(await held(complete),first.cost*4);
+   assert.deepEqual(completed.map(r=>r.request_id).sort(),complete.limitedOperation.permit.cases.map(c=>c.requestId).sort());
+   assert.equal((await reserve(first)).decision,'denied');assert.deepEqual(await rows(complete),completed);assert.equal(await held(complete),first.cost*4);
+   // Use a different canonical provider so the completed OpenAI group is never reset.
+   const tariff=(await client.query("SELECT value AS p FROM jsonb_array_elements(private.task217_output_contract_manifest()->'pricing') WHERE value->>'provider'='anthropic'")).rows[0].p;
+   const fresh=(p:QualificationAccountChargeProof):QualificationAccountChargeProof=>{
+    const next={...p,grantId:randomUUID(),limitedOperation:{...p.limitedOperation,authorizationId:randomUUID(),
+     permit:{...p.limitedOperation.permit,planId:randomUUID(),cases:p.limitedOperation.permit.cases.map(c=>({...c,requestId:randomUUID()}))}}};
+    return {...next,limitedOperation:{...next.limitedOperation,bindingSha256:qualificationAuthorityBindingSha256(next)}};
+   };
+   const unknown=fresh({...complete,provider:'anthropic',model:tariff.model,pricingEvidenceSha256:tariff.pricingEvidenceSha256,
+    limitedOperation:{...complete.limitedOperation,contractSha256:tariff.digest}});await install(unknown);const lost=request(unknown);
+   await reserve(lost); // The transaction committed, but simulate losing its returned decision. No provider call occurs.
+   const retained=await rows(unknown);assert.equal(retained.length,1);assert.equal(retained[0].attempt_id,lost.attemptId);assert.equal(await held(unknown),lost.cost);
+   assert.equal((await reserve(lost)).decision,'denied');assert.equal((await reserve(request(unknown))).decision,'denied');
+   await client.query('UPDATE private.dabra_dialogue_funding_grants SET enabled=false WHERE id=$1',[unknown.grantId]);
+   assert.equal((await reserve(request(unknown,1,lost.runId))).decision,'denied');
+   const replacement=fresh(unknown);await install(replacement);assert.equal((await reserve(request(replacement))).decision,'denied','fresh plan cannot replay the provider/case qualification key');
+   await assert.rejects(()=>client.query('UPDATE private.dabra_dialogue_funding_grants SET reserved_credit_micros=0 WHERE id=$1',[unknown.grantId]),/IMMUTABLE/);
+   await assert.rejects(()=>client.query('DELETE FROM private.dabra_dialogue_admissions WHERE attempt_id=$1',[lost.attemptId]),/IMMUTABLE/);
+   assert.deepEqual(await rows(unknown),retained);assert.equal(await held(unknown),lost.cost);assert.equal(await held(replacement),0);
+   assert.deepEqual((await client.query('SELECT * FROM private.dabra_dialogue_admissions WHERE grant_id=$1',[historical])).rows,historyBefore);
+   assert.equal(Number((await client.query('SELECT reserved_credit_micros AS n FROM private.dabra_dialogue_funding_grants WHERE id=$1',[historical])).rows[0].n),61719);
   });
  }finally{if(db)await db.end();if(created)await root.query('DROP DATABASE '+database+' WITH (FORCE)');await root.end();}
 });
