@@ -214,5 +214,11 @@
     "sha256": "595ce6d1b513300b6e3a195dc1ef7917defc99fe5d4c0aff5ff3f981b5a97639",
     "task": "#217",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261110220000_task217_dialogue_v2_qualification.sql",
+    "sha256": "6d67412812451c332c7eb1f5acbf438d1f667f4873ee1b5b571a98a58e97d881",
+    "task": "#217",
+    "production_apply_authorized": false
   }
 ]

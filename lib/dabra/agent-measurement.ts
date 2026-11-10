@@ -1,7 +1,7 @@
 import 'server-only';
-import { parseQualificationProof, quoteQualification, type QualificationCase, type QualificationAdmission, type ApprovedQualificationPlan } from './dialogue-qualification';
-import { PLATFORM_UNITS_QUALIFICATION_CASES } from './agent-qualification-cases';
+import { parseQualificationProof, quoteQualification, qualificationRecipe, type QualificationContract, type QualificationCase, type QualificationAdmission, type ApprovedQualificationPlan } from './dialogue-qualification';
 import { composePublicAgentDialogue } from './agent-platform-units';
+import { composePlatformDialogue } from './agent-platform-dialogue';
 import { refreshPublicDialoguePricing, type PublicPricingObservation } from './dialogue-pricing-refresh';
 import { createHash, randomUUID } from 'node:crypto';
 import { classifierPrompt } from './agent-planner';
@@ -234,14 +234,24 @@ export type QualificationMeasurementDependencies = Readonly<{
 }>;
 export async function measurePlatformUnitsProfile(plan: ApprovedQualificationPlan, deps: QualificationMeasurementDependencies,
  signal?: AbortSignal): Promise<QualificationMeasurementResult> {
+ return measureQualificationProfile('platform-units-v1',plan,deps,signal);
+}
+export async function measurePlatformDialogueProfile(plan: ApprovedQualificationPlan, deps: QualificationMeasurementDependencies,
+ signal?: AbortSignal): Promise<QualificationMeasurementResult> {
+ return measureQualificationProfile('platform-dialogue-v2',plan,deps,signal);
+}
+async function measureQualificationProfile(contractId: QualificationContract, plan: ApprovedQualificationPlan, deps: QualificationMeasurementDependencies,
+ signal?: AbortSignal): Promise<QualificationMeasurementResult> {
  const observations: QualificationObservation[] = [];
  const stop=(kind:'blocked'|'stopped',reason:string,fixed?:QualificationCase):QualificationMeasurementResult=>
   Object.freeze({kind,qualified:false,semanticReview:'required',observations:Object.freeze(observations),
    diagnostic:Object.freeze({reason,caseId:fixed?.caseId??null})});
  const proof=parseQualificationProof(plan.proof,Date.now()),permit=proof?.limitedOperation.permit;
- if (!proof || !permit || JSON.stringify(permit)!==JSON.stringify(plan.permit) || fundingSubject(plan.subject)!==permit.subjectHash
+ const recipe=qualificationRecipe(permit?.schema);
+ if (!proof || !permit || !recipe || recipe.contractId!==contractId || recipe.kind!==plan.kind
+  || JSON.stringify(permit)!==JSON.stringify(plan.permit) || fundingSubject(plan.subject)!==permit.subjectHash
   || !integer(plan.maxCostMicros) || plan.maxCostMicros>1000000 || !validFundingDailyLimits(plan.daily,4096,1024)) return stop('blocked','permit');
- const selected=PLATFORM_UNITS_QUALIFICATION_CASES.filter(c=>permit.languages.includes(c.language));
+ const selected=recipe.cases.filter(c=>permit.languages.includes(c.language));
  const runId=randomUUID();
  for(const [index,fixed] of selected.entries()) {
   const approved=permit.cases[index];if(!approved || approved.caseId!==fixed.caseId)return stop('blocked','permit',fixed);
@@ -296,7 +306,9 @@ export async function measurePlatformUnitsProfile(plan: ApprovedQualificationPla
     standardBilling:true,pilotMeasurement:true}),boundedSignal);
    failure='runtime';
    if(!result)return stop('stopped','provider-unknown',fixed);
-   const schemaValid=composePublicAgentDialogue(result.answer,fixed.units,fixed.language)!==null;
+   const schemaValid='guidanceOptions' in fixed
+    ? composePlatformDialogue(result.answer,fixed.units,fixed.language,fixed.guidanceOptions)!==null
+    : composePublicAgentDialogue(result.answer,fixed.units,fixed.language)!==null;
    observations.push(Object.freeze({caseId:fixed.caseId,requestId:approved.requestId,attemptId,stage:fixed.stage,language:fixed.language,
     model:result.model===proof.model?result.model:null,completedAtMs:Date.now(),latencyMs:Math.max(0,Date.now()-dispatchedAt),
     inputTokens:integer(result.inputTokens)?result.inputTokens:null,outputTokens:integer(result.outputTokens)?result.outputTokens:null,

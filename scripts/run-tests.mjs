@@ -8,6 +8,7 @@ const serverOnlyTests = new Set([
   'dabra-qualification-source-invariants.test.ts',
   'dabra-qualification-postgres.integration.test.ts',
   'dabra-platform-qualification.test.ts',
+  'dabra-platform-dialogue-qualification.test.ts',
   'dabra-output-contract.test.ts',
   'task217-customer-cases.test.ts',
   'dabra-agent-authorization-runtime.test.ts',
