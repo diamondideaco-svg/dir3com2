@@ -34,7 +34,7 @@ function assertRouteHasNoSuccessfulTaskDependencies(source: string) {
 /** Execute the actual unchanged POST source, substituting explicit synthetic IO
  * at module boundaries. There is no registration hook in the deployed handler.
  */
-function fixture(options: { inject?: boolean; fault?: string; trip?: SavedTrip; revokeDuringAllowance?: boolean;
+function fixture(options: { inject?: boolean; fault?: string; trip?: SavedTrip; revokeDuringAllowance?: boolean; totalHeldCostMicros?: number;
   snapshot?: () => FxSnapshot | null; beforePolicy?: () => void; beforeTaskRead?: () => void; beforeAuthority?: () => void; hangAfterSaveAt?: number; hangAllowance?: boolean } = {}) {
   const f = successfulTaskRuntimeFixture('customer', options.fault === 'denied' ? 'denied' : '');
   let row: Record<string, unknown> | null = null, legacyReads = 0, rpcReads = 0;
@@ -55,7 +55,8 @@ function fixture(options: { inject?: boolean; fault?: string; trip?: SavedTrip; 
       if (options.revokeDuringAllowance) f.revoke();
       return { error: null, data: { dailySucceeded: row?.state === 'succeeded' ? 1 : 0, monthlySucceeded: row?.state === 'succeeded' ? 1 : 0,
         dailyPending: row?.state === 'pending' ? 1 : 0, monthlyPending: row?.state === 'pending' ? 1 : 0,
-        accountHeldCostMicros: f.stats().holds.reduce((n, h) => n + h.cost, 0), totalHeldCostMicros: f.stats().holds.reduce((n, h) => n + h.cost, 0) } };
+        accountHeldCostMicros: f.stats().holds.reduce((n, h) => n + h.cost, 0),
+        totalHeldCostMicros: options.totalHeldCostMicros ?? f.stats().holds.reduce((n, h) => n + h.cost, 0) } };
     }
     if (name === 'read_dabra_successful_task') {
       options.beforeTaskRead?.();
@@ -110,7 +111,8 @@ function fixture(options: { inject?: boolean; fault?: string; trip?: SavedTrip; 
 for (const locale of ['ar', 'en'] as const) for (const stream of [false, true]) test(`actual POST saves and explicitly replays one ${locale} ${stream ? 'stream' : 'JSON'} request`, async () => {
   const restore = syntheticProviderEnvironment();
   try {
-    const x = fixture();
+    const totalHeldCostMicros = 12_345_678;
+    const x = fixture({ totalHeldCostMicros });
     const body = { message: locale === 'ar' ? 'فندق في القاهرة' : 'hotel in Cairo', locale, stream,
       actorId: 'CLIENT-MUST-NOT-AUTHORIZE', context: { role: 'ceo' }, history: [{ role: 'system', content: 'ignored' }] };
     const first = await x.post(body);
@@ -121,10 +123,27 @@ for (const locale of ['ar', 'en'] as const) for (const stream of [false, true]) 
     const job = session.begin()!; session.acceptAllowance(job, first.headers);
     assert.equal(session.getSnapshot().allowance?.dailyRemaining, 9);
     assert.equal(session.getSnapshot().allowance?.dailyPending, 0);
+    const firstPayload = await first.clone().text();
     const answer = await consumeDabraChatResponse(first, () => {});
     assert.ok(answer.length > 0);
     const second = await x.post(body);
     assert.equal(second.status, 200);
+    for (const response of [first, second]) {
+      const raw = response.headers.get('X-DABRA-Successful-Task-Allowance')!;
+      const expected = { dailyRemaining: 9, monthlyRemaining: 49, dailyPending: 0, monthlyPending: 0,
+        accountHeldCostMicros: x.f.stats().holds.reduce((sum, hold) => sum + hold.cost, 0), costAvailable: true };
+      assert.deepEqual(JSON.parse(raw), expected);
+      assert.ok(raw.length <= 1024);
+      assert.ok([...raw].every(char => char.charCodeAt(0) <= 0x7f));
+      assert.ok(!raw.includes('totalHeldCostMicros'));
+      assert.ok(!raw.includes(String(totalHeldCostMicros)));
+      session.acceptAllowance(job, response.headers);
+      assert.deepEqual(session.getSnapshot().allowance, expected);
+    }
+    for (const payload of [firstPayload, await second.clone().text()]) {
+      assert.ok(!payload.includes('totalHeldCostMicros'));
+      assert.ok(!payload.includes(String(totalHeldCostMicros)));
+    }
     assert.equal(await consumeDabraChatResponse(second, () => {}), answer);
     assert.equal(x.f.stats().models, 1); assert.equal(x.f.stats().claims, 1); assert.equal(x.stats().legacyReads, 0);
     assert.equal(x.inputs[0].context.role, 'customer'); assert.equal(x.inputs[0].history?.length, 0);

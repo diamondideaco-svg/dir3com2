@@ -13,7 +13,9 @@ The new `successfulTaskChatResponse` seam returns `null` immediately when no dep
 
 With synthetic dependencies, the seam uses the existing lifecycle and real internal-agent handoff. It runs before legacy policy/classifier selection, preventing an extra legacy reservation or model stage. It renders only a verified saved answer, a known Core result with `saved=false`, or an honest non-success response. Pending/unknown/conflict responses are HTTP409; expired is HTTP410; unavailable is HTTP503. Every synthetic response is private/no-store with the private-context header. Current authority is rechecked before execution and after the allowance read. The existing stream byte-completeness contract and display-only allowance contract are reused.
 
-`/api/dabra/tasks`, all SQL, the migration registry, live funding, budgets, retention and both client components are unchanged. A request body or environment variable cannot install the adapter. No SQL or live provider operation is part of this stage.
+The display-only allowance now projects only account-scoped counts and held cost, plus the server-calculated `costAvailable` boolean. The platform-wide `totalHeldCostMicros` remains validated server accounting input and still limits that boolean, but is excluded from both chat and replay headers/payloads. The strict client parser accepts the six-field account-only contract and rejects the old seven-field aggregate-bearing object. This fixes a latent privacy exposure while the runtime remains disabled; it does not change global accounting or budget enforcement.
+
+The `/api/dabra/tasks` route source, all SQL, the migration registry, live funding, budgets, retention and both client components are unchanged. A request body or environment variable cannot install the adapter. No SQL or live provider operation is part of this stage.
 
 ## Verification design
 
@@ -28,6 +30,10 @@ Two existing VM fixture allowlists add only the new direct server-module import.
 The original 24-hour answer retention is still a synthetic assumption. Live storage needs an approved disclosure/consent and retention policy, revocation/account-deletion integration, verified physical purge including locked-row reconciliation, operational access controls and separate source/security/release approval.
 
 Cross-refresh retrieval is not implemented or promised. A request UUID identifies a task, while the current replay contract also requires the original server input digest. That input cannot be reconstructed from its hash. A future stage must explicitly decide between authenticated owner-only retrieval by task ID with current authority/continuity fencing, or a separately approved minimal retained context. Current explicit retry keeps the body only in memory; changes to server-owned context can correctly conflict rather than trigger another model attempt.
+
+FX expiry during an admitted execution remains an unresolved product boundary: even a valid paid model answer is discarded if the quote expires before successful finalization. The original attempt and cost remain counted, successful-task capacity is released for a known failure, and neither an automatic retry nor another model attempt for that request is permitted. A freshness margin or explicit quote-refresh policy requires a separate approved decision; neither is implemented here.
+
+Any future Core-only degradation path must explicitly prevent provider dispatch, reservation and funding operations while validating current account, project and continuity authority. A generic fallback to the legacy execution path does not establish those guarantees and is not implemented or approved by this stage.
 
 These decisions are not replaced by existing saved-trip consent. No approval from PR238 transfers to this new delta.
 

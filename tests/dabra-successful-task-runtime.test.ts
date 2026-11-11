@@ -8,6 +8,7 @@ import { boundedSuccessfulTaskRpc, createSyntheticSuccessfulTaskRunner, successf
 import type { FundingRpc } from '../lib/dabra/dialogue-funding-store';
 import { successfulTaskRuntimeFixture, syntheticProviderEnvironment } from './fixtures/task237-runtime-synthetic';
 import { successfulTaskReplayResponse } from '../lib/dabra/successful-task-replay';
+import { SUCCESSFUL_TASK_POLICY } from '../lib/dabra/successful-task-contract';
 import { POST as replayRoute } from '../app/api/dabra/tasks/route';
 
 test('synchronous RPC throw settles once without leaking an abort listener or delayed rejection', async () => {
@@ -89,16 +90,21 @@ test('owner replay route retrieves saved answer with no execution, no-cache and 
  const restore=syntheticProviderEnvironment();
  try{
   const f=successfulTaskRuntimeFixture(),input={message:'SYNTHETIC',history:[],locale:'en' as const,context:f.context};let calls=0;
+  const totalHeldCostMicros=SUCCESSFUL_TASK_POLICY.monthlyCostMicros+123_456;
   const request=()=>new Request('https://synthetic.invalid/api/dabra/tasks',{method:'POST',body:JSON.stringify({requestId:f.requestId,actorId:'IGNORED-CLIENT-IDENTITY'})});
   const rpc:FundingRpc=async(name,p)=>{calls++;assert.equal(p.p_actor_id,publicActor());
    if(name==='read_dabra_successful_task')return {error:null,data:{state:'succeeded',answer:'SYNTHETIC saved answer',language:'en'}};
-   assert.equal(name,'get_dabra_successful_task_allowance');return {error:null,data:{dailySucceeded:1,monthlySucceeded:1,dailyPending:1,monthlyPending:1,accountHeldCostMicros:922,totalHeldCostMicros:922}};
+   assert.equal(name,'get_dabra_successful_task_allowance');return {error:null,data:{dailySucceeded:1,monthlySucceeded:1,dailyPending:1,monthlyPending:1,accountHeldCostMicros:922,totalHeldCostMicros}};
   };
   function publicActor(){const a=f.context.taskAuthority;return a&&a.kind!=='guest'?a.actorId:null;}
   const deps={dataScope:'synthetic-only' as const,rpc,resolveInput:async()=>input};
   const response=await successfulTaskReplayResponse(request(),deps);assert.equal(response.status,200);
-  assert.equal((await response.json()).answer,'SYNTHETIC saved answer');assert.equal(response.headers.get('Cache-Control'),'private, no-store');
-  assert.equal(JSON.parse(response.headers.get('X-DABRA-Successful-Task-Allowance')!).dailyPending,1);assert.equal(f.stats().models,0);assert.equal(calls,2);
+  const payload=await response.text(),raw=response.headers.get('X-DABRA-Successful-Task-Allowance')!;
+  assert.equal(JSON.parse(payload).answer,'SYNTHETIC saved answer');assert.equal(response.headers.get('Cache-Control'),'private, no-store');
+  assert.deepEqual(JSON.parse(raw),{dailyRemaining:8,monthlyRemaining:48,dailyPending:1,monthlyPending:1,accountHeldCostMicros:922,costAvailable:false});
+  assert.ok(raw.length<=1024);assert.ok([...raw].every(char=>char.charCodeAt(0)<=0x7f));
+  for(const serialized of [raw,payload]){assert.ok(!serialized.includes('totalHeldCostMicros'));assert.ok(!serialized.includes(String(totalHeldCostMicros)));}
+  assert.equal(f.stats().models,0);assert.equal(calls,2);
   f.revoke();assert.equal((await successfulTaskReplayResponse(request(),deps)).status,404);assert.equal(calls,2);
  }finally{restore();}
 });
