@@ -1,3 +1,4 @@
+import { parseSuccessfulTaskAllowance, type SuccessfulTaskAllowance } from './successful-task-contract';
 import { ContinuityContext } from './continuity-context';
 import type { ContinuitySnapshot } from './continuity-service';
 import type { ContinuityPreferences } from './continuity-contract';
@@ -7,6 +8,7 @@ export type ConversationMessage = { id: string; role: 'user' | 'assistant'; text
 type Update<T> = T | ((current: T) => T);
 export type ConversationJob = { readonly id: string; readonly generation: number; readonly signal: AbortSignal };
 export type ConversationState = {
+  allowance: SuccessfulTaskAllowance | null;
   generation: number; boundary: string; ready: boolean; persistence: DabraPersistenceContext | null;
   messages: ConversationMessage[]; draft: string; pending: boolean; error: string | null;
   preferences: ContinuityPreferences | null; continuityDraft: string | null;
@@ -22,7 +24,8 @@ export class ConversationSession {
   private listeners = new Set<() => void>();
   private controller: AbortController | null = null;
   private active: ConversationJob | null = null;
-  private state: ConversationState = { generation: 0, boundary: '', ready: false, persistence: null,
+  private retryTransport: { key: string; id: string; body: BodyInit; retry: boolean } | null = null;
+  private state: ConversationState = { allowance: null, generation: 0, boundary: '', ready: false, persistence: null,
     messages: [], draft: '', pending: false, error: null, preferences: null, continuityDraft: null };
   readonly emptySnapshot = this.state;
   setContinuitySnapshot(snapshot: ContinuitySnapshot | null) { this.continuitySnapshot = snapshot; }
@@ -46,8 +49,9 @@ export class ConversationSession {
   invalidate(boundary: string) {
     if (this.active) this.context.finishAnswer(`assistant-${this.active.id}`);
     this.controller?.abort(); this.controller = null; this.active = null;
+    this.retryTransport = null;
     this.context.clear([]); this.continuitySnapshot = null; this.continuityCurrency = null; this.privateConversation = false;
-    this.publish({ generation: this.state.generation + 1, boundary, ready: false, persistence: null,
+    this.publish({ allowance: null, generation: this.state.generation + 1, boundary, ready: false, persistence: null,
       messages: [], draft: '', pending: false, error: null, preferences: null, continuityDraft: null });
     return this.state.generation;
   }
@@ -79,22 +83,35 @@ export class ConversationSession {
     this.publish({ pending: true, error: null });
     return job;
   }
+  /** Explicit user retry only. Reuse the exact body/UUID in memory, never resend automatically. */
+  transport(job: ConversationJob, key: string, body: BodyInit) {
+    if (!this.isCurrent(job)) throw new Error('CONVERSATION_STALE');
+    if (!this.retryTransport?.retry || this.retryTransport.key !== key) this.retryTransport = { key, id: job.id, body, retry: false };
+    else this.retryTransport.retry = false;
+    return { id: this.retryTransport.id, body: this.retryTransport.body };
+  }
+  acceptAllowance(job: ConversationJob, headers: Headers) {
+    if (this.isCurrent(job)) this.publish({ allowance: parseSuccessfulTaskAllowance(headers.get('X-DABRA-Successful-Task-Allowance')) });
+  }
   isCurrent(job: ConversationJob) { return this.active === job && !job.signal.aborted && job.generation === this.state.generation; }
   update(job: ConversationJob, update: Update<ConversationMessage[]>) {
     if (this.isCurrent(job)) this.setMessages(update);
   }
-  fail(job: ConversationJob, error: string) { if (this.isCurrent(job)) this.setError(error); }
+  fail(job: ConversationJob, error: string) { if (this.isCurrent(job)) { if (this.retryTransport) this.retryTransport.retry = true; this.setError(error); } }
   finish(job: ConversationJob) {
     if (!this.isCurrent(job)) return;
+    if (!this.retryTransport?.retry) this.retryTransport = null;
     this.active = null; this.controller = null; this.publish({ pending: false });
   }
   cancel() {
     const job = this.active;
+    if (job && this.retryTransport) this.retryTransport.retry = true;
     this.controller?.abort(); this.controller = null; this.active = null;
     if (job) this.context.finishAnswer(`assistant-${job.id}`);
     this.publish({ pending: false, messages: job ? this.state.messages.filter(m => m.id !== `assistant-${job.id}`) : this.state.messages });
   }
   forgetContext(keepJob?: ConversationJob) {
+    this.retryTransport = null;
     this.restoreContinuityCurrency();
     if (!keepJob || !this.isCurrent(keepJob)) this.cancel();
     const independent = this.context.forget();

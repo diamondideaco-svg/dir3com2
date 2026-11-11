@@ -5,6 +5,7 @@ import path from 'node:path';
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/ai2/chat/route';
 import { ContinuityContext } from '@/lib/dabra/continuity-context';
+import { ConversationSession } from '@/lib/dabra/conversation-session';
 import { createPersisted, readPersisted, validatePersistedMessages } from '@/lib/dabra/travel-commerce-state';
 import {
   consumeDabraChatResponse,
@@ -13,6 +14,7 @@ import {
   DABRA_SAFE_EMPTY_ANSWER,
   DABRA_CHAT_STREAM_CONTRACT_HEADER,
   DABRA_CHAT_STREAM_CONTRACT_VERSION,
+  DABRA_CHAT_ANSWER_BYTES_HEADER,
 } from '@/lib/dabra/chat-response-contract';
 
 const root = process.cwd();
@@ -44,6 +46,7 @@ test('stream=true returns assistant text only with the explicit safe headers', a
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(response.headers.get(DABRA_CHAT_STREAM_CONTRACT_HEADER), DABRA_CHAT_STREAM_CONTRACT_VERSION);
+  assert.equal(Number(response.headers.get(DABRA_CHAT_ANSWER_BYTES_HEADER)),new TextEncoder().encode(text).byteLength);
   assert(text.trim().length > 0);
   assert.doesNotMatch(text, /^\s*[{[]/);
   for (const internalField of ['providerErrorCategory', 'groundingStatus', 'fallbackAttempts', 'promptVersion']) {
@@ -194,4 +197,101 @@ test('malformed, executable, oversized-count and unsupported attachments fail sa
 import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
 test('shared actual persistence excludes private content', () => {
   runDabraBoundaryCase('shared actual persistence excludes private content');
+});
+
+test('HTTP200 empty or malformed delivery signals uncertainty without treating the visible fallback as success', async () => {
+  const bad=[Response.json({}),Response.json({answer:'   '}),new Response('{invalid',{headers:{'Content-Type':'application/json'}}),
+    new Response('',{headers:{'Content-Type':'text/plain','X-DABRA-Response-Contract':'assistant-text-v1'}}),new Response('untrusted',{headers:{'Content-Type':'text/html'}})];
+  for(const response of bad){let uncertain=0;const answer=await consumeDabraChatResponse(response,()=>{},'safe fallback',()=>{uncertain++;});assert.equal(answer,'safe fallback');assert.equal(uncertain,1);}
+  let uncertain=0;assert.equal(await consumeDabraChatResponse(Response.json({answer:'SYNTHETIC valid'}),()=>{},'safe fallback',()=>{uncertain++;}),'SYNTHETIC valid');assert.equal(uncertain,0);
+});
+
+test('invalid HTTP200 delivery preserves selected files and request UUID through the existing submission catch', async () => {
+  assert.match(component, /DABRA_LOCALE_ERROR\[language\], \(\) => \{ throw new Error\('DABRA_RESPONSE_UNCERTAIN'\)/);
+  const invalidResponses = [
+    Response.json({}), Response.json({ answer: '   ' }),
+    new Response('{invalid', { headers: { 'Content-Type': 'application/json' } }),
+    new Response('', { headers: { 'Content-Type': 'text/plain', 'X-DABRA-Response-Contract': 'assistant-text-v1' } }),
+    new Response('untrusted', { headers: { 'Content-Type': 'text/html' } }),
+    new Response('SYNTHETIC missing length', { headers: { 'Content-Type': 'text/plain', 'X-DABRA-Response-Contract': 'assistant-text-v1' } }),
+    new Response('{invalid', { headers: { 'Content-Type': 'text/plain', 'X-DABRA-Response-Contract': 'assistant-text-v1', 'X-DABRA-Answer-Bytes': '8' } }),
+  ];
+  for (const response of invalidResponses) {
+    const session = new ConversationSession();
+    session.resolve(session.invalidate('customer-public'), { ownerId: 'user:synthetic', storage: 'local' });
+    const file = new File(['SYNTHETIC'], 'synthetic.txt', { type: 'text/plain' });
+    let attachments = [{ id: 'synthetic-selection', file, status: 'uploading' }];
+    const requestKey = () => JSON.stringify(['form', 'SYNTHETIC request', 'SAR', 'en', null, attachments.map(item => item.id)]);
+    const body = new FormData(); body.append('attachment', file);
+    const job = session.begin(); assert.ok(job);
+    const original = session.transport(job, requestKey(), body);
+    let invalidCallbacks = 0; let caught = 0; let cleared = false;
+    try {
+      await consumeDabraChatResponse(response, () => assert.fail('invalid text must not enter the success callback'), 'safe fallback', () => {
+        invalidCallbacks++;
+        throw new Error('DABRA_RESPONSE_UNCERTAIN');
+      });
+      attachments = []; cleared = true;
+    } catch (error) {
+      caught++;
+      assert.equal((error as Error).message, 'DABRA_RESPONSE_UNCERTAIN');
+      session.fail(job, 'safe error');
+      attachments = attachments.map(item => ({ ...item, status: 'error' }));
+    } finally {
+      session.finish(job);
+    }
+    assert.equal(invalidCallbacks, 1); assert.equal(caught, 1); assert.equal(cleared, false);
+    assert.equal(attachments[0].id, 'synthetic-selection');
+    assert.strictEqual(attachments[0].file, file);
+    assert.equal(attachments[0].status, 'error');
+    assert.equal(session.getSnapshot().pending, false);
+    // Only a later explicit user submission begins a new job. Its transport
+    // keeps the exact original body and request UUID; nothing redispatches here.
+    const retry = session.begin(); assert.ok(retry); assert.notEqual(retry.id, job.id);
+    const retried = session.transport(retry, requestKey(), new FormData());
+    assert.equal(retried.id, original.id); assert.strictEqual(retried.body, body);
+    assert.strictEqual((retried.body as FormData).get('attachment'), file);
+    session.finish(retry);
+  }
+});
+
+for (const answer of ['SYNTHETIC complete answer', 'إجابة اصطناعية كاملة 🌍']) test('byte-bound stream completion for '+answer, async () => {
+  const full=createDabraAssistantTextResponse({answer});const bytes=new TextEncoder().encode(answer);
+  assert.equal(Number(full.headers.get(DABRA_CHAT_ANSWER_BYTES_HEADER)),bytes.byteLength);
+  assert.equal(await consumeDabraChatResponse(full,()=>{},'safe',()=>assert.fail('complete answer')),answer);
+  const session=new ConversationSession();session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic',storage:'local'});
+  const job=session.begin();assert.ok(job);const original=session.transport(job,'same-input','SYNTHETIC body');
+  const short=new Response(bytes.slice(0,bytes.length-3),{headers:createDabraAssistantTextResponse({answer}).headers});
+  let invalid=0;
+  await assert.rejects(consumeDabraChatResponse(short,()=>{},'safe',()=>{invalid++;throw new Error('SYNTHETIC incomplete');}),/incomplete/);
+  session.fail(job,'incomplete');session.finish(job);assert.equal(invalid,1);
+  const retry=session.begin();assert.ok(retry);assert.deepEqual(session.transport(retry,'same-input','new body'),original);session.finish(retry);
+});
+
+test('stream byte counts reject invalid or excessive lengths and extra bytes without consuming retry identity',async()=>{
+ const answer='إجابة SYNTHETIC 🌍',bytes=new TextEncoder().encode(answer);
+ for(const length of ['0','-1','NaN','Infinity','256001','1e3',String(bytes.length-1)]){
+  const headers=createDabraAssistantTextResponse({answer}).headers;headers.set(DABRA_CHAT_ANSWER_BYTES_HEADER,length);
+  let invalid=0;await assert.rejects(consumeDabraChatResponse(new Response(bytes,{headers}),()=>{},'safe',()=>{invalid++;throw Error('SYNTHETIC invalid length');}),/invalid length/);assert.equal(invalid,1);
+ }
+ const headers=createDabraAssistantTextResponse({answer}).headers;
+ const split=new Response(new ReadableStream<Uint8Array>({start(controller){for(const byte of bytes)controller.enqueue(new Uint8Array([byte]));controller.close();}}),{headers});
+ assert.equal(await consumeDabraChatResponse(split,()=>{},'safe',()=>assert.fail('valid multibyte split')),answer);
+});
+
+test('overlong non-ending stream cancels before decoding or rendering excess bytes without awaiting cancellation',async()=>{
+ const session=new ConversationSession();session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic',storage:'local'});
+ const job=session.begin();assert.ok(job);const original=session.transport(job,'same-input','SYNTHETIC body');
+ let cancelled=0,invalid=0;const visible:string[]=[];
+ const headers=createDabraAssistantTextResponse({answer:'safe'}).headers;
+ const stream=new ReadableStream<Uint8Array>({start(controller){controller.enqueue(new TextEncoder().encode('sa'));controller.enqueue(new TextEncoder().encode('EXCESS MUST NOT DISPLAY'));},cancel(){cancelled++;return new Promise(()=>{});}});
+ let timeout:ReturnType<typeof setTimeout>|undefined;
+ try {
+  await assert.rejects(Promise.race([
+   consumeDabraChatResponse(new Response(stream,{headers}),text=>visible.push(text),'fallback',()=>{invalid++;throw Error('SYNTHETIC overrun');}),
+   new Promise<never>((_,reject)=>{timeout=setTimeout(()=>reject(Error('waited for cancellation')),300);}),
+  ]),/SYNTHETIC overrun/);
+ }finally{if(timeout)clearTimeout(timeout);session.fail(job,'overrun');session.finish(job);}
+ assert.equal(cancelled,1);assert.equal(invalid,1);assert.deepEqual(visible,['sa']);
+ const retry=session.begin();assert.ok(retry);assert.deepEqual(session.transport(retry,'same-input','new body'),original);session.finish(retry);
 });

@@ -21,6 +21,8 @@ type AnthropicErrorCategory =
   | 'billing_or_identity';
 
 export type AnthropicWebCallResult = {
+  /** Body read failed after response headers; dispatch outcome remains unknown. */
+  bodyInterrupted?: boolean;
   ok: boolean;
   answer: string;
   citations: string[];
@@ -244,7 +246,16 @@ async function callAnthropicOnce(
       }),
     });
 
-    const payload = (await response.json().catch(() => null)) as unknown;
+    // A body transport interruption is unknown, not a completed malformed answer.
+    // Only parsing of a fully read body may produce a known invalid response.
+    let raw: string;
+    try { raw = await response.text(); } catch {
+      // Preserve existing error categories/retry decisions for other callers.
+      return { ok: false, answer: '', citations: [], bodyInterrupted: true,
+        errorCategory: response.ok ? 'malformed_response' : classifyError(response.status, {}), status: response.status, model };
+    }
+    let payload: unknown = null;
+    try { payload = JSON.parse(raw); } catch { /* Complete but invalid JSON. */ }
     if (!response.ok) {
       return {
         ok: false,

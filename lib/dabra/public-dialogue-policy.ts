@@ -4,6 +4,7 @@ import type { AgentContext } from './agent-contract';
 export const PUBLIC_DIALOGUE_POLICY = Object.freeze({
   id: 'dabra-public-monthly-v1', currency: 'USD', timeZone: 'Asia/Riyadh',
   monthlyCostMicros: 25_000_000, accountMonthlyCostMicros: 250_000,
+  attemptCostMicros: 250_000,
   accountMonthlyRequests: 100, accountDailyRequests: 10,
 } as const);
 
@@ -37,9 +38,9 @@ export type PublicDialogueUsage = Readonly<{
 export function publicDialogueBudgetAllows(usage:PublicDialogueUsage,costMicros:number) {
   return Object.values(usage).every(n=>Number.isSafeInteger(n)&&n>=0)
     && Number.isSafeInteger(costMicros)&&costMicros>0
-    && costMicros<=PUBLIC_DIALOGUE_POLICY.accountMonthlyCostMicros
+    && costMicros<=PUBLIC_DIALOGUE_POLICY.attemptCostMicros
     && usage.monthlyCostMicros+costMicros<=PUBLIC_DIALOGUE_POLICY.monthlyCostMicros
-    && usage.accountMonthlyCostMicros+costMicros<=PUBLIC_DIALOGUE_POLICY.accountMonthlyCostMicros
+    && usage.accountMonthlyCostMicros+costMicros<=PUBLIC_DIALOGUE_POLICY.attemptCostMicros
     && usage.accountMonthlyRequests<PUBLIC_DIALOGUE_POLICY.accountMonthlyRequests
     && usage.accountDailyRequests<PUBLIC_DIALOGUE_POLICY.accountDailyRequests;
 }

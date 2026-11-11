@@ -180,3 +180,36 @@ test('both view transports reserve the shared lock before an asynchronous contin
   assert.ok(fullHandler.indexOf('conversation.begin()') >= 0 && fullHandler.indexOf('conversation.begin()') < fullHandler.indexOf('await ensureContinuityFresh'));
   assert.ok(floatingHandler.indexOf('conversation.begin()') >= 0 && floatingHandler.indexOf('conversation.begin()') < floatingHandler.indexOf("await fetch('/api/dabra/continuity'"));
 });
+
+test('explicit transport retry keeps exact request ID and body without resending or persisting anything', () => {
+  const session = ready(); const first = session.begin(); assert.ok(first);
+  const request = session.transport(first, 'same-context', '{"history":[],"message":"synthetic"}');
+  session.fail(first, 'network'); session.finish(first);
+  const second = session.begin(); assert.ok(second);
+  const retry = session.transport(second, 'same-context', '{"history":["would change input"]}');
+  assert.deepEqual(retry, request); assert.notEqual(first.id, second.id);
+  session.finish(second);
+  const third = session.begin(); assert.ok(third);
+  assert.notEqual(session.transport(third, 'same-context', 'new successful request').id, request.id);
+});
+test('context change or identity boundary cannot replay another input/owner; cancellation remains uncertain', () => {
+  const session = ready(); const first = session.begin(); assert.ok(first);
+  const old = session.transport(first, 'old-context', 'private'); session.cancel();
+  const second = session.begin(); assert.ok(second);
+  assert.equal(session.transport(second, 'old-context', 'ignored').id, old.id);
+  session.fail(second, 'network'); session.finish(second);
+  const third = session.begin(); assert.ok(third);
+  assert.notEqual(session.transport(third, 'new-context', 'new').id, old.id);
+  session.invalidate('other-owner'); session.resolve(session.getSnapshot().generation, {ownerId:'B',storage:'local'});
+  const fourth = session.begin(); assert.ok(fourth);
+  assert.notEqual(session.transport(fourth, 'old-context', 'B data').id, old.id);
+});
+
+test('attachment retry retains original File body and UUID; new file selection changes identity', () => {
+  const session=ready(),first=session.begin();assert.ok(first);
+  const form=new FormData();form.append('attachment',new File(['SYNTHETIC'],'a.txt'));
+  const original=session.transport(first,'selected-file-1',form);session.fail(first,'delivery unknown');session.finish(first);
+  const second=session.begin();assert.ok(second);assert.deepEqual(session.transport(second,'selected-file-1',new FormData()),original);
+  session.fail(second,'delivery unknown');session.finish(second);
+  const third=session.begin();assert.ok(third);assert.notEqual(session.transport(third,'selected-file-2',new FormData()).id,original.id);
+});
