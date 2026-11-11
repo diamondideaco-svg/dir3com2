@@ -36,6 +36,7 @@ function fixture() {
   const exports = {};
   // Exact direct imports of the route VM; transitive Node imports are not sandboxed.
   const realDependencies: readonly string[] = [
+    '@/lib/dabra/successful-task-chat',
     'next/server',
     '@/lib/dabra/conversation-renderer',
     '@/lib/dabra/platform-assistant',

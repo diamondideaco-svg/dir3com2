@@ -1,3 +1,4 @@
+import { successfulTaskChatResponse } from '@/lib/dabra/successful-task-chat';
 import { conversationIntent } from '@/lib/dabra/conversation-renderer';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { platformCurrency, platformContext, platformConversationScope, platformFamilies, refinePlatformTrip, hasActivePlatformDriveDialogue } from '@/lib/dabra/platform-assistant';
@@ -136,6 +137,7 @@ export async function POST(request: NextRequest) {
   }
   let history = sanitizeHistory(body?.history);
   let trip = null;
+  let continuityBinding: Readonly<{ revision: number; generation: number }> | undefined;
   let tripIsCurrent: (() => Promise<boolean>) | undefined;
   if (body?.continuityTrip !== undefined) {
     const input = parseContinuityChatTrip(body.continuityTrip);
@@ -147,6 +149,7 @@ export async function POST(request: NextRequest) {
       tripIsCurrent=async()=>{try{const fresh=await resolveContinuityChatTrip(request,input);return !!fresh&&JSON.stringify(fresh)===original;}catch{return false;}};
     } catch { /* Unavailable authenticated continuity fails closed. */ }
     if (!trip) return NextResponse.json({ error: 'Continuity context expired or changed.' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
+    continuityBinding = { revision: input.revision, generation: input.generation };
     trip = refinePlatformTrip(trip, message);
   }
   if (body?.currency !== undefined && !parseDisplayCurrency(body.currency)) return NextResponse.json({ error: 'Invalid currency.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
@@ -165,10 +168,23 @@ export async function POST(request: NextRequest) {
     agentContext={...agentContext,isTaskAuthorityCurrent:async()=>await authIsCurrent()&&await ownedTripIsCurrent()&&await authIsCurrent()};
   }
   const context = platformContext(scopedMessage, history, trip);
+  let needsClarification = false;
+  // One canonical input for both paths. Receipt is included only after the
+  // authenticated continuity read above, and only while its trip remains in scope.
+  const resolveTaskInput = async () => {
+    const currency = parseDisplayCurrency(body?.currency) ?? platformCurrency(context);
+    const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
+    const snapshot = needsRates ? await getCurrencySnapshot() : null;
+    return { message: scopedMessage, serverAttachmentNote, history, locale, context: agentContext, intent, needsClarification,
+      pricing: currency ? { currency, snapshot } : undefined, trip, continuityBinding: trip ? continuityBinding : undefined };
+  };
+  // No adapter is installed. Only an explicitly injected synthetic dependency
+  // in isolated tests can select this path; request data and ENV cannot select it.
+  const successfulTaskResponse = await successfulTaskChatResponse(resolveTaskInput, requestId, request.signal, body?.stream === true);
+  if (successfulTaskResponse) return successfulTaskResponse;
   let dialoguePolicy = await getAgentDialoguePolicy(agentContext, request.signal, parsed.attachmentCount ? undefined : requestId);
   let understanding: string = 'internal-rules';
   let understandingProvider: string | undefined;
-  let needsClarification = false;
   // Only authenticated ambiguity uses the optional classifier. It cannot read
   // records, grant roles or generate customer-facing facts/actions.
   const classifierActor = agentContext.taskAuthority;
@@ -192,11 +208,7 @@ export async function POST(request: NextRequest) {
       dialoguePolicy = { ...dialoguePolicy, profiles: [] };
     }
   }
-  const currency = parseDisplayCurrency(body?.currency) ?? platformCurrency(context);
-  const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
-  const snapshot = needsRates ? await getCurrencySnapshot() : null;
-  const taskResult = await runInternalAgentTask({ message: scopedMessage, serverAttachmentNote, history, locale, context: agentContext, intent, needsClarification,
-    pricing: currency ? { currency, snapshot } : undefined, trip }, { signal: request.signal, dialogue: dialoguePolicy, responseContract: dialoguePolicy.publicMonthly ? 'platform-dialogue' : 'platform-units' });
+  const taskResult = await runInternalAgentTask(await resolveTaskInput(), { signal: request.signal, dialogue: dialoguePolicy, responseContract: dialoguePolicy.publicMonthly ? 'platform-dialogue' : 'platform-units' });
   if (taskResult.kind === 'stopped') return NextResponse.json({ error: DABRA_LOCALE_ERROR[locale] }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
   const response = taskResult.response;
   if (body?.stream === true) {
