@@ -61,7 +61,29 @@ test('one existing launcher receives Concierge presentation only on the exact My
   const runtime = readFileSync(new URL('../components/layout/FloatingDibrah.tsx', import.meta.url), 'utf8');
   assert.ok(runtime.includes('desktopIdentity={desktopIdentity}'));
   assert.equal((runtime.match(/id="dibrah"/g) || []).length, 1);
-  assert.match(runtime, /body: JSON\.stringify\(\{ message: trimmed, history, locale: continuityRequestLocale/);
+  const requestStart = runtime.indexOf('const requestBody =');
+  const requestEnd = runtime.indexOf('conversation.acceptAllowance(job, response.headers);', requestStart);
+  assert.ok(requestStart >= 0 && requestEnd > requestStart, 'request and transport boundary must exist');
+  const request = runtime.slice(requestStart, requestEnd);
+  const assertTransportRequest = (source: string) => {
+    const compact = source.replace(/\s+/g, ' ');
+    assert.ok(compact.includes("const requestBody = { message: trimmed, history, locale: continuityRequestLocale(context.lease ? conversation.getSnapshot().preferences : null, locale), currency: getDisplayCurrency(), ...(trip && context.lease ? { continuityTrip: { revision: context.lease.revision, generation: context.lease.generation, trip } } : {}) };"), 'preserve message, history, locale, currency and leased continuity trip');
+    assert.ok(compact.includes("const transport = conversation.transport(job, JSON.stringify(['json', trimmed, requestBody.locale, requestBody.currency, requestBody.continuityTrip]), JSON.stringify(requestBody));"), 'bind the complete request body to explicit-retry transport identity');
+    assert.ok(compact.includes("const response = await fetch('/api/ai2/chat', { method: 'POST', signal: job.signal, headers: { 'content-type': 'application/json', 'X-DABRA-Request-Id': transport.id }, body: transport.body, });"), 'send the same transport body and UUID');
+    assert.doesNotMatch(source, /desktopIdentity/, 'presentation identity must never enter the request');
+  };
+  assertTransportRequest(request);
+  for (const [name, mutated] of [
+    ['missing message', request.replace('message: trimmed, ', '')],
+    ['missing history', request.replace('trimmed, history, locale:', 'trimmed, locale:')],
+    ['lost continuity lease', request.replace('trip && context.lease', 'trip')],
+    ['new UUID on explicit retry', request.replace("'X-DABRA-Request-Id': transport.id", "'X-DABRA-Request-Id': job.id")],
+    ['rebuilt body on explicit retry', request.replace('body: transport.body', 'body: JSON.stringify(requestBody)')],
+    ['presentation identity leaked', request.replace('message: trimmed, history,', 'message: trimmed, history, desktopIdentity,')],
+  ]) {
+    assert.notEqual(mutated, request, name);
+    assert.throws(() => assertTransportRequest(mutated), { name: 'AssertionError' }, name);
+  }
   assert.match(runtime, /currency: getDisplayCurrency\(\)/);
   assert.doesNotMatch(runtime.slice(runtime.indexOf('const sendDraft'), runtime.indexOf('\n  return (', runtime.indexOf('const sendDraft'))), /desktopIdentity/);
   assert.ok(runtime.includes('DABRA never books, pays, cancels, refunds, or performs irreversible actions on its own.'));

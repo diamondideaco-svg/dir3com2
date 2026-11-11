@@ -1,5 +1,7 @@
 'use client';
 
+import { approvedAssistantAnswer } from '@/lib/dabra/chat-response-contract';
+import { successfulTaskAllowanceText } from '@/lib/dabra/successful-task-contract';
 import { getDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import PlatformAnswer from '@/components/dabra/PlatformAnswer';
 import { useDabraConversation } from '@/components/dabra/DabraConversationProvider';
@@ -413,15 +415,23 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
     conversation.setDraft(current => current === draft ? '' : current);
     stickToBottomRef.current = true;
     try {
+      const requestBody = { message: trimmed, history, locale: continuityRequestLocale(context.lease ? conversation.getSnapshot().preferences : null, locale), currency: getDisplayCurrency(),
+        ...(trip && context.lease ? { continuityTrip: { revision: context.lease.revision, generation: context.lease.generation, trip } } : {}) };
+      const transport = conversation.transport(job, JSON.stringify(['json', trimmed, requestBody.locale, requestBody.currency, requestBody.continuityTrip]), JSON.stringify(requestBody));
       const response = await fetch('/api/ai2/chat', {
-        method: 'POST', signal: job.signal, headers: { 'content-type': 'application/json', 'X-DABRA-Request-Id': job.id },
-        body: JSON.stringify({ message: trimmed, history, locale: continuityRequestLocale(context.lease ? conversation.getSnapshot().preferences : null, locale), currency: getDisplayCurrency(),
-          ...(trip && context.lease ? { continuityTrip: { revision: context.lease.revision, generation: context.lease.generation, trip } } : {}) }),
+        method: 'POST', signal: job.signal, headers: { 'content-type': 'application/json', 'X-DABRA-Request-Id': transport.id },
+        body: transport.body,
       });
+      conversation.acceptAllowance(job, response.headers);
       const payload = await response.json().catch(() => ({})) as { answer?: string; error?: string };
       if (!conversation.isCurrent(job)) return;
       if (!response.ok) {
         conversation.fail(job, response.status === 400 ? t.invalid : response.status === 401 || response.status === 403 ? t.session : t.unavailableChat);
+        conversation.update(job, current => current.filter(m => m.id !== assistantId));
+        return;
+      }
+      if (!approvedAssistantAnswer(payload)) {
+        conversation.fail(job, t.unavailableChat);
         conversation.update(job, current => current.filter(m => m.id !== assistantId));
         return;
       }
@@ -496,6 +506,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
             </div>
 
             <div className="shrink-0 border-t border-[#dfd4bd] bg-[#fffaf0] px-3 py-3 sm:px-5">
+              {conversationState.allowance && <p role="status" className="mb-2 text-xs">{successfulTaskAllowanceText(conversationState.allowance, micLanguage)}</p>}
               {sendError ? <p className="mb-2 text-xs text-rose-700">{sendError}</p> : null}
               <div className="flex items-end gap-2 rounded-[20px] border border-[#c9b476] bg-white px-3 py-2 shadow-[0_6px_18px_rgba(13,27,42,0.08)] focus-within:border-[#a97922] focus-within:ring-2 focus-within:ring-[#c89536]/25">
                 <FiMessageCircle className="mb-2 text-[#a97922]" />

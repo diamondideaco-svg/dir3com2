@@ -226,7 +226,7 @@ type DialogueReply = Omit<CoreReply, 'provider' | 'groundingStatus' | 'retrieval
   retrievalMode: CoreReply['retrievalMode'] | 'qualified-dialogue';
 };
 export type AgentCoreTaskResult =
-  | { kind: 'response'; response: CoreReply | DialogueReply; task: AgentTaskState; dialogueTask?: AgentTaskState }
+  | { kind: 'response'; response: CoreReply | DialogueReply; task: AgentTaskState; dialogueTask?: AgentTaskState; dialogueOutcome?: 'validated' | 'failed' | 'unknown' }
   | { kind: 'stopped'; task: AgentTaskState };
 function privateTaskScope(intent: AgentIntent, actor: AgentTaskAuthority): AgentTaskScope | null {
   if (intent.tool === 'executive_metrics') return actor.kind === 'operator' && actor.role === 'ceo'
@@ -309,6 +309,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
     if (acknowledged.kind === 'rejected') return { kind: 'response', response: result.output, task: result.state,
       dialogueTask: { kind: 'blocked', reason: acknowledged.reason } };
     let composed: DialogueReply | undefined;
+    let providerReturned = false;
     const dialogue = await coordinator.execute(providerId, owner, {
       signal: options.signal, isCurrent: plan.isCurrent,
       validateOutput: (value): value is DialogueReply => composed !== undefined && value === composed,
@@ -321,6 +322,9 @@ export async function runInternalAgentTask(input: CoreInput, options: {
           prompt: plan.prompt, language: input.locale, timeoutMs: Math.max(1, task.deadlineAtMs - Date.now()),
           maxOutputTokens: m.outputTokenCeiling, signal, standardBilling: plan.standardBilling,
         });
+        // Transport adapters also return objects for connection failures without an upstream response.
+        providerReturned = !('bodyInterrupted' in reply && reply.bodyInterrupted === true)
+          && (reply.ok || ('status' in reply && typeof reply.status === 'number' && reply.status >= 100 && reply.status <= 599));
         if (reply.ok && reply.model === m.model && reply.citations.length === 0
           && Number.isSafeInteger(reply.inputTokens) && Number.isSafeInteger(reply.outputTokens)
           && reply.inputTokens! >= 0 && reply.outputTokens! >= 0) {
@@ -343,8 +347,8 @@ export async function runInternalAgentTask(input: CoreInput, options: {
       if (responseStopped() || !await isAgentTaskAuthorityCurrent(input.context, plan.signal) || responseStopped())
         return { kind: 'stopped', task: dialogue.state };
     } catch { return { kind: 'stopped', task: dialogue.state }; }
-    if (dialogue.kind === 'completed') return { kind: 'response', response: dialogue.output, task: dialogue.state };
-    return { kind: 'response', response: result.output, task: result.state, dialogueTask: dialogue.state };
+    if (dialogue.kind === 'completed') return { kind: 'response', response: dialogue.output, task: dialogue.state, dialogueOutcome: 'validated' };
+    return { kind: 'response', response: result.output, task: result.state, dialogueTask: dialogue.state, dialogueOutcome: providerReturned ? 'failed' : 'unknown' };
   }
   if (coreOutput && negativeReply(coreOutput)) return { kind: 'response', response: coreOutput, task: result.state };
   return { kind: 'stopped', task: result.state };

@@ -26,7 +26,7 @@ const defaultRpc:FundingRpc=async(name,params,signal)=>!supabaseAdmin||signal.ab
 /** Explicitly selected server policy only; not reachable from client role/provider JSON. */
 export async function loadPublicDialoguePolicy(context:AgentContext|undefined,signal:AbortSignal|undefined,requestId:string|undefined,rpc:FundingRpc=defaultRpc):Promise<AgentDialoguePolicy> {
  const blocked:AgentDialoguePolicy={...DEFAULT_AGENT_DIALOGUE_POLICY,trial:true,publicMonthly:true,profiles:[],outputAcceptances:[],
-  limits:{...DEFAULT_AGENT_DIALOGUE_POLICY.limits,maxCostUsd:PUBLIC_DIALOGUE_POLICY.accountMonthlyCostMicros/1_000_000}};
+  limits:{...DEFAULT_AGENT_DIALOGUE_POLICY.limits,maxCostUsd:PUBLIC_DIALOGUE_POLICY.attemptCostMicros/1_000_000}};
  const actor=context&&publicDialogueActor(context);
  const projectCurrent=()=>{try{return context?.isDialogueFundingProjectCurrent?.()===true;}catch{return false;}};
  if(!actor||!uuid(actor)||!uuid(requestId)||signal?.aborted||!projectCurrent())return blocked;

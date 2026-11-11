@@ -1,5 +1,6 @@
 'use client';
 
+import { successfulTaskAllowanceText } from '@/lib/dabra/successful-task-contract';
 import PlatformAnswer from '@/components/dabra/PlatformAnswer';
 import DabraContinuity from '@/components/dabra/DabraContinuity';
 import type { ContinuityPreferences, SavedTrip } from '@/lib/dabra/continuity-contract';
@@ -458,18 +459,21 @@ function DabraChatCommerceSession() {
       form.set('locale', continuityRequestLocale(context.lease ? continuityPreferences : null, language));
       form.set('currency', requestedCurrency);
       for (const item of pendingAttachments) form.append('attachment', item.file, item.safeName);
+      const transport = conversation.transport(job, JSON.stringify(['form', requestMessage, requestedCurrency,
+        form.get('locale'), form.get('continuityTrip'), pendingAttachments.map(item => item.id)]), form);
       const response = await fetch('/api/ai2/chat', {
         method: 'POST',
-        headers: { Accept: 'text/plain', 'X-DABRA-Request-Id': job.id },
-        body: form,
+        headers: { Accept: 'text/plain', 'X-DABRA-Request-Id': transport.id },
+        body: transport.body,
         signal,
       });
       if (!conversation.isCurrent(job)) return;
+      conversation.acceptAllowance(job, response.headers);
       if (response.headers.get('X-DABRA-Private-Context') === '1' || response.headers.get('Content-Type')?.includes('application/json')) conversation.markPrivate();
       const finalAnswer=await consumeDabraChatResponse(response, (visibleAnswer) => {
         if (!conversation.isCurrent(job)) return;
         setJobMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));
-      }, DABRA_LOCALE_ERROR[language]);
+      }, DABRA_LOCALE_ERROR[language], () => { throw new Error('DABRA_RESPONSE_UNCERTAIN'); });
       if (!conversation.isCurrent(job)) return;
       context.finishAnswer(assistantId);answerFinished=true;
       // Trigger persistence only after completion, even if React already
@@ -755,6 +759,7 @@ function DabraChatCommerceSession() {
 
   return (
     <main className="dabra-experience" dir={direction} lang={language}>
+      {conversationState.allowance && <p role="status">{successfulTaskAllowanceText(conversationState.allowance, language)}</p>}
       {conversationState.error && <p role="status">{conversationState.error}</p>}
       <header className="dabra-topbar">
         <div className="dabra-identity">

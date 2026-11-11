@@ -82,7 +82,20 @@ test('private chat context is excluded from local persistence and stale response
  const {readFileSync}=await import('node:fs');
  const ui=readFileSync('components/dabra/DabraChatCommerce.tsx','utf8');
  assert.match(ui,/conversation\.privateConversation[\s\S]*storage\.removeItem\(storageKey\(persistenceContext\.ownerId, 'context'\)\)/);
- assert.match(ui,/if \(!conversation\.isCurrent\(job\)\) return;\s*if \(response\.headers\.get\('X-DABRA-Private-Context'\)/);
+ const privateResponseOrder=/if \(!conversation\.isCurrent\(job\)\) return;\s*conversation\.acceptAllowance\(job, response\.headers\);\s*if \(response\.headers\.get\('X-DABRA-Private-Context'\) === '1' \|\| response\.headers\.get\('Content-Type'\)\?\.includes\('application\/json'\)\) conversation\.markPrivate\(\);/;
+ const guard=ui.match(privateResponseOrder)?.[0];
+ assert.ok(guard, 'current-job guard must precede allowance and private-context marking');
+ for(const [name,mutated] of [
+  ['missing current-job guard',guard.replace('if (!conversation.isCurrent(job)) return;','')],
+  ['allowance before current-job guard',guard.replace('if (!conversation.isCurrent(job)) return;','conversation.acceptAllowance(job, response.headers); if (!conversation.isCurrent(job)) return;').replace(/;\s*conversation\.acceptAllowance\(job, response\.headers\);/, ';')],
+  ['missing allowance processing',guard.replace('conversation.acceptAllowance(job, response.headers);','')],
+  ['missing private-header check',guard.replace("response.headers.get('X-DABRA-Private-Context') === '1' || ",'')],
+  ['missing JSON privacy check',guard.replace(" || response.headers.get('Content-Type')?.includes('application/json')",'')],
+  ['missing private marking',guard.replace('conversation.markPrivate();','')],
+ ] as const){
+  assert.notEqual(mutated,guard,name);
+  assert.doesNotMatch(mutated,privateResponseOrder,name);
+ }
  const route=readFileSync('app/api/ai2/chat/route.ts','utf8');
  assert.match(route,/intent\.tool !== 'discover'\) streamed\.headers\.set\('X-DABRA-Private-Context', '1'\)/);
 });

@@ -2,6 +2,8 @@ import { readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const serverOnlyTests = new Set([
+  'dabra-successful-task-runtime.test.ts',
+  'dabra-successful-task-postgres.integration.test.ts',
   'dabra-bilingual-qualification.test.ts',
   'dabra-public-dialogue-postgres.integration.test.ts',
   'dabra-public-dialogue-runtime.test.ts',
@@ -45,6 +47,7 @@ const serverOnlyTests = new Set([
   'marketplace-truth-contract.test.ts',
 ]);
 const databaseTests = new Set([
+  'dabra-successful-task-postgres.integration.test.ts',
   'dabra-public-dialogue-postgres.integration.test.ts',
   'dabra-qualification-postgres.integration.test.ts',
   'task217-customer-cases-postgres.integration.test.ts',

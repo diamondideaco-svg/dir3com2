@@ -26,6 +26,8 @@ export type GeminiWebErrorCategory =
   | 'upstream_error';
 
 export type GeminiWebCallResult = {
+  /** Body read failed after response headers; dispatch outcome remains unknown. */
+  bodyInterrupted?: boolean;
   ok: boolean;
   answer: string;
   citations: string[];
@@ -165,7 +167,16 @@ async function executeRequest(params: GeminiWebCallParams, model: string, timeou
         generationConfig: { maxOutputTokens: params.maxOutputTokens ?? 1024 },
       }),
     });
-    const payload = (await response.json().catch(() => null)) as unknown;
+    // A body transport interruption is unknown, not a completed malformed answer.
+    // Only parsing of a fully read body may produce a known invalid response.
+    let raw: string;
+    try { raw = await response.text(); } catch {
+      // Preserve existing error categories/retry decisions for other callers.
+      return { ok: false, answer: '', citations: [], bodyInterrupted: true,
+        errorCategory: response.ok ? 'malformed_response' : classifyError(response.status, {}), status: response.status, model };
+    }
+    let payload: unknown = null;
+    try { payload = JSON.parse(raw); } catch { /* Complete but invalid JSON. */ }
     if (!response.ok) {
       return { ok: false, answer: '', citations: [], errorCategory: classifyError(response.status, (payload ?? {}) as GeminiErrorPayload), status: response.status, model };
     }
