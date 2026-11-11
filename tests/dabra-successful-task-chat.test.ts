@@ -17,7 +17,20 @@ import type { SavedTrip } from '../lib/dabra/continuity-contract';
 import { successfulTaskRuntimeFixture, syntheticProviderEnvironment } from './fixtures/task237-runtime-synthetic';
 
 type Input = Parameters<typeof successfulTaskInputDigest>[0];
+type ChatResponseArgs = Parameters<typeof successfulTaskChatResponse>;
 const require = createRequire(import.meta.url);
+function assertRouteHasNoSuccessfulTaskDependencies(source: string) {
+  const route = ts.createSourceFile('route.ts', source, ts.ScriptTarget.ES2022, true);
+  const calls: ts.CallExpression[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'successfulTaskChatResponse') calls.push(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(route);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].arguments.length, 4, 'actual POST must pass only four arguments, without synthetic dependencies');
+  return calls[0];
+}
 /** Execute the actual unchanged POST source, substituting explicit synthetic IO
  * at module boundaries. There is no registration hook in the deployed handler.
  */
@@ -27,6 +40,7 @@ function fixture(options: { inject?: boolean; fault?: string; trip?: SavedTrip; 
   let row: Record<string, unknown> | null = null, legacyReads = 0, rpcReads = 0;
   let continuityCurrent = true;
   const inputs: Input[] = [];
+  const routeCalls: ChatResponseArgs[] = [];
   let authorityCallsAfterSave = 0;
   const checkAuthority = f.context.isTaskAuthorityCurrent!;
   f.context.isTaskAuthorityCurrent = async () => {
@@ -60,9 +74,18 @@ function fixture(options: { inject?: boolean; fault?: string; trip?: SavedTrip; 
     return options.fault === 'lost-save' ? { error: 'SYNTHETIC lost save', data: null } : { error: null, data: { state: p.p_outcome } };
   };
   const deps = {
-    '@/lib/dabra/successful-task-chat': { successfulTaskChatResponse: (resolve: () => Promise<Input>, id: string | undefined, signal: AbortSignal, stream: boolean) =>
-      successfulTaskChatResponse(async () => { const input = await resolve(); inputs.push(input); return input; }, id, signal, stream,
-        options.inject === false ? undefined : { dataScope: 'synthetic-only', rpc }) },
+    '@/lib/dabra/successful-task-chat': { successfulTaskChatResponse: (...args: ChatResponseArgs) => {
+      routeCalls.push(args);
+      const [resolve, ...rest] = args;
+      const resolveInput = async () => { const input = await resolve(); inputs.push(input); return input; };
+      // Keep input observation while forwarding the complete remaining argument
+      // list, including any fifth dependency the real route might supply.
+      if (options.inject === false) return successfulTaskChatResponse(resolveInput, ...rest);
+      assert.equal(args.length, 4, 'actual POST must not supply successful-task dependencies');
+      const [id, signal, stream] = rest;
+      // Only this explicit test branch adds the isolated synthetic transport.
+      return successfulTaskChatResponse(resolveInput, id, signal, stream, { dataScope: 'synthetic-only', rpc });
+    } },
     '@/lib/dabra/agent-context': { resolveAgentContext: async () => f.context },
     '@/lib/dabra/continuity-chat-server': { resolveContinuityChatTrip: async () => continuityCurrent ? options.trip ?? null : null },
     '@/lib/currency/service': { getCurrencySnapshot: async () => options.snapshot?.() ?? null },
@@ -81,7 +104,7 @@ function fixture(options: { inject?: boolean; fault?: string; trip?: SavedTrip; 
     method: 'POST', headers: { ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(id ? { 'X-DABRA-Request-Id': id } : {}) }, body,
   }));
   const post = (body: Record<string, unknown>, id: string | null = f.requestId) => postTransport(JSON.stringify(body), id);
-  return { f, post, postTransport, inputs, stats: () => ({ legacyReads, rpcReads }), revokeTrip: () => { continuityCurrent = false; } };
+  return { f, post, postTransport, inputs, routeCalls, stats: () => ({ legacyReads, rpcReads, authorityCallsAfterSave }), revokeTrip: () => { continuityCurrent = false; } };
 }
 
 for (const locale of ['ar', 'en'] as const) for (const stream of [false, true]) test(`actual POST saves and explicitly replays one ${locale} ${stream ? 'stream' : 'JSON'} request`, async () => {
@@ -117,10 +140,18 @@ test('default POST cannot enable synthetic storage through an ENV or request fie
     process.env.DABRA_SUCCESSFUL_TASK_ENABLED = 'true';
     const x = fixture({ inject: false });
     const response = await x.post({ message: 'hello', locale: 'en', successfulTask: true, dataScope: 'synthetic-only' });
+    assert.equal(x.routeCalls.length, 1); assert.equal(x.routeCalls[0].length, 4);
     assert.equal(response.status, 200); assert.equal(response.headers.get('X-DABRA-Successful-Task-Allowance'), null);
     assert.equal(x.inputs.length, 0); assert.equal(x.stats().rpcReads, 0); assert.equal(x.stats().legacyReads, 1);
     assert.equal(x.f.stats().models, 0);
   } finally { if (prior === undefined) delete process.env.DABRA_SUCCESSFUL_TASK_ENABLED; else process.env.DABRA_SUCCESSFUL_TASK_ENABLED = prior; restore(); }
+});
+
+test('default POST source guard rejects even an undefined fifth dependency argument', () => {
+  const source = readFileSync('app/api/ai2/chat/route.ts', 'utf8');
+  const call = assertRouteHasNoSuccessfulTaskDependencies(source);
+  const mutated = source.slice(0, call.end - 1) + ', undefined' + source.slice(call.end - 1);
+  assert.throws(() => assertRouteHasNoSuccessfulTaskDependencies(mutated), /actual POST must pass only four arguments/);
 });
 
 for (const fault of ['lost-save', 'lost-admission', 'denied']) test(`actual POST ${fault} preserves one-attempt accounting`, async () => {
@@ -217,15 +248,20 @@ for (const transportKind of ['json', 'multipart']) test(`interrupted ${transport
 });
 
 
-for (const hang of ['runner-identity', 'delivery-identity', 'allowance']) test(`post-save ${hang} has a finite deadline and never redispatches`, async () => {
+for (const hang of ['runner-identity', 'delivery-identity', 'final-delivery-identity', 'allowance'] as const) test(`post-save ${hang} has a finite deadline and never redispatches`, async () => {
   const restore = syntheticProviderEnvironment(); const keepAlive = setTimeout(() => {}, 2500);
   try {
-    const x = fixture({ hangAfterSaveAt: hang === 'runner-identity' ? 1 : hang === 'delivery-identity' ? 2 : undefined, hangAllowance: hang === 'allowance' });
+    // Post-save authority reads: runner replay, delivery start, allowance pre-
+    // and post-read, then the final delivery fence.
+    const hangAfterSaveAt = { 'runner-identity': 1, 'delivery-identity': 2, 'final-delivery-identity': 5, allowance: undefined }[hang];
+    const x = fixture({ hangAfterSaveAt, hangAllowance: hang === 'allowance' });
     const started = Date.now();
     const response = await x.post({ message: 'hotel in Cairo', locale: 'en' });
     assert.equal(response.status, 503); assert.ok(Date.now() - started < 1800);
-    assert.equal((await response.json()).saved, false);
+    const payload = await response.json();
+    assert.equal(payload.saved, false); assert.equal(payload.answer, undefined);
     assert.equal(response.headers.get('X-DABRA-Successful-Task-Allowance'), null);
+    if (hangAfterSaveAt) assert.equal(x.stats().authorityCallsAfterSave, hangAfterSaveAt);
     assert.equal(x.f.stats().models, 1); assert.equal(x.f.stats().claims, 1); assert.equal(x.f.stats().holds.length, 1);
   } finally { clearTimeout(keepAlive); restore(); }
 });

@@ -51,7 +51,10 @@ export async function boundedSuccessfulTaskOperation<T>(operation: (signal: Abor
     stop = () => reject(new Error('TASK237_STORE_UNAVAILABLE'));
     bounded.addEventListener('abort', stop, { once: true });
   });
-  const result = await Promise.race([operation(bounded), timeout])
+  // Invoke immediately, but normalize a synchronous dependency throw into a
+  // rejection so the race observes it and always removes the abort listener.
+  const pending = new Promise<T>(resolve => resolve(operation(bounded)));
+  const result = await Promise.race([pending, timeout])
     .finally(() => { if (stop) bounded.removeEventListener('abort', stop); });
   if (bounded.aborted) throw new Error('TASK237_STORE_UNAVAILABLE');
   return result;

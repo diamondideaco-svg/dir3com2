@@ -2,12 +2,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { getEventListeners } from 'node:events';
 import { runInternalAgentTask } from '../lib/dabra/agent-handoff';
-import { createSyntheticSuccessfulTaskRunner, successfulTaskInputDigest } from '../lib/dabra/successful-task-development';
+import { boundedSuccessfulTaskRpc, createSyntheticSuccessfulTaskRunner, successfulTaskInputDigest } from '../lib/dabra/successful-task-development';
 import type { FundingRpc } from '../lib/dabra/dialogue-funding-store';
 import { successfulTaskRuntimeFixture, syntheticProviderEnvironment } from './fixtures/task237-runtime-synthetic';
 import { successfulTaskReplayResponse } from '../lib/dabra/successful-task-replay';
 import { POST as replayRoute } from '../app/api/dabra/tasks/route';
+
+test('synchronous RPC throw settles once without leaking an abort listener or delayed rejection', async () => {
+ const failure = new Error('SYNTHETIC synchronous RPC failure');
+ let calls = 0, bounded: AbortSignal | undefined;
+ // Deliberately not async: the dependency throws before returning a promise.
+ const rpc: FundingRpc = (_name, _params, signal) => { calls++; bounded = signal; throw failure; };
+ await assert.rejects(boundedSuccessfulTaskRpc(rpc, 'read_dabra_successful_task', {}), error => error === failure);
+ assert.ok(bounded);
+ const listenersAfterFailure = getEventListeners(bounded, 'abort').length;
+ // Keep the process alive past the real deadline. node:test fails this test if
+ // the abandoned timeout promise later emits an unhandled rejection.
+ await new Promise(resolve => setTimeout(resolve, 1100));
+ assert.equal(bounded.aborted, true);
+ assert.equal(calls, 1);
+ assert.equal(listenersAfterFailure, 0);
+ assert.equal(getEventListeners(bounded, 'abort').length, 0);
+});
 
 test('runtime replay endpoint is hard-disabled, private and no-store regardless of env',async()=>{
  const prior=process.env.DABRA_SUCCESSFUL_TASK_ENABLED;process.env.DABRA_SUCCESSFUL_TASK_ENABLED='true';
