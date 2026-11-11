@@ -1,5 +1,5 @@
 import 'server-only';
-import { parseQualificationProof, quoteQualification, qualificationRecipe, type QualificationContract, type QualificationCase, type QualificationAdmission, type ApprovedQualificationPlan } from './dialogue-qualification';
+import { parseQualificationProof, quoteQualification, qualificationRecipe, qualificationBatchReservation, type QualificationContract, type QualificationCase, type QualificationAdmission, type ApprovedQualificationPlan } from './dialogue-qualification';
 import { composePublicAgentDialogue } from './agent-platform-units';
 import { composePlatformDialogue } from './agent-platform-dialogue';
 import { refreshPublicDialoguePricing, type PublicPricingObservation } from './dialogue-pricing-refresh';
@@ -11,6 +11,7 @@ import { dialogueDay, type DialogueDailyLimits } from './agent-dialogue';
 import { fundingSubject, fundingAuthorizationWindow, fundingProofForCeilings, validTask217PilotEnvelope, quoteDialogueFunding, validFundingDailyLimits,
   type DialogueFundingProof, type FundingDialogueAdmission } from './dialogue-funding';
 import { callInternalAgentProvider, internalAgentConfiguration } from '../ai2/runtime/agent-provider-dispatch';
+import { validBilingualQualificationDaily, validQualificationPlanAuthority } from './qualification-authority';
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const digest = /^[a-f0-9]{64}$/;
@@ -96,6 +97,18 @@ async function bounded<T>(promise: Promise<T>, signal: AbortSignal): Promise<T |
   });
   try { return await Promise.race([promise, stopped]); }
   finally { if (stop) signal.removeEventListener('abort', stop); }
+}
+function qualificationPause(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise(resolve => {
+    if (signal.aborted || ms <= 0) return resolve();
+    const done = () => { clearTimeout(timer); signal.removeEventListener('abort', done); resolve(); };
+    const timer = setTimeout(done, ms); signal.addEventListener('abort', done, { once: true });
+  });
+}
+/** Narrow campaign pacing, not a general limiter or retry policy. */
+export function waitForQualificationDispatch(plan: Pick<ApprovedQualificationPlan,'proof'|'authority'>, lastDispatchAt: number | undefined, signal?: AbortSignal): Promise<void> {
+  if (!plan.authority || plan.proof.provider !== 'mistral' || lastDispatchAt === undefined || !signal) return Promise.resolve();
+  return qualificationPause(Math.max(0, lastDispatchAt + 600 - Date.now()), signal);
 }
 /**
  * No profile is fabricated and no candidate is published. Each of the four calls needs
@@ -241,20 +254,29 @@ export async function measurePlatformDialogueProfile(plan: ApprovedQualification
  return measureQualificationProfile('platform-dialogue-v2',plan,deps,signal);
 }
 async function measureQualificationProfile(contractId: QualificationContract, plan: ApprovedQualificationPlan, deps: QualificationMeasurementDependencies,
- signal?: AbortSignal): Promise<QualificationMeasurementResult> {
+ inputSignal?: AbortSignal): Promise<QualificationMeasurementResult> {
  const observations: QualificationObservation[] = [];
  const stop=(kind:'blocked'|'stopped',reason:string,fixed?:QualificationCase):QualificationMeasurementResult=>
   Object.freeze({kind,qualified:false,semanticReview:'required',observations:Object.freeze(observations),
    diagnostic:Object.freeze({reason,caseId:fixed?.caseId??null})});
  const proof=parseQualificationProof(plan.proof,Date.now()),permit=proof?.limitedOperation.permit;
  const recipe=qualificationRecipe(permit?.schema);
+ const batch=plan.authority?qualificationBatchReservation(plan.batchProofs,plan.authority,Date.now()):null;
  if (!proof || !permit || !recipe || recipe.contractId!==contractId || recipe.kind!==plan.kind
   || JSON.stringify(permit)!==JSON.stringify(plan.permit) || fundingSubject(plan.subject)!==permit.subjectHash
-  || !integer(plan.maxCostMicros) || plan.maxCostMicros>1000000 || !validFundingDailyLimits(plan.daily,4096,1024)) return stop('blocked','permit');
+  || !integer(plan.maxCostMicros) || plan.maxCostMicros>1000000 || !validQualificationPlanAuthority(proof,plan.authority,Date.now())
+  || !(plan.authority?validBilingualQualificationDaily(plan.daily):validFundingDailyLimits(plan.daily,4096,1024))
+  || (plan.authority && (!batch || batch.maxAttemptCostMicros>plan.maxCostMicros || plan.maxCostMicros>plan.authority.maxAttemptCostMicros))
+  || (!plan.authority && plan.batchProofs!==undefined)) return stop('blocked','permit');
+ const signal=plan.authority?AbortSignal.any([AbortSignal.timeout(plan.authority.runTimeoutMs),...(inputSignal?[inputSignal]:[])]):inputSignal;
  const selected=recipe.cases.filter(c=>permit.languages.includes(c.language));
+ const spacing=plan.authority && proof.provider==='mistral'?600:0;
+ if(plan.authority && Date.now()+selected.length*12000+spacing*(selected.length-1)>=Math.min(permit.expiresAtMs,dialogueDay(Date.now()).dayEndMs))return stop('blocked','group-deadline');
  const runId=randomUUID();
+ let lastDispatchAt:number|undefined;
  for(const [index,fixed] of selected.entries()) {
   const approved=permit.cases[index];if(!approved || approved.caseId!==fixed.caseId)return stop('blocked','permit',fixed);
+  await waitForQualificationDispatch(plan,lastDispatchAt,signal);
   const start=Date.now();let end=Math.min(start+12000,permit.expiresAtMs,dialogueDay(start).dayEndMs);
   if(signal?.aborted || end<=start)return stop('blocked',signal?.aborted?'cancelled':'deadline',fixed);
   const controller=new AbortController();
@@ -286,7 +308,8 @@ async function measureQualificationProfile(contractId: QualificationContract, pl
    const attemptId=index===0?runId:randomUUID();
    failure='admission-unknown';
    const claim=await bounded(deps.admission.reserveQualification({proof,subject:plan.subject,attemptId,runId,caseId:fixed.caseId,
-    costMicros:cost,observation:pricing,limits:plan.daily,dayStartMs:dialogueDay(Date.now()).dayStartMs},boundedSignal),boundedSignal);
+    costMicros:cost,observation:pricing,limits:plan.daily,dayStartMs:dialogueDay(Date.now()).dayStartMs,
+    ...(plan.authority?{authority:plan.authority}:{})},boundedSignal),boundedSignal);
    failure='runtime';
    if(claim?.kind!=='admitted' || claim.attemptId!==attemptId)return stop('stopped',claim?'admission':'admission-unknown',fixed);
    if(!integer(claim.pricingExpiresAtMs))return stop('stopped','pricing-deadline',fixed);
@@ -300,6 +323,7 @@ async function measureQualificationProfile(contractId: QualificationContract, pl
    if(!ready())return stop('stopped',reason,fixed);
    const dispatchedAt=Date.now();
    if(dispatchedAt>=end || boundedSignal.aborted)return stop('stopped','deadline',fixed);
+   lastDispatchAt=dispatchedAt;
    failure='provider-unknown';
    const result=await bounded(deps.dispatch(proof.provider,config,fixed.message,{prompt:fixed.prompt,language:fixed.language,
     classifier:false,maxOutputTokens:permit.outputTokenCeiling,timeoutMs:Math.max(1,end-Date.now()),signal:boundedSignal,
