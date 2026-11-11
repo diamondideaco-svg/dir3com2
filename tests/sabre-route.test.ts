@@ -35,7 +35,8 @@ test("sabre route validates malformed input", async () => {
   assert.equal(response.status, 400);
 });
 
-test("sabre route returns normalized informational result", async () => {
+test("sabre route returns normalized informational result", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-11-10T12:00:00Z") });
   global.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
 
