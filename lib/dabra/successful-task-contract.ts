@@ -10,6 +10,7 @@ export const SUCCESSFUL_TASK_POLICY = Object.freeze({
 } as const);
 
 export type SuccessfulTaskState = 'pending' | 'succeeded' | 'failed' | 'unknown';
+/** Server accounting input. Platform-wide usage must not enter the client allowance. */
 export type SuccessfulTaskUsage = Readonly<{
   dailySucceeded: number; monthlySucceeded: number;
   dailyPending: number; monthlyPending: number;
@@ -23,7 +24,7 @@ export function successfulTaskAllowance(usage: SuccessfulTaskUsage) {
     dailyRemaining: Math.max(0, p.accountDailySuccesses - usage.dailySucceeded - usage.dailyPending),
     monthlyRemaining: Math.max(0, p.accountMonthlySuccesses - usage.monthlySucceeded - usage.monthlyPending),
     dailyPending: usage.dailyPending, monthlyPending: usage.monthlyPending,
-    accountHeldCostMicros: usage.accountHeldCostMicros, totalHeldCostMicros: usage.totalHeldCostMicros,
+    accountHeldCostMicros: usage.accountHeldCostMicros,
     costAvailable: usage.accountHeldCostMicros < p.accountMonthlyCostMicros && usage.totalHeldCostMicros < p.monthlyCostMicros,
   });
 }
@@ -40,8 +41,8 @@ export function parseSuccessfulTaskAllowance(raw: string | null): SuccessfulTask
   if (!raw || raw.length > 1024) return null;
   try {
     const value = JSON.parse(raw);
-    const numbers = ['dailyRemaining', 'monthlyRemaining', 'dailyPending', 'monthlyPending', 'accountHeldCostMicros', 'totalHeldCostMicros'];
-    if (!value || Object.keys(value).length !== 7 || typeof value.costAvailable !== 'boolean'
+    const numbers = ['dailyRemaining', 'monthlyRemaining', 'dailyPending', 'monthlyPending', 'accountHeldCostMicros'];
+    if (!value || Object.keys(value).length !== 6 || typeof value.costAvailable !== 'boolean'
       || !numbers.every(key => Number.isSafeInteger(value[key]) && value[key] >= 0)
       || value.dailyRemaining > 10 || value.monthlyRemaining > 50 || value.dailyPending > 10 || value.monthlyPending > 50) return null;
     return value;
