@@ -727,7 +727,9 @@ async function platformQualificationMain(contractId: 'platform-units-v1' | 'plat
   if (!subject || !planId) throw new Error('measurement_not_authorized');
   const { runFundingQualification } = await import('../lib/dabra/dialogue-funding-store');
   const { internalAgentConfiguration, callInternalAgentProvider } = await import('../lib/ai2/runtime/agent-provider-dispatch');
-  const result = await runFundingQualification(subject, planId, AbortSignal.timeout(60000), undefined, {
+  // The stored plan chooses its deadline: legacy remains 60s; the separately approved
+  // bilingual authority may use 120s. This outer ceiling never issues that authority.
+  const result = await runFundingQualification(subject, planId, AbortSignal.timeout(120000), undefined, {
     sourceSha: () => measurementSourceSha(), configuration: internalAgentConfiguration, dispatch: callInternalAgentProvider,
   }, contractId);
   // Only canonical public outputs and bound non-secret measurement scope.

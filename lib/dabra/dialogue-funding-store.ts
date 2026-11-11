@@ -1,5 +1,6 @@
 import 'server-only';
-import { createQualificationAdmission, parseQualificationProof, qualificationRecipe, type QualificationContract, type QualificationAdmission, type ApprovedQualificationPlan } from './dialogue-qualification';
+import { createQualificationAdmission, parseQualificationProof, qualificationRecipe, qualificationBatchReservation, type QualificationContract, type QualificationAdmission, type ApprovedQualificationPlan } from './dialogue-qualification';
+import { parseBilingualQualificationAuthority, validBilingualQualificationDaily, validQualificationPlanAuthority } from './qualification-authority';
 import { measurePlatformUnitsProfile, measurePlatformDialogueProfile, type QualificationMeasurementDependencies } from './agent-measurement';
 import { callInternalAgentProvider, internalAgentConfiguration } from '../ai2/runtime/agent-provider-dispatch';
 import { randomUUID } from 'node:crypto';
@@ -207,14 +208,26 @@ export async function loadFundingQualification(subject: string, planId: string, 
    stopped=()=>resolve({data:null,error:'aborted'});if(bounded.aborted)stopped();else bounded.addEventListener('abort',stopped,{once:true});
   });
   const result=await Promise.race([rpc('get_dabra_dialogue_qualification_plan',{p_plan_id:planId,p_subject_hash:fundingSubject(subject)},bounded),unavailable]);
-  if(bounded.aborted || result.error || !object(result.data) || Object.keys(result.data).length!==4
-   || result.data.schema!=='task217-stored-qualification-plan-v1' || !integer(result.data.maxCostMicros) || result.data.maxCostMicros>1000000
-   || !validFundingDailyLimits(result.data.dailyLimits,4096,1024))return null;
+  if(bounded.aborted || result.error || !object(result.data))return null;
+  const data=result.data, version2=data.schema==='task217-stored-qualification-plan-v2';
+  if(Object.keys(data).length!==(version2?6:4)
+   || (!version2 && data.schema!=='task217-stored-qualification-plan-v1')
+   || !integer(data.maxCostMicros) || data.maxCostMicros>1000000)return null;
+  const authority=version2?parseBilingualQualificationAuthority(data.authority,Date.now()):undefined;
+  if((version2 && !authority) || !(version2?validBilingualQualificationDaily(data.dailyLimits):validFundingDailyLimits(data.dailyLimits,4096,1024))
+   || (authority && data.maxCostMicros>authority.maxAttemptCostMicros))return null;
+  const daily=authority?.dailyLimits??(validFundingDailyLimits(data.dailyLimits,4096,1024)?data.dailyLimits:null);
+  if(!daily)return null;
   const snapshot:unknown=JSON.parse(JSON.stringify(result.data.proof)),proof=parseQualificationProof(snapshot,Date.now()),permit=proof?.limitedOperation.permit;
   const recipe=qualificationRecipe(permit?.schema);
-  if(!proof || !permit || !recipe || recipe.contractId!==contractId
+  const batch=authority?qualificationBatchReservation(data.proofs,authority,Date.now()):null;
+  if(!proof || !permit || !recipe || recipe.contractId!==contractId || !validQualificationPlanAuthority(proof,authority??undefined,Date.now())
+   || (version2 && (!batch || batch.maxAttemptCostMicros>data.maxCostMicros
+    || !batch.proofs.some(p=>p.grantId===proof.grantId && p.limitedOperation.bindingSha256===proof.limitedOperation.bindingSha256)))
+   || version2!==(proof.limitedOperation.schema==='task217-profile-qualification-authority-v2')
    || permit.planId!==planId || permit.sourceSha!==sourceSha || permit.subjectHash!==fundingSubject(subject))return null;
-  return Object.freeze({kind:recipe.kind,subject,proof,permit,daily:Object.freeze({...result.data.dailyLimits}),maxCostMicros:result.data.maxCostMicros});
+  return Object.freeze({kind:recipe.kind,subject,proof,permit,daily:Object.freeze({...daily}),maxCostMicros:data.maxCostMicros,
+   ...(authority && batch?{authority,batchProofs:batch.proofs}: {})});
  }catch{return null;}finally{if(stopped)bounded.removeEventListener('abort',stopped);}
 }
 /** Actual loader -> fresh stored authority -> shared reserve -> existing dispatch.
@@ -223,14 +236,18 @@ export async function runFundingQualification(subject: string, planId: string, s
  runtime: Pick<QualificationMeasurementDependencies,'configuration'|'dispatch'|'sourceSha'> = {
   configuration:internalAgentConfiguration,dispatch:callInternalAgentProvider,sourceSha:()=>process.env.VERCEL_GIT_COMMIT_SHA??'',
  }, contractId: QualificationContract = 'platform-units-v1') {
+ const startedAt=Date.now();
  const plan=await loadFundingQualification(subject,planId,runtime.sourceSha(),signal,rpc,contractId);
  if(!plan)return Object.freeze({kind:'blocked' as const,qualified:false as const,semanticReview:'required' as const,observations:Object.freeze([])});
+ const remaining=(plan.authority?.runTimeoutMs??60000)-(Date.now()-startedAt);
+ if(remaining<=0)return Object.freeze({kind:'blocked' as const,qualified:false as const,semanticReview:'required' as const,observations:Object.freeze([])});
+ const runSignal=AbortSignal.any([signal,AbortSignal.timeout(remaining)]);
  const measure=contractId==='platform-dialogue-v2'?measurePlatformDialogueProfile:measurePlatformUnitsProfile;
  const result = await measure(plan,{...runtime,admission:createFundingDialogueAdmission(rpc),
   authorityCurrent:async currentSignal=>{
    const fresh=await loadFundingQualification(subject,planId,runtime.sourceSha(),currentSignal,rpc,contractId);
    return fresh!==null && samePolicyData(fresh,plan);
-  }},signal);
+  }},runSignal);
  return Object.freeze({scope:Object.freeze({...(contractId==='platform-dialogue-v2'?{contractId,permitSchema:plan.permit.schema}:{}),
   provider:plan.proof.provider,approvedModel:plan.proof.model,sourceSha:plan.permit.sourceSha,
   caseSetSha:plan.permit.caseSetSha,languages:plan.permit.languages,inputTokenCeiling:plan.permit.inputTokenCeiling,outputTokenCeiling:plan.permit.outputTokenCeiling}),...result});
