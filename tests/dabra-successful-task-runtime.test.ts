@@ -180,3 +180,191 @@ for(const hang of ['resolve','initial-identity','final-identity'])test('one repl
   assert.equal(response.status,503);assert.ok(Date.now()-started<1700);assert.equal(boundedSignal?.aborted,true);assert.equal((await response.json()).answer,undefined);assert.equal(f.stats().models,0);
  }finally{clearTimeout(keepAlive);restore();}
 });
+
+import { createSyntheticSuccessfulTaskStoreAdapter } from '../lib/dabra/successful-task-store-adapter';
+import { readSyntheticSuccessfulTaskAllowance } from '../lib/dabra/successful-task-development';
+function storeAdapterFixture(transport: FundingRpc, configure?: (input: Parameters<typeof successfulTaskInputDigest>[0]) => void) {
+ const actor=randomUUID(),requestId=randomUUID(),lease=randomUUID(),attempt=randomUUID(),authority=randomUUID();
+ let active=true,project=true;
+ const input={message:'SYNTHETIC',history:[],locale:'en' as const,context:{role:'customer' as const,
+  taskAuthority:{kind:'customer' as const,actorId:actor,ownerId:actor},
+  isTaskAuthorityCurrent:async()=>active,isDialogueFundingProjectCurrent:()=>project,readRequests:async()=>({kind:'forbidden' as const})}};
+ const identity={p_actor_id:actor,p_request_id:requestId,p_input_digest:successfulTaskInputDigest(input)};
+ const reserve={...identity,p_lease_token:lease,p_attempt_id:attempt,p_authority_id:authority,p_input_tokens:1,p_output_tokens:1,p_cost_micros:1,
+  p_execution:{schema:'dabra-public-execution-v1',authorityId:authority,profileSha256:'a'.repeat(64),attemptId:attempt,requestId,observation:{synthetic:true}}};
+ const finish={...identity,p_lease_token:lease,p_outcome:'failed',p_answer:null,p_language:null};
+ configure?.(input);
+ const rpc=createSyntheticSuccessfulTaskStoreAdapter({dataScope:'synthetic-only',input,requestId,transport});
+ return {input,identity,reserve,finish,rpc,requestId,revoke:()=>{active=false;},changeProject:()=>{project=false;}};
+}
+
+test('store adapter preserves all five names and exact parameters without remapping or defaults',async()=>{
+ const restore=syntheticProviderEnvironment();
+ try {
+  const seen:Array<[string,Record<string,unknown>]> = [];
+  const f=storeAdapterFixture(async(n,p)=>{seen.push([n,p]);return {data:{synthetic:true},error:null};});
+  const calls:Array<[string,Record<string,unknown>]>=[['get_dabra_successful_task_policy',{p_actor_id:f.identity.p_actor_id}],
+   ['get_dabra_successful_task_allowance',{p_actor_id:f.identity.p_actor_id}],['read_dabra_successful_task',f.identity],
+   ['reserve_dabra_successful_task',f.reserve],['finish_dabra_successful_task',f.finish]];
+  for(const [n,p] of calls) assert.deepEqual(await f.rpc(n,p,new AbortController().signal),{data:{synthetic:true},error:null});
+  assert.deepEqual(seen,calls);assert.notEqual(seen[3][1],f.reserve);
+ }finally{restore();}
+});
+test('store adapter rejects unknown names, extra keys and malformed bindings before transport',async()=>{
+ const restore=syntheticProviderEnvironment();
+ try {
+  let calls=0;const f=storeAdapterFixture(async()=>{calls++;throw Error('never');});
+  const invalid:Array<[string,Record<string,unknown>]>=[
+   ...['purge_dabra_successful_task_answers','reserve_dabra_public_dialogue_attempt','get_dabra_dialogue_funding_policy','toString','__proto__'].map(n=>[n,f.identity] as [string,Record<string,unknown>]),
+   ['read_dabra_successful_task',{...f.identity,extra:true}],['read_dabra_successful_task',{...f.identity,p_actor_id:randomUUID()}],
+   ['read_dabra_successful_task',{...f.identity,p_request_id:randomUUID()}],['read_dabra_successful_task',{...f.identity,p_input_digest:'b'.repeat(64)}],
+   ['reserve_dabra_successful_task',{...f.reserve,p_lease_token:'bad'}],['reserve_dabra_successful_task',{...f.reserve,p_cost_micros:250001}],
+   ['reserve_dabra_successful_task',{...f.reserve,p_execution:{...f.reserve.p_execution,requestId:randomUUID()}}],
+   ['reserve_dabra_successful_task',{...f.reserve,p_execution:{...f.reserve.p_execution,extra:true}}],
+   ['finish_dabra_successful_task',{...f.finish,p_outcome:'succeeded'}],['finish_dabra_successful_task',{...f.finish,p_answer:'not allowed'}],
+  ];
+  for(const [n,p] of invalid) {const r=await f.rpc(n,p,new AbortController().signal);assert.equal(r.data,null);assert.ok(r.error);}
+  assert.equal(calls,0);
+  Object.assign(process.env,{NODE_ENV:'production'});
+  assert.throws(()=>storeAdapterFixture(async()=>({data:null,error:null})),/SYNTHETIC_ONLY/);
+  assert.ok((await f.rpc('read_dabra_successful_task',f.identity,new AbortController().signal)).error);assert.equal(calls,0);
+  Object.assign(process.env,{NODE_ENV:'test'});
+  assert.throws(()=>createSyntheticSuccessfulTaskStoreAdapter({dataScope:'live' as 'synthetic-only',input:f.input,requestId:f.requestId,transport:async()=>({data:null,error:null})}),/SYNTHETIC_ONLY/);
+ }finally{restore();}
+});
+for(const boundary of ['before','transport','identity','final-identity'])for(const revoke of ['authority','project'])test('store adapter fences '+revoke+' at '+boundary,async()=>{
+ const restore=syntheticProviderEnvironment();
+ try {
+  let calls=0;const change=()=>revoke==='authority'?f.revoke():f.changeProject();
+  const f=storeAdapterFixture(async()=>{calls++;if(boundary==='transport')change();return {data:{answer:'SYNTHETIC private'},error:null};},input=>{
+   if(boundary==='identity'||boundary==='final-identity') {let checks=0;const original=input.context.isTaskAuthorityCurrent!;input.context.isTaskAuthorityCurrent=async()=>{if(++checks===(boundary==='identity'?1:2))change();return original();};}
+  });
+  if(boundary==='before')change();
+  const result=await f.rpc('read_dabra_successful_task',f.identity,new AbortController().signal);
+  assert.equal(result.data,null);assert.ok(result.error);assert.equal(calls,boundary==='transport'||boundary==='final-identity'?1:0);
+ }finally{restore();}
+});
+test('store adapter snapshots arguments across waits and refuses changed server actor',async()=>{
+ const restore=syntheticProviderEnvironment();
+ try {
+  let seen:Record<string,unknown>|undefined;
+  let changeActor=false;
+  const f=storeAdapterFixture(async(_n,p)=>{seen=p;return {data:{state:'failed'},error:null};},input=>{input.context.isTaskAuthorityCurrent=async()=>{if(changeActor)f.input.context.taskAuthority.actorId=randomUUID();else f.finish.p_lease_token=randomUUID();return true;};});
+  const originalLease=f.finish.p_lease_token;
+  await f.rpc('finish_dabra_successful_task',f.finish,new AbortController().signal);
+  assert.equal(seen?.p_lease_token,originalLease);
+  seen=undefined;
+  changeActor=true;
+  assert.ok((await f.rpc('read_dabra_successful_task',f.identity,new AbortController().signal)).error);assert.equal(seen,undefined);
+ }finally{restore();}
+});
+for(const fault of ['throw','hang','abort','already-aborted'])test('store adapter bounds '+fault+' without retry or leaked listener',async()=>{
+ const restore=syntheticProviderEnvironment(),keepAlive=setTimeout(()=>{},1800);
+ try {
+  let calls=0,bounded:AbortSignal|undefined;const controller=new AbortController();
+  const f=storeAdapterFixture((_n,_p,s)=>{calls++;bounded=s;if(fault==='throw')throw Error('SYNTHETIC');if(fault==='abort')controller.abort();return new Promise(()=>{});});
+  if(fault==='already-aborted')controller.abort();
+  const start=Date.now(),result=await f.rpc('read_dabra_successful_task',f.identity,controller.signal);
+  assert.equal(result.data,null);assert.ok(result.error);assert.equal(calls,fault==='already-aborted'?0:1);assert.ok(Date.now()-start<1700);
+  if(bounded)assert.equal(getEventListeners(bounded,'abort').length,0);
+ }finally{clearTimeout(keepAlive);restore();}
+});
+test('store adapter retains independent failed finish after original cancellation and input change',async()=>{
+ const restore=syntheticProviderEnvironment();
+ try {
+  let calls=0;const f=storeAdapterFixture(async()=>{calls++;return {data:{state:'failed'},error:null};});
+  const original=new AbortController();original.abort();
+  assert.ok((await f.rpc('finish_dabra_successful_task',f.finish,original.signal)).error);
+  // A failed completion uses the captured original digest, not a new digest.
+  f.input.message='SYNTHETIC changed after execution';
+  assert.deepEqual(await f.rpc('finish_dabra_successful_task',f.finish,new AbortController().signal),{data:{state:'failed'},error:null});
+  assert.equal(calls,1);
+ }finally{restore();}
+});
+test('store adapter lost admission stays unknown with one reserve and no funded fallback',async()=>{
+ const restore=syntheticProviderEnvironment();
+ try {
+  const f=successfulTaskRuntimeFixture();
+  const input={message:'hotel in Cairo',history:[],locale:'en' as const,context:f.context,intent:{tool:'discover' as const,reference:null,draft:false}};
+  let reserves=0,reads=0;const names:string[]=[];
+  const rpc=createSyntheticSuccessfulTaskStoreAdapter({dataScope:'synthetic-only',input,requestId:f.requestId,transport:async(n,p,s)=>{
+   names.push(n);
+   if(n==='read_dabra_successful_task')return {data:{state:++reads===1?'absent':'pending'},error:null};
+   if(n==='get_dabra_successful_task_policy')return f.rpc('get_dabra_public_dialogue_policy',p,s);
+   assert.equal(n,'reserve_dabra_successful_task');reserves++;
+   await f.rpc('reserve_dabra_public_dialogue_attempt',p,s);
+   return {data:{decision:'denied'},error:'SYNTHETIC lost response'};
+  }});
+  const run=createSyntheticSuccessfulTaskRunner({dataScope:'synthetic-only',rpc,execute:async(i,p,s)=>runInternalAgentTask(i,{dialogue:p,signal:s,responseContract:'platform-dialogue'})});
+  assert.deepEqual(await run(input,f.requestId,new AbortController().signal),{kind:'pending',saved:false});
+  assert.equal(reserves,1);assert.equal(f.stats().claims,1);assert.equal(f.stats().holds.length,1);assert.equal(f.stats().models,0);
+  assert.ok(names.every(n=>n.includes('successful_task')));
+ }finally{restore();}
+});
+test('store adapter allowance keeps platform totals server-only and routes remain uninstalled',async()=>{
+ const restore=syntheticProviderEnvironment();
+ try {
+  const f=storeAdapterFixture(async()=>({error:null,data:{dailySucceeded:1,monthlySucceeded:1,dailyPending:0,monthlyPending:0,accountHeldCostMicros:1,totalHeldCostMicros:25_000_001}}));
+  const allowance=await readSyntheticSuccessfulTaskAllowance(f.rpc,f.input,new AbortController().signal);
+  assert.deepEqual(allowance,{dailyRemaining:9,monthlyRemaining:49,dailyPending:0,monthlyPending:0,accountHeldCostMicros:1,costAvailable:false});
+  assert.ok(!JSON.stringify(allowance).includes('totalHeldCostMicros'));
+  for(const file of ['app/api/ai2/chat/route.ts','app/api/dabra/tasks/route.ts','lib/dabra/successful-task-chat.ts','lib/dabra/successful-task-replay.ts'])
+   assert.ok(!readFileSync(file,'utf8').includes('successful-task-store-adapter'));
+ }finally{restore();}
+});
+for(const phase of ['initial','final'])test('store adapter bounds uncooperative '+phase+' authority wait',async()=>{
+ const restore=syntheticProviderEnvironment(),keepAlive=setTimeout(()=>{},1800);
+ try {
+  let calls=0,checks=0;const f=storeAdapterFixture(async()=>{calls++;return {data:{answer:'SYNTHETIC private'},error:null};},input=>{input.context.isTaskAuthorityCurrent=async()=>++checks===(phase==='initial'?1:2)?new Promise<boolean>(()=>{}):true;});
+  const started=Date.now(),result=await f.rpc('read_dabra_successful_task',f.identity,new AbortController().signal);
+  assert.equal(result.data,null);assert.ok(result.error);assert.ok(Date.now()-started<1700);assert.equal(calls,phase==='initial'?0:1);
+ }finally{clearTimeout(keepAlive);restore();}
+});
+for(const boundary of ['before','identity','transport'])test('store adapter rejects valid same-actor role change at '+boundary,async()=>{
+ const restore=syntheticProviderEnvironment();
+ try {
+  let calls=0;const change=()=>Object.assign(f.input.context,{role:'partner',taskAuthority:{kind:'partner',actorId:f.identity.p_actor_id}});
+  const f=storeAdapterFixture(async()=>{calls++;if(boundary==='transport')change();return {data:{state:'failed'},error:null};},input=>{if(boundary==='identity')input.context.isTaskAuthorityCurrent=async()=>{change();return true;};});
+  if(boundary==='before')change();
+  assert.ok((await f.rpc('finish_dabra_successful_task',f.finish,new AbortController().signal)).error);
+  assert.equal(calls,boundary==='transport'?1:0);
+ }finally{restore();}
+});
+test('store adapter rejects coercible non-string finish outcomes before transport',async()=>{
+ const restore=syntheticProviderEnvironment();
+ try {
+  let calls=0;const f=storeAdapterFixture(async()=>{calls++;return {data:{state:'failed'},error:null};});
+  for(const outcome of [['failed'],['unknown'],new String('failed')]) {
+   const result=await f.rpc('finish_dabra_successful_task',{...f.finish,p_outcome:outcome},new AbortController().signal);
+   assert.equal(calls,0,'non-string outcome must not reach transport');
+   assert.equal(result.data,null);assert.ok(result.error);
+  }
+ }finally{restore();}
+});
+for(const field of ['actor','outcome','hidden-key'])test('store adapter validates the transmitted snapshot for '+field,async()=>{
+ const restore=syntheticProviderEnvironment();
+ try {
+  const seen:Record<string,unknown>[]=[];const f=storeAdapterFixture(async(_n,p)=>{seen.push(p);return {data:{state:'failed'},error:null};});
+  const p:Record<string,unknown>={...f.finish};let reads=0;
+  if(field==='actor')Object.defineProperty(p,'p_actor_id',{enumerable:true,get:()=>++reads===1?f.identity.p_actor_id:randomUUID()});
+  if(field==='outcome')Object.defineProperty(p,'p_outcome',{enumerable:true,get:()=>++reads<=3?'failed':['failed']});
+  if(field==='hidden-key'){Object.defineProperty(p,'p_actor_id',{enumerable:false,value:f.identity.p_actor_id});p.extra=true;}
+  await f.rpc('finish_dabra_successful_task',p,new AbortController().signal);
+  if(field==='hidden-key')assert.equal(seen.length,0);
+  else {assert.equal(seen.length,1);assert.equal(seen[0].p_actor_id,f.identity.p_actor_id);assert.equal(seen[0].p_outcome,'failed');assert.equal(reads,1);}
+ }finally{restore();}
+});
+for(const replacement of ['authority','project','context'])test('store adapter rejects replaced '+replacement+' checker after transport wait',async()=>{
+ const restore=syntheticProviderEnvironment();
+ try {
+  let calls=0;const f=storeAdapterFixture(async()=>{
+   calls++;
+   if(replacement==='authority') {f.revoke();f.input.context.isTaskAuthorityCurrent=async()=>true;}
+   if(replacement==='project') {f.changeProject();f.input.context.isDialogueFundingProjectCurrent=()=>true;}
+   if(replacement==='context'){f.revoke();f.changeProject();f.input.context={...f.input.context,isTaskAuthorityCurrent:async()=>true,isDialogueFundingProjectCurrent:()=>true};}
+   return {data:{answer:'SYNTHETIC private'},error:null};
+  });
+  const result=await f.rpc('read_dabra_successful_task',f.identity,new AbortController().signal);
+  assert.equal(calls,1);assert.equal(result.data,null);assert.ok(result.error);
+ }finally{restore();}
+});

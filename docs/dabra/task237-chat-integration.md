@@ -53,3 +53,74 @@ The second review closed the deadline and JSON findings but identified a clock-b
 
 
 A further pre-digest boundary is explicitly guarded: a present FX snapshot that is already expired or has a non-finite expiry when the runner captures its digest cannot start a new task. Existing-task lookup remains first to preserve conflict/replay identity semantics, but an absent task returns unavailable before policy, execution or admission. This also covers expiry during the adapter's first identity check. A missing snapshot remains eligible for the existing Core behavior without a converted quote. One actual-POST regression expires the snapshot in that first identity check, proves no model/admission/hold, then allows the original UUID's first attempt only after an equivalent fresh quote is supplied.
+
+## Post-PR239 local transport preparation
+
+Base: `c50dbdda802a51732f777941ff5f83cfaaa2dac4`.
+Branch: `codex/dabra-successful-task-store-adapter`.
+This stage is local and uninstalled, not a live-storage or activation readiness claim.
+
+`createSyntheticSuccessfulTaskStoreAdapter` adds one server-only `FundingRpc`
+boundary with a required injected synthetic transport and server-resolved input
+and request ID. Both construction and calls require the test runtime; construction
+also requires `synthetic-only`. No default client, credentials, URL, registration
+hook, route/replay import or provider execution is added. The existing runner
+alone maps public-dialogue policy/reserve names into successful-task RPC names.
+
+The boundary accepts only successful-task policy, read, reserve, finish and
+allowance names with exact top-level parameter keys. It binds actor/request/digest
+to its server input, checks reserve UUID/scalar/execution-envelope shape and finish
+answer/outcome shape, and snapshots arguments before waiting. It preserves the
+original lease and other accepted values. Policy authority, pricing observations,
+admission receipts and stored-answer interpretation remain validated by the
+existing consumers and database; this adapter does not substitute new policy.
+
+Each call shares the existing one-second bounded operation across pre-transport
+authority/project checks, one transport invocation and post-transport checks.
+Synchronous throws, hangs, cancellation and transport errors yield unavailable,
+never a fabricated definite denial. There is no retry or legacy-funded fallback.
+Finish uses its caller's independent completion signal, not a captured provider
+signal. The original digest is retained so known-failure completion after input or
+FX changes is not prevented by recomputing a new digest. Existing lifecycle
+freshness checks still decide whether an answer can be saved or delivered.
+
+Internal allowance usage retains the global budget total. Public delivery still
+uses the existing six-field account-only projection. There is no purge adapter,
+SQL change, retention/privacy decision, real-answer storage or live transport.
+The database contract remains restricted to synthetic databases.
+
+Focused verification selects only `store adapter` runtime cases, including all
+five names, forbidden/extra parameters, identity/project changes before and after
+waits, uncooperative identity/transport, cancellation and synchronous exceptions,
+independent completion, lost admission with one hold and zero models, and public
+allowance projection. Scoped ESLint covers both changed TypeScript files and the
+repository typecheck covers their type dependencies. Full lint/build, repository
+suites, PostgreSQL, browser and provider matrices are not repeated: no application
+import graph, UI, build configuration, package, existing runtime or SQL changes.
+Only the new module, selected test additions and this documentation change. These
+focused checks do not claim those unrun gates or independent review have passed.
+
+The fixed digest is distinct from the current identity fence: the adapter also
+captures the original role and full task authority, and compares both before and
+after asynchronous checks. Even a valid role change retaining the same actor ID
+is rejected. Account revocation and project changes remain fenced through the
+existing authority helper. Answer-affecting input changes can still complete a
+known failure under the original digest; they cannot authorize a changed actor,
+role or project. Focused cases cover this distinction explicitly.
+
+### Independent-review corrections for the local adapter
+
+The initial reviewed adapter was returned for correction, not approved. Parameter
+validation now runs on the detached structured-clone snapshot that is actually
+sent to transport. Enumerable getters are evaluated once during copying; their
+later values cannot replace a validated actor or outcome. Required properties
+lost during cloning, including non-enumerable keys, fail the snapshot contract.
+
+The adapter pins the original context object and original authority/project
+callbacks. Checks use those captured callbacks, with the original receiver, and
+reject replacement of either callback or the input context before or after waits.
+Role, full authority and current project checks remain independent from the fixed
+completion digest. Focused regressions reproduce changing getters, hidden-key
+substitution and callback/context replacement. Existing wait/hang/role tests set
+up their intended callbacks before construction, preserving their timing coverage.
+These changes do not install a transport or change privacy/accounting policy.
