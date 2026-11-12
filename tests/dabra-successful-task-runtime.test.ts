@@ -368,3 +368,43 @@ for(const replacement of ['authority','project','context'])test('store adapter r
   assert.equal(calls,1);assert.equal(result.data,null);assert.ok(result.error);
  }finally{restore();}
 });
+
+for(const lostFinishReply of [false,true])test('store adapter successful lifecycle '+(lostFinishReply?'recovers after committed finish timeout':'saves and replays without redispatch'),async()=>{
+ const restore=syntheticProviderEnvironment(),keepAlive=lostFinishReply?setTimeout(()=>{},1800):undefined;
+ try {
+  const f=successfulTaskRuntimeFixture();
+  const input={message:'hotel in Cairo',history:[],locale:'en' as const,context:f.context,intent:{tool:'discover' as const,reference:null,draft:false}};
+  let saved:{state:'succeeded';answer:string;language:'en'}|undefined;
+  let reservation:Record<string,unknown>|undefined,finishes=0,executions=0,reads=0;
+  const attempts:string[]=[];
+  const rpc=createSyntheticSuccessfulTaskStoreAdapter({dataScope:'synthetic-only',input,requestId:f.requestId,transport:async(name,p,signal)=>{
+   if(name==='read_dabra_successful_task'){reads++;return {error:null,data:saved?{...saved}:reservation?{state:'pending'}:{state:'absent'}};}
+   if(name==='get_dabra_successful_task_policy')return f.rpc('get_dabra_public_dialogue_policy',p,signal);
+   if(name==='reserve_dabra_successful_task') {
+    assert.equal(reservation,undefined,'one admission only');reservation=p;attempts.push(String(p.p_attempt_id));
+    return f.rpc('reserve_dabra_public_dialogue_attempt',p,signal);
+   }
+   assert.equal(name,'finish_dabra_successful_task');finishes++;
+   assert.ok(reservation);
+   for(const key of ['p_actor_id','p_request_id','p_input_digest','p_lease_token'])assert.equal(p[key],reservation[key]);
+   assert.equal(p.p_outcome,'succeeded');assert.equal(p.p_language,'en');assert.equal(typeof p.p_answer,'string');assert.ok(String(p.p_answer).trim());
+   saved={state:'succeeded',answer:String(p.p_answer),language:'en'};
+   // Persistence succeeds, but transport never delivers the receipt or observes abort.
+   return lostFinishReply?new Promise(()=>{}):{error:null,data:{state:'succeeded'}};
+  }});
+  const run=createSyntheticSuccessfulTaskRunner({dataScope:'synthetic-only',rpc,execute:async(i,p,s)=>{
+   executions++;return runInternalAgentTask(i,{dialogue:p,signal:s,responseContract:'platform-dialogue'});
+  }});
+  const first=await run(input,f.requestId,new AbortController().signal);
+  assert.ok(saved);assert.equal(finishes,1);assert.equal(executions,1);assert.equal(attempts.length,1);
+  assert.equal(f.stats().claims,1);assert.equal(f.stats().models,1);assert.equal(f.stats().holds.length,1);
+  const before=structuredClone(f.stats());assert.ok(before.holds[0].cost>0);assert.equal(before.holds[0].cost,reservation!.p_cost_micros);
+  if(lostFinishReply)assert.deepEqual(first,{kind:'unknown',saved:false});
+  else assert.deepEqual(first,{kind:'answer',answer:saved.answer,language:'en',saved:true,replay:false});
+  assert.equal(reads,lostFinishReply?1:2,'normal success verifies the stored answer before delivery');
+  const replay=await run(input,f.requestId,new AbortController().signal);
+  assert.deepEqual(replay,{kind:'answer',answer:saved.answer,language:'en',saved:true,replay:true});
+  assert.equal(reads,lostFinishReply?2:3);assert.equal(finishes,1);assert.equal(executions,1);assert.equal(attempts.length,1);
+  assert.deepEqual(f.stats(),before,'replay adds no claim, hold, cost, model or pricing call');
+ }finally{if(keepAlive)clearTimeout(keepAlive);restore();}
+});

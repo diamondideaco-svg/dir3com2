@@ -124,3 +124,23 @@ completion digest. Focused regressions reproduce changing getters, hidden-key
 substitution and callback/context replacement. Existing wait/hang/role tests set
 up their intended callbacks before construction, preserving their timing coverage.
 These changes do not install a transport or change privacy/accounting policy.
+
+### Bounded PR240 coverage clarification
+
+Focused integration now covers normal success and a committed finish whose
+transport never returns: the real runner, adapter, handoff and synthetic fixture
+save an answer, then replay the original request without another attempt, claim,
+hold, cost or model dispatch. A lost finish receipt returns `unknown` initially;
+if persistence succeeded, the next original-input request can recover that saved
+answer. If persistence did not succeed, pending/unknown can remain. This test
+models synthetic persistence; it is not database or live-provider acceptance.
+
+The runner already wraps finish in its own one-second deadline, so increasing
+only the adapter deadline would not increase the effective completion budget.
+No deadline or authority fence changes here. Live latency measurement and deadline
+policy belong to production preparation. The detached snapshot covers RPC
+parameters, not the returned result; existing consumers validate result semantics.
+The uninstalled guard checks four specific integration files, not the complete
+application import graph. Current literal limits agree with existing contracts;
+no constants refactor is needed for this correction. Internal diagnostic reasons
+for a real transport also remain a production-design decision.
