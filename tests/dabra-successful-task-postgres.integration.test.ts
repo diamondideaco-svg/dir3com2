@@ -68,7 +68,7 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
   const usage=(who=actor)=>rpc('get_dabra_successful_task_allowance',[who]);
   const countHolds=async()=> (await client.query('SELECT count(*)::int AS n,sum(cost_micros)::int AS cost FROM private.dabra_public_dialogue_admissions')).rows[0];
   const addActor=async()=>{const id=randomUUID();await client.query('INSERT INTO auth.users(id) VALUES($1)',[id]);await client.query("INSERT INTO public.profiles(id,role,status) VALUES($1,'customer','active')",[id]);return id;};
-  await t.test('Core decision resolver: private service-only empty state, approved owner, withdrawal and funding binding',async()=>{
+  await t.test('Core decision resolver: private service-only empty state, approved owner, withdrawal and funding binding',async core=>{
    const before=await snapshot();
    await client.query(sql('20261112090000_task237_production_decision_resolution.sql'));
    assert.deepEqual(await snapshot(),before);
@@ -345,7 +345,7 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
    assert.equal(await rpc('dabra_task_consent',grantArgs),null,'lost old grant response cannot regrant after withdrawal');
    assert.deepEqual(await countHolds(),heldConsent);
    for(const role of ['anon','authenticated'])assert.equal((await client.query("SELECT has_function_privilege($1,'public.dabra_task_consent(uuid,text,text,text,text,text,bigint,uuid)','EXECUTE') AS v",[role])).rows[0].v,false);
-   await t.test('atomic continuity derivative erasure and bounded stored-deadline purge',async()=>{
+   await core.test('atomic continuity derivative erasure and bounded stored-deadline purge',async()=>{
     await client.query(sql('20261112120000_task237_content_erasure.sql'));
     const binding={...continuity,revision:20,tripExpiresAtMs:now+600000};
     const resetSource=()=>client.query("UPDATE public.dabra_account_continuity SET revision=20,generation=0,consent_enabled=true,consent_version='task187-v1',trip=$2,trip_expires_at=to_timestamp($3::numeric/1000) WHERE owner_id=$1",[who,originalTrip,binding.tripExpiresAtMs]);
