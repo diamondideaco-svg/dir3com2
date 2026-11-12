@@ -1,0 +1,137 @@
+import 'server-only';
+import { createHash, randomUUID } from 'node:crypto';
+import { publicDialogueActor } from './public-dialogue-policy';
+import { loadPublicDialoguePolicy } from './public-dialogue-store';
+import { isAgentTaskAuthorityCurrent, type AgentDialoguePolicy } from './agent-dialogue';
+import { runInternalAgentTask, type AgentCoreTaskResult } from './agent-handoff';
+import type { FundingRpc } from './dialogue-funding-store';
+import { DISPLAY_CURRENCIES } from '../currency/display';
+
+import type { SuccessfulTaskContinuityBinding } from './continuity-chat-server';
+
+type Input = Parameters<typeof runInternalAgentTask>[0] & { successfulTaskContinuityBinding?: SuccessfulTaskContinuityBinding; continuityBinding?: Readonly<{ revision: number; generation: number }> };
+const uuid = (v: string) => /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(v);
+const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const sha = (v: string) => createHash('sha256').update(v).digest('hex');
+/** Include every answer-affecting input; identity and context are server-resolved, never client roles. */
+export function successfulTaskInputDigest(input: Input) {
+  const snapshot = input.pricing?.snapshot;
+  // expiresAt is local cache metadata, not a quoted price. Equivalent fresh
+  // refetches share identity; stale snapshots still conflict and cannot replay
+  // an answer that relied on a fresh quote. Execution keeps the original TTL.
+  const pricing = input.pricing ? { currency: input.pricing.currency, snapshot: snapshot ? {
+    base: snapshot.base, provider: snapshot.provider, asOf: snapshot.asOf,
+    rates: Object.fromEntries(DISPLAY_CURRENCIES.map(currency => [currency, snapshot.rates[currency]])),
+    fresh: Number.isFinite(snapshot.expiresAt) && snapshot.expiresAt > Date.now(),
+  } : null } : null;
+  return sha(JSON.stringify({ schema: 'task237-input-v2', actor: input.context.taskAuthority, role: input.context.role,
+    message: input.message, history: input.history, locale: input.locale, trip: input.trip ?? null,
+    continuityBinding: input.continuityBinding ?? null, intent: input.intent ?? null, pricing, needsClarification: input.needsClarification ?? false,
+    serverAttachmentNote: input.serverAttachmentNote ?? null }));
+}
+export type SuccessfulTaskResult =
+  | { kind: 'answer'; answer: string; language: 'ar' | 'en'; saved: true; replay: boolean }
+  | { kind: 'core'; result: AgentCoreTaskResult; saved: false }
+  | { kind: 'unavailable' | 'conflict' | 'pending' | 'unknown' | 'failed' | 'expired'; saved: false };
+
+/** Recheck both sides of the asynchronous identity read; project changes must fence replay too. */
+export async function successfulTaskAuthorityCurrent(input: Input, signal: AbortSignal) {
+  try {
+    return await boundedSuccessfulTaskOperation(async bounded => !bounded.aborted
+      && input.context.isDialogueFundingProjectCurrent?.() === true
+      && await isAgentTaskAuthorityCurrent(input.context, bounded)
+      && !bounded.aborted && input.context.isDialogueFundingProjectCurrent?.() === true, signal);
+  } catch { return false; }
+}
+/** Bound the whole operation even when an injected dependency ignores AbortSignal. Never retry. */
+export async function boundedSuccessfulTaskOperation<T>(operation: (signal: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T> {
+  const bounded = AbortSignal.any([AbortSignal.timeout(1000), ...(signal ? [signal] : [])]);
+  if (bounded.aborted) throw new Error('TASK237_STORE_UNAVAILABLE');
+  let stop: (() => void) | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    stop = () => reject(new Error('TASK237_STORE_UNAVAILABLE'));
+    bounded.addEventListener('abort', stop, { once: true });
+  });
+  // Invoke immediately, but normalize a synchronous dependency throw into a
+  // rejection so the race observes it and always removes the abort listener.
+  const pending = new Promise<T>(resolve => resolve(operation(bounded)));
+  const result = await Promise.race([pending, timeout])
+    .finally(() => { if (stop) bounded.removeEventListener('abort', stop); });
+  if (bounded.aborted) throw new Error('TASK237_STORE_UNAVAILABLE');
+  return result;
+}
+export async function boundedSuccessfulTaskRpc(rpc: FundingRpc, name: string, params: Record<string, unknown>, signal?: AbortSignal) {
+  const result = await boundedSuccessfulTaskOperation(bounded => rpc(name, params, bounded), signal);
+  if (result.error || !object(result.data)) throw new Error('TASK237_STORE_UNAVAILABLE');
+  return result.data;
+}
+
+/** Shared one-attempt lifecycle. Callers own admission transport and eligibility; no default client. */
+export function createSuccessfulTaskLifecycle(deps: {
+  rpc: FundingRpc;
+  execute: (input: Input, policy: AgentDialoguePolicy, signal: AbortSignal) => Promise<AgentCoreTaskResult>;
+}) {
+  return async function run(input: Input, requestId: string, signal: AbortSignal): Promise<SuccessfulTaskResult> {
+    const actor = publicDialogueActor(input.context), digest = successfulTaskInputDigest(input);
+    const snapshot = input.pricing?.snapshot;
+    const pricingUsableAtStart = !snapshot || (Number.isFinite(snapshot.expiresAt) && snapshot.expiresAt > Date.now());
+    if (!actor || !uuid(actor) || !uuid(requestId) || signal.aborted || input.serverAttachmentNote || (input.trip && !input.continuityBinding)) return { kind: 'unavailable', saved: false };
+    const current = () => successfulTaskAuthorityCurrent(input, signal);
+    const inputUnchanged = () => successfulTaskInputDigest(input) === digest;
+    // Completion uses a bounded independent signal; it is not a provider retry.
+    const call = (name: string, params: Record<string, unknown>) => boundedSuccessfulTaskRpc(deps.rpc,name,params);
+    const identity = { p_actor_id: actor, p_request_id: requestId, p_input_digest: digest };
+    const read = () => call('read_dabra_successful_task', identity);
+    const replay = async (row: Record<string, unknown>): Promise<SuccessfulTaskResult> => {
+      if (!await current()) return { kind: 'unavailable', saved: false };
+      if (!inputUnchanged()) return { kind: 'conflict', saved: false };
+      if (row.state === 'succeeded') {
+        if (typeof row.answer !== 'string' || !row.answer.trim() || row.answer.length > 64000 || row.language !== input.locale)
+          return { kind: 'expired', saved: false };
+        return { kind: 'answer', answer: row.answer, language: input.locale, saved: true, replay: true };
+      }
+      const kind = row.state === 'conflict' ? 'conflict' : row.state === 'pending' ? 'pending' : row.state === 'failed' ? 'failed' : 'unknown';
+      return { kind, saved: false };
+    };
+    let admissionStarted = false, admitted = false, explicitlyDenied = false;
+    const lease = randomUUID();
+    try {
+      if (!await current()) return { kind: 'unavailable', saved: false };
+      const existing = await read();
+      if (existing.state !== 'absent') return replay(existing);
+      // Preserve existing-task conflict/replay semantics, but never admit a new
+      // task whose present quote already expired before the digest was captured.
+      if (!pricingUsableAtStart) return { kind: 'unavailable', saved: false };
+      const rpc: FundingRpc = async (name, params, rpcSignal) => {
+        if (name === 'get_dabra_public_dialogue_policy') return deps.rpc('get_dabra_successful_task_policy', params, rpcSignal);
+        if (name !== 'reserve_dabra_public_dialogue_attempt') return { data: null, error: 'unexpected_rpc' };
+        admissionStarted = true;
+        const result = await deps.rpc('reserve_dabra_successful_task', { ...params, ...identity, p_lease_token: lease }, rpcSignal);
+        admitted = !result.error && object(result.data) && result.data.decision === 'admitted';
+        explicitlyDenied = !result.error && object(result.data) && result.data.decision === 'denied';
+        return result;
+      };
+      const policy = await loadPublicDialoguePolicy(input.context, signal, requestId, rpc);
+      // A quote that expired during policy IO must not start an admission.
+      if (!inputUnchanged()) return { kind: 'unavailable', saved: false };
+      const result = await deps.execute(input, policy, signal);
+      if (!admissionStarted || explicitlyDenied) return await current()
+        ? { kind: 'core', result, saved: false } : { kind: 'unavailable', saved: false };
+      if (!admitted) return replay(await read()); // Committed-unknown or concurrent request: never redispatch.
+      if (!await current()) return { kind: 'unknown', saved: false }; // Preserve the lease and cost; bounded expiry reconciles.
+      // Recheck after execution and its authority wait. A quote expiring during
+      // price construction or provider IO cannot be saved under a fresh digest.
+      // Known failure releases success capacity but preserves the one attempt/cost.
+      const valid = inputUnchanged() && result.kind === 'response' && result.dialogueOutcome === 'validated' && result.response.provider !== 'local'
+        && result.response.language === input.locale && result.response.agent.mutations === 0
+        && result.response.answer.trim().length > 0 && result.response.answer.length <= 64000;
+      const outcome = valid ? 'succeeded' : result.kind === 'stopped' || result.dialogueOutcome === 'unknown' ? 'unknown' : 'failed';
+      const finished = await call('finish_dabra_successful_task', { ...identity, p_lease_token: lease, p_outcome: outcome,
+        p_answer: valid ? result.response.answer : null, p_language: valid ? input.locale : null });
+      if (finished.state !== 'succeeded') return { kind: outcome === 'failed' && finished.state === 'failed' ? 'failed' : 'unknown', saved: false };
+      // A receipt alone is not enough: verify the saved answer is available before reporting success.
+      const saved = await replay(await read());
+      return saved.kind === 'answer' ? { ...saved, replay: false } : saved;
+    } catch { return { kind: admissionStarted ? 'unknown' : 'unavailable', saved: false }; }
+  };
+}

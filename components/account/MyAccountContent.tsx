@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { SuccessfulTaskConsent } from '@/components/dabra/SuccessfulTaskConsent';
 import type { ReactNode } from 'react';
 import type { IconType } from 'react-icons';
 import { FiCalendar, FiCreditCard, FiFileText, FiHeart, FiHome, FiStar, FiBriefcase, FiTruck, FiSend } from 'react-icons/fi';
@@ -44,13 +45,14 @@ function AccountSummaryCard({ title, state, icon: Icon, mobileIcon: MobileIcon, 
 }
 
 type MyAccountContentProps = {
+  ownerId: string;
   displayName: string | null; displayEmail: string; role: SessionRole | null; roleRaw: string | null;
   accountStatus: string | null; joinedAt: string | null; requests: CustomerMarketplaceRequest[];
   documents?: { id: string; document_type: string; verification_status: string | null; expiry_date: string | null }[] | null;
   booking?: { id: string; booking_reference: string | null; status: string | null; created_at: string | null } | null;
   bookingsFailed?: boolean;
 };
-export default function MyAccountContent({ displayName, displayEmail, role, roleRaw, accountStatus, joinedAt, requests, documents = null, booking = null, bookingsFailed = false }: MyAccountContentProps) {
+export default function MyAccountContent({ ownerId, displayName, displayEmail, role, roleRaw, accountStatus, joinedAt, requests, documents = null, booking = null, bookingsFailed = false }: MyAccountContentProps) {
   const { language, direction } = useLanguage();
   const ar = language === 'ar';
   const t = customerHubCopy[language].account;
@@ -73,6 +75,7 @@ export default function MyAccountContent({ displayName, displayEmail, role, role
       ['stay', 'Stay', FiHome, LuHotel], ['drive', 'Drive', FiTruck, LuCarFront], ['concierge', 'Concierge', FiBriefcase, LuConciergeBell], ['vip', 'VIP', FiStar, LuCrown], ['fly', 'Fly', FiSend, LuPlane],
     ].map(([key, label, Icon, DesktopIcon]) => { const Symbol = Icon as typeof FiHome; const DesktopSymbol = DesktopIcon as typeof LuHotel; return <Link key={String(key)} href={'/favorites?family=' + key}><Symbol className={styles.accountServiceMobileIcon} aria-hidden="true" /><DesktopSymbol className={styles.accountServiceDesktopIcon} strokeWidth={1.75} aria-hidden="true" />dir3 {String(label)}</Link>; })}</div></section>
     <DabraIntroduction ar={ar} />
+    <SuccessfulTaskConsent key={ownerId} ownerId={ownerId} ar={ar} />
     <div className={styles.requestSummary}><MarketplaceRequestsPanel requests={requests} /></div>
     <section className={styles.card}><h2>{ar ? 'رحلتك القادمة تبدأ هنا' : 'Your next journey starts here'}</h2><p>{ar ? 'اكتشف خدمات السفر واختر ما يناسبك.' : 'Explore travel services and find what suits you.'}</p><Link href="/marketplace" className={styles.primary}>{ar ? 'استكشف الخدمات' : 'Explore services'}</Link></section>
   </div>;

@@ -26,7 +26,16 @@ export type AgentExecutiveReadResult =
 export type AgentContactInboxReadResult =
   | { kind: 'ready'; country: 'EG'; counts: { received: number; in_progress: number; closed: number }; displayed: number; truncated: boolean; retrievedAt: string }
   | { kind: 'forbidden' | 'unavailable' };
+export type SuccessfulTaskOperationsBinding = Readonly<{
+  schema: 'dabra-operations-binding-v1'; actorId: string; country: 'EG';
+  kind: 'ceo' | 'grant'; grant: null | Readonly<{
+    id: string; invited_user_id: string; access_level: string; status: string;
+    country_scope: readonly string[]; permissions: readonly string[];
+  }>;
+}>;
 export type AgentContext = {
+  /** Server-derived from the authenticated operational resolver, never request JSON. */
+  successfulTaskOperationsBinding?: SuccessfulTaskOperationsBinding;
   role: AgentRole;
   taskAuthority?: AgentTaskAuthority;
   taskAuthorityFailure?: 'authentication_required' | 'forbidden' | 'unavailable';

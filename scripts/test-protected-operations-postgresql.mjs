@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { verifyDrivePriceRelease } from './verify-drive-price-release.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { quote, tableSql } from './production-baseline-contract.mjs';
 
 // Only this explicitly named LOCAL container is reachable. Never accept a URL,
@@ -95,7 +95,18 @@ try {
   // CEO-specific 43-row price release has its own isolated rollback/replay fixture.
   const priceRelease = files.find(file => file.endsWith('_drive_price_reduction_15_percent.sql'));
   assert.ok(migration);
-  for (const file of files.filter(file => file !== priceRelease && file !== migration && file !== managedDrive && file !== managedDriveModelYear && file !== managedDriveAcceptance && file !== managedDriveSeptember && file !== managedDriveWhatsApp && file !== managedDriveKapso && file !== managedDriveCustomer && file !== managedDriveTarget && file !== boundedDriveWhatsApp && file !== queryDriveWhatsApp && file !== boundedCustomerWhatsApp && file !== currentStateWhatsApp && file !== continuousWhatsApp && file !== currentStateResume && file !== workerBinding && file !== workerBindingFingerprint)) sql(read(`supabase/migrations/${file}`));
+  for (const file of files.filter(file => file !== priceRelease && file !== migration && file !== managedDrive && file !== managedDriveModelYear && file !== managedDriveAcceptance && file !== managedDriveSeptember && file !== managedDriveWhatsApp && file !== managedDriveKapso && file !== managedDriveCustomer && file !== managedDriveTarget && file !== boundedDriveWhatsApp && file !== queryDriveWhatsApp && file !== boundedCustomerWhatsApp && file !== currentStateWhatsApp && file !== continuousWhatsApp && file !== currentStateResume && file !== workerBinding && file !== workerBindingFingerprint)) {
+    if (file === '20261112120000_task237_content_erasure.sql') {
+      // Synthetic database prerequisite only: the accepted historical Task187
+      // contract is not part of the source migration registry. Never provision
+      // it from a production migration or relax the erasure dependency guard.
+      const continuityFixture = read('supabase/drafts/task187-continuity.sql');
+      assert.equal(createHash('sha256').update(continuityFixture).digest('hex'),
+        '0186d211becfdfd043d239f39489d75100f63a1b8c5b288dade3faffb98fa63b');
+      sql(continuityFixture);
+    }
+    sql(read(`supabase/migrations/${file}`));
+  }
   // Fixtures are inserted only in our disposable database; no captured user data.
   for (const [id, role] of [[ceo,'admin'],[admin,'admin'],[staff,'staff'],[customer,'customer'],[partner,'partner']]) {
     sql(`INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES('${id}','${id}@example.invalid','{}');

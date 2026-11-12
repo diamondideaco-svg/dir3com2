@@ -1,3 +1,5 @@
+import type { SuccessfulTaskContinuityBinding } from '@/lib/dabra/continuity-chat-server';
+import { readSuccessfulTaskProductionPolicy, successfulTaskProductionGate } from '@/lib/dabra/successful-task-production-policy';
 import { successfulTaskChatResponse } from '@/lib/dabra/successful-task-chat';
 import { conversationIntent } from '@/lib/dabra/conversation-renderer';
 import { after, NextRequest, NextResponse } from 'next/server';
@@ -83,6 +85,7 @@ function sanitizeHistory(raw: AI2ChatRequest['history']): AI2ChatTurn[] {
 }
 
 export async function POST(request: NextRequest) {
+  const productionPolicy = readSuccessfulTaskProductionPolicy();
   // Public discovery is read-only. Submission uses the existing authenticated REQ flow.
   const parsed = await parseChatRequest(request);
   const { body } = parsed;
@@ -138,13 +141,17 @@ export async function POST(request: NextRequest) {
   let history = sanitizeHistory(body?.history);
   let trip = null;
   let continuityBinding: Readonly<{ revision: number; generation: number }> | undefined;
+  let successfulTaskContinuityBinding: SuccessfulTaskContinuityBinding | undefined;
   let tripIsCurrent: (() => Promise<boolean>) | undefined;
   if (body?.continuityTrip !== undefined) {
     const input = parseContinuityChatTrip(body.continuityTrip);
     if (!input) return NextResponse.json({ error: 'Invalid continuity context.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
     try {
-      const { resolveContinuityChatTrip } = await import('@/lib/dabra/continuity-chat-server');
-      trip = await resolveContinuityChatTrip(request, input);
+      const { resolveContinuityChatTrip, resolveContinuityChatTripReceipt } = await import('@/lib/dabra/continuity-chat-server');
+      if (productionPolicy != null) {
+        const resolved = await resolveContinuityChatTripReceipt(request, input);
+        trip = resolved?.trip ?? null; successfulTaskContinuityBinding = resolved?.binding;
+      } else trip = await resolveContinuityChatTrip(request, input);
       const original=JSON.stringify(trip);
       tripIsCurrent=async()=>{try{const fresh=await resolveContinuityChatTrip(request,input);return !!fresh&&JSON.stringify(fresh)===original;}catch{return false;}};
     } catch { /* Unavailable authenticated continuity fails closed. */ }
@@ -158,7 +165,7 @@ export async function POST(request: NextRequest) {
   let agentContext: AgentContext = { role: 'guest', readRequests: async () => ({ kind: 'authentication_required' }) };
   const inferenceEnabled = process.env.DABRA_INTERNAL_AI_ENABLED === 'true';
   const publicUtility = ['weather', 'currency', 'maps'].includes(intent.tool);
-  if ((intent.tool !== 'discover' && !publicUtility) || inferenceEnabled) {
+  if ((intent.tool !== 'discover' && !publicUtility) || inferenceEnabled || productionPolicy != null) {
     const { resolveAgentContext } = await import('@/lib/dabra/agent-context');
     agentContext = await resolveAgentContext(request);
   }
@@ -176,8 +183,12 @@ export async function POST(request: NextRequest) {
     const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
     const snapshot = needsRates ? await getCurrencySnapshot() : null;
     return { message: scopedMessage, serverAttachmentNote, history, locale, context: agentContext, intent, needsClarification,
-      pricing: currency ? { currency, snapshot } : undefined, trip, continuityBinding: trip ? continuityBinding : undefined };
+      pricing: currency ? { currency, snapshot } : undefined, trip, continuityBinding: trip ? continuityBinding : undefined, successfulTaskContinuityBinding: trip ? successfulTaskContinuityBinding : undefined };
   };
+  // Only the selected Core path consumes this canonical input; failure never funds legacy.
+  const productionGate = await successfulTaskProductionGate(productionPolicy, request, undefined,
+    { resolveInput: resolveTaskInput, requestId, stream: body?.stream === true });
+  if (productionGate) return productionGate;
   // No adapter is installed. Only an explicitly injected synthetic dependency
   // in isolated tests can select this path; request data and ENV cannot select it.
   const successfulTaskResponse = await successfulTaskChatResponse(resolveTaskInput, requestId, request.signal, body?.stream === true);

@@ -9,7 +9,10 @@ import type { FundingRpc } from '../lib/dabra/dialogue-funding-store';
 import { successfulTaskRuntimeFixture, syntheticProviderEnvironment } from './fixtures/task237-runtime-synthetic';
 import { successfulTaskReplayResponse } from '../lib/dabra/successful-task-replay';
 import { SUCCESSFUL_TASK_POLICY } from '../lib/dabra/successful-task-contract';
-import { POST as replayRoute } from '../app/api/dabra/tasks/route';
+import vm from 'node:vm';
+import ts from 'typescript';
+import { NextRequest } from 'next/server';
+import { readSuccessfulTaskProductionPolicy } from '../lib/dabra/successful-task-production-policy';
 
 test('synchronous RPC throw settles once without leaking an abort listener or delayed rejection', async () => {
  const failure = new Error('SYNTHETIC synchronous RPC failure');
@@ -29,9 +32,27 @@ test('synchronous RPC throw settles once without leaking an abort listener or de
 });
 
 test('runtime replay endpoint is hard-disabled, private and no-store regardless of env',async()=>{
+ // Execute the real route without loading the production session/Next navigation
+ // graph into bare react-server Node. The unselected boundary must never run.
+ let productionCalls=0,ioCalls=0;
+ const route:{POST?:(request:Request)=>Promise<Response>}={};
+ const dependencies:Record<string,unknown>={
+  'next/server':{NextRequest},
+  '@/lib/dabra/successful-task-production-policy':{readSuccessfulTaskProductionPolicy},
+  '@/lib/dabra/successful-task-replay':{successfulTaskReplayResponse},
+  '@/lib/dabra/successful-task-production-replay':{successfulTaskProductionReplay:()=>{productionCalls++;throw new Error('Unexpected production IO boundary');}},
+ };
+ vm.runInNewContext(ts.transpileModule(readFileSync('app/api/dabra/tasks/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{
+  exports:route,Response,require:(id:string)=>{if(!Object.hasOwn(dependencies,id))throw new Error('Unexpected route dependency '+id);return dependencies[id];},
+ });
+ assert.ok(route.POST);
+ const replayRoute=route.POST;
+ const previousFetch=globalThis.fetch;
+ globalThis.fetch=async()=>{ioCalls++;throw new Error('Unexpected network IO');};
  const prior=process.env.DABRA_SUCCESSFUL_TASK_ENABLED;process.env.DABRA_SUCCESSFUL_TASK_ENABLED='true';
  try{const r=await replayRoute(new Request('https://synthetic.invalid/api/dabra/tasks',{method:'POST'}));assert.equal(r.status,503);assert.equal(r.headers.get('Cache-Control'),'private, no-store');assert.equal((await r.json()).enabled,false);}
- finally{if(prior===undefined)delete process.env.DABRA_SUCCESSFUL_TASK_ENABLED;else process.env.DABRA_SUCCESSFUL_TASK_ENABLED=prior;}
+ finally{globalThis.fetch=previousFetch;if(prior===undefined)delete process.env.DABRA_SUCCESSFUL_TASK_ENABLED;else process.env.DABRA_SUCCESSFUL_TASK_ENABLED=prior;}
+ assert.equal(productionCalls,0);assert.equal(ioCalls,0);
  assert.ok(!readFileSync('app/api/ai2/chat/route.ts','utf8').includes('createSyntheticSuccessfulTaskRunner'));
 });
 

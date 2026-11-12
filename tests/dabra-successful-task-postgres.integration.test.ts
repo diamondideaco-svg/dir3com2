@@ -68,6 +68,334 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
   const usage=(who=actor)=>rpc('get_dabra_successful_task_allowance',[who]);
   const countHolds=async()=> (await client.query('SELECT count(*)::int AS n,sum(cost_micros)::int AS cost FROM private.dabra_public_dialogue_admissions')).rows[0];
   const addActor=async()=>{const id=randomUUID();await client.query('INSERT INTO auth.users(id) VALUES($1)',[id]);await client.query("INSERT INTO public.profiles(id,role,status) VALUES($1,'customer','active')",[id]);return id;};
+  await t.test('Core decision resolver: private service-only empty state, approved owner, withdrawal and funding binding',async core=>{
+   const before=await snapshot();
+   await client.query(sql('20261112090000_task237_production_decision_resolution.sql'));
+   assert.deepEqual(await snapshot(),before);
+   assert.equal((await client.query('SELECT count(*)::int AS n FROM private.dabra_successful_task_decisions')).rows[0].n,0);
+   for(const role of ['anon','authenticated','service_role']) {
+    assert.equal((await client.query("SELECT has_table_privilege($1,'private.dabra_successful_task_decisions','SELECT,INSERT,UPDATE,DELETE') AS v",[role])).rows[0].v,false);
+    assert.equal((await client.query("SELECT has_function_privilege($1,'public.resolve_dabra_successful_task_decisions(uuid,text,jsonb)','EXECUTE') AS v",[role])).rows[0].v,role==='service_role');
+   }
+   const ceo='0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16',who=await addActor(),other=await addActor();
+   await client.query('INSERT INTO auth.users(id) VALUES($1)',[ceo]);
+   await client.query("INSERT INTO public.profiles(id,role,status) VALUES($1,'admin','active')",[ceo]);
+   const kinds=['retention','consent','deletion','audience','spending'];
+   const policy={schema:'dabra-successful-task-production-policy-v1',revision:'synthetic-revision',
+    ...Object.fromEntries(kinds.map(k=>[k+'Decision','synthetic-'+k]))};
+   const resolve=(owner=who,role='customer')=>rpc('resolve_dabra_successful_task_decisions',[owner,role,policy]);
+   assert.equal(await resolve(),null,'missing decisions do not authorize');
+   for(const kind of kinds) await client.query(`INSERT INTO private.dabra_successful_task_decisions
+    (reference,revision,kind,purpose,actor_id,actor_role,approved_by,approval_reference,approved_at_ms,expires_at_ms,document,funding_grant_id,funding_proof_sha256)
+    VALUES($1,'synthetic-revision',$2,'dabra-successful-task',$3,'customer',$4,'synthetic-evidence',$5,$6,'{"syntheticOnly":true}'::jsonb,$7,
+     CASE WHEN $7::uuid IS NULL THEN NULL ELSE (SELECT encode(sha256(convert_to(proof::text,'UTF8')),'hex') FROM private.dabra_dialogue_funding_grants WHERE id=$7) END)`,
+    ['synthetic-'+kind,kind,who,kind==='consent'?who:ceo,now-1000,now+600000,kind==='spending'?grantId:null]);
+   assert.equal((await resolve()).actorId,who);
+   // Prepared production lifecycle contract: same Core ledger, separate explicit documents.
+   const baseline=sql('20260903215959_production_schema_baseline.sql');
+   const grantTable=baseline.match(/CREATE TABLE "public"\."team_access_grants" \([\s\S]*?\n\);/);
+   const normalizeCountry=baseline.match(/CREATE OR REPLACE FUNCTION public\.normalize_admin_country_key\(value text\)[\s\S]*?\$function\$\n;/);
+   assert.ok(grantTable && normalizeCountry);await client.query(grantTable[0]);await client.query(normalizeCountry[0]);
+   await client.query(sql('20261112100000_task237_production_lifecycle.sql'));
+   const operator=await addActor();await client.query("UPDATE public.profiles SET role='staff' WHERE id=$1",[operator]);
+   const operations={schema:'dabra-operations-binding-v1',actorId:operator,country:'EG',kind:'grant',grant:{id:randomUUID(),invited_user_id:operator,access_level:'scoped_staff',status:'active',country_scope:['Egypt'],permissions:['operations:read']}};
+   const checkOperations=async(b:unknown=operations)=>(await client.query('SELECT private.dabra_task_operations_current($1,$2) AS v',[operator,b])).rows[0].v;
+   assert.equal(await checkOperations(),false,'missing grant');
+   await client.query("INSERT INTO public.team_access_grants(id,email,job_title,invited_user_id,created_by,country_scope,permissions) VALUES($1,'synthetic@example.invalid','synthetic',$2,$2,ARRAY['Egypt'],ARRAY['operations:read'])",[operations.grant.id,operator]);
+   assert.equal(await checkOperations(),true);
+   for(const point of [0x09,0x0a,0x0b,0x0c,0x0d,0x20,0xa0,0x1680,0x2000,0x2001,0x2002,0x2003,0x2004,0x2005,0x2006,0x2007,0x2008,0x2009,0x200a,0x2028,0x2029,0x202f,0x205f,0x3000,0xfeff]){
+    const c=String.fromCodePoint(point);operations.grant.country_scope=[c+'Egypt'+c];
+    await client.query('UPDATE public.team_access_grants SET country_scope=$1 WHERE invited_user_id=$2',[operations.grant.country_scope,operator]);assert.equal(await checkOperations(),true);
+    operations.grant.country_scope=['EG',c];operations.grant.access_level='global_admin';
+    await client.query("UPDATE public.team_access_grants SET country_scope=$1,access_level='global_admin' WHERE invited_user_id=$2",[operations.grant.country_scope,operator]);assert.equal(await checkOperations(),false);
+    operations.grant.access_level='scoped_staff';await client.query("UPDATE public.team_access_grants SET access_level='scoped_staff' WHERE invited_user_id=$1",[operator]);
+   }
+   operations.grant.country_scope=['Egypt'];await client.query("UPDATE public.team_access_grants SET country_scope=ARRAY['Egypt'] WHERE invited_user_id=$1",[operator]);
+
+   for(const change of ["status='inactive'","permissions=ARRAY['products:read']","country_scope=ARRAY['SA']"]){
+    await client.query('UPDATE public.team_access_grants SET '+change+' WHERE invited_user_id=$1',[operator]);assert.equal(await checkOperations(),false);
+    await client.query("UPDATE public.team_access_grants SET status='active',permissions=ARRAY['operations:read'],country_scope=ARRAY['Egypt'] WHERE invited_user_id=$1",[operator]);
+   }
+   await client.query("INSERT INTO public.team_access_grants(email,job_title,invited_user_id,created_by) VALUES('second@example.invalid','synthetic',$1,$1)",[operator]);
+   assert.equal(await checkOperations(),false,'ambiguous maybeSingle parity');
+   await client.query('DELETE FROM public.team_access_grants WHERE invited_user_id=$1 AND id<>$2',[operator,operations.grant.id]);
+   const pinned='0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16';
+   assert.equal((await client.query('SELECT private.dabra_task_operations_current($1,$2) AS v',[pinned,{schema:'dabra-operations-binding-v1',actorId:pinned,country:'EG',kind:'ceo',grant:null}])).rows[0].v,true);
+   const grantLocker=new Client({...config,database});await grantLocker.connect();
+   try {await grantLocker.query('BEGIN');await grantLocker.query('LOCK TABLE public.team_access_grants IN ROW EXCLUSIVE MODE');
+    assert.equal(await checkOperations(),false,'table contention is NOWAIT, no remote wait/phantom');
+   } finally {await grantLocker.query('ROLLBACK');await grantLocker.end();}
+
+   const docs={
+    retention:{schema:'dabra-answer-retention-v1',answerRetentionMs:60000},
+    consent:{schema:'dabra-answer-consent-v1',actorId:who,revision:policy.revision,noticeVersion:'synthetic-answer-v1',noticeSha256:'c'.repeat(64),grantedAtMs:now-1000,generation:0},
+    deletion:{schema:'dabra-answer-deletion-v1',policyReference:'synthetic-purge',purgeWithinMs:1000,backupPolicyReference:'synthetic-backup'},
+    audience:{schema:'dabra-task-audience-v1',actorId:who,role:'customer',revision:policy.revision},
+    spending:{schema:'dabra-task-spending-v1',currency:'USD',timeZone:'Asia/Riyadh',grantId,maxAttempts:1,dailySuccesses:2,monthlySuccesses:4,accountMonthlyCostMicros:10000,monthlyCostMicros:100000,attemptCostMicros:5000,inputTokenCeiling:4096,outputTokenCeiling:1024,leaseMs:12000},
+   };
+   const opaque=await resolve();
+   assert.equal((await client.query('SELECT private.dabra_production_task_terms($1) AS v',[opaque])).rows[0].v,null,'metadata alone cannot admit');
+   for(const [kind,document] of Object.entries(docs)) await client.query('UPDATE private.dabra_successful_task_decisions SET document=$1 WHERE kind=$2',[document,kind]);
+   const approved=await resolve(),production=[...request(who),digest,randomUUID(),'customer',policy,approved];
+   const retrieve=()=>rpc('read_dabra_production_task',[who,production[1],digest,'customer',policy,approved]);
+   for(const [key,maximum] of Object.entries({dailySuccesses:10,monthlySuccesses:50,accountMonthlyCostMicros:500000,monthlyCostMicros:25000000})) {
+    const excessive=structuredClone(approved);Object.assign(excessive.decisions.spending.document,{dailySuccesses:10,monthlySuccesses:50,accountMonthlyCostMicros:500000,monthlyCostMicros:25000000,[key]:maximum+1});
+    assert.equal((await client.query('SELECT private.dabra_production_task_terms($1) AS v',[excessive])).rows[0].v,null,key);
+   }
+   const beforeProduction=await countHolds();
+   assert.equal((await rpc('reserve_dabra_production_task',[...production.slice(0,-1),opaque])).decision,'denied');
+   assert.deepEqual(await countHolds(),beforeProduction);
+   assert.equal((await rpc('reserve_dabra_production_task',[...production,now+600000])).decision,'admitted');
+   assert.equal(Number((await client.query('SELECT input_valid_until_ms FROM private.dabra_production_tasks WHERE request_id=$1',[production[1]])).rows[0].input_valid_until_ms),now+600000);
+   const afterProduction=await countHolds();assert.equal(afterProduction.n,beforeProduction.n+1);
+   assert.equal((await rpc('finish_dabra_production_task',[who,production[1],digest,production[9],'succeeded','SYNTHETIC production contract','en'])).state,'succeeded');
+   assert.equal((await retrieve()).answer,'SYNTHETIC production contract');
+   const uuidRead=()=>rpc('retrieve_dabra_production_task',[who,production[1],'customer',policy,approved,null]);
+   assert.equal((await uuidRead()).answer,'SYNTHETIC production contract','UUID resolves original digest server-side');
+   assert.equal(Number((await uuidRead()).inputValidUntilMs),now+600000,'original FX deadline is not renewed');
+   assert.equal((await rpc('reserve_dabra_production_task',production)).decision,'existing');assert.deepEqual(await countHolds(),afterProduction);
+   await client.query("UPDATE private.dabra_successful_task_decisions SET revoked_at_ms=$1 WHERE kind='consent'",[now]);
+   assert.equal(await retrieve(),null,'withdrawal fences the saved answer without refund or redispatch');
+   assert.deepEqual(await countHolds(),afterProduction);
+   await client.query("UPDATE private.dabra_successful_task_decisions SET revoked_at_ms=NULL WHERE kind='consent'");
+   const confirmRead=()=>rpc('read_dabra_production_task',[who,production[1],digest,'customer',policy,approved,true]);
+   assert.equal((await confirmRead()).answer,'SYNTHETIC production contract');
+   assert.ok((await client.query('SELECT read_verified_at_ms FROM private.dabra_production_tasks WHERE request_id=$1',[production[1]])).rows[0].read_verified_at_ms);
+   // Fixture resets only the proof to exercise first-confirm FX expiry; immutable cost remains.
+   await client.query('UPDATE private.dabra_production_tasks SET read_verified_at_ms=NULL,input_valid_until_ms=1 WHERE request_id=$1',[production[1]]);
+   assert.equal((await confirmRead()).state,'failed');
+   assert.equal((await uuidRead()).state,'failed','UUID cannot bypass original FX expiry');
+   assert.equal((await client.query('SELECT read_verified_at_ms FROM private.dabra_production_tasks WHERE request_id=$1',[production[1]])).rows[0].read_verified_at_ms,null);
+   await client.query('UPDATE private.dabra_production_task_answers SET expires_at_ms=0 WHERE actor_id=$1',[who]);
+   assert.equal((await retrieve()).state,'failed','expired before owner-read proof does not retain success');
+   assert.equal((await rpc('reserve_dabra_production_task',production)).decision,'existing');
+   assert.deepEqual(await countHolds(),afterProduction,'expiry never refunds or redispatches');
+   const tiny=[...request(who),digest,randomUUID(),'customer',policy,approved];
+   assert.equal((await rpc('reserve_dabra_production_task',tiny)).decision,'admitted');
+   await client.query('UPDATE private.dabra_production_tasks SET retention_ms=1 WHERE request_id=$1',[tiny[1]]);
+   await client.query("CREATE FUNCTION private.task237_test_retention_wait() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(0.01); RETURN NEW; END $$; CREATE TRIGGER task237_test_retention_wait BEFORE INSERT ON private.dabra_production_task_answers FOR EACH ROW EXECUTE FUNCTION private.task237_test_retention_wait()");
+   try {
+    const heldBefore=await countHolds();
+    assert.equal((await rpc('finish_dabra_production_task',[who,tiny[1],digest,tiny[9],'succeeded','SYNTHETIC short retention','en'])).state,'unknown');
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM private.dabra_production_task_answers WHERE request_id=$1',[tiny[1]])).rows[0].n,0);
+    assert.deepEqual(await countHolds(),heldBefore);
+    assert.equal((await rpc('reserve_dabra_production_task',tiny)).decision,'existing');
+   } finally {await client.query('DROP TRIGGER task237_test_retention_wait ON private.dabra_production_task_answers; DROP FUNCTION private.task237_test_retention_wait()');}
+
+   for(const role of ['anon','authenticated'])for(const signature of ['public.retrieve_dabra_production_task(uuid,uuid,text,jsonb,jsonb,jsonb,boolean)','public.reserve_dabra_production_task(uuid,uuid,uuid,uuid,jsonb,integer,integer,bigint,text,uuid,text,jsonb,jsonb,bigint,jsonb,jsonb)','public.finish_dabra_production_task(uuid,uuid,text,uuid,text,text,text)','public.read_dabra_production_task(uuid,uuid,text,text,jsonb,jsonb,boolean,jsonb,jsonb)'])
+    assert.equal((await client.query("SELECT has_function_privilege($1,$2,'EXECUTE') AS v",[role,signature])).rows[0].v,false);
+   const originalTrip={id:randomUUID(),origin:'Cairo',destination:'Riyadh',startDate:null,endDate:null,adults:2,children:0,rooms:1,budget:null,currency:'USD',families:['stay']};
+   const continuity={schema:'dabra-task-continuity-v1',ownerId:who,revision:1,generation:0,tripId:originalTrip.id,tripExpiresAtMs:now+600000,originalTrip};
+   const checkTrip=async()=>(await client.query('SELECT private.dabra_task_continuity_current($1,$2) AS v',[who,continuity])).rows[0].v;
+   assert.equal(await checkTrip(),false,'missing historical dependency is not provisioned by task migration');
+   await client.query("CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$");
+   await client.query(readFileSync(new URL('../supabase/drafts/task187-continuity.sql',import.meta.url),'utf8'));
+   await client.query('UPDATE public.dabra_continuity_policy SET enabled=true');
+   await client.query("INSERT INTO public.dabra_account_continuity(owner_id,revision,generation,consent_enabled,consent_version,trip,trip_expires_at) VALUES($1,1,0,true,'task187-v1',$2,to_timestamp($3::numeric/1000))",[who,originalTrip,continuity.tripExpiresAtMs]);
+   assert.equal(await checkTrip(),true);
+   const tripRequest=[...request(who),digest,randomUUID(),'customer',policy,approved,null,null,continuity];
+   assert.equal((await rpc('reserve_dabra_production_task',tripRequest)).decision,'admitted');
+   assert.equal((await rpc('finish_dabra_production_task',[who,tripRequest[1],digest,tripRequest[9],'succeeded','SYNTHETIC trip','en'])).state,'succeeded');
+   const tripRead=()=>rpc('retrieve_dabra_production_task',[who,tripRequest[1],'customer',policy,approved,null,true]);
+   assert.equal(await rpc('retrieve_dabra_production_task',[who,tripRequest[1],'customer',policy,approved,null,false]),null);
+   assert.equal((await client.query('SELECT read_verified_at_ms FROM private.dabra_production_tasks WHERE actor_id=$1 AND request_id=$2',[who,tripRequest[1]])).rows[0].read_verified_at_ms,null);
+   assert.equal((await tripRead()).tripValidUntilMs,continuity.tripExpiresAtMs);
+   const heldTrip=await countHolds();
+   for(const change of ["revision=revision+1","generation=generation+1","consent_enabled=false,trip=NULL,trip_expires_at=NULL","trip=NULL,trip_expires_at=NULL","trip_expires_at=to_timestamp(0)","trip=jsonb_set(trip,'{destination}','\"Dubai\"')"]){
+    await client.query('UPDATE public.dabra_account_continuity SET '+change+' WHERE owner_id=$1',[who]);assert.equal(await tripRead(),null);
+    await client.query("UPDATE public.dabra_account_continuity SET revision=1,generation=0,consent_enabled=true,consent_version='task187-v1',trip=$2,trip_expires_at=to_timestamp($3::numeric/1000) WHERE owner_id=$1",[who,originalTrip,continuity.tripExpiresAtMs]);
+   }
+   await client.query('UPDATE public.dabra_continuity_policy SET enabled=false');assert.equal(await tripRead(),null);
+   await client.query('UPDATE public.dabra_continuity_policy SET enabled=true');
+   const tripLocker=new Client({...config,database});await tripLocker.connect();
+   try {for(const table of ['public.dabra_continuity_policy','public.dabra_account_continuity']){
+    await tripLocker.query('BEGIN');await tripLocker.query('LOCK TABLE '+table+' IN ACCESS EXCLUSIVE MODE');assert.equal(await tripRead(),null);await tripLocker.query('ROLLBACK');
+   }}finally{await tripLocker.query('ROLLBACK');await tripLocker.end();}
+   assert.deepEqual(await countHolds(),heldTrip);assert.equal((await rpc('reserve_dabra_production_task',tripRequest)).decision,'existing');
+   // Model natural elapsed time, with matching unchanged source/task deadlines, not revocation.
+   const expiredBinding={...continuity,tripExpiresAtMs:now-1};
+   await client.query('UPDATE public.dabra_account_continuity SET trip_expires_at=to_timestamp($2::numeric/1000) WHERE owner_id=$1',[who,expiredBinding.tripExpiresAtMs]);
+   await client.query('UPDATE private.dabra_production_tasks SET continuity_binding=$3,read_verified_at_ms=NULL WHERE actor_id=$1 AND request_id=$2',[who,tripRequest[1],expiredBinding]);
+   const expiredTrip=await tripRead();assert.equal(expiredTrip.state,'failed');assert.equal(expiredTrip.answer,null);
+   assert.equal((await client.query('SELECT read_verified_at_ms FROM private.dabra_production_tasks WHERE actor_id=$1 AND request_id=$2',[who,tripRequest[1]])).rows[0].read_verified_at_ms,null);
+   assert.deepEqual(await countHolds(),heldTrip);
+   const decisionRows=(await client.query('SELECT * FROM private.dabra_successful_task_decisions')).rows;
+   try {
+    for(const d of decisionRows){const document={...d.document};if(d.kind==='consent'||d.kind==='audience')document.actorId=operator;if(d.kind==='audience')document.role='staff';
+     await client.query('UPDATE private.dabra_successful_task_decisions SET actor_id=$1,actor_role=$2,approved_by=$3,document=$4 WHERE reference=$5',[operator,'staff',d.kind==='consent'?operator:d.approved_by,document,d.reference]);}
+    const opsApproved=await resolve(operator,'staff'),opsRequest=[...request(operator),digest,randomUUID(),'staff',policy,opsApproved,null,operations];
+    assert.equal((await rpc('reserve_dabra_production_task',opsRequest)).decision,'admitted');
+    assert.equal((await rpc('finish_dabra_production_task',[operator,opsRequest[1],digest,opsRequest[9],'succeeded','SYNTHETIC operations','en'])).state,'succeeded');
+    const held=await countHolds();
+    const opsRead=()=>rpc('read_dabra_production_task',[operator,opsRequest[1],digest,'staff',policy,opsApproved,true,operations]);
+    assert.equal((await opsRead()).answer,'SYNTHETIC operations');
+    assert.equal((await rpc('retrieve_dabra_production_task',[operator,production[1],'staff',policy,opsApproved,operations])).state,'absent','foreign owner UUID never returns its answer');
+    await client.query("UPDATE public.team_access_grants SET status='inactive' WHERE invited_user_id=$1",[operator]);
+    assert.equal(await opsRead(),null,'final Core read observes revoked grant');
+    assert.equal(await rpc('retrieve_dabra_production_task',[operator,opsRequest[1],'staff',policy,opsApproved,operations]),null,'UUID retrieval observes revoked grant');
+    assert.equal(await rpc('read_dabra_production_task',[operator,randomUUID(),digest,'staff',policy,opsApproved,false,operations]),null,'revoked grant cannot observe absent state');
+    assert.deepEqual(await countHolds(),held,'revocation neither refunds nor redispatches');
+   } finally {
+    for(const d of decisionRows)await client.query('UPDATE private.dabra_successful_task_decisions SET actor_id=$1,actor_role=$2,approved_by=$3,document=$4 WHERE reference=$5',[d.actor_id,d.actor_role,d.approved_by,d.document,d.reference]);
+   }
+   // No production hooks: hold real relation/row locks from a second session.
+   const blocker=new Client({...config,database}),resolver=new Client({...config,database});
+   await blocker.connect();await resolver.connect();
+   const resolverPid=Number((await resolver.query('SELECT pg_backend_pid() AS p')).rows[0].p);
+   try {
+    for(const table of ['auth.users','public.profiles','private.dabra_successful_task_decisions','private.dabra_dialogue_funding_grants']) {
+     await blocker.query('BEGIN');await blocker.query(`LOCK TABLE ${table} IN ACCESS EXCLUSIVE MODE`);
+     await resolver.query('BEGIN');await resolver.query('SET LOCAL ROLE service_role');await resolver.query("SET LOCAL statement_timeout='2s'");
+     const started=Date.now();
+     assert.equal((await resolver.query('SELECT public.resolve_dabra_successful_task_decisions($1,$2,$3) AS v',[who,'customer',policy])).rows[0].v,null);
+     assert.ok(Date.now()-started<500,'relation contention must reject, not wait for client timeout');
+     assert.equal((await client.query("SELECT count(*)::int AS n FROM pg_locks WHERE pid=$1 AND relation=ANY(ARRAY['auth.users'::regclass,'public.profiles'::regclass,'private.dabra_successful_task_decisions'::regclass,'private.dabra_dialogue_funding_grants'::regclass])",[resolverPid])).rows[0].n,0,'caught lock conflict releases earlier relation/identity locks before caller rollback');
+     await resolver.query('ROLLBACK');await blocker.query('ROLLBACK');
+    }
+    // An uncommitted missing reference must not be consumed from a later snapshot.
+    const row=(await client.query("DELETE FROM private.dabra_successful_task_decisions WHERE kind='deletion' RETURNING *")).rows[0];
+    await blocker.query('BEGIN');
+    await blocker.query('INSERT INTO private.dabra_successful_task_decisions SELECT * FROM jsonb_populate_record(NULL::private.dabra_successful_task_decisions,$1)',[JSON.stringify(row)]);
+    assert.equal(await resolve(),null,'only four visible references fail closed while fifth is inserted');
+    await blocker.query('COMMIT');assert.equal((await resolve()).actorId,who,'a separate later call may resolve all five');
+    await blocker.query('BEGIN');await blocker.query("UPDATE private.dabra_successful_task_decisions SET revoked_at_ms=$1 WHERE kind='deletion'",[now]);
+    assert.equal(await resolve(),null,'an in-flight withdrawal cannot be read without its row lock');
+    await blocker.query('COMMIT');assert.equal(await resolve(),null,'committed withdrawal closes later calls');
+    await client.query("UPDATE private.dabra_successful_task_decisions SET revoked_at_ms=NULL WHERE kind='deletion'");
+    // Missing profile cannot become valid merely because a later statement sees it.
+    const missing=(await client.query('DELETE FROM public.profiles WHERE id=$1 RETURNING *',[who])).rows[0];
+    await blocker.query('BEGIN');await blocker.query('INSERT INTO public.profiles SELECT * FROM jsonb_populate_record(NULL::public.profiles,$1)',[JSON.stringify(missing)]);
+    assert.equal(await resolve(),null,'required profile was not present in the lock result');
+    await blocker.query('COMMIT');assert.equal((await resolve()).actorId,who);
+   } finally {
+    await resolver.query('ROLLBACK');await blocker.query('ROLLBACK');await resolver.end();await blocker.end();
+   }
+
+   assert.equal(await resolve(other),null,'another active account cannot resolve owner decisions');
+   assert.equal(await resolve(who,'admin'),null,'server role must match actual Core role');
+   await client.query("UPDATE private.dabra_successful_task_decisions SET revoked_at_ms=$1 WHERE kind='consent'",[now]);
+   assert.equal(await resolve(),null,'withdrawal invalidates the whole bundle');
+   await client.query("UPDATE private.dabra_successful_task_decisions SET revoked_at_ms=NULL WHERE kind='consent'");
+   await client.query("UPDATE private.dabra_successful_task_decisions SET expires_at_ms=$1 WHERE kind='retention'",[now]);
+   assert.equal(await resolve(),null,'expired approval invalidates the whole bundle');
+   await client.query("UPDATE private.dabra_successful_task_decisions SET expires_at_ms=$1 WHERE kind='retention'",[now+600000]);
+   await client.query("UPDATE private.dabra_successful_task_decisions SET funding_proof_sha256=repeat('0',64) WHERE kind='spending'");
+   assert.equal(await resolve(),null,'changed funding proof cannot be reinterpreted as authorization');
+   assert.deepEqual(await snapshot(),before,'resolution never changes existing spending/admissions');
+   await client.query(sql('20261112110000_task237_consent_capture.sql'));
+   assert.equal((await client.query('SELECT count(*)::int AS n FROM private.dabra_task_notices')).rows[0].n,0);
+   const consent=(action:string,gen:number|null=null,mutation:string|null=randomUUID())=>rpc('dabra_task_consent',[who,'customer',action,'synthetic-revision','synthetic-notice','a'.repeat(64),gen,mutation]);
+   assert.equal(await consent('notice'),null,'no notice is fabricated before administrative approval');
+   const heldConsent=await countHolds();
+   const emptyRevoke=await rpc('dabra_task_consent',[other,'customer','revoke',null,null,null,0,randomUUID()]);assert.equal(emptyRevoke.generation,1,'withdrawal fences even an actor without prior consent');
+   const status=await consent('status');assert.equal((await consent('revoke',status.generation)).state,'revoked','withdrawal works despite invalid spending proof');
+   assert.equal((await client.query('SELECT count(*)::int AS n FROM private.dabra_production_task_answers WHERE actor_id=$1',[who])).rows[0].n,0);
+   assert.equal((await client.query('SELECT count(*)::int AS n FROM private.dabra_production_tasks WHERE actor_id=$1 AND (continuity_binding IS NOT NULL OR input_digest IS NOT NULL OR answer_digest IS NOT NULL OR decision_bundle IS NOT NULL OR policy IS NOT NULL OR operations_binding IS NOT NULL OR content_removed_at_ms IS NULL)',[who])).rows[0].n,0);
+   assert.equal(await rpc('finish_dabra_production_task',[who,production[1],digest,production[9],'succeeded','MUST NOT RETURN','en']),null);
+   assert.deepEqual(await countHolds(),heldConsent);
+   const text='SYNTHETIC notice',hash=(await client.query("SELECT encode(sha256(convert_to($1,'UTF8')),'hex') AS h",[text])).rows[0].h;
+   await client.query('INSERT INTO private.dabra_task_notices VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8,NULL)',['synthetic-revision','synthetic-notice',text,hash,ceo,'synthetic-evidence',now-1000,now+600000]);
+   // Malformed historical documents cannot block owner removal or advance its fence.
+   await client.query("UPDATE private.dabra_successful_task_decisions SET document=jsonb_build_object('generation','not-a-number') WHERE kind='consent'");
+   const beforeFence=await consent('status'),revokeId=randomUUID();
+   const removed=await consent('revoke',beforeFence.generation,revokeId);assert.equal(removed.generation,beforeFence.generation+1);
+   assert.deepEqual(await consent('revoke',beforeFence.generation,revokeId),removed);
+   assert.equal(await rpc('dabra_task_consent',[who,'customer','grant','synthetic-revision','synthetic-notice',hash,beforeFence.generation,randomUUID()]),null,'grant queued before withdrawal cannot reactivate');
+   const shown=await consent('notice');assert.equal(shown.text,text);
+   const mutation=randomUUID(),grantArgs=[who,'customer','grant','synthetic-revision','synthetic-notice',hash,shown.generation,mutation];
+   const granted=await rpc('dabra_task_consent',grantArgs);assert.equal(granted.state,'granted');
+   assert.deepEqual(await rpc('dabra_task_consent',grantArgs),granted,'same mutation has one consent effect');
+   assert.deepEqual(await consent('revoke',beforeFence.generation,revokeId),removed,'old revoke receipt does not mutate new grant');
+   assert.equal((await consent('status')).granted,true);
+   assert.equal((await client.query("SELECT count(*)::int AS n FROM private.dabra_successful_task_decisions WHERE reference=$1",['consent:'+mutation])).rows[0].n,1);
+   assert.equal(await rpc('select_dabra_production_task_policy',[other,'customer','synthetic-revision']),null);
+   await client.query("UPDATE private.dabra_successful_task_decisions SET funding_proof_sha256=(SELECT encode(sha256(convert_to(proof::text,'UTF8')),'hex') FROM private.dabra_dialogue_funding_grants WHERE id=$1) WHERE kind='spending'",[grantId]);
+   assert.equal((await rpc('select_dabra_production_task_policy',[who,'customer','synthetic-revision'])).consentDecision,'consent:'+mutation);
+   await client.query("INSERT INTO private.dabra_successful_task_decisions SELECT 'synthetic-duplicate-audience',revision,kind,purpose,actor_id,actor_role,approved_by,approval_reference,approved_at_ms,expires_at_ms,revoked_at_ms,document,funding_grant_id,funding_proof_sha256 FROM private.dabra_successful_task_decisions WHERE kind='audience'");
+   assert.equal(await rpc('select_dabra_production_task_policy',[who,'customer','synthetic-revision']),null,'ambiguous actor references are not resolved by latest');
+   await client.query("DELETE FROM private.dabra_successful_task_decisions WHERE reference='synthetic-duplicate-audience'");
+   await client.query('UPDATE private.dabra_successful_task_decisions SET expires_at_ms=approved_at_ms+1 WHERE reference=$1',['consent:'+mutation]);
+   await client.query('SELECT pg_sleep(0.01)');
+   const expiredStatus=await consent('status');assert.equal(expiredStatus.granted,false);assert.equal(expiredStatus.hasConsent,true);
+   let renewal=await rpc('dabra_task_consent',[who,'customer','grant','synthetic-revision','synthetic-notice',hash,expiredStatus.generation,randomUUID()]);assert.equal(renewal.state,'granted');
+   assert.deepEqual(await countHolds(),heldConsent);
+   // Same effective-consent criterion drives display, selection and explicit renewal.
+   for(const invalid of ["actor_role='staff'","document=jsonb_set(document,'{generation}','\"invalid\"'::jsonb)"]){
+    await client.query("UPDATE private.dabra_successful_task_decisions SET "+invalid+" WHERE actor_id=$1 AND kind='consent' AND revoked_at_ms IS NULL",[who]);
+    const changed=await consent('status');assert.equal(changed.granted,false);assert.equal(changed.hasConsent,true);
+    assert.equal(await rpc('select_dabra_production_task_policy',[who,'customer','synthetic-revision']),null);
+    renewal=await rpc('dabra_task_consent',[who,'customer','grant','synthetic-revision','synthetic-notice',hash,changed.generation,randomUUID()]);assert.equal(renewal.state,'granted');
+    assert.equal((await consent('status')).granted,true);assert.ok(await rpc('select_dabra_production_task_policy',[who,'customer','synthetic-revision']));
+    assert.deepEqual(await countHolds(),heldConsent);
+   }
+   const semanticRow=(await client.query("SELECT to_jsonb(d) AS row FROM private.dabra_successful_task_decisions d WHERE actor_id=$1 AND kind='consent' AND revoked_at_ms IS NULL",[who])).rows[0].row;
+   for(const revision of ['123',123]) {
+    const candidate={...semanticRow,revision:'123',document:{...semanticRow.document,revision}};
+    const effective=(await client.query("SELECT private.dabra_task_consent_effective(jsonb_populate_record(NULL::private.dabra_successful_task_decisions,$1),$2,'customer','123',floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AS v",[candidate,who])).rows[0].v;
+    assert.equal(effective,typeof revision==='string','JSON numeric revision must not match text program');
+   }
+   const holder=new Client({...config,database});await holder.connect();
+   try {
+    await holder.query('BEGIN');await holder.query('LOCK TABLE private.dabra_successful_task_decisions IN ROW EXCLUSIVE MODE');
+    assert.equal(await rpc('select_dabra_production_task_policy',[who,'customer','synthetic-revision']),null,'phantom concurrent grant is rejected without waiting');
+    assert.equal(await consent('revoke',renewal.generation),null,'withdrawal contention has no partial effect');
+    await holder.query('ROLLBACK');
+   }finally{await holder.query('ROLLBACK');await holder.end();}
+   assert.equal((await consent('revoke',renewal.generation)).state,'revoked');
+   assert.equal(await rpc('dabra_task_consent',grantArgs),null,'lost old grant response cannot regrant after withdrawal');
+   assert.deepEqual(await countHolds(),heldConsent);
+   for(const role of ['anon','authenticated'])assert.equal((await client.query("SELECT has_function_privilege($1,'public.dabra_task_consent(uuid,text,text,text,text,text,bigint,uuid)','EXECUTE') AS v",[role])).rows[0].v,false);
+   await core.test('atomic continuity derivative erasure and bounded stored-deadline purge',async()=>{
+    await client.query(sql('20261112120000_task237_content_erasure.sql'));
+    const binding={...continuity,revision:20,tripExpiresAtMs:now+600000};
+    const resetSource=()=>client.query("UPDATE public.dabra_account_continuity SET revision=20,generation=0,consent_enabled=true,consent_version='task187-v1',trip=$2,trip_expires_at=to_timestamp($3::numeric/1000) WHERE owner_id=$1",[who,originalTrip,binding.tripExpiresAtMs]);
+    const restoreTask=async(id:unknown,trip:unknown)=>{
+     await client.query("UPDATE private.dabra_production_tasks SET content_removed_at_ms=NULL,input_digest=$3,answer_digest=NULL,operations_binding=NULL,continuity_binding=$4,policy=$5,decision_bundle=$6,input_valid_until_ms=NULL,state='succeeded',read_verified_at_ms=NULL WHERE actor_id=$1 AND request_id=$2",[who,id,digest,trip,policy,approved]);
+     await client.query("INSERT INTO private.dabra_production_task_answers VALUES($1,$2,'SYNTHETIC erasure','en',$3) ON CONFLICT(actor_id,request_id) DO UPDATE SET answer=EXCLUDED.answer,expires_at_ms=EXCLUDED.expires_at_ms",[who,id,now+600000]);
+    };
+    const source=async()=>(await client.query('SELECT revision,generation,trip FROM public.dabra_account_continuity WHERE owner_id=$1',[who])).rows[0];
+    const removed=async(id:unknown)=>(await client.query('SELECT content_removed_at_ms IS NOT NULL AS v FROM private.dabra_production_tasks WHERE actor_id=$1 AND request_id=$2',[who,id])).rows[0].v;
+    const holds=await countHolds(),consents=(await client.query("SELECT reference,revoked_at_ms FROM private.dabra_successful_task_decisions WHERE kind='consent' ORDER BY reference")).rows;
+    const foreignTasks=(await client.query('SELECT to_jsonb(t) AS row FROM private.dabra_production_tasks t WHERE actor_id<>$1 ORDER BY actor_id,request_id',[who])).rows;
+    await resetSource();await restoreTask(production[1],null);await restoreTask(tripRequest[1],binding);
+    const locker=new Client({...config,database});await locker.connect();
+    try {
+     await locker.query('BEGIN');await locker.query("SELECT pg_advisory_xact_lock(hashtextextended('task217-existing-credit-v2',0))");
+     await assert.rejects(rpc('purge_dabra_production_task_content',[1]),{code:'55P03'});
+     const before=await source();await assert.rejects(client.query('UPDATE public.dabra_account_continuity SET revision=revision+1 WHERE owner_id=$1',[who]),{code:'55P03'});
+     assert.deepEqual(await source(),before);assert.equal(await removed(tripRequest[1]),false);
+    }finally{await locker.query('ROLLBACK');await locker.end();}
+    // A task bound to the next version must survive an event for the old version.
+    await restoreTask(tripRequest[1],{...binding,revision:21});
+    await client.query('UPDATE public.dabra_account_continuity SET revision=21 WHERE owner_id=$1',[who]);assert.equal(await removed(tripRequest[1]),false);
+    for(const change of ["revision=revision+1","generation=generation+1,consent_enabled=false,trip=NULL,trip_expires_at=NULL","trip=NULL,trip_expires_at=NULL"]){
+     await resetSource();await restoreTask(tripRequest[1],binding);
+     await client.query('UPDATE public.dabra_account_continuity SET '+change+' WHERE owner_id=$1',[who]);
+     assert.equal(await removed(tripRequest[1]),true);assert.equal(await removed(production[1]),false);
+     assert.equal((await client.query('SELECT count(*)::int AS n FROM private.dabra_production_task_answers WHERE actor_id=$1 AND request_id=$2',[who,tripRequest[1]])).rows[0].n,0);
+     assert.equal(await rpc('finish_dabra_production_task',[who,tripRequest[1],digest,tripRequest[9],'succeeded','MUST NOT RESTORE','en']),null);
+    }
+    await resetSource();await restoreTask(tripRequest[1],binding);
+    await client.query('DELETE FROM public.dabra_account_continuity WHERE owner_id=$1',[who]);assert.equal(await removed(tripRequest[1]),true);
+    for(const deadline of ['answer','fx','trip','decision']){
+     await restoreTask(tripRequest[1],null);
+     if(deadline==='answer')await client.query('UPDATE private.dabra_production_task_answers SET expires_at_ms=1 WHERE actor_id=$1 AND request_id=$2',[who,tripRequest[1]]);
+     if(deadline==='fx')await client.query('UPDATE private.dabra_production_tasks SET input_valid_until_ms=1 WHERE actor_id=$1 AND request_id=$2',[who,tripRequest[1]]);
+     if(deadline==='trip')await client.query('UPDATE private.dabra_production_tasks SET continuity_binding=$3 WHERE actor_id=$1 AND request_id=$2',[who,tripRequest[1],{...binding,tripExpiresAtMs:1}]);
+     if(deadline==='decision')await client.query("UPDATE private.dabra_production_tasks SET decision_bundle=jsonb_set(decision_bundle,'{decisions,consent,expiresAtMs}','1') WHERE actor_id=$1 AND request_id=$2",[who,tripRequest[1]]);
+     assert.equal(await rpc('purge_dabra_production_task_content',[1]),1);assert.equal(await removed(tripRequest[1]),true);assert.equal(await removed(production[1]),false);
+     assert.equal(await rpc('purge_dabra_production_task_content',[1]),0);
+    }
+    await restoreTask(tripRequest[1],{...binding,tripExpiresAtMs:'malformed'});
+    assert.equal(await rpc('purge_dabra_production_task_content',[1]),0,'malformed deadline and missing source row do not prove expiry');
+    assert.deepEqual(await countHolds(),holds);
+    assert.deepEqual((await client.query('SELECT to_jsonb(t) AS row FROM private.dabra_production_tasks t WHERE actor_id<>$1 ORDER BY actor_id,request_id',[who])).rows,foreignTasks);
+    assert.deepEqual((await client.query("SELECT reference,revoked_at_ms FROM private.dabra_successful_task_decisions WHERE kind='consent' ORDER BY reference")).rows,consents);
+    for(const role of ['anon','authenticated'])assert.equal((await client.query("SELECT has_function_privilege($1,'public.purge_dabra_production_task_content(integer)','EXECUTE') AS v",[role])).rows[0].v,false);
+   });
+
+
+  });
   await t.test('default-off gate, owner-only ACL and no original control activation',async()=>{
    assert.equal((await client.query('SELECT count(*)::int AS n FROM private.dabra_public_dialogue_control')).rows[0].n,0);
    for(const role of ['anon','authenticated','service_role'])for(const table of ['dabra_successful_tasks','dabra_successful_task_answers','dabra_successful_task_control'])
