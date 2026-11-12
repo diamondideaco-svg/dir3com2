@@ -992,3 +992,28 @@ test('consent control without a page owner renders nothing and performs no autom
  }
  assert.equal(requests.length, 0);
 });
+
+
+test('consent management allows slow verified identity but bounds a stalled final identity check', async () => {
+ const actor='11111111-1111-4111-8111-111111111111';
+ const delay=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms));
+ for(const stalled of [false,true]) {
+  let profiles=0,authChecks=0,rpcs=0,signal:AbortSignal|undefined,release:((value:unknown)=>void)|undefined;
+  const client={auth:{getUser:async()=>{authChecks++;if(stalled)return new Promise(resolve=>{release=resolve;});return {error:null,data:{user:{id:actor}}};}}};
+  const server={createSupabaseRequestClient:async()=>{await delay(700);return {user:{id:actor},supabase:client};},getSupabaseClientHostname:()=> 'core',getSupabaseAdminHostname:()=> 'core',supabaseAdmin:{rpc:(_name:string,p:Record<string,unknown>)=>({abortSignal:async(s:AbortSignal)=>{signal=s;rpcs++;assert.equal(p.p_action,'status');assert.equal(p.p_actor_id,actor);return {error:null,data:{generation:0,granted:false,hasConsent:false,hasContent:false}};}})}};
+  const deps:Record<string,unknown>={'server-only':{},'../supabase/server':server,'../auth/identity':{resolveCanonicalActiveProfile:async()=>{profiles++;await delay(550);return {id:actor,role:'customer',sourceRole:'customer'};}},'./credential-binding':{isCredentialBindingCoreProject:()=>true}};
+  const compile=(file:string,extra:Record<string,unknown>={})=>{const exported:Record<string,unknown>={};vm.runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
+   {exports:exported,require:(id:string)=>{if(Object.hasOwn(extra,id))return extra[id];if(Object.hasOwn(deps,id))return deps[id];throw new Error('Unexpected dependency '+id);},Response,TextDecoder,AbortSignal,Date,Promise});return exported;};
+  const owner=compile('lib/dabra/successful-task-owner.ts');
+  const consent=compile('lib/dabra/successful-task-consent.ts',{'./successful-task-owner':owner,'./successful-task-production-policy':{readSuccessfulTaskProductionPolicy,parseSuccessfulTaskProgram:()=>null}});
+  const route=compile('app/api/dabra/tasks/consent/route.ts',{'@/lib/dabra/successful-task-consent':consent}) as {GET:(r:NextRequest)=>Promise<Response>};
+  const keepAlive=setTimeout(()=>{},6000),start=Date.now();
+  try {
+   const response=await route.GET(new NextRequest('https://example.test/api/dabra/tasks/consent'));
+   assert.equal(response.status,stalled?503:200);assert.equal(rpcs,1);assert.equal(authChecks,1);
+   if(stalled){assert.ok(Date.now()-start>=3900 && Date.now()-start<4800);assert.equal(signal?.aborted,true);release!({error:null,data:{user:{id:'changed-owner'}}});await delay(600);assert.equal(rpcs,1,'late identity completion cannot retry Core');}
+   else {assert.ok(Date.now()-start>1700);assert.equal(profiles,2,'final profile recheck retained');assert.equal((await response.json()).ownerId,actor);}
+   assert.equal(response.headers.get('Cache-Control'),'private, no-store');
+  }finally{clearTimeout(keepAlive);}
+ }
+});

@@ -1,6 +1,5 @@
 import 'server-only';
 import type { NextRequest } from 'next/server';
-import { boundedSuccessfulTaskOperation } from './successful-task-lifecycle';
 import { withSuccessfulTaskOwner } from './successful-task-owner';
 import { readSuccessfulTaskProductionPolicy, parseSuccessfulTaskProgram } from './successful-task-production-policy';
 
@@ -29,6 +28,25 @@ async function body(request: NextRequest, signal: AbortSignal): Promise<Record<s
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
 
+/** Account management includes initial and final session checks. Keep its own
+ * 4s budget below the UI's 5s deadline; task admission/finish retain their 1s cap.
+ * An uncooperative dependency must not keep the response pending. Never retry.
+ */
+async function boundedConsentOperation<T>(operation: (signal: AbortSignal) => Promise<T>, signal: AbortSignal): Promise<T> {
+  const bounded = AbortSignal.any([AbortSignal.timeout(4000), signal]);
+  if (bounded.aborted) throw new Error('CONSENT_UNAVAILABLE');
+  let stop: (() => void) | undefined;
+  const cancelled = new Promise<never>((_, reject) => {
+    stop = () => reject(new Error('CONSENT_UNAVAILABLE'));
+    bounded.addEventListener('abort', stop, { once: true });
+  });
+  try {
+    const result = await Promise.race([new Promise<T>(resolve => resolve(operation(bounded))), cancelled]);
+    if (bounded.aborted) throw new Error('CONSENT_UNAVAILABLE');
+    return result;
+  } finally { if (stop) bounded.removeEventListener('abort', stop); }
+}
+
 /** Notice read is not consent. Removal is deliberately independent of execution selection. */
 export async function successfulTaskConsent(request: NextRequest): Promise<Response> {
   const unavailable = () => json({ error: 'Unavailable.' }, 503);
@@ -37,7 +55,7 @@ export async function successfulTaskConsent(request: NextRequest): Promise<Respo
     || request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() !== 'application/json')) return json({ error: 'Invalid origin or media type.' }, 403);
   if (request.nextUrl.search) return json({ error: 'Invalid request.' }, 400);
   try {
-    return await boundedSuccessfulTaskOperation(async signal => {
+    return await boundedConsentOperation(async signal => {
       const input = request.method === 'POST' ? await body(request, signal) : null;
       if (signal.aborted) return unavailable();
       if (request.method === 'POST' && (!input || !['grant','revoke'].includes(String(input.action))
