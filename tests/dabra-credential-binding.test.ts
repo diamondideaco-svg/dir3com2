@@ -225,10 +225,10 @@ test('credential binding: actual GET uses canonical CEO and existing null-subjec
   const rpcCalls: unknown[] = [], authCalls: unknown[] = [];
   const actualRoute = readFileSync(new URL('../app/api/ai2/chat/route.ts', import.meta.url), 'utf8');
   const post = actualRoute.replace(/\r\n/g, '\n').split('\n/** CEO-only, read-only diagnostic;')[0];
-  // Pin the complete POST prefix at 894db587abeeb74d4c92006df3765a9deacfe6ab.
-  // Task237 adds the reviewed, disabled synthetic chat adapter; the GET suffix is unchanged.
+  // Pin the complete POST prefix for the Task237 disabled production-policy slice.
+  // Only the explicit policy boundary/import was added; the GET suffix is unchanged.
   // Baseline maintenance requires independent review of that full delta; GET assertions remain active.
-  assert.equal(createHash('sha256').update(post).digest('hex'), '60ac9930279fbdc8366c37470348e4edcd0aecb4cde999eacd7bd58750026355');
+  assert.equal(createHash('sha256').update(post).digest('hex'), 'e807a03bf0267d31e8fa5000df1aba69b1fb7d27e1090072a3e933178cd271c6');
   const loaded = compileModule('../app/api/ai2/chat/route.ts', id => {
     if (id === '@/lib/dabra/credential-binding') return credentialBindingModule;
     if (id === '@/lib/ai2/runtime/agent-provider-dispatch') return { internalAgentCredential: () => key };
@@ -242,7 +242,7 @@ test('credential binding: actual GET uses canonical CEO and existing null-subjec
         return { abortSignal: async () => ({ error: null, data: { credentialBindings: { deepseek: fingerprint } } }) };
       } },
     };
-    const originalImports = ['next/server', '@/lib/dabra/successful-task-chat', '@/lib/dabra/platform-assistant', '@/lib/dabra/chat-response-contract',
+    const originalImports = ['next/server', '@/lib/dabra/successful-task-production-policy', '@/lib/dabra/successful-task-chat', '@/lib/dabra/platform-assistant', '@/lib/dabra/chat-response-contract',
       '@/lib/security/document-validation', '@/lib/dabra/locale-contract', '@/lib/currency/service',
       '@/lib/currency/display', '@/lib/dabra/agent-contract', '@/lib/dabra/agent-dialogue',
       '@/lib/dabra/agent-handoff', '@/lib/dabra/continuity-chat', '@/lib/dabra/conversation-renderer'];
@@ -295,7 +295,7 @@ async function bindingGetForProject(projectHostname: string | null | undefined) 
         abortSignal: async () => ({ error: null, data: { credentialBindings: { deepseek: fingerprint } } }),
       }; } },
     };
-    if (['next/server', '@/lib/dabra/successful-task-chat', '@/lib/dabra/platform-assistant', '@/lib/dabra/chat-response-contract',
+    if (['next/server', '@/lib/dabra/successful-task-production-policy', '@/lib/dabra/successful-task-chat', '@/lib/dabra/platform-assistant', '@/lib/dabra/chat-response-contract',
       '@/lib/security/document-validation', '@/lib/dabra/locale-contract', '@/lib/currency/service',
       '@/lib/currency/display', '@/lib/dabra/agent-contract', '@/lib/dabra/agent-dialogue',
       '@/lib/dabra/agent-handoff', '@/lib/dabra/continuity-chat', '@/lib/dabra/conversation-renderer'].includes(id)) return {};

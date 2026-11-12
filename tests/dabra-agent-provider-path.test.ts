@@ -34,6 +34,7 @@ function productPost(role: AgentContext['role'], registerAfterResponse: (task: (
   };
   // Exact direct imports of the route VM; transitive Node imports are not sandboxed.
   const realDependencies: readonly string[] = [
+    '@/lib/dabra/successful-task-production-policy',
     '@/lib/dabra/successful-task-chat',
     '@/lib/dabra/conversation-renderer',
     '@/lib/dabra/platform-assistant',

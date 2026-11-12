@@ -43,6 +43,15 @@ export async function resolveAgentContext(request: NextRequest): Promise<AgentCo
     };
     return {
       role, taskAuthority, isTaskAuthorityCurrent: authorityCurrent,
+      ...(operationsCountry === 'EG' && operational?.scope ? { successfulTaskOperationsBinding: {
+        schema: 'dabra-operations-binding-v1' as const, actorId: auth.user.id, country: 'EG' as const,
+        kind: executive ? 'ceo' as const : 'grant' as const,
+        grant: executive ? null : operational.scope.grant ? {
+          id: operational.scope.grant.id, invited_user_id: auth.user.id,
+          access_level: operational.scope.grant.access_level, status: operational.scope.grant.status,
+          country_scope: [...operational.scope.grant.country_scope], permissions: [...operational.scope.grant.permissions],
+        } : null,
+      } } : {}),
       isDialogueFundingProjectCurrent() {
         const source = getSupabaseClientHostname(auth.supabase);
         return !!source && source === getSupabaseAdminHostname();

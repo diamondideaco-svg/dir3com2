@@ -49,6 +49,7 @@ export default async function MyAccountPage() {
   return (
     <AccountFrame path="/my-account" navy>
     <MyAccountContent
+      ownerId={user.id}
       displayName={displayName}
       displayEmail={displayEmail}
       role={normalizeRole(profile?.role)}

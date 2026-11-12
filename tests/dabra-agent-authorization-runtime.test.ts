@@ -38,7 +38,7 @@ const admin=loadModule<typeof import('../lib/auth/admin')>('lib/auth/admin.ts',{
 
 const customerId='11111111-1111-4111-8111-111111111111';
 const otherId='22222222-2222-4222-8222-222222222222';
-type Fixture = { role: string; id?: string; active?: boolean; grant?: boolean; country?: string; permission?: string; authError?: boolean; dataError?: boolean; revoked?: boolean; project?: string|null; adminProject?: string|null; adminPresent?: boolean; contactRows?: number; contactError?: boolean; badContactStatus?: boolean; metricsError?: boolean; missingCount?: boolean; onDataRead?:()=>void };
+type Fixture = { role: string; id?: string; active?: boolean; grant?: boolean; country?: string; countries?: string[]; accessLevel?: 'scoped_staff' | 'global_admin'; permission?: string; authError?: boolean; dataError?: boolean; revoked?: boolean; project?: string|null; adminProject?: string|null; adminPresent?: boolean; contactRows?: number; contactError?: boolean; badContactStatus?: boolean; metricsError?: boolean; missingCount?: boolean; onDataRead?:()=>void };
 function setup(config: Fixture) {
  const id=config.id??customerId;
  const seen: URL[]=[];
@@ -47,7 +47,7 @@ function setup(config: Fixture) {
   assert.ok(['GET','HEAD'].includes(init?.method??'GET'),'all data access is read only');
   let data: unknown=null;
   if(url.pathname.endsWith('/profiles')) data=config.active===false?null:{id,role:config.role,status:'active',deleted_at:null,full_name:'QA'};
-  else if(url.pathname.endsWith('/team_access_grants')) data=config.grant?{id:'grant',invited_user_id:id,email:'staff@example.invalid',access_level:'scoped_staff',country_scope:[config.country??'EG'],permissions:[config.permission??'operations:read'],status:config.revoked?'inactive':'active'}:null;
+  else if(url.pathname.endsWith('/team_access_grants')) data=config.grant?{id:'grant',invited_user_id:id,email:'staff@example.invalid',access_level:config.accessLevel??'scoped_staff',country_scope:config.countries??[config.country??'EG'],permissions:[config.permission??'operations:read'],status:config.revoked?'inactive':'active'}:null;
   else if(url.pathname.endsWith('/marketplace_requests')) {
    if(config.dataError)return Response.json({message:'private DB error with sensitive data'},{status:500});
    const rows=[{user_id:customerId,request_reference:'REQ-12345678',status:'awaiting_payment',quote_amount:100,quote_currency:'USD'}, {user_id:otherId,request_reference:'REQ-87654321',status:'request_submitted',quote_amount:200,quote_currency:'USD'}];
@@ -304,4 +304,70 @@ test('Task217 role delta: post-await CEO deactivation discards metrics',async()=
  const config:Fixture={role:'admin',id:team.CEO_USER_ID};config.onDataRead=()=>{config.active=false;};
  const fixture=setup(config);const context=await fixture.resolve();
  assert.equal((await context.readExecutiveMetrics!()).kind,'forbidden');
+});
+
+for (const mode of ['ceo', 'staff', 'admin', 'revoked-during-core'] as const) test(`successful task actual operational binding: ${mode}`, async () => {
+ const config: Fixture = { role: mode === 'staff' || mode === 'revoked-during-core' ? 'staff' : 'admin',
+  id: mode === 'ceo' ? team.CEO_USER_ID : customerId, grant: mode !== 'ceo' };
+ const context = await setup(config).resolve();
+ assert.equal(context.taskAuthority?.kind, 'operator');
+ assert.equal(context.taskAuthority?.kind === 'operator' && context.taskAuthority.country, 'EG');
+ const binding = context.successfulTaskOperationsBinding; assert.ok(binding);
+ assert.equal(binding.kind, mode === 'ceo' ? 'ceo' : 'grant');
+ assert.equal(await context.isTaskAuthorityCurrent?.(), true);
+ const localRequire = createRequire(import.meta.url);
+ const lifecycle = localRequire(process.cwd() + '/lib/dabra/successful-task-lifecycle');
+ let reads = 0, reserves = 0;
+ const dependencies: Record<string, unknown> = {
+  'server-only': {}, './credential-binding': { isCredentialBindingCoreProject: () => true },
+  '../supabase/server': { getSupabaseAdminHostname: () => 'core', supabaseAdmin: { rpc: (name: string, args: Record<string, unknown>) => ({ abortSignal: async () => {
+   assert.equal(JSON.stringify(args.p_operations_binding), JSON.stringify(binding));
+   if (name === 'reserve_dabra_production_task') { reserves++; return { data: { decision: 'admitted' }, error: null }; }
+   assert.equal(name, 'read_dabra_production_task'); assert.equal(args.p_confirm_read, true); reads++;
+   if (mode === 'revoked-during-core') config.revoked = true;
+   // Synthetic Core IO reevaluates the actual canonical grant semantics after
+   // the last callback wait. SQL locking is covered by prepared DB cases only.
+   const fresh = await setup(config).resolve();
+   const valid = fresh.taskAuthority?.kind === 'operator' && fresh.taskAuthority.country === 'EG'
+    && JSON.stringify(fresh.successfulTaskOperationsBinding) === JSON.stringify(binding);
+   return { error: null, data: valid ? { state: 'succeeded', answer: 'saved', language: 'en', expiresAtMs: Date.now() + 60000 } : null };
+  } }) } },
+  './successful-task-lifecycle': { ...lifecycle, createSuccessfulTaskLifecycle: (deps: { rpc: import('../lib/dabra/dialogue-funding-store').FundingRpc }) => async () => {
+   await deps.rpc('reserve_dabra_successful_task', { p_actor_id: config.id }, new AbortController().signal);
+   return { kind: 'answer', answer: 'saved', language: 'en', saved: true, replay: true };
+  } },
+ };
+ const exports: { runSuccessfulTaskProduction?: typeof import('../lib/dabra/successful-task-production-runtime').runSuccessfulTaskProduction } = {};
+ runInNewContext(ts.transpileModule(readFileSync('lib/dabra/successful-task-production-runtime.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
+  { exports, require: (id: string) => Object.hasOwn(dependencies,id) ? dependencies[id] : localRequire(process.cwd() + '/lib/dabra/' + id), Response, JSON, Object, structuredClone });
+ assert.ok(exports.runSuccessfulTaskProduction);
+ type Args = Parameters<NonNullable<typeof exports.runSuccessfulTaskProduction>>;
+ const bundle: Args[3] = { actorId: config.id!, role: config.role, revision: 'synthetic', decisions: { consent: { expiresAtMs: Date.now() + 60000 } } };
+ const policy = { schema: 'dabra-successful-task-production-policy-v1', revision: 'synthetic', retentionDecision:'r',consentDecision:'c',deletionDecision:'d',audienceDecision:'a',spendingDecision:'s' } as const;
+ const terms: Args[4] = { actorId:config.id!,role:config.role,revision:'synthetic',answerRetentionMs:60000,consentVersion:'synthetic',consentSha256:'c'.repeat(64),consentGeneration:0,deletionPolicy:'synthetic',purgeWithinMs:1000,backupPolicy:'synthetic',grantId:customerId,dailySuccesses:1,monthlySuccesses:1,accountMonthlyCostMicros:10000,monthlyCostMicros:10000,attemptCostMicros:5000,inputTokenCeiling:4096,outputTokenCeiling:1024,leaseMs:12000 };
+ const response = await exports.runSuccessfulTaskProduction(new NextRequest('http://localhost/api/ai2/chat'), { resolveInput: async () => ({ context, message:'hotel', history:[],locale:'en' }),requestId:otherId,stream:false }, policy,bundle,terms);
+ assert.equal(response.status, mode === 'revoked-during-core' ? 503 : 200);
+ assert.equal(reads,1); assert.equal(reserves,1);
+});
+
+test('successful task country trim parity uses actual canonical resolver and exact ECMAScript set', async () => {
+ const points=[0x09,0x0a,0x0b,0x0c,0x0d,0x20,0xa0,0x1680,0x2000,0x2001,0x2002,0x2003,0x2004,0x2005,0x2006,0x2007,0x2008,0x2009,0x200a,0x2028,0x2029,0x202f,0x205f,0x3000,0xfeff];
+ const source=readFileSync('supabase/migrations/20261112100000_task237_production_lifecycle.sql','utf8');
+ const trim=source.match(/SELECT btrim\(p,U&'([^']+)'\)/);assert.ok(trim);
+ assert.deepEqual([...trim[1].matchAll(/\\([0-9A-F]{4})/g)].map(m=>parseInt(m[1],16)),points);
+ for(const point of points){const c=String.fromCodePoint(point);assert.equal(c.trim(),'');
+  const accepted=await setup({role:'staff',grant:true,country:c+'Egypt'+c}).resolve();
+  assert.equal(accepted.taskAuthority?.kind==='operator'&&accepted.taskAuthority.country,'EG',point.toString(16));
+  const denied=await setup({role:'admin',grant:true,countries:['EG',c],accessLevel:'global_admin'}).resolve();
+  assert.equal(denied.successfulTaskOperationsBinding,undefined,point.toString(16));
+ }
+ for(const c of ['\u0085','\u200b','\u180e']){
+  assert.equal(c.trim(),c);
+  const denied=await setup({role:'staff',grant:true,country:c+'Egypt'+c}).resolve();
+  assert.equal(denied.successfulTaskOperationsBinding,undefined);
+ }
+ const read=source.slice(source.indexOf('CREATE FUNCTION public.read_dabra_production_task'));
+ const check=read.indexOf('private.dabra_task_operations_current(p_actor_id,p_operations_binding)');
+ const absent=read.indexOf("jsonb_build_object('state','absent')");
+ assert.ok(check>=0&&absent>check,'provided operations binding checked before any state-bearing return');
 });

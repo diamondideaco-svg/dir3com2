@@ -232,5 +232,29 @@
     "sha256": "5825bb9bb55e62930d3a42c83484d9d12429a4443eeb7e456f0fa8dcee2872ed",
     "task": "#237",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261112090000_task237_production_decision_resolution.sql",
+    "sha256": "fa2d2a3e4c729c21c7ed58cf1526ec6449a431792866c1a834af7c59716210b7",
+    "task": "#237",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261112100000_task237_production_lifecycle.sql",
+    "sha256": "0efb4af7f95a35af8e993186c5f0b09fa014c166ec1f8017b82f1e8a2e8cf04d",
+    "task": "#237",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261112110000_task237_consent_capture.sql",
+    "sha256": "62258f24feac294001e03ecbdf99a336b854da3542b37245592053a6612c1d14",
+    "task": "#237",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261112120000_task237_content_erasure.sql",
+    "sha256": "cff07fcfa4e59187dbc54d0467c9489987745371fafceedd07059bb4a3c2d0e0",
+    "task": "#237",
+    "production_apply_authorized": false
   }
 ]
