@@ -1,6 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Montserrat, Tajawal } from 'next/font/google';
+import { Tajawal } from 'next/font/google';
 import localFont from 'next/font/local';
 import { cookies } from 'next/headers';
 import { LanguageProvider } from '@/components/i18n/LanguageProvider';
@@ -9,7 +9,17 @@ import { DabraConversationProvider } from '@/components/dabra/DabraConversationP
 import { DEFAULT_LANGUAGE, LANGUAGE_COOKIE_NAME, languageDirection, normalizeLanguage } from '@/lib/i18n/config';
 
 const tajawal = Tajawal({ subsets: ['arabic', 'latin'], weight: ['400', '500', '700'], variable: '--font-tajawal', display: 'swap' });
-const montserrat = Montserrat({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-montserrat', display: 'swap' });
+// Unmodified Google Fonts source and OFL: https://github.com/google/fonts/tree/35e77c3854970a550d9894a85aba21420813a019/ofl/montserrat
+const montserrat = localFont({
+  src: [
+    { path: './fonts/montserrat/Montserrat[wght].ttf', weight: '400', style: 'normal' },
+    { path: './fonts/montserrat/Montserrat[wght].ttf', weight: '500', style: 'normal' },
+    { path: './fonts/montserrat/Montserrat[wght].ttf', weight: '600', style: 'normal' },
+    { path: './fonts/montserrat/Montserrat[wght].ttf', weight: '700', style: 'normal' },
+  ],
+  variable: '--font-montserrat',
+  display: 'swap',
+});
 // Unmodified Google Fonts source and OFL: https://github.com/google/fonts/tree/8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5/ofl/playfairdisplay
 const playfair = localFont({
   src: './fonts/playfair-display/PlayfairDisplay[wght].ttf',

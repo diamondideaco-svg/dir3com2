@@ -1017,3 +1017,71 @@ test('consent management allows slow verified identity but bounds a stalled fina
   }finally{clearTimeout(keepAlive);}
  }
 });
+
+function cleanupWorkerFixture(options: { enabled?: boolean; host?: string; missing?: boolean; result?: unknown; error?: unknown; fault?: 'throw' | 'hang' | 'project' } = {}) {
+ const calls: Array<{ name: string; params: unknown }> = []; let bounded: AbortSignal | undefined;
+ const client = { rpc: (name: string, params: unknown) => {
+  calls.push({ name, params }); if (options.fault === 'throw') throw new Error('Synthetic transport');
+  return { abortSignal: async (s: AbortSignal) => { bounded = s;
+   if (options.fault === 'hang') return new Promise(() => {});
+   if (options.fault === 'project') server.getSupabaseAdminHostname = () => 'changed.example.test';
+   return { data: options.result ?? 0, error: options.error ?? null };
+  } };
+ } };
+ const host = options.host ?? 'core';
+ const env = { SUPABASE_URL: `https://${host}.example.test`, SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-key' };
+ const server = {} as { supabaseAdmin: typeof client | null; getSupabaseAdminHostname: () => string | null; getSupabaseClientHostname: (c: typeof client) => string | null };
+ const serverDeps: Record<string, unknown> = {
+  '@supabase/supabase-js': { createClient: (url: string) => { assert.equal(url, env.SUPABASE_URL); if (options.missing) throw new Error('Synthetic missing client'); return client; } },
+  '@supabase/ssr': {}, 'next/headers': {},
+ };
+ vm.runInNewContext(ts.transpileModule(readFileSync('lib/supabase/server.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
+  { exports: server, process: { env }, URL, require: (id: string) => { assert.ok(Object.hasOwn(serverDeps, id), id); return serverDeps[id]; } });
+ assert.equal(server.getSupabaseClientHostname(client), null, 'admin is not a session-client WeakMap entry');
+ assert.equal(server.getSupabaseAdminHostname(), options.missing ? null : `${host}.example.test`);
+ env.SUPABASE_URL = 'https://later-env.example.test';
+ assert.equal(server.getSupabaseAdminHostname(), options.missing ? null : `${host}.example.test`, 'admin binding belongs to constructor, not later ENV');
+ const deps: Record<string, unknown> = {
+  'server-only': {}, '../supabase/server': server,
+  './credential-binding': { isCredentialBindingCoreProject: (h: string) => h === 'core.example.test' },
+  './successful-task-lifecycle': require(process.cwd() + '/lib/dabra/successful-task-lifecycle'),
+  './successful-task-cleanup-config': options.enabled ? { readSuccessfulTaskCleanupAuthorization: () => 'stored-deadline-content-only' }
+   : require(process.cwd() + '/lib/dabra/successful-task-cleanup-config'),
+ };
+ const exported: { runSuccessfulTaskContentCleanup?: (limit: number, signal: AbortSignal) => Promise<{ kind: string; removed?: number }> } = {};
+ vm.runInNewContext(ts.transpileModule(readFileSync('lib/dabra/successful-task-content-cleanup.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
+  { exports: exported, require: (id: string) => { assert.ok(Object.hasOwn(deps, id), id); return deps[id]; } });
+ assert.ok(exported.runSuccessfulTaskContentCleanup);
+ return { run: exported.runSuccessfulTaskContentCleanup, calls, signal: () => bounded };
+}
+
+test('content cleanup worker is unconfigured with zero IO and validates one explicit Core batch', async () => {
+ const signal = new AbortController().signal;
+ const off = cleanupWorkerFixture(); assert.equal((await off.run(10, signal)).kind, 'disabled'); assert.equal(off.calls.length, 0);
+ for (const limit of [0, 101, -1, 1.5, NaN, '10' as unknown as number]) {
+  const f = cleanupWorkerFixture({ enabled: true }); assert.equal((await f.run(limit, signal)).kind, 'invalid'); assert.equal(f.calls.length, 0);
+ }
+ for (const options of [{ host: 'foreign' }, { missing: true }]) {
+  const f = cleanupWorkerFixture({ enabled: true, ...options }); assert.equal((await f.run(10, signal)).kind, 'unavailable'); assert.equal(f.calls.length, 0);
+ }
+ const aborted = cleanupWorkerFixture({ enabled: true }); assert.equal((await aborted.run(10, AbortSignal.abort())).kind, 'unavailable'); assert.equal(aborted.calls.length, 0);
+ for (const removed of [0, 10]) {
+  const f = cleanupWorkerFixture({ enabled: true, result: removed }); const result = await f.run(10, signal);
+  assert.equal(result.kind, 'completed'); assert.equal(result.removed, removed); assert.equal(f.calls.length, 1);
+  assert.equal(f.calls[0].name, 'purge_dabra_production_task_content'); assert.equal(JSON.stringify(f.calls[0].params), '{"p_limit":10}');
+ }
+});
+
+test('content cleanup worker reports uncertain completion without retry or guessed removal count', async () => {
+ for (const options of [{ error: 'lock contention' }, { fault: 'throw' as const }, { fault: 'project' as const }, { result: 11 }, { result: '1' }, { fault: 'hang' as const }]) {
+  const f = cleanupWorkerFixture({ enabled: true, ...options }), keepAlive = setTimeout(() => {}, 1600), start = Date.now();
+  try {
+   const result = await f.run(10, new AbortController().signal);
+   assert.equal(result.kind, 'unknown'); assert.equal(Object.hasOwn(result, 'removed'), false); assert.equal(f.calls.length, 1);
+   if (options.fault === 'hang') { assert.ok(Date.now() - start < 1500); assert.equal(f.signal()?.aborted, true); }
+  } finally { clearTimeout(keepAlive); }
+ }
+ const f = cleanupWorkerFixture({ enabled: true, fault: 'hang' }), controller = new AbortController();
+ const pending = f.run(10, controller.signal); controller.abort();
+ assert.equal((await pending).kind, 'unknown'); assert.equal(f.calls.length, 1); assert.equal(f.signal()?.aborted, true);
+});
