@@ -967,3 +967,28 @@ test('consent CASE comparisons are delimited and protected fixture pins historic
  const good=run(false);good.execute();assert.deepEqual(good.applied,[`supabase/migrations/${consent}`,historical,`supabase/migrations/${erasure}`]);
  const bad=run(true);assert.throws(bad.execute);assert.deepEqual(bad.applied,[`supabase/migrations/${consent}`],'changed historical bytes never reach fixture SQL');
 });
+
+
+test('consent control without a page owner renders nothing and performs no automatic IO', () => {
+ const requests: unknown[] = [];
+ const jsx = (type: unknown, props: Record<string, unknown>) => ({ type, props });
+ const exported: { SuccessfulTaskConsent?: (p: { ar: boolean; ownerId: unknown }) => unknown } = {};
+ vm.runInNewContext(ts.transpileModule(readFileSync('components/dabra/SuccessfulTaskConsent.tsx', 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+ }).outputText, {
+  exports: exported,
+  require: (id: string) => id === 'react' ? {
+   useState: (value: unknown) => [value, () => {}], useRef: (value: unknown) => ({ current: value }), useEffect: () => {},
+  } : { jsx, jsxs: jsx },
+  fetch: (...args: unknown[]) => { requests.push(args); throw new Error('Unexpected IO'); },
+ });
+ assert.ok(exported.SuccessfulTaskConsent);
+ for (const ar of [true, false]) {
+  for (const ownerId of [undefined, null, '', '   ']) assert.equal(exported.SuccessfulTaskConsent({ ar, ownerId }), null);
+  const view = exported.SuccessfulTaskConsent({ ar, ownerId: '11111111-1111-4111-8111-111111111111' }) as { props: { children: unknown[] } };
+  assert.ok(view.props.children[0], 'known page owner retains the optional manage control');
+  assert.equal(view.props.children[2], null, 'no notice without loaded state');
+  assert.equal(view.props.children[3], null, 'no withdrawal without loaded state');
+ }
+ assert.equal(requests.length, 0);
+});
