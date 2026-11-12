@@ -247,7 +247,7 @@
   },
   {
     "path": "supabase/migrations/20261112110000_task237_consent_capture.sql",
-    "sha256": "62258f24feac294001e03ecbdf99a336b854da3542b37245592053a6612c1d14",
+    "sha256": "089de5422dd9c1db732b288a6a37c3e2a1cc522ddbfb2b00bd78b6dce1e62bce",
     "task": "#237",
     "production_apply_authorized": false
   },

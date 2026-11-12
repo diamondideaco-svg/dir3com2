@@ -51,10 +51,10 @@ BEGIN
  LOCK TABLE private.dabra_successful_task_decisions IN SHARE MODE NOWAIT;
  PERFORM 1 FROM auth.users WHERE id IN(p_actor,'0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'::uuid) FOR SHARE NOWAIT;
  GET DIAGNOSTICS count_rows=ROW_COUNT;
- IF count_rows<>CASE WHEN p_actor='0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'::uuid THEN 1 ELSE 2 END THEN RETURN NULL; END IF;
+ IF count_rows<>(CASE WHEN p_actor='0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'::uuid THEN 1 ELSE 2 END) THEN RETURN NULL; END IF;
  PERFORM 1 FROM public.profiles WHERE id IN(p_actor,'0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'::uuid) FOR SHARE NOWAIT;
  GET DIAGNOSTICS count_rows=ROW_COUNT;
- IF count_rows<>CASE WHEN p_actor='0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'::uuid THEN 1 ELSE 2 END THEN RETURN NULL; END IF;
+ IF count_rows<>(CASE WHEN p_actor='0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'::uuid THEN 1 ELSE 2 END) THEN RETURN NULL; END IF;
  IF NOT private.dabra_public_actor_active(p_actor) OR NOT private.dabra_public_actor_active('0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'::uuid)
   OR NOT EXISTS(SELECT 1 FROM public.profiles WHERE id='0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'::uuid AND role='admin') THEN RETURN NULL; END IF;
  SELECT CASE role WHEN 'client' THEN 'customer' WHEN 'super_admin' THEN 'admin' ELSE role END INTO actual_role FROM public.profiles WHERE id=p_actor;
@@ -64,7 +64,7 @@ BEGIN
   SELECT count(*) INTO count_rows FROM private.dabra_successful_task_decisions candidate WHERE (k='consent' AND private.dabra_task_consent_effective(candidate,p_actor,p_role,p_revision,n)) OR (k<>'consent' AND candidate.actor_id=p_actor AND candidate.revision=p_revision AND candidate.purpose='dabra-successful-task' AND candidate.kind=k AND candidate.revoked_at_ms IS NULL);
   IF count_rows<>1 THEN RETURN NULL; END IF;
   SELECT candidate.* INTO d FROM private.dabra_successful_task_decisions candidate WHERE (k='consent' AND private.dabra_task_consent_effective(candidate,p_actor,p_role,p_revision,n)) OR (k<>'consent' AND candidate.actor_id=p_actor AND candidate.revision=p_revision AND candidate.purpose='dabra-successful-task' AND candidate.kind=k AND candidate.revoked_at_ms IS NULL) FOR SHARE NOWAIT;
-  IF d.actor_role<>p_role OR d.approved_by<>CASE WHEN k='consent' THEN p_actor ELSE '0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'::uuid END
+  IF d.actor_role<>p_role OR d.approved_by<>(CASE WHEN k='consent' THEN p_actor ELSE '0acf0c9e-8a7a-4e6b-bfe2-b0e5235aaa16'::uuid END)
    OR d.approved_at_ms>n OR d.expires_at_ms<=n THEN RETURN NULL; END IF;
   IF k='audience' AND d.document IS DISTINCT FROM jsonb_build_object('schema','dabra-task-audience-v1','actorId',p_actor,'role',p_role,'revision',p_revision) THEN RETURN NULL; END IF;
   refs:=refs||jsonb_build_object(k||'Decision',d.reference);

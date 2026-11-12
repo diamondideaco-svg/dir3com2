@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { NextRequest } from 'next/server';
@@ -950,4 +950,20 @@ test('content erasure source binds exact old trip and only stored expiry with bo
  const erasure=shared.slice(shared.indexOf('CREATE FUNCTION private.dabra_task_remove_content'),shared.indexOf('CREATE FUNCTION public.dabra_task_consent'));
  assert.match(erasure,/content_removed_at_ms=n,input_digest=NULL,answer_digest=NULL/);
  assert.doesNotMatch(erasure,/UPDATE private\.dabra_.*admissions|DELETE FROM private\.dabra_production_tasks|UPDATE private\.dabra_successful_task_decisions/);
+});
+
+
+test('consent CASE comparisons are delimited and protected fixture pins historical dependency before erasure', () => {
+ const sql=readFileSync('supabase/migrations/20261112110000_task237_consent_capture.sql','utf8');
+ assert.equal((sql.match(/count_rows<>\(CASE WHEN p_actor=/g)??[]).length,2);
+ assert.match(sql,/d\.approved_by<>\(CASE WHEN k='consent'[\s\S]*?::uuid END\)/);
+ assert.doesNotMatch(sql,/(?:count_rows|d\.approved_by)<>CASE/);
+ const loader=readFileSync('scripts/test-protected-operations-postgresql.mjs','utf8');
+ const loop=loader.slice(loader.indexOf('  for (const file of files.filter'),loader.indexOf('  // Fixtures are inserted'));
+ const names=['priceRelease','migration','managedDrive','managedDriveModelYear','managedDriveAcceptance','managedDriveSeptember','managedDriveWhatsApp','managedDriveKapso','managedDriveCustomer','managedDriveTarget','boundedDriveWhatsApp','queryDriveWhatsApp','boundedCustomerWhatsApp','currentStateWhatsApp','continuousWhatsApp','currentStateResume','workerBinding','workerBindingFingerprint'];
+ const consent='20261112110000_task237_consent_capture.sql',erasure='20261112120000_task237_content_erasure.sql';
+ const historical=readFileSync('supabase/drafts/task187-continuity.sql','utf8');
+ const run=(tamper:boolean)=>{const applied:string[]=[];const execute=()=>vm.runInNewContext(loop,{...Object.fromEntries(names.map(n=>[n,'excluded'])),files:[consent,erasure],assert,createHash,read:(path:string)=>path==='supabase/drafts/task187-continuity.sql'?historical+(tamper?'-- changed':''):path,sql:(value:string)=>applied.push(value)});return {execute,applied};};
+ const good=run(false);good.execute();assert.deepEqual(good.applied,[`supabase/migrations/${consent}`,historical,`supabase/migrations/${erasure}`]);
+ const bad=run(true);assert.throws(bad.execute);assert.deepEqual(bad.applied,[`supabase/migrations/${consent}`],'changed historical bytes never reach fixture SQL');
 });
