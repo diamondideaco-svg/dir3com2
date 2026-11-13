@@ -4,7 +4,7 @@ import { resolveAgentContext } from './agent-context';
 import { publicDialogueActor } from './public-dialogue-policy';
 import { isAgentTaskAuthorityCurrent } from './agent-dialogue';
 import { boundedSuccessfulTaskOperation } from './successful-task-lifecycle';
-import { readSuccessfulTaskProductionPolicy, parseSuccessfulTaskProductionPolicy, parseSuccessfulTaskProgram } from './successful-task-production-policy';
+import { readSuccessfulTaskProductionPolicy, parseSuccessfulTaskProductionPolicy, parseSuccessfulTaskProgram, selectSuccessfulTaskPilot } from './successful-task-production-policy';
 import { selectSuccessfulTaskPolicy, resolveSuccessfulTaskCoreDecisions } from './successful-task-core-decisions';
 import { interpretSuccessfulTaskDecisions } from './successful-task-decision-contract';
 import { supabaseAdmin, getSupabaseAdminHostname } from '../supabase/server';
@@ -61,10 +61,12 @@ export async function successfulTaskProductionReplay(request: NextRequest): Prom
         || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(body.requestId)) return invalid(400);
       const id = body.requestId;
       if (signal.aborted) return unavailable();
+      const selection = await selectSuccessfulTaskPilot(request, configured);
+      if (selection.kind !== 'pilot' || signal.aborted) return unavailable();
       if (program) policy = await selectSuccessfulTaskPolicy(request, program.revision);
       if (!policy || signal.aborted) return unavailable();
       const bundle = await resolveSuccessfulTaskCoreDecisions(request, policy);
-      if (!bundle || !interpretSuccessfulTaskDecisions(bundle) || signal.aborted) return unavailable();
+      if (!bundle || bundle.actorId !== selection.actorId || bundle.role !== selection.role || !interpretSuccessfulTaskDecisions(bundle) || signal.aborted) return unavailable();
       const context = await resolveAgentContext(request), actor = publicDialogueActor(context);
       if (actor !== bundle.actorId || !(context.role === bundle.role
         || (context.role === 'ceo' && bundle.role === 'admin' && actor === CEO_USER_ID))) return unavailable();

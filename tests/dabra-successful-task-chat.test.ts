@@ -6,7 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { NextRequest } from 'next/server';
-import { successfulTaskProductionGate, parseSuccessfulTaskProductionPolicy, readSuccessfulTaskProductionPolicy } from '../lib/dabra/successful-task-production-policy';
+import { successfulTaskProductionGate, parseSuccessfulTaskProductionPolicy, readSuccessfulTaskProductionPolicy, type SuccessfulTaskPilotSelection } from '../lib/dabra/successful-task-production-policy';
 import { successfulTaskChatResponse } from '../lib/dabra/successful-task-chat';
 import { successfulTaskInputDigest } from '../lib/dabra/successful-task-development';
 import { DEFAULT_AGENT_DIALOGUE_POLICY } from '../lib/dabra/agent-dialogue';
@@ -39,7 +39,7 @@ function assertRouteHasNoSuccessfulTaskDependencies(source: string) {
 /** Execute the actual unchanged POST source, substituting explicit synthetic IO
  * at module boundaries. There is no registration hook in the deployed handler.
  */
-function fixture(options: { continuityServer?: Record<string, unknown>; productionRun?: typeof runSuccessfulTaskProduction; coreResolve?: typeof resolveSuccessfulTaskCoreDecisions; productionPolicy?: unknown; inject?: boolean; fault?: string; trip?: SavedTrip; revokeDuringAllowance?: boolean; totalHeldCostMicros?: number;
+function fixture(options: { pilotSelect?: (r: NextRequest) => Promise<SuccessfulTaskPilotSelection>; continuityServer?: Record<string, unknown>; productionRun?: typeof runSuccessfulTaskProduction; coreResolve?: typeof resolveSuccessfulTaskCoreDecisions; productionPolicy?: unknown; inject?: boolean; fault?: string; trip?: SavedTrip; revokeDuringAllowance?: boolean; totalHeldCostMicros?: number;
   snapshot?: () => FxSnapshot | null; beforePolicy?: () => void; beforeTaskRead?: () => void; beforeAuthority?: () => void; hangAfterSaveAt?: number; hangAllowance?: boolean } = {}) {
   const f = successfulTaskRuntimeFixture('customer', options.fault === 'denied' ? 'denied' : '');
   let row: Record<string, unknown> | null = null, legacyReads = 0, rpcReads = 0;
@@ -80,7 +80,10 @@ function fixture(options: { continuityServer?: Record<string, unknown>; producti
     return options.fault === 'lost-save' ? { error: 'SYNTHETIC lost save', data: null } : { error: null, data: { state: p.p_outcome } };
   };
   const deps = {
-    '@/lib/dabra/successful-task-production-policy': { successfulTaskProductionGate: (policy: unknown, request: NextRequest, _resolve: undefined, execution: SuccessfulTaskProductionInput) => successfulTaskProductionGate(policy, request, options.coreResolve ?? (async () => null), options.productionRun ? execution : undefined, options.productionRun), readSuccessfulTaskProductionPolicy: () => Object.hasOwn(options, 'productionPolicy') ? options.productionPolicy : readSuccessfulTaskProductionPolicy() },
+    '@/lib/dabra/successful-task-production-policy': { successfulTaskProductionGate: (policy: unknown, request: NextRequest, _resolve: undefined, execution: SuccessfulTaskProductionInput) => successfulTaskProductionGate(policy, request, options.coreResolve ?? (async () => null), options.productionRun ? execution : undefined, options.productionRun), selectSuccessfulTaskPilot: options.pilotSelect ?? (async () => {
+      const configured = Object.hasOwn(options, 'productionPolicy') ? options.productionPolicy : readSuccessfulTaskProductionPolicy();
+      return configured == null ? { kind: 'disabled' } : { kind: 'pilot', program: configured, actorId: f.context.taskAuthority && 'actorId' in f.context.taskAuthority ? f.context.taskAuthority.actorId : '', role: f.context.role };
+    }) },
     '@/lib/dabra/successful-task-chat': { successfulTaskChatResponse: (...args: ChatResponseArgs) => {
       routeCalls.push(args);
       const [resolve, ...rest] = args;
@@ -754,7 +757,7 @@ for (const fault of ['none', 'callback-replaced', 'context-replaced', 'consent-w
   } finally { restore(); }
 });
 
-for (const fault of ['trip-switch-off', 'trip-switch-on', 'unbound-switch-off', 'trip-expired-before-proof', 'owner', 'foreign', 'revoked', 'fx-expired', 'answer-expired', 'context-changed', 'extra-identity', 'disabled', 'failed-before-proof', 'get', 'navigation', 'prefetch', 'missing-origin', 'cross-origin', 'bad-content-type', 'bad-json', 'oversized']) test(`production UUID POST: ${fault}`, async () => {
+for (const fault of ['nonpilot', 'identity-unavailable', 'trip-switch-off', 'trip-switch-on', 'unbound-switch-off', 'trip-expired-before-proof', 'owner', 'foreign', 'revoked', 'fx-expired', 'answer-expired', 'context-changed', 'extra-identity', 'disabled', 'failed-before-proof', 'get', 'navigation', 'prefetch', 'missing-origin', 'cross-origin', 'bad-content-type', 'bad-json', 'oversized']) test(`production UUID POST: ${fault}`, async () => {
  const restore=syntheticProviderEnvironment();
  try {
   const f=successfulTaskRuntimeFixture(),c=coreDecisionFixture();
@@ -764,7 +767,7 @@ for (const fault of ['trip-switch-off', 'trip-switch-on', 'unbound-switch-off', 
   const policyModule=require(process.cwd()+'/lib/dabra/successful-task-production-policy');
   const dependencies:Record<string,unknown>={
    'server-only':{},
-   './successful-task-production-policy':{...policyModule,readSuccessfulTaskProductionPolicy:()=>fault==='disabled'?null:decisionReferences},
+   './successful-task-production-policy':{...policyModule,readSuccessfulTaskProductionPolicy:()=>fault==='disabled'?null:decisionReferences,selectSuccessfulTaskPilot:async()=>fault==='nonpilot'?{kind:'legacy',actorId:c.result.actorId,role:'customer'}:fault==='identity-unavailable'?{kind:'unavailable'}:({kind:'pilot',program:decisionReferences,actorId:c.result.actorId,role:'customer'})},
    './successful-task-core-decisions':{resolveSuccessfulTaskCoreDecisions:c.resolve},
    './agent-context':{resolveAgentContext:async()=>{contexts++;return f.context;}},
    './credential-binding':{isCredentialBindingCoreProject:()=>true},
@@ -796,7 +799,7 @@ for (const fault of ['trip-switch-off', 'trip-switch-on', 'unbound-switch-off', 
   const expected=get?405:['owner','trip-switch-on','unbound-switch-off'].includes(fault)?200:fault==='foreign'?404:['fx-expired','answer-expired'].includes(fault)?410:['failed-before-proof','trip-expired-before-proof'].includes(fault)?409:['extra-identity','bad-json'].includes(fault)?400:['missing-origin','cross-origin','bad-content-type'].includes(fault)?403:fault==='oversized'?413:503;
   assert.equal(response.status,expected);
   assert.equal(response.headers.get('cache-control'),'private, no-store');
-  const blocked=get||['extra-identity','disabled','missing-origin','cross-origin','bad-content-type','bad-json','oversized'].includes(fault);
+  const blocked=get||['nonpilot','identity-unavailable','extra-identity','disabled','missing-origin','cross-origin','bad-content-type','bad-json','oversized'].includes(fault);
   assert.equal(reads,blocked?0:1);if(blocked)assert.equal(contexts,0);
   assert.equal(synthetic,fault==='disabled'?1:0);
   if(['failed-before-proof','trip-expired-before-proof'].includes(fault))assert.deepEqual(await response.json(),{saved:false,state:'failed'});
@@ -845,6 +848,7 @@ test('production consent actual owner route sequence selects actor policy and re
  const restore=syntheticProviderEnvironment();
  try {
   const actor='11111111-1111-4111-8111-111111111111',program={schema:'dabra-successful-task-program-v1',revision:'synthetic-revision'};
+  let pilotActor=actor;
   let configured:unknown=program,granted=false,generation=0,content=false,proofWrites=0,foreign=false;
   const calls:string[]=[];const receipts=new Map<string,{state:string;generation:number}>();
   const notice={noticeVersion:'synthetic-notice',noticeSha256:'a'.repeat(64),text:'SYNTHETIC approved notice only',expiresAtMs:Date.now()+60000};
@@ -867,7 +871,8 @@ test('production consent actual owner route sequence selects actor policy and re
    {exports:exported,require:(id:string)=>Object.hasOwn(extra,id)?extra[id]:Object.hasOwn(deps,id)?deps[id]:require(process.cwd()+'/lib/dabra/'+id),Response,TextDecoder,AbortSignal,structuredClone,Date,JSON,Object,Promise,Set});return exported;};
   const owner=compile('lib/dabra/successful-task-owner.ts');
   const policy=require(process.cwd()+'/lib/dabra/successful-task-production-policy');
-  const policySource={...policy,readSuccessfulTaskProductionPolicy:()=>configured};
+  const pilotPolicy=compile('lib/dabra/successful-task-production-policy.ts',{'./successful-task-pilot-config':{readSuccessfulTaskPilotConfig:()=>({schema:'dabra-successful-task-pilot-v1',actorId:pilotActor,revision:program.revision})}});
+  const policySource={...policy,...pilotPolicy,readSuccessfulTaskProductionPolicy:()=>configured};
   const consent=compile('lib/dabra/successful-task-consent.ts',{'./successful-task-owner':owner,'./successful-task-production-policy':policySource});
   const route=compile('app/api/dabra/tasks/consent/route.ts',{'@/lib/dabra/successful-task-consent':consent}) as {GET:(r:NextRequest)=>Promise<Response>;POST:(r:NextRequest)=>Promise<Response>};
   const req=(body?:unknown,origin='https://example.test')=>new NextRequest('https://example.test/api/dabra/tasks/consent',body===undefined?{}:{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(body)});
@@ -892,6 +897,12 @@ test('production consent actual owner route sequence selects actor policy and re
   configured=program;assert.equal((await route.POST(req({...grant,generation:2,mutationId:randomUUID()}))).status,200);
   content=true;assert.equal((await route.POST(req(withdrawal))).status,200);assert.equal(granted,true);assert.equal(content,true);assert.equal(generation,3);
   foreign=true;assert.equal((await route.GET(req())).status,503);
+  foreign=false;pilotActor='22222222-2222-4222-8222-222222222222';
+  const nonpilot=await (await route.GET(req())).json();assert.equal(nonpilot.notice,null);assert.equal(nonpilot.hasConsent,true);
+  const beforeNonpilot=calls.length;
+  assert.equal((await route.POST(req({...grant,generation:3,mutationId:randomUUID()}))).status,503);assert.equal(calls.length,beforeNonpilot);
+  assert.equal((await route.POST(req({...withdrawal,generation:3,mutationId:randomUUID()}))).status,200);assert.equal(content,false);
+
  } finally {restore();}
 });
 
@@ -1005,7 +1016,7 @@ test('consent management allows slow verified identity but bounds a stalled fina
   const compile=(file:string,extra:Record<string,unknown>={})=>{const exported:Record<string,unknown>={};vm.runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
    {exports:exported,require:(id:string)=>{if(Object.hasOwn(extra,id))return extra[id];if(Object.hasOwn(deps,id))return deps[id];throw new Error('Unexpected dependency '+id);},Response,TextDecoder,AbortSignal,Date,Promise});return exported;};
   const owner=compile('lib/dabra/successful-task-owner.ts');
-  const consent=compile('lib/dabra/successful-task-consent.ts',{'./successful-task-owner':owner,'./successful-task-production-policy':{readSuccessfulTaskProductionPolicy,parseSuccessfulTaskProgram:()=>null}});
+  const consent=compile('lib/dabra/successful-task-consent.ts',{'./successful-task-owner':owner,'./successful-task-production-policy':{readSuccessfulTaskProductionPolicy,classifySuccessfulTaskPilot:()=>({kind:'disabled'})}});
   const route=compile('app/api/dabra/tasks/consent/route.ts',{'@/lib/dabra/successful-task-consent':consent}) as {GET:(r:NextRequest)=>Promise<Response>};
   const keepAlive=setTimeout(()=>{},6000),start=Date.now();
   try {
@@ -1136,4 +1147,57 @@ test('cleanup endpoint actual route gates imports and bounds one authenticated s
  const f=fixture(valid,true,'hang'),controller=new AbortController(),pending=f.post(request({signal:controller.signal}));
  await new Promise(resolve=>setImmediate(resolve));controller.abort();
  assert.equal((await pending).status,503);assert.equal(f.calls(),1);assert.equal(f.signal()?.aborted,true);
+});
+
+test('pilot selector uses verified Core identity and actual POST preserves only confirmed nonpilot legacy', async () => {
+ const restore=syntheticProviderEnvironment();
+ try {
+  const program={schema:'dabra-successful-task-program-v1',revision:'synthetic-pilot'};
+  let actor='abcdefab-1111-4111-8111-111111111111',member=actor,missing=false,changed=false,project=true,identityCalls=0;
+  let config:unknown={schema:'dabra-successful-task-pilot-v1',actorId:member,revision:program.revision};
+  const server={createSupabaseRequestClient:async()=>{identityCalls++;return missing?null:{user:{id:actor},supabase:client};},
+   getSupabaseClientHostname:()=>project?'core':'foreign',getSupabaseAdminHostname:()=> 'core',supabaseAdmin:{}};
+  const client={auth:{getUser:async()=>({error:null,data:{user:{id:changed?'changed':actor}}})}};
+  const deps:Record<string,unknown>={'server-only':{},'../supabase/server':server,
+   '../auth/identity':{resolveCanonicalActiveProfile:async()=>({id:actor,role:'customer',sourceRole:'customer'})},
+   './credential-binding':{isCredentialBindingCoreProject:(host:string)=>host==='core'},
+   './successful-task-pilot-config':{readSuccessfulTaskPilotConfig:()=>config}};
+  function compile(file:string,extra:Record<string,unknown>={}) {
+   const result:Record<string,unknown>={};
+   vm.runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
+    {exports:result,Response,AbortSignal,structuredClone,require:(id:string)=>Object.hasOwn(extra,id)?extra[id]:Object.hasOwn(deps,id)?deps[id]:require(process.cwd()+'/lib/dabra/'+id)});
+   return result;
+  }
+  const owner=compile('lib/dabra/successful-task-owner.ts');
+  const policy=compile('lib/dabra/successful-task-production-policy.ts',{'./successful-task-owner':owner}) as unknown as typeof import('../lib/dabra/successful-task-production-policy');
+  const req=new NextRequest('https://example.test');
+  assert.equal((await policy.selectSuccessfulTaskPilot(req,null)).kind,'disabled');assert.equal(identityCalls,0);
+  assert.equal((await policy.selectSuccessfulTaskPilot(req,program)).kind,'pilot');
+  config={schema:'dabra-successful-task-pilot-v1',actorId:member.toUpperCase(),revision:program.revision};
+  assert.equal((await policy.selectSuccessfulTaskPilot(req,program)).kind,'pilot','UUID casing cannot select legacy');
+  actor='22222222-2222-4222-8222-222222222222';assert.equal((await policy.selectSuccessfulTaskPilot(req,program)).kind,'legacy');
+  for(const fault of ['missing','changed','project','config']) {
+   missing=fault==='missing';changed=fault==='changed';project=fault!=='project';
+   config=fault==='config'?null:{schema:'dabra-successful-task-pilot-v1',actorId:member,revision:program.revision};
+   assert.equal((await policy.selectSuccessfulTaskPilot(req,program)).kind,'unavailable');
+  }
+  missing=false;changed=false;project=true;
+  const x=fixture({inject:false,pilotSelect:r=>policy.selectSuccessfulTaskPilot(r,program)});
+  assert.ok(x.f.context.taskAuthority && 'actorId' in x.f.context.taskAuthority);
+  actor=x.f.context.taskAuthority.actorId;
+  config={schema:'dabra-successful-task-pilot-v1',actorId:member,revision:program.revision};
+  await x.post({message:'hotel in Cairo',locale:'en'});
+  assert.equal(x.stats().legacyReads,1);assert.equal(x.f.stats().models,0);
+  member=actor;config={schema:'dabra-successful-task-pilot-v1',actorId:member,revision:program.revision};
+  const before=x.stats().legacyReads;
+  assert.equal((await x.post({message:'hotel in Cairo',locale:'en'})).status,503);
+  assert.equal(x.stats().legacyReads,before,'selected unresolved pilot cannot fall through');
+  // A newly authenticated nonpilot must not reuse another actor's resolved context.
+  actor='33333333-3333-4333-8333-333333333333';
+  assert.equal((await x.post({message:'hotel in Cairo',locale:'en'})).status,503);
+  assert.equal(x.stats().legacyReads,before);
+  missing=true;assert.equal((await x.post({message:'hotel in Cairo',locale:'en'})).status,503);
+  assert.equal(x.stats().legacyReads,before);assert.equal(x.f.stats().models,0);
+  assert.equal(require(process.cwd()+'/lib/dabra/successful-task-pilot-config').readSuccessfulTaskPilotConfig(),null);
+ } finally {restore();}
 });

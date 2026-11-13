@@ -228,7 +228,7 @@ test('credential binding: actual GET uses canonical CEO and existing null-subjec
   // Pin the complete POST prefix for the Task237 disabled production-policy slice.
   // Only the explicit policy boundary/import was added; the GET suffix is unchanged.
   // Baseline maintenance requires independent review of that full delta; GET assertions remain active.
-  assert.equal(createHash('sha256').update(post).digest('hex'), 'e807a03bf0267d31e8fa5000df1aba69b1fb7d27e1090072a3e933178cd271c6');
+  assert.equal(createHash('sha256').update(post).digest('hex'), '36abc0adaec65b21e0759cfb6429b82f41fd7b635ae5674fa92b203d5c458864');
   const loaded = compileModule('../app/api/ai2/chat/route.ts', id => {
     if (id === '@/lib/dabra/credential-binding') return credentialBindingModule;
     if (id === '@/lib/ai2/runtime/agent-provider-dispatch') return { internalAgentCredential: () => key };

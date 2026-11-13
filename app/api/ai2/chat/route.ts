@@ -1,5 +1,5 @@
 import type { SuccessfulTaskContinuityBinding } from '@/lib/dabra/continuity-chat-server';
-import { readSuccessfulTaskProductionPolicy, successfulTaskProductionGate } from '@/lib/dabra/successful-task-production-policy';
+import { selectSuccessfulTaskPilot, successfulTaskProductionGate } from '@/lib/dabra/successful-task-production-policy';
 import { successfulTaskChatResponse } from '@/lib/dabra/successful-task-chat';
 import { conversationIntent } from '@/lib/dabra/conversation-renderer';
 import { after, NextRequest, NextResponse } from 'next/server';
@@ -85,7 +85,11 @@ function sanitizeHistory(raw: AI2ChatRequest['history']): AI2ChatTurn[] {
 }
 
 export async function POST(request: NextRequest) {
-  const productionPolicy = readSuccessfulTaskProductionPolicy();
+  const pilot = await selectSuccessfulTaskPilot(request);
+  if (pilot.kind === 'unavailable') return NextResponse.json({ saved: false, error: 'Task unavailable.' }, {
+    status: 503, headers: { 'Cache-Control': 'private, no-store', Vary: 'Cookie, Authorization' },
+  });
+  const productionPolicy = pilot.kind === 'pilot' ? pilot : null;
   // Public discovery is read-only. Submission uses the existing authenticated REQ flow.
   const parsed = await parseChatRequest(request);
   const { body } = parsed;
@@ -165,9 +169,17 @@ export async function POST(request: NextRequest) {
   let agentContext: AgentContext = { role: 'guest', readRequests: async () => ({ kind: 'authentication_required' }) };
   const inferenceEnabled = process.env.DABRA_INTERNAL_AI_ENABLED === 'true';
   const publicUtility = ['weather', 'currency', 'maps'].includes(intent.tool);
-  if ((intent.tool !== 'discover' && !publicUtility) || inferenceEnabled || productionPolicy != null) {
+  if ((intent.tool !== 'discover' && !publicUtility) || inferenceEnabled || productionPolicy != null || pilot.kind === 'legacy') {
     const { resolveAgentContext } = await import('@/lib/dabra/agent-context');
     agentContext = await resolveAgentContext(request);
+    if ((pilot.kind === 'pilot' || pilot.kind === 'legacy') && (
+      !agentContext.taskAuthority || !('actorId' in agentContext.taskAuthority)
+      || agentContext.taskAuthority.actorId !== pilot.actorId
+      || (agentContext.role === 'ceo' ? 'admin' : agentContext.role) !== pilot.role)) {
+      return NextResponse.json({ saved: false, error: 'Task unavailable.' }, {
+        status: 503, headers: { 'Cache-Control': 'private, no-store', Vary: 'Cookie, Authorization' },
+      });
+    }
   }
   if (tripIsCurrent && trip && agentContext.isTaskAuthorityCurrent) {
     const authIsCurrent=agentContext.isTaskAuthorityCurrent;
