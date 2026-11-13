@@ -4,7 +4,7 @@ import { resolveAgentContext } from './agent-context';
 import { publicDialogueActor } from './public-dialogue-policy';
 import { isAgentTaskAuthorityCurrent } from './agent-dialogue';
 import { boundedSuccessfulTaskOperation } from './successful-task-lifecycle';
-import { readSuccessfulTaskProductionPolicy, parseSuccessfulTaskProductionPolicy, parseSuccessfulTaskProgram, selectSuccessfulTaskPilot } from './successful-task-production-policy';
+import { readSuccessfulTaskProductionPolicy, type SuccessfulTaskProductionPolicy, selectSuccessfulTaskPilot } from './successful-task-production-policy';
 import { selectSuccessfulTaskPolicy, resolveSuccessfulTaskCoreDecisions } from './successful-task-core-decisions';
 import { interpretSuccessfulTaskDecisions } from './successful-task-decision-contract';
 import { supabaseAdmin, getSupabaseAdminHostname } from '../supabase/server';
@@ -14,12 +14,11 @@ import { CEO_USER_ID } from '../auth/team-access';
 const headers = { 'Cache-Control': 'private, no-store', Vary: 'Cookie, Authorization',
   'Cross-Origin-Resource-Policy': 'same-origin', 'X-Content-Type-Options': 'nosniff' };
 /** UUID is a lookup key, never identity, authority, freshness or a dispatch request. */
-export async function successfulTaskProductionReplay(request: NextRequest): Promise<Response> {
+export async function successfulTaskProductionReplay(request: NextRequest, configured = readSuccessfulTaskProductionPolicy()): Promise<Response> {
   const unavailable = () => Response.json({ saved: false, error: 'Task unavailable.' }, { status: 503, headers });
-  const configured = readSuccessfulTaskProductionPolicy();
-  const program = parseSuccessfulTaskProgram(configured);
-  let policy = parseSuccessfulTaskProductionPolicy(configured);
-  if ((!policy && !program) || !supabaseAdmin || request.signal.aborted) return unavailable();
+  if (configured.kind !== 'configured' || !supabaseAdmin || request.signal.aborted) return unavailable();
+  const program = configured.program;
+  let policy: SuccessfulTaskProductionPolicy | null = null;
   const invalid = (status: number) => Response.json({ saved: false, error: 'Invalid request.' }, { status, headers });
   if (request.method !== 'POST' || request.headers.get('origin') !== request.nextUrl.origin
     || request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() !== 'application/json') return invalid(403);

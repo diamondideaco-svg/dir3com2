@@ -54,6 +54,7 @@ export async function successfulTaskConsent(request: NextRequest): Promise<Respo
   if (request.method === 'POST' && (request.headers.get('origin') !== request.nextUrl.origin
     || request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() !== 'application/json')) return json({ error: 'Invalid origin or media type.' }, 403);
   if (request.nextUrl.search) return json({ error: 'Invalid request.' }, 400);
+  const configured = readSuccessfulTaskProductionPolicy();
   try {
     return await boundedConsentOperation(async signal => {
       const input = request.method === 'POST' ? await body(request, signal) : null;
@@ -67,7 +68,6 @@ export async function successfulTaskConsent(request: NextRequest): Promise<Respo
         && typeof input.noticeVersion === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}$/.test(input.noticeVersion)
         && typeof input.noticeSha256 === 'string' && /^[a-f0-9]{64}$/.test(input.noticeSha256)
         && typeof input.mutationId === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(input.mutationId))) return json({ error: 'Invalid request.' }, 400);
-      const configured = readSuccessfulTaskProductionPolicy();
       const result = await withSuccessfulTaskOwner(request, signal, async (actor, role, admin) => {
         if (input && input.expectedOwner !== actor) return null;
         // Status and withdrawal remain owner-accessible even outside the pilot.
