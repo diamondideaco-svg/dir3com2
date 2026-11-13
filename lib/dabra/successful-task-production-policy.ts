@@ -1,5 +1,5 @@
 import 'server-only';
-import { readSuccessfulTaskPilotConfig } from './successful-task-pilot-config';
+import { readSuccessfulTaskPilotConfig, type SuccessfulTaskPilotSnapshot } from './successful-task-pilot-config';
 import type { NextRequest } from 'next/server';
 import { runSuccessfulTaskProduction, type SuccessfulTaskProductionInput } from './successful-task-production-runtime';
 import { interpretSuccessfulTaskDecisions } from './successful-task-decision-contract';
@@ -38,9 +38,7 @@ export function parseSuccessfulTaskProductionPolicy(value: unknown): SuccessfulT
   } catch { return null; }
 }
 
-/** Deliberately unconfigured. No ENV, request field, mutable registration hook,
- * existing continuity consent or synthetic RPC can supply this policy.
- */
+/** Program references are not Core approval, consent or funding. */
 export type SuccessfulTaskProgram = Readonly<{ schema: 'dabra-successful-task-program-v1'; revision: string }>;
 export function parseSuccessfulTaskProgram(value: unknown): SuccessfulTaskProgram | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -49,7 +47,7 @@ export function parseSuccessfulTaskProgram(value: unknown): SuccessfulTaskProgra
     || typeof v.revision !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}$/.test(v.revision)) return null;
   return Object.freeze({ schema: 'dabra-successful-task-program-v1', revision: v.revision });
 }
-export function readSuccessfulTaskProductionPolicy(): SuccessfulTaskProgram | null { return null; }
+export function readSuccessfulTaskProductionPolicy(): SuccessfulTaskPilotSnapshot { return readSuccessfulTaskPilotConfig(); }
 
 export type SuccessfulTaskPilotSelection =
   | { kind: 'disabled' | 'unavailable' }
@@ -57,18 +55,14 @@ export type SuccessfulTaskPilotSelection =
   | { kind: 'pilot'; program: SuccessfulTaskProgram; actorId: string; role: string };
 
 /** Called only with verified Core identity. Ineligibility is never non-membership. */
-export function classifySuccessfulTaskPilot(configured: unknown, actorId: string, role: string): SuccessfulTaskPilotSelection {
-  if (configured == null) return { kind: 'disabled' };
-  const program = parseSuccessfulTaskProgram(configured), config = readSuccessfulTaskPilotConfig();
-  if (!program || !config || Object.keys(config).sort().join(',') !== 'actorId,revision,schema'
-    || config.schema !== 'dabra-successful-task-pilot-v1' || config.revision !== program.revision
-    || typeof config.actorId !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(config.actorId)) return { kind: 'unavailable' };
-  return actorId.toLowerCase() === config.actorId.toLowerCase() ? { kind: 'pilot', program, actorId, role } : { kind: 'legacy', actorId, role };
+export function classifySuccessfulTaskPilot(snapshot: SuccessfulTaskPilotSnapshot, actorId: string, role: string): SuccessfulTaskPilotSelection {
+  if (snapshot.kind !== 'configured') return { kind: snapshot.kind };
+  return actorId.toLowerCase() === snapshot.membership.actorId ? { kind: 'pilot', program: snapshot.program, actorId, role } : { kind: 'legacy', actorId, role };
 }
 
 /** A missing/failed identity never selects legacy. The disabled path does no IO. */
-export async function selectSuccessfulTaskPilot(request: NextRequest, configured: unknown = readSuccessfulTaskProductionPolicy()): Promise<SuccessfulTaskPilotSelection> {
-  if (configured == null) return { kind: 'disabled' };
+export async function selectSuccessfulTaskPilot(request: NextRequest, configured: SuccessfulTaskPilotSnapshot = readSuccessfulTaskProductionPolicy()): Promise<SuccessfulTaskPilotSelection> {
+  if (configured.kind !== 'configured') return { kind: configured.kind };
   try {
     const { withSuccessfulTaskOwner } = await import('./successful-task-owner');
     const { boundedSuccessfulTaskOperation } = await import('./successful-task-lifecycle');

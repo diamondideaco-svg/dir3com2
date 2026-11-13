@@ -1,4 +1,6 @@
 import test from 'node:test';
+import { parseSuccessfulTaskPilotConfig } from '../lib/dabra/successful-task-pilot-config';
+const pilotSnapshot = (revision: string, actorId = '11111111-1111-4111-8111-111111111111') => parseSuccessfulTaskPilotConfig(JSON.stringify({schema:'dabra-successful-task-pilot-v1',revision,actorId}));
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -81,7 +83,7 @@ function fixture(options: { pilotSelect?: (r: NextRequest) => Promise<Successful
   };
   const deps = {
     '@/lib/dabra/successful-task-production-policy': { successfulTaskProductionGate: (policy: unknown, request: NextRequest, _resolve: undefined, execution: SuccessfulTaskProductionInput) => successfulTaskProductionGate(policy, request, options.coreResolve ?? (async () => null), options.productionRun ? execution : undefined, options.productionRun), selectSuccessfulTaskPilot: options.pilotSelect ?? (async () => {
-      const configured = Object.hasOwn(options, 'productionPolicy') ? options.productionPolicy : readSuccessfulTaskProductionPolicy();
+      const configured = Object.hasOwn(options, 'productionPolicy') ? options.productionPolicy : null;
       return configured == null ? { kind: 'disabled' } : { kind: 'pilot', program: configured, actorId: f.context.taskAuthority && 'actorId' in f.context.taskAuthority ? f.context.taskAuthority.actorId : '', role: f.context.role };
     }) },
     '@/lib/dabra/successful-task-chat': { successfulTaskChatResponse: (...args: ChatResponseArgs) => {
@@ -763,12 +765,12 @@ for (const fault of ['nonpilot', 'identity-unavailable', 'trip-switch-off', 'tri
   const f=successfulTaskRuntimeFixture(),c=coreDecisionFixture();
   f.context.taskAuthority={kind:'customer',actorId:c.result.actorId,ownerId:c.result.actorId};
   executableDocuments(c,f.proof.grantId);
-  let reads=0,contexts=0,synthetic=0;
+  let reads=0,contexts=0,synthetic=0,configReads=0;
   const policyModule=require(process.cwd()+'/lib/dabra/successful-task-production-policy');
   const dependencies:Record<string,unknown>={
    'server-only':{},
-   './successful-task-production-policy':{...policyModule,readSuccessfulTaskProductionPolicy:()=>fault==='disabled'?null:decisionReferences,selectSuccessfulTaskPilot:async()=>fault==='nonpilot'?{kind:'legacy',actorId:c.result.actorId,role:'customer'}:fault==='identity-unavailable'?{kind:'unavailable'}:({kind:'pilot',program:decisionReferences,actorId:c.result.actorId,role:'customer'})},
-   './successful-task-core-decisions':{resolveSuccessfulTaskCoreDecisions:c.resolve},
+   './successful-task-production-policy':{...policyModule,readSuccessfulTaskProductionPolicy:()=>{configReads++;return fault==='disabled'?{kind:'disabled'}:pilotSnapshot(decisionReferences.revision,c.result.actorId);},selectSuccessfulTaskPilot:async()=>fault==='nonpilot'?{kind:'legacy',actorId:c.result.actorId,role:'customer'}:fault==='identity-unavailable'?{kind:'unavailable'}:({kind:'pilot',program:decisionReferences,actorId:c.result.actorId,role:'customer'})},
+   './successful-task-core-decisions':{resolveSuccessfulTaskCoreDecisions:c.resolve,selectSuccessfulTaskPolicy:async()=>decisionReferences},
    './agent-context':{resolveAgentContext:async()=>{contexts++;return f.context;}},
    './credential-binding':{isCredentialBindingCoreProject:()=>true},
    '../supabase/server':{getSupabaseAdminHostname:()=> 'core',supabaseAdmin:{rpc:(name:string,p:Record<string,unknown>)=>({abortSignal:async()=>{
@@ -795,7 +797,7 @@ for (const fault of ['nonpilot', 'identity-unavailable', 'trip-switch-off', 'tri
   if(fault==='prefetch')headers.purpose='prefetch';
   const body=fault==='bad-json'?'not-json':fault==='oversized'?' '.repeat(300):JSON.stringify({requestId:randomUUID(),...(fault==='extra-identity'?{actorId:'other'}:{})});
   const request=new NextRequest('https://example.test/api/dabra/tasks',{method:get?'GET':'POST',headers,...(get?{}:{body})});
-  const response=await (get?route.GET(request):route.POST(request));
+  const response=await (get?route.GET(request):route.POST(request));assert.equal(configReads,get?0:1);
   const expected=get?405:['owner','trip-switch-on','unbound-switch-off'].includes(fault)?200:fault==='foreign'?404:['fx-expired','answer-expired'].includes(fault)?410:['failed-before-proof','trip-expired-before-proof'].includes(fault)?409:['extra-identity','bad-json'].includes(fault)?400:['missing-origin','cross-origin','bad-content-type'].includes(fault)?403:fault==='oversized'?413:503;
   assert.equal(response.status,expected);
   assert.equal(response.headers.get('cache-control'),'private, no-store');
@@ -821,7 +823,7 @@ test('production UUID body deadline cancels real stream and releases reader with
   const request=new NextRequest('https://example.test/api/dabra/tasks',init);
   const policy=require(process.cwd()+'/lib/dabra/successful-task-production-policy');
   const dependencies:Record<string,unknown>={
-   'server-only':{},'./successful-task-production-policy':{...policy,readSuccessfulTaskProductionPolicy:()=>decisionReferences},
+   'server-only':{},'./successful-task-production-policy':{...policy,readSuccessfulTaskProductionPolicy:()=>pilotSnapshot(decisionReferences.revision)},
    './successful-task-core-decisions':{resolveSuccessfulTaskCoreDecisions:async()=>{core++;throw new Error('No Core before complete body');}},
    './agent-context':{resolveAgentContext:async()=>{throw new Error('No context read');}},
    '../supabase/server':{supabaseAdmin:{rpc:()=>{core++;throw new Error('No RPC');}}},
@@ -848,7 +850,7 @@ test('production consent actual owner route sequence selects actor policy and re
  const restore=syntheticProviderEnvironment();
  try {
   const actor='11111111-1111-4111-8111-111111111111',program={schema:'dabra-successful-task-program-v1',revision:'synthetic-revision'};
-  let pilotActor=actor;
+  let pilotActor=actor,configReads=0,changeConfigDuringStatus=false;
   let configured:unknown=program,granted=false,generation=0,content=false,proofWrites=0,foreign=false;
   const calls:string[]=[];const receipts=new Map<string,{state:string;generation:number}>();
   const notice={noticeVersion:'synthetic-notice',noticeSha256:'a'.repeat(64),text:'SYNTHETIC approved notice only',expiresAtMs:Date.now()+60000};
@@ -857,7 +859,7 @@ test('production consent actual owner route sequence selects actor policy and re
    calls.push(name+':'+(p.p_action??''));assert.equal(p.p_actor_id,actor);assert.equal(p.p_actor_role,'customer');
    if(name==='select_dabra_production_task_policy')return {error:null,data:granted?{...decisionReferences,revision:program.revision}:null};
    assert.equal(name,'dabra_task_consent');
-   if(p.p_action==='status')return {error:null,data:{generation,granted,hasConsent:granted,hasContent:content}};
+   if(p.p_action==='status'){if(changeConfigDuringStatus)configured='malformed';return {error:null,data:{generation,granted,hasConsent:granted,hasContent:content}};}
    if(p.p_action==='notice')return {error:null,data:{...notice,generation}};
    const prior=receipts.get(String(p.p_mutation));if(prior)return {error:null,data:prior.state==='revoked'||prior.generation===generation?prior:null};
    if(p.p_generation!==generation)return {error:null,data:null};
@@ -871,13 +873,15 @@ test('production consent actual owner route sequence selects actor policy and re
    {exports:exported,require:(id:string)=>Object.hasOwn(extra,id)?extra[id]:Object.hasOwn(deps,id)?deps[id]:require(process.cwd()+'/lib/dabra/'+id),Response,TextDecoder,AbortSignal,structuredClone,Date,JSON,Object,Promise,Set});return exported;};
   const owner=compile('lib/dabra/successful-task-owner.ts');
   const policy=require(process.cwd()+'/lib/dabra/successful-task-production-policy');
-  const pilotPolicy=compile('lib/dabra/successful-task-production-policy.ts',{'./successful-task-pilot-config':{readSuccessfulTaskPilotConfig:()=>({schema:'dabra-successful-task-pilot-v1',actorId:pilotActor,revision:program.revision})}});
-  const policySource={...policy,...pilotPolicy,readSuccessfulTaskProductionPolicy:()=>configured};
+  const pilotPolicy=compile('lib/dabra/successful-task-production-policy.ts',{'./successful-task-pilot-config':{readSuccessfulTaskPilotConfig:()=>{configReads++;return configured===null?{kind:'disabled'}:configured==='malformed'?{kind:'unavailable'}:pilotSnapshot(program.revision,pilotActor);}}});
+  const policySource={...policy,...pilotPolicy};
   const consent=compile('lib/dabra/successful-task-consent.ts',{'./successful-task-owner':owner,'./successful-task-production-policy':policySource});
   const route=compile('app/api/dabra/tasks/consent/route.ts',{'@/lib/dabra/successful-task-consent':consent}) as {GET:(r:NextRequest)=>Promise<Response>;POST:(r:NextRequest)=>Promise<Response>};
   const req=(body?:unknown,origin='https://example.test')=>new NextRequest('https://example.test/api/dabra/tasks/consent',body===undefined?{}:{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(body)});
   const wrongOwner=await route.POST(req({action:'revoke',expectedOwner:'22222222-2222-4222-8222-222222222222',mutationId:randomUUID(),generation:0}));assert.equal(wrongOwner.status,503);assert.equal(calls.length,0,'owner equality rejects before Core mutation');
+  const priorReads=configReads;changeConfigDuringStatus=true;
   const shown=await (await route.GET(req())).json();assert.equal(shown.notice.text,notice.text);assert.equal(proofWrites,0);
+  assert.equal(configReads,priorReads+1);changeConfigDuringStatus=false;configured=program;
   const grant={action:'grant',expectedOwner:actor,generation:0,noticeVersion:notice.noticeVersion,noticeSha256:notice.noticeSha256,mutationId:randomUUID()};
   const before=calls.length;assert.equal((await route.POST(req({...grant,actorId:'other'}))).status,400);assert.equal((await route.POST(req(grant,'https://other.test'))).status,403);assert.equal(calls.length,before);
   assert.equal((await route.POST(req(grant))).status,200);assert.equal((await route.POST(req(grant))).status,200);assert.equal(proofWrites,1);
@@ -888,9 +892,11 @@ test('production consent actual owner route sequence selects actor policy and re
   let dispatched=0;
   const gateResponse=await gateModule.successfulTaskProductionGate(program,req(),undefined,{resolveInput:async()=>{throw new Error('No model input in consent gate test');},requestId:randomUUID(),stream:false},async(_request,_input,selected)=>{dispatched++;assert.equal(selected.revision,program.revision);return Response.json({selected:true});});
   assert.equal(gateResponse?.status,200);assert.equal(dispatched,1);
-  content=true;configured=null;
+  configured='malformed';const malformed=await (await route.GET(req())).json();assert.equal(malformed.notice,null);assert.equal(malformed.hasConsent,true);
+  const beforeMalformed=calls.length;assert.equal((await route.POST(req(grant))).status,503);assert.equal(calls.length,beforeMalformed);
+  content=true;
   const withdrawal={action:'revoke',expectedOwner:actor,mutationId:randomUUID(),generation:1};
-  assert.equal((await route.POST(req(withdrawal))).status,200);assert.equal(content,false);assert.equal(granted,false);assert.equal(proofWrites,1);
+  assert.equal((await route.POST(req(withdrawal))).status,200);assert.equal(content,false);assert.equal(granted,false);assert.equal(proofWrites,1);configured=null;
   assert.equal((await route.POST(req(withdrawal))).status,200);assert.equal(generation,2);
   const absent=await (await route.GET(req())).json();assert.equal(absent.notice,null);
   assert.equal((await route.POST(req(grant))).status,503);assert.equal(await core.selectSuccessfulTaskPolicy(req(),program.revision),null);
@@ -1161,7 +1167,7 @@ test('pilot selector uses verified Core identity and actual POST preserves only 
   const deps:Record<string,unknown>={'server-only':{},'../supabase/server':server,
    '../auth/identity':{resolveCanonicalActiveProfile:async()=>({id:actor,role:'customer',sourceRole:'customer'})},
    './credential-binding':{isCredentialBindingCoreProject:(host:string)=>host==='core'},
-   './successful-task-pilot-config':{readSuccessfulTaskPilotConfig:()=>config}};
+   './successful-task-pilot-config':{readSuccessfulTaskPilotConfig:()=>config===null?{kind:'unavailable'}:parseSuccessfulTaskPilotConfig(JSON.stringify(config))}};
   function compile(file:string,extra:Record<string,unknown>={}) {
    const result:Record<string,unknown>={};
    vm.runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
@@ -1171,18 +1177,18 @@ test('pilot selector uses verified Core identity and actual POST preserves only 
   const owner=compile('lib/dabra/successful-task-owner.ts');
   const policy=compile('lib/dabra/successful-task-production-policy.ts',{'./successful-task-owner':owner}) as unknown as typeof import('../lib/dabra/successful-task-production-policy');
   const req=new NextRequest('https://example.test');
-  assert.equal((await policy.selectSuccessfulTaskPilot(req,null)).kind,'disabled');assert.equal(identityCalls,0);
-  assert.equal((await policy.selectSuccessfulTaskPilot(req,program)).kind,'pilot');
+  assert.equal((await policy.selectSuccessfulTaskPilot(req,{kind:'disabled'})).kind,'disabled');assert.equal(identityCalls,0);
+  assert.equal((await policy.selectSuccessfulTaskPilot(req)).kind,'pilot');
   config={schema:'dabra-successful-task-pilot-v1',actorId:member.toUpperCase(),revision:program.revision};
-  assert.equal((await policy.selectSuccessfulTaskPilot(req,program)).kind,'pilot','UUID casing cannot select legacy');
-  actor='22222222-2222-4222-8222-222222222222';assert.equal((await policy.selectSuccessfulTaskPilot(req,program)).kind,'legacy');
+  assert.equal((await policy.selectSuccessfulTaskPilot(req)).kind,'pilot','UUID casing cannot select legacy');
+  actor='22222222-2222-4222-8222-222222222222';assert.equal((await policy.selectSuccessfulTaskPilot(req)).kind,'legacy');
   for(const fault of ['missing','changed','project','config']) {
    missing=fault==='missing';changed=fault==='changed';project=fault!=='project';
    config=fault==='config'?null:{schema:'dabra-successful-task-pilot-v1',actorId:member,revision:program.revision};
-   assert.equal((await policy.selectSuccessfulTaskPilot(req,program)).kind,'unavailable');
+   assert.equal((await policy.selectSuccessfulTaskPilot(req)).kind,'unavailable');
   }
   missing=false;changed=false;project=true;
-  const x=fixture({inject:false,pilotSelect:r=>policy.selectSuccessfulTaskPilot(r,program)});
+  const x=fixture({inject:false,pilotSelect:r=>policy.selectSuccessfulTaskPilot(r)});
   assert.ok(x.f.context.taskAuthority && 'actorId' in x.f.context.taskAuthority);
   actor=x.f.context.taskAuthority.actorId;
   config={schema:'dabra-successful-task-pilot-v1',actorId:member,revision:program.revision};
@@ -1198,6 +1204,26 @@ test('pilot selector uses verified Core identity and actual POST preserves only 
   assert.equal(x.stats().legacyReads,before);
   missing=true;assert.equal((await x.post({message:'hotel in Cairo',locale:'en'})).status,503);
   assert.equal(x.stats().legacyReads,before);assert.equal(x.f.stats().models,0);
-  assert.equal(require(process.cwd()+'/lib/dabra/successful-task-pilot-config').readSuccessfulTaskPilotConfig(),null);
+  assert.equal(parseSuccessfulTaskPilotConfig(undefined).kind,'disabled');
  } finally {restore();}
+});
+
+test('private pilot snapshot is bounded immutable and reads once across identity awaits', async () => {
+ const valid={schema:'dabra-successful-task-pilot-v1',revision:'synthetic-snapshot',actorId:'11111111-1111-4111-8111-111111111111'};
+ assert.equal(parseSuccessfulTaskPilotConfig(undefined).kind,'disabled');
+ for(const raw of ['',null,'null','[]','{',JSON.stringify({...valid,extra:true}),JSON.stringify({...valid,revision:1}),JSON.stringify({...valid,actorId:'bad'}),' '.repeat(1025),'é'.repeat(513)])assert.equal(parseSuccessfulTaskPilotConfig(raw).kind,'unavailable');
+ const snapshot=parseSuccessfulTaskPilotConfig(JSON.stringify(valid));assert.equal(snapshot.kind,'configured');
+ if(snapshot.kind!=='configured')throw Error('expected configured');
+ assert.ok(Object.isFrozen(snapshot)&&Object.isFrozen(snapshot.program)&&Object.isFrozen(snapshot.membership));
+ let reads=0,raw:unknown=JSON.stringify(valid),fail=false;
+ const env=Object.defineProperty({},'DABRA_SUCCESSFUL_TASK_PILOT_CONFIG',{get(){reads++;if(fail)throw Error('synthetic');return raw;}});
+ function compile(file:string,deps:Record<string,unknown>){const result:Record<string,unknown>={};vm.runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
+  {exports:result,process:{env},Buffer,Response,AbortSignal,require:(id:string)=>id==='server-only'?{}:Object.hasOwn(deps,id)?deps[id]:require(process.cwd()+'/lib/dabra/'+id)});return result;}
+ const config=compile('lib/dabra/successful-task-pilot-config.ts',{}) as unknown as typeof import('../lib/dabra/successful-task-pilot-config');
+ const policy=compile('lib/dabra/successful-task-production-policy.ts',{'./successful-task-pilot-config':config,
+  './successful-task-owner':{withSuccessfulTaskOwner:async(_r:unknown,_s:unknown,callback:(actor:string,role:string)=>unknown)=>{await Promise.resolve();raw='';return callback(valid.actorId,'customer');}}}) as unknown as typeof import('../lib/dabra/successful-task-production-policy');
+ assert.equal((await policy.selectSuccessfulTaskPilot(new NextRequest('https://example.test'))).kind,'pilot');assert.equal(reads,1);
+ assert.equal((await policy.selectSuccessfulTaskPilot(new NextRequest('https://example.test'))).kind,'unavailable');assert.equal(reads,2);
+ fail=true;assert.equal(config.readSuccessfulTaskPilotConfig().kind,'unavailable');assert.equal(reads,3);
+ fail=false;raw=undefined;assert.equal(config.readSuccessfulTaskPilotConfig().kind,'disabled');assert.equal(reads,4);
 });

@@ -4,8 +4,9 @@ import { readSuccessfulTaskProductionPolicy } from '@/lib/dabra/successful-task-
 import { successfulTaskReplayResponse } from '@/lib/dabra/successful-task-replay';
 /** Preserve the unconfigured synthetic POST boundary. Selection never falls back. */
 export async function POST(request: Request) {
-  if (readSuccessfulTaskProductionPolicy() == null) return successfulTaskReplayResponse(request);
-  return successfulTaskProductionReplay(new NextRequest(request));
+  const snapshot = readSuccessfulTaskProductionPolicy();
+  if (snapshot.kind === 'disabled') return successfulTaskReplayResponse(request);
+  return successfulTaskProductionReplay(new NextRequest(request), snapshot);
 }
 
 /** Read proof changes accounting: navigation/prefetch must never perform it. */
