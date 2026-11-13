@@ -1085,3 +1085,55 @@ test('content cleanup worker reports uncertain completion without retry or guess
  const pending = f.run(10, controller.signal); controller.abort();
  assert.equal((await pending).kind, 'unknown'); assert.equal(f.calls.length, 1); assert.equal(f.signal()?.aborted, true);
 });
+
+test('cleanup endpoint actual route gates imports and bounds one authenticated server batch', async () => {
+ const token = 'synthetic_cleanup_worker_token_not_a_real_secret_123';
+ const valid = { tokenSha256: createHash('sha256').update(token).digest('hex'), batchLimit: 7 };
+ function fixture(config: unknown = valid, authorized = true, mode = 'ok') {
+  let loads = 0, calls = 0, observed: AbortSignal | undefined;
+  const deps: Record<string, unknown> = {
+   'server-only': {}, 'node:crypto': require('node:crypto'),
+   './successful-task-cleanup-endpoint-config': { readSuccessfulTaskCleanupEndpointConfig: () => config },
+   './successful-task-cleanup-config': { readSuccessfulTaskCleanupAuthorization: () => authorized ? 'stored-deadline-content-only' : null },
+   './successful-task-content-cleanup': { runSuccessfulTaskContentCleanup: async (limit: number, signal: AbortSignal) => {
+    calls++; observed = signal; assert.equal(limit, 7);
+    if (mode === 'hang') return new Promise(() => {});
+    if (mode === 'throw') throw new Error('private transport detail');
+    return { kind: mode === 'unknown' ? 'unknown' : 'completed', removed: 7 };
+   } },
+  };
+  const handler: Record<string, unknown> = {};
+  vm.runInNewContext(ts.transpileModule(readFileSync('lib/dabra/successful-task-cleanup-endpoint.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
+   { exports: handler, Request, Response, URL, Buffer, AbortSignal, require: (id: string) => { assert.ok(Object.hasOwn(deps,id),id); if(id==='./successful-task-content-cleanup')loads++; return deps[id]; } });
+  const route: { POST?: (r: Request) => Promise<Response> } = {};
+  vm.runInNewContext(ts.transpileModule(readFileSync('app/api/internal/dabra/content-cleanup/route.ts','utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText,
+   { exports: route, require: (id: string) => { assert.equal(id,'@/lib/dabra/successful-task-cleanup-endpoint'); return handler; } });
+  assert.equal(loads,0); assert.equal(calls,0); assert.ok(route.POST);
+  assert.equal(Object.keys(route).sort().join(','),'POST,dynamic,runtime');
+  return { post: route.POST, loads:()=>loads, calls:()=>calls, signal:()=>observed };
+ }
+ function request(init: RequestInit = {}, query = '') {
+  return new Request('https://example.test/api/internal/dabra/content-cleanup'+query, { method:'POST', headers:{authorization:`Bearer ${token}`}, ...init });
+ }
+ for(const [config,authorized] of [[null,true],[valid,false],[{...valid,batchLimit:101},true],[{...valid,tokenSha256:'bad'},true]] as const) {
+  const f=fixture(config,authorized); assert.equal((await f.post(request())).status,503); assert.equal(f.loads(),0);
+ }
+ // Real committed configuration remains absent, independent of synthetic enabled cases.
+ assert.equal(require(process.cwd()+'/lib/dabra/successful-task-cleanup-endpoint-config').readSuccessfulTaskCleanupEndpointConfig(),null);
+ for(const r of [request({method:'GET'}),request({method:'HEAD'}),request({headers:{cookie:'synthetic-session'}}),request({headers:{authorization:'Bearer synthetic_whatsapp_token_not_cleanup_123456789'}}),
+  request({},'?limit=100'),request({body:'{"limit":100}'}),request({signal:AbortSignal.abort()})]) {
+  const f=fixture(); assert.notEqual((await f.post(r)).status,200); assert.equal(f.loads(),0); assert.equal(f.calls(),0);
+ }
+ for(const mode of ['ok','unknown','throw','hang']) {
+  const f=fixture(valid,true,mode),keepAlive=setTimeout(()=>{},1500),start=Date.now();
+  try {
+   const response=await f.post(request()); assert.equal(response.status,mode==='ok'?200:503);
+   assert.deepEqual(await response.json(),{state:mode==='ok'?'completed':'unknown'});
+   assert.equal(response.headers.get('Cache-Control'),'private, no-store'); assert.equal(f.calls(),1); assert.equal(f.loads(),1);
+   if(mode==='hang'){assert.ok(Date.now()-start<1400);assert.equal(f.signal()?.aborted,true);}
+  } finally {clearTimeout(keepAlive);}
+ }
+ const f=fixture(valid,true,'hang'),controller=new AbortController(),pending=f.post(request({signal:controller.signal}));
+ await new Promise(resolve=>setImmediate(resolve));controller.abort();
+ assert.equal((await pending).status,503);assert.equal(f.calls(),1);assert.equal(f.signal()?.aborted,true);
+});
