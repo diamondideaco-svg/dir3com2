@@ -42,6 +42,18 @@ export function task187BrowserDiagnostic(error,stage){
 const browserSpawnCodes=new Set(['ENOENT','EACCES','EPERM','EAGAIN','EMFILE','ENFILE','ETIMEDOUT','ERR_CHILD_PROCESS_STDIO_MAXBUFFER']);
 const browserExitSignals=new Set(['SIGTERM','SIGKILL','SIGABRT','SIGSEGV','SIGILL','SIGBUS']);
 const browserStartupCodes=new Set(['ERR_MODULE_NOT_FOUND','ERR_UNKNOWN_FILE_EXTENSION','ERR_UNSUPPORTED_DIR_IMPORT','ERR_DLOPEN_FAILED']);
+const browserErrorClasses=new Set(['Error','SyntaxError','TypeError','ReferenceError','RangeError','TransformError']);
+const browserErrorCodes=new Set([...browserStartupCodes,'ERR_UNHANDLED_REJECTION','ERR_MODULE_NOT_FOUND','ERR_PACKAGE_PATH_NOT_EXPORTED','ERR_REQUIRE_ESM','ERR_INVALID_ARG_TYPE','ENOENT','EACCES','EPERM','EADDRINUSE','ECONNRESET','EPIPE','ERR_IPC_CHANNEL_CLOSED']);
+// Hints only: never return captured messages or infer a failing execution phase.
+// Classes remain unambiguous; repeated codes must all agree and be allowlisted.
+function closedErrorHints(text){
+ if(text===null)return {errorClass:null,errorCode:null};
+ const classes=[...text.matchAll(/^([A-Za-z][A-Za-z0-9]*Error|Error)(?: \[[A-Z][A-Z0-9_]*\])?:/gm)].map(match=>match[1]);
+ const codes=[...text.matchAll(/^(?:[A-Za-z][A-Za-z0-9]*Error|Error) \[([A-Z][A-Z0-9_]*)\]:/gm)].map(match=>match[1]);
+ for(const match of text.matchAll(/^[ \t]*code: (?:'([A-Z][A-Z0-9_]*)'|"([A-Z][A-Z0-9_]*)")[,]?[ \t]*$/gm))codes.push(match[1]??match[2]);
+ return {errorClass:classes.length===1&&browserErrorClasses.has(classes[0])?classes[0]:null,
+  errorCode:codes.length>0&&codes.every(code=>browserErrorCodes.has(code)&&code===codes[0])?codes[0]:null};
+}
 /** Closed exit metadata only. Startup codes are observed hints, not proven causes.
  * @param {unknown} error @param {unknown} stderr
  */
@@ -54,6 +66,7 @@ export function task187BrowserExitSummary(error,stderr){
  const text=typeof stderr==='string'&&stderrInspection==='bounded'?stderr:null;
  const match=text?.match(/^Error \[(ERR_[A-Z_]+)\]:/m);
  return {
+  ...closedErrorHints(text),
   exitCode:Number.isSafeInteger(code)&&typeof code==='number'&&code>=0&&code<=255?code:null,
   spawnCode:typeof code==='string'&&browserSpawnCodes.has(code)?code:null,
   signal:typeof signal==='string'&&browserExitSignals.has(signal)?signal:null,
