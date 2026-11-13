@@ -1,7 +1,7 @@
 import 'server-only';
 import type { NextRequest } from 'next/server';
 import { withSuccessfulTaskOwner } from './successful-task-owner';
-import { readSuccessfulTaskProductionPolicy, parseSuccessfulTaskProgram } from './successful-task-production-policy';
+import { readSuccessfulTaskProductionPolicy, classifySuccessfulTaskPilot } from './successful-task-production-policy';
 
 const headers = { 'Cache-Control': 'private, no-store', Vary: 'Cookie, Authorization', 'Cross-Origin-Resource-Policy': 'same-origin', 'X-Content-Type-Options': 'nosniff' };
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers });
@@ -67,10 +67,13 @@ export async function successfulTaskConsent(request: NextRequest): Promise<Respo
         && typeof input.noticeVersion === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}$/.test(input.noticeVersion)
         && typeof input.noticeSha256 === 'string' && /^[a-f0-9]{64}$/.test(input.noticeSha256)
         && typeof input.mutationId === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(input.mutationId))) return json({ error: 'Invalid request.' }, 400);
-      const program = parseSuccessfulTaskProgram(readSuccessfulTaskProductionPolicy());
-      if (input?.action === 'grant' && !program) return unavailable();
+      const configured = readSuccessfulTaskProductionPolicy();
       const result = await withSuccessfulTaskOwner(request, signal, async (actor, role, admin) => {
         if (input && input.expectedOwner !== actor) return null;
+        // Status and withdrawal remain owner-accessible even outside the pilot.
+        const selection = classifySuccessfulTaskPilot(configured, actor, role);
+        const program = selection.kind === 'pilot' ? selection.program : null;
+        if (input?.action === 'grant' && !program) return null;
         const rpc = async (action: string) => {
           const { data, error } = await admin.rpc('dabra_task_consent', { p_actor_id: actor, p_actor_role: role, p_action: action,
             p_revision: program?.revision ?? null, p_generation: input?.generation ?? null,

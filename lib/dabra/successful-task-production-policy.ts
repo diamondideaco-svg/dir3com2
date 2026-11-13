@@ -1,4 +1,5 @@
 import 'server-only';
+import { readSuccessfulTaskPilotConfig } from './successful-task-pilot-config';
 import type { NextRequest } from 'next/server';
 import { runSuccessfulTaskProduction, type SuccessfulTaskProductionInput } from './successful-task-production-runtime';
 import { interpretSuccessfulTaskDecisions } from './successful-task-decision-contract';
@@ -50,6 +51,32 @@ export function parseSuccessfulTaskProgram(value: unknown): SuccessfulTaskProgra
 }
 export function readSuccessfulTaskProductionPolicy(): SuccessfulTaskProgram | null { return null; }
 
+export type SuccessfulTaskPilotSelection =
+  | { kind: 'disabled' | 'unavailable' }
+  | { kind: 'legacy'; actorId: string; role: string }
+  | { kind: 'pilot'; program: SuccessfulTaskProgram; actorId: string; role: string };
+
+/** Called only with verified Core identity. Ineligibility is never non-membership. */
+export function classifySuccessfulTaskPilot(configured: unknown, actorId: string, role: string): SuccessfulTaskPilotSelection {
+  if (configured == null) return { kind: 'disabled' };
+  const program = parseSuccessfulTaskProgram(configured), config = readSuccessfulTaskPilotConfig();
+  if (!program || !config || Object.keys(config).sort().join(',') !== 'actorId,revision,schema'
+    || config.schema !== 'dabra-successful-task-pilot-v1' || config.revision !== program.revision
+    || typeof config.actorId !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(config.actorId)) return { kind: 'unavailable' };
+  return actorId.toLowerCase() === config.actorId.toLowerCase() ? { kind: 'pilot', program, actorId, role } : { kind: 'legacy', actorId, role };
+}
+
+/** A missing/failed identity never selects legacy. The disabled path does no IO. */
+export async function selectSuccessfulTaskPilot(request: NextRequest, configured: unknown = readSuccessfulTaskProductionPolicy()): Promise<SuccessfulTaskPilotSelection> {
+  if (configured == null) return { kind: 'disabled' };
+  try {
+    const { withSuccessfulTaskOwner } = await import('./successful-task-owner');
+    const { boundedSuccessfulTaskOperation } = await import('./successful-task-lifecycle');
+    return await boundedSuccessfulTaskOperation(signal => withSuccessfulTaskOwner(request, signal,
+      async (actor, role) => classifySuccessfulTaskPilot(configured, actor, role)), request.signal) ?? { kind: 'unavailable' };
+  } catch { return { kind: 'unavailable' }; }
+}
+
 /** null means the new path was not selected: preserve the existing chat path.
  * Any configured value selects the new boundary. Invalid/incomplete decisions
  * fail closed, and even valid references remain unavailable until Core resolves
@@ -58,12 +85,16 @@ export function readSuccessfulTaskProductionPolicy(): SuccessfulTaskProgram | nu
 export async function successfulTaskProductionGate(policy: unknown, request?: NextRequest,
   resolve = resolveSuccessfulTaskCoreDecisions, execution?: SuccessfulTaskProductionInput, run = runSuccessfulTaskProduction): Promise<Response | null> {
   if (policy === null || policy === undefined) return null;
-  const program = parseSuccessfulTaskProgram(policy);
+  const selection = policy && typeof policy === 'object' && 'kind' in policy && policy.kind === 'pilot'
+    ? policy as Extract<SuccessfulTaskPilotSelection, { kind: 'pilot' }> : null;
+  const selectedPolicy = selection ? selection.program : policy;
+  const program = parseSuccessfulTaskProgram(selectedPolicy);
   const parsed = program && request ? await selectSuccessfulTaskPolicy(request, program.revision)
-    : parseSuccessfulTaskProductionPolicy(policy);
+    : parseSuccessfulTaskProductionPolicy(selectedPolicy);
   // Selection never falls through to legacy funding, including unknown admission.
   let decisions = null;
   try { if (parsed && request) decisions = await resolve(request, parsed); } catch { /* Selected paths never fall back. */ }
+  if (selection && decisions && (decisions.actorId !== selection.actorId || decisions.role !== selection.role)) decisions = null;
   const terms = decisions && interpretSuccessfulTaskDecisions(decisions);
   if (parsed && request && decisions && terms && execution) return run(request, execution, parsed, decisions, terms);
   return Response.json({ saved: false, error: 'Task unavailable.',
