@@ -11,6 +11,7 @@ const exact = (v: Record<string, unknown>, keys: string[]) => Object.keys(v).len
  */
 export type SuccessfulTaskExecutionTerms = Readonly<{
   actorId: string; role: string; revision: string;
+  spendingVersion: 1 | 2; modelTier: 'economy' | 'strong';
   answerRetentionMs: number; consentVersion: string; consentSha256: string; consentGeneration: number;
   deletionPolicy: string; purgeWithinMs: number; backupPolicy: string;
   grantId: string; dailySuccesses: number; monthlySuccesses: number;
@@ -41,8 +42,9 @@ export function interpretSuccessfulTaskDecisions(bundle: SuccessfulTaskCoreDecis
       || a.actorId !== bundle.actorId || a.role !== bundle.role || a.revision !== bundle.revision) return null;
     const numbers = ['dailySuccesses', 'monthlySuccesses', 'accountMonthlyCostMicros', 'monthlyCostMicros', 'attemptCostMicros', 'inputTokenCeiling', 'outputTokenCeiling', 'leaseMs'];
     const spending = bundle.decisions.spending;
-    if (!exact(s, ['schema', 'currency', 'timeZone', 'grantId', 'maxAttempts', ...numbers])
-      || s.schema !== 'dabra-task-spending-v1' || s.currency !== 'USD' || s.timeZone !== 'Asia/Riyadh' || s.maxAttempts !== 1
+    const v2 = s.schema === 'dabra-task-spending-v2';
+    if (!exact(s, ['schema', 'currency', 'timeZone', 'grantId', 'maxAttempts', ...numbers, ...(v2 ? ['modelTier'] : [])])
+      || (!v2 && s.schema !== 'dabra-task-spending-v1') || (v2 && s.modelTier !== 'economy' && s.modelTier !== 'strong') || s.currency !== 'USD' || s.timeZone !== 'Asia/Riyadh' || s.maxAttempts !== 1
       || !record(spending) || s.grantId !== spending.fundingGrantId || typeof s.grantId !== 'string'
       || !numbers.every(key => positive(s[key]))) return null;
     const n = s as Record<string, number>;
@@ -52,6 +54,7 @@ export function interpretSuccessfulTaskDecisions(bundle: SuccessfulTaskCoreDecis
       || n.accountMonthlyCostMicros > n.monthlyCostMicros || n.attemptCostMicros > 250000
       || n.inputTokenCeiling > 4096 || n.outputTokenCeiling > 1024 || n.leaseMs > 12000) return null;
     return Object.freeze({ actorId: bundle.actorId, role: bundle.role, revision: bundle.revision,
+      spendingVersion: v2 ? 2 : 1, modelTier: v2 ? s.modelTier as 'economy' | 'strong' : 'economy',
       answerRetentionMs: r.answerRetentionMs, consentVersion: c.noticeVersion, consentSha256: c.noticeSha256,
       consentGeneration: c.generation, deletionPolicy: d.policyReference, purgeWithinMs: d.purgeWithinMs,
       backupPolicy: d.backupPolicyReference, grantId: s.grantId,

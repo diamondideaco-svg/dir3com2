@@ -24,12 +24,12 @@ function authority(v:unknown,now:number):v is Authority {
 }
 const defaultRpc:FundingRpc=async(name,params,signal)=>!supabaseAdmin||signal.aborted?{data:null,error:'unavailable'}:supabaseAdmin.rpc(name,params).abortSignal(signal);
 /** Explicitly selected server policy only; not reachable from client role/provider JSON. */
-export async function loadPublicDialoguePolicy(context:AgentContext|undefined,signal:AbortSignal|undefined,requestId:string|undefined,rpc:FundingRpc=defaultRpc):Promise<AgentDialoguePolicy> {
+export async function loadPublicDialoguePolicy(context:AgentContext|undefined,signal:AbortSignal|undefined,requestId:string|undefined,rpc:FundingRpc=defaultRpc,selectedTier:'economy'|'strong'='economy'):Promise<AgentDialoguePolicy> {
  const blocked:AgentDialoguePolicy={...DEFAULT_AGENT_DIALOGUE_POLICY,trial:true,publicMonthly:true,profiles:[],outputAcceptances:[],
   limits:{...DEFAULT_AGENT_DIALOGUE_POLICY.limits,maxCostUsd:PUBLIC_DIALOGUE_POLICY.attemptCostMicros/1_000_000}};
  const actor=context&&publicDialogueActor(context);
  const projectCurrent=()=>{try{return context?.isDialogueFundingProjectCurrent?.()===true;}catch{return false;}};
- if(!actor||!uuid(actor)||!uuid(requestId)||signal?.aborted||!projectCurrent())return blocked;
+ if(!['economy','strong'].includes(selectedTier)||!actor||!uuid(actor)||!uuid(requestId)||signal?.aborted||!projectCurrent())return blocked;
  const read=async(currentSignal:AbortSignal)=>{
   if(currentSignal.aborted||!projectCurrent())return null;
   let stop:(()=>void)|undefined;
@@ -44,9 +44,9 @@ export async function loadPublicDialoguePolicy(context:AgentContext|undefined,si
   if(!await isAgentTaskAuthorityCurrent(context,bounded)||bounded.aborted||!projectCurrent())return blocked;
   const authorities=await read(bounded);
   if(!authorities||bounded.aborted||!await isAgentTaskAuthorityCurrent(context,bounded)||bounded.aborted||!projectCurrent())return blocked;
-  // Strong routing requires a separately demonstrated need. No automatic Sonnet
-  // quota, fixed split or fallback is inferred from the public budget approval.
-  const eligible=authorities.filter(a=>a.model_tier==='economy');
+  // Only the selected successful-task path supplies a tier; legacy stays economy.
+  // Core independently enforces its account/revision spending approval at admission.
+  const eligible=authorities.filter(a=>a.model_tier===selectedTier);
   const forProfile=(proof:DurableAccountChargeProof,profile:AgentCapabilityProfile)=>eligible.find(a=>a.source_grant_id===proof.grantId&&isDeepStrictEqual(a.source_proof,proof)&&durableProfileSha256(a.profile)===durableProfileSha256(profile));
   return {...blocked,profiles:eligible.map(a=>a.profile),outputAcceptances:eligible.map(a=>a.output_acceptance),
    publicProfileAuthorized:(proof,profile)=>projectCurrent()&&proof.mode==='bounded-account-charge'&&!!forProfile(proof,profile),

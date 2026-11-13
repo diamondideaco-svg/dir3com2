@@ -22,10 +22,12 @@ export async function runSuccessfulTaskProduction(request: NextRequest, selected
   if (!selected.requestId || !supabaseAdmin || request.signal.aborted) return unavailable();
   try {
     const roleMatches = (role: string) => role === bundle.role || (role === 'ceo' && bundle.role === 'admin' && bundle.actorId === CEO_USER_ID);
-    const input = await boundedSuccessfulTaskOperation(async signal => {
+    const resolvedInput = await boundedSuccessfulTaskOperation(async signal => {
       const resolved = await selected.resolveInput();
       return await successfulTaskAuthorityCurrent(resolved, signal) ? resolved : null;
     }, request.signal);
+    const input = resolvedInput && { ...resolvedInput, successfulTaskModelSelection: terms.spendingVersion === 2
+      ? Object.freeze({ schema: 'dabra-task-model-selection-v2' as const, tier: terms.modelTier }) : undefined };
     if (!input || publicDialogueActor(input.context) !== bundle.actorId || !roleMatches(input.context.role)
       || terms.actorId !== bundle.actorId || terms.revision !== bundle.revision) return unavailable();
     // Original continuity and operations receipts are independently locked by Core.

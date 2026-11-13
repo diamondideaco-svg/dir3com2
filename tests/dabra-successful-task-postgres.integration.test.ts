@@ -97,6 +97,7 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
    const normalizeCountry=baseline.match(/CREATE OR REPLACE FUNCTION public\.normalize_admin_country_key\(value text\)[\s\S]*?\$function\$\n;/);
    assert.ok(grantTable && normalizeCountry);await client.query(grantTable[0]);await client.query(normalizeCountry[0]);
    await client.query(sql('20261112100000_task237_production_lifecycle.sql'));
+   await client.query(sql('20261113193000_task237_strong_pilot.sql'));
    const operator=await addActor();await client.query("UPDATE public.profiles SET role='staff' WHERE id=$1",[operator]);
    const operations={schema:'dabra-operations-binding-v1',actorId:operator,country:'EG',kind:'grant',grant:{id:randomUUID(),invited_user_id:operator,access_level:'scoped_staff',status:'active',country_scope:['Egypt'],permissions:['operations:read']}};
    const checkOperations=async(b:unknown=operations)=>(await client.query('SELECT private.dabra_task_operations_current($1,$2) AS v',[operator,b])).rows[0].v;
@@ -137,6 +138,38 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
    assert.equal((await client.query('SELECT private.dabra_production_task_terms($1) AS v',[opaque])).rows[0].v,null,'metadata alone cannot admit');
    for(const [kind,document] of Object.entries(docs)) await client.query('UPDATE private.dabra_successful_task_decisions SET document=$1 WHERE kind=$2',[document,kind]);
    const approved=await resolve(),production=[...request(who),digest,randomUUID(),'customer',policy,approved];
+   await core.test('Strong v2 atomic policy and admission preserve v1 and one hold',async()=>{
+    // Keep this case in one rollback-only transaction; the outer RPC helper commits.
+    const rpc=async(name:string,args:unknown[])=>{
+     await client.query('SET LOCAL ROLE service_role');
+     try {return (await client.query(`SELECT public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) AS v`,args)).rows[0].v;}
+     finally {await client.query('RESET ROLE');}
+    };
+    const resolve=()=>rpc('resolve_dabra_successful_task_decisions',[who,'customer',policy]);
+    await client.query('BEGIN');
+    try {
+     const strongId=randomUUID(),strongAcceptance={...acceptance,receipt:{...acceptance.receipt,artifactSha256:'d'.repeat(64)}};
+     await client.query("INSERT INTO private.dabra_public_dialogue_authorities(id,source_grant_id,source_proof,profile,output_acceptance,model_tier,enabled,authorized_at) VALUES($1,$2,$3,$4,$5,'strong',true,to_timestamp($6::numeric/1000))",[strongId,grantId,proof,profile,strongAcceptance,now-2000]);
+     const strongRequest=[...request(who),digest,randomUUID(),'customer',policy,approved];
+     strongRequest[3]=strongId;strongRequest[4]={...(strongRequest[4] as Record<string,unknown>),authorityId:strongId};
+     assert.equal((await rpc('reserve_dabra_production_task',strongRequest)).decision,'denied','v1 cannot admit strong');
+     const v1Policy=await rpc('get_dabra_production_task_policy',[who,'customer',policy,approved]);
+     assert.ok(v1Policy.authorities.every((a:{model_tier:string})=>a.model_tier==='economy'));
+     await client.query("UPDATE private.dabra_successful_task_decisions SET document=$1 WHERE actor_id=$2 AND kind='spending'",[{...docs.spending,schema:'dabra-task-spending-v2',modelTier:'strong'},who]);
+     const v2=await resolve();strongRequest[12]=v2;
+     assert.equal((await client.query('SELECT private.dabra_production_task_terms($1) AS v',[v2])).rows[0].v.model_tier,'strong');
+     const selected=await rpc('get_dabra_production_task_policy',[who,'customer',policy,v2]);
+     assert.equal(selected.authorities.length,1);assert.equal(selected.authorities[0].id,strongId);
+     const before=await countHolds();
+     assert.equal((await rpc('reserve_dabra_production_task',[...production.slice(0,-1),v2])).decision,'denied','v2 strong cannot fall back to economy');
+     assert.equal((await rpc('reserve_dabra_production_task',strongRequest)).decision,'admitted');
+     assert.equal((await rpc('reserve_dabra_production_task',strongRequest)).decision,'existing');
+     const after=await countHolds();assert.equal(after.n,before.n+1);
+     await client.query("UPDATE private.dabra_successful_task_decisions SET document=$1 WHERE actor_id=$2 AND kind='spending'",[{...docs.spending,schema:'dabra-task-spending-v2',modelTier:'economy'},who]);
+     strongRequest[12]=await resolve();assert.equal((await rpc('reserve_dabra_production_task',strongRequest)).decision,'conflict');
+     assert.deepEqual(await countHolds(),after);
+    } finally {await client.query('ROLLBACK');}
+   });
    const retrieve=()=>rpc('read_dabra_production_task',[who,production[1],digest,'customer',policy,approved]);
    for(const [key,maximum] of Object.entries({dailySuccesses:10,monthlySuccesses:50,accountMonthlyCostMicros:500000,monthlyCostMicros:25000000})) {
     const excessive=structuredClone(approved);Object.assign(excessive.decisions.spending.document,{dailySuccesses:10,monthlySuccesses:50,accountMonthlyCostMicros:500000,monthlyCostMicros:25000000,[key]:maximum+1});

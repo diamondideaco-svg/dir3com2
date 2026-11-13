@@ -583,7 +583,7 @@ function executableDocuments(c: ReturnType<typeof coreDecisionFixture>, grantId:
   return documents;
 }
 
-for (const lostAdmission of [false, true, 'continuity'] as const) test(`production lifecycle actual POST single admission and replay lost=${lostAdmission}`, async () => {
+for (const lostAdmission of [false, true, 'continuity', 'strong'] as const) test(`production lifecycle actual POST single admission and replay lost=${lostAdmission}`, async () => {
   const restore = syntheticProviderEnvironment();
   const lost = lostAdmission === true, withTrip = lostAdmission === 'continuity';
   const originalTrip = { id: randomUUID(), origin: 'Cairo', destination: 'Riyadh', startDate: null, endDate: null, adults: 2, children: 0, rooms: 1, budget: null, currency: 'USD', families: ['stay'] };
@@ -601,7 +601,8 @@ for (const lostAdmission of [false, true, 'continuity'] as const) test(`producti
     const x = fixture({ continuityServer: withTrip ? continuityServer : undefined, productionPolicy: decisionReferences, coreResolve: (...args) => c.resolve(...args),
       productionRun: (...args) => runtime(...args) });
     c = coreDecisionFixture(x.f.context.taskAuthority!.kind === 'guest' ? '' : x.f.context.taskAuthority!.actorId);
-    executableDocuments(c, x.f.proof.grantId);
+    const documents = executableDocuments(c, x.f.proof.grantId);
+    if (lostAdmission === 'strong') Object.assign(documents.spending, {schema:'dabra-task-spending-v2',modelTier:'strong'});
     let row: Record<string, unknown> | null = null;
     const calls: string[] = [];
     const rpc: FundingRpc = async (name, p, signal) => {
@@ -617,7 +618,12 @@ for (const lostAdmission of [false, true, 'continuity'] as const) test(`producti
         assert.equal(JSON.stringify(p.p_policy), JSON.stringify(decisionReferences));
         assert.equal(JSON.stringify(p.p_expected_decisions), JSON.stringify(c.result));
       }
-      if (name === 'get_dabra_production_task_policy') return x.f.rpc('get_dabra_public_dialogue_policy', { p_actor_id: p.p_actor_id }, signal);
+      if (name === 'get_dabra_production_task_policy') {
+        const result=await x.f.rpc('get_dabra_public_dialogue_policy', { p_actor_id: p.p_actor_id }, signal);
+        if(lostAdmission==='strong' && result.data && typeof result.data==='object' && 'authorities' in result.data)
+          return {...result,data:{...result.data,authorities:(result.data.authorities as Record<string,unknown>[]).map(a=>({...a,model_tier:'strong'}))}};
+        return result;
+      }
       if (withTrip && revokeOnFinalRead && p.p_confirm_read === true) { continuityRevoked = true; return { error: null, data: null }; }
       if (name === 'read_dabra_production_task') return { error: null, data: row ?? { state: 'absent' } };
       if (name === 'reserve_dabra_production_task') {
@@ -1226,4 +1232,27 @@ test('private pilot snapshot is bounded immutable and reads once across identity
  assert.equal((await policy.selectSuccessfulTaskPilot(new NextRequest('https://example.test'))).kind,'unavailable');assert.equal(reads,2);
  fail=true;assert.equal(config.readSuccessfulTaskPilotConfig().kind,'unavailable');assert.equal(reads,3);
  fail=false;raw=undefined;assert.equal(config.readSuccessfulTaskPilotConfig().kind,'disabled');assert.equal(reads,4);
+});
+
+
+test('Strong spending v2 is explicit and digest preserves legacy bytes',()=>{
+ const c=coreDecisionFixture(),f=successfulTaskRuntimeFixture();const docs=executableDocuments(c,f.proof.grantId);
+ const v1=interpretSuccessfulTaskDecisions(c.result);assert.equal(v1?.modelTier,'economy');assert.equal(v1?.spendingVersion,1);
+ const input={message:'synthetic',history:[],locale:'en' as const,context:f.context};
+ const legacy=successfulTaskInputDigest(input);
+ assert.equal(legacy,createHash('sha256').update(JSON.stringify({schema:'task237-input-v2',actor:input.context.taskAuthority,role:input.context.role,message:input.message,history:[],locale:'en',trip:null,continuityBinding:null,intent:null,pricing:null,needsClarification:false,serverAttachmentNote:null})).digest('hex'));
+ Object.assign(docs.spending,{schema:'dabra-task-spending-v2',modelTier:'strong'});
+ assert.equal(interpretSuccessfulTaskDecisions(c.result)?.modelTier,'strong');
+ const selected={...input,successfulTaskModelSelection:{schema:'dabra-task-model-selection-v2' as const,tier:'strong' as const}};
+ assert.notEqual(successfulTaskInputDigest(selected),legacy);
+ assert.notEqual(successfulTaskInputDigest(selected),successfulTaskInputDigest({...selected,successfulTaskModelSelection:{...selected.successfulTaskModelSelection,tier:'economy'}}));
+ Object.assign(docs.spending,{modelTier:'economy'});assert.equal(interpretSuccessfulTaskDecisions(c.result)?.modelTier,'economy');
+ Object.assign(docs.spending,{modelTier:'strong',maxAttempts:2});assert.equal(interpretSuccessfulTaskDecisions(c.result),null);
+ Object.assign(docs.spending,{maxAttempts:1,accountMonthlyCostMicros:500001});assert.equal(interpretSuccessfulTaskDecisions(c.result),null);
+ Object.assign(docs.spending,{accountMonthlyCostMicros:10000});
+ for(const tier of [null,['strong'],'invalid']){Object.assign(docs.spending,{modelTier:tier});assert.equal(interpretSuccessfulTaskDecisions(c.result),null);}
+ Object.assign(docs.spending,{schema:'dabra-task-spending-v1',modelTier:'strong'});assert.equal(interpretSuccessfulTaskDecisions(c.result),null);
+ const sql=readFileSync('supabase/migrations/20261113193000_task237_strong_pilot.sql','utf8');
+ for(const guard of ["a.model_tier IS DISTINCT FROM terms->>'model_tier'","a.model_tier=t->>'model_tier'",'p_expected_decisions','p_cost_micros>c.attempt_cost_micros'])assert.ok(sql.includes(guard));
+ assert.equal((sql.match(/CREATE OR REPLACE FUNCTION/g)||[]).length,3);assert.doesNotMatch(sql,/CREATE TABLE|GRANT EXECUTE|INSERT INTO private.dabra_dialogue_funding_grants/);
 });
