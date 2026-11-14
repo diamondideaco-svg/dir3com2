@@ -186,7 +186,9 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
      const v2=await resolve();strongRequest[12]=v2;
      assert.equal((await client.query('SELECT private.dabra_production_task_terms($1) AS v',[v2])).rows[0].v.model_tier,'strong');
      const otherGrantId=randomUUID(),otherAuthorityId=randomUUID();
-     const otherUnbound={...proof,grantId:otherGrantId,accountId:'SYNTHETIC-second-public'};
+     const otherUnbound={...proof,grantId:otherGrantId,accountId:'SYNTHETIC-second-public',
+      limitedOperation:{...proof.limitedOperation,authorizationId:randomUUID()}};
+     assert.notEqual(otherUnbound.limitedOperation.authorizationId,proof.limitedOperation.authorizationId);
      const otherProof={...otherUnbound,limitedOperation:{...otherUnbound.limitedOperation,bindingSha256:durableAuthorityBindingSha256(otherUnbound)}};
      const otherAcceptance={...acceptance,receipt:{...acceptance.receipt,artifactSha256:'9'.repeat(64)}};
      await client.query("INSERT INTO private.dabra_dialogue_funding_grants(id,provider,account_id,project_id,funding_mode,authorized_credit_micros,input_rate_micros_per_million,output_rate_micros_per_million,enabled,proof,authorized_at) VALUES($1,'openai','SYNTHETIC-second-public','SYNTHETIC-project','bounded-account-charge',0,100000,500000,true,$2,to_timestamp($3::numeric/1000))",[otherGrantId,otherProof,now-4000]);
