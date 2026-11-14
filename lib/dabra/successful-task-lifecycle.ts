@@ -9,7 +9,7 @@ import { DISPLAY_CURRENCIES } from '../currency/display';
 
 import type { SuccessfulTaskContinuityBinding } from './continuity-chat-server';
 
-type Input = Parameters<typeof runInternalAgentTask>[0] & { successfulTaskContinuityBinding?: SuccessfulTaskContinuityBinding; continuityBinding?: Readonly<{ revision: number; generation: number }> };
+type Input = { successfulTaskModelSelection?: Readonly<{ schema: 'dabra-task-model-selection-v2'; tier: 'economy' | 'strong' }> } & Parameters<typeof runInternalAgentTask>[0] & { successfulTaskContinuityBinding?: SuccessfulTaskContinuityBinding; continuityBinding?: Readonly<{ revision: number; generation: number }> };
 const uuid = (v: string) => /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(v);
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');
@@ -24,7 +24,7 @@ export function successfulTaskInputDigest(input: Input) {
     rates: Object.fromEntries(DISPLAY_CURRENCIES.map(currency => [currency, snapshot.rates[currency]])),
     fresh: Number.isFinite(snapshot.expiresAt) && snapshot.expiresAt > Date.now(),
   } : null } : null;
-  return sha(JSON.stringify({ schema: 'task237-input-v2', actor: input.context.taskAuthority, role: input.context.role,
+  return sha(JSON.stringify({ schema: input.successfulTaskModelSelection ? 'task237-input-v3' : 'task237-input-v2', ...(input.successfulTaskModelSelection ? { modelSelection: input.successfulTaskModelSelection } : {}), actor: input.context.taskAuthority, role: input.context.role,
     message: input.message, history: input.history, locale: input.locale, trip: input.trip ?? null,
     continuityBinding: input.continuityBinding ?? null, intent: input.intent ?? null, pricing, needsClarification: input.needsClarification ?? false,
     serverAttachmentNote: input.serverAttachmentNote ?? null }));
@@ -111,7 +111,7 @@ export function createSuccessfulTaskLifecycle(deps: {
         explicitlyDenied = !result.error && object(result.data) && result.data.decision === 'denied';
         return result;
       };
-      const policy = await loadPublicDialoguePolicy(input.context, signal, requestId, rpc);
+      const policy = await loadPublicDialoguePolicy(input.context, signal, requestId, rpc, input.successfulTaskModelSelection?.tier ?? 'economy');
       // A quote that expired during policy IO must not start an admission.
       if (!inputUnchanged()) return { kind: 'unavailable', saved: false };
       const result = await deps.execute(input, policy, signal);

@@ -22,11 +22,15 @@ export async function runSuccessfulTaskProduction(request: NextRequest, selected
   if (!selected.requestId || !supabaseAdmin || request.signal.aborted) return unavailable();
   try {
     const roleMatches = (role: string) => role === bundle.role || (role === 'ceo' && bundle.role === 'admin' && bundle.actorId === CEO_USER_ID);
-    const input = await boundedSuccessfulTaskOperation(async signal => {
+    const resolvedInput = await boundedSuccessfulTaskOperation(async signal => {
       const resolved = await selected.resolveInput();
       return await successfulTaskAuthorityCurrent(resolved, signal) ? resolved : null;
     }, request.signal);
-    if (!input || publicDialogueActor(input.context) !== bundle.actorId || !roleMatches(input.context.role)
+    if (!resolvedInput) return unavailable();
+    const modelSelection = terms.spendingVersion === 2
+      ? Object.freeze({ schema: 'dabra-task-model-selection-v2' as const, tier: terms.modelTier }) : undefined;
+    const input = { ...resolvedInput, successfulTaskModelSelection: modelSelection };
+    if (publicDialogueActor(input.context) !== bundle.actorId || !roleMatches(input.context.role)
       || terms.actorId !== bundle.actorId || terms.revision !== bundle.revision) return unavailable();
     // Original continuity and operations receipts are independently locked by Core.
     // Operational scope must carry the actual server resolver's binding; Core
@@ -53,7 +57,14 @@ export async function runSuccessfulTaskProduction(request: NextRequest, selected
     const authorityCheck = context.isTaskAuthorityCurrent, projectCheck = context.isDialogueFundingProjectCurrent;
     const checkedInput = { ...input, context: { ...context, taskAuthority: structuredClone(context.taskAuthority),
       isTaskAuthorityCurrent: authorityCheck?.bind(context), isDialogueFundingProjectCurrent: projectCheck?.bind(context) } };
+    // The tier overlay must not hide replacement of the original server context.
+    // Keep authority fences on that source while execution uses the fixed tier.
+    const sourceDigest = () => successfulTaskInputDigest({ ...resolvedInput, successfulTaskModelSelection: modelSelection });
     const current = () => isCredentialBindingCoreProject(getSupabaseAdminHostname())
+      && sourceDigest() === digest
+      && resolvedInput.context === context && resolvedInput.trip === input.trip
+      && resolvedInput.continuityBinding === input.continuityBinding
+      && resolvedInput.successfulTaskContinuityBinding === input.successfulTaskContinuityBinding
       && !unsupportedContext() && JSON.stringify(input.successfulTaskContinuityBinding ?? null) === continuitySnapshot && JSON.stringify(context.successfulTaskOperationsBinding ?? null) === operationsSnapshot && input.context === context && JSON.stringify(context.taskAuthority) === authority
       && context.isTaskAuthorityCurrent === authorityCheck && context.isDialogueFundingProjectCurrent === projectCheck
       && publicDialogueActor(input.context) === bundle.actorId && roleMatches(input.context.role);
@@ -83,7 +94,7 @@ export async function runSuccessfulTaskProduction(request: NextRequest, selected
       p_actor_role: bundle.role, p_policy: policy, p_expected_decisions: expected, p_operations_binding: operations, p_continuity_binding: continuity, p_confirm_read: true,
     }).abortSignal(signal), request.signal);
     const row = final.data, now = Date.now();
-    if (final.error || !current() || request.signal.aborted || successfulTaskInputDigest(input) !== digest
+    if (final.error || !current() || request.signal.aborted || sourceDigest() !== digest || successfulTaskInputDigest(input) !== digest
       || !Object.values(bundle.decisions).every(d => !!d && typeof d === 'object' && 'expiresAtMs' in d
         && typeof d.expiresAtMs === 'number' && d.expiresAtMs > now)
       || !row || row.state !== 'succeeded' || row.answer !== result.answer || row.language !== result.language

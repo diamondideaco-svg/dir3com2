@@ -256,5 +256,11 @@
     "sha256": "cff07fcfa4e59187dbc54d0467c9489987745371fafceedd07059bb4a3c2d0e0",
     "task": "#237",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261113193000_task237_strong_pilot.sql",
+    "sha256": "dac358d5739db1cf586d038a275c76f71095261919ddde9435823f0245a7c615",
+    "task": "#237",
+    "production_apply_authorized": false
   }
 ]

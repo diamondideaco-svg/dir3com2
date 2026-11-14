@@ -165,3 +165,15 @@ test('historical receipt cannot authorize current input contract: '+id+'/'+langu
  assert.equal(profileOutputAccepted(p,contract,[acceptance],Date.now()),true);
  assert.equal(profileOutputAccepted(p,contract,[{...acceptance,contractSha256:historical.digest}],Date.now()),false);
 });
+
+
+test('Strong task tier is explicit with no economy fallback and legacy unchanged',async()=>{
+ const strong=fixture('customer','strong-only');
+ assert.equal((await strong.policy()).profiles.length,0);
+ const selected=await loadPublicDialoguePolicy(strong.context,undefined,strong.requestId,strong.rpc,'strong');
+ assert.equal(selected.profiles.length,2);assert.equal(selected.limits.maxAttempts,1);
+ const result=await runInternalAgentTask({message:'hotel in Cairo',history:[],locale:'en',context:strong.context,intent:{tool:'discover',reference:null,draft:false}},{dialogue:selected,responseContract:'platform-dialogue'});
+ assert.equal(result.kind,'response');assert.equal(strong.stats().claims,1);assert.equal(strong.stats().models,1);
+ const economy=fixture();assert.equal((await loadPublicDialoguePolicy(economy.context,undefined,economy.requestId,economy.rpc,'strong')).profiles.length,0);
+ assert.equal(economy.stats().claims,0);assert.equal(economy.stats().models,0);
+});
