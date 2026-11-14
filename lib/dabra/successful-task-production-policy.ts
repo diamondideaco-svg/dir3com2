@@ -1,5 +1,5 @@
 import 'server-only';
-import { readSuccessfulTaskPilotConfig, type SuccessfulTaskPilotSnapshot } from './successful-task-pilot-config';
+import { readSuccessfulTaskPilotConfig, readSuccessfulTaskConsentConfig, type SuccessfulTaskPilotSnapshot } from './successful-task-pilot-config';
 import type { NextRequest } from 'next/server';
 import { runSuccessfulTaskProduction, type SuccessfulTaskProductionInput } from './successful-task-production-runtime';
 import { interpretSuccessfulTaskDecisions } from './successful-task-decision-contract';
@@ -47,7 +47,9 @@ export function parseSuccessfulTaskProgram(value: unknown): SuccessfulTaskProgra
     || typeof v.revision !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}$/.test(v.revision)) return null;
   return Object.freeze({ schema: 'dabra-successful-task-program-v1', revision: v.revision });
 }
-export function readSuccessfulTaskProductionPolicy(): SuccessfulTaskPilotSnapshot { return readSuccessfulTaskPilotConfig(); }
+export function readSuccessfulTaskProductionPolicy(scope: 'execution' | 'consent' = 'execution'): SuccessfulTaskPilotSnapshot {
+  return scope === 'consent' ? readSuccessfulTaskConsentConfig() : readSuccessfulTaskPilotConfig();
+}
 
 export type SuccessfulTaskPilotSelection =
   | { kind: 'disabled' | 'unavailable' }

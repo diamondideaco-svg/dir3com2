@@ -50,6 +50,14 @@ export async function loadPublicDialoguePolicy(context:AgentContext|undefined,si
   const forProfile=(proof:DurableAccountChargeProof,profile:AgentCapabilityProfile)=>eligible.find(a=>a.source_grant_id===proof.grantId&&isDeepStrictEqual(a.source_proof,proof)&&durableProfileSha256(a.profile)===durableProfileSha256(profile));
   return {...blocked,profiles:eligible.map(a=>a.profile),outputAcceptances:eligible.map(a=>a.output_acceptance),
    publicProfileAuthorized:(proof,profile)=>projectCurrent()&&proof.mode==='bounded-account-charge'&&!!forProfile(proof,profile),
+   publicProfileOutputAccepted:(proof,profile,contract,at)=>{
+    if(!projectCurrent()||proof.mode!=='bounded-account-charge')return false;
+    // Match the same uniqueness requirement as admission; repeated profiles on
+    // other grants do not make this authority's own acceptance ambiguous.
+    const matches=eligible.filter(a=>a.source_grant_id===proof.grantId&&a.output_acceptance&&durableProfileSha256(a.profile)===durableProfileSha256(profile));
+    return matches.length===1&&isDeepStrictEqual(matches[0].source_proof,proof)
+     &&profileOutputAccepted(profile,contract,[matches[0].output_acceptance],at);
+   },
    funding:{kind:'public-monthly-v1',requestId,proofs:eligible.map(a=>a.source_proof),refreshPricing:refreshPublicDialoguePricing,
     async isCurrent(proof,profile,currentSignal){
      const fresh=await read(currentSignal);return !!fresh&&isDeepStrictEqual(fresh,authorities)&&proof.mode==='bounded-account-charge'&&!!forProfile(proof,profile);

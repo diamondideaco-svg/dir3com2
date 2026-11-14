@@ -2,7 +2,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { APPROVED_DIALOGUE_STANDARD_PRICING } from './dialogue-pricing-approvals';
 import { validDurableAccountChargeProof, type DurableAccountChargeProof } from './dialogue-durable-authority';
-import { publicPricingObservationCurrent, type PublicPricingObservation } from './dialogue-pricing-refresh';
+import { approvedPublicPricingContract, publicPricingObservationCurrent, type PublicPricingObservation } from './dialogue-pricing-refresh';
 import { AGENT_PROVIDER_IDS, type AgentCapabilityProfile, type AgentProviderId, type CapabilityMeasurement } from './agent-capabilities';
 import type { DialogueDailyLimits } from './agent-dialogue';
 
@@ -266,13 +266,30 @@ function reviewedStandardRates(reference: unknown, proof: Extract<DialogueFundin
   ])).digest('hex');
   return fingerprint === reference ? r : undefined;
 }
+// Shared integer calculation: the candidate estimate and the observed quote use
+// the same reviewed tariff and all-in additional-charge bound.
+function boundedAccountChargeMicros(proof: DurableAccountChargeProof, m: DialogueFundingCeilings,
+  rates: Readonly<{ inputMicrosPerMillion: number; outputMicrosPerMillion: number }>) {
+  if (!count(rates.inputMicrosPerMillion) || !count(rates.outputMicrosPerMillion)) return null;
+  const numerator = BigInt(m.inputTokenCeiling) * BigInt(rates.inputMicrosPerMillion)
+    + BigInt(m.outputTokenCeiling) * BigInt(rates.outputMicrosPerMillion);
+  const cost = Number((numerator + BigInt(999999)) / BigInt(1000000) + BigInt(proof.accountTerms.allInChargeBound.maxAdditionalMicros));
+  return count(cost) && cost > 0 && cost <= proof.limitedOperation.maxCostMicros ? cost : null;
+}
+/** Preliminary quote for ranking only. It creates no observation and authorizes
+ * no reservation: execution must still refresh the source and Core must check it. */
+export function approvedDurableDialogueQuoteMicros(proof: DurableAccountChargeProof, profile: AgentCapabilityProfile, now: number) {
+  const m = { ...profile.measurement, provider: profile.provider };
+  if (!fundingProofForCeilings(proof, m, now)) return null;
+  const contract = approvedPublicPricingContract(proof.provider, proof.model, proof.pricingEvidenceSha256);
+  if (!contract || contract.digest !== proof.limitedOperation.contractSha256
+    || (contract.tariffBeforeMs !== null && now >= contract.tariffBeforeMs)) return null;
+  return boundedAccountChargeMicros(proof, m, contract);
+}
 export function quoteDialogueFunding(proof: DialogueFundingProof, m: DialogueFundingCeilings, now: number, observation?: PublicPricingObservation): number | null {
   if (proof.mode === 'bounded-account-charge') {
     if (!fundingProofForCeilings(proof, m, now) || !observation || !publicPricingObservationCurrent(observation, proof, now)) return null;
-    const numerator = BigInt(m.inputTokenCeiling) * BigInt(observation.inputMicrosPerMillion)
-      + BigInt(m.outputTokenCeiling) * BigInt(observation.outputMicrosPerMillion);
-    const cost = Number((numerator + BigInt(999999)) / BigInt(1000000) + BigInt(proof.accountTerms.allInChargeBound.maxAdditionalMicros));
-    return count(cost) && cost > 0 && cost <= proof.limitedOperation.maxCostMicros ? cost : null;
+    return boundedAccountChargeMicros(proof, m, observation);
   }
   if (!fundingProofForCeilings(proof, m, now)) return null;
   if (proof.mode === 'no-new-charge') return 0;

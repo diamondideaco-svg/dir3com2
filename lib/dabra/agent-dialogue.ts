@@ -8,8 +8,8 @@ import { PLATFORM_DIALOGUE_PROMPT,platformDialoguePayload } from './agent-platfo
 import { AGENT_DIALOGUE_PROMPT } from './agent-platform-units';
 export { AGENT_DIALOGUE_PROMPT, composePublicAgentDialogue } from './agent-platform-units';
 import { requestOutputContract, profileOutputAccepted, APPROVED_PROFILE_OUTPUT_ACCEPTANCES } from './agent-output-contract';
-import { dialogueCostCeilingMicros, fundingProofCurrent, fundingAuthorizationWindow, validFundingRequestIdentity, type DialogueFundingBinding } from './dialogue-funding';
-import { durableAuthorityAcceptsProfile, durableProfileSha256 } from './dialogue-durable-authority';
+import { approvedDurableDialogueQuoteMicros, dialogueCostCeilingMicros, fundingProofCurrent, fundingAuthorizationWindow, validFundingRequestIdentity, type DialogueFundingBinding, type DialogueFundingProof } from './dialogue-funding';
+import { durableAuthorityAcceptsProfile, durableProfileSha256, type DurableAccountChargeProof } from './dialogue-durable-authority';
 import type { PublicPricingObservation } from './dialogue-pricing-refresh';
 import { coreRequiredDialogueUnits } from './conversation-renderer';
 import { generalTravelContext, GENERAL_TRAVEL_PROMPT } from './agent-general-travel';
@@ -46,9 +46,19 @@ export type DialogueReservation = Readonly<{
 export interface DialogueAdmission {
   reserve(request: DialogueReservation, signal: AbortSignal): Promise<'admitted' | 'denied'>;
 }
+/** V3 decision ceilings for candidate eligibility, separate from request preparation time. */
+export type SuccessfulTaskCandidateLimits = Readonly<{
+  leaseMs: number; inputTokenCeiling: number; outputTokenCeiling: number; attemptCostMicros: number;
+}>;
 export type AgentDialoguePolicy = Readonly<{
   publicMonthly?: boolean;
-  publicProfileAuthorized?: (proof: import('./dialogue-funding').DialogueFundingProof, profile: AgentCapabilityProfile) => boolean;
+  successfulTaskCandidateLimits?: SuccessfulTaskCandidateLimits;
+  /** Server-selected multi-grant task only; never a client provider override. */
+  providerSelection?: 'auto';
+  publicProfileAuthorized?: (proof: DialogueFundingProof, profile: AgentCapabilityProfile) => boolean;
+  /** V3: the acceptance must belong to the same unique authority as the grant/profile pair. */
+  publicProfileOutputAccepted?: (proof: DialogueFundingProof, profile: AgentCapabilityProfile,
+    contract: NonNullable<ReturnType<typeof requestOutputContract>>, at: number) => boolean;
   trial: boolean; environment: CapabilityMeasurement['environment'];
   profiles: readonly AgentCapabilityProfile[];
   outputAcceptances?: readonly unknown[];
@@ -89,8 +99,13 @@ export function dialogueDay(nowMs: number) {
   return { dayStartMs, dayEndMs: dayStartMs + 86400000 };
 }
 function validPolicy(policy: AgentDialoguePolicy) {
-  const l = policy.limits, d = policy.daily;
-  return l.maxAttempts === 1 && (policy.funding ? Number.isFinite(l.maxCostUsd) && l.maxCostUsd >= 0 && validFundingRequestIdentity(policy.funding) : l.maxCostUsd === 0) && l.maxElapsedMs > 0 && l.maxElapsedMs <= 12000
+  const l = policy.limits, d = policy.daily, c = policy.successfulTaskCandidateLimits;
+  return (c === undefined || (policy.providerSelection === 'auto' && policy.publicMonthly === true
+      && policy.funding?.kind === 'public-monthly-v1' && typeof policy.publicProfileOutputAccepted === 'function'
+      && [c.leaseMs, c.inputTokenCeiling, c.outputTokenCeiling, c.attemptCostMicros].every(n => Number.isSafeInteger(n) && n > 0)
+      && c.leaseMs <= 12000 && c.inputTokenCeiling <= 4096 && c.outputTokenCeiling <= 1024 && c.attemptCostMicros <= 250000))
+    && (policy.providerSelection === undefined || (policy.providerSelection === 'auto' && policy.publicMonthly === true))
+    && l.maxAttempts === 1 && (policy.funding ? Number.isFinite(l.maxCostUsd) && l.maxCostUsd >= 0 && validFundingRequestIdentity(policy.funding) : l.maxCostUsd === 0) && l.maxElapsedMs > 0 && l.maxElapsedMs <= 12000
     && Number.isSafeInteger(l.maxElapsedMs) && Number.isSafeInteger(l.maxInputTokens) && l.maxInputTokens > 0 && l.maxInputTokens <= 4096
     && Number.isSafeInteger(l.maxOutputTokens) && l.maxOutputTokens > 0 && l.maxOutputTokens <= 1024
     && (policy.publicMonthly ? policy.funding?.kind === 'public-monthly-v1' && l.maxCostUsd <= 0.25 :
@@ -207,41 +222,74 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
   const acceptsOutput = (p: AgentCapabilityProfile, at: number) => profileOutputAccepted(p, outputContract,
     policy.outputAcceptances ?? APPROVED_PROFILE_OUTPUT_ACCEPTANCES, at);
   const funded = policy.funding, continuous = funded?.proofs.some(p => p.mode === 'bounded-account-charge') === true;
-  const desired = process.env.DABRA_AI_PROVIDER?.trim().toLowerCase() || (policy.publicMonthly ? 'auto' : 'openai');
-  const matchingFundingProof = (p: AgentCapabilityProfile) => {
-    const proofs = funded?.proofs.filter(proof => fundingProofCurrent(proof, p, now));
-    return proofs?.find(proof => proof.mode === 'bounded-account-charge' && (policy.publicMonthly ? policy.publicProfileAuthorized?.(proof,p) === true : durableAuthorityAcceptsProfile(proof, p, now)))
-      ?? proofs?.find(proof => proof.mode !== 'bounded-account-charge' && p.measurement.expiresAtMs > now
-        && dialogueCostCeilingMicros(proof, p, now) !== null);
-  };
+  const desired = policy.providerSelection === 'auto' ? 'auto'
+    : process.env.DABRA_AI_PROVIDER?.trim().toLowerCase() || (policy.publicMonthly ? 'auto' : 'openai');
   const payloadBytes = Buffer.byteLength(request.prompt + request.message, 'utf8') + 128;
   const eligible = policy.profiles.filter(p => (!request.provider || p.provider === request.provider)
     && (!continuous || desired === 'auto' || p.provider === desired));
   const accepts = (p: AgentCapabilityProfile) => funded?.proofs.some(proof => proof.mode === 'bounded-account-charge'
     && (policy.publicMonthly ? policy.publicProfileAuthorized?.(proof,p) === true && p.measurement.expiresAtMs > Date.now() : durableAuthorityAcceptsProfile(proof, p, Date.now()))) === true;
   let soleConfigurationFailure: ConfigurationFailure | null = null;
-  const selection = selectQualifiedAgentCapability(eligible, {
-    capability: request.capability, language: locale, environment: policy.environment, nowMs: now, limits: policy.limits, preferCost: policy.publicMonthly,
-    ...(continuous ? { acceptExpiredMeasurement: accepts } : {}),
-    // Qualify the actual task and its matching proof before latency/cost ranking.
-    // This is one selection before any reservation, not provider failover.
-    isEligibleForTask: p => {
-      if (!acceptsOutput(p, now) || payloadBytes > p.measurement.inputTokenCeiling) return false;
-      const proof = funded ? matchingFundingProof(p) : policy.freeProofs.find(proof => matchesProof(proof, p, policy, now));
-      // Exclude unconfigured candidates before ranking, without reserving or
-      // dispatching to them. The selected binding is still checked afresh below.
-      if (!proof) return false;
-      const failure = runtimeCheck?.({ profile: p, credentialSha256: proof.credentialSha256 });
-      if (eligible.length === 1) soleConfigurationFailure = failure ?? null;
-      return !failure;
-    },
-  });
-  if (selection.kind !== 'selected') { diagnose(soleConfigurationFailure ?? 'provider_selection_unavailable'); return null; }
-  const profile: AgentCapabilityProfile = { provider: selection.destination.provider, measurement: selection.destination.measurement };
-  // Select the funding mode from this provider/profile, never from a different
-  // provider's standing authority. An expired measurement cannot borrow v1 freshness.
-  const fundingProof = matchingFundingProof(profile);
-  const matchedProof = funded ? undefined : policy.freeProofs.find(p => matchesProof(p, profile, policy, now));
+  let profile: AgentCapabilityProfile, fundingProof: DialogueFundingProof | undefined, matchedProof: FreeDialogueProof | undefined;
+  if (policy.successfulTaskCandidateLimits) {
+    // V3 chooses complete profile/grant/key/quote pairs before any reservation.
+    // Ranking by the quote makes a lower-cost pair available to the shared Core
+    // budget; it does not read balances, reserve funds, or authorize dispatch.
+    if (!runtimeCheck) { diagnose('configuration_unavailable'); return null; }
+    const c = policy.successfulTaskCandidateLimits;
+    const candidates: Array<{ profile: AgentCapabilityProfile; proof: DurableAccountChargeProof; quote: number }> = [];
+    for (const p of eligible) {
+      const m = p.measurement;
+      if (payloadBytes > m.inputTokenCeiling || m.latencyMs > c.leaseMs
+        || m.inputTokenCeiling > c.inputTokenCeiling || m.outputTokenCeiling > c.outputTokenCeiling) continue;
+      const selected = selectQualifiedAgentCapability([p], {
+        capability: request.capability, language: locale, environment: policy.environment, nowMs: now, limits: policy.limits,
+        ...(continuous ? { acceptExpiredMeasurement: accepts } : {}),
+      });
+      if (selected.kind !== 'selected') continue;
+      const qualifiedProfile: AgentCapabilityProfile = { provider: selected.destination.provider, measurement: selected.destination.measurement };
+      for (const proof of funded?.proofs ?? []) {
+        if (proof.mode !== 'bounded-account-charge' || proof.provider !== qualifiedProfile.provider || proof.model !== m.model
+          || !fundingProofCurrent(proof, qualifiedProfile, now) || policy.publicProfileAuthorized?.(proof, qualifiedProfile) !== true
+          || policy.publicProfileOutputAccepted?.(proof, qualifiedProfile, outputContract, now) !== true) continue;
+        const quote = approvedDurableDialogueQuoteMicros(proof, qualifiedProfile, now);
+        if (quote === null || quote > c.attemptCostMicros || quote / 1000000 > m.costCeilingUsd) continue;
+        const failure = runtimeCheck({ profile: qualifiedProfile, credentialSha256: proof.credentialSha256 });
+        if (eligible.length === 1) soleConfigurationFailure = failure ?? null;
+        if (!failure) candidates.push({ profile: qualifiedProfile, proof, quote });
+      }
+    }
+    candidates.sort((a, b) => a.quote - b.quote || a.profile.measurement.latencyMs - b.profile.measurement.latencyMs
+      || a.profile.provider.localeCompare(b.profile.provider) || a.proof.grantId.localeCompare(b.proof.grantId)
+      || durableProfileSha256(a.profile).localeCompare(durableProfileSha256(b.profile)));
+    const selected = candidates[0];
+    if (!selected) { diagnose(soleConfigurationFailure ?? 'provider_selection_unavailable'); return null; }
+    profile = selected.profile; fundingProof = selected.proof;
+  } else {
+    // Keep V1/V2 and ordinary dialogue selection behavior unchanged.
+    const matchingFundingProof = (p: AgentCapabilityProfile) => {
+      const proofs = funded?.proofs.filter(proof => fundingProofCurrent(proof, p, now));
+      return proofs?.find(proof => proof.mode === 'bounded-account-charge' && (policy.publicMonthly ? policy.publicProfileAuthorized?.(proof,p) === true : durableAuthorityAcceptsProfile(proof, p, now)))
+        ?? proofs?.find(proof => proof.mode !== 'bounded-account-charge' && p.measurement.expiresAtMs > now
+          && dialogueCostCeilingMicros(proof, p, now) !== null);
+    };
+    const selection = selectQualifiedAgentCapability(eligible, {
+      capability: request.capability, language: locale, environment: policy.environment, nowMs: now, limits: policy.limits, preferCost: policy.publicMonthly,
+      ...(continuous ? { acceptExpiredMeasurement: accepts } : {}),
+      isEligibleForTask: p => {
+        if (!acceptsOutput(p, now) || payloadBytes > p.measurement.inputTokenCeiling) return false;
+        const proof = funded ? matchingFundingProof(p) : policy.freeProofs.find(proof => matchesProof(proof, p, policy, now));
+        if (!proof) return false;
+        const failure = runtimeCheck?.({ profile: p, credentialSha256: proof.credentialSha256 });
+        if (eligible.length === 1) soleConfigurationFailure = failure ?? null;
+        return !failure;
+      },
+    });
+    if (selection.kind !== 'selected') { diagnose(soleConfigurationFailure ?? 'provider_selection_unavailable'); return null; }
+    profile = { provider: selection.destination.provider, measurement: selection.destination.measurement };
+    fundingProof = matchingFundingProof(profile);
+    matchedProof = funded ? undefined : policy.freeProofs.find(p => matchesProof(p, profile, policy, now));
+  }
   if (funded ? !fundingProof : !matchedProof) { diagnose('funding_proof_unavailable'); return null; }
   const candidate = fundingProof ?? matchedProof;
   if (!candidate) { diagnose('funding_proof_unavailable'); return null; }
@@ -281,7 +329,10 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
     const at = Date.now();
     const failure = runtimeCheck?.(binding);
     if (failure) { diagnose(failure); return false; }
-    const ready = !bounded.aborted && at < end && projectCurrent() && (!policy.publicMonthly || profile.measurement.expiresAtMs > at && policy.publicProfileAuthorized?.(fundingProof!,profile) === true) && acceptsOutput(profile, at) && (fundingProof
+    const outputCurrent = policy.successfulTaskCandidateLimits
+      ? !!fundingProof && policy.publicProfileOutputAccepted?.(fundingProof, profile, outputContract, at) === true
+      : acceptsOutput(profile, at);
+    const ready = !bounded.aborted && at < end && projectCurrent() && (!policy.publicMonthly || profile.measurement.expiresAtMs > at && policy.publicProfileAuthorized?.(fundingProof!,profile) === true) && outputCurrent && (fundingProof
       ? fundingProofCurrent(fundingProof, profile, at) && dialogueCostCeilingMicros(fundingProof, profile, at, pricing) !== null
       : matchesProof(proof as FreeDialogueProof, profile, policy, at));
     if (!ready) diagnose('readiness_lost');

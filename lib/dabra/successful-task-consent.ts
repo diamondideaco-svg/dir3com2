@@ -54,7 +54,7 @@ export async function successfulTaskConsent(request: NextRequest): Promise<Respo
   if (request.method === 'POST' && (request.headers.get('origin') !== request.nextUrl.origin
     || request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() !== 'application/json')) return json({ error: 'Invalid origin or media type.' }, 403);
   if (request.nextUrl.search) return json({ error: 'Invalid request.' }, 400);
-  const configured = readSuccessfulTaskProductionPolicy();
+  const configured = readSuccessfulTaskProductionPolicy('consent');
   try {
     return await boundedConsentOperation(async signal => {
       const input = request.method === 'POST' ? await body(request, signal) : null;
