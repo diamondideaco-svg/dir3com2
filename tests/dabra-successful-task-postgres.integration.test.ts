@@ -97,7 +97,34 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
    const normalizeCountry=baseline.match(/CREATE OR REPLACE FUNCTION public\.normalize_admin_country_key\(value text\)[\s\S]*?\$function\$\n;/);
    assert.ok(grantTable && normalizeCountry);await client.query(grantTable[0]);await client.query(normalizeCountry[0]);
    await client.query(sql('20261112100000_task237_production_lifecycle.sql'));
+   const strongCatalog=async()=> (await client.query(`SELECT n.nspname AS schema,p.proname AS name,p.oid,p.proowner,
+    pg_get_userbyid(p.proowner) AS owner,oidvectortypes(p.proargtypes) AS types,
+    pg_get_function_arguments(p.oid) AS arguments,p.proacl::text AS acl,p.prosecdef,p.proconfig,
+    has_function_privilege('anon',p.oid,'EXECUTE') AS anon_execute,
+    has_function_privilege('authenticated',p.oid,'EXECUTE') AS authenticated_execute,
+    has_function_privilege('service_role',p.oid,'EXECUTE') AS service_execute,
+    ARRAY(SELECT CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee)::text END || ':' || a.privilege_type
+      FROM aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a ORDER BY 1) AS privileges
+    FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE (n.nspname,p.proname) IN (('private','dabra_production_task_terms'),
+     ('public','get_dabra_production_task_policy'),('public','reserve_dabra_production_task'))
+    ORDER BY n.nspname,p.proname`)).rows;
+   const strongSignatures=[
+    ['private','dabra_production_task_terms','jsonb'],
+    ['public','get_dabra_production_task_policy','uuid, text, jsonb, jsonb, jsonb, jsonb'],
+    ['public','reserve_dabra_production_task','uuid, uuid, uuid, uuid, jsonb, integer, integer, bigint, text, uuid, text, jsonb, jsonb, bigint, jsonb, jsonb'],
+   ];
+   const catalogBefore=await strongCatalog();
+   assert.deepEqual(catalogBefore.map(r=>[r.schema,r.name,r.types]),strongSignatures,'exact signatures, one overload each');
+   for(const r of catalogBefore){
+    const isPublic=r.schema==='public';
+    assert.equal(r.owner,'postgres');assert.equal(r.prosecdef,isPublic);
+    assert.deepEqual(r.proconfig,['search_path=""']);
+    assert.equal(r.anon_execute,false);assert.equal(r.authenticated_execute,false);assert.equal(r.service_execute,isPublic);
+    assert.deepEqual(r.privileges,isPublic?['postgres:EXECUTE','service_role:EXECUTE']:['postgres:EXECUTE']);
+   }
    await client.query(sql('20261113193000_task237_strong_pilot.sql'));
+   assert.deepEqual(await strongCatalog(),catalogBefore,'replacement preserves OIDs, signatures/defaults, owner, ACL and security settings');
    const operator=await addActor();await client.query("UPDATE public.profiles SET role='staff' WHERE id=$1",[operator]);
    const operations={schema:'dabra-operations-binding-v1',actorId:operator,country:'EG',kind:'grant',grant:{id:randomUUID(),invited_user_id:operator,access_level:'scoped_staff',status:'active',country_scope:['Egypt'],permissions:['operations:read']}};
    const checkOperations=async(b:unknown=operations)=>(await client.query('SELECT private.dabra_task_operations_current($1,$2) AS v',[operator,b])).rows[0].v;
@@ -158,6 +185,18 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
      await client.query("UPDATE private.dabra_successful_task_decisions SET document=$1 WHERE actor_id=$2 AND kind='spending'",[{...docs.spending,schema:'dabra-task-spending-v2',modelTier:'strong'},who]);
      const v2=await resolve();strongRequest[12]=v2;
      assert.equal((await client.query('SELECT private.dabra_production_task_terms($1) AS v',[v2])).rows[0].v.model_tier,'strong');
+     const otherGrantId=randomUUID(),otherAuthorityId=randomUUID();
+     const otherUnbound={...proof,grantId:otherGrantId,accountId:'SYNTHETIC-second-public'};
+     const otherProof={...otherUnbound,limitedOperation:{...otherUnbound.limitedOperation,bindingSha256:durableAuthorityBindingSha256(otherUnbound)}};
+     const otherAcceptance={...acceptance,receipt:{...acceptance.receipt,artifactSha256:'9'.repeat(64)}};
+     await client.query("INSERT INTO private.dabra_dialogue_funding_grants(id,provider,account_id,project_id,funding_mode,authorized_credit_micros,input_rate_micros_per_million,output_rate_micros_per_million,enabled,proof,authorized_at) VALUES($1,'openai','SYNTHETIC-second-public','SYNTHETIC-project','bounded-account-charge',0,100000,500000,true,$2,to_timestamp($3::numeric/1000))",[otherGrantId,otherProof,now-4000]);
+     await client.query("INSERT INTO private.dabra_public_dialogue_authorities(id,source_grant_id,source_proof,profile,output_acceptance,model_tier,enabled,authorized_at) VALUES($1,$2,$3,$4,$5,'strong',true,to_timestamp($6::numeric/1000))",[otherAuthorityId,otherGrantId,otherProof,profile,otherAcceptance,now-2000]);
+     const otherRequest=[...request(who),digest,randomUUID(),'customer',policy,v2];
+     otherRequest[3]=otherAuthorityId;otherRequest[4]={...(otherRequest[4] as Record<string,unknown>),authorityId:otherAuthorityId};
+     const tasks=async()=> (await client.query('SELECT count(*)::int AS n FROM private.dabra_production_tasks')).rows[0].n;
+     const beforeMismatch={tasks:await tasks(),holds:await countHolds()};
+     assert.equal((await rpc('reserve_dabra_production_task',otherRequest)).decision,'denied','otherwise valid authority from another grant is excluded');
+     assert.deepEqual({tasks:await tasks(),holds:await countHolds()},beforeMismatch,'wrong grant creates no task, hold or cost');
      const selected=await rpc('get_dabra_production_task_policy',[who,'customer',policy,v2]);
      assert.equal(selected.authorities.length,1);assert.equal(selected.authorities[0].id,strongId);
      const before=await countHolds();
@@ -168,6 +207,16 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
      await client.query("UPDATE private.dabra_successful_task_decisions SET document=$1 WHERE actor_id=$2 AND kind='spending'",[{...docs.spending,schema:'dabra-task-spending-v2',modelTier:'economy'},who]);
      strongRequest[12]=await resolve();assert.equal((await rpc('reserve_dabra_production_task',strongRequest)).decision,'conflict');
      assert.deepEqual(await countHolds(),after);
+     // Positive control: the same denied request works when its grant is explicitly approved.
+     await client.query("UPDATE private.dabra_successful_task_decisions SET document=$1,funding_grant_id=$2,funding_proof_sha256=(SELECT encode(sha256(convert_to(proof::text,'UTF8')),'hex') FROM private.dabra_dialogue_funding_grants WHERE id=$2) WHERE actor_id=$3 AND kind='spending'",
+      [{...docs.spending,schema:'dabra-task-spending-v2',modelTier:'strong',grantId:otherGrantId},otherGrantId,who]);
+     const otherBundle=await resolve();assert.ok(otherBundle);otherRequest[12]=otherBundle;
+     const otherPolicy=await rpc('get_dabra_production_task_policy',[who,'customer',policy,otherBundle]);
+     assert.equal(otherPolicy.authorities.length,1);assert.equal(otherPolicy.authorities[0].id,otherAuthorityId);
+     assert.equal((await rpc('reserve_dabra_production_task',otherRequest)).decision,'admitted');
+     const otherHolds=await countHolds();assert.equal(otherHolds.n,after.n+1);
+     assert.equal(otherHolds.cost,after.cost+Number(otherRequest[7]));
+     assert.equal(await tasks(),beforeMismatch.tasks+2);
     } finally {await client.query('ROLLBACK');}
    });
    const retrieve=()=>rpc('read_dabra_production_task',[who,production[1],digest,'customer',policy,approved]);
