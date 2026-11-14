@@ -19,7 +19,8 @@ async function main(){
  stage='preflight-environment';
  for(const name of ['.env','.env.local','.env.development','.env.development.local'])assert.equal(existsSync(name),false,'browser runtime must not load external environment files');
  stage='preflight-chrome-version';
- const chrome=execFileSync('google-chrome',['--version'],{encoding:'utf8',timeout:5000}).match(/\d+\.\d+\.\d+\.\d+/)?.[0];
+ // Allow a bounded cold start on a loaded CI runner; version matching remains mandatory.
+ const chrome=execFileSync('google-chrome',['--version'],{encoding:'utf8',timeout:20000}).match(/\d+\.\d+\.\d+\.\d+/)?.[0];
  stage='preflight-driver-version';
  const driverVersion=execFileSync('chromedriver',['--version'],{encoding:'utf8',timeout:5000}).match(/\d+\.\d+\.\d+\.\d+/)?.[0];
  stage='preflight-version-contract';assertTask187BrowserVersions(chrome,driverVersion);
