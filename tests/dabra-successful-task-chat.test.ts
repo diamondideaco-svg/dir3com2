@@ -892,7 +892,8 @@ test('production consent actual owner route sequence selects actor policy and re
    {exports:exported,require:(id:string)=>Object.hasOwn(extra,id)?extra[id]:Object.hasOwn(deps,id)?deps[id]:require(process.cwd()+'/lib/dabra/'+id),Response,TextDecoder,AbortSignal,structuredClone,Date,JSON,Object,Promise,Set});return exported;};
   const owner=compile('lib/dabra/successful-task-owner.ts');
   const policy=require(process.cwd()+'/lib/dabra/successful-task-production-policy');
-  const pilotPolicy=compile('lib/dabra/successful-task-production-policy.ts',{'./successful-task-pilot-config':{readSuccessfulTaskPilotConfig:()=>{configReads++;return configured===null?{kind:'disabled'}:configured==='malformed'?{kind:'unavailable'}:pilotSnapshot(program.revision,pilotActor);}}});
+  const readConfig=()=>{configReads++;return configured===null?{kind:'disabled'}:configured==='malformed'?{kind:'unavailable'}:pilotSnapshot(program.revision,pilotActor);};
+  const pilotPolicy=compile('lib/dabra/successful-task-production-policy.ts',{'./successful-task-pilot-config':{readSuccessfulTaskPilotConfig:readConfig,readSuccessfulTaskConsentConfig:readConfig}});
   const policySource={...policy,...pilotPolicy};
   const consent=compile('lib/dabra/successful-task-consent.ts',{'./successful-task-owner':owner,'./successful-task-production-policy':policySource});
   const route=compile('app/api/dabra/tasks/consent/route.ts',{'@/lib/dabra/successful-task-consent':consent}) as {GET:(r:NextRequest)=>Promise<Response>;POST:(r:NextRequest)=>Promise<Response>};
@@ -1245,6 +1246,43 @@ test('private pilot snapshot is bounded immutable and reads once across identity
  assert.equal((await policy.selectSuccessfulTaskPilot(new NextRequest('https://example.test'))).kind,'unavailable');assert.equal(reads,2);
  fail=true;assert.equal(config.readSuccessfulTaskPilotConfig().kind,'unavailable');assert.equal(reads,3);
  fail=false;raw=undefined;assert.equal(config.readSuccessfulTaskPilotConfig().kind,'disabled');assert.equal(reads,4);
+});
+
+
+
+test('consent-only configuration is separate and conflicting execution stays unavailable', () => {
+ const actor='abcdefab-1111-4111-8111-111111111111',revision='synthetic-consent';
+ const execution={schema:'dabra-successful-task-pilot-v1',actorId:actor,revision};
+ const consent={schema:'dabra-successful-task-consent-pilot-v1',actorId:actor,revision};
+ const env:Record<string,string|undefined>={};
+ const result:Record<string,unknown>={};
+ vm.runInNewContext(ts.transpileModule(readFileSync('lib/dabra/successful-task-pilot-config.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
+  {exports:result,process:{env},Buffer,require:(id:string)=>id==='server-only'?{}:require(id)});
+ const config=result as unknown as typeof import('../lib/dabra/successful-task-pilot-config');
+ assert.equal(config.readSuccessfulTaskConsentConfig().kind,'disabled');
+ env.DABRA_SUCCESSFUL_TASK_CONSENT_CONFIG=JSON.stringify(consent);
+ const selected=config.readSuccessfulTaskConsentConfig();assert.equal(selected.kind,'configured');
+ if(selected.kind!=='configured')throw Error('expected configured consent');
+ assert.equal(selected.membership.actorId,actor);assert.equal(selected.program.revision,revision);
+ assert.equal(config.readSuccessfulTaskPilotConfig().kind,'disabled','consent alone cannot enable execution');
+ for(const invalid of ['',JSON.stringify(execution),JSON.stringify({...consent,extra:true}),JSON.stringify({...consent,actorId:'invalid'})]) {
+  env.DABRA_SUCCESSFUL_TASK_CONSENT_CONFIG=invalid;
+  assert.equal(config.readSuccessfulTaskConsentConfig().kind,'unavailable');
+  assert.equal(config.readSuccessfulTaskPilotConfig().kind,'disabled');
+ }
+ env.DABRA_SUCCESSFUL_TASK_CONSENT_CONFIG=JSON.stringify({...consent,actorId:actor.toUpperCase()});
+ env.DABRA_SUCCESSFUL_TASK_PILOT_CONFIG=JSON.stringify(execution);
+ assert.equal(config.readSuccessfulTaskConsentConfig().kind,'configured');
+ for(const conflict of [{...consent,actorId:'22222222-2222-4222-8222-222222222222'},{...consent,revision:'other'}]) {
+  env.DABRA_SUCCESSFUL_TASK_CONSENT_CONFIG=JSON.stringify(conflict);
+  assert.equal(config.readSuccessfulTaskConsentConfig().kind,'unavailable');
+ }
+ env.DABRA_SUCCESSFUL_TASK_CONSENT_CONFIG=JSON.stringify(consent);
+ env.DABRA_SUCCESSFUL_TASK_PILOT_CONFIG='invalid';
+ assert.equal(config.readSuccessfulTaskConsentConfig().kind,'unavailable');
+ env.DABRA_SUCCESSFUL_TASK_CONSENT_CONFIG=undefined;
+ env.DABRA_SUCCESSFUL_TASK_PILOT_CONFIG=JSON.stringify(execution);
+ assert.equal(config.readSuccessfulTaskConsentConfig().kind,'configured','existing execution configuration remains usable for consent');
 });
 
 
