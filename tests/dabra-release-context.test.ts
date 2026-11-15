@@ -65,9 +65,13 @@ test('one-room natural preference survives the hotel handoff', () => {
 });
 test('explicit chat currency updates the existing selector and the same request', () => {
   const source = readFileSync('components/dabra/DabraChatCommerce.tsx', 'utf8');
-  assert.match(source, /requestedCurrency = platformCurrency\(message\) \?\? currency/);
-  assert.match(source, /setCurrency\(requestedCurrency\)/);
-  assert.match(source, /form.set\('currency', requestedCurrency\)/);
+  assert.match(source, /const currencyChoice = platformCurrencySelection\(explicitText\)/);
+  assert.match(source, /const requestedCurrency = conversation\.selectRequestCurrency\(currencyChoice\.requested, currencyChoice\.excluded\)/);
+  assert.match(source, /if \(currencyChoice\.requested && currencyChoice\.requested !== currency\) setCurrency\(currencyChoice\.requested\)/);
+  assert.match(source, /if \(requestedCurrency\) form\.set\('currency', requestedCurrency\)/);
+  const choice = source.indexOf('const currencyChoice = platformCurrencySelection(explicitText);');
+  const freshness = source.indexOf('if(!await ensureContinuityFresh(false, job)', choice);
+  assert.ok(choice >= 0 && freshness > choice, 'capture the explicit choice before an asynchronous continuity check');
 });
 test('locale switch preserves completed same-identity context but drops empty aborted replies', () => {
   const messages = [{ id: 'welcome', role: 'assistant' as const, text: 'Welcome' }, { id: 'u', role: 'user' as const, text: plan }, { id: 'a', role: 'assistant' as const, text: 'Catalogue' }, { id: 'pending', role: 'assistant' as const, text: '' }];
