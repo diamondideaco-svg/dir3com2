@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {TASK187_DIAGNOSTIC_PREFIX as prefix,task187BrowserDiagnostic,task187BrowserExitSummary,task187BrowserFailure} from '../scripts/sandbox/task187-browser-diagnostics.mjs';
+import {TASK187_DIAGNOSTIC_PREFIX as prefix,TASK187_PHASE_PREFIX as phasePrefix,task187BrowserDiagnostic,task187BrowserExitSummary,task187BrowserFailure,task187BrowserPhase} from '../scripts/sandbox/task187-browser-diagnostics.mjs';
 const secret='SYNTHETIC_PASSWORD_JWT_NEVER_PRINT';
 const marker=(value)=>prefix+JSON.stringify(value);
 
@@ -131,7 +131,7 @@ test('browser exit summary emits only closed scalar metadata from a real failed 
   try{
    assert.ok(error);assert.equal(stdout,'');
    const summary=task187BrowserExitSummary(error,output);
-   assert.deepEqual(summary,{errorClass:'Error',errorCode:'ERR_MODULE_NOT_FOUND',exitCode:7,spawnCode:null,signal:null,killed:false,stderrBytes:Buffer.byteLength(output),stderrInspection:'bounded',markerCount:1,startupCode:'ERR_MODULE_NOT_FOUND'});
+   assert.deepEqual(summary,{errorClass:'Error',errorCode:'ERR_MODULE_NOT_FOUND',phaseMarkerCount:0,lastReportedPhase:null,stackFrames:[],exitCode:7,spawnCode:null,signal:null,killed:false,stderrBytes:Buffer.byteLength(output),stderrInspection:'bounded',markerCount:1,startupCode:'ERR_MODULE_NOT_FOUND'});
    assert.ok(!JSON.stringify(summary).includes(secret));
    assert.equal(task187BrowserFailure(output).error.message,'TASK187_BROWSER_ACCEPTANCE_FAILED:ar-390-login:TASK187_BROWSER_WAIT_LOGIN');resolve();
   }catch(failure){reject(failure)}
@@ -155,7 +155,7 @@ test('browser exit summary rejects arbitrary exit, spawn and signal values',()=>
 test('browser exit summary distinguishes absent and uninspected stderr without coercion',()=>{
  for(const stderr of [undefined,null,false,0,Buffer.from(secret),{toString(){throw Error(secret)}}]){
   const summary=task187BrowserExitSummary(null,stderr);
-  assert.deepEqual(summary,{errorClass:null,errorCode:null,exitCode:null,spawnCode:null,signal:null,killed:false,stderrBytes:null,stderrInspection:'absent',markerCount:null,startupCode:null});
+  assert.deepEqual(summary,{errorClass:null,errorCode:null,phaseMarkerCount:null,lastReportedPhase:null,stackFrames:[],exitCode:null,spawnCode:null,signal:null,killed:false,stderrBytes:null,stderrInspection:'absent',markerCount:null,startupCode:null});
  }
  assert.equal(task187BrowserExitSummary(undefined,'').stderrInspection,'bounded');
  assert.equal(task187BrowserExitSummary(undefined,'').markerCount,0);
@@ -179,6 +179,45 @@ test('browser exit summary enforces the exact UTF-8 byte boundary',()=>{
  assert.equal(task187BrowserFailure(bounded+'x').diagnostic.reason,'DIAGNOSTIC_UNAVAILABLE');
 });
 
+test('maxBuffer exit refuses even a short apparently complete stderr summary',()=>{
+ const text=[task187BrowserPhase('en-390-journey'),marker({stage:'en-390-journey',reason:'ASSERTION_FAILED'}),
+  'Error: '+secret,'    at hidden (node:net:1:2)',"  code: 'ECONNRESET',"].join('\n');
+ const summary=task187BrowserExitSummary({code:'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'},text);
+ assert.equal(summary.spawnCode,'ERR_CHILD_PROCESS_STDIO_MAXBUFFER');assert.equal(summary.stderrInspection,'incomplete');
+ assert.equal(summary.errorClass,null);assert.equal(summary.errorCode,null);assert.equal(summary.startupCode,null);
+ assert.equal(summary.phaseMarkerCount,null);assert.equal(summary.lastReportedPhase,null);assert.deepEqual(summary.stackFrames,[]);assert.equal(summary.markerCount,null);
+ assert.ok(!JSON.stringify(summary).includes(secret));
+});
+
+test('an actual execFile stderr maxBuffer failure discards truncated phase and stack hints',async()=>{
+ const header=[task187BrowserPhase('en-390-journey'),marker({stage:'en-390-journey',reason:'ASSERTION_FAILED'}),
+  'Error: '+secret,'    at hidden (node:net:1:2)',"  code: 'ECONNRESET',"].join('\n')+'\n';
+ const source='process.stderr.write('+JSON.stringify(header)+'+"x".repeat(40000));';
+ await new Promise((resolve,reject)=>execFile(process.execPath,['-e',source],{maxBuffer:32768},(error,stdout,stderr)=>{
+  try{
+   assert.ok(error);assert.equal(error.code,'ERR_CHILD_PROCESS_STDIO_MAXBUFFER');assert.equal(stdout,'');
+   assert.equal(Buffer.byteLength(stderr,'utf8'),32768,'real stderr is clipped at the configured boundary');
+   const summary=task187BrowserExitSummary(error,stderr),failure=task187BrowserFailure(stderr);
+   assert.equal(summary.spawnCode,'ERR_CHILD_PROCESS_STDIO_MAXBUFFER');assert.equal(summary.stderrInspection,'incomplete');
+   assert.equal(summary.phaseMarkerCount,null);assert.equal(summary.lastReportedPhase,null);assert.deepEqual(summary.stackFrames,[]);
+   assert.equal(summary.errorCode,null);assert.equal(summary.markerCount,null);
+   assert.deepEqual(failure.diagnostic,{stage:'unknown',reason:'DIAGNOSTIC_UNAVAILABLE'});
+   assert.equal(failure.error.message,'TASK187_BROWSER_ACCEPTANCE_FAILED:unknown:DIAGNOSTIC_UNAVAILABLE');
+   for(const privateValue of [secret,'node:net']){assert.ok(!JSON.stringify(summary).includes(privateValue));assert.ok(!failure.error.message.includes(privateValue));}
+   resolve();
+  }catch(failure){reject(failure)}
+ }));
+});
+
+test('failure diagnostic treats the exact UTF-8 buffer boundary as potentially incomplete',()=>{
+ const known=marker({stage:'preflight',reason:'ASSERTION_FAILED'})+'\n';
+ const below=known+'x'.repeat(32767-Buffer.byteLength(known)),at=below+'x';
+ assert.equal(task187BrowserFailure(below).diagnostic.reason,'ASSERTION_FAILED');
+ assert.equal(task187BrowserFailure(at).diagnostic.reason,'DIAGNOSTIC_UNAVAILABLE');
+ const unicode=known+'é'.repeat(Math.ceil((32768-Buffer.byteLength(known))/2));
+ assert.ok(Buffer.byteLength(unicode)>=32768);assert.equal(task187BrowserFailure(unicode).diagnostic.reason,'DIAGNOSTIC_UNAVAILABLE');
+});
+
 test('browser exit summary counts markers without accepting malformed or ambiguous diagnostics',()=>{
  const known=marker({stage:'preflight',reason:'ASSERTION_FAILED'});
  for(const [stderr,count] of [[secret,0],[prefix+'{bad',1],[known+'\n'+known,2]]){
@@ -194,7 +233,7 @@ test('browser exit summary exposes only allowlisted startup hints and never priv
  for(const code of ['ERR_MODULE_NOT_FOUND','ERR_UNKNOWN_FILE_EXTENSION','ERR_UNSUPPORTED_DIR_IMPORT','ERR_DLOPEN_FAILED']){
   const summary=task187BrowserExitSummary({message:privateText,stdout:privateText,stderr:privateText,stack:privateText,args:[privateText]},'Error ['+code+']: '+privateText);
   assert.equal(summary.startupCode,code);
-  assert.deepEqual(Object.keys(summary).sort(),['errorClass','errorCode','exitCode','killed','markerCount','signal','spawnCode','startupCode','stderrBytes','stderrInspection'].sort());
+  assert.deepEqual(Object.keys(summary).sort(),['errorClass','errorCode','phaseMarkerCount','lastReportedPhase','stackFrames','exitCode','killed','markerCount','signal','spawnCode','startupCode','stderrBytes','stderrInspection'].sort());
   for(const text of [secret,'private.invalid','password','C:\\private'])assert.ok(!JSON.stringify(summary).includes(text));
  }
  for(const text of ['Error [ERR_'+secret+']: '+privateText,'prefix Error [ERR_MODULE_NOT_FOUND]: '+privateText,'Error [ERR_ASSERTION]: '+privateText]){
@@ -210,7 +249,8 @@ for(const mode of ['helper-throws','logging-throws','normal'])test('actual brows
  // Execute the actual callback statement; erase only its two TypeScript annotations.
  const statement=source.slice(start,end).replace('new Promise<unknown>','new Promise').replace('child.stdin!.end','child.stdin.end');
  const report={},logged=[];
- const stderr=secret+'\n'+prefix+'{bad';
+ const stderr=[task187BrowserPhase('preflight-input'),task187BrowserPhase('en-390-journey'),
+  'Error: '+secret,'    at hidden (node:net:1:2)',"  code: 'ECONNRESET',",prefix+'{bad'].join('\n');
  const original=task187BrowserFailure(stderr).error.message;
  const context={report,process:{execPath:'synthetic-node'},url:'http://127.0.0.1',anon:secret,password:secret,aid:'synthetic-a',bid:'synthetic-b',JSON,
   task187BrowserFailure,
@@ -221,7 +261,10 @@ for(const mode of ['helper-throws','logging-throws','normal'])test('actual brows
  await assert.rejects(runInNewContext('(async()=>{'+statement+'})()',context),error=>error.message===original);
  assert.deepEqual(report.task187BrowserFailure,{stage:'unknown',reason:'DIAGNOSTIC_UNAVAILABLE'});
  for(const value of logged){assert.ok(value.startsWith('TASK187_BROWSER_EXIT='));assert.ok(!value.includes(secret));}
- if(mode==='normal')assert.equal(logged.length,1);else assert.equal(logged.length,0);
+ if(mode==='normal'){
+  assert.equal(logged.length,1);assert.equal(report.task187BrowserExit.lastReportedPhase,'en-390-journey');
+  assert.equal(report.task187BrowserExit.errorCode,'ECONNRESET');assert.deepEqual(report.task187BrowserExit.stackFrames,['node-net']);
+ }else assert.equal(logged.length,0);
 });
 
 
@@ -256,4 +299,62 @@ test('browser error hints are closed, bounded and reject ambiguous declarations'
  const oversized='TypeError: '+ 'x'.repeat(32768)+"\n  code: 'ENOENT'";
  assert.equal(task187BrowserExitSummary({},oversized).errorClass,null);
  assert.equal(task187BrowserExitSummary({},oversized).errorCode,null);
+});
+
+
+test('phase trace and ECONNRESET stack categories expose only closed labels',()=>{
+ assert.equal(task187BrowserPhase('preflight-input'),phasePrefix+'preflight-input');
+ assert.equal(task187BrowserPhase(secret),phasePrefix+'unknown');
+ const stderr=[task187BrowserPhase('preflight-input'),task187BrowserPhase('en-390-journey'),
+  'Error: '+secret,'    at hidden (node:internal/stream_base_commons:217:20)',
+  '    at hidden (file:///private/'+secret+'/scripts/test-task187-browser.ts:63:9)',
+  '    at '+secret+' (https://private.invalid/'+secret+':1:2)',"  code: 'ECONNRESET',"].join('\n');
+ const summary=task187BrowserExitSummary({code:1},stderr);
+ assert.equal(summary.lastReportedPhase,'en-390-journey');assert.equal(summary.phaseMarkerCount,2);
+ assert.equal(summary.errorCode,'ECONNRESET');assert.deepEqual(summary.stackFrames,['node-stream-base','browser-harness']);
+ assert.equal(task187BrowserFailure(stderr).error.message,'TASK187_BROWSER_ACCEPTANCE_FAILED:unknown:DIAGNOSTIC_UNAVAILABLE');
+ for(const privateValue of [secret,'private.invalid','/private/','file://'])assert.ok(!JSON.stringify(summary).includes(privateValue));
+});
+
+test('phase trace and stack categories reject malformed, excessive and unbounded input',()=>{
+ const valid=task187BrowserPhase('preflight-input'),invalid=phasePrefix+secret;
+ for(const stderr of [valid+'\n'+invalid,valid+'\n'+phasePrefix+'en-390-save '+secret,Array(65).fill(valid).join('\n')]){
+  const summary=task187BrowserExitSummary({code:1},stderr);assert.equal(summary.lastReportedPhase,null);assert.ok(!JSON.stringify(summary).includes(secret));
+ }
+ const unlisted=['Error: '+secret,'    at '+secret+' (/private/'+secret+':1:2)',"  code: 'ECONNRESET'"].join('\n');
+ assert.deepEqual(task187BrowserExitSummary({code:1},unlisted).stackFrames,[]);
+ const notReset=unlisted.replace('ECONNRESET','EPIPE')+'\n    at hidden (node:net:1:2)';
+ assert.deepEqual(task187BrowserExitSummary({code:1},notReset).stackFrames,[]);
+ const oversized=valid+'\n'+('x'.repeat(32768))+"\n  code: 'ECONNRESET'";
+ const summary=task187BrowserExitSummary({code:1},oversized);
+ assert.equal(summary.stderrInspection,'oversized');assert.equal(summary.phaseMarkerCount,null);assert.equal(summary.lastReportedPhase,null);assert.deepEqual(summary.stackFrames,[]);
+});
+
+test('an actual uncaught ECONNRESET remains a failed child with bounded safe hints',async()=>{
+ const stack='Error: '+secret+'\n    at hidden (node:internal/stream_base_commons:217:20)\n    at '+secret+' (/private/'+secret+':1:2)';
+ const source="import {task187BrowserPhase} from './scripts/sandbox/task187-browser-diagnostics.mjs';"+
+  "process.stderr.write(task187BrowserPhase('en-390-journey')+'\\n');"+
+  "setImmediate(()=>{const error=Object.assign(Error("+JSON.stringify(secret)+"),{code:'ECONNRESET'});error.stack="+JSON.stringify(stack)+";throw error;});";
+ await new Promise((resolve,reject)=>execFile(process.execPath,['--input-type=module','-e',source],{maxBuffer:32768},(error,stdout,stderr)=>{
+  try{assert.ok(error);assert.equal(error.code,1);assert.equal(stdout,'');
+   const summary=task187BrowserExitSummary(error,stderr);assert.equal(summary.errorCode,'ECONNRESET');
+   assert.equal(summary.lastReportedPhase,'en-390-journey');assert.deepEqual(summary.stackFrames,['node-stream-base']);
+   assert.equal(task187BrowserFailure(stderr).diagnostic.reason,'DIAGNOSTIC_UNAVAILABLE');
+   for(const value of [secret,'/private/'])assert.ok(!JSON.stringify(summary).includes(value));resolve();
+  }catch(failure){reject(failure)}
+ }));
+});
+
+test('actual browser child reports preflight phase while a caught assertion still fails privately',async()=>{
+ const child=execFile(process.execPath,['--import','tsx','scripts/test-task187-browser.ts'],{maxBuffer:32768},(error,stdout,stderr)=>{
+  try{assert.ok(error);assert.equal(error.code,1);assert.equal(stdout,'');
+   const summary=task187BrowserExitSummary(error,stderr),failure=task187BrowserFailure(stderr);
+   assert.equal(summary.lastReportedPhase,'preflight-input');assert.equal(summary.phaseMarkerCount,1);
+   assert.deepEqual(failure.diagnostic,{stage:'preflight-input',reason:'ASSERTION_FAILED'});
+   assert.ok(!stderr.includes(secret));assert.ok(!JSON.stringify(summary).includes(secret));
+  }catch(failure){childFailure=failure;}
+ });
+ let childFailure;
+ await new Promise((resolve,reject)=>{child.once('close',()=>childFailure?reject(childFailure):resolve());child.once('error',reject);
+  child.stdin.end(JSON.stringify({url:'https://private.invalid/'+secret,anon:secret,password:secret,aid:secret,bid:secret}));});
 });
