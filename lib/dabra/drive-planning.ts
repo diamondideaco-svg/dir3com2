@@ -120,7 +120,7 @@ export function driveDialogue(userTurns:readonly string[],preferences:DrivePlann
     :!budget||budget.kind==='amount'&&(!budget.currency||!budget.basis)?'budget':null;
   return question?{...state,kind:'clarify',question}:{...state,kind:'ready'};
 }
-export function driveDialogueCopy(state:DriveDialogue,locale:Locale){
+export function driveDialogueCopy(state:DriveDialogue,locale:Locale,excludedCurrencies:readonly string[]=[]){
   const ar=locale==='ar',p=state.preferences;
   const cities:Record<string,string>={cairo:'القاهرة',giza:'الجيزة',alexandria:'الإسكندرية',riyadh:'الرياض',jeddah:'جدة',dubai:'دبي'};
   const facts:string[]=[];
@@ -131,7 +131,7 @@ export function driveDialogueCopy(state:DriveDialogue,locale:Locale){
   if(p.dates.length)facts.push(p.dates.join(ar?' إلى ':' to '));
   if(state.driver)facts.push(ar?state.driver==='with'?'مع سائق':'بدون سائق':state.driver==='with'?'with a driver':'without a driver');
   if(state.budget?.kind==='flexible')facts.push(ar?'ميزانية مفتوحة':'a flexible budget');
-  else if(state.budget?.kind==='amount')facts.push(state.budget.amount+(state.budget.currency?' '+state.budget.currency:''));
+  else if(state.budget?.kind==='amount' && (!state.budget.currency || !excludedCurrencies.includes(state.budget.currency)))facts.push(state.budget.amount+(state.budget.currency?' '+state.budget.currency:''));
   const summary=facts.length?(ar?'فهمت طلبك: ':'Your trip so far: ')+facts.join(ar?'، ':', ')+'.'
     :ar?'نرتّب احتياجك أولًا حتى أقدر أوجّهك لخيار مناسب.':'Let’s establish what you need before looking at options.';
   if(state.kind==='ready')return {summary,question:null};

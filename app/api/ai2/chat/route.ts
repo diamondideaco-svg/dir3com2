@@ -3,13 +3,13 @@ import { selectSuccessfulTaskPilot, successfulTaskProductionGate } from '@/lib/d
 import { successfulTaskChatResponse } from '@/lib/dabra/successful-task-chat';
 import { conversationIntent } from '@/lib/dabra/conversation-renderer';
 import { after, NextRequest, NextResponse } from 'next/server';
-import { platformCurrency, platformContext, platformConversationScope, platformFamilies, refinePlatformTrip, hasActivePlatformDriveDialogue } from '@/lib/dabra/platform-assistant';
+import { platformCurrencySelection, platformContext, platformConversationScope, platformFamilies, refinePlatformTrip, hasActivePlatformDriveDialogue } from '@/lib/dabra/platform-assistant';
 type AI2ChatTurn = { role: 'user' | 'assistant'; content: string };
 import { createDabraAssistantTextResponse } from '@/lib/dabra/chat-response-contract';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
 import { DABRA_LOCALE_ERROR, explicitDabraReplyLocale, parseDabraLocale } from '@/lib/dabra/locale-contract';
 import { getCurrencySnapshot } from '@/lib/currency/service';
-import { parseDisplayCurrency } from '@/lib/currency/display';
+import { DISPLAY_CURRENCIES, parseDisplayCurrency, type DisplayCurrency } from '@/lib/currency/display';
 import { agentIntent, type AgentContext } from '@/lib/dabra/agent-contract';
 import { getAgentDialoguePolicy } from '@/lib/dabra/agent-dialogue';
 import { runInternalAgentTask } from '@/lib/dabra/agent-handoff';
@@ -20,6 +20,7 @@ type AI2ChatRequest = {
   message?: string;
   requestId?: string;
   currency?: string;
+  excludedCurrencies?: unknown;
   history?: Array<{ role?: string; content?: string }>;
   mode?: 'chat' | 'travel-plan';
   stream?: boolean;
@@ -53,6 +54,11 @@ async function parseChatRequest(request: NextRequest): Promise<ParsedChatRequest
     const localeValue = form.get('locale');
     const locale = parseDabraLocale(localeValue);
     const body: AI2ChatRequest = { currency: typeof form.get('currency') === 'string' ? String(form.get('currency')) : undefined, message: String(form.get('message') ?? ''), history, stream, mode, locale: locale ?? undefined };
+    const rawExcluded = form.get('excludedCurrencies');
+    if (rawExcluded !== null) {
+      try { body.excludedCurrencies = typeof rawExcluded === 'string' ? JSON.parse(rawExcluded) : null; }
+      catch { body.excludedCurrencies = null; }
+    }
     const rawTrip = form.get('continuityTrip');
     if (rawTrip !== null) {
       try { body.continuityTrip = typeof rawTrip === 'string' ? JSON.parse(rawTrip) : null; }
@@ -174,6 +180,13 @@ export async function POST(request: NextRequest) {
     if (!trip) { continuityBinding = undefined; successfulTaskContinuityBinding = undefined; tripIsCurrent = undefined; }
   }
   if (body?.currency !== undefined && !parseDisplayCurrency(body.currency)) return NextResponse.json({ error: 'Invalid currency.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
+  let sentExclusions: DisplayCurrency[] | undefined;
+  if (body?.excludedCurrencies !== undefined) {
+    if (!Array.isArray(body.excludedCurrencies) || body.excludedCurrencies.length > DISPLAY_CURRENCIES.length) return NextResponse.json({ error: 'Invalid currency exclusions.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    const parsedExclusions = body.excludedCurrencies.map(parseDisplayCurrency);
+    if (parsedExclusions.some(value => !value) || new Set(parsedExclusions).size !== parsedExclusions.length) return NextResponse.json({ error: 'Invalid currency exclusions.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    sentExclusions = parsedExclusions as DisplayCurrency[];
+  }
   ({ message: scopedMessage, history, trip } = platformConversationScope(scopedMessage, history, trip));
   let intent = agentIntent(scopedMessage);
   let agentContext: AgentContext = { role: 'guest', readRequests: async () => ({ kind: 'authentication_required' }) };
@@ -204,11 +217,17 @@ export async function POST(request: NextRequest) {
   // One canonical input for both paths. Receipt is included only after the
   // authenticated continuity read above, and only while its trip remains in scope.
   const resolveTaskInput = async () => {
-    const currency = parseDisplayCurrency(body?.currency) ?? platformCurrency(context);
+    const contextualChoice = platformCurrencySelection(context), currentChoice = platformCurrencySelection(scopedMessage);
+    const excluded = new Set(sentExclusions ?? contextualChoice.excluded);
+    for (const value of currentChoice.excluded) excluded.add(value);
+    if (currentChoice.requested) excluded.delete(currentChoice.requested);
+    const excludedCurrencies = [...excluded].sort();
+    const candidate = parseDisplayCurrency(body?.currency) ?? currentChoice.requested ?? contextualChoice.requested;
+    const currency = candidate && !excluded.has(candidate) ? candidate : null;
     const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFamilies(context).includes('drive') || /trip|itinerary|رحلة|رحله/.test(context));
     const snapshot = needsRates ? await getCurrencySnapshot() : null;
     return { message: scopedMessage, serverAttachmentNote, history, locale, context: agentContext, intent, needsClarification,
-      pricing: currency ? { currency, snapshot } : undefined, trip, continuityBinding: trip ? continuityBinding : undefined, successfulTaskContinuityBinding: trip ? successfulTaskContinuityBinding : undefined };
+      pricing: currency || excludedCurrencies.length ? { currency, snapshot, excludedCurrencies } : undefined, trip, continuityBinding: trip ? continuityBinding : undefined, successfulTaskContinuityBinding: trip ? successfulTaskContinuityBinding : undefined };
   };
   // Only the selected Core path consumes this canonical input; failure never funds legacy.
   const productionGate = await successfulTaskProductionGate(productionPolicy, request, undefined,

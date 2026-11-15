@@ -1369,3 +1369,11 @@ test('V3 decision interpretation enforces canonical one-to-seven bindings and th
  for(const grantBindings of cases){Object.assign(docs.spending,{grantBindings});assert.equal(interpretSuccessfulTaskDecisions(c.result),null,JSON.stringify(grantBindings));}
  Object.assign(docs.spending,{grantBindings:[valid[0]]});assert.equal(interpretSuccessfulTaskDecisions(c.result)?.spendingVersion,3);
 });
+
+
+test('successful task digest binds the excluded currency set without changing an empty legacy set',()=>{
+ const f=successfulTaskRuntimeFixture();const base={message:'synthetic',history:[],locale:'en' as const,context:f.context,pricing:{currency:'SAR' as const,snapshot:null}};
+ assert.equal(successfulTaskInputDigest(base),successfulTaskInputDigest({...base,pricing:{...base.pricing,excludedCurrencies:[]}}));
+ assert.notEqual(successfulTaskInputDigest(base),successfulTaskInputDigest({...base,pricing:{...base.pricing,excludedCurrencies:['USD']}}));
+ assert.equal(successfulTaskInputDigest({...base,pricing:{...base.pricing,excludedCurrencies:['USD','EUR']}}),successfulTaskInputDigest({...base,pricing:{...base.pricing,excludedCurrencies:['EUR','USD']}}));
+});

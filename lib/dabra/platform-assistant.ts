@@ -12,22 +12,24 @@ import type { SavedTrip } from './continuity-contract';
 import { cityRoles, newTripRequested, routingPlace, refineRoutingTrip, withoutRoutingCities } from './trip-routing';
 
 import { displayPrice, parseDisplayCurrency, type DisplayCurrency, type FxSnapshot } from '../currency/display';
-export type PlatformPricing = { currency: DisplayCurrency; snapshot: FxSnapshot | null };
+export type PlatformPricing = { currency: DisplayCurrency | null; snapshot: FxSnapshot | null; excludedCurrencies?: readonly DisplayCurrency[] };
 /** Distinguish a currency rejected by the user from an affirmative selection. */
 export function platformCurrencySelection(message: string) {
   const text = normalizePlatformQuery(message);
-  const aliases: Record<string, string> = { دولار: 'USD', '$': 'USD', ريال: 'SAR', جنيه: 'EGP', يورو: 'EUR', درهم: 'AED' };
-  const mentions = [...text.matchAll(/\b(?:usd|sar|egp|eur|aed)\b|(?:ال)?(?:دولار|ريال|جنيه|يورو|درهم)|\$/g)];
+  const aliases: Record<string, string> = { دولار: 'USD', '$': 'USD', ريال: 'SAR', جنيه: 'EGP', يورو: 'EUR', درهم: 'AED', 'us dollar': 'USD', 'us dollars': 'USD', euro: 'EUR', euros: 'EUR', 'saudi riyal': 'SAR', 'saudi riyals': 'SAR', 'egyptian pound': 'EGP', 'egyptian pounds': 'EGP', 'emirati dirham': 'AED', 'emirati dirhams': 'AED' };
+  const mentions = [...text.matchAll(/\b(?:usd|sar|egp|eur|aed|us\s+dollars?|euros?|saudi\s+riyals?|egyptian\s+pounds?|emirati\s+dirhams?)\b|(?:ال)?(?:دولار|ريال|جنيه|يورو|درهم)(?:\s+(?:الامريكي|امريكي|السعودي|سعودي|المصري|مصري|الاماراتي|اماراتي|الاوروبي|اوروبي))?|\$/g)];
   const latest = new Map<DisplayCurrency, { excluded: boolean; index: number }>();
   for (const match of mentions) {
-    const token = match[0].replace(/^ال/, '');
+    const token = match[0].replace(/^ال/, '').replace(/\s+(?:الامريكي|امريكي|السعودي|سعودي|المصري|مصري|الاماراتي|اماراتي|الاوروبي|اوروبي)$/, '');
     const currency = parseDisplayCurrency(aliases[token] ?? token);
     if (!currency) continue;
     const prefix = text.slice(Math.max(0, (match.index ?? 0) - 64), match.index);
-    const negative = /(?:\b(?:do not|don't|dont|never|not|no)(?:\s+(?:use|want|show|display|choose|in))?|(?<!\p{L})(?:ليست|ليس|لا|مش|مو)(?:\s+(?:اريد|ابغي|احتاج|استخدم|تستخدم))?)(?:\s+(?:the|budget|عمله|العمله|ميزانيه|الميزانيه))?\s*(\d+(?:\.\d+)?\s*)?$/u.exec(prefix);
+    const negative = /(?:\b(?:do not|don't|dont|never|not|no)(?:\s+(?:use|want|show|display|choose|accept|in))?|\b(?:avoid|exclude|without)|(?<!\p{L})(?:ليست|ليس|لا|مش|مو)(?:\s+(?:اريد|ابغي|ابي|احتاج|استخدم|تستخدم|اقبل|افضل))?|(?<!\p{L})ما\s+(?:اريد|ابغي|ابي|اقبل))(?:\s+(?:the|budget|عمله|العمله|ميزانيه|الميزانيه))?\s*(\d+(?:\.\d+)?\s*)?$/u.exec(prefix);
+    const suffix = text.slice((match.index ?? 0) + match[0].length, (match.index ?? 0) + match[0].length + 64);
+    const rejectedAfter = /^\s*[:\-]?\s*(?:(?:is|are)\s+)?(?:not\s+(?:acceptable|accepted|allowed|wanted|preferred|usable|permitted|suitable|okay|ok)|unacceptable|rejected|refused)\b|^\s*[:\-]?\s*(?:isn't|isnt|aren't|arent)\s+(?:acceptable|accepted|allowed|wanted|preferred|usable|permitted|suitable|okay|ok)\b|^\s*[:\-]?\s*(?:غير\s+(?:مقبول(?:ه|ا)?|مناسب(?:ه|ا)?|مسموح(?:ه|ا)?|مرغوب(?:ه|ا)?)|مرفوض(?:ه)?|ليس(?:ت)?\s+(?:مقبول(?:ه|ا)?|مناسب(?:ه|ا)?|مسموح(?:ه|ا)?)|(?:لا|ما)\s+(?:يناسب|يصلح))(?=$|[\s.!?,،؛;؟])/u.test(suffix);
     // Rejecting an amount does not by itself reject its denomination.
-    if (negative?.[1]) continue;
-    latest.set(currency, { excluded: Boolean(negative), index: match.index ?? 0 });
+    if (negative?.[1] && !rejectedAfter) continue;
+    latest.set(currency, { excluded: Boolean(negative) || rejectedAfter, index: match.index ?? 0 });
   }
   const entries = [...latest.entries()];
   const requested = entries.filter(([, value]) => !value.excluded).sort((a,b) => a[1].index-b[1].index).at(-1)?.[0] ?? null;
@@ -350,7 +352,7 @@ export function findPlatformDriveOffers(message: string, pricing?: PlatformPrici
 }
 
 /** Summaries use parsed USER facts only, never assistant claims or account records. */
-function previousDriveSummary(history: Turn[], locale: Locale, trip?: SavedTrip | null) {
+function previousDriveSummary(history: Turn[], locale: Locale, trip?: SavedTrip | null, excludedCurrencies: readonly DisplayCurrency[] = []) {
   const index = history.findLastIndex(turn => turn.role === 'user' && !conversationIntent(turn.content));
   if (index < 0) return null;
   const message = history[index].content, before = history.slice(0, index);
@@ -358,7 +360,7 @@ function previousDriveSummary(history: Turn[], locale: Locale, trip?: SavedTrip 
   if (platformFamilies(context).join(',') !== 'drive') return null;
   const users = [...before.filter(turn => turn.role === 'user').slice(-12).map(turn => normalizePlatformQuery(turn.content)), normalizePlatformQuery(message)];
   const state = driveDialogue(users, tripPreferences(normalizePlatformQuery(context), trip));
-  return state ? driveDialogueCopy(state, locale) : null;
+  return state ? driveDialogueCopy(state, locale, excludedCurrencies) : null;
 }
 /** Public DABRA uses platform capabilities only. Environment flags cannot enable a web fallback. */
 export function buildPlatformAssistantResponse(message: string, history: Turn[] = [], locale: Locale = 'ar', now = Date.now(), familyOverride?: PlatformFamily, pricing?: PlatformPricing, trip?: SavedTrip | null) {
@@ -370,13 +372,14 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
   const ar = locale === 'ar';
   const families = familyOverride ? [familyOverride] : platformFamilies(context);
   const drivePlan = platformDriveDialogue({ message, history, context, trip });
+  const excludedCurrencies = pricing?.excludedCurrencies ?? platformCurrencySelection(context).excluded;
   const link = serverReplyLink;
   const lines = serverReplySegments();
   const requiredUnits: string[] = [];
   const conversational = familyOverride ? null : conversationIntent(message);
   const smallTalk = familyOverride ? null : conversationReply(message, history, locale);
   if (conversational === 'summary' || conversational === 'repair' || conversational === 'price_objection') {
-    const prior = previousDriveSummary(history, locale, trip);
+    const prior = previousDriveSummary(history, locale, trip, excludedCurrencies);
     if (conversational === 'repair' || conversational === 'summary') lines.push(ar ? 'معك حق، سأركز على ما ذكرتَه.' : 'I understand; I will focus on what you told me.');
     if (prior) lines.push(prior.summary);
     if (conversational === 'price_objection') lines.push(ar ? 'أقدر أساعدك بمراجعة الخيارات ضمن ميزانيتك، لكن تأكيد السعر الإجمالي والتوفر يرجع للعمليات.' : 'I can help review options within your budget; Operations must confirm the total price and availability.');
@@ -391,7 +394,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
   } else {
     if (!families.length && /trip|itinerary|رحله|برنامج|خطه سفر|(?:^|[^\p{L}\p{N}_])رحل(?:تي|تنا)(?=$|[^\p{L}\p{N}_])/u.test(current)) families.push('drive', 'stay');
     for (const family of families) {
-      const href = platformEntry(family, context, locale, pricing?.currency, trip);
+      const href = platformEntry(family, context, locale, pricing?.currency ?? undefined, trip);
       if (family === 'drive') {
         if (!driveCatalogueDestinationEligible(text, trip)) {
           lines.push(ar ? 'لم أجد سيارة للوجهة المطلوبة في الكتالوج. كتالوج السيارات الحالي يعرض خدمات مصر؛ أستطيع مساعدتك في تحديد احتياجك دون تخمين سعر أو توفر هناك.' : 'No car matches the requested destination in the current catalogue. The car catalogue covers Egypt; I can help clarify your needs without guessing local prices or availability.');
@@ -399,7 +402,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
           continue;
         }
         if (drivePlan) {
-          const copy = driveDialogueCopy(drivePlan, locale);
+          const copy = driveDialogueCopy(drivePlan, locale, excludedCurrencies);
           lines.push(copy.summary);
           if (copy.question) { requiredUnits.push(copy.summary, copy.question); lines.push(copy.question); continue; }
           if (drivePlan.driver === 'without' || drivePlan.budget?.kind === 'amount' && drivePlan.budget.basis === 'trip') {
@@ -424,14 +427,19 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
           const referenceId = /nissan sunny|نيسان صني/.test(text) ? 'nissan-sunny' : /kia carnival|كيا كرنفال/.test(text) ? 'kia-carval' : null;
           const reference = referenceId ? driveModelReferenceCopy(referenceId, locale) : null;
           if (reference) lines.push(reference);
-          lines.push(ar ? `هذه أسعار كتالوج dir3com في مصر، وستؤكد العمليات توفر الموعد المطلوب (${offers.length} خيارًا مطابقًا):` : `These are dir3com catalogue rates in Egypt; Operations will confirm availability for the requested dates (${offers.length} matching options):`);
+          lines.push(ar ? `هذه خيارات كتالوج dir3com في مصر، وستؤكد العمليات توفر الموعد المطلوب (${offers.length} خيارًا مطابقًا):` : `These are dir3com catalogue options in Egypt; Operations will confirm availability for the requested dates (${offers.length} matching options):`);
+          let hiddenPrice = false, visiblePrice = false, sourceFallback = false, convertedPrice = false;
           for (const offer of offers.slice(0, 3)) {
             const price = displayPrice(airport ? offer.airport! : offer.chauffeur, offer.currency, pricing?.currency ?? platformCurrency(context) ?? offer.currency, pricing?.snapshot);
-            lines.push(link(`${vehicleTitle(vehicleFor(offer), locale)}: ${price.amount.toFixed(2)} ${price.currency} / ${airport ? (ar ? 'استقبال مطار' : 'airport transfer') : (ar ? 'يوم' : 'day')}`, `${href}&offer=${encodeURIComponent(offer.id)}`));
+            const blocked = excludedCurrencies.includes(parseDisplayCurrency(price.currency) as DisplayCurrency);
+            hiddenPrice ||= blocked; visiblePrice ||= !blocked; sourceFallback ||= !blocked && price.unavailable; convertedPrice ||= !blocked && price.converted;
+            const label = blocked ? vehicleTitle(vehicleFor(offer), locale) : `${vehicleTitle(vehicleFor(offer), locale)}: ${price.amount.toFixed(2)} ${price.currency} / ${airport ? (ar ? 'استقبال مطار' : 'airport transfer') : (ar ? 'يوم' : 'day')}`;
+            lines.push(link(label, `${href}&offer=${encodeURIComponent(offer.id)}`));
           }
-          if (pricing?.snapshot && pricing.currency !== 'USD') lines.push(ar ? `تحويل للعرض بتاريخ ${pricing.snapshot.asOf}؛ سعر الطلب النهائي تؤكده العمليات.` : `Display conversion as of ${pricing.snapshot.asOf}; Operations confirms the final quote.`);
-          else if (pricing && !pricing.snapshot && offers.some(o => o.currency !== pricing.currency)) lines.push(ar ? 'تعذر جلب سعر الصرف؛ الأسعار بعملة المصدر، وليست بالعملة المختارة.' : 'Exchange rates are unavailable; prices are in source currency, not the selected currency.');
-          lines.push(ar ? 'السعر المعروض للسيارة، وليس إجمالي الرحلة. اليوم يشمل السائق والبنزين و120 كم؛ تؤكد العمليات الإجمالي والمواصفات.' : 'Shown rates are per vehicle, not a trip total. A day includes driver, fuel and 120 km; Operations confirms the total and vehicle details.');
+          if (hiddenPrice) lines.push(ar ? 'تعذر عرض بعض الأسعار بعملة مقبولة حالياً؛ تؤكد العمليات السعر دون تخمين سعر الصرف.' : 'Some prices cannot currently be shown in an accepted currency; Operations will confirm the price without guessing an exchange rate.');
+          if (convertedPrice && pricing?.snapshot) lines.push(ar ? `تحويل للعرض بتاريخ ${pricing.snapshot.asOf}؛ سعر الطلب النهائي تؤكده العمليات.` : `Display conversion as of ${pricing.snapshot.asOf}; Operations confirms the final quote.`);
+          if (sourceFallback) lines.push(ar ? 'تعذر جلب سعر الصرف لبعض الخيارات؛ المعروض منها بعملة المصدر.' : 'Exchange rates are unavailable for some options; those shown use their source currency.');
+          lines.push(visiblePrice ? (ar ? 'السعر المعروض للسيارة، وليس إجمالي الرحلة. اليوم يشمل السائق والبنزين و120 كم؛ تؤكد العمليات الإجمالي والمواصفات.' : 'Shown rates are per vehicle, not a trip total. A day includes driver, fuel and 120 km; Operations confirms the total and vehicle details.') : (ar ? 'اليوم يشمل السائق والبنزين و120 كم؛ تؤكد العمليات الإجمالي والمواصفات.' : 'A day includes driver, fuel and 120 km; Operations confirms the total and vehicle details.'));
         } else lines.push(ar ? 'لم أجد سيارة مطابقة ضمن الكتالوج الحالي. غيّر الطراز أو الميزانية، أو راجع خيارات مصر.' : 'No car matches the current catalogue. Adjust the model or budget, or review Egypt options.');
         lines.push(link(ar ? 'اختيار السيارة وإكمال مواعيد الطلب' : 'Choose a car and complete request dates', href));
         lines.push(ar ? 'إنشاء الطلب قبل الموعد بـ6 ساعات على الأقل. الدخول عند إرسال الطلب، ثم تؤكد عمليات مصر السيارة والسعر. لم يُنشأ طلب أو حجز من هذه المحادثة.' : 'Submit at least 6 hours before pickup. Sign in when submitting; Egypt Operations confirms the vehicle and price. This chat has not created a request or booking.');
@@ -452,7 +460,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
     } else if (!lines.length) {
       if (!history.slice(-24).some(turn => turn.role === 'assistant')) lines.push(copy.identity);
       lines.push(copy.serviceQuestion);
-      lines.push(link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntry('drive', context, locale, pricing?.currency)), link(ar ? 'بحث الإقامة' : 'Stay search', platformEntry('stay', context, locale, pricing?.currency)), link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
+      lines.push(link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntry('drive', context, locale, pricing?.currency ?? undefined)), link(ar ? 'بحث الإقامة' : 'Stay search', platformEntry('stay', context, locale, pricing?.currency ?? undefined)), link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
     } else if (!smallTalk && families.length === 1 && (families[0] === 'drive' || families[0] === 'stay') && !(families[0] === 'drive' && drivePlan)) {
       const preferences = tripPreferences(text, trip);
       // Ask for only the next missing preference, using bounded user context.

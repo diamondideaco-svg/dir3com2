@@ -39,6 +39,7 @@ export class ConversationSession {
     else if (this.requestCurrency && this.excludedRequestCurrencies.has(this.requestCurrency)) this.requestCurrency = this.excludedRequestCurrencies.has('SAR') ? null : 'SAR';
     return this.requestCurrency;
   }
+  getExcludedRequestCurrencies() { return [...this.excludedRequestCurrencies].sort(); }
   private currencyRestorer: ((applied: NonNullable<ConversationSession['continuityCurrency']>) => void) | null = null;
   setCurrencyRestorer(restore: typeof this.currencyRestorer) { this.currencyRestorer = restore; }
   restoreContinuityCurrency() {

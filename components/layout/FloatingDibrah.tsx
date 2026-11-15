@@ -424,9 +424,10 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
     try {
       const currencyChoice = platformCurrencySelection(trimmed);
       const requestCurrency = conversation.selectRequestCurrency(currencyChoice.requested, currencyChoice.excluded);
-      const requestBody = { message: trimmed, history, locale, ...(requestCurrency ? { currency: requestCurrency } : {}),
+      const excludedCurrencies = conversation.getExcludedRequestCurrencies();
+      const requestBody = { message: trimmed, history, locale, excludedCurrencies, ...(requestCurrency ? { currency: requestCurrency } : {}),
         ...(trip && context.lease ? { continuityTrip: { revision: context.lease.revision, generation: context.lease.generation, trip } } : {}) };
-      const transport = conversation.transport(job, JSON.stringify(['json', trimmed, requestBody.locale, requestBody.currency, requestBody.continuityTrip]), JSON.stringify(requestBody));
+      const transport = conversation.transport(job, JSON.stringify(['json', trimmed, requestBody.locale, requestBody.currency, requestBody.excludedCurrencies, requestBody.continuityTrip]), JSON.stringify(requestBody));
       const response = await fetch('/api/ai2/chat', {
         method: 'POST', signal: job.signal, headers: { 'content-type': 'application/json', 'X-DABRA-Request-Id': transport.id },
         body: transport.body,

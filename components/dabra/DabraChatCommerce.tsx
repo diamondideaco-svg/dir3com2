@@ -343,6 +343,8 @@ function DabraChatCommerceSession() {
       const history = continuityContextRef.current.scoped(messages).map(({ role, text: content }) => ({ role, content }));
       const trip = continuityContextRef.current.scope(normalizedQuery, history);
       const context = platformContext(normalizedQuery, history, trip);
+      const choice = platformCurrencySelection(normalizedQuery);
+      const requestCurrency = conversation.selectRequestCurrency(choice.requested, choice.excluded);
       const families = platformFamilies(context);
       const selected = familyOverride ? familyOverride.replace('dir3-', '') : families[0];
       if (selected && ['drive', 'stay', 'fly', 'concierge', 'vip'].includes(selected)) {
@@ -353,8 +355,6 @@ function DabraChatCommerceSession() {
       }
       setPlatformQuery(null);
       const params = toMarketplaceSearchParams(parsed, 12);
-      const choice = platformCurrencySelection(normalizedQuery);
-      const requestCurrency = conversation.selectRequestCurrency(choice.requested, choice.excluded);
       if (requestCurrency) params.set('currency', requestCurrency);
       // The canonical family contract is equivalent to params.set('family', activeTab).
       const response = await fetch(`/api/public/marketplace/items?${params.toString().replace('query=', 'q=')}`, { cache: 'no-store', signal: controller.signal });
@@ -436,6 +436,7 @@ function DabraChatCommerceSession() {
     const setJobMessages = (update: Parameters<typeof conversation.setMessages>[0]) => conversation.update(job, update);
     const currencyChoice = platformCurrencySelection(explicitText);
     const requestedCurrency = conversation.selectRequestCurrency(currencyChoice.requested, currencyChoice.excluded);
+    const excludedCurrencies = conversation.getExcludedRequestCurrencies();
     if (currencyChoice.requested && currencyChoice.requested !== currency) setCurrency(currencyChoice.requested);
     stopVoicePlayback();
     setVoicePlaybackPartial(false);
@@ -467,8 +468,9 @@ function DabraChatCommerceSession() {
       form.set('stream', 'true');
       form.set('locale', requestLocale);
       if (requestedCurrency) form.set('currency', requestedCurrency);
+      form.set('excludedCurrencies', JSON.stringify(excludedCurrencies));
       for (const item of pendingAttachments) form.append('attachment', item.file, item.safeName);
-      const transport = conversation.transport(job, JSON.stringify(['form', requestMessage, requestedCurrency,
+      const transport = conversation.transport(job, JSON.stringify(['form', requestMessage, requestedCurrency, excludedCurrencies,
         form.get('locale'), form.get('continuityTrip'), pendingAttachments.map(item => item.id)]), form);
       const response = await fetch('/api/ai2/chat', {
         method: 'POST',

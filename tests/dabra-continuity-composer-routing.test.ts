@@ -194,3 +194,14 @@ test('detaching a trip retains its provenance until old derived content is clear
  assert.equal(f.requests.length,count);
  assert.equal(f.context().lease,null);
 });
+
+
+test('full composer sends postfix currency exclusion to actual POST and hides a rejected FX fallback',async()=>{
+ for(const [message,locale] of [['Show cars in Cairo, USD is not acceptable','en'],['Show cars in Cairo, do not use USD','en'],['اعرض السيارات في القاهرة والدولار غير مقبول','ar'],['اعرض السيارات في القاهرة لا تستخدم الدولار','ar']] as const){
+  const f=fixture(locale,{actualPost:true});await f.send(message);
+  assert.equal(f.statuses[0],200);assert.equal(f.requests[0].get('currency'),'SAR');
+  assert.deepEqual(JSON.parse(String(f.requests[0].get('excludedCurrencies'))),['USD']);
+  const answer=f.messages().at(-1)?.text ?? '';
+  assert.doesNotMatch(answer,/\b[\d,.]+\s+USD\b/i);assert.match(answer,/cannot currently be shown|تعذر عرض بعض الأسعار/);
+ }
+});

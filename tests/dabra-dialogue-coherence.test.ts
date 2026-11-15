@@ -308,3 +308,62 @@ test('currency interpretation skips negation, preserves later positive choices a
   {role:'assistant',content:'Synthetic reply'},{role:'user',content:'Do not use USD'},{role:'assistant',content:'Synthetic reply'}];
  assert.equal(platformCurrency(platformContext('show cars',history)),null);
 });
+
+
+test('currency rejection before and after a name is retained in English and Arabic',()=>{
+ for(const input of ['do not use USD','USD is not acceptable',"USD isn't allowed",'USD not accepted','USD is unacceptable','US dollars are not accepted','USD: not acceptable','avoid USD','without USD','لا تستخدم الدولار','لا أقبل الدولار','ما أبغى الدولار','الدولار غير مقبول','الدولار الأمريكي غير مقبول','الدولار ليس مقبولاً','الدولار ما يناسب','الدولار مرفوض','USD ليست مناسبة']){
+  const choice=platformCurrencySelection(input);assert.equal(choice.requested,null,input);assert.deepEqual(choice.excluded,['USD'],input);
+ }
+ for(const input of ['USD is acceptable','use USD','الدولار مناسب']){
+  const choice=platformCurrencySelection(input);assert.equal(choice.requested,'USD',input);assert.deepEqual(choice.excluded,[],input);
+ }
+ assert.equal(platformCurrency('USD is not acceptable, use EUR'),'EUR');
+ assert.equal(platformCurrency('USD is not acceptable, actually use USD'),'USD');
+});
+
+test('Arabic relative times preserve a known city without allowing an unknown city to inherit it',async()=>{
+ for(const phrase of ['في ثلاثة أيام','في خمس ساعات','في أسبوعين','في شهرين','في ثلاث أسابيع']){
+  const text=`اعرض السيارات في القاهرة ${phrase}`;const roles=cityRoles(text);
+  assert.equal(roles.city,'cairo',text);assert.equal(roles.unknownDestination,false,text);
+ }
+ for(const text of ['اعرض السيارات في باريس','اعرض السيارات في القاهرة ثم في باريس','اعرض السيارات في باريس في ثلاثة أيام'])assert.equal(cityRoles(text).unknownDestination,true,text);
+ const response=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'اعرض السيارات في القاهرة في ثلاثة أيام',locale:'ar'})}));
+ assert.equal(response.status,200);assert.doesNotMatch((await response.json()).answer,/لم أجد سيارة للوجهة المطلوبة/);
+});
+
+test('actual JSON and multipart POST hide rejected source prices when FX fails and honour explicit reselection',async()=>{
+ const savedFetch=globalThis.fetch;globalThis.fetch=async()=>{throw new Error('OFFLINE_TEST_NETWORK_BLOCKED');};
+ try {
+  for(const [message,locale] of [['Show cars in Cairo, USD is not acceptable','en'],['Show cars in Cairo, do not use USD','en'],['اعرض السيارات في القاهرة والدولار غير مقبول','ar'],['اعرض السيارات في القاهرة لا تستخدم الدولار','ar']] as const){
+   for(const encoding of ['json','form'] as const){
+    let request:NextRequest;
+    if(encoding==='json')request=new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message,locale,currency:'SAR',excludedCurrencies:['USD']})});
+    else {const body=new FormData();body.set('message',message);body.set('locale',locale);body.set('currency','SAR');body.set('excludedCurrencies',JSON.stringify(['USD']));request=new NextRequest('http://localhost/api/ai2/chat',{method:'POST',body});}
+    const response=await POST(request);assert.equal(response.status,200,`${encoding} ${message}`);
+    const answer=(await response.json()).answer as string;
+    assert.doesNotMatch(answer,/\b[\d,.]+\s+USD\b/i,`${encoding} ${message}`);
+    assert.match(answer,/cannot currently be shown|تعذر عرض بعض الأسعار/,`${encoding} ${message}`);
+    assert.match(answer,/offer=/,`${encoding} ${message}`);
+   }
+  }
+  for(const extra of [{}, {excludedCurrencies:[]}]){
+   const response=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'Show cars in Cairo, USD is not acceptable',locale:'en',currency:'SAR',...extra})}));
+   assert.equal(response.status,200);assert.doesNotMatch((await response.json()).answer,/\b[\d,.]+\s+USD\b/i);
+  }
+  const conflicting=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'Show cars in Cairo, USD is not acceptable',locale:'en',currency:'USD',excludedCurrencies:[]})}));
+  assert.equal(conflicting.status,200);const conflictAnswer=(await conflicting.json()).answer as string;assert.doesNotMatch(conflictAnswer,/\b[\d,.]+\s+USD\b/i);assert.doesNotMatch(conflictAnswer,/Shown rates are per vehicle/);
+  const longHistory:Turn[]=Array.from({length:70},(_,index)=>({role:index%2?'assistant':'user',content:index%2?'Synthetic reply':'yes'}));
+  const persisted=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'show cars in Cairo',locale:'en',currency:'SAR',excludedCurrencies:['USD'],history:longHistory})}));
+  assert.equal(persisted.status,200);assert.doesNotMatch((await persisted.json()).answer,/\b[\d,.]+\s+USD\b/i);
+  const oldHistory:Turn[]=[{role:'user',content:'Show cars in Cairo, do not use USD'},{role:'assistant',content:'Synthetic reply'}];
+  const selectedAgain=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'show cars',locale:'en',currency:'USD',excludedCurrencies:[],history:oldHistory})}));
+  assert.equal(selectedAgain.status,200);assert.match((await selectedAgain.json()).answer,/\b[\d,.]+\s+USD\b/);
+  const invalid=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'show cars',excludedCurrencies:['USD','USD']})}));assert.equal(invalid.status,400);
+ } finally {globalThis.fetch=savedFetch;}
+});
+
+test('accepted FX quote shows converted prices without disclosing excluded source currency',()=>{
+ const snapshot={base:'USD' as const,provider:'frankfurter' as const,rates:{USD:1,SAR:3.75,EGP:50,EUR:.9,AED:3.67},asOf:'2026-11-15',expiresAt:Date.now()+60000};
+ const answer=respond('Show Jetour T2 in Cairo, USD is not acceptable',[],'en',undefined,undefined,{currency:'SAR',snapshot,excludedCurrencies:['USD']}).answer;
+ assert.match(answer,/525\.94 SAR/);assert.doesNotMatch(answer,/\b[\d,.]+\s+USD\b/);
+});

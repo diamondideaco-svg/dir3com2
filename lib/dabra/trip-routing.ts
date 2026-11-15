@@ -43,9 +43,11 @@ export function cityRoles(message: string) {
   const nonPlaces = /^(?:english|arabic|the|a|an|from|with|for|morning|evening|afternoon|summer|winter|spring|autumn|fall|january|february|march|april|may|june|july|august|september|october|november|december|من|مع|الي|الانجليزيه|الانجليزي|العربيه|العربي|اليوم|الصباح|المساء|المطار|الصيف|الشتاء|الربيع|الخريف|صيفا|شتاء)$/u;
   const aliases = new Set(cities.flatMap(names => names.map(normalize)));
   const relativeTime = /^(?:one|two|three|four|five|six|seven|eight|nine|ten|few|several|next)\s+(?:hours?|days?|weeks?|months?|years?)\b/u;
+  const arabicRelativeTime = /^(?:(?:واحد|واحده|اثنان|اثنين|اثنتان|اثنتين|ثلاثه|ثلاث|اربعه|اربع|خمسه|خمس|سته|ست|سبعه|سبع|ثمانيه|ثمان|تسعه|تسع|عشره|عشر)\s+(?:ايام|يوم|اسابيع|اسبوع|اشهر|شهور|شهر|ساعات|ساعه|سنوات|سنين|سنه)|يومين|اسبوعين|شهرين|ساعتين|سنتين)(?=$|[^\p{L}])/u;
   const unknownDestination = Boolean(service && [...text.matchAll(/(?:\b(?:in|to)[ \t]+|(?:في|الي)[ \t]+)([\p{L}][\p{L}'-]*)/gu)]
     .some(match => (match.index ?? 0) > Math.max(service.index,destinationIndex) && !aliases.has(match[1]) && !nonPlaces.test(match[1])
-      && !relativeTime.test(text.slice((match.index ?? 0) + match[0].length - match[1].length))));
+      && !relativeTime.test(text.slice((match.index ?? 0) + match[0].length - match[1].length))
+      && !arabicRelativeTime.test(text.slice((match.index ?? 0) + match[0].length - match[1].length))));
   return { origin, destination, city, ambiguous, unknownDestination };
 }
 
