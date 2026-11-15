@@ -19,7 +19,7 @@ import type { MarketplaceService } from '@/lib/marketplace/data';
 import { consumeDabraChatResponse } from '@/lib/dabra/chat-response-contract';
 import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
-import { DABRA_LOCALE_ERROR } from '@/lib/dabra/locale-contract';
+import { DABRA_LOCALE_ERROR, explicitDabraReplyLocale } from '@/lib/dabra/locale-contract';
 import { conversationForLocale } from '@/lib/dabra/conversation-locale';
 import { DABRA_APPROVED_VOICE, getApprovedDabraPlaybackCopy, getApprovedDabraVoiceCopy } from '@/lib/dabra/approved-voice';
 import { buildDabraWhatsAppHandoff, openDabraWhatsAppHandoff } from '@/lib/dabra/whatsapp-handoff';
@@ -344,8 +344,9 @@ function DabraChatCommerceSession() {
     setResultState('idle');
     try {
       const parsed = parseDabraMarketplaceQuery(normalizedQuery, familyOverride as Parameters<typeof parseDabraMarketplaceQuery>[1]);
-      const trip = continuityContextRef.current.refine(normalizedQuery);
-      const context = platformContext(normalizedQuery, continuityContextRef.current.independent(messages).map(({ role, text: content }) => ({ role, content })), trip);
+      const history = continuityContextRef.current.independent(messages).map(({ role, text: content }) => ({ role, content }));
+      const trip = continuityContextRef.current.scope(normalizedQuery, history);
+      const context = platformContext(normalizedQuery, history, trip);
       const families = platformFamilies(context);
       const selected = familyOverride ? familyOverride.replace('dir3-', '') : families[0];
       if (selected && ['drive', 'stay', 'fly', 'concierge', 'vip'].includes(selected)) {
@@ -441,9 +442,10 @@ function DabraChatCommerceSession() {
     const userId=`user-${job.id}`;const seed:Message|null=draft&&explicitText?{id:makeId(),role:'user',text:draft}:null;
     // The staged summary is presentation only. Explicit refinements update
     // the ephemeral typed trip, never the saved record or account authority.
-    const trip=context.refine(explicitText);
-    const requestMessage=explicitText || trip?.families.join(' ') || message;
     const requestHistory=context.independent(messages).map(({role,text:content})=>({role,content}));
+    const trip=context.scope(explicitText,requestHistory);
+    const requestMessage=explicitText || trip?.families.join(' ') || message;
+    const requestLocale = explicitDabraReplyLocale(requestMessage) ?? continuityRequestLocale(context.lease ? continuityPreferences : null, language);
     context.beginAnswer(assistantId);
     if(context.lease){context.tag(assistantId);if(seed)context.tag(seed.id);else if(draft&&!explicitText)context.tag(userId);}
     context.draft=null;setContinuityDraft(null);
@@ -456,7 +458,7 @@ function DabraChatCommerceSession() {
       form.set('history', JSON.stringify(requestHistory));
       if(trip&&context.lease)form.set('continuityTrip',JSON.stringify({revision:context.lease.revision,generation:context.lease.generation,trip}));
       form.set('stream', 'true');
-      form.set('locale', continuityRequestLocale(context.lease ? continuityPreferences : null, language));
+      form.set('locale', requestLocale);
       form.set('currency', requestedCurrency);
       for (const item of pendingAttachments) form.append('attachment', item.file, item.safeName);
       const transport = conversation.transport(job, JSON.stringify(['form', requestMessage, requestedCurrency,
@@ -473,7 +475,7 @@ function DabraChatCommerceSession() {
       const finalAnswer=await consumeDabraChatResponse(response, (visibleAnswer) => {
         if (!conversation.isCurrent(job)) return;
         setJobMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));
-      }, DABRA_LOCALE_ERROR[language], () => { throw new Error('DABRA_RESPONSE_UNCERTAIN'); });
+      }, DABRA_LOCALE_ERROR[requestLocale], () => { throw new Error('DABRA_RESPONSE_UNCERTAIN'); });
       if (!conversation.isCurrent(job)) return;
       context.finishAnswer(assistantId);answerFinished=true;
       // Trigger persistence only after completion, even if React already
@@ -483,9 +485,9 @@ function DabraChatCommerceSession() {
     } catch {
       if (!conversation.isCurrent(job)) return;
       context.finishAnswer(assistantId);answerFinished=true;
-      conversation.fail(job, DABRA_LOCALE_ERROR[language]);
+      conversation.fail(job, DABRA_LOCALE_ERROR[requestLocale]);
       if (viewMountedRef.current) setAttachments((current) => current.map((item) => ({ ...item, status: 'error', error: t.attachmentSendError })));
-      setJobMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: DABRA_LOCALE_ERROR[language] } : item));
+      setJobMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: DABRA_LOCALE_ERROR[requestLocale] } : item));
     } finally {
       if(!answerFinished)setJobMessages(current=>current.filter(item=>item.id!==assistantId));
       context.finishAnswer(assistantId);

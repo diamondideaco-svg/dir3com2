@@ -61,6 +61,14 @@ for(const language of ['ar','en'] as const){
     assert.equal(context.trip?.origin,'Dubai','foreign origin must not exclude Egypt destination');
   });
 }
+test('a saved multi-service foreign trip keeps its destination in the displayed Drive fallback',()=>{
+  const context=new ContinuityContext();context.capture('user:A',{...snapshot,trip:{...trip,destination:'Dubai',families:['drive','stay']}},false,true);
+  const query=platform.platformContext('show cars',[],context.trip);
+  assert.equal(platform.findPlatformDriveOffers(query,undefined,context.trip).length,0);
+  const html=rendered(query,'en',context.trip);
+  assert.doesNotMatch(html,/dabra-product-card|offer=|\d+\.\d{2} USD/);
+  assert.match(html,/No car matches/);
+});
 test('unstructured Drive geography fallback remains unchanged and explicit typed correction updates eligibility',()=>{
   assert.ok(platform.findPlatformDriveOffers('show cars').length>0);
   assert.ok(platform.findPlatformDriveOffers('cars in Cairo').length>0);

@@ -1,6 +1,6 @@
 import type {ContinuitySnapshot} from './continuity-service';
 import type { SavedTrip } from './continuity-contract';
-import { refinePlatformTrip } from './platform-assistant';
+import { platformConversationScope, refinePlatformTrip } from './platform-assistant';
 type Message={id:string;role:'user'|'assistant';text:string};
 type Lease={ownerId:string;revision:number;generation:number;preferences:boolean;trip:boolean};
 
@@ -34,5 +34,12 @@ export class ContinuityContext {
   return <T extends Message>(messages:T[])=>messages.filter(message=>!derived.has(message.id));
  }
  clear<T extends Message>(messages:T[]){return this.forget()(messages);}
+ scope(message:string,history:Array<{role:'user'|'assistant';content:string}>) {
+  if(this.trip && !platformConversationScope(message,history,this.trip).trip) {
+   // Detach only the in-memory trip projection; saved account state is untouched.
+   this.trip=null;this.draft=null;if(this.lease)this.lease={...this.lease,trip:false};
+  }
+  return this.refine(message);
+ }
  refine(message:string){if(this.trip)this.trip=refinePlatformTrip(this.trip,message);return this.trip;}
 }

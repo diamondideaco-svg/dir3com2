@@ -1,7 +1,9 @@
 import { AI2_DABRA_CONVERSATION_COPY } from '../ai2/prompt/contract';
-import { driveQuantities, driveDialogue, driveDialogueCopy, bareDriveParty, dateWithdrawalIndex } from './drive-planning';
+import { driveQuantities, driveDialogue, driveDialogueCopy, bareDriveParty, bareDrivePartyWithLuggage, dateWithdrawalIndex } from './drive-planning';
 import { CORE_REQUIRED_DIALOGUE_UNITS, conversationIntent, conversationTopicChange, conversationClarification, conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
 import { DRIVE_OFFERS, vehicleFor, vehicleTitle, type DriveOffer } from '../drive/catalog';
+import { driveOwnerAvailabilityCopy } from '../drive/owner-availability';
+import { driveModelReferenceCopy } from '../drive/model-reference';
 import { serviceEntryHref } from '../marketplace/public-entry';
 import { cairoInstant } from '../drive/search';
 import { validSearchDate } from '../marketplace/search-context';
@@ -50,6 +52,26 @@ function resumePlatformTripRequested(message: string) {
   return /^(?:(?:resume|continue|reopen) (?:my |the )?(?:saved|previous) trip|(?:return|go) (?:back )?to (?:my |the )?(?:saved|previous) trip)\b/.test(text)
     || /^(?:(?:استانف|استكمل|اكمل|واصل) (?:رحلتي(?: (?:المحفوظه|السابقه))?|الرحله (?:المحفوظه|السابقه))|(?:ارجع|عد) (?:الي )?(?:لرحلتي|للرحله (?:المحفوظه|السابقه)|رحلتي|الرحله (?:المحفوظه|السابقه)))(?=$|[\s.!?؟،;:])/.test(text);
 }
+/** An explicitly different service or destination starts a new ephemeral request. */
+function differentRequest(message: string, history: Turn[], trip?: SavedTrip | null) {
+  const text = normalizePlatformQuery(message);
+  const correction = /\b(?:instead|same trip|same request|change the destination)\b|بدلا|نفس الرحله|نفس الطلب|تعديل الوجهه|غير الوجهه/.test(text);
+  const fresh = /\b(?:new|another) (?:car|hotel|request)\b|(?:سياره|فندق|طلب)\s+(?:اخر|اخري|جديد|جديده)/.test(text);
+  if (fresh && (history.some(turn => turn.role === 'user') || trip)) return true;
+  // Room-count projections are not explicit new Stay requests. Only service
+  // words written in a turn can establish a service boundary.
+  const explicitFamilies = (value:string) => (Object.keys(familyTerms) as PlatformFamily[]).filter(family => familyTerms[family].test(normalizePlatformQuery(value)));
+  const families = explicitFamilies(message);
+  if (families.length > 1 && !correction && (history.some(turn => turn.role === 'user') || trip)) return true;
+  if (families.length !== 1) return false;
+  const users = history.filter(turn => turn.role === 'user');
+  const priorFamily = users.slice().reverse().map(turn => explicitFamilies(turn.content)).find(value => value.length === 1)?.[0];
+  const priorCity = users.slice().reverse().map(turn => cityRoles(turn.content).city).find(Boolean) ?? (trip ? routingPlace(trip.destination) : undefined);
+  const city = cityRoles(message).city;
+  return Boolean((priorFamily && priorFamily !== families[0])
+    || (trip && !trip.families.includes(families[0]))
+    || (!correction && city && priorCity && city !== priorCity));
+}
 /** One ephemeral topic boundary for Core planning and provider input, never a saved-trip write. */
 export function platformConversationScope(message: string, history: Turn[] = [], trip?: SavedTrip | null) {
   const current = conversationTopicChange(message);
@@ -63,7 +85,15 @@ export function platformConversationScope(message: string, history: Turn[] = [],
     history = [...(next ? [{ role: 'user' as const, content: next }] : []), ...history.slice(boundary + 1)];
     if (!resumePlatformTripRequested(next)) trip = null;
   }
-  return { message, history, trip: newTripRequested(message) ? null : trip ?? null };
+  // Find request boundaries in USER turns only, including earlier changes in this
+  // transcript, so later short replies cannot resurrect another request's facts.
+  let scoped: Turn[] = [];
+  for (const turn of history) {
+    if (turn.role === 'user' && differentRequest(turn.content, scoped, trip)) { scoped = []; trip = null; }
+    scoped.push(turn);
+  }
+  if (differentRequest(message, scoped, trip)) return { message, history: [], trip: null };
+  return { message, history: scoped, trip: newTripRequested(message) ? null : trip ?? null };
 }
 export function platformContext(message: string, history: Turn[] = [], trip?: SavedTrip | null) {
   ({ message, history, trip } = platformConversationScope(message, history, trip));
@@ -83,7 +113,7 @@ export function platformContext(message: string, history: Turn[] = [], trip?: Sa
   // Inherit a service only for a bounded planning continuation or preference/answer, not every
   // unrecognized sentence. Assistant turns indicate question position, not facts.
   const followup=planningContinuation || resumePlatformTripRequested(currentMessage) || platformFamilies(currentMessage).length>0 || currentPreferences.city || currentPreferences.ambiguous
-    || currentPreferences.hasDates || currentPreferences.partyMentioned || currentPreferences.durationMentioned || currentPreferences.rooms
+    || currentPreferences.hasDates || currentPreferences.partyMentioned || currentPreferences.luggageMentioned || currentPreferences.durationMentioned || currentPreferences.rooms
     || platformCurrency(currentMessage) || /^(?:yes|no|not sure|نعم|لا|مش عارف|ما ادري)$/.test(normalizePlatformQuery(currentMessage))
     || /\b(?:cheaper|cheapest|expensive|budget|manual|automatic|sport|quiet|quieter|slower|relaxed|shade|indoor|outdoor|accessible)\b|ارخص|أرخص|اغلى|أغلى|ميزاني|اقتصادي|اهدا|أهدأ|اهدأ|هادئ|هادي|خليه اهدى/.test(normalizePlatformQuery(currentMessage));
   if (!followup) return currentMessage;
@@ -131,6 +161,10 @@ function preferenceContext(message: string, history: Turn[]) {
     if (prior?.party) carry.push(`${prior.party} adults`);
     else if (prior?.partyMentioned) carry.push('passenger count is unknown');
   }
+  if (!current.luggageMentioned) {
+    const prior = previous.find(p => p.luggageMentioned);
+    if (prior?.luggage !== undefined) carry.push(`${prior.luggage} bags`);
+  }
   if (!current.durationMentioned) {
     const prior = previous.find(p => p.durationMentioned);
     if (prior?.durationDays) carry.push(`${prior.durationDays} days`);
@@ -165,7 +199,9 @@ function contextualStayGuests(message: string, history: Turn[]): string | null {
 
 /** A short answer fills only the passenger question derived from prior USER facts. */
 function contextualDriveParty(message: string, history: Turn[]): string | null {
-  const party = bareDriveParty(normalizePlatformQuery(message));
+  const normalized = normalizePlatformQuery(message);
+  const compound = bareDrivePartyWithLuggage(normalized);
+  const party = bareDriveParty(normalized) ?? compound?.party ?? null;
   if (party === null) return null;
   const question = history.at(-1), user = history.at(-2);
   if (question?.role !== 'assistant' || user?.role !== 'user') return null;
@@ -176,7 +212,7 @@ function contextualDriveParty(message: string, history: Turn[]): string | null {
   if (state?.kind !== 'clarify' || state.question !== 'party') return null;
   const lastLine = question.content.trim().split(/\n\s*\n/).at(-1);
   if (![driveDialogueCopy(state, 'ar').question, driveDialogueCopy(state, 'en').question].includes(lastLine ?? '')) return null;
-  return `${party} passengers`;
+  return `${party} passengers${compound ? ` ${compound.luggage} bags` : ''}`;
 }
 
 const months = ['january|يناير', 'february|فبراير', 'march|مارس', 'april|ابريل', 'may|مايو', 'june|يونيو', 'july|يوليو', 'august|اغسطس', 'september|سبتمبر', 'october|اكتوبر', 'november|نوفمبر', 'december|ديسمبر'];
@@ -193,14 +229,15 @@ function tripPreferences(text: string, trip?: SavedTrip | null) {
   const safeDates = dates.filter(date => validSearchDate(date.slice(0, 10)) && (!date.includes('t') || /t(?:[01]\d|2[0-3]):[0-5]\d$/.test(date)));
   const quantities = driveQuantities(text);
   const party = quantities.party.value ? String(quantities.party.value) : undefined;
+  const luggage = quantities.luggage.value;
   const rooms=platformRooms(text);
   return { city, ambiguous: roles.ambiguous, dates: !dateWithdrawn && safeDates.length === dates.length ? safeDates : [], hasDates: iso.length > 0 || Boolean(range) || dateWithdrawn, dateWithdrawn, party, rooms,
-    partyMentioned: quantities.party.mentioned, durationDays: quantities.days.value, durationMentioned: quantities.days.mentioned };
+    partyMentioned: quantities.party.mentioned, luggage, luggageMentioned: quantities.luggage.mentioned, durationDays: quantities.days.value, durationMentioned: quantities.days.mentioned };
 }
 export function platformEntry(family: PlatformFamily, message: string, locale: Locale, displayCurrency?: DisplayCurrency, trip?: SavedTrip | null) {
   const text = normalizePlatformQuery(message);
   const params = new URLSearchParams({ language: locale });
-  const { city, dates, party, rooms } = tripPreferences(text, trip);
+  const { city, dates, party, luggage, rooms } = tripPreferences(text, trip);
   if (city) params.set('destination', city);
   const currency = displayCurrency ?? platformCurrency(message);
   if (currency) params.set('currency', currency);
@@ -208,6 +245,7 @@ export function platformEntry(family: PlatformFamily, message: string, locale: L
     if (dates[0]) params.set(dates[0].includes('t') ? 'pickupAt' : 'pickupDate', dates[0].replace('t', 'T'));
     if (dates[1]) params.set(dates[1].includes('t') ? 'returnAt' : 'returnDate', dates[1].replace('t', 'T'));
     if (/airport|المطار/.test(text)) params.set('mode', 'airport');
+    if (luggage !== undefined) params.set('luggage', String(luggage));
   } else if (family === 'stay') {
     if (dates[0]) params.set('checkIn', dates[0].slice(0, 10));
     if (dates[1]) params.set('checkOut', dates[1].slice(0, 10));
@@ -283,18 +321,40 @@ export function findPlatformDriveOffers(message: string, pricing?: PlatformPrici
   });
 }
 
+/** Summaries use parsed USER facts only, never assistant claims or account records. */
+function previousDriveSummary(history: Turn[], locale: Locale, trip?: SavedTrip | null) {
+  const index = history.findLastIndex(turn => turn.role === 'user' && !conversationIntent(turn.content));
+  if (index < 0) return null;
+  const message = history[index].content, before = history.slice(0, index);
+  const context = platformContext(message, before, trip);
+  if (platformFamilies(context).join(',') !== 'drive') return null;
+  const users = [...before.filter(turn => turn.role === 'user').slice(-4).map(turn => normalizePlatformQuery(turn.content)), normalizePlatformQuery(message)];
+  const state = driveDialogue(users, tripPreferences(normalizePlatformQuery(context), trip));
+  return state ? driveDialogueCopy(state, locale) : null;
+}
 /** Public DABRA uses platform capabilities only. Environment flags cannot enable a web fallback. */
 export function buildPlatformAssistantResponse(message: string, history: Turn[] = [], locale: Locale = 'ar', now = Date.now(), familyOverride?: PlatformFamily, pricing?: PlatformPricing, trip?: SavedTrip | null) {
-  ({ message, history, trip } = platformConversationScope(message, history, trip));
-  const context = platformContext(message, history, trip), text = normalizePlatformQuery(context), current = withoutNegativeActions(normalizePlatformQuery(message));
+  // A family override with a typed trip is the already-scoped PlatformResults
+  // projection; reclassifying its generated family words can discard the trip.
+  const projected = Boolean(familyOverride && trip && !history.length);
+  if (!projected) ({ message, history, trip } = platformConversationScope(message, history, trip));
+  const context = projected ? message : platformContext(message, history, trip), text = normalizePlatformQuery(context), current = withoutNegativeActions(normalizePlatformQuery(message));
   const ar = locale === 'ar';
   const families = familyOverride ? [familyOverride] : platformFamilies(context);
   const drivePlan = platformDriveDialogue({ message, history, context, trip });
   const link = serverReplyLink;
   const lines = serverReplySegments();
   const requiredUnits: string[] = [];
+  const conversational = familyOverride ? null : conversationIntent(message);
   const smallTalk = familyOverride ? null : conversationReply(message, history, locale);
-  if (smallTalk) lines.push(smallTalk);
+  if (conversational === 'summary' || conversational === 'repair' || conversational === 'price_objection') {
+    const prior = previousDriveSummary(history, locale, trip);
+    if (conversational === 'repair' || conversational === 'summary') lines.push(ar ? 'معك حق، سأركز على ما ذكرتَه.' : 'I understand; I will focus on what you told me.');
+    if (prior) lines.push(prior.summary);
+    if (conversational === 'price_objection') lines.push(ar ? 'أقدر أساعدك بمراجعة الخيارات ضمن ميزانيتك، لكن تأكيد السعر الإجمالي والتوفر يرجع للعمليات.' : 'I can help review options within your budget; Operations must confirm the total price and availability.');
+    else if (conversational === 'repair' && prior?.question) { requiredUnits.push(prior.question); lines.push(prior.question); }
+    else if (!prior) lines.push(ar ? 'ما زلت أحتاج تفاصيل الطلب المؤكدة حتى ألخصه بدقة.' : 'I still need the confirmed request details to summarize them accurately.');
+  } else if (smallTalk) lines.push(smallTalk);
   else if (/cancel|refund|الغاء|الغي|استرد|حجوزاتي|طلباتي|my requests|my bookings|حاله طلبي|حالة الطلب/.test(current)) {
     lines.push(ar ? 'تابع حالة طلبك أو عرض العمليات من حسابك. افتح الطلب المحدد للمراجعة؛ لا أعدّل أو ألغي طلبًا من المحادثة.' : 'Review your request and the Operations offer in your account. Open the specific request; chat does not change or cancel it.');
     lines.push(link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
@@ -305,16 +365,23 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
     for (const family of families) {
       const href = platformEntry(family, context, locale, pricing?.currency, trip);
       if (family === 'drive') {
+        if (!driveCatalogueDestinationEligible(text, trip)) {
+          lines.push(ar ? 'لم أجد سيارة للوجهة المطلوبة في الكتالوج. كتالوج السيارات الحالي يعرض خدمات مصر؛ أستطيع مساعدتك في تحديد احتياجك دون تخمين سعر أو توفر هناك.' : 'No car matches the requested destination in the current catalogue. The car catalogue covers Egypt; I can help clarify your needs without guessing local prices or availability.');
+          lines.push(link(ar ? 'مراجعة متطلبات السيارة' : 'Review car requirements', href));
+          continue;
+        }
         if (drivePlan) {
           const copy = driveDialogueCopy(drivePlan, locale);
           lines.push(copy.summary);
           if (copy.question) { requiredUnits.push(copy.summary, copy.question); lines.push(copy.question); continue; }
           if (drivePlan.driver === 'without' || drivePlan.budget?.kind === 'amount' && drivePlan.budget.basis === 'trip') {
+            lines.push(driveOwnerAvailabilityCopy(locale));
             lines.push(ar ? 'الكتالوج هنا لخدمات بسائق وأسعار يومية، وليس تأكيدًا لخدمة بدون سائق أو إجمالي الرحلة. تؤكد عمليات مصر التفاصيل حسب متطلباتك.' : 'This catalogue lists chauffeured daily rates. It does not confirm a self-drive service or a trip total. Egypt Operations must verify those requirements.', link(ar ? 'مراجعة متطلبات السيارة' : 'Review car requirements', href));
             continue;
           }
           const party = Number(drivePlan.preferences.party);
           if (!findPlatformDriveOffers(context, pricing, trip).some(offer => { const capacity = vehicleFor(offer).passengers; return capacity !== null && capacity >= party; })) {
+            lines.push(driveOwnerAvailabilityCopy(locale));
             lines.push(ar ? 'لا توجد لدي سعة ركاب موثقة لهذه الخيارات، لذلك لا أقدر أرشّح سيارة تناسب العدد بثقة. تؤكد عمليات مصر السعة والسائق والتوفر والسعر حسب متطلباتك.' : 'Passenger capacity is not documented for suitable options, so I cannot recommend a car as fitting your party. Egypt Operations must confirm capacity, driver, availability and the quote for your requirements.', link(ar ? 'إكمال متطلبات السيارة للمراجعة' : 'Continue with the car requirements for review', href));
             continue;
           }
@@ -325,6 +392,10 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
         const tooSoon = (instant !== null && instant < now + 6 * 3600000) || /(?:after|in)\s*[1-5]\s*hours?|بعد\s*(?:ساعه|ساعتين|[1-5]\s*ساعات)/.test(current);
         if (tooSoon) lines.push(ar ? 'الموعد أقرب من 6 ساعات؛ اختر موعدًا بعد 6 ساعات على الأقل حتى تقبل المنصة إنشاء الطلب.' : 'Pickup is less than 6 hours away. Choose a pickup at least 6 hours ahead to submit a request.');
         if (offers.length) {
+          lines.push(driveOwnerAvailabilityCopy(locale));
+          const referenceId = /nissan sunny|نيسان صني/.test(text) ? 'nissan-sunny' : /kia carnival|كيا كرنفال/.test(text) ? 'kia-carval' : null;
+          const reference = referenceId ? driveModelReferenceCopy(referenceId, locale) : null;
+          if (reference) lines.push(reference);
           lines.push(ar ? `هذه أسعار كتالوج dir3com في مصر، والتوفر تؤكده العمليات (${offers.length} خيارًا مطابقًا):` : `These are dir3com catalogue rates in Egypt, with availability confirmed by Operations (${offers.length} matching options):`);
           for (const offer of offers.slice(0, 3)) {
             const price = displayPrice(airport ? offer.airport! : offer.chauffeur, offer.currency, pricing?.currency ?? platformCurrency(context) ?? offer.currency, pricing?.snapshot);

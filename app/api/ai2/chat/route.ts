@@ -7,7 +7,7 @@ import { platformCurrency, platformContext, platformConversationScope, platformF
 type AI2ChatTurn = { role: 'user' | 'assistant'; content: string };
 import { createDabraAssistantTextResponse } from '@/lib/dabra/chat-response-contract';
 import { validateAndNormalizeDocumentFile } from '@/lib/security/document-validation';
-import { DABRA_LOCALE_ERROR, parseDabraLocale } from '@/lib/dabra/locale-contract';
+import { DABRA_LOCALE_ERROR, explicitDabraReplyLocale, parseDabraLocale } from '@/lib/dabra/locale-contract';
 import { getCurrencySnapshot } from '@/lib/currency/service';
 import { parseDisplayCurrency } from '@/lib/currency/display';
 import { agentIntent, type AgentContext } from '@/lib/dabra/agent-contract';
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
   // Public discovery is read-only. Submission uses the existing authenticated REQ flow.
   const parsed = await parseChatRequest(request);
   const { body } = parsed;
-  const locale = parseDabraLocale(body?.locale) ?? (/[؀-ۿ]/u.test(body?.message ?? '') ? 'ar' : 'en');
+  const locale = explicitDabraReplyLocale(body?.message) ?? parseDabraLocale(body?.locale) ?? (/[؀-ۿ]/u.test(body?.message ?? '') ? 'ar' : 'en');
 
   if (body?.locale !== undefined && !parseDabraLocale(body.locale)) {
     return NextResponse.json({ error: 'Invalid locale.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
@@ -161,7 +161,10 @@ export async function POST(request: NextRequest) {
     } catch { /* Unavailable authenticated continuity fails closed. */ }
     if (!trip) return NextResponse.json({ error: 'Continuity context expired or changed.' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
     continuityBinding = { revision: input.revision, generation: input.generation };
-    trip = refinePlatformTrip(trip, message);
+    // Decide the request boundary against the authenticated original trip before refinement.
+    const activeTrip = platformConversationScope(scopedMessage, history, trip).trip;
+    trip = activeTrip ? refinePlatformTrip(activeTrip, message) : null;
+    if (!trip) { continuityBinding = undefined; successfulTaskContinuityBinding = undefined; tripIsCurrent = undefined; }
   }
   if (body?.currency !== undefined && !parseDisplayCurrency(body.currency)) return NextResponse.json({ error: 'Invalid currency.' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
   ({ message: scopedMessage, history, trip } = platformConversationScope(scopedMessage, history, trip));

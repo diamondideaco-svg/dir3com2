@@ -8,6 +8,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { DRIVE_CURRENCIES, DRIVE_OFFERS, vehicleFor, vehicleTitle, vehicleClassLabel, vehicleYearAvailabilityLabel, type DriveOffer, type VehicleMaster } from '@/lib/drive/catalog';
+import { driveOwnerAvailabilityCopy } from '@/lib/drive/owner-availability';
 import { driveSearchParams, readDriveSearch, validateDriveSearch, type DriveSearch } from '@/lib/drive/search';
 import styles from './drive.module.css';
 import MarketplaceNavigation from '@/components/public/MarketplaceNavigation';
@@ -74,6 +75,7 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
   return <section className={`${styles.page} ${styles.browse}`} dir={direction}>
     <MarketplaceNavigation family={discovery ? undefined : 'dir3-drive'} search={displaySearch}/>
     <h1>{discovery ? (ar ? 'ابدأ رحلتك من هنا' : 'Start your journey here') : (ar ? 'تنقّل براحة في مصر' : 'Travel comfortably in Egypt')}</h1><p>{ar ? 'سيارة مع سائق ووقود حتى 120 كم، ودعم فريق العمليات المحلي.' : 'A chauffeur, fuel up to 120 km, and regional Operations support.'}</p>
+    <p>{driveOwnerAvailabilityCopy(language)}</p>
     <form id="drive-search" className={styles.search} onSubmit={submit}>
       <label>{ar ? 'موقع الاستلام: مدينة، مطار، فندق أو عنوان' : 'Pickup: city, airport, hotel or address'}<input required maxLength={200} value={search.pickup} onChange={e=>update('pickup',e.target.value)} /></label>
       <label>{ar ? 'موقع تسليم مختلف (اختياري)' : 'Different drop-off (optional)'}<input maxLength={200} value={search.dropoff} onChange={e=>update('dropoff',e.target.value)} /></label>

@@ -218,6 +218,22 @@ test('canonical POST binds authenticated continuity receipt and server trip, not
   } finally { restore(); }
 });
 
+test('canonical POST isolates a new saved-trip destination but retains an explicit correction', async () => {
+  const restore = syntheticProviderEnvironment();
+  try {
+    const trip: SavedTrip = { id: randomUUID(), origin: null, destination: 'Dubai', startDate: '2026-12-10', endDate: '2026-12-13',
+      adults: 4, children: 0, rooms: 1, budget: 8000, currency: 'SAR', families: ['drive'] };
+    for (const [message, keep] of [['I need a car in Cairo', false], ['Instead in Cairo', true]] as const) {
+      const x = fixture({ trip });
+      const response = await x.post({ message, locale: 'en', continuityTrip: { revision: 2, generation: 3, trip } });
+      assert.equal(response.status, 200); assert.equal(Boolean(x.inputs[0].trip), keep);
+      if (keep) { assert.equal(x.inputs[0].trip?.destination, 'cairo'); assert.equal(x.inputs[0].trip?.budget, 8000); assert.equal(x.inputs[0].continuityBinding?.revision, 2); }
+      else { assert.equal(x.inputs[0].continuityBinding, undefined); assert.equal(x.inputs[0].trip, null); }
+    }
+    assert.equal(trip.destination, 'Dubai'); assert.equal(trip.budget, 8000);
+  } finally { restore(); }
+});
+
 test('revocation during final allowance read prevents answer delivery', async () => {
   const restore = syntheticProviderEnvironment();
   try { const x = fixture({ revokeDuringAllowance: true });
