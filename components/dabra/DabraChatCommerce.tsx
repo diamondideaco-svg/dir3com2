@@ -424,6 +424,13 @@ function DabraChatCommerceSession() {
     const explicitText=text.trim();
     const message = explicitText || draft || (attachments.length ? t.attachmentPrompt : '');
     if (!message || !identityResolved) { conversation.finish(job); return; }
+    const requestHistory=context.independent(messages).map(({role,text:content})=>({role,content}));
+    const trip=context.scope(explicitText,requestHistory);
+    // Never send a saved-trip presentation string as an ordinary user turn
+    // after the typed trip has left scope.
+    if(draft&&!explicitText&&!trip){setContinuityDraft(null);conversation.finish(job);return;}
+    const requestMessage=explicitText || trip?.families.join(' ') || message;
+    const derivedResponse=Boolean(context.lease);
     const setJobMessages = (update: Parameters<typeof conversation.setMessages>[0]) => conversation.update(job, update);
     const requestedCurrency = platformCurrency(message) ?? currency;
     if (requestedCurrency !== currency) setCurrency(requestedCurrency);
@@ -439,12 +446,9 @@ function DabraChatCommerceSession() {
     setAttachmentError('');
     setCart((current) => applyScopedHotelChange(current, message));
     const assistantId = `assistant-${job.id}`;
-    const userId=`user-${job.id}`;const seed:Message|null=draft&&explicitText?{id:makeId(),role:'user',text:draft}:null;
+    const userId=`user-${job.id}`;const seed:Message|null=draft&&trip&&explicitText?{id:makeId(),role:'user',text:draft}:null;
     // The staged summary is presentation only. Explicit refinements update
     // the ephemeral typed trip, never the saved record or account authority.
-    const requestHistory=context.independent(messages).map(({role,text:content})=>({role,content}));
-    const trip=context.scope(explicitText,requestHistory);
-    const requestMessage=explicitText || trip?.families.join(' ') || message;
     const requestLocale = explicitDabraReplyLocale(requestMessage) ?? continuityRequestLocale(context.lease ? continuityPreferences : null, language);
     context.beginAnswer(assistantId);
     if(context.lease){context.tag(assistantId);if(seed)context.tag(seed.id);else if(draft&&!explicitText)context.tag(userId);}
@@ -470,12 +474,14 @@ function DabraChatCommerceSession() {
         signal,
       });
       if (!conversation.isCurrent(job)) return;
+      if(derivedResponse&&!response.ok&&!await ensureContinuityFresh(false,job))return;
       conversation.acceptAllowance(job, response.headers);
       if (response.headers.get('X-DABRA-Private-Context') === '1' || response.headers.get('Content-Type')?.includes('application/json')) conversation.markPrivate();
       const finalAnswer=await consumeDabraChatResponse(response, (visibleAnswer) => {
-        if (!conversation.isCurrent(job)) return;
+        if (derivedResponse || !conversation.isCurrent(job)) return;
         setJobMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));
       }, DABRA_LOCALE_ERROR[requestLocale], () => { throw new Error('DABRA_RESPONSE_UNCERTAIN'); });
+      if(derivedResponse&&!await ensureContinuityFresh(false,job))return;
       if (!conversation.isCurrent(job)) return;
       context.finishAnswer(assistantId);answerFinished=true;
       // Trigger persistence only after completion, even if React already
@@ -679,6 +685,7 @@ function DabraChatCommerceSession() {
     if (viewGeneration !== conversation.getSnapshot().generation) return;
     const context=continuityContextRef.current;const hadContext=Boolean(context.lease);
     if(hadContext){if(!keepJob || !conversation.isCurrent(keepJob))conversation.cancel();invalidateActiveRequests();}
+    conversation.discardRetryTransport();
     setContinuityPreferences(null);
     setContinuityDraft(null);
     conversation.restoreContinuityCurrency();

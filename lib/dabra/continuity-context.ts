@@ -2,7 +2,7 @@ import type {ContinuitySnapshot} from './continuity-service';
 import type { SavedTrip } from './continuity-contract';
 import { platformConversationScope, refinePlatformTrip } from './platform-assistant';
 type Message={id:string;role:'user'|'assistant';text:string};
-type Lease={ownerId:string;revision:number;generation:number;preferences:boolean;trip:boolean};
+type Lease={ownerId:string;revision:number;generation:number;preferences:boolean;trip:boolean;preferencesSource:boolean;tripSource:boolean;tripSourceId:string|null};
 
 // Provenance is kept separately from user-entered content. Derived messages
 // never enter the existing browser context cache, even before revocation.
@@ -13,7 +13,12 @@ export class ContinuityContext {
  private derivedIds=new Set<string>();
  private pendingIds=new Set<string>();
  capture(ownerId:string,state:ContinuitySnapshot,preferences:boolean,trip:boolean){
-  this.lease={ownerId,revision:state.revision,generation:state.generation,preferences,trip};
+  const prior=this.lease;
+  const sameSource=Boolean(prior&&prior.ownerId===ownerId&&prior.revision===state.revision&&prior.generation===state.generation);
+  const preferencesSource=preferences||Boolean(sameSource&&prior?.preferencesSource);
+  const tripSource=trip||Boolean(sameSource&&prior?.tripSource);
+  const tripSourceId=trip ? state.trip?.id??null : sameSource ? prior?.tripSourceId??null : null;
+  this.lease={ownerId,revision:state.revision,generation:state.generation,preferences,trip,preferencesSource,tripSource,tripSourceId};
   if(trip && !this.trip && state.trip)this.trip={...state.trip,families:[...state.trip.families]};
   if(!trip)this.trip=null;
  }
@@ -21,8 +26,8 @@ export class ContinuityContext {
   const lease=this.lease;
   if(!lease)return true;
   return Boolean(state&&state.consentEnabled&&lease.ownerId===ownerId&&lease.revision===state.revision&&lease.generation===state.generation
-   &&(!lease.preferences||(state.preferences&&Date.parse(state.preferencesExpiresAt??'')>now))
-   &&(!lease.trip||(state.trip&&Date.parse(state.tripExpiresAt??'')>now)));
+   &&(!lease.preferencesSource||(state.preferences&&Date.parse(state.preferencesExpiresAt??'')>now))
+   &&(!lease.tripSource||(lease.tripSourceId&&state.trip?.id===lease.tripSourceId&&Date.parse(state.tripExpiresAt??'')>now)));
  }
  tag(...ids:string[]){for(const id of ids)this.derivedIds.add(id);}
  independent<T extends Message>(messages:T[]){return messages.filter(message=>!this.derivedIds.has(message.id)&&!this.pendingIds.has(message.id));}

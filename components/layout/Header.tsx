@@ -176,7 +176,7 @@ export default function Header({ logo, onHomeSearch }: { logo?: ReactNode; onHom
       </div>
 
       {mobileOpen ? (
-        <div className="border-t border-[#d4af37]/20 bg-[#fffdf9] px-4 py-4 xl:hidden">
+        <div className="max-h-[calc(100dvh-92px)] overflow-y-auto overscroll-contain border-t border-[#d4af37]/20 bg-[#fffdf9] px-4 py-4 xl:hidden">
           <nav className="mx-auto grid max-w-7xl gap-2" aria-label={t.menu}>
             {navigation.map((item) => <Link prefetch={false} key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className="rounded-xl border border-[#d4af37]/15 bg-white px-4 py-3 text-sm font-semibold text-[#2a2118]">{item.label}</Link>)}
             <div className="mt-2 flex flex-wrap gap-2 md:hidden">

@@ -19,3 +19,13 @@ test('reload, other-session revoke, deletion, expiry and account switch invalida
  for(const changed of [null,{...state,revision:2},{...state,generation:1,consentEnabled:false,preferences:null,preferencesExpiresAt:null,trip:null,tripExpiresAt:null},{...state,preferences:null,preferencesExpiresAt:null},{...state,trip:null,tripExpiresAt:null},{...state,preferencesExpiresAt:new Date(now).toISOString()}])assert.equal(context.isFresh('user:A',changed,now),false);
  assert.equal(context.isFresh('user:B',state,now),false);context.clear([]);assert.equal(context.isFresh('user:A',null,now),true);
 });
+test('detached trip and preferences retain the exact source proof for old derived text',()=>{
+ const context=new ContinuityContext();context.capture('user:A',state,true,true);context.tag('derived');
+ context.scope('I need a car in Cairo',[]);
+ assert.equal(context.trip,null);assert.equal(context.lease?.trip,false);assert.equal(context.lease?.tripSource,true);
+ context.capture('user:A',state,false,false);
+ assert.equal(context.isFresh('user:A',state,now),true);
+ assert.equal(context.isFresh('user:A',{...state,tripExpiresAt:new Date(now).toISOString()},now),false);
+ assert.equal(context.isFresh('user:A',{...state,preferencesExpiresAt:new Date(now).toISOString()},now),false);
+ assert.equal(context.isFresh('user:A',{...state,trip:{...state.trip!,id:'22222222-2222-4222-8222-222222222222'}},now),false);
+});

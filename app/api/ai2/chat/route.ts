@@ -29,7 +29,7 @@ type AI2ChatRequest = {
 
 type ParsedChatRequest = { body: AI2ChatRequest | null; attachmentCount: number; attachmentError: boolean };
 
-const MAX_HISTORY_TURNS = 8;
+const MAX_HISTORY_TURNS = 16;
 const MAX_TURN_LENGTH = 500;
 const MAX_ATTACHMENTS = 3;
 async function parseChatRequest(request: NextRequest): Promise<ParsedChatRequest> {
@@ -93,7 +93,8 @@ export async function POST(request: NextRequest) {
   // Public discovery is read-only. Submission uses the existing authenticated REQ flow.
   const parsed = await parseChatRequest(request);
   const { body } = parsed;
-  const locale = explicitDabraReplyLocale(body?.message) ?? parseDabraLocale(body?.locale) ?? (/[؀-ۿ]/u.test(body?.message ?? '') ? 'ar' : 'en');
+  const message = typeof body?.message === 'string' ? body.message.slice(0, MAX_TURN_LENGTH).trim() : '';
+  const locale = explicitDabraReplyLocale(message) ?? parseDabraLocale(body?.locale) ?? (/[؀-ۿ]/u.test(message) ? 'ar' : 'en');
 
   if (body?.locale !== undefined && !parseDabraLocale(body.locale)) {
     return NextResponse.json({ error: 'Invalid locale.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
@@ -110,8 +111,6 @@ export async function POST(request: NextRequest) {
     if (body?.stream === true) return createDabraAssistantTextResponse(null, { status: 400, fallback: DABRA_LOCALE_ERROR[locale] });
     return NextResponse.json({ error: 'Invalid attachment.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
   }
-
-  const message = typeof body?.message === 'string' ? body.message.trim().slice(0, MAX_TURN_LENGTH) : '';
 
   // Intent and topic scope use user text only; this note is server-owned model context.
   const serverAttachmentNote = parsed.attachmentCount
@@ -172,7 +171,7 @@ export async function POST(request: NextRequest) {
   let agentContext: AgentContext = { role: 'guest', readRequests: async () => ({ kind: 'authentication_required' }) };
   const inferenceEnabled = process.env.DABRA_INTERNAL_AI_ENABLED === 'true';
   const publicUtility = ['weather', 'currency', 'maps'].includes(intent.tool);
-  if ((intent.tool !== 'discover' && !publicUtility) || inferenceEnabled || productionPolicy != null || pilot.kind === 'legacy') {
+  if ((intent.tool !== 'discover' && !publicUtility) || inferenceEnabled || productionPolicy != null || pilot.kind === 'legacy' || trip) {
     const { resolveAgentContext } = await import('@/lib/dabra/agent-context');
     agentContext = await resolveAgentContext(request);
     if ((pilot.kind === 'pilot' || pilot.kind === 'legacy') && (
@@ -183,6 +182,9 @@ export async function POST(request: NextRequest) {
         status: 503, headers: { 'Cache-Control': 'private, no-store', Vary: 'Cookie, Authorization' },
       });
     }
+  }
+  if (tripIsCurrent && trip && !agentContext.isTaskAuthorityCurrent) {
+    return NextResponse.json({ error: 'Continuity context expired or changed.' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
   }
   if (tripIsCurrent && trip && agentContext.isTaskAuthorityCurrent) {
     const authIsCurrent=agentContext.isTaskAuthorityCurrent;
@@ -203,11 +205,17 @@ export async function POST(request: NextRequest) {
   // Only the selected Core path consumes this canonical input; failure never funds legacy.
   const productionGate = await successfulTaskProductionGate(productionPolicy, request, undefined,
     { resolveInput: resolveTaskInput, requestId, stream: body?.stream === true });
-  if (productionGate) return productionGate;
+  if (productionGate) {
+    if (productionGate.ok && tripIsCurrent && trip && !await tripIsCurrent()) return NextResponse.json({ error: 'Continuity context expired or changed.' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
+    return productionGate;
+  }
   // No adapter is installed. Only an explicitly injected synthetic dependency
   // in isolated tests can select this path; request data and ENV cannot select it.
   const successfulTaskResponse = await successfulTaskChatResponse(resolveTaskInput, requestId, request.signal, body?.stream === true);
-  if (successfulTaskResponse) return successfulTaskResponse;
+  if (successfulTaskResponse) {
+    if (successfulTaskResponse.ok && tripIsCurrent && trip && !await tripIsCurrent()) return NextResponse.json({ error: 'Continuity context expired or changed.' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
+    return successfulTaskResponse;
+  }
   let dialoguePolicy = await getAgentDialoguePolicy(agentContext, request.signal, parsed.attachmentCount ? undefined : requestId);
   let understanding: string = 'internal-rules';
   let understandingProvider: string | undefined;
@@ -235,6 +243,7 @@ export async function POST(request: NextRequest) {
     }
   }
   const taskResult = await runInternalAgentTask(await resolveTaskInput(), { signal: request.signal, dialogue: dialoguePolicy, responseContract: dialoguePolicy.publicMonthly ? 'platform-dialogue' : 'platform-units' });
+  if (tripIsCurrent && trip && !await tripIsCurrent()) return NextResponse.json({ error: 'Continuity context expired or changed.' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
   if (taskResult.kind === 'stopped') return NextResponse.json({ error: DABRA_LOCALE_ERROR[locale] }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
   const response = taskResult.response;
   if (body?.stream === true) {

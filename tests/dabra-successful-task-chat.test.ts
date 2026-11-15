@@ -691,7 +691,7 @@ for (const lostAdmission of [false, true, 'continuity', 'strong', 'source-replac
     const compiled = ts.transpileModule(readFileSync('lib/dabra/successful-task-production-runtime.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     vm.runInNewContext(compiled, { exports: exported, require: (id: string) => Object.hasOwn(deps, id) ? deps[id] : require(process.cwd() + '/lib/dabra/' + id), Response, JSON, Object, structuredClone });
     assert.ok(exported.runSuccessfulTaskProduction); const runtime = exported.runSuccessfulTaskProduction;
-    const body = { message: 'hotel in Cairo', locale: 'en', ...(lostAdmission === 'stream' || lostAdmission === 'v3-stream' ? { stream: true } : {}), ...(withTrip ? { continuityTrip: { revision:1,generation:0,trip:{...originalTrip,destination:'Dubai'} } } : {}) };
+    const body = { message: withTrip ? 'hotel in Riyadh' : 'hotel in Cairo', locale: 'en', ...(lostAdmission === 'stream' || lostAdmission === 'v3-stream' ? { stream: true } : {}), ...(withTrip ? { continuityTrip: { revision:1,generation:0,trip:{...originalTrip,destination:'Dubai'} } } : {}) };
     const first = await x.post(body); await assertNoAuthorityDisclosure(first);
     if (sourceReplaced) {
       assert.equal(first.status, 503);

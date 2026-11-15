@@ -90,6 +90,7 @@ export class ConversationSession {
     else this.retryTransport.retry = false;
     return { id: this.retryTransport.id, body: this.retryTransport.body };
   }
+  discardRetryTransport() { this.retryTransport = null; }
   acceptAllowance(job: ConversationJob, headers: Headers) {
     if (this.isCurrent(job)) this.publish({ allowance: parseSuccessfulTaskAllowance(headers.get('X-DABRA-Successful-Task-Allowance')) });
   }

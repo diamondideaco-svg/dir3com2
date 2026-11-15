@@ -27,17 +27,24 @@ export function cityRoles(message: string) {
     .flatMap(({ name, alias }) => [...text.matchAll(new RegExp(`(?<![\\p{L}])${alias}(?![\\p{L}])`, 'gu'))]
       .map(match => ({ name, index: match.index!, end: match.index! + alias.length })));
   const ordered = tokens.sort((a, b) => a.index - b.index);
-  let origin: string | undefined, destination: string | undefined;
+  let origin: string | undefined, destination: string | undefined, destinationIndex = -1;
   const unqualified = new Set<string>();
   for (const token of ordered) {
     const before = text.slice(0, token.index);
     if (/(?:\bfrom|\borigin|من|المغادره من)\s*[:=]?\s*$/.test(before)) origin = token.name;
-    else if (/(?:\bto|\bin|\bdestination|\binstead|الي|في|الوجهه|بدلا من ذلك في)\s*[:=]?\s*$/.test(before)) destination = token.name;
+    else if (/(?:\bto|\bin|\bdestination|\binstead|الي|في|الوجهه|بدلا من ذلك في)\s*[:=]?\s*$/.test(before)) { destination = token.name; destinationIndex = token.index; }
     else unqualified.add(token.name);
   }
   const ambiguous = !destination && (unqualified.size > 1 || (origin !== undefined && unqualified.size > 0));
   const city = destination ?? (!origin && !ambiguous && unqualified.size === 1 ? [...unqualified][0] : undefined);
-  return { origin, destination, city, ambiguous };
+  // A named but unrecognised destination must not inherit a prior city.
+  // This only recognizes a place after a service word, not language or time.
+  const service = /\b(?:car|cars|hotel|hotels|apartment|apartments|flight|flights)\b|سيار|فندق|فنادق|شقه|شقق|طيران/u.exec(text);
+  const nonPlaces = /^(?:english|arabic|the|a|an|from|with|for|morning|evening|afternoon|january|february|march|april|may|june|july|august|september|october|november|december|من|مع|الي|الانجليزيه|الانجليزي|العربيه|العربي|اليوم|الصباح|المساء|المطار)$/u;
+  const aliases = new Set(cities.flatMap(names => names.map(normalize)));
+  const unknownDestination = Boolean(service && [...text.matchAll(/(?:\b(?:in|to)[ \t]+|(?:في|الي)[ \t]+)([\p{L}][\p{L}'-]*)/gu)]
+    .some(match => (match.index ?? 0) > Math.max(service.index,destinationIndex) && !aliases.has(match[1]) && !nonPlaces.test(match[1])));
+  return { origin, destination, city, ambiguous, unknownDestination };
 }
 
 /** Only explicit roles update a resumed trip; its display summary is never parsed. */

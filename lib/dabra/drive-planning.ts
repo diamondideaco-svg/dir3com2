@@ -42,7 +42,7 @@ function quantity(text: string, units: string, max: number, dual: RegExp, reset:
   const index=Math.max(match?.index??-1,dualAt);
   if(resetAt>=0&&resetAt>index)return {mentioned:true,value:undefined};
   if(index<0)return {mentioned:false,value:undefined};
-  const negated = match && /(?:\bnot|ليس|مش|مو)\s*$/.test(text.slice(0,match.index));
+  const negated = /(?:\bnot|ليس|مش|مو)\s*$/.test(text.slice(Math.max(0,index-32),index));
   // Keep the conjunction in the prefix when rejecting suffixes of unsupported compound numbers.
   const leadingAnd = match?.[0].match(/^و\s*/)?.[0] ?? '';
   const partial = match && partialNumberPrefix.test(text.slice(0,match.index) + leadingAnd);
@@ -77,16 +77,26 @@ const currencies:Record<string,string>={دولار:'USD',ريال:'SAR',جنيه
 function budgetIn(text:string, previous:Budget|null):Budget|null|undefined {
   if(/ميزانيه غير محدده بعد|الميزانيه غير محدده بعد|لم احدد الميزانيه|budget (?:is )?undecided|have not decided.*budget/.test(text))return null;
   if(/no (?:fixed |set )?budget|no (?:maximum|limit)|flexible budget|budget is flexible|ميزانيه مفتوحه|الميزانيه مفتوحه|لا يوجد سقف|ما عندي سقف|بدون سقف/.test(text))return {kind:'flexible'};
-  const amount=text.match(/(?:budget|under|below|max(?:imum)?|ميزانيه|الميزانيه|اقل من|حد اقصي)\s*(?:is\s*)?[$]?\s*(\d+(?:\.\d{1,2})?)/)?.[1]
-    ??text.match(/(?<![\d.])(\d+(?:\.\d{1,2})?)\s*(?:usd|sar|egp|eur|aed|دولار|ريال|جنيه|يورو|درهم)/)?.[1];
-  const currencyToken=text.match(/\b(?:usd|sar|egp|eur|aed)\b|دولار|ريال|جنيه|يورو|درهم|\$/)?.[0];
+  const isNegated = (index:number) => /(?:\bnot|\bno|ليس|مش|مو)\s*(?:(?:budget|ميزانيه|الميزانيه)\s*)?$/.test(text.slice(Math.max(0,index-48),index));
+  const labelled = [...text.matchAll(/(?:budget|under|below|max(?:imum)?|ميزانيه|الميزانيه|اقل من|حد اقصي)\s*(?:is\s*)?(\$)?\s*(\d+(?:\.\d{1,2})?)/g)]
+    .map(m=>({index:m.index,amount:m[2],currency:m[1]??null}));
+  const denominated = [...text.matchAll(/(?<![\d.])(\d+(?:\.\d{1,2})?)\s*(usd|sar|egp|eur|aed|دولار|ريال|جنيه|يورو|درهم)/g)]
+    .map(m=>({index:m.index,amount:m[1],currency:m[2]}));
+  const selected = [...labelled,...denominated].filter(m=>!isNegated(m.index)).sort((a,b)=>a.index-b.index).at(-1);
+  if (!selected && [...labelled,...denominated].some(m=>isNegated(m.index))) return null;
+  const amount=selected?.amount;
+  const currencyToken=selected?.currency ?? [...text.matchAll(/\b(?:usd|sar|egp|eur|aed)\b|دولار|ريال|جنيه|يورو|درهم|\$/g)].filter(m=>!isNegated(m.index)).at(-1)?.[0];
   const currency=currencyToken?(currencies[currencyToken]??currencyToken.toUpperCase()):null;
   const duration = new RegExp('(?<![\\p{L}\\p{N}])(?:لل|لمده\\s+)'+token+'\\s*(?:ايام|يوما|يوم)\\s*(?:كامله|كاملها|كلها)(?!\\p{L})','u').exec(text);
   const wholeDuration = duration && !/(?:not|ليس|مش|مو|لا)\s*$/.test(text.slice(0,duration.index));
-  const basis=/per day|daily|a day|يومي|لليوم|في اليوم/.test(text)?'day':/total|whole trip|للرحله|اجمالي|لكامل/.test(text)||wholeDuration?'trip':null;
+  const bases=[...text.matchAll(/per day|daily|a day|يومي|لليوم|في اليوم|total|whole trip|للرحله|اجمالي|لكامل/g)];
+  const basisMatch=bases.filter(m=>!isNegated(m.index)).at(-1)?.[0];
+  const basis=basisMatch ? (/per day|daily|a day|يومي|لليوم|في اليوم/.test(basisMatch)?'day':'trip') : wholeDuration?'trip':null;
+  const rejectedPreviousBasis=previous?.kind==='amount'&&bases.some(m=>isNegated(m.index)
+    && (/per day|daily|a day|يومي|لليوم|في اليوم/.test(m[0])?'day':'trip')===previous.basis);
   if(amount&&Number.isFinite(Number(amount))&&Number(amount)>0)return {kind:'amount',amount,
-    currency:currency??(previous?.kind==='amount'?previous.currency:null),basis:basis??(previous?.kind==='amount'?previous.basis:null)};
-  if(previous?.kind==='amount'&&(currency||basis))return {...previous,currency:currency??previous.currency,basis:basis??previous.basis};
+    currency:currency??(previous?.kind==='amount'?previous.currency:null),basis:basis??(rejectedPreviousBasis?null:previous?.kind==='amount'?previous.basis:null)};
+  if(previous?.kind==='amount'&&(currency||basis||rejectedPreviousBasis))return {...previous,currency:currency??previous.currency,basis:basis??(rejectedPreviousBasis?null:previous.basis)};
   return undefined;
 }
 /** Bounded USER facts only. Assistant assertions are never interpreted as preferences. */

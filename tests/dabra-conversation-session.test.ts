@@ -213,3 +213,13 @@ test('attachment retry retains original File body and UUID; new file selection c
   session.fail(second,'delivery unknown');session.finish(second);
   const third=session.begin();assert.ok(third);assert.notEqual(session.transport(third,'selected-file-2',new FormData()).id,original.id);
 });
+
+test('discarding a retry releases its previous request identity and body',()=>{
+ const session=ready();const first=session.begin();assert.ok(first);
+ const old=session.transport(first,'same-key','SYNTHETIC_PRIVATE_BODY');
+ session.fail(first,'failed');session.finish(first);session.discardRetryTransport();
+ const next=session.begin();assert.ok(next);
+ const current=session.transport(next,'same-key','independent body');
+ assert.notEqual(current.id,old.id);assert.equal(current.body,'independent body');
+ session.finish(next);
+});

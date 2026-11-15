@@ -107,3 +107,76 @@ test('dated owner statement and model references remain separate from verified s
  assert.deepEqual(driveModelReference('kia-carval')?.exampleSeatingConfigurations,[7,8]);assert.match(driveModelReferenceCopy('kia-carval','en')!,/unconfirmed/);
  assert.ok(VEHICLE_MASTER.every(v=>v.passengers===null&&v.luggage===null&&v.doors===null&&v.airConditioning===null));
 });
+
+test('unrecognised destination starts a separate request without carrying Cairo facts',()=>{
+ const history:Turn[]=[
+  {role:'user',content:'I need a car in Cairo from 2026-12-10 to 2026-12-13 for 4 people with a driver, budget 8000 SAR total'},
+  {role:'assistant',content:'Synthetic response'},
+ ];
+ for(const [message,locale] of [['I need a car in Paris','en'],['أحتاج سيارة في باريس','ar']] as const){
+  const answer=respond(message,history,locale).answer;
+  assert.doesNotMatch(answer,/8000|2026-12-10|destination=cairo|القاهرة/);
+  assert.match(answer,locale==='en'?/Which city|No car matches/i:/مدينة|لم أجد سيارة/);
+ }
+});
+
+test('budget corrections and negative duals preserve only the stated facts',()=>{
+ const base=normalize('I need a car with a driver and budget 8000 SAR per day');
+ for(const correction of ['Not 8000 SAR, 1000 SAR total','not per day, for the whole trip']){
+  const state=driveDialogue([base,normalize(correction)],prefs);
+  assert.ok(state);assert.equal(state.budget?.kind,'amount');
+  if(state.budget?.kind==='amount'){
+   assert.equal(state.budget.basis,'trip');
+   assert.equal(state.budget.amount,correction.startsWith('Not 8000')?'1000':'8000');
+  }
+ }
+ assert.equal(driveQuantities(normalize('مو شنطتين')).luggage.value,undefined);
+ assert.equal(driveQuantities(normalize('مو شنطتين')).luggage.mentioned,true);
+ assert.equal(driveQuantities(normalize('مو شنطتين، 3 شنط')).luggage.value,3);
+ const rejectedAmount=driveDialogue([base,normalize('not 8000 SAR')],prefs);
+ assert.equal(rejectedAmount?.budget,null);
+ const rejectedBasis=driveDialogue([base,normalize('not per day')],prefs);
+ assert.equal(rejectedBasis?.budget?.kind==='amount'&&rejectedBasis.budget.basis,null);
+});
+
+test('basis-only answers keep the active car dialogue',()=>{
+ const initial='I need a car in Cairo from 2026-12-10 to 2026-12-13 for 4 people with a driver and budget 1000 SAR';
+ const first=respond(initial,[],'en');
+ const history:Turn[]=[{role:'user',content:initial},{role:'assistant',content:first.answer}];
+ for(const answer of ['for the whole trip','per day']){
+  const reply=respond(answer,history,'en').answer;
+  assert.match(reply,/1000 SAR/);
+  assert.doesNotMatch(reply,/which currency.*per day|is that budget per day/i);
+ }
+ const arabic='أحتاج سيارة في القاهرة من 2026-12-10 إلى 2026-12-13 لأربعة أشخاص مع سائق وميزانية 1000 ريال';
+ const previous:Turn[]=[{role:'user',content:arabic},{role:'assistant',content:respond(arabic,[],'ar').answer}];
+ const reply=respond('للرحلة كاملة',previous,'ar').answer;
+ assert.match(reply,/1000 SAR/);assert.doesNotMatch(reply,/بأي عملة|لليوم أم للرحلة/);
+});
+
+test('actual POST retains bounded user facts across more than eight messages, never assistant claims',async()=>{
+ const initial='I need a car in Cairo from 2026-12-10 to 2026-12-13 for 4 people with a driver and budget 1000 SAR';
+ const history:Turn[]=[{role:'user',content:initial},{role:'assistant',content:'Synthetic false claim: Dubai, 9 passengers, budget 9000 SAR.'}];
+ for(const answer of ['yes','fine','okay','yes','fine']) history.push({role:'user',content:answer},{role:'assistant',content:'Synthetic acknowledgement'});
+ const response=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'for the whole trip',locale:'en',history})}));
+ assert.equal(response.status,200);
+ const body=await response.json();
+ assert.match(body.answer,/cairo/i);assert.match(body.answer,/1000 SAR/);
+ assert.doesNotMatch(body.answer,/9000|Dubai|9 passengers/);
+});
+
+test('unbounded locale input is processed promptly and POST uses only its bounded turn',async()=>{
+ const start=performance.now();
+ assert.equal(explicitDabraReplyLocale('رد'+' '.repeat(64000)+'!'),null);
+ assert.ok(performance.now()-start<3000,'locale parsing should not backtrack quadratically');
+ const response=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'سيارة'+' '.repeat(500)+'reply in English',locale:'ar'})}));
+ assert.equal(response.status,200);assert.equal((await response.json()).language,'ar');
+});
+
+test('catalogue wording says Operations will confirm dates, not that availability was confirmed',()=>{
+ const answer=respond('show Nissan Sunny',[],'en').answer;
+ assert.match(answer,/Operations will confirm availability for the requested dates/);
+ assert.doesNotMatch(answer,/availability confirmed by Operations/);
+ assert.match(answer,/15 November 2026/);
+ assert.doesNotMatch(respond('show car in Paris',[],'en').answer,/catalogue rates in Egypt|offer=/i);
+});
