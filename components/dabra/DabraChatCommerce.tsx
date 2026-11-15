@@ -9,7 +9,7 @@ import type { ConversationJob } from '@/lib/dabra/conversation-session';
 import { newTripRequested } from '@/lib/dabra/trip-routing';
 import {parseContinuitySnapshot,type ContinuitySnapshot} from '@/lib/dabra/continuity-service';
 import PlatformResults from '@/components/dabra/PlatformResults';
-import { platformFamilies, platformContext, platformCurrency, type PlatformFamily } from '@/lib/dabra/platform-assistant';
+import { platformFamilies, platformContext, platformCurrencySelection, type PlatformFamily } from '@/lib/dabra/platform-assistant';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FiArrowLeft, FiCheck, FiChevronDown, FiClock, FiHeart, FiMapPin, FiMessageCircle, FiMic, FiMicOff, FiPaperclip, FiSearch, FiSend, FiShoppingBag, FiSliders, FiStopCircle, FiVolume2, FiX } from 'react-icons/fi';
@@ -353,7 +353,9 @@ function DabraChatCommerceSession() {
       }
       setPlatformQuery(null);
       const params = toMarketplaceSearchParams(parsed, 12);
-      params.set('currency', conversation.selectRequestCurrency(platformCurrency(normalizedQuery)));
+      const choice = platformCurrencySelection(normalizedQuery);
+      const requestCurrency = conversation.selectRequestCurrency(choice.requested, choice.excluded);
+      if (requestCurrency) params.set('currency', requestCurrency);
       // The canonical family contract is equivalent to params.set('family', activeTab).
       const response = await fetch(`/api/public/marketplace/items?${params.toString().replace('query=', 'q=')}`, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error('marketplace');
@@ -432,9 +434,9 @@ function DabraChatCommerceSession() {
     const requestMessage=explicitText || trip?.families.join(' ') || message;
     const derivedResponse=Boolean(context.lease);
     const setJobMessages = (update: Parameters<typeof conversation.setMessages>[0]) => conversation.update(job, update);
-    const explicitCurrency = platformCurrency(explicitText);
-    const requestedCurrency = conversation.selectRequestCurrency(explicitCurrency);
-    if (explicitCurrency && explicitCurrency !== currency) setCurrency(explicitCurrency);
+    const currencyChoice = platformCurrencySelection(explicitText);
+    const requestedCurrency = conversation.selectRequestCurrency(currencyChoice.requested, currencyChoice.excluded);
+    if (currencyChoice.requested && currencyChoice.requested !== currency) setCurrency(currencyChoice.requested);
     stopVoicePlayback();
     setVoicePlaybackPartial(false);
     const lifecycle = lifecycleRef.current;
@@ -464,7 +466,7 @@ function DabraChatCommerceSession() {
       if(trip&&context.lease)form.set('continuityTrip',JSON.stringify({revision:context.lease.revision,generation:context.lease.generation,trip}));
       form.set('stream', 'true');
       form.set('locale', requestLocale);
-      form.set('currency', requestedCurrency);
+      if (requestedCurrency) form.set('currency', requestedCurrency);
       for (const item of pendingAttachments) form.append('attachment', item.file, item.safeName);
       const transport = conversation.transport(job, JSON.stringify(['form', requestMessage, requestedCurrency,
         form.get('locale'), form.get('continuityTrip'), pendingAttachments.map(item => item.id)]), form);

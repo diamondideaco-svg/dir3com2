@@ -39,11 +39,13 @@ export function cityRoles(message: string) {
   const city = destination ?? (!origin && !ambiguous && unqualified.size === 1 ? [...unqualified][0] : undefined);
   // A named but unrecognised destination must not inherit a prior city.
   // A short explicit destination correction can stand without a service word.
-  const service = /\b(?:car|cars|hotel|hotels|apartment|apartments|flight|flights|instead)\b|سيار|فندق|فنادق|شقه|شقق|طيران|بدلا|تعديل الوجهه|غير الوجهه/u.exec(text);
+  const service = /\b(?:car|cars|hotel|hotels|apartment|apartments|flight|flights|instead|change\s+(?:the\s+)?destination)\b|سيار|فندق|فنادق|شقه|شقق|طيران|بدلا|تعديل الوجهه|غير الوجهه/u.exec(text);
   const nonPlaces = /^(?:english|arabic|the|a|an|from|with|for|morning|evening|afternoon|summer|winter|spring|autumn|fall|january|february|march|april|may|june|july|august|september|october|november|december|من|مع|الي|الانجليزيه|الانجليزي|العربيه|العربي|اليوم|الصباح|المساء|المطار|الصيف|الشتاء|الربيع|الخريف|صيفا|شتاء)$/u;
   const aliases = new Set(cities.flatMap(names => names.map(normalize)));
+  const relativeTime = /^(?:one|two|three|four|five|six|seven|eight|nine|ten|few|several|next)\s+(?:hours?|days?|weeks?|months?|years?)\b/u;
   const unknownDestination = Boolean(service && [...text.matchAll(/(?:\b(?:in|to)[ \t]+|(?:في|الي)[ \t]+)([\p{L}][\p{L}'-]*)/gu)]
-    .some(match => (match.index ?? 0) > Math.max(service.index,destinationIndex) && !aliases.has(match[1]) && !nonPlaces.test(match[1])));
+    .some(match => (match.index ?? 0) > Math.max(service.index,destinationIndex) && !aliases.has(match[1]) && !nonPlaces.test(match[1])
+      && !relativeTime.test(text.slice((match.index ?? 0) + match[0].length - match[1].length))));
   return { origin, destination, city, ambiguous, unknownDestination };
 }
 

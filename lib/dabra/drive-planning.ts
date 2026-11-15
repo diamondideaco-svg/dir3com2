@@ -77,7 +77,7 @@ const currencies:Record<string,string>={دولار:'USD',ريال:'SAR',جنيه
 function budgetIn(text:string, previous:Budget|null):Budget|null|undefined {
   if(/ميزانيه غير محدده بعد|الميزانيه غير محدده بعد|لم احدد الميزانيه|budget (?:is )?undecided|have not decided.*budget/.test(text))return null;
   if(/no (?:fixed |set )?budget|no (?:maximum|limit)|flexible budget|budget is flexible|ميزانيه مفتوحه|الميزانيه مفتوحه|لا يوجد سقف|ما عندي سقف|بدون سقف/.test(text))return {kind:'flexible'};
-  const isNegated = (index:number) => /(?:\bnot|\bno|(?<!\p{L})(?:ليست|ليس|لا|مش|مو))\s*(?:(?:budget|ميزانيه|الميزانيه)\s*)?$/u.test(text.slice(Math.max(0,index-48),index));
+  const isNegated = (index:number) => /(?:\bnot|\bno|(?<!\p{L})(?:ليست|ليس|لا|مش|مو)(?:\s+(?:اريد|ابغي|احتاج))?)\s*(?:(?:budget|ميزانيه|الميزانيه)\s*)?$/u.test(text.slice(Math.max(0,index-48),index));
   const labelled = [...text.matchAll(/(?:budget|under|below|max(?:imum)?|ميزانيه|الميزانيه|اقل من|حد اقصي)\s*(?:is\s*)?(\$)?\s*(\d+(?:\.\d{1,2})?)/g)]
     .map(m=>({index:m.index,amount:m[2],currency:m[1]??null}));
   const denominated = [...text.matchAll(/(?<![\d.])(\d+(?:\.\d{1,2})?)\s*(usd|sar|egp|eur|aed|دولار|ريال|جنيه|يورو|درهم)/g)]

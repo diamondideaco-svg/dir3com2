@@ -6,7 +6,7 @@ import PlatformAnswer from '@/components/dabra/PlatformAnswer';
 import { useDabraConversation } from '@/components/dabra/DabraConversationProvider';
 import { parseContinuitySnapshot } from '@/lib/dabra/continuity-service';
 import { newTripRequested } from '@/lib/dabra/trip-routing';
-import { platformCurrency } from '@/lib/dabra/platform-assistant';
+import { platformCurrencySelection } from '@/lib/dabra/platform-assistant';
 import { explicitDabraReplyLocale } from '@/lib/dabra/locale-contract';
 
 import Image from 'next/image';
@@ -422,7 +422,9 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
     conversation.setDraft(current => current === draft ? '' : current);
     stickToBottomRef.current = true;
     try {
-      const requestBody = { message: trimmed, history, locale, currency: conversation.selectRequestCurrency(platformCurrency(trimmed)),
+      const currencyChoice = platformCurrencySelection(trimmed);
+      const requestCurrency = conversation.selectRequestCurrency(currencyChoice.requested, currencyChoice.excluded);
+      const requestBody = { message: trimmed, history, locale, ...(requestCurrency ? { currency: requestCurrency } : {}),
         ...(trip && context.lease ? { continuityTrip: { revision: context.lease.revision, generation: context.lease.generation, trip } } : {}) };
       const transport = conversation.transport(job, JSON.stringify(['json', trimmed, requestBody.locale, requestBody.currency, requestBody.continuityTrip]), JSON.stringify(requestBody));
       const response = await fetch('/api/ai2/chat', {

@@ -13,12 +13,27 @@ import { cityRoles, newTripRequested, routingPlace, refineRoutingTrip, withoutRo
 
 import { displayPrice, parseDisplayCurrency, type DisplayCurrency, type FxSnapshot } from '../currency/display';
 export type PlatformPricing = { currency: DisplayCurrency; snapshot: FxSnapshot | null };
-export function platformCurrency(message: string) {
+/** Distinguish a currency rejected by the user from an affirmative selection. */
+export function platformCurrencySelection(message: string) {
   const text = normalizePlatformQuery(message);
-  const latest = [...text.matchAll(/\b(?:usd|sar|egp|eur|aed)\b|دولار|\$|ريال|جنيه|يورو|درهم/g)].at(-1)?.[0] ?? '';
   const aliases: Record<string, string> = { دولار: 'USD', '$': 'USD', ريال: 'SAR', جنيه: 'EGP', يورو: 'EUR', درهم: 'AED' };
-  return parseDisplayCurrency(aliases[latest] ?? latest);
+  const mentions = [...text.matchAll(/\b(?:usd|sar|egp|eur|aed)\b|(?:ال)?(?:دولار|ريال|جنيه|يورو|درهم)|\$/g)];
+  const latest = new Map<DisplayCurrency, { excluded: boolean; index: number }>();
+  for (const match of mentions) {
+    const token = match[0].replace(/^ال/, '');
+    const currency = parseDisplayCurrency(aliases[token] ?? token);
+    if (!currency) continue;
+    const prefix = text.slice(Math.max(0, (match.index ?? 0) - 64), match.index);
+    const negative = /(?:\b(?:do not|don't|dont|never|not|no)(?:\s+(?:use|want|show|display|choose|in))?|(?<!\p{L})(?:ليست|ليس|لا|مش|مو)(?:\s+(?:اريد|ابغي|احتاج|استخدم|تستخدم))?)(?:\s+(?:the|budget|عمله|العمله|ميزانيه|الميزانيه))?\s*(\d+(?:\.\d+)?\s*)?$/u.exec(prefix);
+    // Rejecting an amount does not by itself reject its denomination.
+    if (negative?.[1]) continue;
+    latest.set(currency, { excluded: Boolean(negative), index: match.index ?? 0 });
+  }
+  const entries = [...latest.entries()];
+  const requested = entries.filter(([, value]) => !value.excluded).sort((a,b) => a[1].index-b[1].index).at(-1)?.[0] ?? null;
+  return { requested, excluded: entries.filter(([, value]) => value.excluded).map(([currency]) => currency), mentioned: mentions.length > 0 };
 }
+export function platformCurrency(message: string) { return platformCurrencySelection(message).requested; }
 type Locale = 'ar' | 'en';
 type Turn = { role: 'user' | 'assistant'; content: string };
 export type PlatformFamily = 'drive' | 'stay' | 'fly' | 'concierge' | 'vip';
@@ -116,7 +131,7 @@ export function platformContext(message: string, history: Turn[] = [], trip?: Sa
   const followup=planningContinuation || resumePlatformTripRequested(currentMessage) || platformFamilies(currentMessage).length>0 || currentPreferences.city || currentPreferences.ambiguous
     || currentPreferences.hasDates || currentPreferences.partyMentioned || currentPreferences.luggageMentioned || currentPreferences.durationMentioned || currentPreferences.rooms
     || /\b(?:per day|daily|whole trip|total)\b|للرحله|اجمالي|لكامل|لليوم|في اليوم|يومي/.test(normalizePlatformQuery(currentMessage))
-    || platformCurrency(currentMessage) || /^(?:yes|no|not sure|نعم|لا|مش عارف|ما ادري)$/.test(normalizePlatformQuery(currentMessage))
+    || platformCurrencySelection(currentMessage).mentioned || /^(?:yes|no|not sure|نعم|لا|مش عارف|ما ادري)$/.test(normalizePlatformQuery(currentMessage))
     || /\b(?:cheaper|cheapest|expensive|budget|manual|automatic|sport|quiet|quieter|slower|relaxed|shade|indoor|outdoor|accessible)\b|ارخص|أرخص|اغلى|أغلى|ميزاني|اقتصادي|اهدا|أهدأ|اهدأ|هادئ|هادي|خليه اهدى/.test(normalizePlatformQuery(currentMessage));
   if (!followup) return currentMessage;
   const context = preferenceContext(currentMessage, reconstructed);
@@ -173,10 +188,19 @@ function preferenceContext(message: string, history: Turn[]) {
     else if (prior?.durationMentioned) carry.push('duration is unknown');
   }
   if (!current.rooms) { const rooms = previous.find(p => p.rooms)?.rooms; if (rooms) carry.push(`${rooms} rooms`); }
-  if (!platformCurrency(message)) {
-    const currency = relevant.slice(0, -1).reverse().map(platformCurrency).find(Boolean);
+  const rejectedCurrencies = new Set<DisplayCurrency>();
+  for (const turn of relevant) {
+    const choice = platformCurrencySelection(turn);
+    for (const currency of choice.excluded) rejectedCurrencies.add(currency);
+    if (choice.requested) rejectedCurrencies.delete(choice.requested);
+  }
+  const currencyChoice = platformCurrencySelection(message);
+  if (!currencyChoice.requested) {
+    const currency = relevant.slice(0, -1).reverse().map(platformCurrency).find(c => c && !rejectedCurrencies.has(c));
     if (currency) carry.push(currency);
   }
+  // Preserve user-authored currency exclusions when a later short turn carries the request.
+  for (const currency of rejectedCurrencies) carry.push(`not ${currency}`);
   return [...carry, message].join('\n');
 }
 

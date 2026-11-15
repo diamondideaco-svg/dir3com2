@@ -232,3 +232,14 @@ test('request currency is independent per session and resets at an identity boun
  session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-b',storage:'local'});
  assert.equal(session.selectRequestCurrency(),'SAR');
 });
+
+
+test('a rejected session currency falls back safely, and a later explicit choice wins',()=>{
+ const session=ready();session.selectRequestCurrency('USD');
+ assert.equal(session.selectRequestCurrency(null,['USD']),'SAR');
+ assert.equal(session.selectRequestCurrency(null,['SAR','USD']),null);
+ assert.equal(session.selectRequestCurrency('EUR',['USD']),'EUR');
+ assert.equal(session.selectRequestCurrency(null,['EUR']),null);
+ session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-b',storage:'local'});
+ assert.equal(session.selectRequestCurrency(),'SAR');
+});

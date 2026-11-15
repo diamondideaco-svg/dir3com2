@@ -13,7 +13,8 @@ import type { ContinuitySnapshot } from '../lib/dabra/continuity-service';
 import type { SavedTrip } from '../lib/dabra/continuity-contract';
 import { bareDrivePartyWithLuggage, driveDialogue, driveDialogueCopy, driveQuantities } from '../lib/dabra/drive-planning';
 import { explicitDabraReplyLocale } from '../lib/dabra/locale-contract';
-import { buildPlatformAssistantResponse as respond, normalizePlatformQuery as normalize } from '../lib/dabra/platform-assistant';
+import { buildPlatformAssistantResponse as respond, normalizePlatformQuery as normalize, platformContext, platformCurrency, platformCurrencySelection } from '../lib/dabra/platform-assistant';
+import { cityRoles } from '../lib/dabra/trip-routing';
 import { DRIVE_OFFERS, VEHICLE_MASTER } from '../lib/drive/catalog';
 import { driveModelReference, driveModelReferenceCopy } from '../lib/drive/model-reference';
 import { DRIVE_OWNER_AVAILABILITY, driveOwnerAvailabilityCopy } from '../lib/drive/owner-availability';
@@ -259,4 +260,51 @@ test('the user evidence window has an explicit twelve-user-turn limit',async()=>
  const response=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'per day',locale:'en',history})}));
  assert.equal(response.status,200);
  assert.doesNotMatch((await response.json()).answer,/Cairo|9000 SAR/i);
+});
+
+
+test('English destination corrections and relative time do not inherit or discard Cairo incorrectly',async()=>{
+ const history:Turn[]=[{role:'user',content:'I need a car in Cairo for 4 people with a driver and budget 8000 SAR'},
+  {role:'assistant',content:'Synthetic acknowledgement'}];
+ const correction='Change the destination to Paris';
+ assert.equal(cityRoles(correction).unknownDestination,true);
+ const first=respond(correction,history,'en').answer;
+ assert.doesNotMatch(first,/cairo|8000|offer=/i);
+ const later=respond('show cars',[...history,{role:'user',content:correction},{role:'assistant',content:first}],'en').answer;
+ assert.doesNotMatch(later,/cairo|8000|offer=/i);
+ for(const text of ['Show cars in Cairo in two days','Show cars in Cairo in five days','Show cars in Cairo in next week']){
+  assert.equal(cityRoles(text).unknownDestination,false,text);assert.equal(cityRoles(text).city,'cairo',text);
+  assert.doesNotMatch(respond(text,[],'en').answer,/no car matches the requested destination/i,text);
+ }
+ const response=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:correction,locale:'en',history})}));
+ assert.equal(response.status,200);assert.doesNotMatch((await response.json()).answer,/cairo|8000|offer=/i);
+});
+
+test('extended Arabic budget rejection clears the rejected amount in replies and summaries',async()=>{
+ const initial='أحتاج سيارة في القاهرة من 2026-12-10 إلى 2026-12-13 لأربعة أشخاص مع سائق وميزانية 8000 ريال للرحلة';
+ const history:Turn[]=[{role:'user',content:initial},{role:'assistant',content:'رد اصطناعي'}];
+ for(const correction of ['لا أريد 8000 ريال','لا أريد الميزانية 8000 ريال']){
+  const state=driveDialogue([normalize(initial),normalize(correction)],prefs);assert.equal(state?.budget,null,correction);
+  const result=respond(correction,history,'ar').answer;assert.doesNotMatch(result,/8000/,correction);
+  const summary=respond('لخص كلامي',[...history,{role:'user',content:correction},{role:'assistant',content:result}],'ar').answer;
+  assert.doesNotMatch(summary,/8000/,correction);
+  const response=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:correction,locale:'ar',history})}));
+  assert.equal(response.status,200);assert.doesNotMatch((await response.json()).answer,/8000/,correction);
+ }
+ const replacement=driveDialogue([normalize(initial),normalize('لا أريد 8000 ريال، أريد 1000 ريال للرحلة')],prefs);
+ assert.equal(replacement?.budget?.kind==='amount'&&replacement.budget.amount,'1000');
+});
+
+test('currency interpretation skips negation, preserves later positive choices and distinguishes rejected amounts',()=>{
+ for(const text of ['Do not use USD',"Don't use USD",'لا تستخدم الدولار','ليس USD']){
+  const choice=platformCurrencySelection(text);assert.equal(choice.requested,null,text);assert.deepEqual(choice.excluded,['USD'],text);
+ }
+ assert.equal(platformCurrency('Do not use USD, use EUR'),'EUR');
+ assert.equal(platformCurrency('Not 8000 SAR, 1000 SAR total'),'SAR');
+ assert.deepEqual(platformCurrencySelection('لا أريد 8000 ريال').excluded,[]);
+ assert.equal(platformCurrency('not USD, actually use USD'),'USD');
+ assert.equal(platformCurrency('use USD, not USD'),null);
+ const history:Turn[]=[{role:'user',content:'I need a car in Cairo with a budget of 8000 USD'},
+  {role:'assistant',content:'Synthetic reply'},{role:'user',content:'Do not use USD'},{role:'assistant',content:'Synthetic reply'}];
+ assert.equal(platformCurrency(platformContext('show cars',history)),null);
 });
