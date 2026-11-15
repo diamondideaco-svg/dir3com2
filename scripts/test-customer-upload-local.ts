@@ -2,6 +2,7 @@ import { ensureSandboxServiceImage } from './sandbox/pull-service-image.mjs';
 import { ensureGoTrueImage } from './sandbox/pull-gotrue-image.mjs';
 import { execFileSync, execFile } from 'node:child_process';
 import {task187BrowserExitSummary,task187BrowserFailure} from './sandbox/task187-browser-diagnostics.mjs';
+import {readTask187ChatDiagnostic} from './sandbox/task187-chat-diagnostics.mjs';
 import { randomBytes, createHmac } from 'node:crypto';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -141,8 +142,8 @@ async function main(){
   // process imports the genuine chat handler without auth/RPC replacements.
   report.task187Chat = await new Promise<unknown>((resolve,reject)=>{
     const child=execFile(process.execPath,['--conditions=react-server','--import','tsx','scripts/test-task187-chat-real-auth.ts'],
-      {timeout:90000,maxBuffer:32768},(error,stdout)=>{
-        if(error)return reject(new Error('TASK187_GENUINE_CHAT_FAILED'));
+      {timeout:90000,maxBuffer:32768},(error,stdout,stderr)=>{
+        if(error){const diagnostic=readTask187ChatDiagnostic(error,stderr);if(diagnostic)console.error('TASK187_CHAT_DIAGNOSTIC='+JSON.stringify(diagnostic));return reject(new Error('TASK187_GENUINE_CHAT_FAILED'));}
         try{resolve(JSON.parse(stdout));}catch{reject(new Error('TASK187_GENUINE_CHAT_INVALID_RECEIPT'));}
       });
     child.stdin!.end(JSON.stringify({url:'http://127.0.0.1:19030',anon,password,aid,bid,container:prefix+'-db'}));

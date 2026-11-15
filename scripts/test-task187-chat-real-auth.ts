@@ -1,3 +1,5 @@
+import './sandbox/task187-next-server-alias.mjs';
+import { task187ChatDiagnosticLine } from './sandbox/task187-chat-diagnostics.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -5,6 +7,8 @@ import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 import type { ContinuitySnapshot } from '../lib/dabra/continuity-service';
+
+let diagnosticPhase = 'configuration';
 
 // Only called by the existing owned upload-stack runner. Input contains local
 // ephemeral credentials; stdout is a payload-free receipt, never diagnostics.
@@ -18,6 +22,7 @@ async function main() {
     {input:query,encoding:'utf8',stdio:['pipe','pipe','pipe'],timeout:10000}).trim();
   // The parent created this database from scratch. Existing baseline auth.uid()
   // and profile policies are retained; no fixture bypass or claim injection.
+  diagnosticPhase='schema';
   sql(readFileSync('supabase/drafts/task187-continuity.sql','utf8'));
   sql("UPDATE public.dabra_continuity_policy SET enabled=true; NOTIFY pgrst,'reload schema';");
   process.env.NEXT_PUBLIC_SUPABASE_URL=cfg.url;process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY=cfg.anon;
@@ -30,12 +35,14 @@ async function main() {
     return originalFetch(input,init);
   };
   try {
+    diagnosticPhase='route_import';
     const {POST}=await import('../app/api/ai2/chat/route');
     const client=()=>createClient(cfg.url,cfg.anon,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
     const a=client(),b=client(),staff=client();
     const login=async(c:ReturnType<typeof client>,email:string,id:string)=>{
       const result=await c.auth.signInWithPassword({email,password:cfg.password});assert.equal(result.error,null);assert.equal(result.data.user?.id,id);assert.ok(result.data.session);return result.data.session.access_token;
     };
+    diagnosticPhase='authentication';
     const at=await login(a,'a@example.invalid',cfg.aid),bt=await login(b,'b@example.invalid',cfg.bid);
     const registered=await staff.auth.signUp({email:'task187-staff@example.invalid',password:cfg.password,options:{data:{role:'customer',full_name:'Synthetic staff'}}});
     assert.equal(registered.error,null);assert.ok(registered.data.user);
@@ -45,12 +52,14 @@ async function main() {
       sql("INSERT INTO public.profiles(id,full_name,email,role,status,deleted_at) VALUES('"+id+"','Synthetic Task187','"+email+"','"+role+"','active',NULL) ON CONFLICT(id) DO UPDATE SET role=excluded.role,status='active',deleted_at=NULL;");
     }
     const st=await login(staff,'task187-staff@example.invalid',sid);
+    diagnosticPhase='profiles';
     const {resolveCanonicalActiveProfile}=await import('../lib/auth/identity');
     for(const [actor,id,role] of [[a,cfg.aid,'customer'],[b,cfg.bid,'customer'],[staff,sid,'staff']] as const) {
       const profile=await resolveCanonicalActiveProfile(actor,id);
       assert.equal(profile?.id,id);assert.equal(profile?.sourceRole,role);assert.equal(profile?.role,role);
     }
     const trip={id:randomUUID(),origin:'Cairo',destination:'Riyadh',startDate:null,endDate:null,adults:2,children:0,rooms:1,budget:null,currency:'SAR',families:['stay']};
+    diagnosticPhase='continuity_rpc';
     const read=async()=>{const r=await a.rpc('dabra_continuity_read');assert.equal(r.error,null);return r.data as ContinuitySnapshot;};
     // PostgREST schema reload is asynchronous; bounded readiness without skip.
     for(let i=0;i<20;i++){const r=await a.rpc('dabra_continuity_read');if(!r.error)break;if(i===19)throw new Error('TASK187_RPC_NOT_READY');await new Promise(r=>setTimeout(r,100));}
@@ -59,6 +68,7 @@ async function main() {
     const envelope=()=>({revision:state.revision,generation:state.generation,trip});
     const cases:string[]=[];
     const call=async(name:string,value:unknown,token:string|undefined,status:number,multipart=false,locale='en')=>{
+      diagnosticPhase=multipart?'chat_multipart':'chat_json';
       const headers:Record<string,string>={};if(token)headers.authorization='Bearer '+token;
       let body:string|FormData;
       if(multipart){const f=new FormData();f.set('message','hotels');f.set('locale',locale);f.set('continuityTrip',typeof value==='string'?value:JSON.stringify(value));body=f;}
@@ -84,17 +94,20 @@ async function main() {
       process.env.DABRA_CONTINUITY_ENABLED='false';await call('feature-OFF-'+suffix,envelope(),at,409,multipart);process.env.DABRA_CONTINUITY_ENABLED='true';
     }
     await call('malformed-multipart-JSON','{',at,400,true);
+    diagnosticPhase='invalid_body';
     const malformed=await POST(new NextRequest('http://127.0.0.1/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:'{'}));assert.equal(malformed.status,400);assert.match(malformed.headers.get('cache-control')??'',/no-store/);cases.push('malformed-body-JSON');
     for(const action of ['expiry','delete_trip','revoke']){
+      diagnosticPhase='continuity_rpc';
       const old=envelope();
       if(action==='expiry')sql("UPDATE public.dabra_account_continuity SET trip_expires_at=now()-interval '1 second' WHERE owner_id='"+cfg.aid+"';");
       else state=await mutate(action,state);
       for(const multipart of [false,true])await call(action+'-'+(multipart?'multipart':'json'),old,at,409,multipart);
       state=await mutate('save',await read(),{consent:true,preferences:null,trip});
     }
+    diagnosticPhase='receipt';
     assert.equal(externalAttempts,0,'no external provider fetch attempted');
     console.log(JSON.stringify({status:'PASS',mode:'genuine-GoTrue-JWT-PostgREST-RPC-RLS-direct-handler',cases,count:cases.length,externalAttempts,limits:'No browser geometry or restart/purge/race retest; disposable CI execution only.'}));
   } finally {globalThis.fetch=originalFetch;}
 }
-main().catch(()=>{console.error('TASK187_GENUINE_CHAT_FAILED');process.exitCode=1;});
+main().catch(error=>{const kind=error instanceof assert.AssertionError?'assertion':error instanceof TypeError?'type':'other';const diagnostic=task187ChatDiagnosticLine(diagnosticPhase,kind);if(diagnostic)console.error(diagnostic);console.error('TASK187_GENUINE_CHAT_FAILED');process.exitCode=1;});
 
