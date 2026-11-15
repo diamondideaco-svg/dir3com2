@@ -4,7 +4,7 @@ import {supabaseAdmin} from '../supabase/server';
 import {publicDialogueActor,PUBLIC_DIALOGUE_POLICY} from './public-dialogue-policy';
 import type {AgentContext} from './agent-contract';
 import {DEFAULT_AGENT_DIALOGUE_POLICY,isAgentTaskAuthorityCurrent,type AgentDialoguePolicy} from './agent-dialogue';
-import {validDurableAccountChargeProof,durableProfileSha256,type DurableAccountChargeProof} from './dialogue-durable-authority';
+import {durableAuthorityAcceptsProfile,validDurableAccountChargeProof,durableProfileSha256,type DurableAccountChargeProof} from './dialogue-durable-authority';
 import {canonicalOutputContract,profileOutputAccepted} from './agent-output-contract';
 import {publicPricingObservationCurrent,refreshPublicDialoguePricing} from './dialogue-pricing-refresh';
 import type {FundingRpc} from './dialogue-funding-store';
@@ -18,7 +18,8 @@ function authority(v:unknown,now:number):v is Authority {
   ||!validDurableAccountChargeProof(v.source_proof,now)||v.source_grant_id!==v.source_proof.grantId
   ||!object(v.profile)||!object(v.profile.measurement))return false;
  const p=v.profile as AgentCapabilityProfile,m=p.measurement;
- return p.provider===v.source_proof.provider&&m.model===v.source_proof.model&&m.environment==='provider-benchmark'
+ return durableAuthorityAcceptsProfile(v.source_proof,p,now)
+  &&p.provider===v.source_proof.provider&&m.model===v.source_proof.model&&m.environment==='provider-benchmark'
   &&m.measuredAtMs<=Date.parse(v.authorized_at)&&Number.isSafeInteger(m.expiresAtMs)&&m.expiresAtMs>now
   &&profileOutputAccepted(p,canonicalOutputContract('platform-dialogue-v2',m.language),[v.output_acceptance],now);
 }
@@ -50,6 +51,14 @@ export async function loadPublicDialoguePolicy(context:AgentContext|undefined,si
   const forProfile=(proof:DurableAccountChargeProof,profile:AgentCapabilityProfile)=>eligible.find(a=>a.source_grant_id===proof.grantId&&isDeepStrictEqual(a.source_proof,proof)&&durableProfileSha256(a.profile)===durableProfileSha256(profile));
   return {...blocked,profiles:eligible.map(a=>a.profile),outputAcceptances:eligible.map(a=>a.output_acceptance),
    publicProfileAuthorized:(proof,profile)=>projectCurrent()&&proof.mode==='bounded-account-charge'&&!!forProfile(proof,profile),
+   publicProfileOutputAccepted:(proof,profile,contract,at)=>{
+    if(!projectCurrent()||proof.mode!=='bounded-account-charge')return false;
+    // Match the same uniqueness requirement as admission; repeated profiles on
+    // other grants do not make this authority's own acceptance ambiguous.
+    const matches=eligible.filter(a=>a.source_grant_id===proof.grantId&&a.output_acceptance&&durableProfileSha256(a.profile)===durableProfileSha256(profile));
+    return matches.length===1&&isDeepStrictEqual(matches[0].source_proof,proof)
+     &&profileOutputAccepted(profile,contract,[matches[0].output_acceptance],at);
+   },
    funding:{kind:'public-monthly-v1',requestId,proofs:eligible.map(a=>a.source_proof),refreshPricing:refreshPublicDialoguePricing,
     async isCurrent(proof,profile,currentSignal){
      const fresh=await read(currentSignal);return !!fresh&&isDeepStrictEqual(fresh,authorities)&&proof.mode==='bounded-account-charge'&&!!forProfile(proof,profile);

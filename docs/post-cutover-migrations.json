@@ -262,5 +262,17 @@
     "sha256": "dac358d5739db1cf586d038a275c76f71095261919ddde9435823f0245a7c615",
     "task": "#237",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261114181805_task237_multigrant_successful_task.sql",
+    "sha256": "d7df82945cb7ddb2652ff26f33c0a0ba059a1766350efa9f91300df0df3a4324",
+    "task": "#237",
+    "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261114202500_task237_public_grant_profile_guard.sql",
+    "sha256": "4c221be87b435140ba117662ae997dae1a9944b6b8c0233d1bbb4f097b44bedd",
+    "task": "#237",
+    "production_apply_authorized": false
   }
 ]

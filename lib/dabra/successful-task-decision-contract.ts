@@ -11,7 +11,7 @@ const exact = (v: Record<string, unknown>, keys: string[]) => Object.keys(v).len
  */
 export type SuccessfulTaskExecutionTerms = Readonly<{
   actorId: string; role: string; revision: string;
-  spendingVersion: 1 | 2; modelTier: 'economy' | 'strong';
+  spendingVersion: 1 | 2 | 3; modelTier: 'economy' | 'strong';
   answerRetentionMs: number; consentVersion: string; consentSha256: string; consentGeneration: number;
   deletionPolicy: string; purgeWithinMs: number; backupPolicy: string;
   grantId: string; dailySuccesses: number; monthlySuccesses: number;
@@ -43,10 +43,28 @@ export function interpretSuccessfulTaskDecisions(bundle: SuccessfulTaskCoreDecis
     const numbers = ['dailySuccesses', 'monthlySuccesses', 'accountMonthlyCostMicros', 'monthlyCostMicros', 'attemptCostMicros', 'inputTokenCeiling', 'outputTokenCeiling', 'leaseMs'];
     const spending = bundle.decisions.spending;
     const v2 = s.schema === 'dabra-task-spending-v2';
-    if (!exact(s, ['schema', 'currency', 'timeZone', 'grantId', 'maxAttempts', ...numbers, ...(v2 ? ['modelTier'] : [])])
-      || (!v2 && s.schema !== 'dabra-task-spending-v1') || (v2 && s.modelTier !== 'economy' && s.modelTier !== 'strong') || s.currency !== 'USD' || s.timeZone !== 'Asia/Riyadh' || s.maxAttempts !== 1
+    const v3 = s.schema === 'dabra-task-spending-v3';
+    const tiered = v2 || v3;
+    if (!exact(s, ['schema', 'currency', 'timeZone', 'grantId', 'maxAttempts', ...numbers,
+      ...(tiered ? ['modelTier'] : []), ...(v3 ? ['grantBindings'] : [])])
+      || (!tiered && s.schema !== 'dabra-task-spending-v1') || (tiered && s.modelTier !== 'economy' && s.modelTier !== 'strong')
+      || s.currency !== 'USD' || s.timeZone !== 'Asia/Riyadh' || s.maxAttempts !== 1
       || !record(spending) || s.grantId !== spending.fundingGrantId || typeof s.grantId !== 'string'
       || !numbers.every(key => positive(s[key]))) return null;
+    if (v3) {
+      if (!Array.isArray(s.grantBindings) || s.grantBindings.length < 1 || s.grantBindings.length > 7) return null;
+      let previous = '', anchor = false;
+      for (const binding of s.grantBindings) {
+        if (!record(binding) || !exact(binding, ['grantId', 'proofSha256'])
+          || typeof binding.grantId !== 'string'
+          || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(binding.grantId)
+          || typeof binding.proofSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(binding.proofSha256)
+          || (previous !== '' && previous >= binding.grantId)) return null;
+        if (binding.grantId === s.grantId && binding.proofSha256 === spending.fundingProofSha256) anchor = true;
+        previous = binding.grantId;
+      }
+      if (!anchor) return null;
+    }
     const n = s as Record<string, number>;
     // Existing execution capability bounds, not selected live quotas or defaults.
     if (n.dailySuccesses > 10 || n.monthlySuccesses > 50 || n.accountMonthlyCostMicros > 500000 || n.monthlyCostMicros > 25000000
@@ -54,7 +72,7 @@ export function interpretSuccessfulTaskDecisions(bundle: SuccessfulTaskCoreDecis
       || n.accountMonthlyCostMicros > n.monthlyCostMicros || n.attemptCostMicros > 250000
       || n.inputTokenCeiling > 4096 || n.outputTokenCeiling > 1024 || n.leaseMs > 12000) return null;
     return Object.freeze({ actorId: bundle.actorId, role: bundle.role, revision: bundle.revision,
-      spendingVersion: v2 ? 2 : 1, modelTier: v2 ? s.modelTier as 'economy' | 'strong' : 'economy',
+      spendingVersion: v3 ? 3 : v2 ? 2 : 1, modelTier: tiered ? s.modelTier as 'economy' | 'strong' : 'economy',
       answerRetentionMs: r.answerRetentionMs, consentVersion: c.noticeVersion, consentSha256: c.noticeSha256,
       consentGeneration: c.generation, deletionPolicy: d.policyReference, purgeWithinMs: d.purgeWithinMs,
       backupPolicy: d.backupPolicyReference, grantId: s.grantId,

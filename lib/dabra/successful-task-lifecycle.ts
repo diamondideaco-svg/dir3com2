@@ -2,14 +2,17 @@ import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { publicDialogueActor } from './public-dialogue-policy';
 import { loadPublicDialoguePolicy } from './public-dialogue-store';
-import { isAgentTaskAuthorityCurrent, type AgentDialoguePolicy } from './agent-dialogue';
+import { isAgentTaskAuthorityCurrent, type AgentDialoguePolicy, type SuccessfulTaskCandidateLimits } from './agent-dialogue';
 import { runInternalAgentTask, type AgentCoreTaskResult } from './agent-handoff';
 import type { FundingRpc } from './dialogue-funding-store';
 import { DISPLAY_CURRENCIES } from '../currency/display';
 
 import type { SuccessfulTaskContinuityBinding } from './continuity-chat-server';
 
-type Input = { successfulTaskModelSelection?: Readonly<{ schema: 'dabra-task-model-selection-v2'; tier: 'economy' | 'strong' }> } & Parameters<typeof runInternalAgentTask>[0] & { successfulTaskContinuityBinding?: SuccessfulTaskContinuityBinding; continuityBinding?: Readonly<{ revision: number; generation: number }> };
+type SuccessfulTaskModelSelection =
+  | Readonly<{ schema: 'dabra-task-model-selection-v2'; tier: 'economy' | 'strong' }>
+  | Readonly<{ schema: 'dabra-task-model-selection-v3'; tier: 'economy' | 'strong'; providerSelection: 'auto' }>;
+type Input = { successfulTaskModelSelection?: SuccessfulTaskModelSelection } & Parameters<typeof runInternalAgentTask>[0] & { successfulTaskContinuityBinding?: SuccessfulTaskContinuityBinding; continuityBinding?: Readonly<{ revision: number; generation: number }> };
 const uuid = (v: string) => /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(v);
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');
@@ -69,13 +72,17 @@ export async function boundedSuccessfulTaskRpc(rpc: FundingRpc, name: string, pa
 /** Shared one-attempt lifecycle. Callers own admission transport and eligibility; no default client. */
 export function createSuccessfulTaskLifecycle(deps: {
   rpc: FundingRpc;
+  /** Validated, server-resolved per-attempt decision ceilings. */
+  selectionLimits?: SuccessfulTaskCandidateLimits;
   execute: (input: Input, policy: AgentDialoguePolicy, signal: AbortSignal) => Promise<AgentCoreTaskResult>;
 }) {
+  const decisionLimits = deps.selectionLimits && Object.freeze({ ...deps.selectionLimits });
   return async function run(input: Input, requestId: string, signal: AbortSignal): Promise<SuccessfulTaskResult> {
     const actor = publicDialogueActor(input.context), digest = successfulTaskInputDigest(input);
     const snapshot = input.pricing?.snapshot;
     const pricingUsableAtStart = !snapshot || (Number.isFinite(snapshot.expiresAt) && snapshot.expiresAt > Date.now());
-    if (!actor || !uuid(actor) || !uuid(requestId) || signal.aborted || input.serverAttachmentNote || (input.trip && !input.continuityBinding)) return { kind: 'unavailable', saved: false };
+    if (!actor || !uuid(actor) || !uuid(requestId) || signal.aborted || input.serverAttachmentNote || (input.trip && !input.continuityBinding)
+      || (input.successfulTaskModelSelection?.schema === 'dabra-task-model-selection-v3' && !decisionLimits)) return { kind: 'unavailable', saved: false };
     const current = () => successfulTaskAuthorityCurrent(input, signal);
     const inputUnchanged = () => successfulTaskInputDigest(input) === digest;
     // Completion uses a bounded independent signal; it is not a provider retry.
@@ -112,9 +119,16 @@ export function createSuccessfulTaskLifecycle(deps: {
         return result;
       };
       const policy = await loadPublicDialoguePolicy(input.context, signal, requestId, rpc, input.successfulTaskModelSelection?.tier ?? 'economy');
+      // Only V3 uses the separate decision eligibility constraints. The normal
+      // preparation deadline and all V1/V2 limits keep their existing semantics.
+      // Core still checks the actual quote and decision atomically at reservation.
+      const selectedPolicy: AgentDialoguePolicy = Object.freeze({ ...policy,
+        ...(input.successfulTaskModelSelection?.schema === 'dabra-task-model-selection-v3'
+          ? { providerSelection: input.successfulTaskModelSelection.providerSelection,
+              successfulTaskCandidateLimits: decisionLimits } : {}) });
       // A quote that expired during policy IO must not start an admission.
       if (!inputUnchanged()) return { kind: 'unavailable', saved: false };
-      const result = await deps.execute(input, policy, signal);
+      const result = await deps.execute(input, selectedPolicy, signal);
       if (!admissionStarted || explicitlyDenied) return await current()
         ? { kind: 'core', result, saved: false } : { kind: 'unavailable', saved: false };
       if (!admitted) return replay(await read()); // Committed-unknown or concurrent request: never redispatch.

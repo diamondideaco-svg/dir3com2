@@ -27,8 +27,10 @@ export async function runSuccessfulTaskProduction(request: NextRequest, selected
       return await successfulTaskAuthorityCurrent(resolved, signal) ? resolved : null;
     }, request.signal);
     if (!resolvedInput) return unavailable();
-    const modelSelection = terms.spendingVersion === 2
-      ? Object.freeze({ schema: 'dabra-task-model-selection-v2' as const, tier: terms.modelTier }) : undefined;
+    const modelSelection = terms.spendingVersion === 3
+      ? Object.freeze({ schema: 'dabra-task-model-selection-v3' as const, tier: terms.modelTier, providerSelection: 'auto' as const })
+      : terms.spendingVersion === 2
+        ? Object.freeze({ schema: 'dabra-task-model-selection-v2' as const, tier: terms.modelTier }) : undefined;
     const input = { ...resolvedInput, successfulTaskModelSelection: modelSelection };
     if (publicDialogueActor(input.context) !== bundle.actorId || !roleMatches(input.context.role)
       || terms.actorId !== bundle.actorId || terms.revision !== bundle.revision) return unavailable();
@@ -81,7 +83,10 @@ export async function runSuccessfulTaskProduction(request: NextRequest, selected
       return current() && !signal.aborted && await successfulTaskAuthorityCurrent(checkedInput, signal) && current()
         ? result : { data: null, error: 'unavailable' };
     };
-    const run = createSuccessfulTaskLifecycle({ rpc, execute: (resolved, dialogue, signal) =>
+    const run = createSuccessfulTaskLifecycle({ rpc, ...(terms.spendingVersion === 3 ? { selectionLimits: Object.freeze({
+      leaseMs: terms.leaseMs, inputTokenCeiling: terms.inputTokenCeiling,
+      outputTokenCeiling: terms.outputTokenCeiling, attemptCostMicros: terms.attemptCostMicros,
+    }) } : {}), execute: (resolved, dialogue, signal) =>
       runInternalAgentTask(resolved, { dialogue, signal, responseContract: 'platform-dialogue' }) });
     const result = await run(input, selected.requestId, request.signal);
     if (!current() || !await successfulTaskAuthorityCurrent(checkedInput, request.signal) || !current()) return unavailable();

@@ -45,13 +45,27 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
   assert.equal((await client.query('SELECT private.dabra_successful_task_development_enabled() AS v')).rows[0].v,false);
   const contract=canonicalOutputContract('platform-dialogue-v2','en');
   const profile={provider:'openai' as const,measurement:{capability:'discover' as const,language:'en' as const,model:'gpt-6-luna',environment:'provider-benchmark' as const,sourceSha:'b'.repeat(40),caseSetSha:contract.caseSetSha,cases:4,passed:4,measuredAtMs:now-5000,expiresAtMs:now+600000,latencyMs:1,inputTokenCeiling:4096,outputTokenCeiling:1024,costCeilingUsd:0.002141}};
-  const unbound:DurableAccountChargeProof={mode:'bounded-account-charge',grantId,provider:'openai',model:'gpt-6-luna',environment:'provider-benchmark',accountId:'SYNTHETIC-public',projectId:'SYNTHETIC-project',credentialSha256:'c'.repeat(64),evidenceSha256:'d'.repeat(64),currency:'USD',serviceTier:'standard',pricingEvidenceSha256:pricingDigest,accountTerms:{schema:'task217-account-charge-terms-v1',observedAtMs:now-6000,evidenceSha256:'e'.repeat(64),validity:'until-contract-change',risks:{autoReload:'off',postpaid:'blocked',overdraft:'blocked',concurrentAccountUsage:'bounded'},fundingChargeProtection:{kind:'documented-manual-funding-only',evidenceSha256:'f'.repeat(64)},allInChargeBound:{schema:'all-in-account-charge-bound-v1',currency:'USD',coverage:'all-applicable-api-tax-fx-and-funding-charges',maxAdditionalMicros:0,evidenceSha256:'a'.repeat(64)}},limitedOperation:{schema:'task217-limited-operation-v2',authorizationId:randomUUID(),taskId:'task217-text-pilot-2026-11-01',dataScope:'redacted-travel-or-server-units',maxCostMicros:1000000,maxAttempts:28,authorizedAtMs:now-4000,duration:'until-revoked-or-binding-change',providerRisk:'bounded-account-liability-with-observed-risks',acceptedProfileSha256s:['f'.repeat(64)],contractSha256:price.digest,bindingSha256:'0'.repeat(64)}};
+  const unbound:DurableAccountChargeProof={mode:'bounded-account-charge',grantId,provider:'openai',model:'gpt-6-luna',environment:'provider-benchmark',accountId:'SYNTHETIC-public',projectId:'SYNTHETIC-project',credentialSha256:'c'.repeat(64),evidenceSha256:'d'.repeat(64),currency:'USD',serviceTier:'standard',pricingEvidenceSha256:pricingDigest,accountTerms:{schema:'task217-account-charge-terms-v1',observedAtMs:now-6000,evidenceSha256:'e'.repeat(64),validity:'until-contract-change',risks:{autoReload:'off',postpaid:'blocked',overdraft:'blocked',concurrentAccountUsage:'bounded'},fundingChargeProtection:{kind:'documented-manual-funding-only',evidenceSha256:'f'.repeat(64)},allInChargeBound:{schema:'all-in-account-charge-bound-v1',currency:'USD',coverage:'all-applicable-api-tax-fx-and-funding-charges',maxAdditionalMicros:0,evidenceSha256:'a'.repeat(64)}},limitedOperation:{schema:'task217-limited-operation-v2',authorizationId:randomUUID(),taskId:'task217-text-pilot-2026-11-01',dataScope:'redacted-travel-or-server-units',maxCostMicros:1000000,maxAttempts:28,authorizedAtMs:now-4000,duration:'until-revoked-or-binding-change',providerRisk:'bounded-account-liability-with-observed-risks',acceptedProfileSha256s:[durableProfileSha256(profile)],contractSha256:price.digest,bindingSha256:'0'.repeat(64)}};
   const proof={...unbound,limitedOperation:{...unbound.limitedOperation,bindingSha256:durableAuthorityBindingSha256(unbound)}};
   const acceptance={schema:'task217-profile-output-acceptance-v1',profileSha256:durableProfileSha256(profile),contractSha256:contract.digest,sourceSha:profile.measurement.sourceSha,provider:'openai',model:'gpt-6-luna',environment:'provider-benchmark',capability:'discover',language:'en',caseSetSha:contract.caseSetSha,reviewedAtMs:now-3000,receipt:{implementationSession:'11111111-1111-4111-8111-111111111111',reviewerSession:'22222222-2222-4222-8222-222222222222',reference:'https://github.com/diamondideaco-svg/dir3com2/issues/217#issuecomment-999999999',artifactSha256:'e'.repeat(64),verdict:'PASS',authorship:'none'}};
   await client.query("INSERT INTO private.dabra_dialogue_funding_grants(id,provider,account_id,project_id,funding_mode,authorized_credit_micros,input_rate_micros_per_million,output_rate_micros_per_million,enabled,proof,authorized_at) VALUES($1,'openai','SYNTHETIC-public','SYNTHETIC-project','bounded-account-charge',0,100000,500000,true,$2,to_timestamp($3::numeric/1000))",[grantId,proof,now-4000]);
   await client.query("INSERT INTO private.dabra_public_dialogue_authorities(id,source_grant_id,source_proof,profile,output_acceptance,model_tier,enabled,authorized_at) VALUES($1,$2,$3,$4,$5,'economy',true,to_timestamp($6::numeric/1000))",[authorityId,grantId,proof,profile,acceptance,now-2000]);
   await client.query('INSERT INTO auth.users(id) VALUES($1);',[actor]);await client.query("INSERT INTO public.profiles(id,role,status) VALUES($1,'customer','active')",[actor]);await client.query('INSERT INTO private.dabra_successful_task_control(enabled) VALUES(true)');
   const request=(who:string=actor,id:string=randomUUID())=>{const attempt=randomUUID(),observation={schema:'task217-public-pricing-observation-v1',provider:'openai',model:'gpt-6-luna',approvedPricingDigest:pricingDigest,approvedContractDigest:price.digest,currency:'USD',unitTokens:1000000,inputMicrosPerMillion:100000,outputMicrosPerMillion:500000,observedAtMs:now-1000,expiresAtMs:now+600000,bodySha256:'b'.repeat(64)};return [attempt,id,who,authorityId,{schema:'dabra-public-execution-v1',authorityId,profileSha256:acceptance.profileSha256,attemptId:attempt,requestId:id,observation},4096,1024,922];};
+  // Install these legacy-invalid synthetic authorities before the preserved
+  // history snapshot and before the new guard migration is applied.
+  const installLegacyAuthority=async(kind:'outside-list'|'late-measurement')=>{
+   const id=randomUUID(),grant=randomUUID();
+   const p=kind==='late-measurement'?{...profile,measurement:{...profile.measurement,measuredAtMs:now-3500}}:profile;
+   const candidate:DurableAccountChargeProof={...proof,grantId:grant,accountId:'SYNTHETIC-'+kind,
+    limitedOperation:{...proof.limitedOperation,authorizationId:randomUUID(),acceptedProfileSha256s:kind==='outside-list'?['f'.repeat(64)]:[durableProfileSha256(p)],bindingSha256:'0'.repeat(64)}};
+   const bound={...candidate,limitedOperation:{...candidate.limitedOperation,bindingSha256:durableAuthorityBindingSha256(candidate)}};
+   const out={...acceptance,profileSha256:durableProfileSha256(p)};
+   await client.query("INSERT INTO private.dabra_dialogue_funding_grants(id,provider,account_id,project_id,funding_mode,authorized_credit_micros,input_rate_micros_per_million,output_rate_micros_per_million,enabled,proof,authorized_at) VALUES($1,'openai',$2,'SYNTHETIC-project','bounded-account-charge',0,100000,500000,true,$3,to_timestamp($4::numeric/1000))",[grant,bound.accountId,bound,now-4000]);
+   await client.query("INSERT INTO private.dabra_public_dialogue_authorities(id,source_grant_id,source_proof,profile,output_acceptance,model_tier,enabled,authorized_at) VALUES($1,$2,$3,$4,$5,'economy',true,to_timestamp($6::numeric/1000))",[id,grant,bound,p,out,now-2000]);
+   return {kind,id,grant,proof:bound,profile:p,acceptance:out};
+  };
+  const legacyAuthorities=[await installLegacyAuthority('outside-list'),await installLegacyAuthority('late-measurement')];
   const establishedHistory=await snapshot();
   const digest='7'.repeat(64);
   const make=(who:string=actor):unknown[]=>[...request(who),digest,randomUUID()];
@@ -125,6 +139,18 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
    }
    await client.query(sql('20261113193000_task237_strong_pilot.sql'));
    assert.deepEqual(await strongCatalog(),catalogBefore,'replacement preserves OIDs, signatures/defaults, owner, ACL and security settings');
+   await client.query(sql('20261114181805_task237_multigrant_successful_task.sql'));
+   const beforeProfileGuard=await snapshot();
+   const publicRpcCatalog=async()=> (await client.query("SELECT oid,proowner,proacl::text,prosecdef,proconfig FROM pg_proc WHERE oid='public.reserve_dabra_public_dialogue_attempt(uuid,uuid,uuid,uuid,jsonb,integer,integer,bigint)'::regprocedure")).rows;
+   const publicRpcBefore=await publicRpcCatalog();
+   const authoritiesBefore=(await client.query('SELECT * FROM private.dabra_public_dialogue_authorities ORDER BY id')).rows;
+   await client.query(sql('20261114202500_task237_public_grant_profile_guard.sql'));
+   assert.deepEqual(await snapshot(),beforeProfileGuard,'guard installs no grants or holds');
+   assert.deepEqual((await client.query('SELECT * FROM private.dabra_public_dialogue_authorities ORDER BY id')).rows,authoritiesBefore,'existing authorities are not changed');
+   assert.deepEqual(await strongCatalog(),catalogBefore,'guard preserves existing RPC owners, signatures and ACLs');
+   assert.deepEqual(await publicRpcCatalog(),publicRpcBefore,'public reservation owner and ACL are unchanged');
+   for(const role of ['anon','authenticated','service_role'])for(const fn of ['private.dabra_public_grant_accepts_profile(jsonb,jsonb,jsonb)','private.guard_dabra_public_grant_profile_authority()'])
+    assert.equal((await client.query('SELECT has_function_privilege($1,$2,\'EXECUTE\') AS v',[role,fn])).rows[0].v,false);
    const operator=await addActor();await client.query("UPDATE public.profiles SET role='staff' WHERE id=$1",[operator]);
    const operations={schema:'dabra-operations-binding-v1',actorId:operator,country:'EG',kind:'grant',grant:{id:randomUUID(),invited_user_id:operator,access_level:'scoped_staff',status:'active',country_scope:['Egypt'],permissions:['operations:read']}};
    const checkOperations=async(b:unknown=operations)=>(await client.query('SELECT private.dabra_task_operations_current($1,$2) AS v',[operator,b])).rows[0].v;
@@ -165,6 +191,101 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
    assert.equal((await client.query('SELECT private.dabra_production_task_terms($1) AS v',[opaque])).rows[0].v,null,'metadata alone cannot admit');
    for(const [kind,document] of Object.entries(docs)) await client.query('UPDATE private.dabra_successful_task_decisions SET document=$1 WHERE kind=$2',[document,kind]);
    const approved=await resolve(),production=[...request(who),digest,randomUUID(),'customer',policy,approved];
+   await core.test('public and successful-task admission reject legacy authorities outside their grant',async()=>{
+    const txRpc=async(name:string,args:unknown[])=>{
+     await client.query('SET LOCAL ROLE service_role');
+     try{return (await client.query(`SELECT public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) AS v`,args)).rows[0].v;}
+     finally{await client.query('RESET ROLE');}
+    };
+    const currentBundle=()=>txRpc('resolve_dabra_successful_task_decisions',[who,'customer',policy]);
+    const counts=async()=>({holds:await countHolds(),tasks:(await client.query('SELECT count(*)::int AS n FROM private.dabra_production_tasks')).rows[0].n});
+    await client.query('BEGIN');
+    try{
+     await client.query('INSERT INTO private.dabra_public_dialogue_control(enabled) VALUES(true)');
+     const before=await counts();
+     for(const candidate of legacyAuthorities){
+      assert.equal((await client.query('SELECT private.dabra_public_grant_accepts_profile($1,$2,$3) AS v',[candidate.proof,candidate.profile,candidate.acceptance])).rows[0].v,false,candidate.kind);
+      const publicRequest:unknown[]=request(who);publicRequest[3]=candidate.id;
+      publicRequest[4]={...(publicRequest[4] as Record<string,unknown>),authorityId:candidate.id,profileSha256:candidate.acceptance.profileSha256};
+      assert.equal((await txRpc('reserve_dabra_public_dialogue_attempt',publicRequest)).decision,'denied',candidate.kind+' public');
+      await client.query("UPDATE private.dabra_successful_task_decisions SET document=$1,funding_grant_id=$2,funding_proof_sha256=(SELECT encode(sha256(convert_to(proof::text,'UTF8')),'hex') FROM private.dabra_dialogue_funding_grants WHERE id=$2) WHERE actor_id=$3 AND kind='spending'",[{...docs.spending,grantId:candidate.grant},candidate.grant,who]);
+      const candidateBundle=await currentBundle();assert.ok(candidateBundle);
+      const taskRequest=[...publicRequest,digest,randomUUID(),'customer',policy,candidateBundle];
+      assert.equal((await txRpc('reserve_dabra_production_task',taskRequest)).decision,'denied',candidate.kind+' task');
+      const proofHash=(await client.query("SELECT encode(sha256(convert_to(proof::text,'UTF8')),'hex') AS v FROM private.dabra_dialogue_funding_grants WHERE id=$1",[candidate.grant])).rows[0].v;
+      await client.query("UPDATE private.dabra_successful_task_decisions SET document=$1 WHERE actor_id=$2 AND kind='spending'",[{...docs.spending,grantId:candidate.grant,schema:'dabra-task-spending-v3',modelTier:'economy',grantBindings:[{grantId:candidate.grant,proofSha256:proofHash}]},who]);
+      const candidateV3=await currentBundle();assert.ok(candidateV3);
+      assert.equal((await txRpc('reserve_dabra_production_task',[...publicRequest,digest,randomUUID(),'customer',policy,candidateV3])).decision,'denied',candidate.kind+' v3 task');
+      assert.deepEqual(await counts(),before,'denial creates no hold or task');
+      await client.query('SAVEPOINT invalid_authority');
+      await assert.rejects(()=>client.query("INSERT INTO private.dabra_public_dialogue_authorities(id,source_grant_id,source_proof,profile,output_acceptance,model_tier,enabled,authorized_at) VALUES($1,$2,$3,$4,$5,'economy',true,to_timestamp($6::numeric/1000))",[randomUUID(),candidate.grant,candidate.proof,candidate.profile,candidate.acceptance,now-2000]),/DABRA_PUBLIC_GRANT_PROFILE_REQUIRED/);
+      await client.query('ROLLBACK TO SAVEPOINT invalid_authority');await client.query('RELEASE SAVEPOINT invalid_authority');
+      await client.query('UPDATE private.dabra_public_dialogue_authorities SET enabled=false WHERE id=$1',[candidate.id]);
+      await client.query('SAVEPOINT reenable_authority');
+      await assert.rejects(()=>client.query('UPDATE private.dabra_public_dialogue_authorities SET enabled=true WHERE id=$1',[candidate.id]),/DABRA_PUBLIC_GRANT_PROFILE_REQUIRED/);
+      await client.query('ROLLBACK TO SAVEPOINT reenable_authority');await client.query('RELEASE SAVEPOINT reenable_authority');
+     }
+     await client.query("UPDATE private.dabra_successful_task_decisions SET document=$1,funding_grant_id=$2,funding_proof_sha256=(SELECT encode(sha256(convert_to(proof::text,'UTF8')),'hex') FROM private.dabra_dialogue_funding_grants WHERE id=$2) WHERE actor_id=$3 AND kind='spending'",[docs.spending,grantId,who]);
+     const validBundle=await currentBundle();assert.ok(validBundle);
+     assert.equal((await txRpc('reserve_dabra_public_dialogue_attempt',request(who))).decision,'admitted','authorized public profile remains usable');
+     assert.equal((await txRpc('reserve_dabra_production_task',[...request(who),digest,randomUUID(),'customer',policy,validBundle])).decision,'admitted','authorized task profile remains usable');
+     const validHash=(await client.query("SELECT encode(sha256(convert_to(proof::text,'UTF8')),'hex') AS v FROM private.dabra_dialogue_funding_grants WHERE id=$1",[grantId])).rows[0].v;
+     await client.query("UPDATE private.dabra_successful_task_decisions SET document=$1 WHERE actor_id=$2 AND kind='spending'",[{...docs.spending,schema:'dabra-task-spending-v3',modelTier:'economy',grantBindings:[{grantId,proofSha256:validHash}]},who]);
+     const validV3=await currentBundle();assert.ok(validV3);
+     assert.equal((await txRpc('reserve_dabra_production_task',[...request(who),digest,randomUUID(),'customer',policy,validV3])).decision,'admitted','authorized v3 profile remains usable');
+    }finally{await client.query('ROLLBACK');}
+   });
+   await core.test('V3 requires every current bound grant and filters policy and reservation atomically',async()=>{
+    const txRpc=async(name:string,args:unknown[])=>{
+     await client.query('SET LOCAL ROLE service_role');
+     try{return (await client.query(`SELECT public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) AS v`,args)).rows[0].v;}
+     finally{await client.query('RESET ROLE');}
+    };
+    const resolve=()=>txRpc('resolve_dabra_successful_task_decisions',[who,'customer',policy]);
+    const hash=async(id:string)=>(await client.query("SELECT encode(sha256(convert_to(proof::text,'UTF8')),'hex') AS v FROM private.dabra_dialogue_funding_grants WHERE id=$1",[id])).rows[0].v as string;
+    const document=(bindings:{grantId:string;proofSha256:string}[])=>({...docs.spending,schema:'dabra-task-spending-v3',modelTier:'economy',grantBindings:bindings.sort((a,b)=>a.grantId<b.grantId?-1:a.grantId>b.grantId?1:0)});
+    const update=async(doc:unknown)=>client.query("UPDATE private.dabra_successful_task_decisions SET document=$1 WHERE actor_id=$2 AND kind='spending'",[doc,who]);
+    const locker=new Client({...config,database});await locker.connect();await client.query('BEGIN');
+    try {
+     const anchorHash=await hash(grantId),legacyHash=await hash(legacyAuthorities[0].grant);
+     const lockedDoc=document([{grantId,proofSha256:anchorHash},{grantId:legacyAuthorities[0].grant,proofSha256:legacyHash}]);
+     await update(lockedDoc);
+     await locker.query('BEGIN');await locker.query('SELECT 1 FROM private.dabra_dialogue_funding_grants WHERE id=$1 FOR UPDATE',[legacyAuthorities[0].grant]);
+     assert.equal((await client.query('SELECT private.dabra_task_multigrant_current($1,$2,$3) AS v',[lockedDoc,grantId,anchorHash])).rows[0].v,false,'a locked non-anchor grant fails closed without waiting');
+     assert.equal(await resolve(),null,'a locked listed grant invalidates the whole decision');
+     await locker.query('ROLLBACK');
+     const changedDoc=document([{grantId,proofSha256:anchorHash},{grantId:legacyAuthorities[0].grant,proofSha256:'f'.repeat(64)}]);
+     await update(changedDoc);assert.equal(await resolve(),null,'a stale proof hash invalidates the whole decision');
+     await update(lockedDoc);await client.query('SAVEPOINT revoke_grant');
+     await client.query('UPDATE private.dabra_dialogue_funding_grants SET enabled=false WHERE id=$1',[legacyAuthorities[0].grant]);
+     assert.equal(await resolve(),null,'a disabled listed grant invalidates the whole decision');
+     await client.query('ROLLBACK TO SAVEPOINT revoke_grant');await client.query('RELEASE SAVEPOINT revoke_grant');
+     await client.query('SAVEPOINT mutate_proof');
+     await assert.rejects(()=>client.query("UPDATE private.dabra_dialogue_funding_grants SET proof=jsonb_set(proof,'{evidenceSha256}',to_jsonb(repeat('f',64))) WHERE id=$1",[legacyAuthorities[0].grant]),/IMMUTABLE/);
+     await client.query('ROLLBACK TO SAVEPOINT mutate_proof');await client.query('RELEASE SAVEPOINT mutate_proof');
+     const add=async(label:string)=>{
+      const id=randomUUID(),authority=randomUUID(),candidate:DurableAccountChargeProof={...proof,grantId:id,accountId:'SYNTHETIC-v3-'+label,
+       limitedOperation:{...proof.limitedOperation,authorizationId:randomUUID(),bindingSha256:'0'.repeat(64)}};
+      const bound={...candidate,limitedOperation:{...candidate.limitedOperation,bindingSha256:durableAuthorityBindingSha256(candidate)}};
+      await client.query("INSERT INTO private.dabra_dialogue_funding_grants(id,provider,account_id,project_id,funding_mode,authorized_credit_micros,input_rate_micros_per_million,output_rate_micros_per_million,enabled,proof,authorized_at) VALUES($1,'openai',$2,'SYNTHETIC-project','bounded-account-charge',0,100000,500000,true,$3,to_timestamp($4::numeric/1000))",[id,bound.accountId,bound,now-4000]);
+      await client.query("INSERT INTO private.dabra_public_dialogue_authorities(id,source_grant_id,source_proof,profile,output_acceptance,model_tier,enabled,authorized_at) VALUES($1,$2,$3,$4,$5,'economy',true,to_timestamp($6::numeric/1000))",[authority,id,bound,profile,acceptance,now-2000]);
+      return {id,authority,hash:await hash(id)};
+     };
+     const bound=await add('bound'),unbound=await add('unbound');
+     await update(document([{grantId,proofSha256:anchorHash},{grantId:bound.id,proofSha256:bound.hash}]));
+     const bundle=await resolve();assert.ok(bundle);
+     const selected=await txRpc('get_dabra_production_task_policy',[who,'customer',policy,bundle]);
+     assert.deepEqual(selected.authorities.map((a:{id:string})=>a.id).sort(),[authorityId,bound.authority].sort(),'only bound matching grants appear');
+     const attempt=(id:string)=>{const r:unknown[]=[...request(who),digest,randomUUID(),'customer',policy,bundle];r[3]=id;r[4]={...(r[4] as Record<string,unknown>),authorityId:id};return r;};
+     const before=await countHolds(),outside=attempt(unbound.authority);
+     assert.equal((await txRpc('reserve_dabra_production_task',outside)).decision,'denied','unbound authority cannot reserve');assert.deepEqual(await countHolds(),before);
+     const accepted=attempt(bound.authority);assert.equal((await txRpc('reserve_dabra_production_task',accepted)).decision,'admitted');
+     const held=await countHolds();assert.equal(held.n,before.n+1);assert.equal(held.cost,before.cost+922);
+     const finished=await txRpc('finish_dabra_production_task',[who,accepted[1],digest,accepted[9],'failed',null,'en']);assert.equal(finished.state,'failed');
+     assert.deepEqual(await countHolds(),held,'an admitted failure retains its cost and does not dispatch a fallback');
+     assert.equal((await txRpc('reserve_dabra_production_task',accepted)).decision,'existing','the same request cannot reserve again');
+    }finally{await client.query('ROLLBACK');await locker.query('ROLLBACK');await locker.end();}
+   });
    await core.test('Strong v2 atomic policy and admission preserve v1 and one hold',async()=>{
     // Keep this case in one rollback-only transaction; the outer RPC helper commits.
     const rpc=async(name:string,args:unknown[])=>{
@@ -220,6 +341,50 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
      assert.equal(otherHolds.cost,after.cost+Number(otherRequest[7]));
      assert.equal(await tasks(),beforeMismatch.tasks+2);
     } finally {await client.query('ROLLBACK');}
+   });
+   await core.test('Strong v2 binds a different model and tariff from Economy',async()=>{
+    const txRpc=async(name:string,args:unknown[])=>{
+     await client.query('SET LOCAL ROLE service_role');
+     try{return (await client.query(`SELECT public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) AS v`,args)).rows[0].v;}
+     finally{await client.query('RESET ROLE');}
+    };
+    await client.query('BEGIN');
+    try {
+     const strongGrant=randomUUID(),strongId=randomUUID(),strongDigest='760a374be993aa01bd602bbdead31f1e58f642e473207e599816dc0790a28927';
+     const strongPrice=approvedPublicPricingContract('deepseek','deepseek-flash',strongDigest);assert.ok(strongPrice);
+     const strongProfile={provider:'deepseek' as const,measurement:{...profile.measurement,model:'deepseek-flash',costCeilingUsd:0.003}};
+     const unboundStrong:DurableAccountChargeProof={...proof,grantId:strongGrant,provider:'deepseek',model:'deepseek-flash',
+      accountId:'SYNTHETIC-strong-model',pricingEvidenceSha256:strongDigest,
+      limitedOperation:{...proof.limitedOperation,authorizationId:randomUUID(),contractSha256:strongPrice.digest,
+       acceptedProfileSha256s:[durableProfileSha256(strongProfile)],bindingSha256:'0'.repeat(64)}};
+     const strongProof={...unboundStrong,limitedOperation:{...unboundStrong.limitedOperation,bindingSha256:durableAuthorityBindingSha256(unboundStrong)}};
+     const strongAcceptance={...acceptance,provider:'deepseek',model:'deepseek-flash',profileSha256:durableProfileSha256(strongProfile)};
+     await client.query("INSERT INTO private.dabra_dialogue_funding_grants(id,provider,account_id,project_id,funding_mode,authorized_credit_micros,input_rate_micros_per_million,output_rate_micros_per_million,enabled,proof,authorized_at) VALUES($1,'deepseek','SYNTHETIC-strong-model','SYNTHETIC-project','bounded-account-charge',0,300000,1200000,true,$2,to_timestamp($3::numeric/1000))",[strongGrant,strongProof,now-4000]);
+     await client.query("INSERT INTO private.dabra_public_dialogue_authorities(id,source_grant_id,source_proof,profile,output_acceptance,model_tier,enabled,authorized_at) VALUES($1,$2,$3,$4,$5,'strong',true,to_timestamp($6::numeric/1000))",[strongId,strongGrant,strongProof,strongProfile,strongAcceptance,now-2000]);
+     const before=await countHolds();
+     const economyPolicy=await txRpc('get_dabra_production_task_policy',[who,'customer',policy,approved]);
+     assert.deepEqual(economyPolicy.authorities.map((a:{id:string})=>a.id),[authorityId]);
+     const economy:unknown[]=[...request(who),digest,randomUUID(),'customer',policy,approved];
+     const strongOnEconomy:unknown[]=[...economy];strongOnEconomy[3]=strongId;strongOnEconomy[4]={...(economy[4] as Record<string,unknown>),authorityId:strongId};
+     assert.equal((await txRpc('reserve_dabra_production_task',strongOnEconomy)).decision,'denied');
+     assert.equal((await txRpc('reserve_dabra_production_task',economy)).decision,'admitted');
+     await client.query("UPDATE private.dabra_successful_task_decisions SET document=$1,funding_grant_id=$2,funding_proof_sha256=(SELECT encode(sha256(convert_to(proof::text,'UTF8')),'hex') FROM private.dabra_dialogue_funding_grants WHERE id=$2) WHERE actor_id=$3 AND kind='spending'",
+      [{...docs.spending,schema:'dabra-task-spending-v2',modelTier:'strong',grantId:strongGrant},strongGrant,who]);
+     const strongBundle=await txRpc('resolve_dabra_successful_task_decisions',[who,'customer',policy]);assert.ok(strongBundle);
+     const strongPolicy=await txRpc('get_dabra_production_task_policy',[who,'customer',policy,strongBundle]);
+     assert.deepEqual(strongPolicy.authorities.map((a:{id:string})=>a.id),[strongId]);
+     assert.equal(strongPolicy.authorities[0].profile.measurement.model,'deepseek-flash');
+     const wrong:unknown[]=[...request(who),digest,randomUUID(),'customer',policy,strongBundle];
+     assert.equal((await txRpc('reserve_dabra_production_task',wrong)).decision,'denied','Strong cannot use Economy authority');
+     const strong:unknown[]=[...request(who),digest,randomUUID(),'customer',policy,strongBundle];
+     const execution=strong[4] as Record<string,unknown>,observation=execution.observation as Record<string,unknown>;
+     strong[3]=strongId;strong[4]={...execution,authorityId:strongId,profileSha256:strongAcceptance.profileSha256,
+      observation:{...observation,provider:'deepseek',model:'deepseek-flash',approvedPricingDigest:strongDigest,
+       approvedContractDigest:strongPrice.digest,inputMicrosPerMillion:300000,outputMicrosPerMillion:1200000}};
+     strong[7]=2458;
+     assert.equal((await txRpc('reserve_dabra_production_task',strong)).decision,'admitted');
+     const after=await countHolds();assert.equal(after.n,before.n+2);assert.equal(after.cost,Number(before.cost??0)+922+2458);
+    }finally{await client.query('ROLLBACK');}
    });
    const retrieve=()=>rpc('read_dabra_production_task',[who,production[1],digest,'customer',policy,approved]);
    for(const [key,maximum] of Object.entries({dailySuccesses:10,monthlySuccesses:50,accountMonthlyCostMicros:500000,monthlyCostMicros:25000000})) {

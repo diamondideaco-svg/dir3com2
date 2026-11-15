@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {TASK187_DIAGNOSTIC_PREFIX,task187BrowserDiagnostic,waitTask187ChildSpawn} from './sandbox/task187-browser-diagnostics.mjs';
+import {TASK187_DIAGNOSTIC_PREFIX,task187BrowserDiagnostic,task187BrowserPhase,waitTask187ChildSpawn} from './sandbox/task187-browser-diagnostics.mjs';
 import {spawn,execFileSync,type ChildProcess} from 'node:child_process';
 import {createServer,request as httpRequest} from 'node:http';
 import {mkdtempSync,writeFileSync,existsSync} from 'node:fs';
@@ -9,23 +9,26 @@ import {TASK187_APP_ORIGIN,attachTask187ConnectProxy} from './sandbox/task187-br
 import {assertTask187BrowserVersions} from './sandbox/task187-browser-versions.mjs';
 import {clickTask187Element,Task187CommandError,Task187ClickError} from './sandbox/task187-browser-click';
 const origin=TASK187_APP_ORIGIN;
-let stage='preflight';const abort=new AbortController();process.once('SIGTERM',()=>abort.abort());
+let stage='preflight';
+const setStage=(value:string)=>{stage=value;process.stderr.write(task187BrowserPhase(value)+'\n');};
+const abort=new AbortController();process.once('SIGTERM',()=>abort.abort());
 const labels={en:{panel:'My memory and trip',save:'Confirm and save',resume:'Resume trip',revoke:'Disable memory and delete all',origin:'Departure city',destination:'Destination',consent:'I agree to save',trip:'Save this trip',message:'Message DABRA',send:'Send message',saved:'Saved in your account.',stage:'Saved trip intent, awaiting your confirmation to send:'},ar:{panel:'ذاكرتي ورحلتي',save:'تأكيد وحفظ',resume:'استئناف الرحلة',revoke:'إيقاف الذاكرة وحذف الكل',origin:'مدينة المغادرة',destination:'الوجهة',consent:'أوافق على حفظ',trip:'حفظ هذه الرحلة',message:'رسالة للدبرة',send:'إرسال الرسالة',saved:'تم الحفظ في حسابك.',stage:'نية الرحلة المحفوظة، بانتظار تأكيد الإرسال:'}};
 const delay=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 async function main(){
- stage='preflight-input';
+ setStage('preflight-input');
  let raw='';for await(const c of process.stdin)raw+=c;
  const cfg=JSON.parse(raw) as {url:string;anon:string;password:string;aid:string;bid:string};assert.equal(cfg.url,'http://127.0.0.1:19030');
- stage='preflight-environment';
+ setStage('preflight-environment');
  for(const name of ['.env','.env.local','.env.development','.env.development.local'])assert.equal(existsSync(name),false,'browser runtime must not load external environment files');
- stage='preflight-chrome-version';
- const chrome=execFileSync('google-chrome',['--version'],{encoding:'utf8',timeout:5000}).match(/\d+\.\d+\.\d+\.\d+/)?.[0];
- stage='preflight-driver-version';
+ setStage('preflight-chrome-version');
+ // Allow a bounded cold start on a loaded CI runner; version matching remains mandatory.
+ const chrome=execFileSync('google-chrome',['--version'],{encoding:'utf8',timeout:20000}).match(/\d+\.\d+\.\d+\.\d+/)?.[0];
+ setStage('preflight-driver-version');
  const driverVersion=execFileSync('chromedriver',['--version'],{encoding:'utf8',timeout:5000}).match(/\d+\.\d+\.\d+\.\d+/)?.[0];
- stage='preflight-version-contract';assertTask187BrowserVersions(chrome,driverVersion);
- stage='preflight-temp';
+ setStage('preflight-version-contract');assertTask187BrowserVersions(chrome,driverVersion);
+ setStage('preflight-temp');
  const out=mkdtempSync(join(tmpdir(),'task187-browser-'));const font=join(out,'fonts.cjs');
- stage='preflight-font';
+ setStage('preflight-font');
  writeFileSync(font,"module.exports=new Proxy({}, {get(_t,url){if(typeof url!=='string'||!url.startsWith('https://fonts.googleapis.com/css2?'))return undefined;const f=new URL(url).searchParams.get('family').split(':')[0];if(!['Tajawal','Montserrat','Playfair Display'].includes(f))throw Error('UNEXPECTED_FONT');return `@font-face{font-family:'${f}';src:local('Arial');font-style:normal;font-weight:400 700;font-display:swap}`;}});",{mode:0o600});
  // Child receives no Production/provider credentials, only existing local anon configuration.
  const env:NodeJS.ProcessEnv={NODE_ENV:'development'};for(const key of ['PATH','HOME','TEMP','TMP','TMPDIR','SystemRoot','WINDIR'])if(process.env[key])env[key]=process.env[key];
@@ -35,7 +38,7 @@ async function main(){
  // All browser HTTP/CONNECT traffic outside loopback is rejected by this test-only proxy.
  // <-loopback> removes Chrome's implicit bypass, so only the exact local app
  // origin can be forwarded. No system proxy/security settings change.
- stage='preflight-proxy-create';
+ setStage('preflight-proxy-create');
  const proxy=createServer((req,res)=>{
   let url:URL;try{url=new URL(req.url??'');}catch{browserDenied++;res.writeHead(403).end();return;}
   if(url.origin!==origin){browserDenied++;res.writeHead(403).end('TASK187_EXTERNAL_BROWSER_DENIED');return;}
@@ -54,19 +57,19 @@ async function main(){
  const metrics=async()=>await (await fetch(origin+'/__task187_metrics',{signal:AbortSignal.any([AbortSignal.timeout(10000),abort.signal])})).json() as {chatRequests:number;chatCompleted:number;externalDenied:number};
  const state=async()=>await command('/session/'+session+'/execute/async',{script:"const done=arguments[arguments.length-1];fetch('/api/dabra/continuity',{cache:'no-store'}).then(async r=>done({status:r.status,body:await r.json()})).catch(()=>done(null));",args:[]}) as {status:number;body:{ownerId:string;state:{trip:{origin:string;destination:string}|null;preferences:unknown;consentEnabled:boolean}}};
  try{
-  stage='preflight-proxy-port';
+  setStage('preflight-proxy-port');
   await new Promise<void>((resolve,reject)=>{proxy.once('error',reject);proxy.listen(19042,'127.0.0.1',resolve);});
-  stage='preflight-next-start';
+  setStage('preflight-next-start');
   app=spawn(process.execPath,['scripts/task187-browser-next.mjs'],{env,stdio:['ignore','ignore','ignore','ipc']});
   await new Promise<void>((resolve,reject)=>{const t=setTimeout(()=>reject(Error('TASK187_NEXT_START_TIMEOUT')),60000);app!.once('error',reject);app!.once('message',m=>{if((m as {ready?:boolean}).ready){clearTimeout(t);resolve();}});app!.once('exit',()=>{clearTimeout(t);reject(Error('TASK187_NEXT_EXIT'));});});
-  stage='preflight-driver-port';
+  setStage('preflight-driver-port');
   const portProbe=createServer();await new Promise<void>((resolve,reject)=>{portProbe.once('error',reject);portProbe.listen(19041,'127.0.0.1',resolve);});await new Promise<void>(resolve=>portProbe.close(()=>resolve()));
-  stage='preflight-driver-start';
+  setStage('preflight-driver-start');
   const startingDriver=spawn('chromedriver',['--port=19041','--allowed-ips=127.0.0.1'],{stdio:'ignore'});
   await waitTask187ChildSpawn(startingDriver);driver=startingDriver;
-  stage='preflight-driver-ready';await wait(async()=>{if(driver!.exitCode!==null)throw Error('TASK187_DRIVER_EXIT');try{return await command('/status');}catch{return null;}},'DRIVER');assert.equal(driver.exitCode,null);
+  setStage('preflight-driver-ready');await wait(async()=>{if(driver!.exitCode!==null)throw Error('TASK187_DRIVER_EXIT');try{return await command('/status');}catch{return null;}},'DRIVER');assert.equal(driver.exitCode,null);
   for(const language of ['ar','en'] as const)for(const [width,height] of [[390,844],[1440,900]]){
-   stage=language+'-'+width+'-login';const t=labels[language],checks:string[]=[];const profile=mkdtempSync(join(out,language+'-'+width+'-'));
+   setStage(language+'-'+width+'-login');const t=labels[language],checks:string[]=[];const profile=mkdtempSync(join(out,language+'-'+width+'-'));
    const created=await command('/session',{capabilities:{alwaysMatch:{browserName:'chrome','goog:chromeOptions':{args:['--headless=new','--disable-dev-shm-usage','--disable-background-networking','--disable-component-update','--no-first-run','--no-default-browser-check','--proxy-server=http://127.0.0.1:19042','--proxy-bypass-list=<-loopback>','--user-data-dir='+profile]}}}}) as {sessionId:string;capabilities:{browserVersion:string;chrome:{chromedriverVersion:string}}};session=created.sessionId;
    const actualDriver=created.capabilities.chrome.chromedriverVersion.split(' ')[0];assertTask187BrowserVersions(created.capabilities.browserVersion,actualDriver);assert.equal(created.capabilities.browserVersion,chrome);assert.equal(actualDriver,driverVersion);
    await command('/session/'+session+'/timeouts',{script:60000,pageLoad:60000,implicit:0});
@@ -79,7 +82,7 @@ async function main(){
    const button="const p="+panel+";return p&&[...p.querySelectorAll('button')].find(e=>e.textContent.trim()===arguments[1]&&!e.disabled)";
    const input="const p="+panel+";return p&&[...p.querySelectorAll('label')].find(e=>e.textContent.startsWith(arguments[1]))?.querySelector('input')";
    await wait(async()=>{const s=await state();return s?.status===200&&s.body.ownerId==='user:'+cfg.aid;},'A_STATE');
-   stage=language+'-'+width+'-save';await click(button,[t.panel,t.revoke]);await wait(async()=>!(await state()).body.state.consentEnabled,'RESET');
+   setStage(language+'-'+width+'-save');await click(button,[t.panel,t.revoke]);await wait(async()=>!(await state()).body.state.consentEnabled,'RESET');
    const include=await script<boolean>("const p="+panel+";return [...p.querySelectorAll('label')].find(e=>e.textContent===arguments[1])?.querySelector('input')?.checked",[t.panel,t.trip]);if(!include)await click(input,[t.panel,t.trip]);
    await fill(input,'Cairo',[t.panel,t.origin]);await fill(input,'Riyadh',[t.panel,t.destination]);
    // Actual preference control: keep replies in the cell's selected language.
@@ -88,26 +91,26 @@ async function main(){
    await wait(async()=>{const s=await state();return s.body.state.trip?.origin==='Cairo'&&s.body.state.trip?.destination==='Riyadh';},'SAVED');checks.push('save-genuine-cookie-RPC');
    await navigate('/dabra');await wait(()=>script("return !!document.querySelector('.dabra-composer input[aria-label]:not([disabled])')"),'RELOADED');
    assert.equal((await state()).body.state.trip?.destination,'Riyadh');checks.push('reload-durable-trip');
-   stage=language+'-'+width+'-resume';const before=(await metrics()).chatRequests;await click(button,[t.panel,t.resume]);
+   setStage(language+'-'+width+'-resume');const before=(await metrics()).chatRequests;await click(button,[t.panel,t.resume]);
    await wait(()=>script("return [...document.querySelectorAll('p[role=status]')].some(e=>e.textContent.startsWith(arguments[0]))",[t.stage]),'STAGED');await delay(700);assert.equal((await metrics()).chatRequests,before);checks.push('resume-no-auto-chat');
    const composer="return document.querySelector('.dabra-composer input[aria-label]')";
    const send=async(text:string)=>{const initial=await metrics();const n=initial.chatRequests;await fill(composer,text);await click("return document.querySelector('.dabra-send:not([disabled])')");await wait(async()=>{const m=await metrics();return m.chatRequests===n+1&&m.chatCompleted===initial.chatCompleted+1&&await script("return !!document.querySelector('.dabra-composer input[aria-label]:not([disabled])')&&!!document.querySelector('.dabra-send[disabled]')&&!!document.querySelector('[data-platform-results]')");},'CHAT_RESULT');};
    const links=async()=>await script<string[]>("return [...document.querySelectorAll('[data-platform-results] a')].map(e=>e.getAttribute('href'))");
    const checkLink=async(destination:string,rooms?:string)=>{await wait(async()=>{const hrefs=await links();return hrefs.some(h=>{const u=new URL(h,origin);return u.searchParams.get('destination')===destination&&(!rooms||u.searchParams.get('rooms')===rooms);});},'DESTINATION');};
-   stage=language+'-'+width+'-journey';await send(language==='ar'?'فنادق':'hotels');await checkLink('riyadh');checks.push('hotels-Riyadh');
+   setStage(language+'-'+width+'-journey');await send(language==='ar'?'فنادق':'hotels');await checkLink('riyadh');checks.push('hotels-Riyadh');
    await send(language==='ar'?'2 غرف':'2 rooms');await checkLink('riyadh','2');checks.push('rooms-retain-destination');
    await send(language==='ar'?'فنادق في جدة':'hotels in Jeddah');await checkLink('jeddah','2');checks.push('explicit-Jeddah');
    await send(language==='ar'?'سيارة في جدة':'car in Jeddah');await checkLink('jeddah');assert.equal(await script("return document.querySelectorAll('[data-platform-results] .dabra-product-card').length"),0);checks.push('Drive-foreign-no-Egypt-cards');
    await send(language==='ar'?'سيارة في القاهرة':'car in Cairo');await wait(()=>script("return document.querySelectorAll('[data-platform-results] .dabra-product-card').length>0"),'EGYPT_CARDS');await checkLink('cairo');checks.push('Drive-Egypt-cards');
    const activeGeometry=await script<{width:number;height:number;overflow:boolean}>("return {width:innerWidth,height:innerHeight,overflow:document.documentElement.scrollWidth>innerWidth+1}");assert.equal(activeGeometry.width,width);assert.equal(activeGeometry.height,height);assert.equal(activeGeometry.overflow,false);checks.push('active-A-viewport-no-overflow');
-   stage=language+'-'+width+'-forget';await fill(composer,'independent typing');await click(button,[t.panel,t.revoke]);
+   setStage(language+'-'+width+'-forget');await fill(composer,'independent typing');await click(button,[t.panel,t.revoke]);
    await wait(()=>script("return !document.querySelector('[data-platform-results]')&&![...document.querySelectorAll('p[role=status]')].some(e=>e.textContent.startsWith(arguments[0]))",[t.stage]),'FORGOTTEN');
    assert.equal(await script("return document.querySelector('.dabra-composer input[aria-label]').value"),'independent typing');
    assert.equal(await script("return /Riyadh|الرياض/.test([...document.querySelectorAll('.dabra-message')].map(e=>e.textContent).join(' '))"),false);
    assert.equal((await state()).body.state.trip,null);assert.equal((await state()).body.state.preferences,null);checks.push('revoke-clears-derived-preserves-typing');
    // Save again while A is present, then use genuine logout/login to prove B isolation.
    await click(input,[t.panel,t.trip]);await fill(input,'Cairo',[t.panel,t.origin]);await fill(input,'Riyadh',[t.panel,t.destination]);await click(input,[t.panel,t.consent]);await click(button,[t.panel,t.save]);await wait(async()=>!!(await state()).body.state.trip,'RESAVED');
-   stage=language+'-'+width+'-B-isolation';const logout=await command('/session/'+session+'/execute/async',{script:"const done=arguments[arguments.length-1];fetch('/api/auth/logout',{method:'POST',credentials:'same-origin'}).then(async r=>done({status:r.status,body:await r.json()})).catch(()=>done(null));",args:[]}) as {status:number;body:{signedOut:boolean}};
+   setStage(language+'-'+width+'-B-isolation');const logout=await command('/session/'+session+'/execute/async',{script:"const done=arguments[arguments.length-1];fetch('/api/auth/logout',{method:'POST',credentials:'same-origin'}).then(async r=>done({status:r.status,body:await r.json()})).catch(()=>done(null));",args:[]}) as {status:number;body:{signedOut:boolean}};
    assert.equal(logout.status,200);assert.equal(logout.body.signedOut,true);await navigate('/login?redirect=%2Fdabra');await login('b@example.invalid');
    const bs=await state();assert.equal(bs.body.ownerId,'user:'+cfg.bid);assert.equal(bs.body.state.trip,null);assert.equal(bs.body.state.preferences,null);assert.equal(await script("return /Riyadh|الرياض|independent typing/.test(document.querySelector('.dabra-experience').textContent)"),false);checks.push('B-real-cookie-isolation');
    const geometry=await script<{width:number;height:number;overflow:boolean;direction:string}>("return {width:innerWidth,height:innerHeight,overflow:document.documentElement.scrollWidth>innerWidth+1,direction:document.querySelector('.dabra-experience')?.dir}");assert.equal(geometry.width,width);assert.equal(geometry.height,height);assert.equal(geometry.overflow,false);assert.equal(geometry.direction,language==='ar'?'rtl':'ltr');checks.push('actual-viewport-direction-no-overflow');
