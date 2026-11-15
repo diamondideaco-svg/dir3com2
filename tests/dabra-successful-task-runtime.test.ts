@@ -7,6 +7,7 @@ import { runInternalAgentTask } from '../lib/dabra/agent-handoff';
 import { boundedSuccessfulTaskRpc, createSyntheticSuccessfulTaskRunner, successfulTaskInputDigest } from '../lib/dabra/successful-task-development';
 import type { FundingRpc } from '../lib/dabra/dialogue-funding-store';
 import { successfulTaskRuntimeFixture, syntheticProviderEnvironment } from './fixtures/task237-runtime-synthetic';
+import { createSuccessfulTaskLifecycle } from '../lib/dabra/successful-task-lifecycle';
 import { successfulTaskReplayResponse } from '../lib/dabra/successful-task-replay';
 import { SUCCESSFUL_TASK_POLICY } from '../lib/dabra/successful-task-contract';
 import vm from 'node:vm';
@@ -428,4 +429,25 @@ for(const lostFinishReply of [false,true])test('store adapter successful lifecyc
   assert.equal(reads,lostFinishReply?2:3);assert.equal(finishes,1);assert.equal(executions,1);assert.equal(attempts.length,1);
   assert.deepEqual(f.stats(),before,'replay adds no claim, hold, cost, model or pricing call');
  }finally{if(keepAlive)clearTimeout(keepAlive);restore();}
+});
+
+
+test('V3 lifecycle requires decision limits and passes an immutable snapshot into selection',async()=>{
+ const restore=syntheticProviderEnvironment();
+ try {
+  const f=successfulTaskRuntimeFixture(), input={message:'hotel in Cairo',history:[],locale:'en' as const,context:f.context,
+   intent:{tool:'discover' as const,reference:null,draft:false},successfulTaskModelSelection:{schema:'dabra-task-model-selection-v3' as const,tier:'economy' as const,providerSelection:'auto' as const}};
+  let reads=0,executions=0;
+  const rpc:FundingRpc=async(name,p,signal)=>{reads++;if(name==='read_dabra_successful_task')return {error:null,data:{state:'absent'}};
+   if(name==='get_dabra_successful_task_policy')return f.rpc('get_dabra_public_dialogue_policy',p,signal);throw Error('unexpected admission');};
+  const execute:Parameters<typeof createSuccessfulTaskLifecycle>[0]['execute']=async(i,p,signal)=>{
+   executions++;assert.equal(p.providerSelection,'auto');assert.deepEqual(p.successfulTaskCandidateLimits,{leaseMs:11000,inputTokenCeiling:2048,outputTokenCeiling:512,attemptCostMicros:700});
+   return runInternalAgentTask(i,{dialogue:{...p,trial:false},signal,responseContract:'platform-dialogue'});
+  };
+  const missing=createSuccessfulTaskLifecycle({rpc,execute});
+  assert.equal((await missing(input,f.requestId,new AbortController().signal)).kind,'unavailable');assert.equal(reads,0);assert.equal(executions,0);
+  const limits={leaseMs:11000,inputTokenCeiling:2048,outputTokenCeiling:512,attemptCostMicros:700};
+  const run=createSuccessfulTaskLifecycle({rpc,execute,selectionLimits:limits});limits.attemptCostMicros=1;
+  assert.equal((await run(input,f.requestId,new AbortController().signal)).kind,'core');assert.equal(executions,1);
+ }finally{restore();}
 });

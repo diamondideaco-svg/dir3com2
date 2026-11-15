@@ -4,6 +4,34 @@ This source-only change does not create real decisions, notices, consents, grant
 authorities, credentials, a pilot configuration, or provider calls. The forward
 migration is not authorized for production merely because it exists in source.
 
+The multigrant migration `20261114181805_task237_multigrant_successful_task.sql`
+was applied once to DIR3COM Core and is recorded under version `20261114181805`.
+On 2026-11-15 a read of the migration ledger returned the matching name and SQL
+MD5 `17fdab200f46192d9a3f1d0089271c46`; the source SQL has the same MD5 and
+SHA-256 `d7df82945cb7ddb2652ff26f33c0a0ba059a1766350efa9f91300df0df3a4324`.
+The `production_apply_authorized: false` manifest field means the source record
+alone grants no future production execution; it does not mean the recorded
+historical application did not occur. Do not reapply the SQL or rewrite the
+ledger. Supabase's migration history should cause a normal migration push to
+skip this recorded version; this observation does not authorize any push.
+
+The 2026-11-15 production catalog metadata read found one overload for each
+function below. Each owner was `postgres`, each `proconfig` was
+`search_path=""`, and exploded EXECUTE ACLs were as follows. This is a
+metadata observation, not a comparison of complete function definitions.
+
+| Function | Security | EXECUTE grantees |
+| --- | --- | --- |
+| `public.resolve_dabra_successful_task_decisions` | definer | postgres, service_role |
+| `public.reserve_dabra_production_task` | definer | postgres, service_role |
+| `public.get_dabra_production_task_policy` | definer | postgres, service_role |
+| `private.dabra_production_task_terms` | invoker | postgres |
+| `private.dabra_task_multigrant_current` | invoker | postgres |
+
+The metadata query and `has_function_privilege` check showed no EXECUTE grant
+to `PUBLIC`, `anon`, or `authenticated` on those functions. It did not read
+or export their full definitions.
+
 ## One spending decision, multiple bound grants
 
 `dabra-task-spending-v3` preserves the existing spending-v2 fields and adds
@@ -59,3 +87,37 @@ The actual account session, the four administrative decisions, and the approved
 notice in Core remain required; displaying a notice is not consent. The account
 must grant consent itself. Do not set the execution configuration until its
 separate prerequisites are complete.
+
+## Operations and incident boundaries
+
+V3 fails the entire decision closed if any listed grant is missing, disabled,
+changed or unavailable under its row lock. Removing a provider from the
+approved set requires a genuine revised decision and matching current evidence;
+simply disabling one listed grant makes the whole decision unavailable.
+
+Selection is deterministic by the approved quote and tie-breakers. It has no
+provider-health signal and makes one attempt: a selected provider failure does
+not trigger another provider, and an admitted cost remains held even if the
+attempt fails. An unusable cheaper provider can therefore consume repeated
+approved attempts until operators intervene; stop the affected operation rather
+than interpreting the cost cap as extra approval.
+
+`DABRA_AI_PROVIDER` is deliberately ignored for V3 and is not an emergency
+exclusion control. A server key that no longer matches a grant's bound credential
+causes that pair to be rejected before admission; removing or rotating a key can
+affect every use of the shared server configuration and requires the normal
+credential-change authorization and deployment process. Verify the active
+deployment and the intended scope before any such action. Never replace a
+grant's proof or claim qualification to make another pair eligible.
+
+The browser test's `google-chrome --version` preflight allows 20 seconds after
+one observed five-second cold-start timeout; `chromedriver --version` remains
+bounded at five seconds and the actual versions must still match. The earlier
+`ECONNRESET` had no phase marker and its cause was not established. A later pass
+does not prove that timeout adjustment fixed that failure; investigate a future
+reproduction using the recorded phase diagnostics without provider calls.
+
+Follow-up task: if the browser sandbox `ECONNRESET` recurs, preserve the raw
+phase marker and logs, identify whether the reset occurred during Chrome startup,
+WebDriver connection or application navigation, and fix the evidenced cause.
+Do not mark the incident resolved based on the changed version-command timeout.

@@ -141,6 +141,9 @@ type AgentAttemptBinding = Pick<PreparedAgentAttempt, 'profile' | 'credentialSha
 type ConfigurationFailure = 'configuration_missing' | 'model_mismatch' | 'credential_mismatch' | 'configuration_unavailable';
 type AgentRuntimeCheck = (binding: AgentAttemptBinding) => ConfigurationFailure | null;
 const preparationDiagnostics = channel('dir3com.dabra.agent-preparation');
+// Provider IDs, grant UUIDs and profile digests use ASCII identifiers. Keep
+// tie-breaking independent of the host locale and ICU version.
+const compareIdentifier = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 function inspectConfiguration(binding: AgentAttemptBinding) {
   try {
     const config = internalAgentConfiguration(binding.profile.provider);
@@ -228,7 +231,8 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
   const eligible = policy.profiles.filter(p => (!request.provider || p.provider === request.provider)
     && (!continuous || desired === 'auto' || p.provider === desired));
   const accepts = (p: AgentCapabilityProfile) => funded?.proofs.some(proof => proof.mode === 'bounded-account-charge'
-    && (policy.publicMonthly ? policy.publicProfileAuthorized?.(proof,p) === true && p.measurement.expiresAtMs > Date.now() : durableAuthorityAcceptsProfile(proof, p, Date.now()))) === true;
+    && durableAuthorityAcceptsProfile(proof, p, Date.now())
+    && (!policy.publicMonthly || policy.publicProfileAuthorized?.(proof,p) === true && p.measurement.expiresAtMs > Date.now())) === true;
   let soleConfigurationFailure: ConfigurationFailure | null = null;
   let profile: AgentCapabilityProfile, fundingProof: DialogueFundingProof | undefined, matchedProof: FreeDialogueProof | undefined;
   if (policy.successfulTaskCandidateLimits) {
@@ -238,6 +242,7 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
     if (!runtimeCheck) { diagnose('configuration_unavailable'); return null; }
     const c = policy.successfulTaskCandidateLimits;
     const candidates: Array<{ profile: AgentCapabilityProfile; proof: DurableAccountChargeProof; quote: number }> = [];
+    const configurationFailures = new Set<ConfigurationFailure>();
     for (const p of eligible) {
       const m = p.measurement;
       if (payloadBytes > m.inputTokenCeiling || m.latencyMs > c.leaseMs
@@ -250,26 +255,32 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
       const qualifiedProfile: AgentCapabilityProfile = { provider: selected.destination.provider, measurement: selected.destination.measurement };
       for (const proof of funded?.proofs ?? []) {
         if (proof.mode !== 'bounded-account-charge' || proof.provider !== qualifiedProfile.provider || proof.model !== m.model
-          || !fundingProofCurrent(proof, qualifiedProfile, now) || policy.publicProfileAuthorized?.(proof, qualifiedProfile) !== true
+          || !durableAuthorityAcceptsProfile(proof, qualifiedProfile, now) || !fundingProofCurrent(proof, qualifiedProfile, now)
+          || policy.publicProfileAuthorized?.(proof, qualifiedProfile) !== true
           || policy.publicProfileOutputAccepted?.(proof, qualifiedProfile, outputContract, now) !== true) continue;
         const quote = approvedDurableDialogueQuoteMicros(proof, qualifiedProfile, now);
         if (quote === null || quote > c.attemptCostMicros || quote / 1000000 > m.costCeilingUsd) continue;
         const failure = runtimeCheck({ profile: qualifiedProfile, credentialSha256: proof.credentialSha256 });
-        if (eligible.length === 1) soleConfigurationFailure = failure ?? null;
+        if (eligible.length === 1 && failure) configurationFailures.add(failure);
         if (!failure) candidates.push({ profile: qualifiedProfile, proof, quote });
       }
     }
     candidates.sort((a, b) => a.quote - b.quote || a.profile.measurement.latencyMs - b.profile.measurement.latencyMs
-      || a.profile.provider.localeCompare(b.profile.provider) || a.proof.grantId.localeCompare(b.proof.grantId)
-      || durableProfileSha256(a.profile).localeCompare(durableProfileSha256(b.profile)));
+      || compareIdentifier(a.profile.provider, b.profile.provider) || compareIdentifier(a.proof.grantId, b.proof.grantId)
+      || compareIdentifier(durableProfileSha256(a.profile), durableProfileSha256(b.profile)));
     const selected = candidates[0];
-    if (!selected) { diagnose(soleConfigurationFailure ?? 'provider_selection_unavailable'); return null; }
+    if (!selected) {
+      const failure = configurationFailures.size === 1 ? configurationFailures.values().next().value
+        : configurationFailures.size > 1 ? 'configuration_unavailable' : undefined;
+      diagnose(failure ?? 'provider_selection_unavailable'); return null;
+    }
     profile = selected.profile; fundingProof = selected.proof;
   } else {
     // Keep V1/V2 and ordinary dialogue selection behavior unchanged.
     const matchingFundingProof = (p: AgentCapabilityProfile) => {
       const proofs = funded?.proofs.filter(proof => fundingProofCurrent(proof, p, now));
-      return proofs?.find(proof => proof.mode === 'bounded-account-charge' && (policy.publicMonthly ? policy.publicProfileAuthorized?.(proof,p) === true : durableAuthorityAcceptsProfile(proof, p, now)))
+      return proofs?.find(proof => proof.mode === 'bounded-account-charge' && durableAuthorityAcceptsProfile(proof, p, now)
+        && (!policy.publicMonthly || policy.publicProfileAuthorized?.(proof,p) === true))
         ?? proofs?.find(proof => proof.mode !== 'bounded-account-charge' && p.measurement.expiresAtMs > now
           && dialogueCostCeilingMicros(proof, p, now) !== null);
     };
@@ -333,7 +344,9 @@ export async function prepareAgentProviderAttempt(context: AgentContext, locale:
       ? !!fundingProof && policy.publicProfileOutputAccepted?.(fundingProof, profile, outputContract, at) === true
       : acceptsOutput(profile, at);
     const ready = !bounded.aborted && at < end && projectCurrent() && (!policy.publicMonthly || profile.measurement.expiresAtMs > at && policy.publicProfileAuthorized?.(fundingProof!,profile) === true) && outputCurrent && (fundingProof
-      ? fundingProofCurrent(fundingProof, profile, at) && dialogueCostCeilingMicros(fundingProof, profile, at, pricing) !== null
+      ? fundingProofCurrent(fundingProof, profile, at)
+        && (fundingProof.mode !== 'bounded-account-charge' || durableAuthorityAcceptsProfile(fundingProof, profile, at))
+        && dialogueCostCeilingMicros(fundingProof, profile, at, pricing) !== null
       : matchesProof(proof as FreeDialogueProof, profile, policy, at));
     if (!ready) diagnose('readiness_lost');
     return ready;

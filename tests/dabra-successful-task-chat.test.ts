@@ -12,6 +12,7 @@ import { successfulTaskProductionGate, parseSuccessfulTaskProductionPolicy, read
 import { successfulTaskChatResponse } from '../lib/dabra/successful-task-chat';
 import { successfulTaskInputDigest } from '../lib/dabra/successful-task-development';
 import { DEFAULT_AGENT_DIALOGUE_POLICY } from '../lib/dabra/agent-dialogue';
+import { durableAuthorityBindingSha256, type DurableAccountChargeProof } from '../lib/dabra/dialogue-durable-authority';
 import { consumeDabraChatResponse, approvedAssistantAnswer } from '../lib/dabra/chat-response-contract';
 import { ConversationSession } from '../lib/dabra/conversation-session';
 import { interpretSuccessfulTaskDecisions } from '../lib/dabra/successful-task-decision-contract';
@@ -583,9 +584,11 @@ function executableDocuments(c: ReturnType<typeof coreDecisionFixture>, grantId:
   return documents;
 }
 
-for (const lostAdmission of [false, true, 'continuity', 'strong', 'source-replaced'] as const) test(`production lifecycle actual POST single admission and replay lost=${lostAdmission}`, async () => {
+for (const lostAdmission of [false, true, 'continuity', 'strong', 'source-replaced', 'stream', 'v3', 'v3-stream', 'v3-lost-admission', 'v3-source-replaced'] as const) test(`production lifecycle actual POST single admission and replay lost=${lostAdmission}`, async () => {
   const restore = syntheticProviderEnvironment();
-  const lost = lostAdmission === true, withTrip = lostAdmission === 'continuity';
+  const lost = lostAdmission === true || lostAdmission === 'v3-lost-admission', withTrip = lostAdmission === 'continuity';
+  const sourceReplaced = lostAdmission === 'source-replaced' || lostAdmission === 'v3-source-replaced';
+  const v3 = lostAdmission === 'v3' || lostAdmission === 'v3-stream' || lostAdmission === 'v3-lost-admission' || lostAdmission === 'v3-source-replaced';
   const originalTrip = { id: randomUUID(), origin: 'Cairo', destination: 'Riyadh', startDate: null, endDate: null, adults: 2, children: 0, rooms: 1, budget: null, currency: 'USD', families: ['stay'] };
   const tripExpiry = Date.now() + 600000;
   let continuityRevoked = false, revokeOnFinalRead = false;
@@ -606,6 +609,23 @@ for (const lostAdmission of [false, true, 'continuity', 'strong', 'source-replac
     c = coreDecisionFixture(x.f.context.taskAuthority!.kind === 'guest' ? '' : x.f.context.taskAuthority!.actorId);
     const documents = executableDocuments(c, x.f.proof.grantId);
     if (lostAdmission === 'strong') Object.assign(documents.spending, {schema:'dabra-task-spending-v2',modelTier:'strong'});
+    if (v3) {
+      const grantId=randomUUID(), unbound:DurableAccountChargeProof={...x.f.proof,grantId,accountId:'SYNTHETIC-second-account',
+        limitedOperation:{...x.f.proof.limitedOperation,authorizationId:randomUUID(),bindingSha256:'0'.repeat(64)}};
+      const proof:DurableAccountChargeProof={...unbound,limitedOperation:{...unbound.limitedOperation,bindingSha256:durableAuthorityBindingSha256(unbound)}};
+      x.f.authorities.push({...x.f.authorities[1],id:randomUUID(),source_grant_id:grantId,source_proof:proof});
+      assert.notEqual(grantId,x.f.proof.grantId);assert.notEqual(x.f.authorities[1].id,x.f.authorities[2].id);
+      const grantBindings=[{grantId:x.f.proof.grantId,proofSha256:'a'.repeat(64)},{grantId,proofSha256:'b'.repeat(64)}]
+        .sort((a,b)=>a.grantId<b.grantId?-1:a.grantId>b.grantId?1:0);
+      Object.assign(documents.spending,{schema:'dabra-task-spending-v3',modelTier:'economy',grantBindings});
+      assert.equal(interpretSuccessfulTaskDecisions(c.result)?.spendingVersion,3);
+    }
+    const assertNoAuthorityDisclosure=async(response:Response)=>{
+      const serialized=JSON.stringify([...response.headers])+'\n'+await response.clone().text();
+      assert.doesNotMatch(serialized,/source_proof|source_grant_id|credentialSha256|SYNTHETIC-account|SYNTHETIC-project/);
+      for(const authority of x.f.authorities)for(const value of [authority.id,authority.source_grant_id,authority.source_proof.credentialSha256])
+        assert.ok(!serialized.includes(value),'response exposes an actual synthetic authority, grant or credential fingerprint');
+    };
     let row: Record<string, unknown> | null = null;
     const calls: string[] = [];
     const rpc: FundingRpc = async (name, p, signal) => {
@@ -623,7 +643,7 @@ for (const lostAdmission of [false, true, 'continuity', 'strong', 'source-replac
       }
       if (name === 'get_dabra_production_task_policy') {
         const result=await x.f.rpc('get_dabra_public_dialogue_policy', { p_actor_id: p.p_actor_id }, signal);
-        if (lostAdmission === 'source-replaced') { assert.ok(originalInput); originalInput.message = 'changed after policy wait'; }
+        if (sourceReplaced) { assert.ok(originalInput); originalInput.message = 'changed after policy wait'; }
         if(lostAdmission==='strong' && result.data && typeof result.data==='object' && 'authorities' in result.data)
           return {...result,data:{...result.data,authorities:(result.data.authorities as Record<string,unknown>[]).map(a=>({...a,model_tier:'strong'}))}};
         return result;
@@ -631,6 +651,11 @@ for (const lostAdmission of [false, true, 'continuity', 'strong', 'source-replac
       if (withTrip && revokeOnFinalRead && p.p_confirm_read === true) { continuityRevoked = true; return { error: null, data: null }; }
       if (name === 'read_dabra_production_task') return { error: null, data: row ?? { state: 'absent' } };
       if (name === 'reserve_dabra_production_task') {
+        if (v3) {
+          assert.ok(originalInput);
+          const expected=successfulTaskInputDigest({...originalInput,successfulTaskModelSelection:{schema:'dabra-task-model-selection-v3',tier:'economy',providerSelection:'auto'}});
+          assert.equal(p.p_input_digest,expected,'actual admission carries V3 model selection');
+        }
         assert.equal(row, null, 'one atomic admission per UUID');
         const admitted = await x.f.rpc('reserve_dabra_public_dialogue_attempt', p, signal);
         row = { state: 'pending' };
@@ -650,9 +675,9 @@ for (const lostAdmission of [false, true, 'continuity', 'strong', 'source-replac
     const compiled = ts.transpileModule(readFileSync('lib/dabra/successful-task-production-runtime.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     vm.runInNewContext(compiled, { exports: exported, require: (id: string) => Object.hasOwn(deps, id) ? deps[id] : require(process.cwd() + '/lib/dabra/' + id), Response, JSON, Object, structuredClone });
     assert.ok(exported.runSuccessfulTaskProduction); const runtime = exported.runSuccessfulTaskProduction;
-    const body = { message: 'hotel in Cairo', locale: 'en', ...(withTrip ? { continuityTrip: { revision:1,generation:0,trip:{...originalTrip,destination:'Dubai'} } } : {}) };
-    const first = await x.post(body);
-    if (lostAdmission === 'source-replaced') {
+    const body = { message: 'hotel in Cairo', locale: 'en', ...(lostAdmission === 'stream' || lostAdmission === 'v3-stream' ? { stream: true } : {}), ...(withTrip ? { continuityTrip: { revision:1,generation:0,trip:{...originalTrip,destination:'Dubai'} } } : {}) };
+    const first = await x.post(body); await assertNoAuthorityDisclosure(first);
+    if (sourceReplaced) {
       assert.equal(first.status, 503);
       assert.equal(calls.filter(n => n === 'reserve_dabra_production_task').length, 0);
       assert.equal(calls.filter(n => n === 'get_dabra_production_task_policy').length, 1);
@@ -660,15 +685,20 @@ for (const lostAdmission of [false, true, 'continuity', 'strong', 'source-replac
       assert.equal(x.f.stats().models, 0); assert.equal(x.stats().legacyReads, 0);
       return;
     }
-    const second = await x.post(body);
+    const second = await x.post(body); await assertNoAuthorityDisclosure(second);
     assert.equal(first.status, lost ? 409 : 200);
     assert.equal(second.status, first.status);
     if (!lost) {
-      const a = await first.json(), b = await second.json();
-      assert.equal(a.saved, true); assert.equal(b.answer, a.answer); assert.equal(b.replay, true);
+      if (lostAdmission === 'stream' || lostAdmission === 'v3-stream') {
+        const a = await consumeDabraChatResponse(first, () => {}), b = await consumeDabraChatResponse(second, () => {});
+        assert.ok(a.length > 0); assert.equal(b, a);
+      } else {
+        const a = await first.json(), b = await second.json();
+        assert.equal(a.saved, true); assert.equal(b.answer, a.answer); assert.equal(b.replay, true);
+      }
       assert.equal(calls.filter(n => n === 'finish_dabra_production_task').length, 1);
     }
-    if (withTrip) { revokeOnFinalRead = true; const withdrawn = await x.post(body); assert.equal(withdrawn.status,503); }
+    if (withTrip) { revokeOnFinalRead = true; const withdrawn = await x.post(body); await assertNoAuthorityDisclosure(withdrawn); assert.equal(withdrawn.status,503); }
     assert.equal(x.f.stats().claims, 1); assert.equal(x.f.stats().holds.length, 1);
     assert.equal(x.f.stats().models, lost ? 0 : 1); assert.equal(x.stats().legacyReads, 0);
     assert.equal(calls.filter(n => n === 'reserve_dabra_production_task').length, 1);
@@ -1306,4 +1336,20 @@ test('Strong spending v2 is explicit and digest preserves legacy bytes',()=>{
  const sql=readFileSync('supabase/migrations/20261113193000_task237_strong_pilot.sql','utf8');
  for(const guard of ["a.model_tier IS DISTINCT FROM terms->>'model_tier'","a.model_tier=t->>'model_tier'",'p_expected_decisions','p_cost_micros>c.attempt_cost_micros'])assert.ok(sql.includes(guard));
  assert.equal((sql.match(/CREATE OR REPLACE FUNCTION/g)||[]).length,3);assert.doesNotMatch(sql,/CREATE TABLE|GRANT EXECUTE|INSERT INTO private.dabra_dialogue_funding_grants/);
+});
+
+
+test('V3 decision interpretation enforces canonical one-to-seven bindings and the exact anchor',()=>{
+ const c=coreDecisionFixture(), ids=Array.from({length:8},(_,i)=>`a0000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`);
+ const docs=executableDocuments(c,ids[0]),hash='a'.repeat(64);
+ Object.assign(c.result.decisions.spending,{fundingProofSha256:hash});
+ const valid=ids.map(grantId=>({grantId,proofSha256:hash}));
+ Object.assign(docs.spending,{schema:'dabra-task-spending-v3',modelTier:'strong',grantBindings:valid.slice(0,7)});
+ assert.equal(interpretSuccessfulTaskDecisions(c.result)?.spendingVersion,3);
+ assert.equal(interpretSuccessfulTaskDecisions(c.result)?.modelTier,'strong');
+ const cases:unknown[]=[[],valid,[valid[1],valid[0]],[valid[0],valid[0]],valid.slice(1,3),
+  [{...valid[0],proofSha256:'b'.repeat(64)}],[{...valid[0],proofSha256:'x'.repeat(64)}],
+  [{...valid[0],grantId:valid[0].grantId.toUpperCase()}],[{...valid[0],extra:true}]];
+ for(const grantBindings of cases){Object.assign(docs.spending,{grantBindings});assert.equal(interpretSuccessfulTaskDecisions(c.result),null,JSON.stringify(grantBindings));}
+ Object.assign(docs.spending,{grantBindings:[valid[0]]});assert.equal(interpretSuccessfulTaskDecisions(c.result)?.spendingVersion,3);
 });
