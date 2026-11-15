@@ -63,9 +63,9 @@ function differentRequest(message: string, history: Turn[], trip?: SavedTrip | n
   const explicitFamilies = (value:string) => (Object.keys(familyTerms) as PlatformFamily[]).filter(family => familyTerms[family].test(normalizePlatformQuery(value)));
   const families = explicitFamilies(message);
   if (families.length > 1 && !correction && (history.some(turn => turn.role === 'user') || trip)) return true;
-  if (families.length !== 1) return false;
   const users = history.filter(turn => turn.role === 'user');
   if (cityRoles(message).unknownDestination && (users.length > 0 || trip)) return true;
+  if (families.length !== 1) return false;
   const priorFamily = users.slice().reverse().map(turn => explicitFamilies(turn.content)).find(value => value.length === 1)?.[0];
   const priorCity = users.slice().reverse().map(turn => cityRoles(turn.content).city).find(Boolean) ?? (trip ? routingPlace(trip.destination) : undefined);
   const city = cityRoles(message).city;
@@ -104,7 +104,7 @@ export function platformContext(message: string, history: Turn[] = [], trip?: Sa
   // same preference semantics as a qualified count on subsequent refinements.
   // The bounded transcript is not mutated and assistant assertions are never facts.
   const reconstructed: Turn[] = [];
-  for (const turn of history.slice(-16)) {
+  for (const turn of history.slice(-24)) {
     const content = turn.content.slice(0, 500);
     reconstructed.push({ role: turn.role, content: turn.role === 'user' ? contextualStayGuests(content, reconstructed) ?? contextualDriveParty(content, reconstructed) ?? content : content });
   }
@@ -136,7 +136,7 @@ export function platformContext(message: string, history: Turn[] = [], trip?: Sa
 function preferenceContext(message: string, history: Turn[]) {
   // Carry only bounded user preferences, never assistant assertions or account data.
   // New explicit preferences override old ones, including when the user names a family.
-  const turns = [...history.filter(t => t.role === 'user').slice(-8).map(t => t.content.slice(0, 500)), message];
+  const turns = [...history.filter(t => t.role === 'user').slice(-12).map(t => t.content.slice(0, 500)), message];
   const reset = turns.findLastIndex(turn => /new trip|start over|رحله جديده|ابدا من جديد/.test(normalizePlatformQuery(turn)));
   const relevant = turns.slice(Math.max(0, reset));
   const preferences = relevant.map(turn => tripPreferences(normalizePlatformQuery(turn)));
@@ -152,7 +152,7 @@ function preferenceContext(message: string, history: Turn[]) {
       carry.push(current.ambiguous || roomRefinement ? platformFamilies(prior).join(' ') : current.city ? withoutRoutingCities(prior) : prior);
     }
   }
-  if (!current.city && !current.ambiguous) { const city = previous.find(p => p.city || p.ambiguous); if (city?.city) carry.push(`destination: ${city.city}`); }
+  if (!current.city && !current.ambiguous) { const city = previous.find(p => p.city || p.ambiguous); if (city?.city) carry.push(`destination: ${city.city}`); else if (city?.ambiguous) carry.push('destination is unknown'); }
   if (!current.hasDates) {
     const prior = previous.find(p => p.hasDates);
     if (prior?.dateWithdrawn) carry.push('dates are undecided');
@@ -184,7 +184,7 @@ function preferenceContext(message: string, history: Turn[]) {
 function contextualStayGuests(message: string, history: Turn[]): string | null {
   const number = normalizePlatformQuery(message);
   if (!/^[1-9]\d?$/.test(number) || Number(number) > 20) return null;
-  const recent = history.slice(-16);
+  const recent = history.slice(-24);
   const question = recent.at(-1);
   const user = recent.at(-2);
   if (question?.role !== 'assistant' || user?.role !== 'user') return null;
@@ -209,7 +209,7 @@ function contextualDriveParty(message: string, history: Turn[]): string | null {
   if (question?.role !== 'assistant' || user?.role !== 'user') return null;
   const prior = preferenceContext(user.content, history.slice(0, -2));
   if (platformFamilies(prior).join(',') !== 'drive') return null;
-  const users = history.filter(t => t.role === 'user').slice(-8).map(t => normalizePlatformQuery(t.content));
+  const users = history.filter(t => t.role === 'user').slice(-12).map(t => normalizePlatformQuery(t.content));
   const state = driveDialogue(users, tripPreferences(normalizePlatformQuery(prior)));
   if (state?.kind !== 'clarify' || state.question !== 'party') return null;
   const lastLine = question.content.trim().split(/\n\s*\n/).at(-1);
@@ -220,7 +220,8 @@ function contextualDriveParty(message: string, history: Turn[]): string | null {
 const months = ['january|يناير', 'february|فبراير', 'march|مارس', 'april|ابريل', 'may|مايو', 'june|يونيو', 'july|يوليو', 'august|اغسطس', 'september|سبتمبر', 'october|اكتوبر', 'november|نوفمبر', 'december|ديسمبر'];
 function tripPreferences(text: string, trip?: SavedTrip | null) {
   const roles = cityRoles(text);
-  const city = roles.ambiguous || roles.unknownDestination ? undefined : trip ? routingPlace(trip.destination) : roles.city;
+  const unknownDestination=roles.unknownDestination||/\bdestination is unknown\b/.test(text);
+  const city = roles.ambiguous || unknownDestination ? undefined : trip ? routingPlace(trip.destination) : roles.city;
   const iso = [...text.matchAll(/\b\d{4}-\d{2}-\d{2}(?:t\d{2}:\d{2})?\b/g)];
   const range = [...text.matchAll(new RegExp(`(?:^|\\s)(\\d{1,2})\\s*(?:to|through|until|الي|حتي|[-–])\\s*(\\d{1,2})\\s+(${months.join('|')})\\s+(\\d{4})(?=\\s|[.,،]|$)`, 'g'))].at(-1);
   const month = range ? months.findIndex(names => names.split('|').includes(range[3])) + 1 : 0;
@@ -233,7 +234,7 @@ function tripPreferences(text: string, trip?: SavedTrip | null) {
   const party = quantities.party.value ? String(quantities.party.value) : undefined;
   const luggage = quantities.luggage.value;
   const rooms=platformRooms(text);
-  return { city, ambiguous: roles.ambiguous || roles.unknownDestination, dates: !dateWithdrawn && safeDates.length === dates.length ? safeDates : [], hasDates: iso.length > 0 || Boolean(range) || dateWithdrawn, dateWithdrawn, party, rooms,
+  return { city, ambiguous: roles.ambiguous || unknownDestination, dates: !dateWithdrawn && safeDates.length === dates.length ? safeDates : [], hasDates: iso.length > 0 || Boolean(range) || dateWithdrawn, dateWithdrawn, party, rooms,
     partyMentioned: quantities.party.mentioned, luggage, luggageMentioned: quantities.luggage.mentioned, durationDays: quantities.days.value, durationMentioned: quantities.days.mentioned };
 }
 export function platformEntry(family: PlatformFamily, message: string, locale: Locale, displayCurrency?: DisplayCurrency, trip?: SavedTrip | null) {
@@ -270,7 +271,7 @@ export function refinePlatformTrip(trip: SavedTrip, message: string): SavedTrip 
 function driveCatalogueDestinationEligible(text: string, trip?: SavedTrip | null) {
   // Reuse the catalogue's existing destination boundary before planning.
   // An unavailable destination must not be treated as a supported car service.
-  if (!trip && cityRoles(text).unknownDestination) return false;
+  if (!trip && (cityRoles(text).unknownDestination || /\bdestination is unknown\b/.test(text))) return false;
   const destination = trip ? routingPlace(trip.destination) : tripPreferences(text).city;
   return trip ? ['cairo', 'giza', 'alexandria'].includes(destination ?? '') : !['riyadh', 'jeddah', 'dubai'].includes(destination ?? '');
 }
@@ -281,7 +282,7 @@ function platformDriveDialogue({ message, history, context, trip }: {
   message: string; history: Turn[]; context: string; trip?: SavedTrip | null;
 }) {
   const text = normalizePlatformQuery(context);
-  return driveCatalogueDestinationEligible(text, trip) ? driveDialogue([...history.filter(t => t.role === 'user').slice(-8).map(t => normalizePlatformQuery(t.content.slice(0, 500))), normalizePlatformQuery(message)], tripPreferences(text, trip)) : null;
+  return driveCatalogueDestinationEligible(text, trip) ? driveDialogue([...history.filter(t => t.role === 'user').slice(-12).map(t => normalizePlatformQuery(t.content.slice(0, 500))), normalizePlatformQuery(message)], tripPreferences(text, trip)) : null;
 }
 
 /** A single active Drive dialogue can consume its own follow-up without inference. */
@@ -331,7 +332,7 @@ function previousDriveSummary(history: Turn[], locale: Locale, trip?: SavedTrip 
   const message = history[index].content, before = history.slice(0, index);
   const context = platformContext(message, before, trip);
   if (platformFamilies(context).join(',') !== 'drive') return null;
-  const users = [...before.filter(turn => turn.role === 'user').slice(-8).map(turn => normalizePlatformQuery(turn.content)), normalizePlatformQuery(message)];
+  const users = [...before.filter(turn => turn.role === 'user').slice(-12).map(turn => normalizePlatformQuery(turn.content)), normalizePlatformQuery(message)];
   const state = driveDialogue(users, tripPreferences(normalizePlatformQuery(context), trip));
   return state ? driveDialogueCopy(state, locale) : null;
 }
@@ -425,7 +426,7 @@ export function buildPlatformAssistantResponse(message: string, history: Turn[] 
     if (!lines.length && history.some(turn=>turn.role==='assistant')) {
       lines.push(conversationClarification(history,locale));
     } else if (!lines.length) {
-      if (!history.slice(-16).some(turn => turn.role === 'assistant')) lines.push(copy.identity);
+      if (!history.slice(-24).some(turn => turn.role === 'assistant')) lines.push(copy.identity);
       lines.push(copy.serviceQuestion);
       lines.push(link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntry('drive', context, locale, pricing?.currency)), link(ar ? 'بحث الإقامة' : 'Stay search', platformEntry('stay', context, locale, pricing?.currency)), link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
     } else if (!smallTalk && families.length === 1 && (families[0] === 'drive' || families[0] === 'stay') && !(families[0] === 'drive' && drivePlan)) {

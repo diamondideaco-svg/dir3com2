@@ -12,6 +12,7 @@ export class ContinuityContext {
  trip:SavedTrip|null=null;
  private derivedIds=new Set<string>();
  private pendingIds=new Set<string>();
+ private beforeResumeIds=new Set<string>();
  capture(ownerId:string,state:ContinuitySnapshot,preferences:boolean,trip:boolean){
   const prior=this.lease;
   const sameSource=Boolean(prior&&prior.ownerId===ownerId&&prior.revision===state.revision&&prior.generation===state.generation);
@@ -31,11 +32,14 @@ export class ContinuityContext {
  }
  tag(...ids:string[]){for(const id of ids)this.derivedIds.add(id);}
  independent<T extends Message>(messages:T[]){return messages.filter(message=>!this.derivedIds.has(message.id)&&!this.pendingIds.has(message.id));}
+ stageResume(messages:Message[]){this.beforeResumeIds=new Set(messages.map(message=>message.id));}
+ // Match the server's bounded scan so old independent chat is not sent indefinitely.
+ scoped<T extends Message>(messages:T[]){return this.independent(messages).filter(message=>!this.beforeResumeIds.has(message.id)).slice(-64);}
  beginAnswer(id:string){this.pendingIds.add(id);}
  finishAnswer(id:string){this.pendingIds.delete(id);}
  cachedMessages(messages:Message[]){return this.independent(messages).filter(m=>m.text.trim()).slice(-20).map(({id,role,text})=>({id,role,text}));}
  forget(){
-  const derived=new Set(this.derivedIds);this.lease=null;this.draft=null;this.trip=null;this.derivedIds.clear();
+  const derived=new Set(this.derivedIds);this.lease=null;this.draft=null;this.trip=null;this.derivedIds.clear();this.beforeResumeIds.clear();
   return <T extends Message>(messages:T[])=>messages.filter(message=>!derived.has(message.id));
  }
  clear<T extends Message>(messages:T[]){return this.forget()(messages);}

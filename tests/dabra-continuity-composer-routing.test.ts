@@ -18,10 +18,10 @@ import { continuityChatTripFresh, type ContinuityChatTrip } from '../lib/dabra/c
 
 // Actual composer event handlers with controlled React hooks and transport.
 // This is semantic component/agent evidence, not authenticated DB/browser QA.
-function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'|'during'|'expired'|'after'}={}) {
+function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'|'during'|'expired'|'after';savedLocale?:'ar'|'en';savedCurrency?:'USD'|'EUR'|'SAR'}={}) {
   const conversation = new ConversationSession();
   conversation.resolve(conversation.invalidate('customer-public'), {ownerId:'user:A',storage:'local'});
-  const preferences = { replyLanguage:locale,displayCurrency:'USD',travelClass:'business',lodgingStyle:'hotel',itineraryPace:'relaxed' };
+  const preferences = { replyLanguage:options.savedLocale??locale,displayCurrency:options.savedCurrency??'USD',travelClass:'business',lodgingStyle:'hotel',itineraryPace:'relaxed' };
   const trip: SavedTrip = {id:'11111111-1111-4111-8111-111111111111',origin:'Cairo',destination:'Riyadh',startDate:'2026-12-12',endDate:'2026-12-14',adults:2,children:0,rooms:1,budget:5000,currency:'EUR',families:['stay']};
   let state: unknown = {revision:1,generation:0,consentEnabled:true,consentVersion:'task187-v1',preferences,preferencesExpiresAt:'2027-01-01T00:00:00Z',trip,tripExpiresAt:'2027-01-01T00:00:00Z',updatedAt:null};
   const slots:unknown[]=[]; const refs:{current:unknown}[]=[]; let index=0,refIndex=0;
@@ -30,7 +30,7 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'
   const require=createRequire(import.meta.url);
   const requests:FormData[]=[];const statuses:number[]=[];const optionsFault=options.fault;
   const withdraw=()=>{const current=state as ContinuitySnapshot;state=options.fault==='expired'
-    ? {...current,tripExpiresAt:'2020-01-01T00:00:00Z'}
+    ? {...current,tripExpiresAt:'2020-01-01T00:00:00Z',preferencesExpiresAt:'2020-01-01T00:00:00Z'}
     : {...current,consentEnabled:false,generation:current.generation+1,trip:null,tripExpiresAt:null};};
   const routeDeps:Record<string,unknown>={
     '@/lib/dabra/successful-task-production-policy':{selectSuccessfulTaskPilot:async()=>({kind:'disabled'}),successfulTaskProductionGate:async()=>null},
@@ -141,16 +141,33 @@ test('actual send rejects changed/expired continuity before transport; new trip 
   await f.send('رحلة جديدة');assert.equal(f.context().trip,null);assert.equal(f.requests[0].has('continuityTrip'),false);
 });
 
-test('a detached saved-trip draft is never posted as ordinary user text',async()=>{
+test('explicit resume starts a new boundary without posting the saved draft as ordinary text',async()=>{
  const f=fixture('en',{actualPost:true});
  f.setMessages([{id:'independent',role:'user',text:'I need a car in Cairo'}]);
  await (f.panel().onResume as (trip:SavedTrip,prefs:unknown)=>Promise<void>)(f.trip,f.preferences);
  f.context().draft='SYNTHETIC_PRIVATE_TRIP Riyadh 5000 EUR';
  await f.send('');
- assert.equal(f.requests.length,0);
- assert.equal(f.context().trip,null);
- assert.equal(f.context().lease?.tripSource,true);
- assert.equal(f.messages().some(m=>m.text.includes('SYNTHETIC_PRIVATE_TRIP')),false);
+ assert.equal(f.requests.length,1);
+ assert.equal(f.requests[0].get('message'),'stay');
+ assert.equal(f.requests[0].get('history'),'[]');
+ assert.equal(JSON.parse(String(f.requests[0].get('continuityTrip'))).trip.destination,'Riyadh');
+ assert.doesNotMatch(String(f.requests[0].get('message')),/SYNTHETIC_PRIVATE_TRIP|5000/);
+ assert.equal(f.statuses[0],200);
+});
+
+test('saved preference-only values never become unbound POST settings during revoke or expiry',async()=>{
+ for(const fault of ['during','expired','after'] as const){
+  const f=fixture('ar',{actualPost:true,fault,savedLocale:'en',savedCurrency:'EUR'});
+  await (f.panel().onApply as (prefs:unknown)=>Promise<void>)(f.preferences);
+  await f.send('أحتاج سيارة');
+  assert.equal(f.requests.length,1,fault);
+  assert.equal(f.requests[0].get('locale'),'ar',fault);
+  assert.equal(f.requests[0].get('currency'),'SAR',fault);
+  assert.equal(f.requests[0].has('continuityTrip'),false,fault);
+  assert.equal(f.context().lease,null,fault);
+  assert.equal(f.state().preferences?.replyLanguage,'en',fault);
+  assert.equal(f.state().preferences?.displayCurrency,'EUR',fault);
+ }
 });
 
 test('actual UI to POST discards derived content when continuity is revoked or expires during transport',async()=>{

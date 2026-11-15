@@ -6,7 +6,6 @@ import DabraContinuity from '@/components/dabra/DabraContinuity';
 import type { ContinuityPreferences, SavedTrip } from '@/lib/dabra/continuity-contract';
 import { useDabraConversation } from '@/components/dabra/DabraConversationProvider';
 import type { ConversationJob } from '@/lib/dabra/conversation-session';
-import { continuityRequestLocale } from '@/lib/dabra/continuity-chat';
 import { newTripRequested } from '@/lib/dabra/trip-routing';
 import {parseContinuitySnapshot,type ContinuitySnapshot} from '@/lib/dabra/continuity-service';
 import PlatformResults from '@/components/dabra/PlatformResults';
@@ -165,13 +164,10 @@ function DabraChatCommerceSession() {
     return () => { document.removeEventListener('keydown', keyboard); if (trigger?.isConnected) trigger.focus(); };
   }, [showCart, showSettings]);
 
-  const continuityPreferences = conversationState.preferences;
   const setContinuityPreferences = conversation.setPreferences;
   const continuityDraft = conversationState.continuityDraft;
   const setContinuityDraft = conversation.setContinuityDraft;
   const continuityContextRef = useRef(conversation.context);
-  const currentCurrencyRef=useRef(currency);
-  useEffect(()=>{currentCurrencyRef.current=currency;},[currency]);
   const [compareMode, setCompareMode] = useState(false);
   const [requestedFor, setRequestedFor] = useState('');
   const [travellerCount, setTravellerCount] = useState(1);
@@ -344,7 +340,7 @@ function DabraChatCommerceSession() {
     setResultState('idle');
     try {
       const parsed = parseDabraMarketplaceQuery(normalizedQuery, familyOverride as Parameters<typeof parseDabraMarketplaceQuery>[1]);
-      const history = continuityContextRef.current.independent(messages).map(({ role, text: content }) => ({ role, content }));
+      const history = continuityContextRef.current.scoped(messages).map(({ role, text: content }) => ({ role, content }));
       const trip = continuityContextRef.current.scope(normalizedQuery, history);
       const context = platformContext(normalizedQuery, history, trip);
       const families = platformFamilies(context);
@@ -357,7 +353,7 @@ function DabraChatCommerceSession() {
       }
       setPlatformQuery(null);
       const params = toMarketplaceSearchParams(parsed, 12);
-      params.set('currency', currency);
+      params.set('currency', conversation.selectRequestCurrency(platformCurrency(normalizedQuery)));
       // The canonical family contract is equivalent to params.set('family', activeTab).
       const response = await fetch(`/api/public/marketplace/items?${params.toString().replace('query=', 'q=')}`, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error('marketplace');
@@ -424,16 +420,21 @@ function DabraChatCommerceSession() {
     const explicitText=text.trim();
     const message = explicitText || draft || (attachments.length ? t.attachmentPrompt : '');
     if (!message || !identityResolved) { conversation.finish(job); return; }
-    const requestHistory=context.independent(messages).map(({role,text:content})=>({role,content}));
+    const requestHistory=context.scoped(messages).map(({role,text:content})=>({role,content}));
     const trip=context.scope(explicitText,requestHistory);
     // Never send a saved-trip presentation string as an ordinary user turn
     // after the typed trip has left scope.
-    if(draft&&!explicitText&&!trip){setContinuityDraft(null);conversation.finish(job);return;}
+    if(draft&&!explicitText&&!trip){
+      setContinuityDraft(null);
+      conversation.setError(language==='ar'?'تعذر استئناف الرحلة المحفوظة. افتحها مجدداً وحاول مرة أخرى.':'Could not resume the saved trip. Open it again and retry.');
+      conversation.finish(job);return;
+    }
     const requestMessage=explicitText || trip?.families.join(' ') || message;
     const derivedResponse=Boolean(context.lease);
     const setJobMessages = (update: Parameters<typeof conversation.setMessages>[0]) => conversation.update(job, update);
-    const requestedCurrency = platformCurrency(message) ?? currency;
-    if (requestedCurrency !== currency) setCurrency(requestedCurrency);
+    const explicitCurrency = platformCurrency(explicitText);
+    const requestedCurrency = conversation.selectRequestCurrency(explicitCurrency);
+    if (explicitCurrency && explicitCurrency !== currency) setCurrency(explicitCurrency);
     stopVoicePlayback();
     setVoicePlaybackPartial(false);
     const lifecycle = lifecycleRef.current;
@@ -449,7 +450,7 @@ function DabraChatCommerceSession() {
     const userId=`user-${job.id}`;const seed:Message|null=draft&&trip&&explicitText?{id:makeId(),role:'user',text:draft}:null;
     // The staged summary is presentation only. Explicit refinements update
     // the ephemeral typed trip, never the saved record or account authority.
-    const requestLocale = explicitDabraReplyLocale(requestMessage) ?? continuityRequestLocale(context.lease ? continuityPreferences : null, language);
+    const requestLocale = explicitDabraReplyLocale(requestMessage) ?? language;
     context.beginAnswer(assistantId);
     if(context.lease){context.tag(assistantId);if(seed)context.tag(seed.id);else if(draft&&!explicitText)context.tag(userId);}
     context.draft=null;setContinuityDraft(null);
@@ -733,9 +734,8 @@ function DabraChatCommerceSession() {
     const state=conversation.continuitySnapshot;if(!state||!persistenceContext)return;
     continuityContextRef.current.capture(persistenceContext.ownerId,state,true,Boolean(continuityContextRef.current.lease?.trip));
     setContinuityPreferences(preferences);
-    if(!conversation.continuityCurrency)conversation.setContinuityCurrency({before:currentCurrencyRef.current,applied:preferences.displayCurrency});
-    else conversation.setContinuityCurrency({...conversation.continuityCurrency,applied:preferences.displayCurrency});
-    setCurrency(preferences.displayCurrency);
+    // Saved choices remain available in the account, but are not exported as
+    // unbound request settings or copied into the shared display-currency store.
   }
 
   async function applyContinuityPreferences(preferences:ContinuityPreferences|null){
@@ -756,6 +756,7 @@ function DabraChatCommerceSession() {
     const state=conversation.continuitySnapshot;if(!state||!persistenceContext)return;
     setAppliedContinuityPreferences(preferences);
     continuityContextRef.current.capture(persistenceContext.ownerId,state,Boolean(preferences),true);
+    continuityContextRef.current.stageResume(conversation.getSnapshot().messages);
     setCart([]);setServices([]);setPlatformQuery(null);setLastMarketplaceQuery('');setCompareMode(false);setRequestState('idle');setRequestReference('');
     setTravellerCount(trip.adults + trip.children);
     setRequestedFor('');

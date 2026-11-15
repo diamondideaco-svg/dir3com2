@@ -29,3 +29,9 @@ test('detached trip and preferences retain the exact source proof for old derive
  assert.equal(context.isFresh('user:A',{...state,preferencesExpiresAt:new Date(now).toISOString()},now),false);
  assert.equal(context.isFresh('user:A',{...state,trip:{...state.trip!,id:'22222222-2222-4222-8222-222222222222'}},now),false);
 });
+
+test('scoped history limits transport to the last 64 independent turns',()=>{
+ const context=new ContinuityContext();
+ const messages=Array.from({length:70},(_,index)=>({id:String(index),role:'user' as const,text:`turn-${index}`}));
+ const scoped=context.scoped(messages);assert.equal(scoped.length,64);assert.equal(scoped[0].id,'6');assert.equal(scoped.at(-1)?.id,'69');
+});

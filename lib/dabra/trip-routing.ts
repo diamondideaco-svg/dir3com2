@@ -38,9 +38,9 @@ export function cityRoles(message: string) {
   const ambiguous = !destination && (unqualified.size > 1 || (origin !== undefined && unqualified.size > 0));
   const city = destination ?? (!origin && !ambiguous && unqualified.size === 1 ? [...unqualified][0] : undefined);
   // A named but unrecognised destination must not inherit a prior city.
-  // This only recognizes a place after a service word, not language or time.
-  const service = /\b(?:car|cars|hotel|hotels|apartment|apartments|flight|flights)\b|سيار|فندق|فنادق|شقه|شقق|طيران/u.exec(text);
-  const nonPlaces = /^(?:english|arabic|the|a|an|from|with|for|morning|evening|afternoon|january|february|march|april|may|june|july|august|september|october|november|december|من|مع|الي|الانجليزيه|الانجليزي|العربيه|العربي|اليوم|الصباح|المساء|المطار)$/u;
+  // A short explicit destination correction can stand without a service word.
+  const service = /\b(?:car|cars|hotel|hotels|apartment|apartments|flight|flights|instead)\b|سيار|فندق|فنادق|شقه|شقق|طيران|بدلا|تعديل الوجهه|غير الوجهه/u.exec(text);
+  const nonPlaces = /^(?:english|arabic|the|a|an|from|with|for|morning|evening|afternoon|summer|winter|spring|autumn|fall|january|february|march|april|may|june|july|august|september|october|november|december|من|مع|الي|الانجليزيه|الانجليزي|العربيه|العربي|اليوم|الصباح|المساء|المطار|الصيف|الشتاء|الربيع|الخريف|صيفا|شتاء)$/u;
   const aliases = new Set(cities.flatMap(names => names.map(normalize)));
   const unknownDestination = Boolean(service && [...text.matchAll(/(?:\b(?:in|to)[ \t]+|(?:في|الي)[ \t]+)([\p{L}][\p{L}'-]*)/gu)]
     .some(match => (match.index ?? 0) > Math.max(service.index,destinationIndex) && !aliases.has(match[1]) && !nonPlaces.test(match[1])));

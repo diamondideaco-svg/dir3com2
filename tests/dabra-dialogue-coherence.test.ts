@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
 import { NextRequest } from 'next/server';
 import { POST } from '../app/api/ai2/chat/route';
 import { agentIntent } from '../lib/dabra/agent-contract';
@@ -179,4 +183,80 @@ test('catalogue wording says Operations will confirm dates, not that availabilit
  assert.doesNotMatch(answer,/availability confirmed by Operations/);
  assert.match(answer,/15 November 2026/);
  assert.doesNotMatch(respond('show car in Paris',[],'en').answer,/catalogue rates in Egypt|offer=/i);
+});
+
+test('unknown short destination correction cannot revive Cairo on the next request',()=>{
+ const history:Turn[]=[{role:'user',content:'أحتاج سيارة في القاهرة لأربعة أشخاص بميزانية 8000 ريال'},
+  {role:'assistant',content:'رد اصطناعي'}];
+ const correction='بدلا من ذلك في باريس';
+ const first=respond(correction,history,'ar').answer;
+ history.push({role:'user',content:correction},{role:'assistant',content:first});
+ const later=respond('اعرض السيارات',history,'ar').answer;
+ assert.doesNotMatch(later,/القاهرة|8000|destination=cairo|offer=/i);
+ const summer=respond('السيارات في القاهرة في الصيف',[],'ar').answer;
+ assert.doesNotMatch(summer,/لم أجد سيارة للوجهة المطلوبة/);
+ assert.match(summer,/كتالوج/);
+});
+
+test('Arabic negated duals, amount and daily basis do not become facts',()=>{
+ for(const input of ['ليست شنطتين','لا حقيبتين']){
+  const quantity=driveQuantities(normalize(input)).luggage;
+  assert.equal(quantity.mentioned,true);assert.equal(quantity.value,undefined,input);
+ }
+ const base=normalize('أحتاج سيارة مع سائق وميزانية 8000 ريال يومية');
+ const amount=driveDialogue([base,normalize('الميزانية ليست 8000 ريال')],prefs);
+ assert.equal(amount?.budget,null);
+ const basis=driveDialogue([base,normalize('ليست يومية')],prefs);
+ assert.equal(basis?.budget?.kind==='amount'&&basis.budget.basis,null);
+});
+
+test('actual POST uses bounded user evidence across eighteen messages, never assistant claims',async()=>{
+ const initial='I need a car in Cairo from 2026-12-10 to 2026-12-13 for 4 people with a driver and budget 1000 SAR';
+ const history:Turn[]=[{role:'user',content:initial},{role:'assistant',content:'Synthetic false claim: Dubai, 9 passengers, 9000 SAR.'}];
+ for(let i=0;i<8;i++)history.push({role:'user',content:'yes'},{role:'assistant',content:'Synthetic false claim: Dubai, 9 passengers, 9000 SAR.'});
+ assert.equal(history.length,18);
+ const response=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'for the whole trip',locale:'en',history})}));
+ assert.equal(response.status,200);
+ const answer=(await response.json()).answer as string;
+ assert.match(answer,/cairo/i);assert.match(answer,/1000 SAR/);
+ assert.doesNotMatch(answer,/9000|Dubai|9 passengers/);
+});
+
+test('synthetic ten-turn scenario uses actual POST and keeps request boundaries',async()=>{
+ const history:Turn[]=[];
+ const require=createRequire(import.meta.url);
+ const compiled=ts.transpileModule(readFileSync('app/api/ai2/chat/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+ const exported={} as {POST:(request:NextRequest)=>Promise<Response>};
+ runInNewContext(compiled,{exports:exported,require:(id:string)=>id==='@/lib/dabra/agent-context'
+  ? {resolveAgentContext:async()=>({role:'guest',readRequests:async()=>({kind:'authentication_required'})})}:require(id),
+  process,Response,Request,Headers,File,FormData,AbortController,AbortSignal,crypto:globalThis.crypto,console});
+ const send=async(message:string,locale:'ar'|'en'='ar')=>{
+  const response=await exported.POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message,locale,history})}));
+  assert.equal(response.status,200);const result=await response.json() as {answer:string;language:string};
+  history.push({role:'user',content:message},{role:'assistant',content:result.answer});return result;
+ };
+ await send('أحتاج مساعدة عامة في عروض سيارات مصر');
+ await send('أحتاج سيارة في دبي لمدة 5 أيام و4 أشخاص وميزانية 8000 ريال');
+ const cairo=await send('أحتاج سيارة في القاهرة لمدة 3 أيام و4 أشخاص و3 شنط');
+ assert.doesNotMatch(cairo.answer,/8000/);
+ await send('الميزانية 1000 ريال');
+ await send('أربعة و3 شنط');
+ const whole=await send('1000 ريال سعودي للثلاثة أيام كاملة');
+ assert.match(whole.answer,/1000 SAR/);assert.doesNotMatch(whole.answer,/بأي عملة|لليوم أم للرحلة|8000/);
+ await send('السعر غالي');
+ const hotel=await send('I need a hotel in Dubai, reply in English','ar');
+ assert.equal(hotel.language,'en');assert.doesNotMatch(hotel.answer,/1000 SAR|8000 SAR|destination=cairo/);
+ const summary=await send('ليش بتكرر نفس الرد ولخص كلامي');
+ assert.doesNotMatch(summary.answer,/1000 SAR|8000 SAR/);
+ const capability=await send('هل يمكنك إتمام الحجز من المحادثة؟');
+ assert.doesNotMatch(capability.answer,/تم الحجز|تم الدفع/);
+ assert.equal(history.length,20);
+});
+
+test('the user evidence window has an explicit twelve-user-turn limit',async()=>{
+ const history:Turn[]=[{role:'user',content:'I need a car in Cairo with a budget of 9000 SAR'},{role:'assistant',content:'Synthetic answer'}];
+ for(let i=0;i<13;i++)history.push({role:'user',content:'yes'},{role:'assistant',content:'Synthetic false claim: Cairo and 9000 SAR'});
+ const response=await POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:'per day',locale:'en',history})}));
+ assert.equal(response.status,200);
+ assert.doesNotMatch((await response.json()).answer,/Cairo|9000 SAR/i);
 });

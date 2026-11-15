@@ -29,7 +29,8 @@ type AI2ChatRequest = {
 
 type ParsedChatRequest = { body: AI2ChatRequest | null; attachmentCount: number; attachmentError: boolean };
 
-const MAX_HISTORY_TURNS = 16;
+const MAX_HISTORY_USER_TURNS = 12;
+const MAX_HISTORY_SCAN_TURNS = 64;
 const MAX_TURN_LENGTH = 500;
 const MAX_ATTACHMENTS = 3;
 async function parseChatRequest(request: NextRequest): Promise<ParsedChatRequest> {
@@ -75,13 +76,20 @@ async function parseChatRequest(request: NextRequest): Promise<ParsedChatRequest
 
 function sanitizeHistory(raw: AI2ChatRequest['history']): AI2ChatTurn[] {
   if (!Array.isArray(raw)) return [];
-
-  return raw
+  const turns = raw.slice(-MAX_HISTORY_SCAN_TURNS)
     .filter((entry): entry is { role: string; content: string } =>
-      Boolean(entry) && (entry?.role === 'user' || entry?.role === 'assistant') && typeof entry?.content === 'string' && entry.content.trim().length > 0,
+      Boolean(entry) && (entry?.role === 'user' || entry?.role === 'assistant') && typeof entry?.content === 'string',
     )
-    .slice(-MAX_HISTORY_TURNS)
-    .map((entry) => ({ role: entry.role as AI2ChatTurn['role'], content: entry.content.trim().slice(0, MAX_TURN_LENGTH) }));
+    .map((entry) => ({ role: entry.role as AI2ChatTurn['role'], content: entry.content.slice(0, MAX_TURN_LENGTH).trim() }))
+    .filter(entry=>entry.content.length>0);
+  // Preserve a bounded set of user-authored turns. Assistant turns are kept
+  // only next to those turns as question-position signals, never as facts.
+  const users=turns.flatMap((turn,index)=>turn.role==='user'?[index]:[]).slice(-MAX_HISTORY_USER_TURNS);
+  if (!users.length) return [];
+  const selected=new Set(users);
+  for(const index of users.slice(1))if(turns[index-1]?.role==='assistant')selected.add(index-1);
+  if(turns.at(-1)?.role==='assistant')selected.add(turns.length-1);
+  return [...selected].sort((a,b)=>a-b).map(index=>turns[index]);
 }
 
 export async function POST(request: NextRequest) {

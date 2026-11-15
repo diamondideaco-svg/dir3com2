@@ -42,15 +42,15 @@ test('same-account TOKEN_REFRESHED must preserve text, draft and the in-flight a
 
 function floatingFixture(options={}){
  const session=options.session??new ConversationSession();if(!options.session)session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-a',storage:'local'});
- const preferences={replyLanguage:'en',displayCurrency:'SAR',travelClass:'business',lodgingStyle:'hotel',itineraryPace:'relaxed'};
+ const preferences={replyLanguage:options.savedLocale??'en',displayCurrency:options.savedCurrency??'SAR',travelClass:'business',lodgingStyle:'hotel',itineraryPace:'relaxed'};
  const snapshot={revision:1,generation:0,consentEnabled:true,consentVersion:'task187-v1',preferences,preferencesExpiresAt:'2027-01-01T00:00:00Z',trip:null,tripExpiresAt:null,updatedAt:null};
  if(!options.session){session.context.capture('user:synthetic-a',snapshot,true,false);session.setPreferences(preferences);session.setContinuitySnapshot(snapshot);session.setContinuityCurrency({before:'USD',applied:'SAR'});session.setDraft('hotels');}
  if(options.privateJson){session.forgetContext();session.setDraft('my requests');}
- let currency='SAR',index=0,refIndex=0;const slots=[],refs=[];let posts=0;let unmountView;let rejectContinuity;const histories=[],requests=[];
+ let currency=options.savedCurrency??'SAR',index=0,refIndex=0;const slots=[],refs=[];let posts=0;let unmountView;let rejectContinuity;const histories=[],requests=[];
  session.setCurrencyRestorer(applied=>{if(currency===applied.applied)currency=applied.before;});
  const react={useCallback:fn=>fn,useEffect:fn=>{if(/viewMountedRef.current\s*=\s*true/.test(fn.toString()))unmountView=fn();},useRef:value=>{const i=refIndex++;return refs[i]??(refs[i]={current:value});},useState:initial=>{const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],value=>{slots[i]=typeof value==='function'?value(slots[i]):value;}];}};
- const dependencies={react,'next/image':()=>null,'next/link':()=>null,'next/navigation':{usePathname:()=>'/'} ,'@/components/currency/useDisplayCurrency':{getDisplayCurrency:()=>currency,useDisplayCurrency:()=>({currency,setCurrency:value=>{currency=value;}})},'@/components/dabra/DabraConversationProvider':{useDabraConversation:()=>({session,state:session.getSnapshot()})},'@/components/layout/useDibrahSpeech':{useDibrahSpeech:()=>({listening:false,supported:false})},'@/components/i18n/LanguageProvider':{useLanguage:()=>({language:'en'})},'@/components/dabra/PlatformAnswer':()=>null,'./FloatingDibrahIdentity.module.css':{default:{}}};
- const exports={};vm.runInNewContext(compile(fs.readFileSync(owner+'/components/layout/FloatingDibrah.tsx','utf8')), {exports,require:name=>name in dependencies?dependencies[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name),AbortSignal,crypto:globalThis.crypto,window:{localStorage:{getItem:()=>null}},fetch:async (url,init)=>{if(url==='/api/dabra/continuity'){if(options.deferContinuity)await new Promise(resolve=>{rejectContinuity=resolve;});return new Response(JSON.stringify({enabled:false}),{headers:{'content-type':'application/json'}});}posts++;requests.push(JSON.parse(init.body));histories.push(requests.at(-1).history);return new Response(JSON.stringify({answer:options.privateJson?'Synthetic private request REQ-EXAMPLE':'mock answer'}),{headers:{'content-type':'application/json','cache-control':'private, no-store'}});}});
+ const dependencies={react,'@/lib/dabra/continuity-service':req(owner+'/lib/dabra/continuity-service.ts'),'next/image':()=>null,'next/link':()=>null,'next/navigation':{usePathname:()=>'/'} ,'@/components/currency/useDisplayCurrency':{getDisplayCurrency:()=>currency,useDisplayCurrency:()=>({currency,setCurrency:value=>{currency=value;}})},'@/components/dabra/DabraConversationProvider':{useDabraConversation:()=>({session,state:session.getSnapshot()})},'@/components/layout/useDibrahSpeech':{useDibrahSpeech:()=>({listening:false,supported:false})},'@/components/i18n/LanguageProvider':{useLanguage:()=>({language:'en'})},'@/components/dabra/PlatformAnswer':()=>null,'./FloatingDibrahIdentity.module.css':{default:{}}};
+ const exports={};vm.runInNewContext(compile(fs.readFileSync(owner+'/components/layout/FloatingDibrah.tsx','utf8')), {exports,require:name=>name in dependencies?dependencies[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name),AbortSignal,crypto:globalThis.crypto,window:{localStorage:{getItem:()=>null}},fetch:async (url,init)=>{if(url==='/api/dabra/continuity'){if(options.deferContinuity)await new Promise(resolve=>{rejectContinuity=resolve;});return new Response(JSON.stringify(options.validContinuity?{enabled:true,ownerId:'user:synthetic-a',state:snapshot}:{enabled:false}),{headers:{'content-type':'application/json'}});}posts++;requests.push(JSON.parse(init.body));histories.push(requests.at(-1).history);if(options.withdrawDuring){snapshot.consentEnabled=false;snapshot.generation++;}if(options.expireDuring)snapshot.preferencesExpiresAt='2020-01-01T00:00:00Z';return new Response(JSON.stringify({answer:options.privateJson?'Synthetic private request REQ-EXAMPLE':'mock answer'}),{headers:{'content-type':'application/json','cache-control':'private, no-store'}});}});
  const elements=node=>Array.isArray(node)?node.flatMap(elements):!node||typeof node!=='object'||!node.props?[]:[node,...elements(node.props.children)];
  const render=()=>{index=0;refIndex=0;const outer=exports.default();return outer.type(outer.props);};
  render();slots[4]=true;
@@ -148,9 +148,9 @@ test('actual locale boundary retains transcript and cancels pending',async()=>{
 });
 
 test('actual floating request preserves wire contract',async()=>{
- const f=floatingFixture({privateJson:true});f.session.setMessages([{id:'previous',role:'assistant',text:'Earlier visible reply'}]);f.chooseCurrency('EUR');f.session.setDraft('Show hotels in Cairo');
+ const f=floatingFixture({privateJson:true});f.session.setMessages([{id:'previous',role:'assistant',text:'Earlier visible reply'}]);f.chooseCurrency('EUR');f.session.setDraft('Show hotels in Cairo with budget 500 EUR');
  await f.send();assert.equal(f.requests.length,1);const body=f.requests[0];
- assert.equal(body.message,'Show hotels in Cairo');assert.equal(body.currency,'EUR');assert.equal(body.locale,'en');assert.equal(body.history[0].content,'Earlier visible reply');
+ assert.equal(body.message,'Show hotels in Cairo with budget 500 EUR');assert.equal(body.currency,'EUR');assert.equal(body.locale,'en');assert.equal(body.history[0].content,'Earlier visible reply');
  assert.deepEqual(Object.keys(body).sort(),['currency','history','locale','message']);
  assert.equal(f.session.getSnapshot().pending,false);
 });
@@ -231,4 +231,16 @@ for(const [before,after] of [['synthetic-a','synthetic-b'],['synthetic-b','synth
  session.setDraft('what can you do floating next actor');const floating=floatingFixture({session});await floating.send();
  assert.equal(floating.requests.length,1);assert.doesNotMatch(JSON.stringify(floating.requests[0]),new RegExp(marker));assert.equal(floating.requests[0].continuityTrip,undefined);
  f.unmount();
+});
+
+for(const fault of ['withdrawDuring','expireDuring'])test('floating sends only independent settings when synthetic preference source '+fault,async()=>{
+ const f=floatingFixture({validContinuity:true,savedLocale:'en',savedCurrency:'EUR',[fault]:true});
+ f.session.setDraft('أحتاج سيارة');
+ await f.send();
+ assert.equal(f.requests.length,1);
+ assert.equal(f.requests[0].locale,'ar');
+ assert.equal(f.requests[0].currency,'SAR');
+ assert.equal(f.requests[0].continuityTrip,undefined);
+ assert.equal(f.session.context.lease,null);
+ assert.equal(f.session.getSnapshot().messages.some(m=>m.text==='mock answer'),false);
 });

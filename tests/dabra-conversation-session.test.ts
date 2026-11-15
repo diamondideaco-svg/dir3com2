@@ -223,3 +223,12 @@ test('discarding a retry releases its previous request identity and body',()=>{
  assert.notEqual(current.id,old.id);assert.equal(current.body,'independent body');
  session.finish(next);
 });
+
+test('request currency is independent per session and resets at an identity boundary',()=>{
+ const session=ready();session.setContinuityCurrency({before:'USD',applied:'EUR'});
+ assert.equal(session.selectRequestCurrency(),'SAR');
+ assert.equal(session.selectRequestCurrency('USD'),'USD');
+ assert.equal(session.selectRequestCurrency(),'USD');
+ session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-b',storage:'local'});
+ assert.equal(session.selectRequestCurrency(),'SAR');
+});

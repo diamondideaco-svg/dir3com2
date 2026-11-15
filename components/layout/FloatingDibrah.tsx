@@ -2,12 +2,12 @@
 
 import { approvedAssistantAnswer } from '@/lib/dabra/chat-response-contract';
 import { successfulTaskAllowanceText } from '@/lib/dabra/successful-task-contract';
-import { getDisplayCurrency } from '@/components/currency/useDisplayCurrency';
 import PlatformAnswer from '@/components/dabra/PlatformAnswer';
 import { useDabraConversation } from '@/components/dabra/DabraConversationProvider';
 import { parseContinuitySnapshot } from '@/lib/dabra/continuity-service';
-import { continuityRequestLocale } from '@/lib/dabra/continuity-chat';
 import { newTripRequested } from '@/lib/dabra/trip-routing';
+import { platformCurrency } from '@/lib/dabra/platform-assistant';
+import { explicitDabraReplyLocale } from '@/lib/dabra/locale-contract';
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -390,28 +390,31 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
     const job = conversation.begin();
     if (!job) return;
     const context = conversation.context;
-    if (context.lease) {
+    const ensureFresh = async () => {
+      if (!context.lease) return true;
       try {
         const response = await fetch('/api/dabra/continuity', { cache: 'no-store', credentials: 'same-origin', signal: AbortSignal.any([job.signal, AbortSignal.timeout(8_000)]) });
         const body = await response.json();
-        if (!conversation.isCurrent(job)) { conversation.finish(job); return; }
+        if (!conversation.isCurrent(job)) return false;
         const state = response.ok && body.enabled === true && body.ownerId === conversationState.persistence?.ownerId ? parseContinuitySnapshot(body.state) : null;
-        if (!context.isFresh(conversationState.persistence?.ownerId ?? '', state)) { conversation.forgetContext(); return; }
+        if (!context.isFresh(conversationState.persistence?.ownerId ?? '', state)) { conversation.forgetContext(); return false; }
         conversation.setContinuitySnapshot(state);
-      } catch { if (conversation.isCurrent(job)) conversation.forgetContext(); return; }
-    }
+        return true;
+      } catch { if (conversation.isCurrent(job)) conversation.forgetContext(); return false; }
+    };
+    if (!await ensureFresh()) { conversation.finish(job); return; }
     if (generation !== conversation.getSnapshot().generation) return;
     if (newTripRequested(trimmed)) {
       conversation.forgetContext(job);
     }
-    const locale = detectConversationLanguage(trimmed, micLanguage);
+    const locale = explicitDabraReplyLocale(trimmed) ?? detectConversationLanguage(trimmed, micLanguage);
     setMicLanguage(locale);
     const assistantId = 'assistant-' + job.id;
     const userId = 'user-' + job.id;
-    const history = context.independent(conversation.getSnapshot().messages).slice(-8).map(({role,text:content})=>({role,content}));
-    const trip = context.refine(trimmed);
+    const history = context.scoped(conversation.getSnapshot().messages).map(({role,text:content})=>({role,content}));
     const staged = context.draft;
-    const seed = staged ? { id: 'seed-' + job.id, role: 'user' as const, text: staged } : null;
+    const trip = context.scope(trimmed,history);
+    const seed = staged && trip ? { id: 'seed-' + job.id, role: 'user' as const, text: staged } : null;
     context.beginAnswer(assistantId);
     if(context.lease){context.tag(assistantId);if(seed)context.tag(seed.id);}
     conversation.setContinuityDraft(null);
@@ -419,7 +422,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
     conversation.setDraft(current => current === draft ? '' : current);
     stickToBottomRef.current = true;
     try {
-      const requestBody = { message: trimmed, history, locale: continuityRequestLocale(context.lease ? conversation.getSnapshot().preferences : null, locale), currency: getDisplayCurrency(),
+      const requestBody = { message: trimmed, history, locale, currency: conversation.selectRequestCurrency(platformCurrency(trimmed)),
         ...(trip && context.lease ? { continuityTrip: { revision: context.lease.revision, generation: context.lease.generation, trip } } : {}) };
       const transport = conversation.transport(job, JSON.stringify(['json', trimmed, requestBody.locale, requestBody.currency, requestBody.continuityTrip]), JSON.stringify(requestBody));
       const response = await fetch('/api/ai2/chat', {
@@ -429,6 +432,7 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
       conversation.acceptAllowance(job, response.headers);
       const payload = await response.json().catch(() => ({})) as { answer?: string; error?: string };
       if (!conversation.isCurrent(job)) return;
+      if (!await ensureFresh()) return;
       if (!response.ok) {
         conversation.fail(job, response.status === 400 ? t.invalid : response.status === 401 || response.status === 403 ? t.session : t.unavailableChat);
         conversation.update(job, current => current.filter(m => m.id !== assistantId));
