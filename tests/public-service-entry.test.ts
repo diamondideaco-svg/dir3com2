@@ -14,6 +14,7 @@ import * as stay from '../lib/marketplace/stay-demo';
 import * as rooms from '../lib/services/search-state';
 import * as drive from '../lib/drive/search';
 import * as catalog from '../lib/drive/catalog';
+import * as ownerAvailability from '../lib/drive/owner-availability';
 import { filterMarketplaceServices, type MarketplaceService } from '../lib/marketplace/data';
 
 type Node = ReactElement<Record<string, unknown>>;
@@ -38,12 +39,12 @@ function harness(language: 'ar'|'en') {
   const imports:Record<string,unknown> = {'react/jsx-runtime':jsx,react,'react-icons/fi':icons,
     'next/navigation':{useRouter:()=>({push:(href:string)=>pushed.push(href)})},
     'next/link':{default:(p:Record<string,unknown>)=>{const props={...p};delete props.prefetch;return createElement('a',props);}},'next/image':{default:'img'},
-    '@/components/currency/useDisplayCurrency': { useDisplayCurrency: () => ({ currency: 'USD', setCurrency: () => undefined }) },
+    '@/components/currency/useExplicitDisplayCurrency': { useExplicitDisplayCurrency: () => ({ currency: 'USD', setCurrency: () => undefined }) },
     '@/components/currency/CurrencyPrice': { default: 'currency-price' },
     '@/components/i18n/LanguageProvider':{useLanguage:()=>({language,direction:language==='ar'?'rtl':'ltr'})},
     '@/lib/marketplace/public-entry':entry,'@/lib/services/coverage':coverage,'@/lib/services/search-state':rooms,
     '@/lib/marketplace/stay-demo':stay,'@/lib/services/canonical':canonical,
-    '@/lib/marketplace/search-context':context,'@/lib/drive/search':drive,'@/lib/drive/catalog':catalog,
+    '@/lib/marketplace/search-context':context,'@/lib/drive/search':drive,'@/lib/drive/catalog':catalog,'@/lib/drive/owner-availability':ownerAvailability,
     './drive.module.css':{default:{}}, '@/components/public/MarketplaceNavigation':{default:()=>null},
   };
   const Search=load<{default:(p:Record<string,unknown>)=>Node}>('components/shared/ServiceSearchTable.tsx',imports).default;

@@ -34,6 +34,7 @@ const serverOnlyTests = new Set([
   'currency-display-flow.test.ts',
   'dabra-chat-stream-contract.test.ts',
   'dabra-continuity-chat-server.test.ts',
+  'dabra-dialogue-coherence.test.ts',
   'dabra-platform-assistant.test.ts',
   'dabra-platform-character.test.ts',
   'task186-kapso-formatter.test.ts',

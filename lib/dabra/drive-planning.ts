@@ -32,8 +32,8 @@ export function dateWithdrawalIndex(text: string) {
   return [...text.matchAll(expression)].filter(m => !/\b(?:do not|don't|never)\s*$/.test(text.slice(0, m.index))).at(-1)?.index ?? -1;
 }
 function lastIndex(text: string, expression: RegExp) { return [...text.matchAll(expression)].at(-1)?.index ?? -1; }
-function quantity(text: string, units: string, max: number, dual: RegExp, reset: RegExp, prefix?: string) {
-  const expressions=[new RegExp('(?<![\\p{L}\\p{N}.,٫٬+−-])(?:ل)?('+token+')\\s*(?:'+units+')(?!\\p{L})','gu')];
+function quantity(text: string, units: string, max: number, dual: RegExp, reset: RegExp, prefix?: string, min = 1) {
+  const expressions=[new RegExp('(?<![\\p{L}\\p{N}.,٫٬+−-])(?:و\\s*)?(?:ل{1,2})?('+token+')\\s*(?:'+units+')(?!\\p{L})','gu')];
   if(prefix) expressions.push(new RegExp('(?:'+prefix+')\\s+('+token+')(?![\\p{L}\\p{N}])','gu'));
   const match=expressions.flatMap(p=>[...text.matchAll(p)]).sort((a,b)=>a.index-b.index).at(-1);
   const resetAt=lastIndex(text,reset);
@@ -42,37 +42,61 @@ function quantity(text: string, units: string, max: number, dual: RegExp, reset:
   const index=Math.max(match?.index??-1,dualAt);
   if(resetAt>=0&&resetAt>index)return {mentioned:true,value:undefined};
   if(index<0)return {mentioned:false,value:undefined};
-  const negated = match && /(?:\bnot|ليس|مش|مو)\s*$/.test(text.slice(0,match.index));
-  const partial = match && partialNumberPrefix.test(text.slice(0,match.index));
+  const negated = /(?:\bnot|(?<!\p{L})(?:ليست|ليس|لا|مش|مو))\s*$/u.test(text.slice(Math.max(0,index-32),index));
+  // Keep the conjunction in the prefix when rejecting suffixes of unsupported compound numbers.
+  const leadingAnd = match?.[0].match(/^و\s*/)?.[0] ?? '';
+  const partial = match && partialNumberPrefix.test(text.slice(0,match.index) + leadingAnd);
   const n=negated||partial?undefined:dualAt>=(match?.index??-1)?2:match?numberValue(match[1]):undefined;
-  return {mentioned:true,value:n!==undefined&&Number.isInteger(n)&&n>0&&n<=max?n:undefined};
+  return {mentioned:true,value:n!==undefined&&Number.isInteger(n)&&n>=min&&n<=max?n:undefined};
 }
 export function bareDriveParty(text: string) {
   const n = numberValue(text);
   return n !== undefined && Number.isInteger(n) && n > 0 && n <= 20 ? n : null;
+}
+/** A compound count is meaningful only when the caller has verified the active party question. */
+export function bareDrivePartyWithLuggage(text: string) {
+  const match = text.match(/^(.+?)\s+(?:و|and\s+)\s*(.+?)\s*(?:شنط(?:ه|ات)?|حقائب|حقيبه|bags?|suitcases?)$/u);
+  if (!match) return null;
+  const party = bareDriveParty(match[1]), luggage = numberValue(match[2]);
+  return party !== null && luggage !== undefined && Number.isInteger(luggage) && luggage >= 0 && luggage <= 20
+    ? { party, luggage } : null;
 }
 /** Called after shared normalization, including Arabic digit/letter normalization. */
 export function driveQuantities(text: string) {
   return {
     party:quantity(text,'people|persons?|passengers?|adults?|اشخاص|شخصا|شخص|ركاب|مسافر(?:ين|ان)?|بالغ(?:ين|ان)?',20,/شخصين|لشخصين|بالغين/g,/العدد غير محدد|عدد الاشخاص غير محدد|لم نحدد العدد|passenger count (?:is )?unknown|number of people (?:is )?undecided/g,'(?:family|party|group) of'),
     days:quantity(text,'days?|ايام|يوما|يوم',365,/يومين/g,/المده غير محدده|لم نحدد المده|duration (?:is )?unknown|duration (?:is )?undecided/g),
+    luggage:quantity(text,'bags?|suitcases?|شنط(?:ه|ات)?|حقائب|حقيبه',20,/شنطتين|حقيبتين/g,/الامتعه غير محدده|عدد الحقائب غير محدد|luggage count (?:is )?unknown/g,undefined,0),
   };
 }
 type Budget={kind:'flexible'}|{kind:'amount';amount:string;currency:string|null;basis:'day'|'trip'|null};
-export type DrivePlanningPreferences={city?:string;ambiguous:boolean;dates:string[];party?:string;durationDays?:number};
+export type DrivePlanningPreferences={city?:string;ambiguous:boolean;dates:string[];party?:string;luggage?:number;durationDays?:number};
 type Planning={preferences:DrivePlanningPreferences;driver:'with'|'without'|null;budget:Budget|null};
 export type DriveDialogue=Planning&({kind:'clarify';question:'city'|'dates'|'party'|'driver'|'budget'}|{kind:'ready'});
 const currencies:Record<string,string>={دولار:'USD',ريال:'SAR',جنيه:'EGP',يورو:'EUR',درهم:'AED','$':'USD'};
 function budgetIn(text:string, previous:Budget|null):Budget|null|undefined {
   if(/ميزانيه غير محدده بعد|الميزانيه غير محدده بعد|لم احدد الميزانيه|budget (?:is )?undecided|have not decided.*budget/.test(text))return null;
   if(/no (?:fixed |set )?budget|no (?:maximum|limit)|flexible budget|budget is flexible|ميزانيه مفتوحه|الميزانيه مفتوحه|لا يوجد سقف|ما عندي سقف|بدون سقف/.test(text))return {kind:'flexible'};
-  const amount=text.match(/(?:budget|under|below|max(?:imum)?|ميزانيه|الميزانيه|اقل من|حد اقصي)\s*(?:is\s*)?[$]?\s*(\d+(?:\.\d{1,2})?)/)?.[1]
-    ??text.match(/(?<![\d.])(\d+(?:\.\d{1,2})?)\s*(?:usd|sar|egp|eur|aed|دولار|ريال|جنيه|يورو|درهم)/)?.[1];
-  const currencyToken=text.match(/\b(?:usd|sar|egp|eur|aed)\b|دولار|ريال|جنيه|يورو|درهم|\$/)?.[0];
+  const isNegated = (index:number) => /(?:\bnot|\bno|(?<!\p{L})(?:ليست|ليس|لا|مش|مو)(?:\s+(?:اريد|ابغي|احتاج))?)\s*(?:(?:budget|ميزانيه|الميزانيه)\s*)?$/u.test(text.slice(Math.max(0,index-48),index));
+  const labelled = [...text.matchAll(/(?:budget|under|below|max(?:imum)?|ميزانيه|الميزانيه|اقل من|حد اقصي)\s*(?:is\s*)?(\$)?\s*(\d+(?:\.\d{1,2})?)/g)]
+    .map(m=>({index:m.index,amount:m[2],currency:m[1]??null}));
+  const denominated = [...text.matchAll(/(?<![\d.])(\d+(?:\.\d{1,2})?)\s*(usd|sar|egp|eur|aed|دولار|ريال|جنيه|يورو|درهم)/g)]
+    .map(m=>({index:m.index,amount:m[1],currency:m[2]}));
+  const selected = [...labelled,...denominated].filter(m=>!isNegated(m.index)).sort((a,b)=>a.index-b.index).at(-1);
+  if (!selected && [...labelled,...denominated].some(m=>isNegated(m.index))) return null;
+  const amount=selected?.amount;
+  const currencyToken=selected?.currency ?? [...text.matchAll(/\b(?:usd|sar|egp|eur|aed)\b|دولار|ريال|جنيه|يورو|درهم|\$/g)].filter(m=>!isNegated(m.index)).at(-1)?.[0];
   const currency=currencyToken?(currencies[currencyToken]??currencyToken.toUpperCase()):null;
-  const basis=/per day|daily|a day|يومي|لليوم|في اليوم/.test(text)?'day':/total|whole trip|للرحله|اجمالي|لكامل/.test(text)?'trip':null;
-  if(amount&&Number.isFinite(Number(amount))&&Number(amount)>0)return {kind:'amount',amount,currency,basis};
-  if(previous?.kind==='amount'&&(currency||basis))return {...previous,currency:currency??previous.currency,basis:basis??previous.basis};
+  const duration = new RegExp('(?<![\\p{L}\\p{N}])(?:لل|لمده\\s+)'+token+'\\s*(?:ايام|يوما|يوم)\\s*(?:كامله|كاملها|كلها)(?!\\p{L})','u').exec(text);
+  const wholeDuration = duration && !/(?:not|ليس|مش|مو|لا)\s*$/.test(text.slice(0,duration.index));
+  const bases=[...text.matchAll(/per day|daily|a day|يومي|لليوم|في اليوم|total|whole trip|للرحله|اجمالي|لكامل/g)];
+  const basisMatch=bases.filter(m=>!isNegated(m.index)).at(-1)?.[0];
+  const basis=basisMatch ? (/per day|daily|a day|يومي|لليوم|في اليوم/.test(basisMatch)?'day':'trip') : wholeDuration?'trip':null;
+  const rejectedPreviousBasis=previous?.kind==='amount'&&bases.some(m=>isNegated(m.index)
+    && (/per day|daily|a day|يومي|لليوم|في اليوم/.test(m[0])?'day':'trip')===previous.basis);
+  if(amount&&Number.isFinite(Number(amount))&&Number(amount)>0)return {kind:'amount',amount,
+    currency:currency??(previous?.kind==='amount'?previous.currency:null),basis:basis??(rejectedPreviousBasis?null:previous?.kind==='amount'?previous.basis:null)};
+  if(previous?.kind==='amount'&&(currency||basis||rejectedPreviousBasis))return {...previous,currency:currency??previous.currency,basis:basis??(rejectedPreviousBasis?null:previous.basis)};
   return undefined;
 }
 /** Bounded USER facts only. Assistant assertions are never interpreted as preferences. */
@@ -96,17 +120,18 @@ export function driveDialogue(userTurns:readonly string[],preferences:DrivePlann
     :!budget||budget.kind==='amount'&&(!budget.currency||!budget.basis)?'budget':null;
   return question?{...state,kind:'clarify',question}:{...state,kind:'ready'};
 }
-export function driveDialogueCopy(state:DriveDialogue,locale:Locale){
+export function driveDialogueCopy(state:DriveDialogue,locale:Locale,excludedCurrencies:readonly string[]=[]){
   const ar=locale==='ar',p=state.preferences;
   const cities:Record<string,string>={cairo:'القاهرة',giza:'الجيزة',alexandria:'الإسكندرية',riyadh:'الرياض',jeddah:'جدة',dubai:'دبي'};
   const facts:string[]=[];
   if(p.city)facts.push(ar?cities[p.city]??p.city:p.city);
   if(p.party)facts.push(ar?p.party+' أشخاص':p.party+' passengers');
+  if(p.luggage !== undefined)facts.push(ar?p.luggage+' قطع أمتعة':p.luggage+' bags');
   if(p.durationDays)facts.push(ar?p.durationDays+' أيام':p.durationDays+' days');
   if(p.dates.length)facts.push(p.dates.join(ar?' إلى ':' to '));
   if(state.driver)facts.push(ar?state.driver==='with'?'مع سائق':'بدون سائق':state.driver==='with'?'with a driver':'without a driver');
   if(state.budget?.kind==='flexible')facts.push(ar?'ميزانية مفتوحة':'a flexible budget');
-  else if(state.budget?.kind==='amount')facts.push(state.budget.amount+(state.budget.currency?' '+state.budget.currency:''));
+  else if(state.budget?.kind==='amount' && (!state.budget.currency || !excludedCurrencies.includes(state.budget.currency)))facts.push(state.budget.amount+(state.budget.currency?' '+state.budget.currency:''));
   const summary=facts.length?(ar?'فهمت طلبك: ':'Your trip so far: ')+facts.join(ar?'، ':', ')+'.'
     :ar?'نرتّب احتياجك أولًا حتى أقدر أوجّهك لخيار مناسب.':'Let’s establish what you need before looking at options.';
   if(state.kind==='ready')return {summary,question:null};
@@ -115,7 +140,11 @@ export function driveDialogueCopy(state:DriveDialogue,locale:Locale){
     dates:ar?p.durationDays?'ما تاريخا بدء الاستخدام وانتهائه لهذه المدة؟':'ما تاريخا بدء استخدام السيارة وانتهائه، وكم مدة الاستخدام؟':p.durationDays?'What are the pickup and return dates for those days?':'What are the pickup and return dates, and how long will you need the car?',
     party:ar?'كم عدد الأشخاص الذين سيستخدمون السيارة؟':'How many passengers will use the car?',
     driver:ar?'تفضّل السيارة مع سائق أم بدون سائق؟ الكتالوج الحالي بسائق؛ وأي طلب بدونه يحتاج تأكيد العمليات.':'Would you prefer a driver or no driver? The current catalogue is chauffeured; a self-drive request needs Operations confirmation.',
-    budget:ar?state.budget?.kind==='amount'?'هذه الميزانية بأي عملة، وهل هي لليوم أم للرحلة كاملة؟':'ما ميزانيتك لليوم وبأي عملة؟ وإذا ما عندك سقف محدد، قل لي.':state.budget?.kind==='amount'?'Which currency is that budget in, and is it per day or for the whole trip?':'What is your daily budget and currency? You can also say there is no fixed budget.',
+    budget:state.budget?.kind==='amount'
+      ? !state.budget.currency && !state.budget.basis ? (ar?'هذه الميزانية بأي عملة، وهل هي لليوم أم للرحلة كاملة؟':'Which currency is that budget in, and is it per day or for the whole trip?')
+        : !state.budget.currency ? (ar?'بأي عملة هذه الميزانية؟':'Which currency is that budget in?')
+        : (ar?'هل هذه الميزانية لليوم أم للرحلة كاملة؟':'Is that budget per day or for the whole trip?')
+      : (ar?'ما ميزانيتك لليوم وبأي عملة؟ وإذا ما عندك سقف محدد، قل لي.':'What is your daily budget and currency? You can also say there is no fixed budget.'),
   };
   return {summary,question:questions[state.question]};
 }

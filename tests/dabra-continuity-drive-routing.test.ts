@@ -19,9 +19,12 @@ const compiled = ts.transpileModule(readFileSync(new URL('../components/dabra/Pl
   compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX},
 }).outputText;
 const exports = {} as {default:(props:{query:string;language:'ar'|'en';family:'drive';trip:SavedTrip|null})=>ReactElement};
+let selectedCurrency = 'USD';
+let rateSnapshot: {base:'USD';provider:'frankfurter';rates:{USD:number;SAR:number;EGP:number;EUR:number;AED:number};asOf:string;expiresAt:number}|null = null;
 const dependencies:Record<string,unknown>={
   '@/components/currency/CurrencyPrice':{default:({amount,sourceCurrency}:{amount:number;sourceCurrency:string})=>createElement('span',null,`${amount} ${sourceCurrency}`)},
-  '@/components/currency/useDisplayCurrency':{useDisplayCurrency:()=>({currency:'USD'}),useCurrencyRates:()=>({snapshot:null,loading:false})},
+  '@/components/currency/useDisplayCurrency':{useDisplayCurrency:()=>({currency:selectedCurrency}),useCurrencyRates:()=>({snapshot:rateSnapshot,loading:false})},
+  '@/components/dabra/DabraConversationProvider':{useOptionalDabraConversationSession:()=>null},
   'next/image':{default:({src,alt}:{src:string;alt:string})=>createElement('img',{src,alt})},
   './PlatformResults.module.css':{default:{}},
   './PlatformAnswer':{default:PlatformAnswer},
@@ -61,6 +64,14 @@ for(const language of ['ar','en'] as const){
     assert.equal(context.trip?.origin,'Dubai','foreign origin must not exclude Egypt destination');
   });
 }
+test('a saved multi-service foreign trip keeps its destination in the displayed Drive fallback',()=>{
+  const context=new ContinuityContext();context.capture('user:A',{...snapshot,trip:{...trip,destination:'Dubai',families:['drive','stay']}},false,true);
+  const query=platform.platformContext('show cars',[],context.trip);
+  assert.equal(platform.findPlatformDriveOffers(query,undefined,context.trip).length,0);
+  const html=rendered(query,'en',context.trip);
+  assert.doesNotMatch(html,/dabra-product-card|offer=|\d+\.\d{2} USD/);
+  assert.match(html,/No car matches/);
+});
 test('unstructured Drive geography fallback remains unchanged and explicit typed correction updates eligibility',()=>{
   assert.ok(platform.findPlatformDriveOffers('show cars').length>0);
   assert.ok(platform.findPlatformDriveOffers('cars in Cairo').length>0);
@@ -69,4 +80,18 @@ test('unstructured Drive geography fallback remains unchanged and explicit typed
   context.refine('cars in Cairo');assert.ok(platform.findPlatformDriveOffers('cars',undefined,context.trip).length>0);
   context.refine('instead in Riyadh');assert.equal(platform.findPlatformDriveOffers('cars',undefined,context.trip).length,0);
   context.forget();assert.equal(context.trip,null);
+});
+
+
+test('displayed car cards hide rejected source prices on missing FX and show valid conversion',()=>{
+ selectedCurrency='SAR';rateSnapshot=null;
+ try {
+  const query='show cars in Cairo, do not use USD';
+  const unavailable=rendered(query,'en',null);
+  assert.match(unavailable,/dabra-product-card/);assert.match(unavailable,/Price in an accepted currency is unavailable/);
+  assert.doesNotMatch(unavailable,/\b[\d,.]+\s+USD\b/);
+  rateSnapshot={base:'USD',provider:'frankfurter',rates:{USD:1,SAR:3.75,EGP:50,EUR:.9,AED:3.67},asOf:'2026-11-15',expiresAt:Date.now()+60000};
+  const converted=rendered(query,'en',null);
+  assert.match(converted,/\b[\d,.]+\s+SAR\b/);assert.doesNotMatch(converted,/\b[\d,.]+\s+USD\b/);
+ } finally {selectedCurrency='USD';rateSnapshot=null;}
 });

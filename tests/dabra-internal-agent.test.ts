@@ -82,7 +82,7 @@ test('private chat context is excluded from local persistence and stale response
  const {readFileSync}=await import('node:fs');
  const ui=readFileSync('components/dabra/DabraChatCommerce.tsx','utf8');
  assert.match(ui,/conversation\.privateConversation[\s\S]*storage\.removeItem\(storageKey\(persistenceContext\.ownerId, 'context'\)\)/);
- const privateResponseOrder=/if \(!conversation\.isCurrent\(job\)\) return;\s*conversation\.acceptAllowance\(job, response\.headers\);\s*if \(response\.headers\.get\('X-DABRA-Private-Context'\) === '1' \|\| response\.headers\.get\('Content-Type'\)\?\.includes\('application\/json'\)\) conversation\.markPrivate\(\);/;
+ const privateResponseOrder=/if \(!conversation\.isCurrent\(job\)\) return;\s*(?:if\(derivedResponse&&!response\.ok&&!await ensureContinuityFresh\(false,job\)\)return;\s*)?conversation\.acceptAllowance\(job, response\.headers\);\s*if \(response\.headers\.get\('X-DABRA-Private-Context'\) === '1' \|\| response\.headers\.get\('Content-Type'\)\?\.includes\('application\/json'\)\) conversation\.markPrivate\(\);/;
  const guard=ui.match(privateResponseOrder)?.[0];
  assert.ok(guard, 'current-job guard must precede allowance and private-context marking');
  for(const [name,mutated] of [
@@ -127,4 +127,13 @@ test('map tool stays inside platform until explicit navigation',async()=>{
 import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
 test('actual provider and view reject retired account writes', () => {
   runDabraBoundaryCase('actual provider and view reject retired account writes');
+});
+
+
+test('recorded quote hides rejected source currency when conversion fails or succeeds',async()=>{
+ const input={message:'my requests',locale:'en' as const,history:[],context:{role:'customer' as const,readRequests:async()=>ready}};
+ const noRate=await runInternalAgent({...input,pricing:{currency:'SAR',snapshot:null,excludedCurrencies:['USD']}});
+ assert.match(noRate.answer,/Quote cannot be shown in an accepted currency/);assert.doesNotMatch(noRate.answer,/100\.00 USD/);
+ const converted=await runInternalAgent({...input,pricing:{currency:'SAR',excludedCurrencies:['USD'],snapshot:{base:'USD',provider:'frankfurter',rates:{USD:1,SAR:3.75,EGP:50,EUR:.9,AED:3.67},asOf:'2026-11-15',expiresAt:Date.now()+60000}}});
+ assert.match(converted.answer,/375\.00 SAR/);assert.doesNotMatch(converted.answer,/100\.00 USD/);
 });

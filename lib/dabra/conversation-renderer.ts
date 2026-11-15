@@ -43,6 +43,10 @@ export function conversationTopicChange(message: string): string | null {
 /** Current-turn dialogue takes precedence over inherited catalogue preferences. */
 export function conversationIntent(message: string) {
   const text = message.normalize('NFKC').replace(/[\u064b-\u065f\u0670\u0640]/g, '').toLowerCase().replace(/[أإآ]/g, 'ا').trim().replace(/[!?.؟]+$/g, '').trim();
+  if (/(?:لخص|تلخيص|اختصر|summari[sz]e|summary)/.test(text) && /(?:كلام|قلت|طلب|محادث|conversation|what i|my request)/.test(text)) return 'summary';
+  if (/(?:تكرر|بتكرر|تكرار|repeating|repetition)/.test(text) && /(?:رد|سؤال|اسئل|كلام|reply|answer|question)/.test(text)) return 'repair';
+  if (/^(?:(?:هذا|هاذا|السعر|سعره|سعرها|الاسعار)\s*)?(?:غالي|غاليه|غالية|مرتفع|مرتفعة|كثير|too expensive|expensive|too high)(?:[\s.!?؟،]|$)/.test(text)
+    || /^(?:(?:هذا|هاذا)\s+)?(?:السعر|سعره|سعرها|the price|the quote).{0,30}(?:غالي|مرتف|كثير|expensive|too high)/.test(text)) return 'price_objection';
   if (/^(?:who are you|what is your name|مين انت|من انت|اسمك ايه|شو اسمك)$/.test(text)) return 'identity';
   if (/^(?:how are you|كيف حالك|كيفك|عامل ايه|شلونك)$/.test(text)) return 'social';
   if (/^(?:why (?:do you|are you) (?:keep )?repeating(?: yourself| the same (?:answer|reply))?|ليش بتكرر نفس الرد|ليه بتكرر نفس الرد|ليش تكرر نفس الرد)$/.test(text)) return 'repair';

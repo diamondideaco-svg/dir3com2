@@ -2,12 +2,13 @@
 
 import Image from 'next/image';
 import CurrencyPrice from '@/components/currency/CurrencyPrice';
-import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
+import { useExplicitDisplayCurrency } from '@/components/currency/useExplicitDisplayCurrency';
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { DRIVE_CURRENCIES, DRIVE_OFFERS, vehicleFor, vehicleTitle, vehicleClassLabel, vehicleYearAvailabilityLabel, type DriveOffer, type VehicleMaster } from '@/lib/drive/catalog';
+import { driveOwnerAvailabilityCopy } from '@/lib/drive/owner-availability';
 import { driveSearchParams, readDriveSearch, validateDriveSearch, type DriveSearch } from '@/lib/drive/search';
 import styles from './drive.module.css';
 import MarketplaceNavigation from '@/components/public/MarketplaceNavigation';
@@ -33,7 +34,7 @@ export function DriveInclusions({ ar }: { ar: boolean }) { return <ul><li>{ar ? 
 
 export default function DriveMarketplace({ initialSearch, discovery = false }: { initialSearch: string; discovery?: boolean }) {
   const { language, direction } = useLanguage(); const ar = language === 'ar'; const router = useRouter();
-  const { currency, setCurrency } = useDisplayCurrency();
+  const { currency, setCurrency } = useExplicitDisplayCurrency();
   const displayParams = new URLSearchParams(initialSearch); displayParams.set('displayCurrency', currency);
   const displaySearch = displayParams.toString();
   const [search, setSearch] = useState<DriveSearch>(() => readDriveSearch(new URLSearchParams(initialSearch)));
@@ -74,6 +75,7 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
   return <section className={`${styles.page} ${styles.browse}`} dir={direction}>
     <MarketplaceNavigation family={discovery ? undefined : 'dir3-drive'} search={displaySearch}/>
     <h1>{discovery ? (ar ? 'ابدأ رحلتك من هنا' : 'Start your journey here') : (ar ? 'تنقّل براحة في مصر' : 'Travel comfortably in Egypt')}</h1><p>{ar ? 'سيارة مع سائق ووقود حتى 120 كم، ودعم فريق العمليات المحلي.' : 'A chauffeur, fuel up to 120 km, and regional Operations support.'}</p>
+    <p data-dabra-avoid>{driveOwnerAvailabilityCopy(language)}</p>
     <form id="drive-search" className={styles.search} onSubmit={submit}>
       <label>{ar ? 'موقع الاستلام: مدينة، مطار، فندق أو عنوان' : 'Pickup: city, airport, hotel or address'}<input required maxLength={200} value={search.pickup} onChange={e=>update('pickup',e.target.value)} /></label>
       <label>{ar ? 'موقع تسليم مختلف (اختياري)' : 'Different drop-off (optional)'}<input maxLength={200} value={search.dropoff} onChange={e=>update('dropoff',e.target.value)} /></label>
@@ -89,7 +91,7 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
     </form>
     {error && <div role="alert" className={styles.error}>{driveErrors[error]?.[ar ? 0 : 1] ?? (ar ? 'تعذر تحميل النتائج. حاول مجددًا.' : 'Unable to load results. Please retry.')}<button onClick={()=>setRetry(value=>value+1)}>{ar ? 'إعادة المحاولة' : 'Retry'}</button></div>}
     {loading && <p role="status">{ar ? 'جارٍ البحث…' : 'Searching…'}</p>}
-    {!searched && <><p className={styles.catalogueLabel}>{selectedOffer ? 1 : DRIVE_OFFERS.length} {ar ? 'خيارات Drive في مصر · التوفر بطلب التأكيد' : 'Drive options in Egypt · availability on request'}</p><section className={styles.discoveryCards}>{DRIVE_OFFERS.filter(o => !selectedOffer || o.id === selectedOffer.id).map(offer=>{const vehicle=vehicleFor(offer);return <article className={styles.card} key={offer.id}><Image className={styles.cardImage} src={vehicle.image} alt={vehicleTitle(vehicle,language)} width={500} height={300}/><div className={styles.cardBody}><h2>{vehicleTitle(vehicle,language)}</h2><p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language, vehicle)}</p><p className={styles.badge}>{ar ? 'طلب للتأكيد' : 'Request to confirm'}</p><DriveInclusions ar={ar}/><p className={styles.price}><CurrencyPrice amount={search.mode === 'airport' && offer.airport !== null ? offer.airport : offer.chauffeur} sourceCurrency={offer.currency} language={language} /> / {search.mode === 'airport' && offer.airport !== null ? (ar ? 'استقبال مطار' : 'airport transfer') : (ar ? 'يوم مع سائق' : 'chauffeur day')}</p><a className={styles.button} href="#drive-search">{ar ? 'اختر مواعيد الرحلة' : 'Choose trip dates'}</a></div></article>;})}</section></>}
+    {!searched && <><p data-dabra-avoid className={styles.catalogueLabel}>{selectedOffer ? 1 : DRIVE_OFFERS.length} {ar ? 'خيارات Drive في مصر · التوفر بطلب التأكيد' : 'Drive options in Egypt · availability on request'}</p><section className={styles.discoveryCards}>{DRIVE_OFFERS.filter(o => !selectedOffer || o.id === selectedOffer.id).map(offer=>{const vehicle=vehicleFor(offer);return <article className={styles.card} key={offer.id}><Image className={styles.cardImage} src={vehicle.image} alt={vehicleTitle(vehicle,language)} width={500} height={300}/><div className={styles.cardBody}><h2>{vehicleTitle(vehicle,language)}</h2><p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language, vehicle)}</p><p className={styles.badge}>{ar ? 'طلب للتأكيد' : 'Request to confirm'}</p><DriveInclusions ar={ar}/><p className={styles.price}><CurrencyPrice amount={search.mode === 'airport' && offer.airport !== null ? offer.airport : offer.chauffeur} sourceCurrency={offer.currency} language={language} /> / {search.mode === 'airport' && offer.airport !== null ? (ar ? 'استقبال مطار' : 'airport transfer') : (ar ? 'يوم مع سائق' : 'chauffeur day')}</p><a className={styles.button} href="#drive-search">{ar ? 'اختر مواعيد الرحلة' : 'Choose trip dates'}</a></div></article>;})}</section></>}
     {searched && !loading && !error && <>
       <div className={`${styles.summary} ${styles.row}`}><span>{readDriveSearch(new URLSearchParams(initialSearch)).pickup} · {readDriveSearch(new URLSearchParams(initialSearch)).pickupAt.replace('T',' ')} · {ar ? 'بتوقيت القاهرة' : 'Cairo time'}</span><a href="#drive-search">{ar ? 'تعديل البحث' : 'Modify search'}</a></div>
       <div className={styles.grid}><aside className={styles.filters}>

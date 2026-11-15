@@ -1,7 +1,7 @@
 import { renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
 import { agentIntent, agentRequestStatus, type AgentContext, type AgentIntent, type AgentRequest } from './agent-contract';
 import { buildPlatformAssistantResponse, type PlatformPricing } from './platform-assistant';
-import { normalizePlatformQuery } from './platform-assistant';
+import { normalizePlatformQuery, platformContext, platformCurrencySelection } from './platform-assistant';
 import { getWeatherSnapshot } from '../weather/service';
 import { convertCurrency } from '../currency/service';
 import { displayPrice, parseDisplayCurrency } from '../currency/display';
@@ -26,14 +26,19 @@ export async function runInternalAgent({ message, locale, history, context, pric
   const requestsLink = link(ar ? 'طلباتي' : 'My requests', '/my-requests');
   const operationsLink = link(ar ? 'عمليات النقل في مصر' : 'Egypt Drive Operations', '/admin/operations/drive');
   const operational = ['staff', 'admin', 'ceo'].includes(context.role);
+  const excludedCurrencies = pricing?.excludedCurrencies ?? platformCurrencySelection(platformContext(message, history, trip)).excluded;
 
   function requestLine(row: AgentRequest) {
     let result = `${row.reference}: ${agentRequestStatus(row.status, locale)}`;
     if (row.quote) {
       const converted = displayPrice(row.quote.amount, row.quote.currency, pricing?.currency ?? row.quote.currency, pricing?.snapshot);
-      result += ` — ${ar ? 'عرض مسجّل' : 'Recorded quote'}: ${converted.amount.toFixed(2)} ${converted.currency}`;
-      if (converted.unavailable) result += ar ? ' (بعملة المصدر؛ الصرف غير متاح)' : ' (source currency; FX unavailable)';
-      else if (converted.currency !== row.quote.currency) result += ` (${ar ? 'الأصل' : 'source'}: ${row.quote.amount.toFixed(2)} ${row.quote.currency})`;
+      const blocked = excludedCurrencies.includes(parseDisplayCurrency(converted.currency) as NonNullable<ReturnType<typeof parseDisplayCurrency>>);
+      if (blocked) result += ar ? ' — تعذر عرض قيمة العرض بعملة مقبولة؛ راجع العمليات' : ' — Quote cannot be shown in an accepted currency; contact Operations';
+      else {
+        result += ` — ${ar ? 'عرض مسجّل' : 'Recorded quote'}: ${converted.amount.toFixed(2)} ${converted.currency}`;
+        if (converted.unavailable) result += ar ? ' (بعملة المصدر؛ الصرف غير متاح)' : ' (source currency; FX unavailable)';
+        else if (converted.currency !== row.quote.currency && !excludedCurrencies.includes(parseDisplayCurrency(row.quote.currency) as NonNullable<ReturnType<typeof parseDisplayCurrency>>)) result += ` (${ar ? 'الأصل' : 'source'}: ${row.quote.amount.toFixed(2)} ${row.quote.currency})`;
+      }
       if (row.quote.expiresAt) {
         const expiry = Date.parse(row.quote.expiresAt);
         if (Number.isFinite(expiry) && expiry <= Date.now()) result += ar ? ' — انتهت صلاحية العرض؛ اطلب تحديثه' : ' — quote expired; request an update';

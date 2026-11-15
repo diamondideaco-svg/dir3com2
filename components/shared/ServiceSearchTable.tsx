@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiCalendar, FiChevronDown, FiChevronUp, FiFlag, FiMapPin, FiSearch, FiUsers } from 'react-icons/fi';
-import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
+import { useExplicitDisplayCurrency } from '@/components/currency/useExplicitDisplayCurrency';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { canonicalCountries, citiesForCountry, todayIsoDate } from '@/lib/services/coverage';
 import { normalizeStayRooms } from '@/lib/services/search-state';
@@ -140,7 +140,7 @@ export default function ServiceSearchTable({ initialService = 'drive', driveMark
   const directMarketplace = directDrive || familyMarketplace;
   const FieldsContainer = 'form';
   const { language, direction } = useLanguage();
-  const { currency, setCurrency } = useDisplayCurrency();
+  const { currency, setCurrency } = useExplicitDisplayCurrency();
   const router = useRouter();
   const t = copy[language];
   const today = useMemo(() => todayIsoDate(), []);

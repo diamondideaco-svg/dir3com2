@@ -60,3 +60,17 @@ test('unrelated opposite-side controls do not displace the launcher', () => {
   const p = placeDabraLauncher({ ...input, obstacles: [{ left: 0, right: 100, top: 0, bottom: 844 }] });
   assert.deepEqual(p, placeDabraLauncher(input));
 });
+
+test('short marketplace view hides the launcher when adjacent copy leaves no safe slot',()=>{
+ const viewport={left:0,top:0,width:400,height:487};
+ const obstacles=[
+  {left:0,right:400,top:84,bottom:222},
+  {left:16,right:372,top:240,bottom:307},
+  {left:16,right:372,top:316,bottom:366},
+  {left:16,right:372,top:378,bottom:523},
+ ];
+ for(const language of ['ar','en'] as const){
+  const p=placeDabraLauncher({...input,viewport,language,obstacles});
+  assert.equal(p.visible,false);
+ }
+});

@@ -1,7 +1,24 @@
 import {connect} from 'node:net';
+import {errorMonitor} from 'node:events';
 
 // NextURL canonicalizes loopback IPs to localhost; preserve strict same-origin writes.
 export const TASK187_APP_ORIGIN='http://localhost:19040';
+export const TASK187_PROXY_RESET_PREFIX='TASK187_BROWSER_UNHANDLED_PROXY_RESET=';
+export const TASK187_PROXY_RESET_SOURCES=Object.freeze(['client-socket','client-request','server-response','upstream-request','upstream-response']);
+const proxyResetSources=new Set(TASK187_PROXY_RESET_SOURCES);
+
+/** Observe only an unhandled reset on an owned proxy stream. This does not handle
+ * the error or change whether the process fails; it emits no error text or data.
+ * @param {import('node:events').EventEmitter} emitter
+ * @param {string} source
+ * @param {(marker:string)=>void} report
+ */
+export function observeUnhandledTask187ProxyReset(emitter,source,report){
+ if(!proxyResetSources.has(source)||typeof report!=='function')throw Error('TASK187_PROXY_OBSERVER_INVALID');
+ emitter.on(errorMonitor,error=>{
+  try{if(error?.code==='ECONNRESET'&&emitter.listenerCount('error')===0)report(TASK187_PROXY_RESET_PREFIX+source);}catch{ /* Observations never change failure behavior. */ }
+ });
+}
 
 /**
  * @param {import('node:http').Server} proxy
@@ -13,6 +30,9 @@ export function attachTask187ConnectProxy(proxy,onAllowed,onDenied) {
  const tunnels=new Set();
  proxy.on('connect',(request,socket,head)=>{
   if(request.url!=='localhost:19040'){
+   // A rejected peer may reset before the 403 is flushed. Keep it denied and
+   // dispose only its socket; the required browser assertions still fail closed.
+   socket.on('error',error=>{socket.destroy();if(error?.code!=='ECONNRESET')throw error;});
    onDenied();socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');return;
   }
   onAllowed();
