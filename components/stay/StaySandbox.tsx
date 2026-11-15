@@ -1,6 +1,6 @@
 'use client';
 import CurrencyPrice from '@/components/currency/CurrencyPrice';
-import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
+import { useExplicitDisplayCurrency } from '@/components/currency/useExplicitDisplayCurrency';
 import { useEffect, useState, type FormEvent } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -13,7 +13,7 @@ import { stayFilterSearch, type NationalityChoices } from '@/lib/marketplace/dis
 export default function StaySandbox({ initialSearch, hotelId, nationalities }: { initialSearch: string; hotelId?: string; nationalities: NationalityChoices }) {
   const { language, direction } = useLanguage(); const ar = language === 'ar';
   const t = (en: string, arabic: string) => ar ? arabic : en;
-  const { currency: displayCurrency, setCurrency } = useDisplayCurrency();
+  const { currency: displayCurrency, setCurrency } = useExplicitDisplayCurrency();
   const [filterSearch, setFilterSearch] = useState(initialSearch);
   const params = new URLSearchParams(filterSearch);
   const searched = params.get('searched') === '1';

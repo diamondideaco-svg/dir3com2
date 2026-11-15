@@ -4,6 +4,7 @@ import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import * as catalog from '../lib/drive/catalog';
+import * as ownerAvailability from '../lib/drive/owner-availability';
 import * as search from '../lib/drive/search';
 import * as context from '../lib/marketplace/search-context';
 
@@ -23,10 +24,10 @@ test('actual Drive form recovers from invalid dates when returning to the same U
   const modules: Record<string, unknown> = {
     react, 'react/jsx-runtime': { jsx, jsxs: jsx }, 'next/image': 'image', 'next/link': 'link',
     'next/navigation': { useRouter: () => ({ push: (url: string) => pushes.push(url) }) },
-    '@/components/currency/useDisplayCurrency': { useDisplayCurrency: () => ({ currency: 'USD', setCurrency: () => undefined }) },
+    '@/components/currency/useExplicitDisplayCurrency': { useExplicitDisplayCurrency: () => ({ currency: 'USD', setCurrency: () => undefined }) },
     '@/components/currency/CurrencyPrice': { default: 'currency-price' },
     '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language: 'en', direction: 'ltr' }) },
-    '@/lib/drive/catalog': catalog, '@/lib/drive/search': search, './drive.module.css': { default: {} },
+    '@/lib/drive/owner-availability': ownerAvailability, '@/lib/drive/catalog': catalog, '@/lib/drive/search': search, './drive.module.css': { default: {} },
     '@/lib/marketplace/search-context': context,
     '@/components/public/MarketplaceNavigation': { default: () => null },
   };

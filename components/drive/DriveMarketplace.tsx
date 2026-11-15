@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import CurrencyPrice from '@/components/currency/CurrencyPrice';
-import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
+import { useExplicitDisplayCurrency } from '@/components/currency/useExplicitDisplayCurrency';
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
@@ -34,7 +34,7 @@ export function DriveInclusions({ ar }: { ar: boolean }) { return <ul><li>{ar ? 
 
 export default function DriveMarketplace({ initialSearch, discovery = false }: { initialSearch: string; discovery?: boolean }) {
   const { language, direction } = useLanguage(); const ar = language === 'ar'; const router = useRouter();
-  const { currency, setCurrency } = useDisplayCurrency();
+  const { currency, setCurrency } = useExplicitDisplayCurrency();
   const displayParams = new URLSearchParams(initialSearch); displayParams.set('displayCurrency', currency);
   const displaySearch = displayParams.toString();
   const [search, setSearch] = useState<DriveSearch>(() => readDriveSearch(new URLSearchParams(initialSearch)));
