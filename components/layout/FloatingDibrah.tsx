@@ -181,7 +181,11 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
       setPanelViewport(previous => JSON.stringify(previous) === JSON.stringify(mobilePanel) ? previous : mobilePanel);
       // On the narrow bookings view, preserve the empty/status copy as well as controls.
       const mobileBookingCopy = pathname === '/my-bookings' && window.innerWidth <= 720 ? ', main p' : '';
-      const obstacles = [...document.querySelectorAll<HTMLElement>('a, button, input, select, textarea, [role="button"], [role="tab"], [role="dialog"], [role="menu"], header nav, [data-cookie-banner], [data-marketplace-critical-action], [data-dabra-avoid]' + mobileBookingCopy)]
+      // Catalogue text can fill a narrow viewport; hide the optional launcher
+      // when it cannot avoid the copy, rather than covering a different line.
+      const mobileMarketplaceCopy = (pathname === '/marketplace' || pathname.startsWith('/marketplace/drive/')) && window.innerWidth <= 720
+        ? ', main p, main h1, main h2, main label, main li' : '';
+      const obstacles = [...document.querySelectorAll<HTMLElement>('a, button, input, select, textarea, [role="button"], [role="tab"], [role="dialog"], [role="menu"], header nav, [data-cookie-banner], [data-marketplace-critical-action], [data-dabra-avoid]' + mobileBookingCopy + mobileMarketplaceCopy)]
         .filter(element => !shell.contains(element) && !element.closest('nextjs-portal') && getComputedStyle(element).visibility !== 'hidden')
         .map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
       const next = placeDabraLauncher({ language, viewport, width: launcher.offsetWidth, height: launcher.offsetHeight, obstacles, preference: dockPreferenceRef.current });
