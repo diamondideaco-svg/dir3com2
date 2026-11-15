@@ -34,9 +34,14 @@ export class ConversationSession {
   setContinuitySnapshot(snapshot: ContinuitySnapshot | null) { this.continuitySnapshot = snapshot; }
   setContinuityCurrency(value: typeof this.continuityCurrency) { this.continuityCurrency = value; }
   selectRequestCurrency(explicit: DisplayCurrency | null = null, excluded: readonly DisplayCurrency[] = []) {
+    const previousCurrency = this.requestCurrency;
+    const previousExcluded = this.getExcludedRequestCurrencies().join(',');
     for (const currency of excluded) this.excludedRequestCurrencies.add(currency);
     if (explicit) { this.excludedRequestCurrencies.delete(explicit); this.requestCurrency = explicit; }
     else if (this.requestCurrency && this.excludedRequestCurrencies.has(this.requestCurrency)) this.requestCurrency = this.excludedRequestCurrencies.has('SAR') ? null : 'SAR';
+    // A session choice can change while the shared display selector already has
+    // that value. Notify consumers even when its external currency does not.
+    if (this.requestCurrency !== previousCurrency || this.getExcludedRequestCurrencies().join(',') !== previousExcluded) this.publish({});
     return this.requestCurrency;
   }
   getExcludedRequestCurrencies() { return [...this.excludedRequestCurrencies].sort(); }

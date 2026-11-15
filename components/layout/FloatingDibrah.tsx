@@ -389,6 +389,10 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
     if (!viewMountedRef.current || generation !== conversationState.generation || !trimmed || conversation.getSnapshot().pending || !conversationState.ready) return;
     const job = conversation.begin();
     if (!job) return;
+    // Capture this message's currency intent before any async continuity read.
+    const currencyChoice = platformCurrencySelection(trimmed);
+    const requestCurrency = conversation.selectRequestCurrency(currencyChoice.requested, currencyChoice.excluded);
+    const excludedCurrencies = conversation.getExcludedRequestCurrencies();
     const context = conversation.context;
     const ensureFresh = async () => {
       if (!context.lease) return true;
@@ -422,9 +426,6 @@ function FloatingDibrahSession({ language, launcherIdentity, desktopIdentity }: 
     conversation.setDraft(current => current === draft ? '' : current);
     stickToBottomRef.current = true;
     try {
-      const currencyChoice = platformCurrencySelection(trimmed);
-      const requestCurrency = conversation.selectRequestCurrency(currencyChoice.requested, currencyChoice.excluded);
-      const excludedCurrencies = conversation.getExcludedRequestCurrencies();
       const requestBody = { message: trimmed, history, locale, excludedCurrencies, ...(requestCurrency ? { currency: requestCurrency } : {}),
         ...(trip && context.lease ? { continuityTrip: { revision: context.lease.revision, generation: context.lease.generation, trip } } : {}) };
       const transport = conversation.transport(job, JSON.stringify(['json', trimmed, requestBody.locale, requestBody.currency, requestBody.excludedCurrencies, requestBody.continuityTrip]), JSON.stringify(requestBody));

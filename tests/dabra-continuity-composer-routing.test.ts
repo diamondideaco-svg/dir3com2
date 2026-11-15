@@ -28,7 +28,7 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'
   const continuityPanel=()=>null;
   const resultsPanel=()=>null;
   const require=createRequire(import.meta.url);
-  const requests:FormData[]=[];const statuses:number[]=[];const optionsFault=options.fault;
+  const requests:FormData[]=[];const statuses:number[]=[];const optionsFault=options.fault;let deferContinuity=false;let releaseContinuity:(()=>void)|undefined;
   const withdraw=()=>{const current=state as ContinuitySnapshot;state=options.fault==='expired'
     ? {...current,tripExpiresAt:'2020-01-01T00:00:00Z',preferencesExpiresAt:'2020-01-01T00:00:00Z'}
     : {...current,consentEnabled:false,generation:current.generation+1,trip:null,tripExpiresAt:null};};
@@ -58,7 +58,7 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'
     '@/components/dabra/PlatformAnswer':{default:()=>null},
     '@/components/dabra/DabraFamilySafetyPanel':{default:()=>null},
     '@/components/v6/CollaborativeTripCapabilities':{default:()=>null},
-    '@/components/currency/useDisplayCurrency':{useDisplayCurrency:()=>({currency:'USD',setCurrency:()=>{}})},
+    '@/components/currency/useDisplayCurrency':{useDisplayCurrency:()=>({currency:'USD',setCurrency:()=>{}}),useCurrencyRates:()=>({snapshot:null,loading:false})},
     '@/components/i18n/LanguageProvider':{useLanguage:()=>({language:locale,direction:locale==='ar'?'rtl':'ltr'})},
     '@/lib/supabase/client':{supabase:{}},
   };
@@ -67,7 +67,7 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'
   const compiled=ts.transpileModule(readFileSync(new URL('../components/dabra/DabraChatCommerce.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   const exports={} as {default:()=>ReactElement};
   runInNewContext(compiled,{exports,require:(id:string)=>id in deps?deps[id]:require(id),JSON,Date,FormData,AbortController,AbortSignal,crypto:globalThis.crypto,window:{localStorage:{removeItem:()=>{}},sessionStorage:{removeItem:()=>{}}},fetch:async(url:string,options?:{body:FormData})=>{
-    if(url==='/api/dabra/continuity')return new Response(JSON.stringify({enabled:true,ownerId:'user:A',state}),{headers:{'content-type':'application/json'}});
+    if(url==='/api/dabra/continuity'){if(deferContinuity){deferContinuity=false;await new Promise<void>(resolve=>{releaseContinuity=resolve;});}return new Response(JSON.stringify({enabled:true,ownerId:'user:A',state}),{headers:{'content-type':'application/json'}});}
     assert.equal(url,'/api/ai2/chat'); const form=options!.body;requests.push(form);
     if(routeExports.POST){
       if(optionsFault==='before')withdraw();
@@ -85,7 +85,7 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'
   const settle=async()=>{for(let i=0;i<6;i++)await new Promise<void>(resolve=>setImmediate(resolve));};
   const send=async(message:string)=>{const input=elements(render()).find(el=>el.type==='input'&&el.props['aria-label']===(locale==='ar'?'رسالة للدبرة':'Message DABRA'));assert.ok(input);(input.props.onChange as (event:unknown)=>void)({target:{value:message}});const button=elements(render()).find(el=>el.props.className==='dabra-send')!;(button.props.onClick as ()=>void)();await settle();};
   const search=async(message:string)=>{const input=elements(render()).find(el=>el.props.id==='dabra-marketplace-query');assert.ok(input);(input.props.onChange as (event:unknown)=>void)({target:{value:message}});const form=elements(render()).find(el=>el.props.className==='dabra-marketplace-search')!;(form.props.onSubmit as (event:unknown)=>void)({preventDefault:()=>{}});await settle();};
-  return {trip,preferences,requests,statuses,panel,send,search,settle,slots,context:()=>conversation.context as ContinuityContext,messages:()=>conversation.getSnapshot().messages,setMessages:conversation.setMessages,setState:(value:unknown)=>{state=value;},state:()=>state as ContinuitySnapshot,results:()=>elements(render()).find(el=>el.type===resultsPanel)?.props};
+  return {trip,preferences,requests,statuses,panel,send,search,settle,slots,conversation,deferNextContinuity:()=>{deferContinuity=true;},releaseContinuity:()=>{assert.ok(releaseContinuity);releaseContinuity();},context:()=>conversation.context as ContinuityContext,messages:()=>conversation.getSnapshot().messages,setMessages:conversation.setMessages,setState:(value:unknown)=>{state=value;},state:()=>state as ContinuitySnapshot,results:()=>elements(render()).find(el=>el.type===resultsPanel)?.props};
 }
 
 for(const locale of ['ar','en'] as const)test(`${locale} actual resume/send/room/search handlers route the typed destination and forget it`,async()=>{
@@ -204,4 +204,16 @@ test('full composer sends postfix currency exclusion to actual POST and hides a 
   const answer=f.messages().at(-1)?.text ?? '';
   assert.doesNotMatch(answer,/\b[\d,.]+\s+USD\b/i);assert.match(answer,/cannot currently be shown|تعذر عرض بعض الأسعار/);
  }
+});
+
+
+test('full composer preflight cannot reapply an old exclusion over a newer choice',async()=>{
+ const f=fixture('en');
+ await (f.panel().onResume as (trip:SavedTrip,prefs:unknown)=>Promise<void>)(f.trip,f.preferences);
+ f.deferNextContinuity();await f.send('Show cars in Cairo, do not use USD');
+ assert.equal(f.requests.length,0);assert.deepEqual(f.conversation.getExcludedRequestCurrencies(),['USD']);
+ f.conversation.selectRequestCurrency('USD');f.releaseContinuity();await f.settle();
+ assert.equal(f.requests.length,1);assert.equal(f.requests[0].get('currency'),'SAR');
+ assert.deepEqual(JSON.parse(String(f.requests[0].get('excludedCurrencies'))),['USD']);
+ assert.equal(f.conversation.selectRequestCurrency(),'USD');assert.deepEqual(f.conversation.getExcludedRequestCurrencies(),[]);
 });

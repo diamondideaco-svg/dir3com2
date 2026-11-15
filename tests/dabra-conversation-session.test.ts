@@ -243,3 +243,20 @@ test('a rejected session currency falls back safely, and a later explicit choice
  session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-b',storage:'local'});
  assert.equal(session.selectRequestCurrency(),'SAR');
 });
+
+
+test('explicit currency change notifies views even if the external selector value was already selected', () => {
+  const session = ready();
+  let updates = 0;
+  const unsubscribe = session.subscribe(() => updates++);
+  session.selectRequestCurrency(null, ['USD']);
+  assert.equal(updates, 1);
+  session.selectRequestCurrency('USD');
+  assert.equal(updates, 2);
+  assert.equal(session.selectRequestCurrency(), 'USD');
+  assert.deepEqual(session.getExcludedRequestCurrencies(), []);
+  assert.equal(updates, 2, 'a read or repeated selection does not cause a render loop');
+  session.selectRequestCurrency('USD');
+  assert.equal(updates, 2);
+  unsubscribe();
+});
