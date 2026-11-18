@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -9,6 +9,8 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const openai = manifest.extensions?.['com.openai'];
 const review = openai?.review;
 const publication = openai?.publication;
+const mcpConfigPath = join(pluginRoot, '.mcp.json');
+const mcpConfig = JSON.parse(readFileSync(mcpConfigPath, 'utf8'));
 
 const failures = [];
 const check = (condition, message) => {
@@ -54,9 +56,16 @@ check(Boolean(publication?.translations?.['ar-SA']?.subtitle), 'Arabic subtitle 
 check(Boolean(publication?.translations?.['ar-SA']?.description), 'Arabic description is required.');
 
 for (const assetField of ['composerIcon', 'logo']) {
-  const relative = manifest.interface?.[assetField];
-  const assetPath = relative ? resolve(pluginRoot, relative) : '';
-  check(Boolean(relative) && existsSync(assetPath), `${assetField} asset is missing.`);
+  const assetReference = manifest.interface?.[assetField];
+  const assetPath = assetReference ? resolve(pluginRoot, assetReference) : '';
+  const assetRelativePath = assetPath ? relative(pluginRoot, assetPath) : '';
+  const assetIsPackaged = Boolean(assetReference)
+    && assetRelativePath !== ''
+    && !assetRelativePath.startsWith(`..${sep}`)
+    && assetRelativePath !== '..'
+    && !isAbsolute(assetRelativePath);
+  check(assetIsPackaged, `${assetField} must resolve inside the plugin package.`);
+  check(assetIsPackaged && existsSync(assetPath), `${assetField} asset is missing.`);
   if (existsSync(assetPath) && assetPath.endsWith('.png')) {
     const bytes = readFileSync(assetPath);
     const width = bytes.readUInt32BE(16);
@@ -71,7 +80,19 @@ const walk = (directory) => readdirSync(directory, { withFileTypes: true }).flat
   return entry.isDirectory() ? walk(absolute) : [absolute];
 });
 const packagedFiles = walk(pluginRoot);
-check(!packagedFiles.some((file) => file.includes(`${join('', 'node_modules')}\\`) || file.includes(`${join('', '.git')}\\`)), 'Package contains repository metadata or node_modules.');
+check(!packagedFiles.some((file) => relative(pluginRoot, file).split(sep).some((segment) => segment === 'node_modules' || segment === '.git')), 'Package contains repository metadata or node_modules.');
+
+const mcpServers = mcpConfig?.mcpServers;
+const dabraServer = mcpServers?.dabra;
+check(mcpServers && typeof mcpServers === 'object' && !Array.isArray(mcpServers), '.mcp.json must contain an mcpServers object.');
+check(dabraServer && typeof dabraServer === 'object' && !Array.isArray(dabraServer), '.mcp.json must define the dabra server.');
+check(typeof dabraServer?.url === 'string', 'The dabra MCP server must define a URL.');
+try {
+  const mcpUrl = new URL(dabraServer?.url);
+  check(mcpUrl.protocol === 'https:' && Boolean(mcpUrl.hostname), 'The dabra MCP URL must use public HTTPS.');
+} catch {
+  check(false, 'The dabra MCP URL must be a valid absolute URL.');
+}
 for (const file of packagedFiles.filter((candidate) => statSync(candidate).size <= 1024 * 1024 && /\.(?:json|md|txt)$/i.test(candidate))) {
   const text = readFileSync(file, 'utf8');
   check(!/(?:BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY|sk-[A-Za-z0-9_-]{20,}|(?:service[_ -]?role[_ -]?key|api[_ -]?key|access[_ -]?token)\s*[:=]\s*["']?[A-Za-z0-9_-]{16,})/i.test(text), `Potential secret found in ${file}.`);
@@ -86,7 +107,7 @@ if (failures.length > 0) {
     version: manifest.version,
     positiveCases: positive.length,
     negativeCases: negative.length,
-    mcpServer: JSON.parse(readFileSync(join(pluginRoot, '.mcp.json'), 'utf8')).mcpServers.dabra.url,
+    mcpServer: dabraServer.url,
     files: packagedFiles.map((file) => file.slice(pluginRoot.length + 1).replaceAll('\\', '/')),
   }, null, 2));
 }
