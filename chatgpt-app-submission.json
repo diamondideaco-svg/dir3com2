@@ -282,23 +282,23 @@
     "positive": [
       {
         "prompt": "List the five dir3com travel service families in English and identify which ones currently have verified marketplace data.",
-        "expectedResultShape": "Five canonical service families with explicit dataStatus, verifiedRecordCount, dataSource, generatedAt, and a clear distinction between catalog-only and verified marketplace data."
+        "expectedResultShape": "The visible answer lists exactly Drive, Stay, Fly, Concierge, and VIP, states for each whether verified marketplace records are currently available and identifies the source, includes when the information was generated, and clearly says that catalog presence does not prove availability."
       },
       {
         "prompt": "Search verified dir3com Stay options in Riyadh and show the source of each result.",
-        "expectedResultShape": "Zero or more verified Stay results with source, sourceSystem, verifiedAvailability, dataStatus, URL, and generatedAt. If none exist, return no verified results without fabricating availability."
+        "expectedResultShape": "The visible answer shows only currently verified Stay results and identifies the source and link for each one. If none are verified, it clearly says that no verified result is available, reports whether the source is unavailable, and does not invent inventory."
       },
       {
         "prompt": "Show me the dir3com Stay service details and preserve the source and availability",
-        "expectedResultShape": "One canonical Stay service object with slug, name, description, URL, dataStatus, verifiedRecordCount, source, and generatedAt."
+        "expectedResultShape": "The visible answer identifies the canonical Stay service, describes it, links to its DIR3COM page, states its source and current verified-record or source-availability status, and includes when the information was generated."
       },
       {
         "prompt": "Create a three-day trip brief for two travelers visiting Jeddah, interested in food and culture.",
-        "expectedResultShape": "A read-only planning brief containing the requested preferences, zero or more verified options, explicit dataStatus, nextStep, prohibitedActions, and generatedAt, with no booking or payment claim."
+        "expectedResultShape": "The visible English answer is a planning-only Jeddah brief for two travelers, explicitly says the trip lasts 3 days, preserves the food and culture interests, states the current data/source status and next step, and does not claim a booking or payment."
       },
       {
         "prompt": "اعرض خدمات dir3com الخمس بالعربية مع حالة مصدر البيانات.",
-        "expectedResultShape": "قائمة بالخدمات الخمس بالعربية مع dataStatus وverifiedRecordCount وdataSource وgeneratedAt وتنبيه واضح أن وجود الخدمة في الكتالوج لا يعني توفرًا فعليًا."
+        "expectedResultShape": "تعرض الإجابة المرئية بالعربية خدمات Drive وStay وFly وConcierge وVIP، وتوضح لكل خدمة حالة السجلات الموثقة ومصدرها ووقت توليد المعلومات، وتؤكد أن وجود الخدمة في الكتالوج لا يثبت توفرها فعليًا."
       }
     ],
     "negative": [

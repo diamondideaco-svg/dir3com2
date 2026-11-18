@@ -38,31 +38,31 @@
               "description": "List all five service families and distinguish catalog entries from verified marketplace data.",
               "prompt": "List the five dir3com travel service families in English and identify which ones currently have verified marketplace data.",
               "tools_triggered": "get_dir3com_services",
-              "expected_behavior": "Return exactly five canonical service families with dataStatus, verifiedRecordCount, dataSource, and generatedAt, and clearly state that catalog presence does not imply verified availability."
+              "expected_behavior": "The visible answer lists exactly Drive, Stay, Fly, Concierge, and VIP, states for each whether verified marketplace records are currently available and identifies the source, includes when the information was generated, and clearly says that catalog presence does not prove availability."
             },
             {
               "description": "Search current verified Stay marketplace results in Riyadh without fabricating inventory.",
               "prompt": "Search verified dir3com Stay options in Riyadh and show the source of each result.",
               "tools_triggered": "search_dir3com_marketplace",
-              "expected_behavior": "Return zero or more verified Stay results with source, sourceSystem, verifiedAvailability, dataStatus, URL, and generatedAt. If no verified result exists, return none and preserve the source status."
+              "expected_behavior": "The visible answer shows only currently verified Stay results and identifies the source and link for each one. If none are verified, it clearly says that no verified result is available, reports whether the source is unavailable, and does not invent inventory."
             },
             {
               "description": "Retrieve the canonical Stay service details with source and availability classification.",
               "prompt": "Show me the dir3com Stay service details and preserve the source and availability",
               "tools_triggered": "get_dir3com_service",
-              "expected_behavior": "Return the canonical Stay service object with slug, name, description, URL, dataStatus, verifiedRecordCount, source, and generatedAt."
+              "expected_behavior": "The visible answer identifies the canonical Stay service, describes it, links to its DIR3COM page, states its source and current verified-record or source-availability status, and includes when the information was generated."
             },
             {
               "description": "Create a read-only three-day Jeddah trip brief that preserves the requested duration and traveler preferences.",
               "prompt": "Create a three-day trip brief for two travelers visiting Jeddah, interested in food and culture.",
               "tools_triggered": "create_dabra_trip_brief",
-              "expected_behavior": "Return a planning-only brief containing destination, two travelers, food and culture interests, durationDays 3, explicit dataStatus, nextStep, prohibitedActions, and generatedAt without claiming a booking or payment."
+              "expected_behavior": "The visible English answer is a planning-only Jeddah brief for two travelers, explicitly says the trip lasts 3 days, preserves the food and culture interests, states the current data/source status and next step, and does not claim a booking or payment."
             },
             {
               "description": "List all five DIR3COM service families in Arabic with explicit source status.",
               "prompt": "اعرض خدمات dir3com الخمس بالعربية مع حالة مصدر البيانات.",
               "tools_triggered": "get_dir3com_services",
-              "expected_behavior": "اعرض الخدمات الخمس بالعربية مع dataStatus وverifiedRecordCount وdataSource وgeneratedAt، ووضّح أن وجود الخدمة في الكتالوج لا يعني توفرًا فعليًا."
+              "expected_behavior": "تعرض الإجابة المرئية بالعربية خدمات Drive وStay وFly وConcierge وVIP، وتوضح لكل خدمة حالة السجلات الموثقة ومصدرها ووقت توليد المعلومات، وتؤكد أن وجود الخدمة في الكتالوج لا يثبت توفرها فعليًا."
             }
           ],
           "negative": [
