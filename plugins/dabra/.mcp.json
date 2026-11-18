@@ -1,7 +1,6 @@
 {
   "mcpServers": {
     "dabra": {
-      "type": "http",
       "url": "https://dabra-dir3com-public.vercel.app/api/dabra/mcp"
     }
   }
