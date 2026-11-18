@@ -10,6 +10,8 @@
 - Public MCP runtime commit: `26aa9871938ec27013776e7fccffc18df343ebdc`
 - Public MCP: `https://dabra-dir3com-public.vercel.app/api/dabra/mcp`
 - Scope remains the same four read-only tools. V2 adds no booking, payment, cancellation, refund, account, private-data, document, or database-write capability.
+- Current integration boundary: only the published Drive catalog is operating, and its records remain `request_to_confirm` with `verifiedAvailability: false`. Stay, Fly, Concierge, and VIP have no connected live supplier inventory in V2 and must remain `source_unavailable`/in preparation until future provider integrations are completed. V2 must not describe any of these families as available or bookable.
+- V3 and future supplier/API integrations are explicitly out of scope until V2 is closed.
 
 ## OpenAI requirements checked
 

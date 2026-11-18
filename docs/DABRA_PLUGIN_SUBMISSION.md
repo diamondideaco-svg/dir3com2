@@ -21,9 +21,11 @@ Status: draft-ready. Final submission requires a verified DIR3COM publisher iden
 - MCP: https://dabra-dir3com-public.vercel.app/api/dabra/mcp
 - ChatGPT technical connection ID: `plugin_asdk_app_6a8efb101a348191a6e1b126ef1ca1dc`
 
-English description: DABRA is DIR3COM's bilingual, read-only travel planner for exploring verified marketplace services across Fly, Stay, Drive, Concierge, and VIP and preparing practical trip briefs. Transactions require explicit human approval and completion through DIR3COM.
+English description: DABRA is DIR3COM's bilingual, read-only travel planner for exploring the Fly, Stay, Drive, Concierge, and VIP service families, checking verified marketplace results when available, and preparing practical trip briefs. Transactions require explicit human approval and completion through DIR3COM.
 
-الوصف العربي: DABRA مخطط رحلات ثنائي اللغة من DIR3COM للقراءة فقط، يساعد على استكشاف خدمات السوق الموثقة ضمن Fly وStay وDrive وConcierge وVIP وإعداد موجز رحلة عملي. تتطلب المعاملات موافقة بشرية صريحة وإتمامها عبر DIR3COM.
+الوصف العربي: DABRA مخطط رحلات ثنائي اللغة من DIR3COM للقراءة فقط، يساعد على استكشاف عائلات خدمات Fly وStay وDrive وConcierge وVIP، والتحقق من نتائج السوق الموثقة عند توفرها، وإعداد موجز رحلة عملي. تتطلب المعاملات موافقة بشرية صريحة وإتمامها عبر DIR3COM.
+
+Current V2 data boundary: only the published Drive catalog is operating, and every Drive catalog record is request-to-confirm with unverified availability. Stay, Fly, Concierge, and VIP do not yet have connected live supplier inventory; their service descriptions may be shown, but their marketplace status must remain source unavailable/in preparation. DABRA must not claim real availability, booking, or provider connectivity for those families. V3 and new provider integrations are outside this submission.
 
 ## Starter prompts
 
