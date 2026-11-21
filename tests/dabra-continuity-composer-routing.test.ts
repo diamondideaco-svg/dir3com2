@@ -18,7 +18,7 @@ import { continuityChatTripFresh, type ContinuityChatTrip } from '../lib/dabra/c
 
 // Actual composer event handlers with controlled React hooks and transport.
 // This is semantic component/agent evidence, not authenticated DB/browser QA.
-function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'|'during'|'expired'|'after';savedLocale?:'ar'|'en';savedCurrency?:'USD'|'EUR'|'SAR';liveMarketLifecycle?:boolean}={}) {
+function fixture(locale:'ar'|'en', options:{actualPost?:boolean;guest?:boolean; fault?:'before'|'during'|'expired'|'after';savedLocale?:'ar'|'en';savedCurrency?:'USD'|'EUR'|'SAR';liveMarketLifecycle?:boolean}={}) {
   const conversation = new ConversationSession();
   conversation.resolve(conversation.invalidate('customer-public'), {ownerId:'user:A',storage:'local'});
   const preferences = { replyLanguage:options.savedLocale??locale,displayCurrency:options.savedCurrency??'USD',travelClass:'business',lodgingStyle:'hotel',itineraryPace:'relaxed' };
@@ -39,7 +39,7 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'
     '@/lib/dabra/continuity-chat-server':{resolveContinuityChatTrip:async(_request:NextRequest,input:ContinuityChatTrip)=>{
       const snapshot=parseContinuitySnapshot(state);return snapshot&&continuityChatTripFresh(input,snapshot)?snapshot.trip:null;
     }},
-    '@/lib/dabra/agent-context':{resolveAgentContext:async()=>({role:'customer',taskAuthority:{kind:'customer',actorId:'user:A',ownerId:'user:A'},isTaskAuthorityCurrent:async()=>true,readRequests:async()=>({kind:'authentication_required'})})},
+    '@/lib/dabra/agent-context':{resolveAgentContext:async()=>options.guest?{role:'guest',readRequests:async()=>({kind:'authentication_required'})}:({role:'customer',taskAuthority:{kind:'customer',actorId:'user:A',ownerId:'user:A'},isTaskAuthorityCurrent:async()=>true,readRequests:async()=>({kind:'authentication_required'})})},
     '@/lib/dabra/agent-dialogue':{getAgentDialoguePolicy:async()=>({publicMonthly:false})},
     '@/lib/currency/service':{getCurrencySnapshot:async()=>null},
     '@/lib/dabra/agent-handoff':{runInternalAgentTask:async(input:Parameters<typeof runInternalAgent>[0],handoffOptions?:{platformRequest?:Parameters<typeof runInternalAgent>[1];displayPolicy?:Parameters<typeof runInternalAgent>[2]})=>{
@@ -233,5 +233,28 @@ for(const locale of ['ar','en'] as const)test(`${locale} exact browser journey k
   const url=new URL(platformEntry(family,result.request as import('../lib/dabra/platform-assistant').PlatformUserRequest,locale,'USD'),'https://dir3com.com');
   assert.equal(url.searchParams.get('destination'),i<2?'riyadh':i<4?'jeddah':'cairo');
   if(i===2){assert.equal(f.context().trip,null);assert.equal(f.requests[i].has('continuityTrip'),false);assert.equal(url.searchParams.get('origin'),null);assert.equal(url.searchParams.get('rooms'),'2');}
+ }
+});
+
+const cairoGuestPrompts=[
+ 'أحتاج سيارة مع سائق في القاهرة لمدة ثلاثة أيام لشخصين بالغين ومعنا شنطتان كبيرتان. ميزانيتي 900 ريال سعودي للرحلة كاملة، لا لليوم. اعرض خيارات منشورة إن وجدت، لا تعرض السعر بالدولار، ولا تحجز. إذا ناقصك شيء اسأل سؤالًا واحدًا فقط.',
+ 'قصدي تخطيط رحلة جديدة: سيارة مع سائق في القاهرة لمدة ٣ أيام لشخصين وشنطتين. الحد الأعلى ٩٠٠ ريال سعودي إجماليًا. جاوبني بالعربي: ما الخيارات وما الذي تحتاجه مني؟',
+];
+for(const sequential of [true,false])test(`Task248 Cairo guest EN composer to actual POST, sequential=${sequential}`,async()=>{
+ const f=fixture('en',{actualPost:true,guest:true});
+ for(const [index,message] of cairoGuestPrompts.entries()){
+  if(!sequential&&index===0)continue;
+  await f.send(message);
+  assert.equal(f.statuses.at(-1),200);
+  assert.equal(f.requests.at(-1)!.has('continuityTrip'),false);
+  assert.equal(f.requests.at(-1)!.get('locale'),index===0?'en':'ar');
+  const answer=f.messages().at(-1)!.text;
+  assert.doesNotMatch(answer,/REQ|هل نتابع الرحلة الحالية|current trip or|تم الحجز|booking confirmed/i);
+  assert.match(answer,index===0?/cairo/i:/القاهرة/);
+  assert.match(answer,index===0?/3 days/:/3 أيام/);
+  assert.equal((answer.match(/[?؟]/g)??[]).length,1);
+  assert.doesNotMatch(answer,/\d+(?:\.\d+)?\s*USD/);
+  if(index===0)assert.match(answer,/900 SAR/);
+  else {assert.match(answer,/2 أشخاص/);assert.match(answer,/2 قطع أمتعة/);assert.match(answer,/ما تاريخا بدء الاستخدام/);}
  }
 });

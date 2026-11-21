@@ -73,7 +73,7 @@ export function agentIntent(message: string): AgentIntent {
   else if (/map|directions|خريطه|خرائط|خرايط|موقع الوجهه/.test(text)) tool = 'maps';
   else if (/(?:usd|sar|egp|aed|eur|دولار|ريال|جنيه|درهم|يورو)/.test(text) && /convert|exchange|تحويل|حول|كم يساوي|صرف/.test(text)) tool = 'currency';
   else if (reference || /my requests|my bookings|request status|طلباتي|حجوزاتي|حاله طلبي|حاله الطلب|وين طلبي/.test(text)) tool = 'my_requests';
-  else if (/support|customer service|complaint|cancel|refund|payment|\bpay\b|خدمه العملاء|شكوي|الغاء|الغي|استرد|ادفع|دفع|تحويل|كاش/.test(withoutNegativeActions(text))) tool = 'support';
+  else if (/support|customer service|complaint|cancel|refund|payment|\bpay\b|خدمه العملاء|شكوي|الغاء|(?<!\p{L})الغي|استرد|ادفع|دفع|تحويل|كاش/u.test(withoutNegativeActions(text))) tool = 'support';
   return { tool, reference, draft };
 }
 
