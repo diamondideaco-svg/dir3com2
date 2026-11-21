@@ -26,7 +26,7 @@ test('Task237 diagnostic refuses another database before observing private relat
  const f=fixture({}, {synthetic:false});assert.equal(await task237AdmissionDiagnostic(f.client,secret,secret,1),'diagnostic-unavailable');
  assert.equal(f.statements.some(s=>s.startsWith('SELECT\n')),false);assert.equal(f.statements.at(-1),'ROLLBACK');
 });
-for(const [code,expected]of[['57014','diagnostic-timeout'],['XX000','diagnostic-unavailable']] as const)test('Task237 diagnostic sanitizes SQL failure '+code,async()=>{
+for(const [code,expected]of[['57014','diagnostic-timeout-or-cancel'],['XX000','diagnostic-unavailable']] as const)test('Task237 diagnostic sanitizes SQL failure '+code,async()=>{
  const f=fixture({}, {error:{code,message:secret,detail:secret,query:secret}});
  assert.equal(await task237AdmissionDiagnostic(f.client,secret,secret,1),expected);assert.equal(f.statements.at(-1),'ROLLBACK');
 });

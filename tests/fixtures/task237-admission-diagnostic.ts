@@ -1,7 +1,7 @@
 // Test-only observation after an unchanged admission assertion fails.
 // Never returns query text, actor IDs, proofs, counters, credentials or errors.
 type DiagnosticClient = { query(text:string, values?:unknown[]):Promise<{rows:unknown[]}> };
-export type Task237AdmissionDiagnostic = 'eligibility-observed-false' | 'validity-observed-expired' | 'lock-observed-after-denial' | 'unclassified-denial' | 'diagnostic-timeout' | 'diagnostic-unavailable';
+export type Task237AdmissionDiagnostic = 'eligibility-observed-false' | 'validity-observed-expired' | 'lock-observed-after-denial' | 'unclassified-denial' | 'diagnostic-timeout-or-cancel' | 'diagnostic-unavailable';
 export async function task237AdmissionDiagnostic(client:DiagnosticClient, actorId:string, authorityId:string, observationExpiresAtMs:number):Promise<Task237AdmissionDiagnostic> {
  try {
   await client.query('BEGIN READ ONLY');
@@ -28,7 +28,7 @@ export async function task237AdmissionDiagnostic(client:DiagnosticClient, actorI
   // The holder is observed AFTER denial. Its absence cannot rule out a transient lock.
   return row.locked ? 'lock-observed-after-denial' : 'unclassified-denial';
  } catch(error:unknown) {
-  return error && typeof error==='object' && 'code' in error && error.code==='57014' ? 'diagnostic-timeout' : 'diagnostic-unavailable';
+  return error && typeof error==='object' && 'code' in error && error.code==='57014' ? 'diagnostic-timeout-or-cancel' : 'diagnostic-unavailable';
  } finally {
   // This read-only transaction starts only after claim() has already committed.
   try{await client.query('ROLLBACK');}catch{/* The original assertion still fails. */}
