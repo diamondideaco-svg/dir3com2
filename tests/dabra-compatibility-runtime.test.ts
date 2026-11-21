@@ -82,7 +82,8 @@ const failures = [
 ];
 function request(locale:'ar'|'en',stream:boolean,message:string,refinedTrip=trip) {
   return new NextRequest('http://localhost/api/ai2/chat',{method:'POST',body:JSON.stringify({locale,stream,message,
-    continuityTrip:{revision:1,generation:0,trip:refinedTrip},history:[{role:'user',content:'hotel Cairo 2026-12-12 2026-12-14 2 adults 1 room'},{role:'assistant',content:'Booked PRIVATE_HISTORY_MARKER Dubai 9 adults'}]})});
+    continuityTrip:{revision:1,generation:0,trip:refinedTrip},// The real resume UI starts a fresh lease and excludes pre-selection history.
+    history:[]})});
 }
 async function answer(response:Response,stream:boolean){if(stream)return response.text();const body=await response.json();assert.equal(body.agent.mutations,0);assert.equal(body.provider,'local');return body.answer as string;}
 function stayParams(text:string){const match=text.match(/\((\/marketplace[^)]+)\)/);assert.ok(match,text);return new URL(match[1],'https://local.invalid').searchParams;}
@@ -92,11 +93,11 @@ for(const locale of ['ar','en'] as const)for(const stream of [false,true])for(co
   globalThis.fetch=async(input,init)=>{calls++;assert.equal(f.reads(),3,'initial continuity read plus pre/post-admission owned-trip revalidation');assert.match(String(input),/chat\/completions$/);assert.doesNotMatch(String(init?.body),/PRIVATE_HISTORY_MARKER|Riyadh|Cairo/);
     return calls===1?Response.json({error:failure.error},{status:failure.status}):Response.json({choices:[{message:{content:'{"tool":"discover"}'}}]});};
   const response=await f.post(request(locale,stream,locale==='en'?'Could you help me arrange things?':'هل تساعدني في ترتيب التفاصيل؟'));assert.equal(response.status,200);
-  const text=await answer(response,stream);assert.ok(text.startsWith(locale==='en'?'You can continue through the platform options below':'يمكنك المتابعة عبر خيارات المنصة أدناه'));
+  const text=await answer(response,stream);assert.ok(text.startsWith(locale==='en'?'You can continue through the platform options below':'يمكنك المتابعة عبر خيارات المنصة أدناه'),text);
   const params=stayParams(text);assert.equal(params.get('destination'),'riyadh');assert.equal(params.get('checkIn'),'2026-12-12');assert.equal(params.get('checkOut'),'2026-12-14');assert.equal(params.get('adults'),'2');assert.equal(params.get('rooms'),'1');
-  assert.doesNotMatch(text,/PRIVATE_|Booked|Dubai|booking confirmed/);assert.equal(calls,1);assert.equal(f.reads(),3);assert.equal(trip.rooms,1,'saved snapshot not mutated');
-  const corrected=await f.post(request(locale,stream,locale==='en'?'hotels in Jeddah, 2 rooms':'فنادق في جدة، 2 غرف',{...trip,rooms:2}));assert.equal(corrected.status,200);
-  const next=stayParams(await answer(corrected,stream));assert.equal(next.get('destination'),'jeddah');assert.equal(next.get('rooms'),'2');assert.equal(next.get('checkIn'),'2026-12-12');assert.equal(calls,1,'explicit service correction adds no classifier inference');assert.equal(f.reads(),4,'explicit correction adds only its initial continuity read');assert.equal(trip.rooms,1,'explicit correction does not mutate saved snapshot');
+  assert.doesNotMatch(text,/PRIVATE_|Booked|Dubai|booking confirmed/);assert.equal(calls,1);assert.equal(f.reads(),4,'includes final owned-trip revalidation after execution');assert.equal(trip.rooms,1,'saved snapshot not mutated');
+  const corrected=await f.post(request(locale,stream,locale==='en'?'Instead, hotels in Jeddah, 2 rooms':'بدلا من ذلك، فنادق في جدة، 2 غرف',{...trip,rooms:2}));assert.equal(corrected.status,200);
+  const next=stayParams(await answer(corrected,stream));assert.equal(next.get('destination'),'jeddah');assert.equal(next.get('rooms'),'2');assert.equal(next.get('checkIn'),'2026-12-12');assert.equal(calls,1,'explicit service correction adds no classifier inference');assert.equal(f.reads(),6,'explicit correction adds initial and final owned-trip reads');assert.equal(trip.rooms,1,'explicit correction does not mutate saved snapshot');
  });
 }
 for(const locale of ['ar','en'] as const)for(const stream of [false,true])for(const change of ['delete','revoke','expiry','account','read-error'] as const){
@@ -111,3 +112,24 @@ for(const locale of ['ar','en'] as const)for(const stream of [false,true])test(`
  const response=await f.post(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',body:JSON.stringify({locale,stream,message:locale==='en'?'my requests':'طلباتي'})}));assert.equal(response.status,200);
  const text=await answer(response,stream);assert.match(text,/could not be read|تعذر قراءة/);assert.match(text,/\/my-requests/);assert.doesNotMatch(text,/No matching request|booking confirmed|تم الحجز|PRIVATE_/);assert.equal(calls,0);
 });
+
+// Negative controls are distinct from the fresh-selection recovery fixture.
+for (const locale of ['ar','en'] as const) for (const stream of [false,true]) {
+ for (const kind of ['conflicting-history','refusal','conditional'] as const) test(`${locale} stream=${stream} ${kind}: no stale trip projection or classifier`,async()=>{
+  const f=fixture();let calls=0;globalThis.fetch=async()=>{calls++;throw Error('Unexpected inference');};
+  const messages={
+   'conflicting-history':locale==='en'?'Could you help arrange things?':'هل تساعدني في ترتيب التفاصيل؟',
+   refusal:locale==='en'?'Do not use my saved trip. Hotels in Dubai':'لا تستخدم رحلتي المحفوظة. فنادق في دبي',
+   conditional:locale==='en'?'If I start a new trip in Dubai, show hotels':'إذا بدأت رحلة جديدة في دبي، اعرض الفنادق',
+  };
+  const response=await f.post(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',body:JSON.stringify({locale,stream,message:messages[kind],continuityTrip:{revision:1,generation:0,trip},history:kind==='conflicting-history'?[{role:'user',content:'hotel Cairo PRIVATE_HISTORY_MARKER'}]:[]})}));
+  assert.equal(response.status,200);const text=await answer(response,stream);
+  assert.doesNotMatch(text,/destination=riyadh|checkIn=2026-12-12|PRIVATE_HISTORY_MARKER|offer=/);
+  assert.equal(calls,0,'blocked/refused scope cannot open paid classification');
+ });
+ test(`${locale} stream=${stream} active Drive followup avoids classification`,async()=>{
+  const f=fixture();let calls=0;globalThis.fetch=async()=>{calls++;throw Error('Unexpected inference');};
+  const response=await f.post(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',body:JSON.stringify({locale,stream,message:locale==='en'?'No fixed budget':'الميزانية مفتوحة',history:[{role:'user',content:locale==='en'?'I need a car in Cairo for four people with a driver from 2026-12-12 to 2026-12-14':'أحتاج سيارة في القاهرة لأربعة أشخاص مع سائق من 2026-12-12 إلى 2026-12-14'}]})}));
+  assert.equal(response.status,200);const text=await answer(response,stream);assert.doesNotMatch(text,/offer=|booking confirmed|تم الحجز/);assert.equal(calls,0);
+ });
+}

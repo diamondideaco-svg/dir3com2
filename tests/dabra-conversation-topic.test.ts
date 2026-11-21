@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPlatformAssistantResponse as respond, platformContext, platformConversationScope } from '../lib/dabra/platform-assistant';
+import { buildPlatformAssistantResponse as respond, platformContext, platformConversationScope, platformUserRequestScope } from './fixtures/task248-platform-request';
 import { parseSavedTrip } from '../lib/dabra/continuity-contract';
 import { AI2_DABRA_CONVERSATION_COPY } from '../lib/ai2/prompt/contract';
 import { conversationIntent } from '../lib/dabra/conversation-renderer';
@@ -14,7 +14,7 @@ for (const locale of ['ar','en'] as const) {
    const result=respond(message,history,locale).answer;
    if (conversationIntent(message) === 'identity') assert.equal(result, AI2_DABRA_CONVERSATION_COPY[locale].identity);
    assert.notEqual(result,answer); assert.doesNotMatch(result,/Which service|أي خدمة|وش الخدمة/); assert.doesNotMatch(result,/destination=cairo|checkIn=|Sandbox/);
-   assert.equal(platformContext(message,history),message);
+   assert.equal(platformUserRequestScope(platformContext(message,history))?.message,message);
    history.push({role:'user',content:message},{role:'assistant',content:result});
   }
  });
@@ -43,7 +43,7 @@ test('current explicit service requests are not swallowed by conversational keyw
 test('an unrecognized current question cannot inherit a prior catalogue family or saved trip',()=>{
  const history:Turn[]=[{role:'user',content:'hotel in Cairo'},{role:'assistant',content:'Stay overview'}];
  for(const message of ['Why is the sky blue?','What do you mean by that?','لماذا السماء زرقاء؟']){
-  const context=platformContext(message,history);assert.equal(context,message);
+  const context=platformContext(message,history);assert.equal(platformUserRequestScope(context)?.message,message);
   assert.doesNotMatch(respond(message,history,'en').answer,/Sandbox|destination=cairo/);
  }
 });
@@ -65,12 +65,13 @@ for(const locale of ['ar','en']as const)test('punctuated topic stop and explicit
   const message=locale==='ar'?'وقف موضوع الفندق'+mark+' خلينا نحكي عن تجهيز حقيبة السفر':'Stop the hotel topic'+mark+' help me pack my suitcase';
   const history:Turn[]=[{role:'user',content:'hotel in Riyadh'},{role:'assistant',content:'Previous hotel overview'}];
   const stopped=platformConversationScope(message,history,trip);assert.equal(stopped.trip,null);assert.deepEqual(stopped.history,[]);
-  assert.doesNotMatch(platformContext(message,history,trip),/hotel|فندق|Riyadh|riyadh|الرياض/);
+  assert.doesNotMatch(respond(message,history,locale,undefined,undefined,undefined,trip).answer,/hotel|فندق|Riyadh|riyadh|الرياض/);
   const afterStop:Turn[]=[...history,{role:'user',content:message},{role:'assistant',content:'What would you like to prepare?'}];
-  const restored=platformConversationScope(resume,afterStop,trip);assert.deepEqual(restored.trip,trip);assert.deepEqual(restored.history,[]);
-  const next:Turn[]=[...afterStop,{role:'user',content:resume},{role:'assistant',content:'Which detail would you like to refine?'}];
+  const restored=platformConversationScope(resume,afterStop,trip);assert.equal(restored.trip,null,'text alone cannot reattach a detached saved trip');assert.deepEqual(restored.history,[]);
+  const selected=platformConversationScope(resume,[],trip);assert.deepEqual(selected.trip,trip,'a new selection supplies the fresh anchor');
+  const next:Turn[]=[{role:'user',content:resume},{role:'assistant',content:'Which detail would you like to refine?'}];
   assert.deepEqual(platformConversationScope(locale==='ar'?'أفضّل الهدوء':'I prefer a quiet stay',next,trip).trip,trip);
-  assert.match(platformContext(resume,afterStop,trip),/2026-12-12/);assert.match(platformContext(resume,afterStop,trip),/3 adults/);
+  assert.equal(platformConversationScope(resume,[],trip).trip?.startDate,'2026-12-12');assert.equal(platformConversationScope(resume,[],trip).trip?.adults,3);
   assert.equal(JSON.stringify(trip),original);
  }
 });

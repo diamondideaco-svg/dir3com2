@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
 import { POST } from '../app/api/ai2/chat/route';
-import { buildPlatformAssistantResponse as respond, findPlatformDriveOffers as offers, platformEntry } from '../lib/dabra/platform-assistant';
+import { buildPlatformAssistantResponse as respond, findPlatformDriveOffers as offers, platformEntry } from './fixtures/task248-platform-request';
 import { platformLinkAllowed } from '../components/dabra/PlatformAnswer';
 import { createDabraAssistantTextResponse } from '../lib/dabra/chat-response-contract';
 import { normalizeMarketplaceCard } from '../lib/marketplace/cards';
@@ -43,7 +43,8 @@ test('foreign destination does not claim Egypt rates as local availability',()=>
  assert.equal(offers('cars in Dubai').length,0);assert.equal(offers('سيارة في الرياض').length,0);
 });
 test('bounded followup retains family, model, and explicitly USD budget',()=>{
- const answer=respond('أقل من 100 دولار',[{role:'user',content:'سيارة في القاهرة'}],'ar').answer;
+ assert.doesNotMatch(respond('أقل من 100 دولار',[{role:'user',content:'سيارة في القاهرة'}],'ar').answer,/offer=|56\.10 USD/,'missing budget basis cannot authorize a price match');
+ const answer=respond('ميزانية السيارة أقل من 100 دولار لليوم',[{role:'user',content:'سيارة في القاهرة'}],'ar').answer;
  assert.match(answer,/56\.10 USD/);assert.doesNotMatch(answer,/935\.00 USD/);
  assert.match(respond('أرخص واحدة',[{role:'user',content:'جيتور T2 في القاهرة'}],'ar').answer,/140\.25/);
 });
@@ -83,7 +84,8 @@ test('invalid JSON message type is a 400, never a server exception',async()=>{
 });
 
 test('unlisted makes and model codes do not return misleading matches',()=>{
- assert.ok(offers('car in 2 hours Cairo USD 2026-12-12').length > 0);
+ assert.ok(offers('car in Cairo').length > 0);
+ assert.match(respond('car in 2 hours Cairo USD 2026-12-12',[],'en').answer,/less than 6 hours/);
  assert.equal(offers('BMW car in Cairo').length,0);assert.equal(offers('Jetour X999 in Cairo').length,0);
  assert.equal(offers('رينج روفر سبورت القاهرة')[0].id,'managed-eg-range-rover-sport');
 });

@@ -9,7 +9,7 @@ import type { ConversationJob } from '@/lib/dabra/conversation-session';
 import { newTripRequested } from '@/lib/dabra/trip-routing';
 import {parseContinuitySnapshot,type ContinuitySnapshot} from '@/lib/dabra/continuity-service';
 import PlatformResults from '@/components/dabra/PlatformResults';
-import { platformFamilies, platformContext, platformCurrencySelection, type PlatformFamily } from '@/lib/dabra/platform-assistant';
+import { createPlatformMarketSession, preparePlatformMarketInput, platformConversationScope, platformFamilies, platformCurrencySelection, platformUnanchoredScopeAnswer, platformUserRequestFacts, type PlatformFamily, type PlatformUserRequest, type PlatformLocalCurrencyPolicy } from '@/lib/dabra/platform-assistant';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FiArrowLeft, FiCheck, FiChevronDown, FiClock, FiHeart, FiMapPin, FiMessageCircle, FiMic, FiMicOff, FiPaperclip, FiSearch, FiSend, FiShoppingBag, FiSliders, FiStopCircle, FiVolume2, FiX } from 'react-icons/fi';
@@ -115,6 +115,12 @@ export default function DabraChatCommerce() {
 function DabraChatCommerceSession() {
   const { session: conversation, state: conversationState } = useDabraConversation();
   const viewMountedRef = useRef(true);
+  const marketSessionRef = useRef<ReturnType<typeof createPlatformMarketSession> | null>(null);
+  if (!marketSessionRef.current) marketSessionRef.current = createPlatformMarketSession();
+  const marketSession = marketSessionRef.current;
+  const marketTurnsRef = useRef<Array<{role:'user';content:string;currencyRevision:number}>>([]);
+  const marketHistoryUncertainRef = useRef(false);
+  const marketCurrencyMutationRef = useRef(false);
   const { language, direction } = useLanguage();
   const { currency, setCurrency } = useDisplayCurrency();
   const requestCurrency = conversation.selectRequestCurrency();
@@ -134,7 +140,8 @@ function DabraChatCommerceSession() {
   const [voicePlaybackPartial, setVoicePlaybackPartial] = useState(false);
   const [approvedVoiceAvailable, setApprovedVoiceAvailable] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<string | undefined>();
-  const [platformQuery, setPlatformQuery] = useState<{ query: string; family: PlatformFamily; trip?: SavedTrip | null } | null>(null);
+  const [platformQuery, setPlatformQuery] = useState<{ request: PlatformUserRequest; family: PlatformFamily; currencyPolicy:PlatformLocalCurrencyPolicy } | null>(null);
+  const [marketNotice, setMarketNotice] = useState('');
   const [services, setServices] = useState<MarketplaceService[]>([]);
   const [marketplaceQuery, setMarketplaceQuery] = useState('');
   const [lastMarketplaceQuery, setLastMarketplaceQuery] = useState('');
@@ -240,6 +247,9 @@ function DabraChatCommerceSession() {
   }
 
   function invalidateActiveRequests() {
+    marketSession.noteUserInput();
+    marketSession.invalidate();
+    if (marketTurnsRef.current.length) marketHistoryUncertainRef.current = true;
     lifecycleRef.current += 1;
     marketplaceRequestRef.current += 1;
     marketplaceAbortRef.current?.abort();
@@ -247,6 +257,55 @@ function DabraChatCommerceSession() {
     setLoading(false);
     stopVoiceResources();
   }
+
+  // The shared local session owns the view lifecycle. A separate server-side
+  // source/consent check is still required across requests and other views.
+  useEffect(() => {
+    let previous = conversation.getSnapshot();
+    marketSession.trackLease(JSON.stringify(conversation.context?.lease ?? null));
+    let observedCurrency=conversation.selectRequestCurrency(), observedExclusions=conversation.getExcludedRequestCurrencies();
+    let currencyKey = `${observedCurrency ?? ''}:${observedExclusions.join(',')}`;
+    return conversation.subscribe(() => {
+      const next = conversation.getSnapshot();
+      const nextCurrency=conversation.selectRequestCurrency(), nextExclusions=conversation.getExcludedRequestCurrencies();
+      const nextCurrencyKey = `${nextCurrency ?? ''}:${nextExclusions.join(',')}`;
+      // Compare user content as well as IDs: an edit or removal changes the
+      // input behind an already-rendered result. Ignore tagged presentation
+      // messages from the continuity context and our own in-flight chat turn.
+      const independent = (items: typeof next.messages) => conversation.context?.independent ? conversation.context.independent(items) : items;
+      const previousUsers = new Map(independent(previous.messages).filter(item=>item.role==='user').map(item=>[item.id,item.text]));
+      const nextUsers = independent(next.messages).filter(item=>item.role==='user');
+      const nextUserIds = new Set(nextUsers.map(item=>item.id));
+      const foreignInput = nextUsers.some(item=>(!previousUsers.has(item.id) || previousUsers.get(item.id)!==item.text) && !marketSession.ownsChatMessage(item.id))
+        || [...previousUsers.keys()].some(id=>!nextUserIds.has(id) && !marketSession.ownsChatMessage(id));
+      const currencyChanged = nextCurrencyKey !== currencyKey;
+      const newForeignJob = next.pending && !previous.pending && !marketSession.hasChat();
+      const nextLease=JSON.stringify(conversation.context?.lease ?? null);
+      const leaseChanged=!marketSession.leaseMatches(nextLease);
+      marketSession.trackLease(nextLease);
+      const authorityChanged = next.generation !== previous.generation || next.preferences !== previous.preferences || leaseChanged;
+      const invalidate = authorityChanged || foreignInput || newForeignJob || currencyChanged && !marketCurrencyMutationRef.current;
+      // A fallback caused by rejecting the previous currency is not an
+      // affirmative selection of the fallback. Only a selector event can
+      // re-allow its own currency; unrelated exclusions remain intact.
+      const fallback=Boolean(observedCurrency && nextExclusions.includes(observedCurrency) && !observedExclusions.includes(observedCurrency));
+      const explicitlySelected=!marketCurrencyMutationRef.current && nextCurrency && (
+        observedExclusions.includes(nextCurrency) && !nextExclusions.includes(nextCurrency)
+        || nextCurrency!==observedCurrency && !fallback);
+      if (currencyChanged) marketSession.noteCurrencyChange(explicitlySelected ? nextCurrency : null);
+      if (invalidate) {
+        marketSession.noteUserInput();
+        marketSession.invalidate();
+        if (next.generation !== previous.generation) { marketTurnsRef.current = []; marketHistoryUncertainRef.current = false; }
+        else if (foreignInput && marketTurnsRef.current.length) marketHistoryUncertainRef.current = true;
+        marketplaceRequestRef.current += 1;
+        marketplaceAbortRef.current?.abort();
+        marketplaceAbortRef.current = null;
+        setPlatformQuery(null); setServices([]); setResultState('idle'); setLoading(false);
+      }
+      previous = next; observedCurrency=nextCurrency; observedExclusions=nextExclusions; currencyKey = nextCurrencyKey;
+    });
+  }, [conversation, marketSession]);
 
   useEffect(() => {
     viewMountedRef.current = true;
@@ -350,51 +409,90 @@ function DabraChatCommerceSession() {
     return visibleServices.filter((service) => selected.has(String(service.id)) && recommendationEligible(service));
   }, [cart, visibleServices]);
 
-  async function searchMarketplace(message: string, familyOverride = activeTab, applyCurrencyChoice = true) {
-    const normalizedQuery = message.trim();
-    if (!normalizedQuery && !familyOverride) return;
-    if (applyCurrencyChoice) {
-      const choice = platformCurrencySelection(normalizedQuery);
-      conversation.selectRequestCurrency(choice.requested, choice.excluded);
-    }
-    if(!await ensureContinuityFresh())return;
-    if(newTripRequested(message))forgetContinuityContext();
+  async function searchMarketplace(message: string, familyOverride = activeTab, applyCurrencyChoice = true, fromTab = false) {
+    const chatRefresh=!applyCurrencyChoice && !fromTab;
+    if (!chatRefresh) marketSession.noteUserInput();
+    // begin() invalidates the previous result before reading or composing input.
+    let boundaryUnclear = false;
+    const preparation = preparePlatformMarketInput(marketSession, () => ({ role:'user', content:message.trim() }), async (event, isCurrent) => {
+      if (!event.content && !familyOverride) return { history: [], trip: null };
+      if (!await ensureContinuityFresh(false, undefined, isCurrent) || !isCurrent()) throw new Error('continuity-unavailable');
+      const context = continuityContextRef.current;
+      const sourceMessages = context.scoped(conversation.getSnapshot().messages);
+      const decision = newTripRequested.decision(event.content);
+      const standalone=platformConversationScope(event.content,[],context.trip);
+      const freshService=Boolean(context.trip && !standalone.trip && !standalone.tripStatus && !standalone.scopeReason && platformFamilies(event.content).length && !newTripRequested.deferred(event.content));
+      const explicitBoundary = freshService || decision.mentioned && decision.kind === 'new' && !decision.refused && !decision.contested
+        || platformUnanchoredScopeAnswer(event.content) === 'separate';
+      if (explicitBoundary) {
+        marketSession.setHistoryBoundary(sourceMessages.map(item=>item.id));
+        marketTurnsRef.current = []; marketHistoryUncertainRef.current = false;
+      } else if (marketHistoryUncertainRef.current && marketTurnsRef.current.length) {
+        boundaryUnclear = true; throw new Error('market-history-order-uncertain');
+      }
+      const history = [...sourceMessages.filter(item=>marketSession.includeHistoryMessage(item.id)).map(({ role, text: content }) => ({ role, content })), ...marketTurnsRef.current.map(({role,content})=>({role,content}))];
+      if (history.length > 64) throw new Error('history-limit');
+      const preview = platformConversationScope(event.content, history, context.trip);
+      // Only a clear final decision may detach the local anchor. Contested
+      // requests keep it protected while the issued projection is withheld.
+      if (context.trip && (explicitBoundary || preview.scopeReason === 'trip-refused' || decision.mentioned && (decision.kind === 'new' || decision.refused) && !decision.contested)) context.scope(event.content, history);
+      else if (preview.trip && preview.tripStatus !== 'contested' && preview.tripStatus !== 'revalidation') context.refine(event.content);
+      marketSession.trackLease(JSON.stringify(context.lease ?? null));
+      return { history, trip: context.trip };
+    });
     const requestId = ++marketplaceRequestRef.current;
     marketplaceAbortRef.current?.abort();
     const controller = new AbortController();
     marketplaceAbortRef.current = controller;
-    setLastMarketplaceQuery(normalizedQuery);
-    setLoading(true);
-    setResultState('idle');
+    setPlatformQuery(null); setServices([]); setMarketNotice(''); setLoading(true); setResultState('idle');
     try {
-      const parsed = parseDabraMarketplaceQuery(normalizedQuery, familyOverride as Parameters<typeof parseDabraMarketplaceQuery>[1]);
-      const history = continuityContextRef.current.scoped(messages).map(({ role, text: content }) => ({ role, content }));
-      const trip = continuityContextRef.current.scope(normalizedQuery, history);
-      const context = platformContext(normalizedQuery, history, trip);
-      const requestCurrency = conversation.selectRequestCurrency();
-      const families = platformFamilies(context);
-      const selected = familyOverride ? familyOverride.replace('dir3-', '') : families[0];
+      const prepared = await preparation;
+      if (requestId !== marketplaceRequestRef.current || prepared.status === 'stale') return;
+      if (prepared.status !== 'ready') {
+        if (boundaryUnclear) { setMarketNotice(language === 'ar' ? 'تغيرت المحادثة بعد بحث السوق. ابدأ طلباً جديداً واذكر تفاصيله حتى أتحقق منها بأمان.' : 'The conversation changed after the market search. Start a new request and restate its details so I can check them safely.'); return; }
+        throw new Error('market-input');
+      }
+      if (!marketSession.isCurrent(prepared.ticket)) return;
+      const normalizedQuery = prepared.event.content;
+      if (!normalizedQuery && !familyOverride) return;
+      const facts = platformUserRequestFacts(prepared.request);
+      if (!facts) return;
+      if (applyCurrencyChoice) {
+        marketCurrencyMutationRef.current = true;
+        try { conversation.selectRequestCurrency(facts.requestedCurrency, facts.currentExcludedCurrencies); }
+        finally { marketCurrencyMutationRef.current = false; }
+        if (!marketSession.isCurrent(prepared.ticket) || !platformUserRequestFacts(prepared.request)) return;
+      }
+      setLastMarketplaceQuery(normalizedQuery);
+      const replayed=fromTab ? marketTurnsRef.current.findLast(turn=>turn.content===normalizedQuery) : undefined;
+      const supersedeEarlierCurrency=Boolean(replayed && marketSession.explicitCurrencyAfter(replayed.currencyRevision,conversation.selectRequestCurrency()));
+      if (!replayed && !chatRefresh) marketTurnsRef.current.push({...prepared.event,currencyRevision:marketSession.currencyVersion()});
+      // If the only named service was refused, render its guarded explanation
+      // instead of treating that mention as a marketplace search.
+      const selected = familyOverride ? familyOverride.replace('dir3-', '') : facts.families[0] ?? facts.deniedFamilies[0] ?? facts.contestedFamilies[0] ?? (facts.blocked ? 'drive' : undefined);
       if (selected && ['drive', 'stay', 'fly', 'concierge', 'vip'].includes(selected)) {
-        setPlatformQuery({ query: context, family: selected as PlatformFamily, trip });
-        setServices([]);
-        setResultState('idle');
+        if (!marketSession.isCurrent(prepared.ticket) || !platformUserRequestFacts(prepared.request)) return;
+        const currencyPolicy=marketSession.issueCurrencyPolicy(prepared.ticket,prepared.request,conversation.selectRequestCurrency(),conversation.getExcludedRequestCurrencies(),supersedeEarlierCurrency);
+        if (!currencyPolicy) return;
+        setPlatformQuery({ request: prepared.request, family: selected as PlatformFamily, currencyPolicy });
         return;
       }
-      setPlatformQuery(null);
+      const parsed = parseDabraMarketplaceQuery(normalizedQuery, familyOverride as Parameters<typeof parseDabraMarketplaceQuery>[1]);
       const params = toMarketplaceSearchParams(parsed, 12);
+      const requestCurrency = conversation.selectRequestCurrency();
       if (requestCurrency) params.set('currency', requestCurrency);
-      // The canonical family contract is equivalent to params.set('family', activeTab).
       const response = await fetch(`/api/public/marketplace/items?${params.toString().replace('query=', 'q=')}`, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error('marketplace');
       const payload = (await response.json()) as { items?: Array<Record<string, unknown>> };
-      if (requestId !== marketplaceRequestRef.current) return;
+      // This check follows the last await. The capability is local, not an
+      // authentication, source, or consent proof for any server response.
+      if (requestId !== marketplaceRequestRef.current || !marketSession.isCurrent(prepared.ticket) || !platformUserRequestFacts(prepared.request)) return;
       const nextServices = publicItemsToServices(payload.items ?? [], requestCurrency);
       setServices(nextServices);
       setResultState(nextServices.length ? 'idle' : 'empty');
     } catch {
       if (controller.signal.aborted || requestId !== marketplaceRequestRef.current) return;
-      setServices([]);
-      setResultState('error');
+      setServices([]); setResultState('error');
     } finally {
       if (requestId === marketplaceRequestRef.current) {
         marketplaceAbortRef.current = null;
@@ -437,23 +535,33 @@ function DabraChatCommerceSession() {
   }
 
   async function sendMessage(text = input) {
+    marketSession.noteUserInput();
+    marketSession.invalidate();
+    if (marketTurnsRef.current.length) marketHistoryUncertainRef.current = true;
+    setPlatformQuery(null); setServices([]); setResultState('idle'); setLoading(false);
+    marketplaceRequestRef.current += 1; marketplaceAbortRef.current?.abort();
     const generation = conversation.getSnapshot().generation;
     if(!viewMountedRef.current || generation !== viewGeneration || conversation.getSnapshot().pending || !identityResolved)return;
     if (!text.trim() && !conversation.context.draft && !attachments.length) return;
     const job = conversation.begin();
     if (!job) return;
+    marketSession.beginChat(job.id);
+    const inputVersion = marketSession.userVersion();
     // A message's currency intent takes effect at submission, before any async gate.
     const explicitText = text.trim();
     const currencyChoice = platformCurrencySelection(explicitText);
-    const requestedCurrency = conversation.selectRequestCurrency(currencyChoice.requested, currencyChoice.excluded);
+    marketCurrencyMutationRef.current = true;
+    let requestedCurrency:DisplayCurrency|null;
+    try { requestedCurrency = conversation.selectRequestCurrency(currencyChoice.requested, currencyChoice.excluded); }
+    finally { marketCurrencyMutationRef.current = false; }
     const excludedCurrencies = conversation.getExcludedRequestCurrencies();
     if (currencyChoice.requested && currencyChoice.requested !== currency) setCurrency(currencyChoice.requested);
-    if(!await ensureContinuityFresh(false, job) || !conversation.isCurrent(job)) { conversation.finish(job); return; }
+    if(!await ensureContinuityFresh(false, job) || !conversation.isCurrent(job)) { conversation.finish(job); marketSession.endChat(job.id); return; }
     if(newTripRequested(text))forgetContinuityContext(job);
     const context=continuityContextRef.current;
     const draft=context.draft;
     const message = explicitText || draft || (attachments.length ? t.attachmentPrompt : '');
-    if (!message || !identityResolved) { conversation.finish(job); return; }
+    if (!message || !identityResolved) { conversation.finish(job); marketSession.endChat(job.id); return; }
     const requestHistory=context.scoped(messages).map(({role,text:content})=>({role,content}));
     const trip=context.scope(explicitText,requestHistory);
     // Never send a saved-trip presentation string as an ordinary user turn
@@ -461,7 +569,7 @@ function DabraChatCommerceSession() {
     if(draft&&!explicitText&&!trip){
       setContinuityDraft(null);
       conversation.setError(language==='ar'?'تعذر استئناف الرحلة المحفوظة. افتحها مجدداً وحاول مرة أخرى.':'Could not resume the saved trip. Open it again and retry.');
-      conversation.finish(job);return;
+      conversation.finish(job);marketSession.endChat(job.id);return;
     }
     const requestMessage=explicitText || trip?.families.join(' ') || message;
     const derivedResponse=Boolean(context.lease);
@@ -469,7 +577,6 @@ function DabraChatCommerceSession() {
     stopVoicePlayback();
     setVoicePlaybackPartial(false);
     const lifecycle = lifecycleRef.current;
-    const marketplaceGeneration = marketplaceRequestRef.current;
     const signal = job.signal;
     const pendingAttachments = attachments;
     // A fresh continuity read can outlive a new edit in the composer.
@@ -532,9 +639,10 @@ function DabraChatCommerceSession() {
       context.finishAnswer(assistantId);
       const current = conversation.isCurrent(job);
       conversation.finish(job);
+      marketSession.endChat(job.id);
       if (current && viewMountedRef.current && lifecycle === lifecycleRef.current) {
         setVoiceStatus('idle');
-        if (marketplaceGeneration === marketplaceRequestRef.current) void searchMarketplace(explicitText || trip?.families.join(' ') || message, activeTab, false);
+        if (marketSession.userVersion() === inputVersion && explicitText) void searchMarketplace(explicitText, activeTab, false);
       }
     }
   }
@@ -748,16 +856,16 @@ function DabraChatCommerceSession() {
     conversation.setContinuitySnapshot(state);
   }
 
-  async function ensureContinuityFresh(force=false, job?: ConversationJob){
-    if (viewGeneration !== conversation.getSnapshot().generation) return false;
+  async function ensureContinuityFresh(force=false, job?: ConversationJob, marketCurrent?:()=>boolean){
+    if (viewGeneration !== conversation.getSnapshot().generation || marketCurrent && !marketCurrent()) return false;
     if(!force&&!continuityContextRef.current.lease)return true;
     const lifecycle=lifecycleRef.current;
     try{const response=await fetch('/api/dabra/continuity',{cache:'no-store',credentials:'same-origin',signal:job?AbortSignal.any([job.signal,AbortSignal.timeout(8_000)]):AbortSignal.timeout(8_000)});
-      const body=await response.json();if((job?!conversation.isCurrent(job):lifecycle!==lifecycleRef.current) || viewGeneration !== conversation.getSnapshot().generation)return false;
+      const body=await response.json();if((job?!conversation.isCurrent(job):lifecycle!==lifecycleRef.current) || viewGeneration !== conversation.getSnapshot().generation || marketCurrent && !marketCurrent())return false;
       const state=response.ok&&body.enabled===true&&body.ownerId===persistenceContext?.ownerId?parseContinuitySnapshot(body.state):null;
       if(!continuityContextRef.current.isFresh(persistenceContext?.ownerId??'',state)){forgetContinuityContext();conversation.setContinuitySnapshot(state);return false;}
       conversation.setContinuitySnapshot(state);return true;
-    }catch{if((job?conversation.isCurrent(job):lifecycle===lifecycleRef.current) && viewGeneration === conversation.getSnapshot().generation)forgetContinuityContext();return false;}
+    }catch{if((job?conversation.isCurrent(job):lifecycle===lifecycleRef.current) && viewGeneration === conversation.getSnapshot().generation && (!marketCurrent || marketCurrent()))forgetContinuityContext();return false;}
   }
 
   function setAppliedContinuityPreferences(preferences: ContinuityPreferences | null) {
@@ -866,8 +974,9 @@ function DabraChatCommerceSession() {
 
         <section className="dabra-results" aria-label={t.results}>
           <div className="dabra-results-header"><div><span className="dabra-kicker">{t.market}</span><h2>{t.options}</h2></div><button type="button" className="dabra-cart-button" onClick={() => setShowCart(true)} aria-label={t.openBag}><FiShoppingBag /><b>{cart.length}</b></button></div>
-          <div className="dabra-tabs" role="tablist" aria-label={t.marketSections}>{tabValues.map((value, index) => <button type="button" role="tab" aria-selected={activeTab === value} className={cn(activeTab === value && 'active')} key={t.tabs[index]} onClick={() => { setActiveTab(value); void searchMarketplace(marketplaceQuery, value, false); }}>{t.tabs[index]}</button>)}</div>
+          <div className="dabra-tabs" role="tablist" aria-label={t.marketSections}>{tabValues.map((value, index) => <button type="button" role="tab" aria-selected={activeTab === value} className={cn(activeTab === value && 'active')} key={t.tabs[index]} onClick={() => { setActiveTab(value); void searchMarketplace(marketplaceQuery, value, false, true); }}>{t.tabs[index]}</button>)}</div>
           <form className="dabra-marketplace-search" onSubmit={(event) => { event.preventDefault(); void searchMarketplace(marketplaceQuery); }}><label className="sr-only" htmlFor="dabra-marketplace-query">{t.searchMarket}</label><input id="dabra-marketplace-query" value={marketplaceQuery} onChange={(event) => setMarketplaceQuery(event.target.value)} placeholder={t.searchPlaceholder} maxLength={200} /><button type="submit" disabled={!marketplaceQuery.trim() && !activeTab} aria-label={t.search}><FiSearch /></button></form>
+          {marketNotice && <p className="dabra-muted" role="status">{marketNotice}</p>}
           {!platformQuery && <div className="dabra-filter-row"><button type="button" aria-pressed={availabilityOnly} onClick={() => setAvailabilityOnly((value) => !value)}><FiSliders /> {t.availableOnly}</button><button type="button" aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly((value) => !value)}><FiHeart /> {t.saved}</button><label><span className="sr-only">{t.sort}</span><select value={resultSort} onChange={(event) => setResultSort(event.target.value as DabraResultSort)}><option value="recommended">{t.sortOptions[0]}</option><option value="price-low">{t.sortOptions[1]}</option><option value="price-high">{t.sortOptions[2]}</option><option value="comfort">{t.sortOptions[3]}</option><option value="closest">{t.sortOptions[4]}</option></select><FiChevronDown aria-hidden="true" /></label><button type="button" onClick={() => setCompareMode((value) => !value)}>{compareMode ? t.endCompare : t.compare}</button></div>}
 
           {(resultSort === 'price-low' || resultSort === 'price-high') && visiblePriceCurrencies.size > 1 && <p className="dabra-muted">{language === 'ar' ? 'الأسعار مرتبة داخل كل عملة، وليست مقارنة بين العملات.' : 'Prices are sorted within each currency, not compared across currencies.'}</p>}
@@ -876,7 +985,7 @@ function DabraChatCommerceSession() {
           {!loading && resultState === 'error' && <div className="dabra-state"><FiX /><p>{t.marketError}</p></div>}
           {!loading && !platformQuery && resultState === 'idle' && services.length === 0 && <div className="dabra-state dabra-state-welcome"><FiArrowLeft /><p>{t.marketWelcome}</p></div>}
 
-          {!loading && platformQuery && <PlatformResults query={platformQuery.query} family={platformQuery.family} language={language} trip={platformQuery.trip} />}
+          {!loading && platformQuery && <PlatformResults request={platformQuery.request} family={platformQuery.family} language={language} currencyPolicy={platformQuery.currencyPolicy} />}
           {!loading && recommendationDecisions.length > 0 && <div className="dabra-recommendations"><div className="dabra-section-label">{t.recommendation}</div>{recommendationDecisions.map(({ service, badge, why }) => <ProductCard key={service.id} language={language} service={service} pricePolicy={pricePolicy} badge={badge} why={why} inCart={cart.some((item) => item.id === service.id)} favorite={favorites.includes(service.id)} onCart={() => toggleCart(service)} onFavorite={() => toggleFavorite(service.id)} compare={compareMode} />)}</div>}
           {compareMode && comparisonServices.length > 1 && <ComparisonTable language={language} services={comparisonServices} pricePolicy={pricePolicy} />}
           {alternatives.length > 0 && <div className="dabra-other-results"><div className="dabra-section-label">{t.alternatives}</div>{alternatives.map((service) => <ProductCard key={service.id} language={language} service={service} pricePolicy={pricePolicy} catalogOnly={!recommendationEligible(service)} inCart={cart.some((item) => item.id === service.id)} favorite={favorites.includes(service.id)} onCart={() => toggleCart(service)} onFavorite={() => toggleFavorite(service.id)} compare={compareMode} />)}</div>}

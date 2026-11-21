@@ -5,7 +5,7 @@ import { GET } from '../app/api/currency/route';
 import { POST } from '../app/api/ai2/chat/route';
 import { clearCurrencyCacheForTests, convertCurrency, getCurrencySnapshot } from '../lib/currency/service';
 import { displayPrice } from '../lib/currency/display';
-import { findPlatformDriveOffers } from '../lib/dabra/platform-assistant';
+import { findPlatformDriveOffers } from './fixtures/task248-platform-request';
 const originalFetch=globalThis.fetch;
 const rows=()=>Object.entries({SAR:3.75,EGP:50,EUR:0.9,AED:3.67}).map(([quote,rate])=>({base:'USD',quote,rate,date:new Date().toISOString().slice(0,10)}));
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json'}});
@@ -45,6 +45,6 @@ test('selected currency reaches DABRA answer and internal handoff, only FX endpo
   const data=await response.json();assert.ok(data.answer.includes(expected));assert.ok(data.answer.includes(`currency=${currency}`));assert.doesNotMatch(data.answer,/https?:|Budget|Flynas|Saudia/);
  }
  assert.equal(calls,1);
- const snapshot=await getCurrencySnapshot();const matches=findPlatformDriveOffers('سيارة أقل من 250 ريال في القاهرة',{currency:'SAR',snapshot});
+ const snapshot=await getCurrencySnapshot();assert.equal(findPlatformDriveOffers('سيارة أقل من 250 ريال في القاهرة',{currency:'SAR',snapshot}).length,0,'unknown budget basis cannot match daily rates');const matches=findPlatformDriveOffers('ميزانية السيارة أقل من 250 ريال لليوم في القاهرة',{currency:'SAR',snapshot});
  assert.ok(matches.length>0);for(const offer of matches)assert.ok(displayPrice(offer.chauffeur,offer.currency,'SAR',snapshot).amount<=250);
 });

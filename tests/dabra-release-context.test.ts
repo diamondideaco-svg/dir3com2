@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { agentIntent } from '../lib/dabra/agent-contract';
-import { buildPlatformAssistantResponse, findPlatformDriveOffers, platformContext, platformEntry } from '../lib/dabra/platform-assistant';
+import { buildPlatformAssistantResponse, findPlatformDriveOffers, platformContext, platformEntry } from './fixtures/task248-platform-request';
 import { conversationForLocale } from '../lib/dabra/conversation-locale';
 import { platformLinkAllowed } from '../components/dabra/PlatformAnswer';
 import { readFileSync } from 'node:fs';
@@ -32,7 +32,7 @@ test('family follow-up preserves bounded user trip preferences but not assistant
   assert.equal(params.get('destination'), 'cairo');
   assert.equal(params.get('checkIn'), '2026-10-12');
   assert.equal(params.get('adults'), '2');
-  assert.doesNotMatch(context, /Dubai|2027/);
+  assert.doesNotMatch(buildPlatformAssistantResponse(context,[],'en').answer, /Dubai|2027/);
 });
 test('latest explicit preferences replace earlier values including natural dates and locale change', () => {
   const context = platformContext('بدلها من 12 إلى 14 ديسمبر 2026 في الرياض 3 بالغين', [{ role: 'user', content: 'hotel Cairo 2026-10-12 2026-10-14 2 adults' }]);
@@ -66,7 +66,7 @@ test('one-room natural preference survives the hotel handoff', () => {
 test('explicit chat currency updates the existing selector and the same request', () => {
   const source = readFileSync('components/dabra/DabraChatCommerce.tsx', 'utf8');
   assert.match(source, /const currencyChoice = platformCurrencySelection\(explicitText\)/);
-  assert.match(source, /const requestedCurrency = conversation\.selectRequestCurrency\(currencyChoice\.requested, currencyChoice\.excluded\)/);
+  assert.match(source, /requestedCurrency = conversation\.selectRequestCurrency\(currencyChoice\.requested, currencyChoice\.excluded\)/);
   assert.match(source, /if \(currencyChoice\.requested && currencyChoice\.requested !== currency\) setCurrency\(currencyChoice\.requested\)/);
   assert.match(source, /if \(requestedCurrency\) form\.set\('currency', requestedCurrency\)/);
   const choice = source.indexOf('const currencyChoice = platformCurrencySelection(explicitText);');

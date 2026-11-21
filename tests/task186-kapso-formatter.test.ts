@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { DRIVE_OFFERS } from '../lib/drive/catalog';
-import { platformEntry } from '../lib/dabra/platform-assistant';
+import { platformEntry } from './fixtures/task248-platform-request';
 import { NextRequest } from 'next/server';
 import { POST } from '../app/api/ai2/chat/route';
 

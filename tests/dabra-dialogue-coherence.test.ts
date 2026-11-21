@@ -1,3 +1,4 @@
+import * as platform from '../lib/dabra/platform-assistant';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -13,12 +14,15 @@ import type { ContinuitySnapshot } from '../lib/dabra/continuity-service';
 import type { SavedTrip } from '../lib/dabra/continuity-contract';
 import { bareDrivePartyWithLuggage, driveDialogue, driveDialogueCopy, driveQuantities } from '../lib/dabra/drive-planning';
 import { explicitDabraReplyLocale } from '../lib/dabra/locale-contract';
-import { buildPlatformAssistantResponse as respond, normalizePlatformQuery as normalize, platformContext, platformCurrency, platformCurrencySelection } from '../lib/dabra/platform-assistant';
+import { buildPlatformAssistantResponse as respond, normalizePlatformQuery as normalize, platformContext, platformCurrency, platformCurrencySelection } from './fixtures/task248-platform-request';
 import { cityRoles } from '../lib/dabra/trip-routing';
 import { DRIVE_OFFERS, VEHICLE_MASTER } from '../lib/drive/catalog';
 import { driveModelReference, driveModelReferenceCopy } from '../lib/drive/model-reference';
 import { DRIVE_OWNER_AVAILABILITY, driveOwnerAvailabilityCopy } from '../lib/drive/owner-availability';
 
+const task248OriginalFetch=globalThis.fetch;
+test.before(()=>{globalThis.fetch=async()=>{throw new Error('OFFLINE_TEST_NETWORK_BLOCKED');};});
+test.after(()=>{globalThis.fetch=task248OriginalFetch;});
 type Turn = {role:'user'|'assistant';content:string};
 const prefs={city:'cairo',ambiguous:false,dates:['2026-12-10','2026-12-13'],party:'4',durationDays:3};
 
@@ -306,7 +310,7 @@ test('currency interpretation skips negation, preserves later positive choices a
  assert.equal(platformCurrency('use USD, not USD'),null);
  const history:Turn[]=[{role:'user',content:'I need a car in Cairo with a budget of 8000 USD'},
   {role:'assistant',content:'Synthetic reply'},{role:'user',content:'Do not use USD'},{role:'assistant',content:'Synthetic reply'}];
- assert.equal(platformCurrency(platformContext('show cars',history)),null);
+ assert.equal(platform.platformRequestCurrencySelection(platformContext('show cars',history)).requested,null);
 });
 
 

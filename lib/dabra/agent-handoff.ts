@@ -1,7 +1,7 @@
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { runInternalAgent } from './agent';
-import { platformConversationScope } from './platform-assistant';
+import { createPlatformScopeOwner, platformUserRequest, platformUserRequestScope, type PlatformUserRequest, type PlatformLocalCurrencyPolicy } from './platform-assistant';
 import { composePlatformDialogue } from './agent-platform-dialogue';
 import { parseGeneralTravelAdvice } from './agent-general-travel';
 import { callInternalAgentProvider } from '../ai2/runtime/agent-provider-dispatch';
@@ -242,9 +242,14 @@ function negativeReply(reply: CoreReply) { return ['authentication_required','fo
 /** Existing Core owns all facts/links/reads. This ledger is request-local, not a durable queue. */
 export async function runInternalAgentTask(input: CoreInput, options: {
   signal?: AbortSignal; coordinator?: AgentTaskCoordinator; id?: string; idempotencyKey?: string; dialogue?: AgentDialoguePolicy;
-  responseContract?: AgentDialogueResponseContract;
+  responseContract?: AgentDialogueResponseContract; platformRequest?:PlatformUserRequest; displayPolicy?:PlatformLocalCurrencyPolicy;
 } = {}): Promise<AgentCoreTaskResult> {
-  input = { ...input, ...platformConversationScope(input.message, input.history, input.trip) };
+  // Keep the original USER event and its blocked scope across every await.
+  // This local value neither authenticates an actor nor changes the task digest.
+  const platformRequest=options.platformRequest ?? platformUserRequest({role:'user',content:input.message},input.history,input.trip,createPlatformScopeOwner());
+  const projected=platformUserRequestScope(platformRequest);
+  if (!projected) return {kind:'stopped',task:{kind:'blocked',reason:'invalid_task'}};
+  input = { ...input, ...projected };
   const intent = input.intent ?? agentIntent(input.message);
   const actor = input.context.taskAuthority ?? { kind: 'guest' as const };
   const scope = privateTaskScope(intent, actor);
@@ -254,7 +259,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
     const kind = input.context.taskAuthorityFailure ?? (input.context.role === 'guest' ? 'authentication_required' : 'forbidden');
     const response = await runInternalAgent({ ...input, intent, context: { ...input.context, readRequests: async () => ({ kind }),
       readExecutiveMetrics: async () => ({ kind: 'forbidden' }), readContactInbox: async () => ({ kind: 'forbidden' }),
-      readSupportCases: async () => ({ kind: 'forbidden' }) } });
+      readSupportCases: async () => ({ kind: 'forbidden' }) } }, platformRequest, options.displayPolicy);
     return { kind: 'response', response, task: { kind: 'blocked', reason: 'forbidden' } };
   };
   if (!scope) return deny();
@@ -283,7 +288,7 @@ export async function runInternalAgentTask(input: CoreInput, options: {
     run: async ({ task, signal, reserve }) => {
       reserve({ attempts: 1, inputTokens: 0, outputTokens: 0, costUsd: 0 });
       if (signal.aborted) throw new Error('task_stopped');
-      coreOutput = await runInternalAgent({ ...input, intent });
+      coreOutput = await runInternalAgent({ ...input, intent }, platformRequest, options.displayPolicy);
       return { output: coreOutput, evidence: { taskId: task.id, owner: task.owner,
         inputDigest: task.inputDigest, outputDigest: agentArtifactDigest(coreOutput), source: 'dir3com-core' } };
     },

@@ -11,7 +11,7 @@ import type { ContinuityContext } from '../lib/dabra/continuity-context';
 import { ConversationSession } from '../lib/dabra/conversation-session';
 import { runInternalAgent } from '../lib/dabra/agent';
 import { createDabraAssistantTextResponse } from '../lib/dabra/chat-response-contract';
-import { platformEntry } from '../lib/dabra/platform-assistant';
+import { platformEntry } from './fixtures/task248-platform-request';
 import { NextRequest } from 'next/server';
 import { parseContinuitySnapshot } from '../lib/dabra/continuity-service';
 import { continuityChatTripFresh, type ContinuityChatTrip } from '../lib/dabra/continuity-chat';
@@ -41,8 +41,8 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'
     '@/lib/dabra/agent-context':{resolveAgentContext:async()=>({role:'customer',taskAuthority:{kind:'customer',actorId:'user:A',ownerId:'user:A'},isTaskAuthorityCurrent:async()=>true,readRequests:async()=>({kind:'authentication_required'})})},
     '@/lib/dabra/agent-dialogue':{getAgentDialoguePolicy:async()=>({publicMonthly:false})},
     '@/lib/currency/service':{getCurrencySnapshot:async()=>null},
-    '@/lib/dabra/agent-handoff':{runInternalAgentTask:async(input:Parameters<typeof runInternalAgent>[0])=>{
-      const response=await runInternalAgent(input);if(options.fault==='during'||options.fault==='expired')withdraw();return {kind:'response',response};
+    '@/lib/dabra/agent-handoff':{runInternalAgentTask:async(input:Parameters<typeof runInternalAgent>[0],handoffOptions?:{platformRequest?:Parameters<typeof runInternalAgent>[1];displayPolicy?:Parameters<typeof runInternalAgent>[2]})=>{
+      const response=await runInternalAgent(input,handoffOptions?.platformRequest,handoffOptions?.displayPolicy);if(options.fault==='during'||options.fault==='expired')withdraw();return {kind:'response',response};
     }},
   };
   const routeExports={} as {POST:(request:NextRequest)=>Promise<Response>};
@@ -110,12 +110,12 @@ for(const locale of ['ar','en'] as const)test(`${locale} actual resume/send/room
   assert.equal(f.context().trip?.origin,'Cairo');
   assert.match(f.messages().at(-1)!.text,/destination=jeddah/);
   const result=f.results()!;
-  const url=new URL(platformEntry('stay',String(result.query),locale,'USD',result.trip as SavedTrip),'https://dir3com.com');
+  const url=new URL(platformEntry('stay',result.request as import('../lib/dabra/platform-assistant').PlatformUserRequest,locale,'USD'),'https://dir3com.com');
   assert.equal(url.searchParams.get('destination'),'jeddah');assert.equal(url.searchParams.get('rooms'),'2');
   await f.search(locale==='en'?'hotels in Dubai':'فنادق في دبي');
   assert.equal(f.context().trip,null,'a different destination is a separate request');
   const independent=f.results()!;
-  const independentUrl=new URL(platformEntry('stay',String(independent.query),locale,'USD',null),'https://dir3com.com');
+  const independentUrl=new URL(platformEntry('stay',independent.request as import('../lib/dabra/platform-assistant').PlatformUserRequest,locale,'USD'),'https://dir3com.com');
   assert.equal(independentUrl.searchParams.get('destination'),'dubai');
   assert.equal(independentUrl.searchParams.get('origin'),null);
   assert.equal(f.requests.length,3,'public result routing does not send a chat');

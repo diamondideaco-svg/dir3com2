@@ -65,7 +65,7 @@ const databaseTests = new Set([
   'schema-compatibility.integration.test.ts',
 ]);
 const testFiles = readdirSync(new URL('../tests/', import.meta.url))
-  .filter((file) => file.endsWith('.test.ts') || ['kapso-bounded-contract.test.mjs', 'kapso-provider-query.test.mjs'].includes(file))
+  .filter((file) => file.endsWith('.test.ts') || file.startsWith('task248-') && file.endsWith('.test.mjs') || ['kapso-bounded-contract.test.mjs', 'kapso-provider-query.test.mjs'].includes(file))
   .sort();
 
 function run(files, conditions = []) {
