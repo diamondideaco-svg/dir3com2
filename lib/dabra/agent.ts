@@ -1,7 +1,7 @@
 import { renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
 import { agentIntent, agentRequestStatus, type AgentContext, type AgentIntent, type AgentRequest } from './agent-contract';
-import { buildPlatformAssistantResponse, type PlatformPricing } from './platform-assistant';
-import { normalizePlatformQuery } from './platform-assistant';
+import { preparePlatformAssistantResponse, type PlatformLocalCurrencyPolicy, type PlatformPricing } from './platform-assistant';
+import { normalizePlatformQuery, createPlatformScopeOwner, platformUserRequest, platformRequestCurrencySelection, type PlatformUserRequest } from './platform-assistant';
 import { getWeatherSnapshot } from '../weather/service';
 import { convertCurrency } from '../currency/service';
 import { displayPrice, parseDisplayCurrency } from '../currency/display';
@@ -16,7 +16,7 @@ type Input = {
 };
 
 /** The model can select a read tool. Facts, permissions, links and replies stay server-owned. */
-export async function runInternalAgent({ message, locale, history, context, pricing, trip, needsClarification = false, intent = agentIntent(message) }: Input) {
+export async function runInternalAgent({ message, locale, history, context, pricing, trip, needsClarification = false, intent = agentIntent(message) }: Input, issuedRequest?:PlatformUserRequest, displayPolicy?:PlatformLocalCurrencyPolicy) {
   const ar = locale === 'ar';
   const link = serverReplyLink;
   const text = serverReplySegments();
@@ -26,14 +26,20 @@ export async function runInternalAgent({ message, locale, history, context, pric
   const requestsLink = link(ar ? 'طلباتي' : 'My requests', '/my-requests');
   const operationsLink = link(ar ? 'عمليات النقل في مصر' : 'Egypt Drive Operations', '/admin/operations/drive');
   const operational = ['staff', 'admin', 'ceo'].includes(context.role);
+  const platformRequest=issuedRequest ?? platformUserRequest({role:'user',content:message},history,trip,createPlatformScopeOwner());
+  const excludedCurrencies = pricing?.excludedCurrencies ?? platformRequestCurrencySelection(platformRequest).excluded;
 
   function requestLine(row: AgentRequest) {
     let result = `${row.reference}: ${agentRequestStatus(row.status, locale)}`;
     if (row.quote) {
       const converted = displayPrice(row.quote.amount, row.quote.currency, pricing?.currency ?? row.quote.currency, pricing?.snapshot);
-      result += ` — ${ar ? 'عرض مسجّل' : 'Recorded quote'}: ${converted.amount.toFixed(2)} ${converted.currency}`;
-      if (converted.unavailable) result += ar ? ' (بعملة المصدر؛ الصرف غير متاح)' : ' (source currency; FX unavailable)';
-      else if (converted.currency !== row.quote.currency) result += ` (${ar ? 'الأصل' : 'source'}: ${row.quote.amount.toFixed(2)} ${row.quote.currency})`;
+      const blocked = excludedCurrencies.includes(parseDisplayCurrency(converted.currency) as NonNullable<ReturnType<typeof parseDisplayCurrency>>);
+      if (blocked) result += ar ? ' — تعذر عرض قيمة العرض بعملة مقبولة؛ راجع العمليات' : ' — Quote cannot be shown in an accepted currency; contact Operations';
+      else {
+        result += ` — ${ar ? 'عرض مسجّل' : 'Recorded quote'}: ${converted.amount.toFixed(2)} ${converted.currency}`;
+        if (converted.unavailable) result += ar ? ' (بعملة المصدر؛ الصرف غير متاح)' : ' (source currency; FX unavailable)';
+        else if (converted.currency !== row.quote.currency && !excludedCurrencies.includes(parseDisplayCurrency(row.quote.currency) as NonNullable<ReturnType<typeof parseDisplayCurrency>>)) result += ` (${ar ? 'الأصل' : 'source'}: ${row.quote.amount.toFixed(2)} ${row.quote.currency})`;
+      }
       if (row.quote.expiresAt) {
         const expiry = Date.parse(row.quote.expiresAt);
         if (Number.isFinite(expiry) && expiry <= Date.now()) result += ar ? ' — انتهت صلاحية العرض؛ اطلب تحديثه' : ' — quote expired; request an update';
@@ -44,7 +50,7 @@ export async function runInternalAgent({ message, locale, history, context, pric
   }
 
   if (intent.tool === 'discover') {
-    const response = buildPlatformAssistantResponse(message, history, locale, undefined, undefined, pricing, trip);
+    const response = preparePlatformAssistantResponse(platformRequest, [], locale, undefined, undefined, pricing,undefined,undefined,displayPolicy).deliver();
     // Optional understanding can fail without blocking existing platform journeys.
     // Keep history, catalogue facts and links; do not surface provider internals.
     const continuation = ar

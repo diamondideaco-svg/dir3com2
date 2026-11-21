@@ -78,6 +78,11 @@ export function DabraConversationProvider({ children }: { children: ReactNode })
   return <ConversationContext.Provider value={{ session, boundary }}>{children}</ConversationContext.Provider>;
 }
 
+// The site-wide selector also renders in isolated shells without chat.
+export function useOptionalDabraConversationSession() {
+  return useContext(ConversationContext)?.session ?? null;
+}
+
 export function useDabraConversation() {
   const value = useContext(ConversationContext);
   if (!value) throw new Error('DABRA conversation provider required');

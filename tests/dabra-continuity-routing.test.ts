@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ContinuityContext } from '../lib/dabra/continuity-context';
 import { continuityChatTripFresh, continuityRequestLocale, parseContinuityChatTrip } from '../lib/dabra/continuity-chat';
-import { buildPlatformAssistantResponse, platformContext, platformEntry } from '../lib/dabra/platform-assistant';
+import { buildPlatformAssistantResponse, platformContext, platformEntry } from './fixtures/task248-platform-request';
 import { newTripRequested } from '../lib/dabra/trip-routing';
 import type { ContinuitySnapshot } from '../lib/dabra/continuity-service';
 import type { SavedTrip } from '../lib/dabra/continuity-contract';

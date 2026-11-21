@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useDisplayCurrency } from '@/components/currency/useDisplayCurrency';
+import { useExplicitDisplayCurrency } from '@/components/currency/useExplicitDisplayCurrency';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { FiCompass, FiFilter } from 'react-icons/fi';
@@ -90,7 +90,7 @@ export default function MarketplaceExplorer({
   const [query, setQuery] = useState(initialQuery);
   const [collection, setCollection] = useState<MarketplaceCollectionKey>(defaultCollection);
   const [sort, setSort] = useState<MarketplaceSortKey>(sortOptions.some(option => option.value === initialUrlParams.get('sort')) ? initialUrlParams.get('sort') as MarketplaceSortKey : 'recommended');
-  const { currency: displayCurrency, setCurrency: setDisplayCurrency } = useDisplayCurrency();
+  const { currency: displayCurrency, setCurrency: setDisplayCurrency } = useExplicitDisplayCurrency();
   const [category, setCategory] = useState<MarketplacePageCategory | 'all'>(defaultCategory ?? 'all');
   const [page, setPage] = useState(1);
   const [advancedFilters, setAdvancedFilters] = useState({

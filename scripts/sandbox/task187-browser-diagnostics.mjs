@@ -1,4 +1,5 @@
 import {once} from 'node:events';
+import {TASK187_PROXY_RESET_PREFIX,TASK187_PROXY_RESET_SOURCES} from './task187-browser-network.mjs';
 
 export const TASK187_DIAGNOSTIC_PREFIX='TASK187_BROWSER_DIAGNOSTIC=';
 export const TASK187_PHASE_PREFIX='TASK187_BROWSER_PHASE=';
@@ -89,6 +90,16 @@ function safeStackCategories(text){
  }
  return result;
 }
+// The proxy emits only fixed source names for an unhandled reset. Reject
+// unknown, repeated or incomplete markers; neither their origin nor a missing
+// hint is proof of cause. Never copy untrusted text into the result.
+function unhandledProxyResetHint(text){
+ if(text===null)return null;
+ const lines=text.split(/\r?\n/).filter(line=>line.startsWith(TASK187_PROXY_RESET_PREFIX));
+ if(lines.length!==1)return null;
+ const source=lines[0].slice(TASK187_PROXY_RESET_PREFIX.length);
+ return TASK187_PROXY_RESET_SOURCES.includes(source)?source:null;
+}
 /** Closed exit metadata only. Startup codes are observed hints, not proven causes.
  * @param {unknown} error @param {unknown} stderr
  */
@@ -103,8 +114,10 @@ export function task187BrowserExitSummary(error,stderr){
  const text=typeof stderr==='string'&&stderrInspection==='bounded'?stderr:null;
  const match=text?.match(/^Error \[(ERR_[A-Z_]+)\]:/m);
  const hints=closedErrorHints(text);
+ const proxyResetSource=hints.errorCode==='ECONNRESET'?unhandledProxyResetHint(text):null;
  return {
   ...hints,...phaseTrace(text),stackFrames:hints.errorCode==='ECONNRESET'?safeStackCategories(text):[],
+  ...(proxyResetSource?{unhandledProxyResetSource:proxyResetSource}:{}),
   exitCode:Number.isSafeInteger(code)&&typeof code==='number'&&code>=0&&code<=255?code:null,
   spawnCode:typeof code==='string'&&browserSpawnCodes.has(code)?code:null,
   signal:typeof signal==='string'&&browserExitSignals.has(signal)?signal:null,

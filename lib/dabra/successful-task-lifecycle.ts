@@ -22,7 +22,7 @@ export function successfulTaskInputDigest(input: Input) {
   // expiresAt is local cache metadata, not a quoted price. Equivalent fresh
   // refetches share identity; stale snapshots still conflict and cannot replay
   // an answer that relied on a fresh quote. Execution keeps the original TTL.
-  const pricing = input.pricing ? { currency: input.pricing.currency, snapshot: snapshot ? {
+  const pricing = input.pricing ? { currency: input.pricing.currency, ...(input.pricing.excludedCurrencies?.length ? { excludedCurrencies: [...input.pricing.excludedCurrencies].sort() } : {}), snapshot: snapshot ? {
     base: snapshot.base, provider: snapshot.provider, asOf: snapshot.asOf,
     rates: Object.fromEntries(DISPLAY_CURRENCIES.map(currency => [currency, snapshot.rates[currency]])),
     fresh: Number.isFinite(snapshot.expiresAt) && snapshot.expiresAt > Date.now(),

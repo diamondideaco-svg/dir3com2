@@ -1,8 +1,8 @@
 import type {ContinuitySnapshot} from './continuity-service';
 import type { SavedTrip } from './continuity-contract';
-import { refinePlatformTrip } from './platform-assistant';
+import { platformConversationScope, refinePlatformTrip } from './platform-assistant';
 type Message={id:string;role:'user'|'assistant';text:string};
-type Lease={ownerId:string;revision:number;generation:number;preferences:boolean;trip:boolean};
+type Lease={ownerId:string;revision:number;generation:number;preferences:boolean;trip:boolean;preferencesSource:boolean;tripSource:boolean;tripSourceId:string|null};
 
 // Provenance is kept separately from user-entered content. Derived messages
 // never enter the existing browser context cache, even before revocation.
@@ -12,8 +12,14 @@ export class ContinuityContext {
  trip:SavedTrip|null=null;
  private derivedIds=new Set<string>();
  private pendingIds=new Set<string>();
+ private beforeResumeIds=new Set<string>();
  capture(ownerId:string,state:ContinuitySnapshot,preferences:boolean,trip:boolean){
-  this.lease={ownerId,revision:state.revision,generation:state.generation,preferences,trip};
+  const prior=this.lease;
+  const sameSource=Boolean(prior&&prior.ownerId===ownerId&&prior.revision===state.revision&&prior.generation===state.generation);
+  const preferencesSource=preferences||Boolean(sameSource&&prior?.preferencesSource);
+  const tripSource=trip||Boolean(sameSource&&prior?.tripSource);
+  const tripSourceId=trip ? state.trip?.id??null : sameSource ? prior?.tripSourceId??null : null;
+  this.lease={ownerId,revision:state.revision,generation:state.generation,preferences,trip,preferencesSource,tripSource,tripSourceId};
   if(trip && !this.trip && state.trip)this.trip={...state.trip,families:[...state.trip.families]};
   if(!trip)this.trip=null;
  }
@@ -21,18 +27,28 @@ export class ContinuityContext {
   const lease=this.lease;
   if(!lease)return true;
   return Boolean(state&&state.consentEnabled&&lease.ownerId===ownerId&&lease.revision===state.revision&&lease.generation===state.generation
-   &&(!lease.preferences||(state.preferences&&Date.parse(state.preferencesExpiresAt??'')>now))
-   &&(!lease.trip||(state.trip&&Date.parse(state.tripExpiresAt??'')>now)));
+   &&(!lease.preferencesSource||(state.preferences&&Date.parse(state.preferencesExpiresAt??'')>now))
+   &&(!lease.tripSource||(lease.tripSourceId&&state.trip?.id===lease.tripSourceId&&Date.parse(state.tripExpiresAt??'')>now)));
  }
  tag(...ids:string[]){for(const id of ids)this.derivedIds.add(id);}
  independent<T extends Message>(messages:T[]){return messages.filter(message=>!this.derivedIds.has(message.id)&&!this.pendingIds.has(message.id));}
+ stageResume(messages:Message[]){this.beforeResumeIds=new Set(messages.map(message=>message.id));}
+ // Match the server's bounded scan so old independent chat is not sent indefinitely.
+ scoped<T extends Message>(messages:T[]){return this.independent(messages).filter(message=>!this.beforeResumeIds.has(message.id)).slice(-64);}
  beginAnswer(id:string){this.pendingIds.add(id);}
  finishAnswer(id:string){this.pendingIds.delete(id);}
  cachedMessages(messages:Message[]){return this.independent(messages).filter(m=>m.text.trim()).slice(-20).map(({id,role,text})=>({id,role,text}));}
  forget(){
-  const derived=new Set(this.derivedIds);this.lease=null;this.draft=null;this.trip=null;this.derivedIds.clear();
+  const derived=new Set(this.derivedIds);this.lease=null;this.draft=null;this.trip=null;this.derivedIds.clear();this.beforeResumeIds.clear();
   return <T extends Message>(messages:T[])=>messages.filter(message=>!derived.has(message.id));
  }
  clear<T extends Message>(messages:T[]){return this.forget()(messages);}
+ scope(message:string,history:Array<{role:'user'|'assistant';content:string}>) {
+  if(this.trip && !platformConversationScope(message,history,this.trip).trip) {
+   // Detach only the in-memory trip projection; saved account state is untouched.
+   this.trip=null;this.draft=null;if(this.lease)this.lease={...this.lease,trip:false};
+  }
+  return this.refine(message);
+ }
  refine(message:string){if(this.trip)this.trip=refinePlatformTrip(this.trip,message);return this.trip;}
 }

@@ -213,3 +213,50 @@ test('attachment retry retains original File body and UUID; new file selection c
   session.fail(second,'delivery unknown');session.finish(second);
   const third=session.begin();assert.ok(third);assert.notEqual(session.transport(third,'selected-file-2',new FormData()).id,original.id);
 });
+
+test('discarding a retry releases its previous request identity and body',()=>{
+ const session=ready();const first=session.begin();assert.ok(first);
+ const old=session.transport(first,'same-key','SYNTHETIC_PRIVATE_BODY');
+ session.fail(first,'failed');session.finish(first);session.discardRetryTransport();
+ const next=session.begin();assert.ok(next);
+ const current=session.transport(next,'same-key','independent body');
+ assert.notEqual(current.id,old.id);assert.equal(current.body,'independent body');
+ session.finish(next);
+});
+
+test('request currency is independent per session and resets at an identity boundary',()=>{
+ const session=ready();session.setContinuityCurrency({before:'USD',applied:'EUR'});
+ assert.equal(session.selectRequestCurrency(),'SAR');
+ assert.equal(session.selectRequestCurrency('USD'),'USD');
+ assert.equal(session.selectRequestCurrency(),'USD');
+ session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-b',storage:'local'});
+ assert.equal(session.selectRequestCurrency(),'SAR');
+});
+
+
+test('a rejected session currency falls back safely, and a later explicit choice wins',()=>{
+ const session=ready();session.selectRequestCurrency('USD');
+ assert.equal(session.selectRequestCurrency(null,['USD']),'SAR');
+ assert.equal(session.selectRequestCurrency(null,['SAR','USD']),null);
+ assert.equal(session.selectRequestCurrency('EUR',['USD']),'EUR');
+ assert.equal(session.selectRequestCurrency(null,['EUR']),null);
+ session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-b',storage:'local'});
+ assert.equal(session.selectRequestCurrency(),'SAR');
+});
+
+
+test('explicit currency change notifies views even if the external selector value was already selected', () => {
+  const session = ready();
+  let updates = 0;
+  const unsubscribe = session.subscribe(() => updates++);
+  session.selectRequestCurrency(null, ['USD']);
+  assert.equal(updates, 1);
+  session.selectRequestCurrency('USD');
+  assert.equal(updates, 2);
+  assert.equal(session.selectRequestCurrency(), 'USD');
+  assert.deepEqual(session.getExcludedRequestCurrencies(), []);
+  assert.equal(updates, 2, 'a read or repeated selection does not cause a render loop');
+  session.selectRequestCurrency('USD');
+  assert.equal(updates, 2);
+  unsubscribe();
+});

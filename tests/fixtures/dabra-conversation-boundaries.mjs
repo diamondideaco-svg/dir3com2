@@ -42,19 +42,35 @@ test('same-account TOKEN_REFRESHED must preserve text, draft and the in-flight a
 
 function floatingFixture(options={}){
  const session=options.session??new ConversationSession();if(!options.session)session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-a',storage:'local'});
- const preferences={replyLanguage:'en',displayCurrency:'SAR',travelClass:'business',lodgingStyle:'hotel',itineraryPace:'relaxed'};
+ const preferences={replyLanguage:options.savedLocale??'en',displayCurrency:options.savedCurrency??'SAR',travelClass:'business',lodgingStyle:'hotel',itineraryPace:'relaxed'};
  const snapshot={revision:1,generation:0,consentEnabled:true,consentVersion:'task187-v1',preferences,preferencesExpiresAt:'2027-01-01T00:00:00Z',trip:null,tripExpiresAt:null,updatedAt:null};
  if(!options.session){session.context.capture('user:synthetic-a',snapshot,true,false);session.setPreferences(preferences);session.setContinuitySnapshot(snapshot);session.setContinuityCurrency({before:'USD',applied:'SAR'});session.setDraft('hotels');}
  if(options.privateJson){session.forgetContext();session.setDraft('my requests');}
- let currency='SAR',index=0,refIndex=0;const slots=[],refs=[];let posts=0;let unmountView;let rejectContinuity;const histories=[],requests=[];
+ let currency=options.savedCurrency??'SAR',index=0,refIndex=0;const slots=[],refs=[];let posts=0;let unmountView;let rejectContinuity;let releaseFloatingReply;const histories=[],requests=[];
  session.setCurrencyRestorer(applied=>{if(currency===applied.applied)currency=applied.before;});
+ let actualPost=null;
+ if(options.actualPost){
+  const routeExports={},platform=req(owner+'/lib/dabra/platform-assistant.ts');
+  const routeDeps={
+   '@/lib/dabra/successful-task-production-policy':{selectSuccessfulTaskPilot:async()=>({kind:'disabled'}),successfulTaskProductionGate:async()=>null},
+   '@/lib/dabra/successful-task-chat':{successfulTaskChatResponse:async()=>null},
+   '@/lib/dabra/agent-dialogue':{getAgentDialoguePolicy:async()=>({publicMonthly:false})},
+   '@/lib/currency/service':{getCurrencySnapshot:async()=>null},
+   '@/lib/dabra/agent-handoff':{runInternalAgentTask:async input=>({kind:'response',response:platform.buildPlatformAssistantResponse(input.message,input.history,input.locale,undefined,undefined,input.pricing,input.trip)})},
+  };
+  vm.runInNewContext(compile(fs.readFileSync(owner+'/app/api/ai2/chat/route.ts','utf8')),{exports:routeExports,require:name=>name in routeDeps?routeDeps[name]:req(name),process:{env:{DABRA_INTERNAL_AI_ENABLED:'false'}},Response,Request,Headers,FormData,File,AbortController,AbortSignal,crypto:globalThis.crypto,URL,JSON,Date,setTimeout,clearTimeout});
+  actualPost=routeExports.POST;
+ }
  const react={useCallback:fn=>fn,useEffect:fn=>{if(/viewMountedRef.current\s*=\s*true/.test(fn.toString()))unmountView=fn();},useRef:value=>{const i=refIndex++;return refs[i]??(refs[i]={current:value});},useState:initial=>{const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],value=>{slots[i]=typeof value==='function'?value(slots[i]):value;}];}};
- const dependencies={react,'next/image':()=>null,'next/link':()=>null,'next/navigation':{usePathname:()=>'/'} ,'@/components/currency/useDisplayCurrency':{getDisplayCurrency:()=>currency,useDisplayCurrency:()=>({currency,setCurrency:value=>{currency=value;}})},'@/components/dabra/DabraConversationProvider':{useDabraConversation:()=>({session,state:session.getSnapshot()})},'@/components/layout/useDibrahSpeech':{useDibrahSpeech:()=>({listening:false,supported:false})},'@/components/i18n/LanguageProvider':{useLanguage:()=>({language:'en'})},'@/components/dabra/PlatformAnswer':()=>null,'./FloatingDibrahIdentity.module.css':{default:{}}};
- const exports={};vm.runInNewContext(compile(fs.readFileSync(owner+'/components/layout/FloatingDibrah.tsx','utf8')), {exports,require:name=>name in dependencies?dependencies[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name),AbortSignal,crypto:globalThis.crypto,window:{localStorage:{getItem:()=>null}},fetch:async (url,init)=>{if(url==='/api/dabra/continuity'){if(options.deferContinuity)await new Promise(resolve=>{rejectContinuity=resolve;});return new Response(JSON.stringify({enabled:false}),{headers:{'content-type':'application/json'}});}posts++;requests.push(JSON.parse(init.body));histories.push(requests.at(-1).history);return new Response(JSON.stringify({answer:options.privateJson?'Synthetic private request REQ-EXAMPLE':'mock answer'}),{headers:{'content-type':'application/json','cache-control':'private, no-store'}});}});
+ const dependencies={react,'@/lib/dabra/continuity-service':req(owner+'/lib/dabra/continuity-service.ts'),'next/image':()=>null,'next/link':()=>null,'next/navigation':{usePathname:()=>'/'} ,'@/components/currency/useDisplayCurrency':{getDisplayCurrency:()=>currency,useDisplayCurrency:()=>({currency,setCurrency:value=>{currency=value;}})},'@/components/dabra/DabraConversationProvider':{useDabraConversation:()=>({session,state:session.getSnapshot()}),useOptionalDabraConversationSession:()=>session},'@/components/layout/useDibrahSpeech':{useDibrahSpeech:()=>({listening:false,supported:false})},'@/components/i18n/LanguageProvider':{useLanguage:()=>({language:'en'})},'@/components/dabra/PlatformAnswer':()=>null,'./FloatingDibrahIdentity.module.css':{default:{}}};
+ const exports={};vm.runInNewContext(compile(fs.readFileSync(owner+'/components/layout/FloatingDibrah.tsx','utf8')), {exports,require:name=>name in dependencies?dependencies[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name),AbortSignal,crypto:globalThis.crypto,window:{localStorage:{getItem:()=>null}},fetch:async (url,init)=>{if(url==='/api/dabra/continuity'){if(options.deferContinuity)await new Promise(resolve=>{rejectContinuity=resolve;});return new Response(JSON.stringify(options.validContinuity?{enabled:true,ownerId:'user:synthetic-a',state:snapshot}:{enabled:false}),{headers:{'content-type':'application/json'}});}posts++;requests.push(JSON.parse(init.body));histories.push(requests.at(-1).history);if(actualPost){const {NextRequest}=req('next/server');return actualPost(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',headers:{'content-type':'application/json'},body:init.body}));}if(options.deferReply && posts===1)await new Promise(resolve=>{releaseFloatingReply=resolve;});if(options.withdrawDuring){snapshot.consentEnabled=false;snapshot.generation++;}if(options.expireDuring)snapshot.preferencesExpiresAt='2020-01-01T00:00:00Z';return new Response(JSON.stringify({answer:options.privateJson?'Synthetic private request REQ-EXAMPLE':'mock answer'}),{headers:{'content-type':'application/json','cache-control':'private, no-store'}});}});
+ const explicitCurrency={};vm.runInNewContext(compile(fs.readFileSync(owner+'/components/currency/useExplicitDisplayCurrency.ts','utf8')),{exports:explicitCurrency,require:name=>name==='./useDisplayCurrency'?dependencies['@/components/currency/useDisplayCurrency']:name in dependencies?dependencies[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name)});
+ const selector={};vm.runInNewContext(compile(fs.readFileSync(owner+'/components/currency/CurrencySelector.tsx','utf8')),{exports:selector,require:name=>name==='./useExplicitDisplayCurrency'?explicitCurrency:name in dependencies?dependencies[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name)});
+ const chooseDisplayCurrency=value=>selector.default({language:'en'}).props.onChange({target:{value}});
  const elements=node=>Array.isArray(node)?node.flatMap(elements):!node||typeof node!=='object'||!node.props?[]:[node,...elements(node.props.children)];
  const render=()=>{index=0;refIndex=0;const outer=exports.default();return outer.type(outer.props);};
  render();slots[4]=true;
- return {session,view:()=>elements(render()),currency:()=>currency,chooseCurrency:value=>{currency=value;},unmount:()=>unmountView?.(),rejectContinuity:()=>rejectContinuity?.(),histories,requests,posts:()=>posts,send:async()=>{const input=elements(render()).find(n=>n.type==='textarea');assert.ok(input);input.props.onKeyDown({key:'Enter',shiftKey:false,nativeEvent:{isComposing:false},preventDefault(){}});for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));}};
+ return {session,view:()=>elements(render()),currency:()=>currency,chooseCurrency:value=>{currency=value;},chooseDisplayCurrency,unmount:()=>unmountView?.(),rejectContinuity:()=>rejectContinuity?.(),releaseReply:()=>releaseFloatingReply?.(),histories,requests,posts:()=>posts,send:async()=>{const input=elements(render()).find(n=>n.type==='textarea');assert.ok(input);input.props.onKeyDown({key:'Enter',shiftKey:false,nativeEvent:{isComposing:false},preventDefault(){}});for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));}};
 }
 
 test('floating continuity invalidation must undo its saved display currency',async()=>{
@@ -68,7 +84,7 @@ function cacheInFullView(session,beforePersist=()=>{}){
  let index=0,refIndex=0;const slots=[],refs=[],effects=[],cache=new Map();
  const storage={getItem:key=>cache.get(key)??null,setItem:(key,value)=>cache.set(key,value),removeItem:key=>cache.delete(key)};
  const react={useCallback:fn=>fn,useEffect:fn=>effects.push(fn),useRef:value=>{const i=refIndex++;return refs[i]??(refs[i]={current:value});},useState:initial=>{const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],value=>{slots[i]=typeof value==='function'?value(slots[i]):value;}];},useMemo:fn=>fn()};
- const deps={react,'@/components/dabra/DabraConversationProvider':{useDabraConversation:()=>({session,state:session.getSnapshot()})},'@/components/currency/useDisplayCurrency':{useDisplayCurrency:()=>({currency:'USD',setCurrency:()=>{}})},'@/components/i18n/LanguageProvider':{useLanguage:()=>({language:'en',direction:'ltr'})}};
+ const deps={react,'@/components/dabra/DabraConversationProvider':{useDabraConversation:()=>({session,state:session.getSnapshot()})},'@/components/currency/useDisplayCurrency':{useDisplayCurrency:()=>({currency:'USD',setCurrency:()=>{}}),useCurrencyRates:()=>({snapshot:null,loading:false})},'@/components/i18n/LanguageProvider':{useLanguage:()=>({language:'en',direction:'ltr'})}};
  for(const name of ['PlatformAnswer','DabraContinuity','PlatformResults','DabraFamilySafetyPanel'])deps['@/components/dabra/'+name]=()=>null;
  deps['@/components/v6/CollaborativeTripCapabilities']=()=>null;
  const exports={};vm.runInNewContext(compile(fs.readFileSync(owner+'/components/dabra/DabraChatCommerce.tsx','utf8')),{exports,require:name=>name in deps?deps[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name),window:{localStorage:storage,sessionStorage:storage,setTimeout:fn=>{fn();return 1;},clearTimeout:()=>{}},AbortController,AbortSignal,crypto:globalThis.crypto});
@@ -148,26 +164,27 @@ test('actual locale boundary retains transcript and cancels pending',async()=>{
 });
 
 test('actual floating request preserves wire contract',async()=>{
- const f=floatingFixture({privateJson:true});f.session.setMessages([{id:'previous',role:'assistant',text:'Earlier visible reply'}]);f.chooseCurrency('EUR');f.session.setDraft('Show hotels in Cairo');
+ const f=floatingFixture({privateJson:true});f.session.setMessages([{id:'previous',role:'assistant',text:'Earlier visible reply'}]);f.chooseCurrency('EUR');f.session.setDraft('Show hotels in Cairo with budget 500 EUR');
  await f.send();assert.equal(f.requests.length,1);const body=f.requests[0];
- assert.equal(body.message,'Show hotels in Cairo');assert.equal(body.currency,'EUR');assert.equal(body.locale,'en');assert.equal(body.history[0].content,'Earlier visible reply');
- assert.deepEqual(Object.keys(body).sort(),['currency','history','locale','message']);
+ assert.equal(body.message,'Show hotels in Cairo with budget 500 EUR');assert.equal(body.currency,'EUR');assert.equal(body.locale,'en');assert.equal(body.history[0].content,'Earlier visible reply');
+ assert.deepEqual(Object.keys(body).sort(),['currency','excludedCurrencies','history','locale','message']);
  assert.equal(f.session.getSnapshot().pending,false);
 });
 
 
 function fullSendFixture(options={}){
  const session=options.session??new ConversationSession();if(!options.session)session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-a',storage:'local'});if(!options.session)session.setDraft('Show Cairo hotels');
- let cursor=0,refCursor=0;const slots=[],refs=[],events=[],requests=[];let releaseReply;
+ let cursor=0,refCursor=0;const slots=[],refs=[],events=[],requests=[],marketRequests=[];let releaseReply,releaseMarket;
  const source=fs.readFileSync(owner+'/components/dabra/DabraChatCommerce.tsx','utf8');
  const tree=ts.createSourceFile('component.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);const refNames=[];
  function scan(node){if(ts.isVariableDeclaration(node)&&node.initializer&&ts.isCallExpression(node.initializer)&&node.initializer.expression.getText(tree)==='useRef')refNames.push(node.name.getText(tree));ts.forEachChild(node,scan);}scan(tree);
  const react={useCallback:fn=>fn,useMemo:fn=>fn(),useEffect:()=>{},useRef:initial=>{const i=refCursor++;return refs[i]??(refs[i]={current:initial});},useState:initial=>{const i=cursor++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],value=>{slots[i]=typeof value==='function'?value(slots[i]):value;}];}};
- const deps={react,'@/components/dabra/DabraConversationProvider':{useDabraConversation:()=>({session,state:session.getSnapshot()})},'@/components/currency/useDisplayCurrency':{useDisplayCurrency:()=>({currency:'USD',setCurrency:()=>{}})},'@/components/i18n/LanguageProvider':{useLanguage:()=>({language:'en',direction:'ltr'})}};
+ const deps={react,'@/components/dabra/DabraConversationProvider':{useDabraConversation:()=>({session,state:session.getSnapshot()})},'@/components/currency/useDisplayCurrency':{useDisplayCurrency:()=>({currency:'USD',setCurrency:()=>{}}),useCurrencyRates:()=>({snapshot:options.snapshot??null,loading:false})},'@/components/i18n/LanguageProvider':{useLanguage:()=>({language:'en',direction:'ltr'})}};
  for(const name of ['PlatformAnswer','DabraContinuity','PlatformResults','DabraFamilySafetyPanel'])deps['@/components/dabra/'+name]=()=>null;deps['@/components/v6/CollaborativeTripCapabilities']=()=>null;
  const exports={};const syntheticURL=class extends URL{static revokeObjectURL(value){events.push('revoke:'+value);}};
  vm.runInNewContext(compile(source),{exports,require:name=>name in deps?deps[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name),window:{localStorage:{getItem:()=>null},sessionStorage:{getItem:()=>null}},AbortController,AbortSignal,FormData,URL:syntheticURL,crypto:globalThis.crypto,fetch:async(url,init)=>{
  if(url==='/api/ai2/chat'){events.push('chat-dispatch');requests.push(init);const ordinal=requests.length;if(options.deferFirst&&ordinal===1)await new Promise(resolve=>{releaseReply=resolve;});return Response.json({answer:options.deferFirst&&ordinal===1?'Late answer '+options.lateMarker:'Synthetic visible answer'});}
+ if(String(url).startsWith('/api/public/marketplace/items?')){marketRequests.push(String(url));if(options.deferMarket && marketRequests.length===1)await new Promise(resolve=>{releaseMarket=resolve;});return Response.json({items:options.marketItems??[]});}
  if(String(url).startsWith('/api/marketplace'))return Response.json({services:[]});
  throw Error('Unmocked full-view IO '+url);
  }});
@@ -178,7 +195,8 @@ function fullSendFixture(options={}){
  ref('playbackAbortRef').current=playback;
  ref('playbackRef').current={onended:null,onerror:null,pause:()=>events.push('audio-pause'),removeAttribute:name=>events.push('remove:'+name),load:()=>events.push('audio-load')};
  ref('playbackUrlRef').current='blob:synthetic-voice';
- return {session,events,requests,playback,view:()=>elements(render()),release:async()=>{assert.ok(releaseReply);releaseReply();for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));},send:async()=>{const button=elements(render()).find(n=>n.props.className==='dabra-send');assert.ok(button);button.props.onClick();for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));}};
+ const expand=node=>Array.isArray(node)?node.map(expand):!node||typeof node!=='object'||!node.props?node:typeof node.type==='function'&&['ProductCard','ComparisonTable','DabraPriceValue'].includes(node.type.name)?expand(node.type(node.props)):{...node,props:{...node.props,children:expand(node.props.children)}};
+ return {session,events,requests,marketRequests,playback,view:()=>elements(render()),resolved:()=>elements(expand(render())),release:async()=>{assert.ok(releaseReply);releaseReply();for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));},releaseMarket:async()=>{assert.ok(releaseMarket);releaseMarket();for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));},send:async()=>{const button=elements(render()).find(n=>n.props.className==='dabra-send');assert.ok(button);button.props.onClick();for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));}};
 }
 
 test('actual full send stops voice before dispatch',async()=>{
@@ -231,4 +249,123 @@ for(const [before,after] of [['synthetic-a','synthetic-b'],['synthetic-b','synth
  session.setDraft('what can you do floating next actor');const floating=floatingFixture({session});await floating.send();
  assert.equal(floating.requests.length,1);assert.doesNotMatch(JSON.stringify(floating.requests[0]),new RegExp(marker));assert.equal(floating.requests[0].continuityTrip,undefined);
  f.unmount();
+});
+
+for(const fault of ['withdrawDuring','expireDuring'])test('floating sends only independent settings when synthetic preference source '+fault,async()=>{
+ const f=floatingFixture({validContinuity:true,savedLocale:'en',savedCurrency:'EUR',[fault]:true});
+ f.session.setDraft('أحتاج سيارة');
+ await f.send();
+ assert.equal(f.requests.length,1);
+ assert.equal(f.requests[0].locale,'ar');
+ assert.equal(f.requests[0].currency,'SAR');
+ assert.equal(f.requests[0].continuityTrip,undefined);
+ assert.equal(f.session.context.lease,null);
+ assert.equal(f.session.getSnapshot().messages.some(m=>m.text==='mock answer'),false);
+});
+
+
+test('actual display selector sets both chat transports independently of stored preferences and respects negation',async()=>{
+ const f=floatingFixture({validContinuity:true,savedCurrency:'USD'});
+ f.chooseDisplayCurrency('EUR');
+ f.session.setDraft('show cars');await f.send();
+ assert.equal(f.requests[0].currency,'EUR');assert.equal(f.currency(),'EUR');
+ f.session.setDraft('Do not use USD');await f.send();assert.equal(f.requests[1].currency,'EUR');
+ f.session.setDraft('Do not use EUR');await f.send();assert.equal(f.requests[2].currency,'SAR');
+ f.session.setDraft('Do not use SAR');await f.send();assert.equal(Object.hasOwn(f.requests[3],'currency'),false);
+ f.session.forgetContext();f.chooseDisplayCurrency('EUR');
+ const full=fullSendFixture({session:f.session});f.session.setDraft('show cars');await full.send();
+ assert.equal(full.requests.length,1);assert.equal(full.requests[0].body.get('currency'),'EUR');
+ f.session.resolve(f.session.invalidate('customer-public'),{ownerId:'user:synthetic-b',storage:'local'});
+ f.session.setDraft('show cars');await f.send();assert.equal(f.requests[4].currency,'SAR');
+});
+
+
+test('a stored selector value is ignored until an explicit selection; an initially negated USD is never selected',async()=>{
+ const stored=floatingFixture({validContinuity:true,savedCurrency:'EUR'});
+ stored.session.setDraft('show cars');await stored.send();assert.equal(stored.requests[0].currency,'SAR');
+ stored.chooseDisplayCurrency('USD');stored.chooseDisplayCurrency('EUR');stored.session.setDraft('show cars');await stored.send();assert.equal(stored.requests[1].currency,'EUR');
+ const fresh=floatingFixture({privateJson:true});fresh.session.setDraft('Do not use USD');await fresh.send();assert.equal(fresh.requests[0].currency,'SAR');
+});
+
+
+test('floating JSON send reaches actual POST and hides rejected source prices with offline FX',async()=>{
+ for(const message of ['Show cars in Cairo, USD is not acceptable','Show cars in Cairo, do not use USD','اعرض السيارات في القاهرة والدولار غير مقبول','اعرض السيارات في القاهرة لا تستخدم الدولار']){
+  const f=floatingFixture({privateJson:true,actualPost:true});f.session.setDraft(message);await f.send();
+  assert.equal(f.requests[0].currency,'SAR');assert.deepEqual(f.requests[0].excludedCurrencies,['USD']);
+  const answer=f.session.getSnapshot().messages.at(-1)?.text??'';
+  assert.doesNotMatch(answer,/\b[\d,.]+\s+USD\b/i);assert.match(answer,/cannot currently be shown|تعذر عرض بعض الأسعار/);
+ }
+});
+
+const syntheticMarketItems = (validQuote) => [100,200].map((amount,index)=>({
+ id:'synthetic-product-'+index,slug:'synthetic-'+index,name_ar:'خدمة اصطناعية '+index,name_en:'Synthetic service '+index,
+ description:'Synthetic',city:'Cairo',category_slug:'synthetic',marketplace_family:'dir3-vip',starting_price:amount,currency:'USD',
+ availability_status:'available',fulfilment_state:'verified_requestable',transaction_method:'request_to_confirm',marketplace_environment:'production',verified:true,supplier_verified:true,
+ display_price:validQuote?{amount:amount*3.75,currency:'SAR',base_amount:amount,base_currency:'USD',live:true}:null,
+}));
+const syntheticText=value=>Array.isArray(value)?value.map(syntheticText).join(' '):typeof value==='string'||typeof value==='number'?String(value):value&&typeof value==='object'&&value.props?syntheticText(value.props.children):'';
+const childNodes=node=>Array.isArray(node)?node.flatMap(childNodes):!node||typeof node!=='object'||!node.props?[]:[node,...childNodes(node.props.children)];
+
+for(const hasQuote of [true,false])test('actual marketplace cards, comparison and cart respect rejected USD; verified conversion='+hasQuote,async()=>{
+ const f=fullSendFixture({marketItems:syntheticMarketItems(hasQuote)});f.session.setDraft('Do not use USD');await f.send();
+ assert.equal(f.marketRequests.length,1);assert.equal(new URL(f.marketRequests[0],'http://localhost').searchParams.get('currency'),'SAR');
+ const cards=()=>f.resolved().filter(node=>node.type==='article'&&String(node.props.className).includes('dabra-product-card'));
+ assert.equal(cards().length,2);
+ let text=cards().map(syntheticText).join(' ');assert.doesNotMatch(text,/\b[\d,.]+\s+USD\b/);
+ if(hasQuote){assert.match(text,/375\.00\s+SAR/);assert.match(text,/750\.00\s+SAR/);}else assert.match(text,/Price in an accepted currency is unavailable/);
+ for(let i=0;i<2;i++){
+  const card=cards()[i];const add=childNodes(card).find(node=>node.type==='button'&&node.props['aria-label']==='Add to trip bag');assert.ok(add);add.props.onClick();
+ }
+ const compare=f.resolved().find(node=>node.type==='button'&&syntheticText(node)==='Compare');assert.ok(compare);compare.props.onClick();
+ const table=f.resolved().find(node=>node.props['aria-label']==='Compare selected options');assert.ok(table);
+ text=syntheticText(table);assert.doesNotMatch(text,/\b[\d,.]+\s+USD\b/);if(hasQuote)assert.match(text,/375\.00\s+SAR/);else assert.match(text,/Price in an accepted currency is unavailable/);
+ const bag=f.resolved().find(node=>node.type==='button'&&node.props['aria-label']==='Open trip bag');assert.ok(bag);bag.props.onClick();
+ const drawer=f.resolved().find(node=>node.props['aria-label']==='Trip bag');assert.ok(drawer);
+ text=syntheticText(drawer);assert.doesNotMatch(text,/\b[\d,.]+\s+USD\b/);if(hasQuote){assert.match(text,/375\.00\s+SAR/);assert.match(text,/1125\s+SAR/);}else assert.match(text,/Total unavailable until prices are available/);
+});
+
+test('late full response and automatic marketplace search cannot override newer selector choice',async()=>{
+ const f=fullSendFixture({deferFirst:true});f.session.setDraft('Show cars in Cairo, do not use USD');await f.send();
+ assert.equal(f.requests.length,1);assert.equal(f.requests[0].body.get('currency'),'SAR');assert.deepEqual(JSON.parse(String(f.requests[0].body.get('excludedCurrencies'))),['USD']);
+ const selector=floatingFixture({session:f.session});selector.chooseDisplayCurrency('USD');await f.release();
+ assert.equal(f.session.selectRequestCurrency(),'USD');assert.deepEqual(Array.from(f.session.getExcludedRequestCurrencies()),[]);
+ f.session.setDraft('show cars');await f.send();assert.equal(f.requests[1].body.get('currency'),'USD');assert.deepEqual(JSON.parse(String(f.requests[1].body.get('excludedCurrencies'))),[]);
+});
+
+test('floating sender keeps a newer explicit selector choice across delayed POST and continuity gate',async()=>{
+ const pending=floatingFixture({privateJson:true,deferReply:true});pending.session.setDraft('Show cars in Cairo, do not use USD');await pending.send();
+ assert.equal(pending.requests[0].currency,'SAR');pending.chooseDisplayCurrency('USD');pending.releaseReply();for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(pending.session.selectRequestCurrency(),'USD');assert.deepEqual(Array.from(pending.session.getExcludedRequestCurrencies()),[]);
+ pending.session.setDraft('show cars');await pending.send();assert.equal(pending.requests[1].currency,'USD');assert.deepEqual(pending.requests[1].excludedCurrencies,[]);
+ const gate=floatingFixture({validContinuity:true,deferContinuity:true});gate.session.setDraft('Show cars in Cairo, do not use USD');await gate.send();
+ assert.equal(gate.posts(),0);assert.deepEqual(Array.from(gate.session.getExcludedRequestCurrencies()),['USD']);gate.chooseDisplayCurrency('USD');gate.rejectContinuity();
+ for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));gate.rejectContinuity();for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(gate.posts(),1);assert.equal(gate.session.selectRequestCurrency(),'USD');assert.deepEqual(Array.from(gate.session.getExcludedRequestCurrencies()),[]);
+});
+
+
+test('public marketplace rejects non-live or mismatched currency conversion evidence',async()=>{
+ for(const fault of ['not-live','wrong-source','wrong-amount','wrong-target']){
+  const items=syntheticMarketItems(true);
+  if(fault==='not-live')items[0].display_price.live=false;
+  if(fault==='wrong-source')items[0].display_price.base_currency='EUR';
+  if(fault==='wrong-amount')items[0].display_price.base_amount=99;
+  if(fault==='wrong-target')items[0].display_price.currency='EUR';
+  const f=fullSendFixture({marketItems:items});f.session.setDraft('Do not use USD');await f.send();
+  const cards=f.resolved().filter(node=>node.type==='article'&&String(node.props.className).includes('dabra-product-card'));
+  const first=cards.find(card=>syntheticText(card).includes('Synthetic service 0'));assert.ok(first,fault);
+  const text=syntheticText(first);assert.match(text,/Price in an accepted currency is unavailable/,fault);assert.doesNotMatch(text,/375\.00|100\s+USD/,fault);
+ }
+});
+
+test('delayed market response and subsequent tab changes respect the latest selector',async()=>{
+ const f=fullSendFixture({marketItems:syntheticMarketItems(true),deferMarket:true});f.session.setDraft('Do not use USD');await f.send();
+ assert.equal(f.marketRequests.length,1);assert.equal(new URL(f.marketRequests[0],'http://localhost').searchParams.get('currency'),'SAR');
+ const selector=floatingFixture({session:f.session});selector.chooseDisplayCurrency('USD');await f.releaseMarket();
+ let text=f.resolved().filter(node=>node.type==='article'&&String(node.props.className).includes('dabra-product-card')).map(syntheticText).join(' ');
+ assert.match(text,/100\.00\s+USD/);assert.doesNotMatch(text,/375\.00\s+SAR/);
+ // The visible search box can still hold an earlier, now superseded request.
+ const search=f.view().find(node=>node.props.id==='dabra-marketplace-query');assert.ok(search);search.props.onChange({target:{value:'Do not use USD'}});
+ const tab=f.view().find(node=>node.props.role==='tab'&&syntheticText(node)==='VIP');assert.ok(tab);tab.props.onClick();for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(f.session.selectRequestCurrency(),'USD');assert.deepEqual(Array.from(f.session.getExcludedRequestCurrencies()),[]);
 });

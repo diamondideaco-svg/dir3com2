@@ -154,7 +154,8 @@ test('server endpoint derives actor and owned resources and contains no mutation
 test('DABRA UI uses five marketplace families and exposes an optional human-approval journey', () => {
   const commerce = fs.readFileSync(path.join(process.cwd(), 'components', 'dabra', 'DabraChatCommerce.tsx'), 'utf8');
   const panel = fs.readFileSync(path.join(process.cwd(), 'components', 'dabra', 'DabraFamilySafetyPanel.tsx'), 'utf8');
-  assert.match(commerce, /params\.set\('family', activeTab\)/);
+  assert.match(commerce, /parseDabraMarketplaceQuery\(normalizedQuery, familyOverride/);
+  assert.match(commerce, /setPlatformQuery\(\{ request: prepared\.request, family: selected as PlatformFamily, currencyPolicy \}\)/);
   for (const family of ['dir3-fly', 'dir3-stay', 'dir3-drive', 'dir3-concierge', 'dir3-vip']) assert.match(commerce, new RegExp(family));
   assert.match(panel, /الدبرة اختيارية/);
   assert.match(panel, /DABRA is optional/);

@@ -15,7 +15,7 @@ export function runDabraBoundaryCase(name: string) {
   delete env.NODE_TEST_CONTEXT;
   const metacharacters = '\\^$.*+?()[]{}|';
   const escaped = Array.from(name, char => metacharacters.includes(char) ? '\\' + char : char).join('');
-  const output = execFileSync(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=^' + escaped + '$', 'tests/fixtures/dabra-conversation-boundaries.mjs'], {
+  const output = execFileSync(process.execPath, ['--import', 'tsx', '--test', '--test-reporter=tap', '--test-name-pattern=^' + escaped + '$', 'tests/fixtures/dabra-conversation-boundaries.mjs'], {
     env, encoding: 'utf8', timeout: 30_000, maxBuffer: 2 * 1024 * 1024,
   });
   assertBoundaryExecuted(output, name);

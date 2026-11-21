@@ -5,7 +5,7 @@ import {createServer,request as httpRequest} from 'node:http';
 import {mkdtempSync,writeFileSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {TASK187_APP_ORIGIN,attachTask187ConnectProxy} from './sandbox/task187-browser-network.mjs';
+import {TASK187_APP_ORIGIN,attachTask187ConnectProxy,observeUnhandledTask187ProxyReset} from './sandbox/task187-browser-network.mjs';
 import {assertTask187BrowserVersions} from './sandbox/task187-browser-versions.mjs';
 import {clickTask187Element,Task187CommandError,Task187ClickError} from './sandbox/task187-browser-click';
 const origin=TASK187_APP_ORIGIN;
@@ -39,13 +39,18 @@ async function main(){
  // <-loopback> removes Chrome's implicit bypass, so only the exact local app
  // origin can be forwarded. No system proxy/security settings change.
  setStage('preflight-proxy-create');
+ const reportProxyReset=(marker:string)=>{process.stderr.write(marker+'\n');};
  const proxy=createServer((req,res)=>{
+  observeUnhandledTask187ProxyReset(req,'client-request',reportProxyReset);
+  observeUnhandledTask187ProxyReset(res,'server-response',reportProxyReset);
   let url:URL;try{url=new URL(req.url??'');}catch{browserDenied++;res.writeHead(403).end();return;}
   if(url.origin!==origin){browserDenied++;res.writeHead(403).end('TASK187_EXTERNAL_BROWSER_DENIED');return;}
   browserProxied++;const headers:Record<string,string|string[]|undefined>={...req.headers,host:url.host};delete headers['proxy-connection'];
-  const upstream=httpRequest({hostname:'127.0.0.1',port:19040,path:url.pathname+url.search,method:req.method,headers},response=>{res.writeHead(response.statusCode??503,response.headers);response.pipe(res);});
+  const upstream=httpRequest({hostname:'127.0.0.1',port:19040,path:url.pathname+url.search,method:req.method,headers},response=>{observeUnhandledTask187ProxyReset(response,'upstream-response',reportProxyReset);res.writeHead(response.statusCode??503,response.headers);response.pipe(res);});
+  observeUnhandledTask187ProxyReset(upstream,'upstream-request',reportProxyReset);
   upstream.on('error',()=>res.writeHead(503).end());req.pipe(upstream);
  });
+ proxy.on('connection',socket=>observeUnhandledTask187ProxyReset(socket,'client-socket',reportProxyReset));
  const closeTunnels=attachTask187ConnectProxy(proxy,()=>{browserProxied++;},()=>{browserDenied++;});
  const finish=async(child:ChildProcess|undefined,ipc=false)=>{if(!child||child.exitCode!==null)return;if(ipc)child.send('STOP');else child.kill('SIGTERM');await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('TASK187_OWNED_PROCESS_STOP_TIMEOUT')),10000);child.once('exit',()=>{clearTimeout(timer);resolve();});});};
  const command=async(path:string,body?:unknown,method=body===undefined?'GET':'POST'):Promise<unknown>=>{const response=await fetch('http://127.0.0.1:19041'+path,{method,headers:{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.any([AbortSignal.timeout(65000),abort.signal])});const payload=await response.json();if(!response.ok||payload.value?.error)throw new Task187CommandError(response.status,payload.value?.error,path);return payload.value;};

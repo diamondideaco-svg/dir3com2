@@ -4,6 +4,9 @@ import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import * as catalog from '../lib/drive/catalog';
+import * as ownerAvailability from '../lib/drive/owner-availability';
+import * as display from '../lib/currency/display';
+import { ConversationSession } from '../lib/dabra/conversation-session';
 import * as search from '../lib/drive/search';
 import * as context from '../lib/marketplace/search-context';
 import type { PricedDriveOffer } from '../components/drive/DriveMarketplace';
@@ -36,9 +39,9 @@ const offers: PricedDriveOffer[] = catalog.DRIVE_OFFERS.map(offer => ({
   display: { amount: offer.chauffeur, currency: offer.currency, asOf: null, converted: false }, conversionUnavailable: false,
 }));
 
-async function mount(language: 'ar' | 'en', response: PricedDriveOffer[], selectedCurrency = 'USD') {
+async function mount(language: 'ar' | 'en', response: PricedDriveOffer[], selectedCurrency = 'USD', session?: ConversationSession) {
   const states: unknown[] = []; let cursor = 0; let effect: (() => (() => void)) | undefined;
-  let dependencies: unknown[] = []; let fetches = 0;
+  let dependencies: unknown[] = []; let fetches = 0; const selectedCurrencies: string[] = [];
   const jsx = (type: unknown, props: Record<string, unknown>, key?: string) => ({ type, props, key });
   const modules: Record<string, unknown> = {
     react: {
@@ -51,12 +54,24 @@ async function mount(language: 'ar' | 'en', response: PricedDriveOffer[], select
     },
     'react/jsx-runtime': { jsx, jsxs: jsx }, 'next/image': 'image', 'next/link': 'link',
     'next/navigation': { useRouter: () => ({ push: () => assert.fail('Filtering must not navigate') }) },
-    '@/components/currency/useDisplayCurrency': { useDisplayCurrency: () => ({ currency: selectedCurrency, setCurrency: () => undefined }) },
+    '@/components/currency/useExplicitDisplayCurrency': { useExplicitDisplayCurrency: () => ({ currency: selectedCurrency, setCurrency: (value: string) => selectedCurrencies.push(value) }) },
     '@/components/currency/CurrencyPrice': { default: 'currency-price' },
     '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language, direction: language === 'ar' ? 'rtl' : 'ltr' }) },
-    '@/lib/drive/catalog': catalog, '@/lib/drive/search': search, './drive.module.css': { default: {} },
+    '@/lib/drive/owner-availability': ownerAvailability, '@/lib/drive/catalog': catalog, '@/lib/drive/search': search, './drive.module.css': { default: {} },
     '@/lib/marketplace/search-context': context, '@/components/public/MarketplaceNavigation': { default: () => null },
   };
+  if (session) {
+    const realHook = {};
+    runInNewContext(ts.transpileModule(readFileSync('components/currency/useExplicitDisplayCurrency.ts','utf8'), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    }).outputText, { exports: realHook, require(name: string) {
+      if (name === './useDisplayCurrency') return { useDisplayCurrency: () => ({ currency: selectedCurrency, setCurrency: (value: string) => selectedCurrencies.push(value) }) };
+      if (name === '@/components/dabra/DabraConversationProvider') return { useOptionalDabraConversationSession: () => session };
+      if (name === '@/lib/currency/display') return display;
+      throw new Error('Unmocked explicit-currency dependency: ' + name);
+    } });
+    modules['@/components/currency/useExplicitDisplayCurrency'] = realHook;
+  }
   const exports: { default?: (props: { initialSearch: string }) => Element } = {};
   runInNewContext(ts.transpileModule(readFileSync('components/drive/DriveMarketplace.tsx', 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
@@ -71,7 +86,7 @@ async function mount(language: 'ar' | 'en', response: PricedDriveOffer[], select
   for (let i = 0; i < 5; i++) await new Promise(resolve => setImmediate(resolve));
   const tree = render(); cleanup();
   assert.equal(all(tree).some(node => node.props.role === 'status' || node.props.role === 'alert'), false);
-  return { tree, render, dependencies: () => Array.from(dependencies), fetches: () => fetches };
+  return { tree, render, selectedCurrencies, dependencies: () => Array.from(dependencies), fetches: () => fetches };
 }
 
 for (const language of ['ar', 'en'] as const) {
@@ -132,3 +147,10 @@ for (const currency of ['SAR', 'EGP']) {
     assert.equal(ui.fetches(), 1);
   });
 }
+
+
+test('Drive display currency selector uses the real explicit-session choice handler',async()=>{
+ const session=new ConversationSession();session.resolve(session.invalidate('customer-public'),{ownerId:'user:synthetic-a',storage:'local'});
+ const ui=await mount('en',offers,'SAR',session);change(control(ui.tree,'Display currency'),'EUR');
+ assert.deepEqual(ui.selectedCurrencies,['EUR']);assert.equal(session.selectRequestCurrency(),'EUR');
+});

@@ -218,6 +218,22 @@ test('canonical POST binds authenticated continuity receipt and server trip, not
   } finally { restore(); }
 });
 
+test('canonical POST isolates a new saved-trip destination but retains an explicit correction', async () => {
+  const restore = syntheticProviderEnvironment();
+  try {
+    const trip: SavedTrip = { id: randomUUID(), origin: null, destination: 'Dubai', startDate: '2026-12-10', endDate: '2026-12-13',
+      adults: 4, children: 0, rooms: 1, budget: 8000, currency: 'SAR', families: ['drive'] };
+    for (const [message, keep] of [['I need a car in Cairo', false], ['Instead in Cairo', true]] as const) {
+      const x = fixture({ trip });
+      const response = await x.post({ message, locale: 'en', continuityTrip: { revision: 2, generation: 3, trip } });
+      assert.equal(response.status, 200); assert.equal(Boolean(x.inputs[0].trip), keep);
+      if (keep) { assert.equal(x.inputs[0].trip?.destination, 'cairo'); assert.equal(x.inputs[0].trip?.budget, 8000); assert.equal(x.inputs[0].continuityBinding?.revision, 2); }
+      else { assert.equal(x.inputs[0].continuityBinding, undefined); assert.equal(x.inputs[0].trip, null); }
+    }
+    assert.equal(trip.destination, 'Dubai'); assert.equal(trip.budget, 8000);
+  } finally { restore(); }
+});
+
 test('revocation during final allowance read prevents answer delivery', async () => {
   const restore = syntheticProviderEnvironment();
   try { const x = fixture({ revokeDuringAllowance: true });
@@ -675,7 +691,7 @@ for (const lostAdmission of [false, true, 'continuity', 'strong', 'source-replac
     const compiled = ts.transpileModule(readFileSync('lib/dabra/successful-task-production-runtime.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     vm.runInNewContext(compiled, { exports: exported, require: (id: string) => Object.hasOwn(deps, id) ? deps[id] : require(process.cwd() + '/lib/dabra/' + id), Response, JSON, Object, structuredClone });
     assert.ok(exported.runSuccessfulTaskProduction); const runtime = exported.runSuccessfulTaskProduction;
-    const body = { message: 'hotel in Cairo', locale: 'en', ...(lostAdmission === 'stream' || lostAdmission === 'v3-stream' ? { stream: true } : {}), ...(withTrip ? { continuityTrip: { revision:1,generation:0,trip:{...originalTrip,destination:'Dubai'} } } : {}) };
+    const body = { message: withTrip ? 'hotel in Riyadh' : 'hotel in Cairo', locale: 'en', ...(lostAdmission === 'stream' || lostAdmission === 'v3-stream' ? { stream: true } : {}), ...(withTrip ? { continuityTrip: { revision:1,generation:0,trip:{...originalTrip,destination:'Dubai'} } } : {}) };
     const first = await x.post(body); await assertNoAuthorityDisclosure(first);
     if (sourceReplaced) {
       assert.equal(first.status, 503);
@@ -1352,4 +1368,12 @@ test('V3 decision interpretation enforces canonical one-to-seven bindings and th
   [{...valid[0],grantId:valid[0].grantId.toUpperCase()}],[{...valid[0],extra:true}]];
  for(const grantBindings of cases){Object.assign(docs.spending,{grantBindings});assert.equal(interpretSuccessfulTaskDecisions(c.result),null,JSON.stringify(grantBindings));}
  Object.assign(docs.spending,{grantBindings:[valid[0]]});assert.equal(interpretSuccessfulTaskDecisions(c.result)?.spendingVersion,3);
+});
+
+
+test('successful task digest binds the excluded currency set without changing an empty legacy set',()=>{
+ const f=successfulTaskRuntimeFixture();const base={message:'synthetic',history:[],locale:'en' as const,context:f.context,pricing:{currency:'SAR' as const,snapshot:null}};
+ assert.equal(successfulTaskInputDigest(base),successfulTaskInputDigest({...base,pricing:{...base.pricing,excludedCurrencies:[]}}));
+ assert.notEqual(successfulTaskInputDigest(base),successfulTaskInputDigest({...base,pricing:{...base.pricing,excludedCurrencies:['USD']}}));
+ assert.equal(successfulTaskInputDigest({...base,pricing:{...base.pricing,excludedCurrencies:['USD','EUR']}}),successfulTaskInputDigest({...base,pricing:{...base.pricing,excludedCurrencies:['EUR','USD']}}));
 });

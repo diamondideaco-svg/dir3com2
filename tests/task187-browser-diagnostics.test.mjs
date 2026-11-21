@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';
+import {EventEmitter} from 'node:events';
+import {TASK187_PROXY_RESET_PREFIX as proxyPrefix,observeUnhandledTask187ProxyReset} from '../scripts/sandbox/task187-browser-network.mjs';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {TASK187_DIAGNOSTIC_PREFIX as prefix,TASK187_PHASE_PREFIX as phasePrefix,task187BrowserDiagnostic,task187BrowserExitSummary,task187BrowserFailure,task187BrowserPhase} from '../scripts/sandbox/task187-browser-diagnostics.mjs';
@@ -357,4 +359,41 @@ test('actual browser child reports preflight phase while a caught assertion stil
  let childFailure;
  await new Promise((resolve,reject)=>{child.once('close',()=>childFailure?reject(childFailure):resolve());child.once('error',reject);
   child.stdin.end(JSON.stringify({url:'https://private.invalid/'+secret,anon:secret,password:secret,aid:secret,bid:secret}));});
+});
+
+
+test('unhandled proxy reset observation is closed, private, and preserves error failure',()=>{
+ for(const source of ['client-socket','client-request','server-response','upstream-request','upstream-response']){
+  const emitter=new EventEmitter(),lines=[];observeUnhandledTask187ProxyReset(emitter,source,line=>lines.push(line));
+  const error=Object.assign(Error(secret),{code:'ECONNRESET'});
+  assert.throws(()=>emitter.emit('error',error),value=>value===error);
+  assert.deepEqual(lines,[proxyPrefix+source]);assert.ok(!JSON.stringify(lines).includes(secret));
+ }
+ const handled=new EventEmitter(),lines=[];handled.on('error',()=>{});observeUnhandledTask187ProxyReset(handled,'client-socket',line=>lines.push(line));
+ handled.emit('error',Object.assign(Error(secret),{code:'ECONNRESET'}));assert.deepEqual(lines,[]);
+ assert.throws(()=>observeUnhandledTask187ProxyReset(new EventEmitter(),secret,()=>{}),/TASK187_PROXY_OBSERVER_INVALID/);
+ const throwing=new EventEmitter(),original=Object.assign(Error(secret),{code:'ECONNRESET'});
+ observeUnhandledTask187ProxyReset(throwing,'client-socket',()=>{throw Error('REPORT_FAILED')});
+ assert.throws(()=>throwing.emit('error',original),value=>value===original);
+});
+
+test('proxy reset source summary accepts one fixed marker only and hides private noise',()=>{
+ const base='Error: '+secret+"\n  code: 'ECONNRESET',\n";
+ for(const source of ['client-socket','client-request','server-response','upstream-request','upstream-response']){
+  const summary=task187BrowserExitSummary({code:1},base+proxyPrefix+source+'\n');
+  assert.equal(summary.unhandledProxyResetSource,source);assert.ok(!JSON.stringify(summary).includes(secret));
+  assert.equal(task187BrowserFailure(base+proxyPrefix+source).diagnostic.reason,'DIAGNOSTIC_UNAVAILABLE');
+ }
+ for(const text of [base+proxyPrefix+secret,base+proxyPrefix+'client-socket\n'+proxyPrefix+'client-request',base.replace('ECONNRESET','EPIPE')+proxyPrefix+'client-socket',base+proxyPrefix+'client-socket'+('x'.repeat(32768))]){
+  const summary=task187BrowserExitSummary({code:1},text);assert.equal(summary.unhandledProxyResetSource,undefined);assert.ok(!JSON.stringify(summary).includes(secret));
+ }
+ const incomplete=task187BrowserExitSummary({code:'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'},base+proxyPrefix+'client-socket');
+ assert.equal(incomplete.unhandledProxyResetSource,undefined);
+});
+
+test('unhandled proxy reset child stays failed while only fixed source survives summary',async()=>{
+ const source="import {EventEmitter} from 'node:events';import {observeUnhandledTask187ProxyReset} from './scripts/sandbox/task187-browser-network.mjs';const e=new EventEmitter();observeUnhandledTask187ProxyReset(e,'client-request',line=>console.error(line));e.emit('error',Object.assign(Error("+JSON.stringify(secret)+"),{code:'ECONNRESET'}));";
+ await new Promise((resolve,reject)=>execFile(process.execPath,['--input-type=module','-e',source],{maxBuffer:32768,timeout:5000},(error,stdout,stderr)=>{
+  try{assert.ok(error);assert.equal(error.code,1);assert.equal(stdout,'');const summary=task187BrowserExitSummary(error,stderr);assert.equal(summary.errorCode,'ECONNRESET');assert.equal(summary.unhandledProxyResetSource,'client-request');assert.ok(!JSON.stringify(summary).includes(secret));assert.equal(task187BrowserFailure(stderr).diagnostic.reason,'DIAGNOSTIC_UNAVAILABLE');resolve();}catch(failure){reject(failure)}
+ }));
 });

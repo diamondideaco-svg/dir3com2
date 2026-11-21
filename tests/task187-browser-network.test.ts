@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {once} from 'node:events';
+import {spawnSync} from 'node:child_process';
 import {createServer as httpServer} from 'node:http';
 import {connect,createServer as tcpServer,type Socket} from 'node:net';
 import test from 'node:test';
@@ -45,4 +46,23 @@ test('CONNECT forwards only the owned application and cleans live tunnels',{time
   const socket=await open('localhost:19040');await readUntil(socket,'\r\n\r\n');const closed=once(socket,'close',{signal:deadline()});closeTunnels();await closed;assert.equal(socket.destroyed,true);
  });
  assert.equal(allowed,2);assert.equal(denied,9);
+});
+
+// An untrusted peer resets a denied CONNECT after its headers are received.
+// The child isolates an unhandled-event regression without weakening the proxy.
+test('denied CONNECT peer reset is contained without permitting an external connection',{timeout:10000},()=>{
+ const moduleUrl=new URL('../scripts/sandbox/task187-browser-network.mjs',import.meta.url).href;
+ const source=`import assert from 'node:assert/strict';import {createServer} from 'node:http';import {connect} from 'node:net';import {errorMonitor} from 'node:events';import {attachTask187ConnectProxy} from ${JSON.stringify(moduleUrl)};let client,denied=0,allowed=0,observed=false;const proxy=createServer();const deadline=setTimeout(()=>{throw Error('SYNTHETIC_RESET_TIMEOUT');},4000);proxy.on('connection',socket=>socket.on(errorMonitor,error=>{if(error?.code==='ECONNRESET'){observed=true;setImmediate(()=>{assert.equal(denied,1);assert.equal(allowed,0);proxy.close(()=>{clearTimeout(deadline);console.log(JSON.stringify({denied,allowed,observed}));});});}}));attachTask187ConnectProxy(proxy,()=>allowed++,()=>{denied++;client.resetAndDestroy();});proxy.listen(0,'127.0.0.1',()=>{client=connect(proxy.address().port,'127.0.0.1',()=>client.write('CONNECT example.invalid:443 HTTP/1.1\\r\\nHost: example.invalid:443\\r\\n\\r\\n'));client.on('error',()=>{});});`;
+ const result=spawnSync(process.execPath,['--input-type=module','-e',source],{encoding:'utf8',timeout:5000,env:{PATH:process.env.PATH??'',NODE_ENV:'test'}});
+ assert.equal(result.status,0,'the isolated denied-socket reset must not crash the proxy');
+ assert.deepEqual(JSON.parse(result.stdout.trim()),{denied:1,allowed:0,observed:true});
+});
+
+
+test('unexpected denied CONNECT socket errors still fail closed',{timeout:10000},()=>{
+ const moduleUrl=new URL('../scripts/sandbox/task187-browser-network.mjs',import.meta.url).href;
+ const source=`import {createServer} from 'node:http';import {connect} from 'node:net';import {attachTask187ConnectProxy} from ${JSON.stringify(moduleUrl)};let serverSocket;const proxy=createServer();proxy.on('connection',socket=>{serverSocket=socket;});attachTask187ConnectProxy(proxy,()=>{},()=>{serverSocket.emit('error',Object.assign(Error('SYNTHETIC_UNEXPECTED_SOCKET_ERROR'),{code:'EACCES'}));});proxy.listen(0,'127.0.0.1',()=>{const client=connect(proxy.address().port,'127.0.0.1',()=>client.write('CONNECT example.invalid:443 HTTP/1.1\\r\\nHost: example.invalid:443\\r\\n\\r\\n'));client.on('error',()=>{});});setTimeout(()=>process.exit(0),4000);`;
+ const result=spawnSync(process.execPath,['--input-type=module','-e',source],{encoding:'utf8',timeout:5000,env:{PATH:process.env.PATH??'',NODE_ENV:'test'}});
+ assert.equal(result.status,1,'an unexpected error must remain a failure');
+ assert.match(result.stderr,/SYNTHETIC_UNEXPECTED_SOCKET_ERROR/);
 });

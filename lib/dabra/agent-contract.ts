@@ -1,4 +1,5 @@
 import { normalizePlatformQuery } from './platform-assistant';
+import { conversationIntent } from './conversation-renderer';
 import { isMarketplaceRequestReference } from '../marketplace/customer-requests';
 import { withoutNegativeActions } from './intent-constraints';
 import { parseCustomerCaseReference } from '../contact/customer-cases';
@@ -56,6 +57,8 @@ export function agentIntent(message: string): AgentIntent {
   const reference = caseReference?.reference ?? (isMarketplaceRequestReference(candidate) ? candidate : null);
   const draft = /\bdraft\b|compose|reply|مسوده|صياغه|جهز رد|اكتب رد/.test(text);
   let tool: AgentTool = 'discover';
+  const conversational = conversationIntent(message);
+  if (!reference && (conversational === 'repair' || conversational === 'summary' || conversational === 'price_objection')) return { tool, reference, draft };
   if (caseReference || /my support cases|support cases|قضايا الدعم|قضايا دعمي|قضيه الدعم/.test(text)) {
     tool = /call cent(?:er|re)|\bcall\b|كول سنتر|مركز الاتصال|مكالم/.test(text) ? 'call_center' : 'support_cases';
   }
@@ -64,12 +67,13 @@ export function agentIntent(message: string): AgentIntent {
   else if (/\bceo\b|executive|المكتب التنفيذي|تقرير الاداره العليا|ملخص تنفيذي/.test(text)) tool = 'executive';
   else if (/operations|\badmin\b|طابور|طلبات العملاء|العمليات|لوحه الاداره|لوحة الاداره/.test(text)) tool = 'operations';
   else if (/call cent(?:er|re)|\bcall\b|اتصل|كول سنتر|مركز الاتصال|مكالم/.test(text)) tool = 'call_center';
-  else if (/capabilit|what can you|what do you|ماذا تستطيع|شو بتقدر|ايش تقدر|امكانيات|قدرات/.test(text)) tool = 'capabilities';
+  else if (/capabilit|what can you|what do you|ماذا تستطيع|شو بتقدر|ايش تقدر|امكانيات|قدرات/.test(text)
+    || (!reference && /(?:تستطيع|تقدر|بامكانك|يمكنك|can you|are you able).{0,35}(?:حجز|تحجز|book)/.test(text))) tool = 'capabilities';
   else if (/weather|temperature|طقس|الحراره/.test(text)) tool = 'weather';
   else if (/map|directions|خريطه|خرائط|خرايط|موقع الوجهه/.test(text)) tool = 'maps';
   else if (/(?:usd|sar|egp|aed|eur|دولار|ريال|جنيه|درهم|يورو)/.test(text) && /convert|exchange|تحويل|حول|كم يساوي|صرف/.test(text)) tool = 'currency';
   else if (reference || /my requests|my bookings|request status|طلباتي|حجوزاتي|حاله طلبي|حاله الطلب|وين طلبي/.test(text)) tool = 'my_requests';
-  else if (/support|customer service|complaint|cancel|refund|payment|\bpay\b|خدمه العملاء|شكوي|الغاء|الغي|استرد|ادفع|دفع|تحويل|كاش/.test(withoutNegativeActions(text))) tool = 'support';
+  else if (/support|customer service|complaint|cancel|refund|payment|\bpay\b|خدمه العملاء|شكوي|الغاء|(?<!\p{L})(?:و|ف)?الغي|استرد|ادفع|دفع|تحويل|كاش/u.test(withoutNegativeActions(text))) tool = 'support';
   return { tool, reference, draft };
 }
 

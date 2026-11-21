@@ -3,6 +3,7 @@ import { ContinuityContext } from './continuity-context';
 import type { ContinuitySnapshot } from './continuity-service';
 import type { ContinuityPreferences } from './continuity-contract';
 import type { DabraPersistenceContext } from './travel-commerce-state';
+import type { DisplayCurrency } from '../currency/display';
 
 export type ConversationMessage = { id: string; role: 'user' | 'assistant'; text: string };
 type Update<T> = T | ((current: T) => T);
@@ -25,11 +26,25 @@ export class ConversationSession {
   private controller: AbortController | null = null;
   private active: ConversationJob | null = null;
   private retryTransport: { key: string; id: string; body: BodyInit; retry: boolean } | null = null;
+  private requestCurrency: DisplayCurrency | null = 'SAR';
+  private excludedRequestCurrencies = new Set<DisplayCurrency>();
   private state: ConversationState = { allowance: null, generation: 0, boundary: '', ready: false, persistence: null,
     messages: [], draft: '', pending: false, error: null, preferences: null, continuityDraft: null };
   readonly emptySnapshot = this.state;
   setContinuitySnapshot(snapshot: ContinuitySnapshot | null) { this.continuitySnapshot = snapshot; }
   setContinuityCurrency(value: typeof this.continuityCurrency) { this.continuityCurrency = value; }
+  selectRequestCurrency(explicit: DisplayCurrency | null = null, excluded: readonly DisplayCurrency[] = []) {
+    const previousCurrency = this.requestCurrency;
+    const previousExcluded = this.getExcludedRequestCurrencies().join(',');
+    for (const currency of excluded) this.excludedRequestCurrencies.add(currency);
+    if (explicit) { this.excludedRequestCurrencies.delete(explicit); this.requestCurrency = explicit; }
+    else if (this.requestCurrency && this.excludedRequestCurrencies.has(this.requestCurrency)) this.requestCurrency = this.excludedRequestCurrencies.has('SAR') ? null : 'SAR';
+    // A session choice can change while the shared display selector already has
+    // that value. Notify consumers even when its external currency does not.
+    if (this.requestCurrency !== previousCurrency || this.getExcludedRequestCurrencies().join(',') !== previousExcluded) this.publish({});
+    return this.requestCurrency;
+  }
+  getExcludedRequestCurrencies() { return [...this.excludedRequestCurrencies].sort(); }
   private currencyRestorer: ((applied: NonNullable<ConversationSession['continuityCurrency']>) => void) | null = null;
   setCurrencyRestorer(restore: typeof this.currencyRestorer) { this.currencyRestorer = restore; }
   restoreContinuityCurrency() {
@@ -49,7 +64,7 @@ export class ConversationSession {
   invalidate(boundary: string) {
     if (this.active) this.context.finishAnswer(`assistant-${this.active.id}`);
     this.controller?.abort(); this.controller = null; this.active = null;
-    this.retryTransport = null;
+    this.retryTransport = null; this.requestCurrency = 'SAR'; this.excludedRequestCurrencies.clear();
     this.context.clear([]); this.continuitySnapshot = null; this.continuityCurrency = null; this.privateConversation = false;
     this.publish({ allowance: null, generation: this.state.generation + 1, boundary, ready: false, persistence: null,
       messages: [], draft: '', pending: false, error: null, preferences: null, continuityDraft: null });
@@ -90,6 +105,7 @@ export class ConversationSession {
     else this.retryTransport.retry = false;
     return { id: this.retryTransport.id, body: this.retryTransport.body };
   }
+  discardRetryTransport() { this.retryTransport = null; }
   acceptAllowance(job: ConversationJob, headers: Headers) {
     if (this.isCurrent(job)) this.publish({ allowance: parseSuccessfulTaskAllowance(headers.get('X-DABRA-Successful-Task-Allowance')) });
   }

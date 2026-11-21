@@ -119,7 +119,7 @@ test('voice lifecycle, chat serialization and stale marketplace updates are guar
   assert.match(sessionSource, /this\.controller\?\.abort\(\)/);
   assert.match(component, /requestId !== marketplaceRequestRef\.current/);
   assert.match(component, /marketplaceAbortRef\.current\?\.abort\(\)/);
-  assert.match(component, /marketplaceGeneration === marketplaceRequestRef\.current/);
+  assert.match(component, /marketSession\.userVersion\(\) === inputVersion/);
   assert.match(component, /setAttachments\(\[\]\)/);
   assert.match(component, /disabled=\{chatInFlight\}/);
   assert.match(styles, /\.dabra-waveform i \{ animation: none/);

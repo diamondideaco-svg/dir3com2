@@ -133,7 +133,7 @@ test('failed API request follows the safe user-facing error path', async () => {
       headers: { 'content-type': 'text/plain' },
     }), () => assert.fail('failed response must not render its body')),
   );
-  assert.match(component, /catch \{[\s\S]*text: DABRA_LOCALE_ERROR\[language\]/);
+  assert.match(component, /catch \{[\s\S]*text: DABRA_LOCALE_ERROR\[requestLocale\]/);
   assert(!DABRA_SAFE_CHAT_ERROR.includes('internal'));
 });
 
@@ -207,7 +207,7 @@ test('HTTP200 empty or malformed delivery signals uncertainty without treating t
 });
 
 test('invalid HTTP200 delivery preserves selected files and request UUID through the existing submission catch', async () => {
-  assert.match(component, /DABRA_LOCALE_ERROR\[language\], \(\) => \{ throw new Error\('DABRA_RESPONSE_UNCERTAIN'\)/);
+  assert.match(component, /DABRA_LOCALE_ERROR\[requestLocale\], \(\) => \{ throw new Error\('DABRA_RESPONSE_UNCERTAIN'\)/);
   const invalidResponses = [
     Response.json({}), Response.json({ answer: '   ' }),
     new Response('{invalid', { headers: { 'Content-Type': 'application/json' } }),
