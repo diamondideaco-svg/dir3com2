@@ -225,10 +225,10 @@ test('credential binding: actual GET uses canonical CEO and existing null-subjec
   const rpcCalls: unknown[] = [], authCalls: unknown[] = [];
   const actualRoute = readFileSync(new URL('../app/api/ai2/chat/route.ts', import.meta.url), 'utf8');
   const post = actualRoute.replace(/\r\n/g, '\n').split('\n/** CEO-only, read-only diagnostic;')[0];
-  // Pin the complete POST prefix for the Task237 disabled production-policy slice.
-  // Only the explicit policy boundary/import was added; the GET suffix is unchanged.
+  // Pin the complete POST prefix for the Task248 issued USER-request integration.
+  // The GET suffix is byte-identical to ab2d; independent review covers the POST delta.
   // Baseline maintenance requires independent review of that full delta; GET assertions remain active.
-  assert.equal(createHash('sha256').update(post).digest('hex'), '36abc0adaec65b21e0759cfb6429b82f41fd7b635ae5674fa92b203d5c458864');
+  assert.equal(createHash('sha256').update(post).digest('hex'), 'e6bc1e0336a1ba0d5587702bc468427bd1163311f854ca82efca8dac76a6bc99');
   const loaded = compileModule('../app/api/ai2/chat/route.ts', id => {
     if (id === '@/lib/dabra/credential-binding') return credentialBindingModule;
     if (id === '@/lib/ai2/runtime/agent-provider-dispatch') return { internalAgentCredential: () => key };

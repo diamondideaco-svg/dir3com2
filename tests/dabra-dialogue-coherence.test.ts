@@ -15,7 +15,7 @@ import type { SavedTrip } from '../lib/dabra/continuity-contract';
 import { bareDrivePartyWithLuggage, driveDialogue, driveDialogueCopy, driveQuantities } from '../lib/dabra/drive-planning';
 import { explicitDabraReplyLocale } from '../lib/dabra/locale-contract';
 import { buildPlatformAssistantResponse as respond, normalizePlatformQuery as normalize, platformContext, platformCurrency, platformCurrencySelection } from './fixtures/task248-platform-request';
-import { cityRoles } from '../lib/dabra/trip-routing';
+import { cityRoles, newTripRequested } from '../lib/dabra/trip-routing';
 import { DRIVE_OFFERS, VEHICLE_MASTER } from '../lib/drive/catalog';
 import { driveModelReference, driveModelReferenceCopy } from '../lib/drive/model-reference';
 import { DRIVE_OWNER_AVAILABILITY, driveOwnerAvailabilityCopy } from '../lib/drive/owner-availability';
@@ -370,4 +370,14 @@ test('accepted FX quote shows converted prices without disclosing excluded sourc
  const snapshot={base:'USD' as const,provider:'frankfurter' as const,rates:{USD:1,SAR:3.75,EGP:50,EUR:.9,AED:3.67},asOf:'2026-11-15',expiresAt:Date.now()+60000};
  const answer=respond('Show Jetour T2 in Cairo, USD is not acceptable',[],'en',undefined,undefined,{currency:'SAR',snapshot,excludedCurrencies:['USD']}).answer;
  assert.match(answer,/525\.94 SAR/);assert.doesNotMatch(answer,/\b[\d,.]+\s+USD\b/);
+});
+
+for (const [plan,conditional,refusal] of [['Plan my trip','If I plan my trip','Plan my trip; do not use it'],['خطط رحلتي','إذا خططت رحلتي','خطط رحلتي؛ لا تستخدمها']] as const) test('direct planning keeps its scope without promoting a condition or later refusal: '+plan,()=>{
+ assert.equal(newTripRequested.decision(plan).kind,'continue');
+ assert.equal(newTripRequested.decision(conditional).kind,'uncertain');
+ assert.equal(newTripRequested.decision(refusal).refused,true);
+});
+test('Arabic arranging-details is not a destination but an unknown city still is',()=>{
+ assert.equal(cityRoles('أحتاج فندق في القاهرة. هل تساعدني في ترتيب التفاصيل؟').unknownDestination,false);
+ assert.equal(cityRoles('أحتاج فندق في بلدةمجهولة').unknownDestination,true);
 });

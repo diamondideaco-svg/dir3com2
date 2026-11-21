@@ -268,7 +268,7 @@ export async function POST(request: NextRequest) {
     && classifierActor.actorId === classifierActor.ownerId && !!agentContext.isTaskAuthorityCurrent;
   if (!platformFacts?.blocked && inferenceEnabled && dialoguePolicy.trial && (dialoguePolicy.admission || dialoguePolicy.funding)
     && !dialoguePolicy.publicMonthly && !conversationIntent(scopedMessage) && publicCustomer && intent.tool === 'discover' && !platformFamilies(scopedMessage).length
-    && !platformFacts?.families.length && !hasActivePlatformDriveDialogue(platformRequest)) {
+    && !hasActivePlatformDriveDialogue(platformRequest)) {
     const { planInternalAgentTool } = await import('@/lib/dabra/agent-planner');
     const { createDabraProviderAttemptAfterResponseScheduler } = await import('@/lib/ai2/observability/provider-attempts');
     const planned = await planInternalAgentTool(scopedMessage, { language: locale,

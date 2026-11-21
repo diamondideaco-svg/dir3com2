@@ -1363,7 +1363,7 @@ export function preparePlatformAssistantResponse(input: string|PlatformUserReque
   } else if (/pay|payment|ادفع|دفع|تحويل|كاش/.test(current) && !families.length) {
     lines.push(ar ? 'راجع المبلغ وطريقة التحصيل مع العمليات من طلبك. لا أسجّل دفعًا أو تأكيدًا من المحادثة.' : 'Review the amount and collection method with Operations in your request. Chat does not record payment or confirmation.', link(ar ? 'متابعة الطلب' : 'View requests', '/my-requests'));
   } else {
-    if (!families.length && /trip|itinerary|رحله|برنامج|خطه سفر|(?:^|[^\p{L}\p{N}_])رحل(?:تي|تنا)(?=$|[^\p{L}\p{N}_])/u.test(current)) families.push(...(['drive','stay'] as PlatformFamily[]).filter(family=>!familyState.denied.includes(family)));
+    if (!families.length && /trip|itinerary|رحله|برنامج سفر|خطه سفر|(?:^|[^\p{L}\p{N}_])رحل(?:تي|تنا)(?=$|[^\p{L}\p{N}_])/u.test(current)) families.push(...(['drive','stay'] as PlatformFamily[]).filter(family=>!familyState.denied.includes(family)));
     for (const family of families) {
       const href = platformEntryFromText(family, context, locale, pricing?.currency ?? undefined, trip, excludedCurrencies, Boolean(local?.supersede),userDriveRoute(message,history));
       if (family === 'drive') {

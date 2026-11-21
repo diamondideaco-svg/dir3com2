@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
 import { POST } from '../app/api/ai2/chat/route';
-import { buildPlatformAssistantResponse as respond } from '../lib/dabra/platform-assistant';
+import { buildPlatformAssistantResponse as respond } from './fixtures/task248-platform-request';
 import { runInternalAgent } from '../lib/dabra/agent';
 import { renderServerReply, PLATFORM_CHARACTER_VERSION, type ServerReplySegment } from '../lib/dabra/conversation-renderer';
 import { AI2_DABRA_PROMPT_VERSION, AI2_DABRA_CONVERSATION_COPY } from '../lib/ai2/prompt/contract';

@@ -9,7 +9,7 @@ import type { ConversationJob } from '@/lib/dabra/conversation-session';
 import { newTripRequested } from '@/lib/dabra/trip-routing';
 import {parseContinuitySnapshot,type ContinuitySnapshot} from '@/lib/dabra/continuity-service';
 import PlatformResults from '@/components/dabra/PlatformResults';
-import { createPlatformMarketSession, preparePlatformMarketInput, platformConversationScope, platformFamilies, platformCurrencySelection, platformUnanchoredScopeAnswer, platformUserRequestFacts, type PlatformFamily, type PlatformUserRequest, type PlatformLocalCurrencyPolicy } from '@/lib/dabra/platform-assistant';
+import { createPlatformMarketSession, preparePlatformMarketInput, platformConversationScope, platformCurrencySelection, platformUnanchoredScopeAnswer, platformUserRequestFacts, type PlatformFamily, type PlatformUserRequest, type PlatformLocalCurrencyPolicy } from '@/lib/dabra/platform-assistant';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FiArrowLeft, FiCheck, FiChevronDown, FiClock, FiHeart, FiMapPin, FiMessageCircle, FiMic, FiMicOff, FiPaperclip, FiSearch, FiSend, FiShoppingBag, FiSliders, FiStopCircle, FiVolume2, FiX } from 'react-icons/fi';

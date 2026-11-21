@@ -131,7 +131,7 @@ for(const locale of ['ar','en'] as const) {
   assert.doesNotMatch(driver,earlyCatalogue);assert.match(driver,locale==='ar'?/ميزاني/:/budget/i);
   const ready=await ask(locale==='ar'?'الميزانية مفتوحة، اقترح الآن':'No fixed budget, suggest options now');
   assert.match(ready,/passengers=5/);
-  assert.match(ready,locale==='ar'?/سعة ركاب موثقة/:/capacity is not documented/i);
+  assert.match(ready,locale==='ar'?/سعة ركاب موثقة/:/No listed option has documented capacity for this party/i);
   assert.doesNotMatch(ready,earlyCatalogue);
   assert.match(ready,locale==='ar'?/تؤكد|تؤكده/:/confirm/i);
   assert.doesNotMatch(ready,/\b(?:booked|paid|guaranteed available)\b|تم الحجز|تم الدفع/i);

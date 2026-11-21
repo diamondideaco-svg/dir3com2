@@ -146,11 +146,12 @@ export function cityRoles(message: string) {
     const separateServiceCity=residence && destinationIndex>(service?.index ?? -1);
     // An approval clause introduced by 'في حال' is not a city.
     // Limit this exception to that grammatical form so unknown places stay guarded.
+    const planningPhrase=/^(?:ترتيب التفاصيل|تخطيط الرحله)(?![\p{L}])/u.test(phrase);
     const conditionalPhrase=/^حال(?:ه)?(?=$|[^\p{L}])/u.test(phrase) && turnHasDeferredIntent('في '+phrase);
     const tripReference=/^(?:نفس|هذه|هذي)\s+(?:ال)?رحله(?![\p{L}])/u.test(phrase)
       || /^(?:ال)?رحله\s+(?:نفسها|الحاليه|المحفوظه)(?![\p{L}])/u.test(phrase)
       || /^(?:ال)?رحله(?![\p{L}])/u.test(phrase) || /^رحلتي(?![\p{L}])/u.test(phrase);
-    return !rejected && !separateServiceCity && !conditionalPhrase && !tripReference && !aliases.has(match[1]) && !nonPlaces.test(match[1]) && !nonDestination.test(match[1])
+    return !rejected && !separateServiceCity && !conditionalPhrase && !planningPhrase && !tripReference && !aliases.has(match[1]) && !nonPlaces.test(match[1]) && !nonDestination.test(match[1])
       && !displayCurrency.test(phrase) && !relativeTime.test(phrase) && !arabicRelativeTime.test(phrase);
   }));
   // An explicit source which is outside the bounded city vocabulary is not

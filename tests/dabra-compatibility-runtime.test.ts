@@ -115,8 +115,8 @@ for(const locale of ['ar','en'] as const)for(const stream of [false,true])test(`
 
 // Negative controls are distinct from the fresh-selection recovery fixture.
 for (const locale of ['ar','en'] as const) for (const stream of [false,true]) {
- for (const kind of ['conflicting-history','refusal','conditional'] as const) test(`${locale} stream=${stream} ${kind}: no stale trip projection or classifier`,async()=>{
-  const f=fixture();let calls=0;globalThis.fetch=async()=>{calls++;throw Error('Unexpected inference');};
+ for (const kind of ['conflicting-history','refusal','conditional'] as const) test(`${locale} stream=${stream} ${kind}: no stale trip projection and bounded classification`,async()=>{
+  const f=fixture();let calls=0;globalThis.fetch=async(_input,init)=>{calls++;assert.doesNotMatch(String(init?.body),/PRIVATE_HISTORY_MARKER|Riyadh|Cairo/);return Response.json({error:{code:'Arrearage',message:'PRIVATE_PROVIDER_DETAIL'}},{status:429});};
   const messages={
    'conflicting-history':locale==='en'?'Could you help arrange things?':'هل تساعدني في ترتيب التفاصيل؟',
    refusal:locale==='en'?'Do not use my saved trip. Hotels in Dubai':'لا تستخدم رحلتي المحفوظة. فنادق في دبي',
@@ -125,7 +125,7 @@ for (const locale of ['ar','en'] as const) for (const stream of [false,true]) {
   const response=await f.post(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',body:JSON.stringify({locale,stream,message:messages[kind],continuityTrip:{revision:1,generation:0,trip},history:kind==='conflicting-history'?[{role:'user',content:'hotel Cairo PRIVATE_HISTORY_MARKER'}]:[]})}));
   assert.equal(response.status,200);const text=await answer(response,stream);
   assert.doesNotMatch(text,/destination=riyadh|checkIn=2026-12-12|PRIVATE_HISTORY_MARKER|offer=/);
-  assert.equal(calls,0,'blocked/refused scope cannot open paid classification');
+  assert.equal(calls,kind==='conflicting-history'?1:0,'genuine ambiguity remains one governed classification; blocked/refused scope stays local');
  });
  test(`${locale} stream=${stream} active Drive followup avoids classification`,async()=>{
   const f=fixture();let calls=0;globalThis.fetch=async()=>{calls++;throw Error('Unexpected inference');};
