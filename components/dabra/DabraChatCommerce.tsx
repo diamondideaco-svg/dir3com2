@@ -409,8 +409,7 @@ function DabraChatCommerceSession() {
     return visibleServices.filter((service) => selected.has(String(service.id)) && recommendationEligible(service));
   }, [cart, visibleServices]);
 
-  async function searchMarketplace(message: string, familyOverride = activeTab, applyCurrencyChoice = true, fromTab = false) {
-    const chatRefresh=!applyCurrencyChoice && !fromTab;
+  async function searchMarketplace(message: string, familyOverride = activeTab, applyCurrencyChoice = true, fromTab = false, chatRefresh = false) {
     if (!chatRefresh) marketSession.noteUserInput();
     // begin() invalidates the previous result before reading or composing input.
     let boundaryUnclear = false;
@@ -421,7 +420,7 @@ function DabraChatCommerceSession() {
       const sourceMessages = context.scoped(conversation.getSnapshot().messages);
       const decision = newTripRequested.decision(event.content);
       const standalone=platformConversationScope(event.content,[],context.trip);
-      const freshService=Boolean(context.trip && !standalone.trip && !standalone.tripStatus && !standalone.scopeReason && platformFamilies(event.content).length && !newTripRequested.deferred(event.content));
+      const freshService=Boolean(context.trip && !standalone.trip && !standalone.tripStatus && !standalone.scopeReason && !marketTurnsRef.current.length && !decision.mentioned && !newTripRequested.deferred(event.content));
       const explicitBoundary = freshService || decision.mentioned && decision.kind === 'new' && !decision.refused && !decision.contested
         || platformUnanchoredScopeAnswer(event.content) === 'separate';
       if (explicitBoundary) {
@@ -642,7 +641,7 @@ function DabraChatCommerceSession() {
       marketSession.endChat(job.id);
       if (current && viewMountedRef.current && lifecycle === lifecycleRef.current) {
         setVoiceStatus('idle');
-        if (marketSession.userVersion() === inputVersion && explicitText) void searchMarketplace(explicitText, activeTab, false);
+        if (marketSession.userVersion() === inputVersion && explicitText) void searchMarketplace(explicitText, activeTab, false, false, true);
       }
     }
   }

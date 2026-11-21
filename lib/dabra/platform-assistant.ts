@@ -1406,7 +1406,7 @@ export function preparePlatformAssistantResponse(input: string|PlatformUserReque
           }
           if (evaluatedOffers.capacityInsufficient) {
             lines.push(driveOwnerAvailabilityCopy(locale));
-            lines.push(ar ? 'لا أجد ضمن هذه الخيارات سعة ركاب موثقة تكفي هذا العدد، لذلك لا أقدر أرشّح سيارة تناسبه بثقة. تؤكد عمليات مصر السعة والسائق والتوفر والسعر حسب متطلباتك.' : 'Passenger capacity is not documented for this party in the listed options, so I cannot recommend one as fitting. Egypt Operations must confirm capacity, driver, availability and the quote for your requirements.', link(ar ? 'إكمال متطلبات السيارة للمراجعة' : 'Continue with the car requirements for review', href));
+            lines.push(ar ? 'لا أجد ضمن هذه الخيارات سعة ركاب موثقة تكفي هذا العدد، لذلك لا أقدر أرشّح سيارة تناسبه بثقة. تؤكد عمليات مصر السعة والسائق والتوفر والسعر حسب متطلباتك.' : 'No listed option has documented capacity for this party, so I cannot recommend one as fitting. Egypt Operations must confirm capacity, driver, availability and the quote for your requirements.', link(ar ? 'إكمال متطلبات السيارة للمراجعة' : 'Continue with the car requirements for review', href));
             continue;
           }
         }

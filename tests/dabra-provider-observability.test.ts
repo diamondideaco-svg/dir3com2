@@ -347,7 +347,7 @@ test('public internal catalogue route does not schedule nonexistent external pro
   const route = readFileSync(new URL('../app/api/ai2/chat/route.ts', import.meta.url), 'utf8');
   const agent = readFileSync(new URL('../lib/dabra/agent.ts', import.meta.url), 'utf8');
   assert.match(route, /runInternalAgent/);
-  assert.match(agent, /intent\.tool === 'discover'[\s\S]*buildPlatformAssistantResponse/);
+  assert.match(agent, /intent\.tool === 'discover'[\s\S]*preparePlatformAssistantResponse\(platformRequest[\s\S]*\.deliver\(\)/);
   assert.doesNotMatch(agent, /buildAI2ChatResponse|DabraTravelOrchestrator|scheduleProviderAttempt/);
   assert.doesNotMatch(route, /buildAI2ChatResponse|DabraTravelOrchestrator|scheduleProviderAttempt/);
 });
