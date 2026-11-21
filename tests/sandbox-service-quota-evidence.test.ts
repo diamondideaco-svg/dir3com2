@@ -7,6 +7,9 @@ const digest = 'sha256:73e76c305027cb1119bc7c6ab82449d9e1a50a9e8697f4ebac5443dc6
 const config = 'sha256:eb4951a2f9ac02288100937995af3cb7fb64c296b1228405de5d77ca4dd3410d';
 const primary = 'public.ecr.aws/supabase/postgrest@' + digest;
 const alternative = 'docker.io/postgrest/postgrest@' + digest;
+const storageDigest = 'sha256:9bf0dbb911f9c28d6d6808efeaa06a91a37dbbedaf2397f5c2a228266ee09b75';
+const storagePrimary = 'public.ecr.aws/supabase/storage-api@' + storageDigest;
+const storageAlternative = 'docker.io/supabase/storage-api@' + storageDigest;
 const failed = (stderr: unknown, extra: Record<string, unknown> = {}) => Object.assign(new Error('synthetic Docker failure'), { status: 1, stderr, ...extra });
 const translated = () => failed('error from registry: Data limit exceeded\n');
 const quota = () => failed('Error response from daemon: toomanyrequests: Data limit exceeded\n');
@@ -16,8 +19,13 @@ type Scenario = {
   onEvidence?: (value: Record<string, unknown>) => void;
 };
 function fixture({ platform = 'linux/amd64', service = 'postgrest', primaryFailure = translated(), probeFailure = quota(), alternativeFailure, badIdentity = false, onEvidence }: Scenario = {}) {
+  // Task253 admits Storage to strict corroboration; its fixture must use its own pins.
+  const primaryRef = service === 'storage' ? storagePrimary : primary;
+  const alternativeRef = service === 'storage' ? storageAlternative : alternative;
+  const configRef = service === 'storage' ? 'sha256:939915265e08b6f4dce62180e98143285772c8d8ffc691f1670b5b715cd34d83' : config;
+  const tag = service === 'storage' ? 'public.ecr.aws/supabase/storage-api:v1.70.7' : 'public.ecr.aws/supabase/postgrest:v16.1';
   const calls: string[][] = [], pauses: number[] = [], receipts: Record<string, unknown>[] = [], evidence: Record<string, unknown>[] = [], failures: Record<string, unknown>[] = [];
-  let cached = false, pulled = primary;
+  let cached = false, pulled = primaryRef;
   return { calls, pauses, receipts, evidence, failures, execute() {
     return ensureSandboxServiceImage(service, {
       run(args: string[]) {
@@ -25,21 +33,21 @@ function fixture({ platform = 'linux/amd64', service = 'postgrest', primaryFailu
         if (args[0] === 'version') return platform;
         if (args[0] === 'image') {
           if (!cached) throw Error('synthetic uncached image');
-          return JSON.stringify([{ Os: 'linux', Architecture: 'amd64', Id: badIdentity ? 'sha256:unapproved' : config, RepoDigests: [pulled] }]);
+          return JSON.stringify([{ Os: 'linux', Architecture: 'amd64', Id: badIdentity ? 'sha256:unapproved' : configRef, RepoDigests: [pulled] }]);
         }
         if (args[0] === 'manifest') {
-          assert.deepEqual(args, ['manifest', 'inspect', primary], 'proof must concern this exact primary manifest, never GoTrue/tag/alternative');
+          assert.deepEqual(args, ['manifest', 'inspect', primaryRef], 'proof must concern this exact service primary manifest, never another service/tag/alternative');
           if (probeFailure) throw probeFailure;
           return '{}';
         }
         if (args[0] === 'pull') {
           if (!args.at(-1)?.startsWith('docker.io/')) throw primaryFailure;
-          assert.deepEqual(args, ['pull', '--platform=linux/amd64', alternative]);
+          assert.deepEqual(args, ['pull', '--platform=linux/amd64', alternativeRef]);
           if (alternativeFailure) throw alternativeFailure;
-          pulled = alternative; return '';
+          pulled = alternativeRef; return '';
         }
         if (args[0] === 'tag') {
-          assert.deepEqual(args, ['tag', alternative, 'public.ecr.aws/supabase/postgrest:v16.1']);
+          assert.deepEqual(args, ['tag', alternativeRef, tag]);
           cached = true; return '';
         }
         throw Error('unexpected synthetic command');
@@ -108,11 +116,43 @@ test('service quota proof: non-amd64 translated failure never probes or switches
   assert.deepEqual(f.calls.filter(a => a[0] === 'pull'), [['pull', 'public.ecr.aws/supabase/postgrest:v16.1']]);
   assert.equal(f.calls.filter(a => a[0] === 'manifest').length, 0);
 });
-test('service quota proof: storage remains outside this narrowly authorized evidence extension', () => {
+test('service quota proof: Storage requires strict same-manifest evidence and verified identity', () => {
   const f = fixture({ service: 'storage' });
-  assert.throws(() => f.execute(), /SANDBOX_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
-  assert.equal(f.calls.filter(a => a[0] === 'manifest').length, 0);
-  assert.equal(f.calls.filter(a => a[0] === 'pull').length, 1);
+  assert.equal(f.execute(), 'public.ecr.aws/supabase/storage-api:v1.70.7');
+  assert.deepEqual(f.calls.filter(a => a[0] === 'manifest'), Array(4).fill(['manifest', 'inspect', storagePrimary]));
+  assert.deepEqual(f.calls.filter(a => a[0] === 'pull').map(a => a.at(-1)), [...Array(4).fill(storagePrimary), storageAlternative]);
+  assert.deepEqual(f.pauses, [2000, 5000, 15000, 30000, 2000]);
+  assert.equal(f.evidence.length, 4);
+  assert.ok(f.evidence.every(e => e.confirmed === true && e.image === storagePrimary && e.platform === 'linux/amd64' && e.service === 'storage'));
+  assert.equal(f.receipts[0].mode, 'quota-fallback');
+  assert.equal(f.receipts[0].digest, storageDigest);
+  assert.equal(f.receipts[0].identity, 'config-digest');
+});
+for (const [name, probeFailure] of [
+  ['manifest success', null],
+  ['translated message alone', translated()],
+  ['auth', failed('unauthorized: authentication required')],
+  ['TLS', failed('x509: certificate signed by unknown authority')],
+  ['network', failed('connection refused')],
+  ['digest', failed('digest mismatch')],
+  ['mixed', failed('toomanyrequests: Data limit exceeded\nunauthorized')],
+] as const) {
+  test('service quota proof: Storage ' + name + ' cannot enable fallback', () => {
+    const f = fixture({ service: 'storage', probeFailure });
+    assert.throws(() => f.execute(), /SANDBOX_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+    assert.deepEqual(f.calls.filter(a => a[0] === 'manifest'), [['manifest', 'inspect', storagePrimary]]);
+    assert.deepEqual(f.calls.filter(a => a[0] === 'pull'), [['pull', '--platform=linux/amd64', storagePrimary]]);
+    assert.deepEqual(f.pauses, [2000]); // Existing initial delay only; no quota retries.
+    assert.equal(f.evidence[0].confirmed, false);
+    assert.equal(f.receipts.length, 0);
+  });
+}
+test('service quota proof: an unknown service is rejected before any command', () => {
+  let calls = 0;
+  assert.throws(() => ensureSandboxServiceImage('unapproved-service', {
+    run() { calls++; throw Error('unexpected synthetic command'); },
+  }), /SANDBOX_IMAGE_UNKNOWN_SERVICE/);
+  assert.equal(calls, 0);
 });
 test('service quota proof: alternative failure cannot borrow primary evidence', () => {
   const f = fixture({ primaryFailure: quota(), alternativeFailure: translated() });
