@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {Client} from 'pg';
+import {task237AdmissionDiagnostic} from './fixtures/task237-admission-diagnostic';
 import {disposableTarget} from '../scripts/sandbox/apply-core-migration-to-db.mjs';
 import {canonicalOutputContract} from '../lib/dabra/agent-output-contract';
 import {durableAuthorityBindingSha256,durableProfileSha256,type DurableAccountChargeProof} from '../lib/dabra/dialogue-durable-authority';
@@ -851,7 +852,9 @@ test('Task237 PostgreSQL synthetic lifecycle, atomic quota and conserved account
    // Test-only trigger exposes a real pause inside INSERT, after all production locks/checks.
    await client.query("CREATE FUNCTION private.task237_test_insert_wait() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(hashtextextended('task237-synthetic-insert-wait',0)); RETURN NEW; END $$; CREATE TRIGGER task237_test_insert_wait BEFORE INSERT ON private.dabra_successful_task_answers FOR EACH ROW EXECUTE FUNCTION private.task237_test_insert_wait()");
    try{for(const change of ['lease','control','account','user']){
-    const who=await addActor(),r=make(who);assert.equal((await claim(r)).decision,'admitted');
+    const who=await addActor(),r=make(who),admission=await claim(r);
+    const category=admission.decision==='admitted' ? undefined : await task237AdmissionDiagnostic(client,who,authorityId,now+600000);
+    assert.equal(admission.decision,'admitted',category ? 'TASK237_ADMISSION_DIAGNOSTIC:'+change+':'+category : undefined);
     if(change==='lease')await client.query('UPDATE private.dabra_successful_tasks SET lease_expires_ms=floor(extract(epoch FROM clock_timestamp())*1000)::bigint+400 WHERE actor_id=$1',[who]);
     const before=await countHolds(),queued=new Client({...config,database}),revoker=new Client({...config,database});await queued.connect();await revoker.connect();
     const pid=Number((await queued.query('SELECT pg_backend_pid() AS pid')).rows[0].pid),revokePid=Number((await revoker.query('SELECT pg_backend_pid() AS pid')).rows[0].pid);
