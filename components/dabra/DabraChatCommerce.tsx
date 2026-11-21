@@ -563,6 +563,9 @@ function DabraChatCommerceSession() {
     if (!message || !identityResolved) { conversation.finish(job); marketSession.endChat(job.id); return; }
     const requestHistory=context.scoped(messages).map(({role,text:content})=>({role,content}));
     const trip=context.scope(explicitText,requestHistory);
+    // This send owns detaching its local trip projection. Previous results were
+    // already invalidated; keep external revocation/identity changes observable.
+    marketSession.trackLease(JSON.stringify(context.lease ?? null));
     // Never send a saved-trip presentation string as an ordinary user turn
     // after the typed trip has left scope.
     if(draft&&!explicitText&&!trip){

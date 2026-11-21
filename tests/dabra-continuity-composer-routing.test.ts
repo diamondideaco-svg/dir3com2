@@ -18,12 +18,13 @@ import { continuityChatTripFresh, type ContinuityChatTrip } from '../lib/dabra/c
 
 // Actual composer event handlers with controlled React hooks and transport.
 // This is semantic component/agent evidence, not authenticated DB/browser QA.
-function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'|'during'|'expired'|'after';savedLocale?:'ar'|'en';savedCurrency?:'USD'|'EUR'|'SAR'}={}) {
+function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'|'during'|'expired'|'after';savedLocale?:'ar'|'en';savedCurrency?:'USD'|'EUR'|'SAR';liveMarketLifecycle?:boolean}={}) {
   const conversation = new ConversationSession();
   conversation.resolve(conversation.invalidate('customer-public'), {ownerId:'user:A',storage:'local'});
   const preferences = { replyLanguage:options.savedLocale??locale,displayCurrency:options.savedCurrency??'USD',travelClass:'business',lodgingStyle:'hotel',itineraryPace:'relaxed' };
   const trip: SavedTrip = {id:'11111111-1111-4111-8111-111111111111',origin:'Cairo',destination:'Riyadh',startDate:'2026-12-12',endDate:'2026-12-14',adults:2,children:0,rooms:1,budget:5000,currency:'EUR',families:['stay']};
   let state: unknown = {revision:1,generation:0,consentEnabled:true,consentVersion:'task187-v1',preferences,preferencesExpiresAt:'2027-01-01T00:00:00Z',trip,tripExpiresAt:'2027-01-01T00:00:00Z',updatedAt:null};
+  let marketEffect:(()=>unknown)|undefined;
   const slots:unknown[]=[]; const refs:{current:unknown}[]=[]; let index=0,refIndex=0;
   const continuityPanel=()=>null;
   const resultsPanel=()=>null;
@@ -52,7 +53,7 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'
   }
   const deps:Record<string,unknown>={
     '@/components/dabra/DabraConversationProvider':{useDabraConversation:()=>({session:conversation,state:conversation.getSnapshot()})},
-    react:{useCallback:(fn:unknown)=>fn,useState:(initial:unknown)=>{const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],(value:unknown)=>{slots[i]=typeof value==='function'?value(slots[i]):value;}];},useRef:(initial:unknown)=>refs[refIndex]??(refs[refIndex++]={current:initial}),useMemo:(fn:()=>unknown)=>fn(),useEffect:()=>{}},
+    react:{useCallback:(fn:unknown)=>fn,useState:(initial:unknown)=>{const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],(value:unknown)=>{slots[i]=typeof value==='function'?value(slots[i]):value;}];},useRef:(initial:unknown)=>refs[refIndex]??(refs[refIndex++]={current:initial}),useMemo:(fn:()=>unknown)=>fn(),useEffect:(fn:()=>unknown)=>{if(options.liveMarketLifecycle&&String(fn).includes('let previous = conversation.getSnapshot()'))marketEffect=fn;}},
     '@/components/dabra/DabraContinuity':{default:continuityPanel},
     '@/components/dabra/PlatformResults':{default:resultsPanel},
     '@/components/dabra/PlatformAnswer':{default:()=>null},
@@ -81,6 +82,7 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean; fault?:'before'
   function elements(node:unknown):Element[]{if(Array.isArray(node))return node.flatMap(elements);if(!node||typeof node!=='object'||!('props' in node))return [];const el=node as Element;return [el,...elements(el.props.children)];}
   const render=()=>{index=0;refIndex=0;const wrapper=exports.default();assert.equal(typeof wrapper.type,'function');return (wrapper.type as ()=>ReactElement)();};
   render();
+  if(options.liveMarketLifecycle){assert.ok(marketEffect,'actual market subscription must be installed');marketEffect();}
   const panel=()=>elements(render()).find(el=>el.type===continuityPanel)!.props;
   const settle=async()=>{for(let i=0;i<6;i++)await new Promise<void>(resolve=>setImmediate(resolve));};
   const send=async(message:string)=>{const input=elements(render()).find(el=>el.type==='input'&&el.props['aria-label']===(locale==='ar'?'رسالة للدبرة':'Message DABRA'));assert.ok(input);(input.props.onChange as (event:unknown)=>void)({target:{value:message}});const button=elements(render()).find(el=>el.props.className==='dabra-send')!;(button.props.onClick as ()=>void)();await settle();};
@@ -216,4 +218,20 @@ test('full composer preflight cannot reapply an old exclusion over a newer choic
  assert.equal(f.requests.length,1);assert.equal(f.requests[0].get('currency'),'SAR');
  assert.deepEqual(JSON.parse(String(f.requests[0].get('excludedCurrencies'))),['USD']);
  assert.equal(f.conversation.selectRequestCurrency(),'USD');assert.deepEqual(f.conversation.getExcludedRequestCurrencies(),[]);
+});
+
+// Preserve the real shared-session subscription: a different destination
+// detaches the saved trip locally and must still refresh this send's results.
+for(const locale of ['ar','en'] as const)test(`${locale} exact browser journey keeps results after detaching the saved trip`,async()=>{
+ const f=fixture(locale,{liveMarketLifecycle:true});
+ await (f.panel().onResume as (trip:SavedTrip,prefs:unknown)=>Promise<void>)(f.trip,f.preferences);
+ const phrases=locale==='ar'?['فنادق','2 غرف','فنادق في جدة','سيارة في جدة','سيارة في القاهرة']:['hotels','2 rooms','hotels in Jeddah','car in Jeddah','car in Cairo'];
+ for(let i=0;i<phrases.length;i++){
+  await f.send(phrases[i]);assert.equal(f.requests.length,i+1,'chat transport at step '+(i+1));
+  const result=f.results();assert.ok(result,'issued result at step '+(i+1));
+  const family=i<3?'stay':'drive';
+  const url=new URL(platformEntry(family,result.request as import('../lib/dabra/platform-assistant').PlatformUserRequest,locale,'USD'),'https://dir3com.com');
+  assert.equal(url.searchParams.get('destination'),i<2?'riyadh':i<4?'jeddah':'cairo');
+  if(i===2){assert.equal(f.context().trip,null);assert.equal(f.requests[i].has('continuityTrip'),false);assert.equal(url.searchParams.get('origin'),null);assert.equal(url.searchParams.get('rooms'),'2');}
+ }
 });
