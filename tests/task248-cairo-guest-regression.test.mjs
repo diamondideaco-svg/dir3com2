@@ -4,8 +4,8 @@ import { agentIntent } from '../lib/dabra/agent-contract.ts';
 import { tripTurnDecision } from '../lib/dabra/trip-turn-decision.mjs';
 
 test('Task248 Arabic adult word does not become cancellation support',()=>{
- assert.equal(agentIntent('سيارة لشخصين بالغين').tool,'discover');
- for(const message of ['ألغي طلبي','الغي الطلب','الغيه','اريد الغاء الحجز','payment support','my requests','REQ-12345678'])
+ for(const message of ['سيارة لشخصين بالغين','سيارة لشخصين من البالغين'])assert.equal(agentIntent(message).tool,'discover',message);
+ for(const message of ['ألغي طلبي','الغي الطلب','وألغي الحجز','فألغي الحجز','الغيه','اريد الغاء الحجز','payment support','my requests','REQ-12345678'])
   assert.notEqual(agentIntent(message).tool,'discover',message);
 });
 for(const message of ['قصدي تخطيط رحلة جديدة: سيارة مع سائق في القاهرة','أقصد تخطيط رحلة جديدة: سيارة مع سائق'])
