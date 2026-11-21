@@ -305,3 +305,136 @@ test('credential redaction preserves ordinary useful diagnostics and quota class
   const ordinary = { error: 'denied', code: 'TOOMANYREQUESTS', message: 'Data limit exceeded' };
   assert.deepEqual(JSON.parse(sanitizeGoTruePullStderr(JSON.stringify(ordinary))), ordinary);
 });
+
+const storageTag = 'public.ecr.aws/supabase/storage-api:v1.70.7';
+const storageDigest = 'sha256:9bf0dbb911f9c28d6d6808efeaa06a91a37dbbedaf2397f5c2a228266ee09b75';
+const storageConfig = 'sha256:939915265e08b6f4dce62180e98143285772c8d8ffc691f1670b5b715cd34d83';
+const storagePrimary = 'public.ecr.aws/supabase/storage-api@' + storageDigest;
+const storageAlternative = 'docker.io/supabase/storage-api@' + storageDigest;
+function storageQuotaFixture({ platform = 'linux/amd64', pullError = newQuotaRenderer(), probeError = quota(), alternativeError = null, mutateIdentity = () => {} } = {}) {
+  const calls = [], pauses = [], receipts = [], failures = [], evidence = [];
+  let cached = false, source = storagePrimary;
+  const target = platform === 'linux/amd64' ? storagePrimary : storageTag;
+  const run = (args) => {
+    calls.push(args);
+    if (args[0] === 'version') return platform;
+    if (args[0] === 'image') {
+      assert.deepEqual(args, ['image', 'inspect', storageTag]);
+      if (!cached) throw failed('synthetic uncached image');
+      const entry = { Os: 'linux', Architecture: 'amd64', Id: storageDigest,
+        Descriptor: { digest: storageDigest, mediaType: 'application/vnd.oci.image.manifest.v1+json' }, RepoDigests: [source] };
+      mutateIdentity(entry);
+      return JSON.stringify([entry]);
+    }
+    if (args[0] === 'pull') {
+      assert.deepEqual(args, ['pull', ...(platform === 'linux/amd64' ? ['--platform=linux/amd64'] : []), args.at(-1)]);
+      if (args.at(-1) === target) { if (pullError) throw pullError; source = storagePrimary; return ''; }
+      assert.equal(args.at(-1), storageAlternative, 'only the existing pinned alternative is permitted');
+      if (alternativeError) throw alternativeError;
+      source = storageAlternative; return '';
+    }
+    if (args[0] === 'manifest') {
+      assert.deepEqual(args, ['manifest', 'inspect', storagePrimary], 'probe only the same immutable primary manifest');
+      if (probeError) throw probeError;
+      return '{}';
+    }
+    if (args[0] === 'tag') { assert.deepEqual(args, ['tag', source, storageTag]); cached = true; return ''; }
+    assert.fail('unexpected command in injected fixture');
+  };
+  return { calls, pauses, receipts, failures, evidence, execute: () => ensureSandboxServiceImage('storage', {
+    run, pause: ms => pauses.push(ms), report: x => receipts.push(x), reportFailure: x => failures.push(x), reportQuotaEvidence: x => evidence.push(x),
+  }) };
+}
+
+test('Storage translated data limit requires corroborated strict quota and exact verified fallback', () => {
+  const f = storageQuotaFixture();
+  assert.equal(f.execute(), storageTag);
+  assert.deepEqual(f.calls.filter(a => a[0] === 'manifest'), Array(4).fill(['manifest', 'inspect', storagePrimary]));
+  assert.deepEqual(f.calls.filter(a => a[0] === 'pull').map(a => a.at(-1)), [...Array(4).fill(storagePrimary), storageAlternative]);
+  assert.deepEqual(f.pauses, [2000, 5000, 15000, 30000, 2000]);
+  assert.ok(f.evidence.every(x => x.confirmed === true));
+  assert.equal(f.evidence.length, 4);
+  assert.deepEqual(f.receipts, [{ status: 'PASS', image: 'storage', mode: 'quota-fallback', platform: 'linux/amd64', digest: storageDigest, identity: 'manifest-digest' }]);
+});
+
+for (const [name, probeError] of [
+  ['successful manifest read', null],
+  ['auth rejection', failed('unauthorized: authentication required')],
+  ['permission rejection', failed('denied: requested access')],
+  ['TLS failure', failed('x509: certificate signed by unknown authority')],
+  ['network failure', Object.assign(failed('connection reset'), { code: 'ECONNRESET' })],
+  ['timeout', Object.assign(failed('', null), { code: 'ETIMEDOUT', signal: 'SIGTERM' })],
+  ['digest failure', failed('manifest verification failed for digest sha256:wrong')],
+  ['translated message again', newQuotaRenderer()],
+  ['mixed quota and denial', failed('toomanyrequests: Data limit exceeded\ndenied')],
+  ['zero status', failed('toomanyrequests: Data limit exceeded', 0)],
+  ['signalled quota', Object.assign(quota(), { signal: 'SIGTERM' })],
+]) test('Storage corroboration rejects ' + name, () => {
+  const f = storageQuotaFixture({ probeError });
+  assert.throws(f.execute, /SANDBOX_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+  assert.equal(f.calls.filter(a => a[0] === 'pull').length, 1);
+  assert.equal(f.calls.filter(a => a[0] === 'manifest').length, 1);
+  assert.equal(f.calls.some(a => a.includes(storageAlternative)), false);
+  assert.equal(f.evidence[0].confirmed, false);
+  if (probeError === null) assert.equal(f.evidence[0].reason, 'manifest-read-succeeded');
+  assert.equal(f.receipts.length, 0);
+});
+
+for (const pullError of [
+  failed('unauthorized: authentication required'), failed('x509: bad certificate'), failed('manifest verification failed'),
+  failed('error from registry: Data limit exceeded\ndenied'), Object.assign(newQuotaRenderer(), { code: 'ETIMEDOUT', signal: 'SIGTERM' }),
+]) test('Storage ineligible pull failure never probes or falls back: ' + pullError.stderr, () => {
+  const f = storageQuotaFixture({ pullError });
+  assert.throws(f.execute, /SANDBOX_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+  assert.equal(f.calls.filter(a => a[0] === 'pull').length, 1);
+  assert.equal(f.calls.filter(a => a[0] === 'manifest').length, 0);
+  assert.equal(f.receipts.length, 0);
+});
+
+test('Storage translated response on another platform never grants pinned fallback', () => {
+  const f = storageQuotaFixture({ platform: 'linux/arm64' });
+  assert.throws(f.execute, /SANDBOX_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+  assert.equal(f.calls.filter(a => a[0] === 'manifest').length, 0);
+  assert.equal(f.calls.filter(a => a[0] === 'pull').length, 1);
+});
+test('Storage alternative translated response cannot reuse primary corroboration', () => {
+  const f = storageQuotaFixture({ pullError: quota(), alternativeError: newQuotaRenderer() });
+  assert.throws(f.execute, /SANDBOX_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+  assert.equal(f.calls.filter(a => a[0] === 'manifest').length, 0);
+  assert.equal(f.calls.filter(a => a[0] === 'pull').length, 5);
+  assert.equal(f.receipts.length, 0);
+});
+test('Storage quota retries remain bounded at the existing limits', () => {
+  const f = storageQuotaFixture({ alternativeError: quota() });
+  assert.throws(f.execute, /SANDBOX_IMAGE_QUOTA_RETRIES_EXHAUSTED/);
+  assert.equal(f.calls.filter(a => a[0] === 'pull').length, 6);
+  assert.equal(f.calls.filter(a => a[0] === 'manifest').length, 4);
+  assert.deepEqual(f.pauses, [2000, 5000, 15000, 30000, 2000, 5000]);
+});
+for (const [name, mutateIdentity] of [
+  ['wrong config/image ID', e => { e.Id = 'sha256:wrong'; }],
+  ['wrong manifest', e => { e.Id = 'sha256:wrong'; e.Descriptor.digest = 'sha256:wrong'; }],
+  ['wrong descriptor', e => { e.Descriptor.digest = 'sha256:wrong'; }],
+  ['index instead of manifest', e => { e.Descriptor.mediaType = 'application/vnd.oci.image.index.v1+json'; }],
+  ['wrong repository', e => { e.RepoDigests = ['unapproved.invalid/storage@' + storageDigest]; }],
+  ['wrong architecture', e => { e.Architecture = 'arm64'; }],
+  ['wrong OS', e => { e.Os = 'windows'; }],
+]) test('Storage preparation never accepts ' + name, () => {
+  const f = storageQuotaFixture({ mutateIdentity });
+  assert.throws(f.execute, /SANDBOX_IMAGE_DIGEST_VERIFICATION_FAILED/);
+  assert.equal(f.receipts.length, 0);
+});
+test('Storage successful primary pull retains exact config verification', () => {
+  const f = storageQuotaFixture({ pullError: null, mutateIdentity: e => { e.Id = storageConfig; delete e.Descriptor; } });
+  assert.equal(f.execute(), storageTag);
+  assert.equal(f.receipts[0].mode, 'primary');
+  assert.equal(f.receipts[0].identity, 'config-digest');
+  assert.equal(f.calls.filter(a => a[0] === 'manifest').length, 0);
+});
+test('Storage probe diagnostics redact synthetic credentials without granting quota', () => {
+  const f = storageQuotaFixture({ probeError: failed('Authorization: Bearer synthetic-storage-secret\nhttps://synthetic-user:synthetic-pass@example.invalid/manifest?token=synthetic-query') });
+  assert.throws(f.execute, /SANDBOX_IMAGE_PULL_FAILED_WITHOUT_QUOTA/);
+  const diagnostic = JSON.stringify(f.evidence);
+  for (const secret of ['synthetic-storage-secret', 'synthetic-user', 'synthetic-pass', 'synthetic-query']) assert.equal(diagnostic.includes(secret), false);
+  assert.equal(f.evidence[0].confirmed, false);
+});
