@@ -31,3 +31,6 @@ test('Task251 conditional and other-service proposals are not erased by a confir
  const state=fold(car,'if I approve my car budget is 1000 SAR per day','my hotel budget is 200 EUR total','900 SAR total');
  assert.deepEqual(state.confirmed,cap);assert.ok(state.pending.some(p=>p.reason==='conditional'));assert.ok(state.pending.some(p=>p.scope==='other'));
 });
+for(const declaration of ['New trip: car is not needed.','New trip: car is not wanted.','قصدي تخطيط رحلة جديدة: سيارة غير مطلوبة.'])test('Task251 passive service refusal must not activate car: '+declaration,()=>assert.equal(fold(declaration,'900 SAR total').confirmed,null));
+for(const declaration of ['New trip: car without a driver.','New trip: car. Do not book or pay.'])test('Task251 execution constraints are not car-service refusal: '+declaration,()=>assert.deepEqual(fold(declaration,'900 SAR total').confirmed,cap));
+for(const declaration of ['New trip: car. No car.','قصدي تخطيط رحلة جديدة: سيارة. بدون سيارة.'])test('Task251 later bare refusal wins: '+declaration,()=>assert.equal(fold(declaration,'900 SAR total').confirmed,null));

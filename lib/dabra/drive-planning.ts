@@ -332,11 +332,18 @@ function budgetServiceKey(text:string):string|null {
 function declaredNewCarService(text:string) {
   const decision=tripTurnDecision(text);
   if (decision.kind!=='new' || decision.refused || decision.contested) return false;
+  if (/(?<![\p{L}])(?:no|without)\s+(?:(?:a|the)\s+)?(?:car|vehicle)(?![\p{L}]|\s+(?:budget|price|cost|rates?|cap|limit)\b)|(?<![\p{L}])(?:بدون|بلا)\s+(?:ال)?سياره(?![\p{L}])/u.test(text)) return false;
   if (/\b(?:hotels?|lodging|accommodation|stay|apartments?|villa|flights?|concierge|vip)\b|فندق|فنادق|اقامه|شقه|فيلا|طيران|كونسيرج/u.test(text)) return false;
   return conditionalActionSpans(text).some(span=>{
     const declaration=span.trim();
-    return !turnHasDeferredMarker(declaration) && !/[?؟]/u.test(declaration)
-      && /^(?:(?:قصدي|اقصد)\s+تخطيط\s+رحله\s+جديده|(?:new|another)\s+(?:trip|journey))\s*[:：]\s*(?:(?:a|the)\s+)?(?:car|vehicle|سياره)(?![\p{L}])/u.test(declaration);
+    if (turnHasDeferredMarker(declaration) || /[?؟]/u.test(declaration)) return false;
+    const service=/^(?:(?:قصدي|اقصد)\s+تخطيط\s+رحله\s+جديده|(?:new|another)\s+(?:trip|journey))\s*[:：]\s*(?:(?:a|the)\s+)?(?:car|vehicle|سياره)(?![\p{L}])/u.exec(declaration);
+    if (!service) return false;
+    const predicate=declaration.slice(service[0].length);
+    // Refusal must govern the car, not an independent execution constraint
+    // such as "do not book" or a preference for no driver.
+    return !/^\s+(?:(?:with\s+(?:a\s+)?driver)\s+)?(?:(?:is|was|will\s+be|would\s+be|should\s+be)\s+)?(?:(?:not|no\s+longer)\s+(?:needed|required|wanted|requested)|unnecessary|unwanted)\b/u.test(predicate)
+      && !/^\s+(?:مع\s+سائق\s+)?(?:غير|ليست)\s+(?:مطلوبه|مرغوبه|لازمه)(?![\p{L}])/u.test(predicate);
   });
 }
 /**
