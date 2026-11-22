@@ -258,3 +258,20 @@ for(const sequential of [true,false])test(`Task248 Cairo guest EN composer to ac
   else {assert.match(answer,/2 أشخاص/);assert.match(answer,/2 قطع أمتعة/);assert.match(answer,/ما تاريخا بدء الاستخدام/);}
  }
 });
+
+const cairoBudgetFollowup='من ٨ إلى ١٠ ديسمبر ٢٠٢٦. اقترح أنسب خيارين من كتالوجكم لشخصين وشنطتين وبسقف ٩٠٠ ريال للرحلة كلها. لا أريد إنشاء أي طلب، وأخبرني إذا السعر الإجمالي أو التوفر غير مؤكد.';
+for(const needsVerb of [false,true])test(`Task251 three exact Cairo guest turns to actual POST, need verb=${needsVerb}`,async()=>{
+ const f=fixture('en',{actualPost:true,guest:true});
+ const turns=[cairoGuestPrompts[0],needsVerb?cairoGuestPrompts[1].replace('سيارة مع سائق','أحتاج سيارة مع سائق'):cairoGuestPrompts[1],cairoBudgetFollowup];
+ for(const message of turns)await f.send(message);
+ assert.deepEqual(f.statuses,[200,200,200]);
+ assert.equal(f.requests[2].get('locale'),'en','explicit Arabic instruction was current-turn only');
+ assert.equal(f.requests[2].has('continuityTrip'),false);
+ const answer=f.messages().at(-1)!.text;
+ assert.doesNotMatch(answer,/REQ|Please confirm the proposed budget|clarify the budget, currency and duration|ما ميزانيتك|هل تؤكد الميزانية/);
+ assert.match(answer,/2026-12-08|2026-12-10|Luggage capacity/);
+ assert.match(answer,/This catalogue lists chauffeured daily rates/);
+ assert.match(answer,/does not confirm a self-drive service or a trip total/);
+ assert.match(answer,/Egypt Operations must verify those requirements/);
+ assert.doesNotMatch(answer,/booking confirmed|request (?:created|submitted)|\d+(?:\.\d+)?\s*USD/);
+});

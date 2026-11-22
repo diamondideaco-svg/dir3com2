@@ -326,6 +326,26 @@ function budgetServiceKey(text:string):string|null {
   return keys.length===1?keys[0]:null;
 }
 
+/** A nominal service immediately following an affirmative new-trip declaration
+ * is USER request evidence. It supplies no amount, account authority or consent.
+ * Keep mixed services, questions and conditional declarations unresolved. */
+function declaredNewCarService(text:string) {
+  const decision=tripTurnDecision(text);
+  if (decision.kind!=='new' || decision.refused || decision.contested) return false;
+  if (/(?<![\p{L}])(?:no|without)\s+(?:(?:a|the)\s+)?(?:car|vehicle)(?![\p{L}]|\s+(?:budget|price|cost|rates?|cap|limit)\b)|(?<![\p{L}])(?:بدون|بلا)\s+(?:ال)?سياره(?![\p{L}])/u.test(text)) return false;
+  if (/\b(?:hotels?|lodging|accommodation|stay|apartments?|villa|flights?|concierge|vip)\b|فندق|فنادق|اقامه|شقه|فيلا|طيران|كونسيرج/u.test(text)) return false;
+  return conditionalActionSpans(text).some(span=>{
+    const declaration=span.trim();
+    if (turnHasDeferredMarker(declaration) || /[?؟]/u.test(declaration)) return false;
+    const service=/^(?:(?:قصدي|اقصد)\s+تخطيط\s+رحله\s+جديده|(?:new|another)\s+(?:trip|journey))\s*[:：]\s*(?:(?:a|the)\s+)?(?:car|vehicle|سياره)(?![\p{L}])/u.exec(declaration);
+    if (!service) return false;
+    const predicate=declaration.slice(service[0].length);
+    // Refusal must govern the car, not an independent execution constraint
+    // such as "do not book" or a preference for no driver.
+    return !/^\s+(?:(?:with\s+(?:a\s+)?driver)\s+)?(?:(?:is|was|will\s+be|would\s+be|should\s+be)\s+)?(?:(?:not|no\s+longer)\s+(?:needed|required|wanted|requested)|unnecessary|unwanted)\b/u.test(predicate)
+      && !/^\s+(?:مع\s+سائق\s+)?(?:غير|ليست)\s+(?:مطلوبه|مرغوبه|لازمه)(?![\p{L}])/u.test(predicate);
+  });
+}
 /**
  * Reduce USER budget events in order. A proposed value is kept separate from
  * the last confirmed cap whenever its condition or service is unresolved.
@@ -346,6 +366,7 @@ export function driveBudgetState(userTurns:readonly string[]) {
     const cancelled=/\b(?:cancel|stop|forget)\s+(?:it|that|my request|the request|my car|the car)\b|\b(?:do not|don't|no longer)\s+(?:need|want|use)\s+(?:a\s+|the\s+|my\s+)?(?:car|vehicle|transfer)\b|(?:الغ|الغي|اوقف)\s*(?:طلبي|الطلب|السياره)|لا اريد\s+(?:السياره|سياره)/u.test(text);
     const requested=/\b(?:need|want|show|find|search for|looking for|arrange)\s+(?:(?:me|a|an|the|my|some)\s+){0,2}(?:car|cars|vehicle|vehicles|driver|chauffeur|transfer)\b|(?:اريد|ابي|ابغي|احتاج|اعرض|ابحث عن|احجز)\s+(?:ال)?(?:سياره|سيارات|سائق|سواق|توصيل)/u.test(text);
     if (cancelled) driveEvidence=false;
+    else if (declaredNewCarService(text)) driveEvidence=true;
     else if (requested && (!serviceCondition || conditionalActionSpans(text).some(span=>/\b(?:need|want|show|find|arrange)\s+(?:(?:me|a|an|the|my)\s+){0,2}(?:cars?|vehicles?|driver|chauffeur|transfer)\b|(?:اريد|ابي|ابغي|احتاج|اعرض|احجز)\s+(?:ال)?(?:سياره|سيارات|سائق|توصيل)/u.test(span) && !turnHasDeferredMarker(span)))) driveEvidence=true;
     // The shared turn parser has removed only a clearly independent weather
     // directive. Every remaining condition can still qualify a budget.
