@@ -18,6 +18,7 @@ import { validSearchDate } from '@/lib/marketplace/search-context';
 
 export type PricedDriveOffer = DriveOffer & { vehicle: VehicleMaster; price: { baseAmount: number | null; currency: string; unit?: 'day' | 'transfer'; dailyPeriodHours?: 24 | null; total: null }; display: { amount: number | null; currency: string; asOf: string | null; converted: boolean }; conversionUnavailable: boolean };
 export const driveErrors: Record<string, [string, string]> = {
+  CUSTOMER_BUDGET_INVALID: ['تحقق من المقدار والعملة وأساس ميزانية الرحلة قبل الإرسال.', 'Verify the trip-budget amount, currency and basis before submitting.'],
   CATALOG_CHANGED: ['تحدّثت الأسعار. أعد تحميل الصفحة وراجع السعر قبل إرسال طلب جديد.', 'Prices have changed. Reload this page and review the price before sending a new request.'],
   PICKUP_TOO_SOON: ['اختر موعدًا يبعد ست ساعات على الأقل بتوقيت القاهرة.', 'Choose pickup at least six hours ahead in Cairo time.'],
   INVALID_LOCAL_TIME: ['وقت غير صالح أو ملتبس بسبب التوقيت الصيفي؛ اختر وقتًا آخر.', 'Invalid or ambiguous daylight-saving time; choose another time.'],

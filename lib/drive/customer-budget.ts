@@ -20,3 +20,20 @@ export function carryCustomerTripBudget(target:URLSearchParams,source:URLSearchP
   } else if (budget.kind==='invalid') target.set('budgetBasis','invalid');
   return target;
 }
+
+export type CustomerBudgetRequirement = Omit<Extract<CustomerTripBudget,{kind:'requirement'}>,'kind'>;
+/** Persisted JSON/RPC input has no provenance; validate again before use or display. */
+export function readCustomerBudget(value:unknown):CustomerTripBudget {
+  if (value===undefined) return {kind:'absent'};
+  if (!value || typeof value!=='object' || Array.isArray(value)) return {kind:'invalid'};
+  const fields=Object.keys(value);
+  if (fields.length!==3 || fields.some(key=>!['amount','currency','basis'].includes(key))) return {kind:'invalid'};
+  if (!('amount' in value) || typeof value.amount!=='string' || !('currency' in value) || typeof value.currency!=='string' || !('basis' in value) || typeof value.basis!=='string') return {kind:'invalid'};
+  return readCustomerTripBudget(new URLSearchParams({budgetAmount:value.amount,budgetCurrency:value.currency,budgetBasis:value.basis}));
+}
+export function customerBudgetSearch(value:unknown) {
+  const budget=readCustomerBudget(value);
+  if (budget.kind==='absent') return '';
+  if (budget.kind==='invalid') return 'budgetBasis=invalid';
+  return new URLSearchParams({budgetAmount:budget.amount,budgetCurrency:budget.currency,budgetBasis:budget.basis}).toString();
+}

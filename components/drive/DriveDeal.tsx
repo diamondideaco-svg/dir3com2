@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { driveOffer, vehicleFor, vehicleTitle, vehicleClassLabel, vehicleYearAvailabilityLabel } from '@/lib/drive/catalog';
 import { readDriveSearch, validateDriveSearch } from '@/lib/drive/search';
-import { parseDriveTrip, type DriveTrip } from '@/lib/drive/request';
+import { parseDriveReviewTrip, type DriveTrip } from '@/lib/drive/request';
 import { marketplaceRequestAttemptKey } from '@/lib/marketplace/request-attempt';
 import { buildMarketplaceLoginHandoff } from '@/lib/auth/marketplace-request-handoff';
 import { supabase } from '@/lib/supabase/client';
@@ -34,7 +34,7 @@ export default function DriveDeal({ offerId, initialSearch }: { offerId: string;
     return()=>{active=false;controller.abort();clearTimeout(timer);};
   },[initialSearch,offerId,draftKey,priceRetry]);
   const change=(key:keyof DriveTrip,value:string|number|boolean)=>setTrip(current=>({...current,[key]:value}));
-  function review(event:FormEvent){event.preventDefault();const parsed=parseDriveTrip({...trip,currency,acknowledged:true});if(parsed.error){setError(parsed.error);return;}setError('');setStep(2);}
+  function review(event:FormEvent){event.preventDefault();const parsed=parseDriveReviewTrip({...trip,currency,acknowledged:true},initialSearch);if(parsed.error){setError(parsed.error);return;}setError('');setStep(2);}
   async function identify(){
     const {data:{session},error:sessionError}=await supabase.auth.getSession();
     const goLogin=()=>{try{sessionStorage.setItem(`drive-draft:${offerId}:${displaySearch}`,JSON.stringify({...trip,currency}));}catch{}window.location.assign(buildMarketplaceLoginHandoff(`/marketplace/drive/${offerId}?${displaySearch}`));};
@@ -47,7 +47,7 @@ export default function DriveDeal({ offerId, initialSearch }: { offerId: string;
   }
   async function select(){try{if(await identify()){setStep(1);setError('');}}catch{setError('UNAVAILABLE');}}
   async function submit(){
-    if(inFlight.current||reference)return;const parsed=parseDriveTrip({...trip,currency});if(parsed.error){setError(parsed.error);return;}
+    if(inFlight.current||reference)return;const parsed=parseDriveReviewTrip({...trip,currency},initialSearch);if(parsed.error){setError(parsed.error);return;}
     inFlight.current=true;setSending(true);setError('');
     try{
       const session=await identify();if(!session)return;
