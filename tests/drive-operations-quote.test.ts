@@ -72,6 +72,9 @@ for (const language of ['ar','en'] as const) {
     const values={vehicle:'Synthetic vehicle',vehicleYear:'2026',amount:'750',currency:'SAR',expires:'2030-12-11T12:00',note:'Synthetic private note'};
     for(const [name,value]of Object.entries(values))ui.change(name,value);
     const tree=ui.render();for(const [name,value]of Object.entries(values))assert.equal(ui.named(tree,name)?.props.value,value,name);
+    let resetPrevented=false;const form=all(tree).find(node=>node.type==='form');assert.ok(form);
+    (form.props.onReset as (event:{preventDefault:()=>void})=>void)({preventDefault:()=>{resetPrevented=true;}});
+    assert.equal(resetPrevented,true,'native reset must not silently change the selected currency');
     assert.match(text(tree),language==='ar'?/انتهى موعد صلاحية العرض المحدد/:/quote validity deadline has passed/);
     assert.equal(ui.named(tree,'expires')?.props.max,'2030-12-12T12:00');
     assert.equal(ui.submissions.length,0,'rendering a retained draft must never submit it');
