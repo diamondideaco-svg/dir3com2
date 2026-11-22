@@ -67,10 +67,10 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean;guest?:boolean; 
   (deps.react as {useRef:(value:unknown)=>unknown}).useRef=(initial:unknown)=>{const i=refIndex++;return refs[i]??(refs[i]={current:initial});};
   const compiled=ts.transpileModule(readFileSync(new URL('../components/dabra/DabraChatCommerce.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   const exports={} as {default:()=>ReactElement};
-  runInNewContext(compiled,{exports,require:(id:string)=>id in deps?deps[id]:require(id),JSON,Date,FormData,AbortController,AbortSignal,crypto:globalThis.crypto,window:{localStorage:{removeItem:()=>{}},sessionStorage:{removeItem:()=>{}}},fetch:async(url:string,options?:{body:FormData})=>{
+  runInNewContext(compiled,{exports,require:(id:string)=>id in deps?deps[id]:require(id),JSON,Date,FormData,AbortController,AbortSignal,crypto:globalThis.crypto,window:{localStorage:{removeItem:()=>{}},sessionStorage:{removeItem:()=>{}}},fetch:async(url:string,requestOptions?:{body:FormData})=>{
     if(url==='/api/dabra/continuity'){if(deferContinuity){deferContinuity=false;await new Promise<void>(resolve=>{releaseContinuity=resolve;});}return new Response(JSON.stringify({enabled:true,ownerId:'user:A',state}),{headers:{'content-type':'application/json'}});}
     if(options?.captureMarketRequests&&url.startsWith('/api/public/marketplace/items?')){marketRequests.push(url);return Response.json({items:[]});}
-    assert.equal(url,'/api/ai2/chat'); const form=options!.body;requests.push(form);
+    assert.equal(url,'/api/ai2/chat'); const form=requestOptions!.body;requests.push(form);
     if(routeExports.POST){
       if(optionsFault==='before')withdraw();
       const response=await routeExports.POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',body:form}));
@@ -314,4 +314,14 @@ for(const locale of ['ar','en'] as const)test(`Task255 an assistant-only service
  f.setMessages([{id:'not-a-user',role:'assistant',text:'New trip: car with a driver in Cairo.'}]);
  await f.send(locale==='ar'?'من ٨ إلى ١٠ ديسمبر ٢٠٢٦، لشخصين وشنطتين.':'8 to 10 December 2026, two passengers and two bags.');
  assert.notEqual(f.results()?.family,'drive');
+});
+
+test('Task255 generic search capture positive control observes a real market request',async()=>{
+ const f=fixture('en',{guest:true,captureMarketRequests:true});
+ await f.search('unclassified sample');
+ assert.equal(f.requests.length,0,'public search does not send chat');
+ assert.equal(f.marketRequests.length,1,'the opt-in observer must see the generic route');
+ const url=new URL(f.marketRequests[0],'https://dir3com.com');
+ assert.equal(url.pathname,'/api/public/marketplace/items');
+ assert.equal(url.searchParams.get('q'),'unclassified sample');
 });
