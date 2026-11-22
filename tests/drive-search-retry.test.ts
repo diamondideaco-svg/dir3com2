@@ -1,3 +1,5 @@
+import CustomerTripBudget from '../components/drive/CustomerTripBudget';
+import * as customerBudgetContract from '../lib/drive/customer-budget';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -27,7 +29,7 @@ test('actual Drive form recovers from invalid dates when returning to the same U
     '@/components/currency/useExplicitDisplayCurrency': { useExplicitDisplayCurrency: () => ({ currency: 'USD', setCurrency: () => undefined }) },
     '@/components/currency/CurrencyPrice': { default: 'currency-price' },
     '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language: 'en', direction: 'ltr' }) },
-    '@/lib/drive/owner-availability': ownerAvailability, '@/lib/drive/catalog': catalog, '@/lib/drive/search': search, './drive.module.css': { default: {} },
+    '@/lib/drive/owner-availability': ownerAvailability, '@/lib/drive/catalog': catalog, '@/lib/drive/search': search, './CustomerTripBudget': { default: CustomerTripBudget }, '@/lib/drive/customer-budget': customerBudgetContract, './drive.module.css': { default: {} },
     '@/lib/marketplace/search-context': context,
     '@/components/public/MarketplaceNavigation': { default: () => null },
   };
