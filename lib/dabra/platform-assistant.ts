@@ -1022,7 +1022,22 @@ function userDriveRoute(message:string,history:Turn[]):UserDriveRouteEvidence {
   }
   return {route,status,withholdPickup:status==='rejected'||status==='contested'||status==='unknown',withholdDropoff:status==='rejected'||status==='contested'};
 }
-function platformEntryFromText(family: PlatformFamily, message: string, locale: Locale, displayCurrency?: DisplayCurrency, trip?: SavedTrip | null, excludedCurrencies: readonly DisplayCurrency[] = [], ignoreEarlierCurrency=false, routeEvidence?:UserDriveRouteEvidence) {
+type CustomerTripBudget={amount:string;currency:DisplayCurrency;basis:'trip'};
+/** Customer requirements only, from the current sole-service USER scope. */
+function customerTripBudget(scope:ConsumerProjection):CustomerTripBudget|null {
+  const snapshot=matchingScopes.get(scope);
+  if (!snapshot || snapshot.source!=='user' || snapshot.blocked || !currentMatchingScope(scope)) return null;
+  const families=scopedFamilyState(snapshot.message,snapshot.history);
+  if (families.active.join(',')!=='drive' || families.denied.includes('drive') || families.contested.includes('drive') || driveServiceDecision(snapshot.message,snapshot.history)!=='open') return null;
+  const context=platformContextText(platformContext(snapshot.message,snapshot.history,snapshot.trip));
+  const plan=platformDriveDialogue({message:snapshot.message,history:snapshot.history,trip:snapshot.trip,context});
+  const budget=plan?.budget;
+  if (!plan || plan.pendingBudgets.length || budget?.kind!=='amount' || budget.basis!=='trip') return null;
+  const currency=parseDisplayCurrency(budget.currency);
+  if (!currency || !/^(?:0|[1-9]\d{0,8})(?:\.\d{1,2})?$/.test(budget.amount) || Number(budget.amount)<=0) return null;
+  return {amount:budget.amount,currency,basis:'trip'};
+}
+function platformEntryFromText(family: PlatformFamily, message: string, locale: Locale, displayCurrency?: DisplayCurrency, trip?: SavedTrip | null, excludedCurrencies: readonly DisplayCurrency[] = [], ignoreEarlierCurrency=false, routeEvidence?:UserDriveRouteEvidence, customerBudget?:CustomerTripBudget|null) {
   const text = normalizePlatformQuery(message);
   const params = new URLSearchParams({ language: locale });
   const { city, dates, party, luggage, rooms } = tripPreferences(text, trip);
@@ -1053,6 +1068,9 @@ function platformEntryFromText(family: PlatformFamily, message: string, locale: 
     if (rooms) params.set('rooms', rooms);
   }
   if (party) params.set(family === 'stay' ? 'adults' : 'passengers', party);
+  if (family==='drive' && customerBudget) {
+    params.set('budgetAmount',customerBudget.amount);params.set('budgetCurrency',customerBudget.currency);params.set('budgetBasis',customerBudget.basis);
+  }
   return serviceEntryHref(family, params);
 }
 /** Unproven legacy text cannot supply trip-derived link parameters. */
@@ -1086,7 +1104,7 @@ export function preparePlatformEntryForUserRequest(family:PlatformFamily,request
     const context=platformContextText(platformContext(snapshot.message,snapshot.history,snapshot.trip));
     const excluded=local?.supersede ? [...local.excludedCurrencies] : scopedDisplayExclusions(snapshot.history,snapshot.message,excludedCurrencies);
     const selected=local ? local.currency ?? undefined : displayCurrency;
-    const href=platformEntryFromText(family,context,locale,selected,snapshot.trip,excluded,Boolean(local?.supersede),userDriveRoute(snapshot.message,snapshot.history));
+    const href=platformEntryFromText(family,context,locale,selected,snapshot.trip,excluded,Boolean(local?.supersede),userDriveRoute(snapshot.message,snapshot.history),customerTripBudget(scope));
     return currentMatchingScope(scope) && (!localPolicy || platformLocalCurrencyPolicy(request,localPolicy)) ? href : generic();
   }});
 }
@@ -1365,7 +1383,7 @@ export function preparePlatformAssistantResponse(input: string|PlatformUserReque
   } else {
     if (!families.length && /trip|itinerary|رحله|برنامج سفر|خطه سفر|(?:^|[^\p{L}\p{N}_])رحل(?:تي|تنا)(?=$|[^\p{L}\p{N}_])/u.test(current)) families.push(...(['drive','stay'] as PlatformFamily[]).filter(family=>!familyState.denied.includes(family)));
     for (const family of families) {
-      const href = platformEntryFromText(family, context, locale, pricing?.currency ?? undefined, trip, excludedCurrencies, Boolean(local?.supersede),userDriveRoute(message,history));
+      const href = platformEntryFromText(family, context, locale, pricing?.currency ?? undefined, trip, excludedCurrencies, Boolean(local?.supersede),userDriveRoute(message,history),customerTripBudget(matchingScope));
       if (family === 'drive') {
         const serviceDecision=driveServiceDecision(message,history);
         if (serviceDecision!=='open') {
@@ -1476,7 +1494,7 @@ export function preparePlatformAssistantResponse(input: string|PlatformUserReque
       // Generic discovery links must obey the same refusal/uncertainty as
       // a selected family and its cards; they cannot re-advertise a denial.
       if (!familyState.denied.includes('drive') && !familyState.contested.includes('drive'))
-        lines.push(link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntryFromText('drive', context, locale, pricing?.currency ?? undefined, undefined, excludedCurrencies, Boolean(local?.supersede),userDriveRoute(message,history))));
+        lines.push(link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntryFromText('drive', context, locale, pricing?.currency ?? undefined, undefined, excludedCurrencies, Boolean(local?.supersede),userDriveRoute(message,history),customerTripBudget(matchingScope))));
       if (!familyState.denied.includes('stay') && !familyState.contested.includes('stay'))
         lines.push(link(ar ? 'بحث الإقامة' : 'Stay search', platformEntryFromText('stay', context, locale, pricing?.currency ?? undefined, undefined, excludedCurrencies, Boolean(local?.supersede))));
       lines.push(link(ar ? 'طلباتي' : 'My requests', '/my-requests'));

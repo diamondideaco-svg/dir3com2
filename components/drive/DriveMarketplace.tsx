@@ -1,6 +1,8 @@
 'use client';
 
 import Image from 'next/image';
+import CustomerTripBudget from './CustomerTripBudget';
+import { carryCustomerTripBudget } from '@/lib/drive/customer-budget';
 import CurrencyPrice from '@/components/currency/CurrencyPrice';
 import { useExplicitDisplayCurrency } from '@/components/currency/useExplicitDisplayCurrency';
 import Link from 'next/link';
@@ -60,8 +62,8 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
   const update = (key: keyof DriveSearch, value: string | number) => setSearch(current => ({ ...current, [key]: value }));
   function submit(event: FormEvent) {
     event.preventDefault(); const invalid = validateDriveSearch({ ...search, currency }); if (invalid) { setError(invalid); return; }
-    const params = driveSearchParams({ ...search, currency });
-    const sameSearch = params.toString() === driveSearchParams(readDriveSearch(new URLSearchParams(initialSearch))).toString();
+    const params = carryCustomerTripBudget(driveSearchParams({ ...search, currency }),new URLSearchParams(initialSearch));
+    const sameSearch = params.toString() === carryCustomerTripBudget(driveSearchParams(readDriveSearch(new URLSearchParams(initialSearch))),new URLSearchParams(initialSearch)).toString();
     setError('');
     if (searched && sameSearch) setRetry(value => value + 1);
     if (selectedOffer) params.set('offer', selectedOffer.id);
@@ -75,6 +77,7 @@ export default function DriveMarketplace({ initialSearch, discovery = false }: {
   return <section className={`${styles.page} ${styles.browse}`} dir={direction}>
     <MarketplaceNavigation family={discovery ? undefined : 'dir3-drive'} search={displaySearch}/>
     <h1>{discovery ? (ar ? 'ابدأ رحلتك من هنا' : 'Start your journey here') : (ar ? 'تنقّل براحة في مصر' : 'Travel comfortably in Egypt')}</h1><p>{ar ? 'سيارة مع سائق ووقود حتى 120 كم، ودعم فريق العمليات المحلي.' : 'A chauffeur, fuel up to 120 km, and regional Operations support.'}</p>
+    <CustomerTripBudget search={initialSearch} language={language}/>
     <p data-dabra-avoid>{driveOwnerAvailabilityCopy(language)}</p>
     <form id="drive-search" className={styles.search} onSubmit={submit}>
       <label>{ar ? 'موقع الاستلام: مدينة، مطار، فندق أو عنوان' : 'Pickup: city, airport, hotel or address'}<input required maxLength={200} value={search.pickup} onChange={e=>update('pickup',e.target.value)} /></label>
