@@ -409,7 +409,7 @@ function DabraChatCommerceSession() {
     return visibleServices.filter((service) => selected.has(String(service.id)) && recommendationEligible(service));
   }, [cart, visibleServices]);
 
-  async function searchMarketplace(message: string, familyOverride = activeTab, applyCurrencyChoice = true, fromTab = false, chatRefresh = false) {
+  async function searchMarketplace(message: string, familyOverride = activeTab, applyCurrencyChoice = true, fromTab = false, chatRefresh = false, completedUserId?: string) {
     if (!chatRefresh) marketSession.noteUserInput();
     // begin() invalidates the previous result before reading or composing input.
     let boundaryUnclear = false;
@@ -424,7 +424,10 @@ function DabraChatCommerceSession() {
       const explicitBoundary = freshService || decision.mentioned && decision.kind === 'new' && !decision.refused && !decision.contested
         || platformUnanchoredScopeAnswer(event.content) === 'separate';
       if (explicitBoundary) {
-        marketSession.setHistoryBoundary(sourceMessages.map(item=>item.id));
+        // A completed chat already contains this new-trip USER event. Keep that
+        // exact anchor for later refinements, not old messages or generated text.
+        if (chatRefresh && !sourceMessages.some(item=>item.id===completedUserId && item.role==='user' && item.text.trim()===event.content)) throw new Error('market-chat-anchor-unavailable');
+        marketSession.setHistoryBoundary(sourceMessages.filter(item=>!chatRefresh || item.id!==completedUserId).map(item=>item.id));
         marketTurnsRef.current = []; marketHistoryUncertainRef.current = false;
       } else if (marketHistoryUncertainRef.current && marketTurnsRef.current.length) {
         boundaryUnclear = true; throw new Error('market-history-order-uncertain');
@@ -644,7 +647,7 @@ function DabraChatCommerceSession() {
       marketSession.endChat(job.id);
       if (current && viewMountedRef.current && lifecycle === lifecycleRef.current) {
         setVoiceStatus('idle');
-        if (marketSession.userVersion() === inputVersion && explicitText) void searchMarketplace(explicitText, activeTab, false, false, true);
+        if (marketSession.userVersion() === inputVersion && explicitText) void searchMarketplace(explicitText, activeTab, false, false, true, userId);
       }
     }
   }
