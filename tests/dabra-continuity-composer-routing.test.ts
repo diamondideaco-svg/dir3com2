@@ -18,7 +18,7 @@ import { continuityChatTripFresh, type ContinuityChatTrip } from '../lib/dabra/c
 
 // Actual composer event handlers with controlled React hooks and transport.
 // This is semantic component/agent evidence, not authenticated DB/browser QA.
-function fixture(locale:'ar'|'en', options:{actualPost?:boolean;guest?:boolean; fault?:'before'|'during'|'expired'|'after';savedLocale?:'ar'|'en';savedCurrency?:'USD'|'EUR'|'SAR';liveMarketLifecycle?:boolean}={}) {
+function fixture(locale:'ar'|'en', options:{actualPost?:boolean;guest?:boolean; fault?:'before'|'during'|'expired'|'after';savedLocale?:'ar'|'en';savedCurrency?:'USD'|'EUR'|'SAR';liveMarketLifecycle?:boolean;captureMarketRequests?:boolean}={}) {
   const conversation = new ConversationSession();
   conversation.resolve(conversation.invalidate('customer-public'), {ownerId:'user:A',storage:'local'});
   const preferences = { replyLanguage:options.savedLocale??locale,displayCurrency:options.savedCurrency??'USD',travelClass:'business',lodgingStyle:'hotel',itineraryPace:'relaxed' };
@@ -29,7 +29,7 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean;guest?:boolean; 
   const continuityPanel=()=>null;
   const resultsPanel=()=>null;
   const require=createRequire(import.meta.url);
-  const requests:FormData[]=[];const statuses:number[]=[];const optionsFault=options.fault;let deferContinuity=false;let releaseContinuity:(()=>void)|undefined;
+  const requests:FormData[]=[];const marketRequests:string[]=[];const statuses:number[]=[];const optionsFault=options.fault;let deferContinuity=false;let releaseContinuity:(()=>void)|undefined;
   const withdraw=()=>{const current=state as ContinuitySnapshot;state=options.fault==='expired'
     ? {...current,tripExpiresAt:'2020-01-01T00:00:00Z',preferencesExpiresAt:'2020-01-01T00:00:00Z'}
     : {...current,consentEnabled:false,generation:current.generation+1,trip:null,tripExpiresAt:null};};
@@ -67,9 +67,10 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean;guest?:boolean; 
   (deps.react as {useRef:(value:unknown)=>unknown}).useRef=(initial:unknown)=>{const i=refIndex++;return refs[i]??(refs[i]={current:initial});};
   const compiled=ts.transpileModule(readFileSync(new URL('../components/dabra/DabraChatCommerce.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   const exports={} as {default:()=>ReactElement};
-  runInNewContext(compiled,{exports,require:(id:string)=>id in deps?deps[id]:require(id),JSON,Date,FormData,AbortController,AbortSignal,crypto:globalThis.crypto,window:{localStorage:{removeItem:()=>{}},sessionStorage:{removeItem:()=>{}}},fetch:async(url:string,options?:{body:FormData})=>{
+  runInNewContext(compiled,{exports,require:(id:string)=>id in deps?deps[id]:require(id),JSON,Date,FormData,AbortController,AbortSignal,crypto:globalThis.crypto,window:{localStorage:{removeItem:()=>{}},sessionStorage:{removeItem:()=>{}}},fetch:async(url:string,requestOptions?:{body:FormData})=>{
     if(url==='/api/dabra/continuity'){if(deferContinuity){deferContinuity=false;await new Promise<void>(resolve=>{releaseContinuity=resolve;});}return new Response(JSON.stringify({enabled:true,ownerId:'user:A',state}),{headers:{'content-type':'application/json'}});}
-    assert.equal(url,'/api/ai2/chat'); const form=options!.body;requests.push(form);
+    if(options?.captureMarketRequests&&url.startsWith('/api/public/marketplace/items?')){marketRequests.push(url);return Response.json({items:[]});}
+    assert.equal(url,'/api/ai2/chat'); const form=requestOptions!.body;requests.push(form);
     if(routeExports.POST){
       if(optionsFault==='before')withdraw();
       const response=await routeExports.POST(new NextRequest('http://localhost/api/ai2/chat',{method:'POST',body:form}));
@@ -87,7 +88,7 @@ function fixture(locale:'ar'|'en', options:{actualPost?:boolean;guest?:boolean; 
   const settle=async()=>{for(let i=0;i<6;i++)await new Promise<void>(resolve=>setImmediate(resolve));};
   const send=async(message:string)=>{const input=elements(render()).find(el=>el.type==='input'&&el.props['aria-label']===(locale==='ar'?'رسالة للدبرة':'Message DABRA'));assert.ok(input);(input.props.onChange as (event:unknown)=>void)({target:{value:message}});const button=elements(render()).find(el=>el.props.className==='dabra-send')!;(button.props.onClick as ()=>void)();await settle();};
   const search=async(message:string)=>{const input=elements(render()).find(el=>el.props.id==='dabra-marketplace-query');assert.ok(input);(input.props.onChange as (event:unknown)=>void)({target:{value:message}});const form=elements(render()).find(el=>el.props.className==='dabra-marketplace-search')!;(form.props.onSubmit as (event:unknown)=>void)({preventDefault:()=>{}});await settle();};
-  return {trip,preferences,requests,statuses,panel,send,search,settle,slots,conversation,deferNextContinuity:()=>{deferContinuity=true;},releaseContinuity:()=>{assert.ok(releaseContinuity);releaseContinuity();},context:()=>conversation.context as ContinuityContext,messages:()=>conversation.getSnapshot().messages,setMessages:conversation.setMessages,setState:(value:unknown)=>{state=value;},state:()=>state as ContinuitySnapshot,results:()=>elements(render()).find(el=>el.type===resultsPanel)?.props};
+  return {trip,preferences,requests,marketRequests,statuses,panel,send,search,settle,slots,conversation,deferNextContinuity:()=>{deferContinuity=true;},releaseContinuity:()=>{assert.ok(releaseContinuity);releaseContinuity();},context:()=>conversation.context as ContinuityContext,messages:()=>conversation.getSnapshot().messages,setMessages:conversation.setMessages,setState:(value:unknown)=>{state=value;},state:()=>state as ContinuitySnapshot,results:()=>elements(render()).find(el=>el.type===resultsPanel)?.props};
 }
 
 for(const locale of ['ar','en'] as const)test(`${locale} actual resume/send/room/search handlers route the typed destination and forget it`,async()=>{
@@ -274,4 +275,53 @@ for(const needsVerb of [false,true])test(`Task251 three exact Cairo guest turns 
  assert.match(answer,/does not confirm a self-drive service or a trip total/);
  assert.match(answer,/Egypt Operations must verify those requirements/);
  assert.doesNotMatch(answer,/booking confirmed|request (?:created|submitted)|\d+(?:\.\d+)?\s*USD/);
+});
+
+
+// Task255 checks only the market refresh boundary, not the accepted budget dialogue.
+for(const locale of ['ar','en'] as const)test(`Task255 completed new-trip USER anchor survives the next market refresh: ${locale}`,async()=>{
+ const f=fixture(locale,{guest:true,liveMarketLifecycle:true,captureMarketRequests:true});
+ f.setMessages([{id:'older-trip',role:'user',text:'Hotels in Riyadh'}]);
+ const anchor=locale==='ar'?'رحلة جديدة: سيارة مع سائق في القاهرة.':'New trip: car with a driver in Cairo.';
+ await f.send(anchor);
+ assert.equal(f.results()?.family,'drive');
+ const followup=locale==='ar'?'من ٨ إلى ١٠ ديسمبر ٢٠٢٦، لشخصين وشنطتين. اعرض الخيارات المنشورة دون حجز أو إنشاء طلب.':'8 to 10 December 2026, two passengers and two bags. Show published options without booking or creating a request.';
+ await f.send(followup);
+ assert.equal(f.results()?.family,'drive','follow-up must retain the actual new-trip USER service anchor');
+ assert.equal(f.marketRequests.length,0,'do not route a trip refinement into generic full-text q');
+ const result=f.results()!;
+ const url=new URL(platformEntry('drive',result.request as import('../lib/dabra/platform-assistant').PlatformUserRequest,locale,'SAR'),'https://dir3com.com');
+ assert.equal(url.searchParams.get('destination'),'cairo');
+ assert.equal(url.searchParams.get('passengers'),'2');
+ assert.equal(url.searchParams.get('luggage'),'2');
+ assert.doesNotMatch(url.toString(),/riyadh/);
+});
+
+for(const locale of ['ar','en'] as const)test(`Task255 a later new Stay trip cannot inherit the retained Drive anchor: ${locale}`,async()=>{
+ const f=fixture(locale,{guest:true,liveMarketLifecycle:true,captureMarketRequests:true});
+ await f.send(locale==='ar'?'رحلة جديدة: سيارة مع سائق في القاهرة.':'New trip: car with a driver in Cairo.');
+ await f.send(locale==='ar'?'رحلة جديدة: فنادق في جدة، لا أريد سيارة.':'New trip: hotels in Jeddah, no car.');
+ await f.send(locale==='ar'?'غرفتان من ٨ إلى ١٠ ديسمبر ٢٠٢٦.':'2 rooms, 8 to 10 December 2026.');
+ const result=f.results()!;
+ assert.ok(result);assert.equal(result.family,'stay');
+ const url=new URL(platformEntry('stay',result.request as import('../lib/dabra/platform-assistant').PlatformUserRequest,locale,'SAR'),'https://dir3com.com');
+ assert.equal(url.searchParams.get('destination'),'jeddah');
+ assert.doesNotMatch(url.toString(),/cairo|family=dir3-drive/);
+ assert.equal(f.marketRequests.length,0);
+});
+for(const locale of ['ar','en'] as const)test(`Task255 an assistant-only service mention cannot become a retained USER anchor: ${locale}`,async()=>{
+ const f=fixture(locale,{guest:true,liveMarketLifecycle:true,captureMarketRequests:true});
+ f.setMessages([{id:'not-a-user',role:'assistant',text:'New trip: car with a driver in Cairo.'}]);
+ await f.send(locale==='ar'?'من ٨ إلى ١٠ ديسمبر ٢٠٢٦، لشخصين وشنطتين.':'8 to 10 December 2026, two passengers and two bags.');
+ assert.notEqual(f.results()?.family,'drive');
+});
+
+test('Task255 generic search capture positive control observes a real market request',async()=>{
+ const f=fixture('en',{guest:true,captureMarketRequests:true});
+ await f.search('unclassified sample');
+ assert.equal(f.requests.length,0,'public search does not send chat');
+ assert.equal(f.marketRequests.length,1,'the opt-in observer must see the generic route');
+ const url=new URL(f.marketRequests[0],'https://dir3com.com');
+ assert.equal(url.pathname,'/api/public/marketplace/items');
+ assert.equal(url.searchParams.get('q'),'unclassified sample');
 });
