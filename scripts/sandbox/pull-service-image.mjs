@@ -55,7 +55,7 @@ export function ensureSandboxServiceImage(name, { run = docker, pause = sleep, r
     // Reuse GoTrue's native-CLI evidence protocol only for this service's
     // SAME pinned primary manifest. The translated message alone grants nothing.
     // https://github.com/moby/moby/blob/464cd50/daemon/containerd/registry_errors.go
-    if (name !== 'postgrest' || !pinned || source !== image.primary || !(error instanceof Error)
+    if (!['postgrest', 'storage'].includes(name) || !pinned || source !== image.primary || !(error instanceof Error)
       || !Number.isInteger(error.status) || error.status <= 0 || error.code != null || error.signal != null
       || typeof error.stderr !== 'string'
       || !/^(?:Error response from daemon:\s*)?error from registry: Data limit exceeded\s*$/i.test(error.stderr.trim())) return false;
