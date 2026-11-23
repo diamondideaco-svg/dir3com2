@@ -34,15 +34,15 @@ function fixture(status = 'under_review', legacy = false): record.DriveRequestRe
   };
 }
 
-function mount(language: 'ar' | 'en', data = fixture(), canWrite = true) {
+function mount(language: 'ar' | 'en', data = fixture(), canWrite = true, result = '') {
   const states: unknown[] = []; let cursor = 0; const submissions: FormData[] = [];
   const jsx = (type: unknown, props: Record<string, unknown>, key?: string): Element => typeof type === 'function'
     ? type(props) : { type, props, key };
   const serverAction = async (_previous: string, form: FormData) => { submissions.push(form); return 'SAVED'; };
   const modules: Record<string, unknown> = {
     react: {
-      useActionState(fn: typeof serverAction) { return ['', (form: FormData) => fn('', form)]; },
-      useState(initial: unknown) { const i=cursor++; if (!(i in states)) states[i]=initial; return [states[i], (value: unknown) => { states[i]=value; }]; },
+      useActionState(fn: typeof serverAction) { return [result, (form: FormData) => fn('', form)]; },
+      useState(initial: unknown) { const i=cursor++; if (!(i in states)) states[i]=initial; return [states[i], (value: unknown) => { states[i]=typeof value==='function'?value(states[i]):value; }]; },
     },
     'react/jsx-runtime': { jsx, jsxs: jsx },
     '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language, direction: language==='ar'?'rtl':'ltr' }) },
@@ -57,13 +57,28 @@ function mount(language: 'ar' | 'en', data = fixture(), canWrite = true) {
   }).outputText, { exports, require(name: string) { assert.ok(name in modules, name); return modules[name]; } });
   const render = () => { cursor=0; return exports.default!({ requests: [data], canWrite }); };
   const named = (tree: Element, name: string) => all(tree).find(x=>x.props.name===name);
-  return { render, named, submissions, choose(value: string) {
+  return { render, named, submissions, change(name: string, value: string) {
+    const field=named(render(),name);assert.ok(field);
+    (field.props.onChange as (e:{target:{value:string}})=>void)({target:{value}});
+  }, choose(value: string) {
     const select=named(render(),'action'); assert.ok(select);
     (select.props.onChange as (e: {target:{value:string}})=>void)({target:{value}});
   }};
 }
 
 for (const language of ['ar','en'] as const) {
+  test(`Expired quote retains every controlled draft field and gives specific feedback (${language})`,()=>{
+    const ui=mount(language,fixture(),true,'EXPIRED');
+    const values={vehicle:'Synthetic vehicle',vehicleYear:'2026',amount:'750',currency:'SAR',expires:'2030-12-11T12:00',note:'Synthetic private note'};
+    for(const [name,value]of Object.entries(values))ui.change(name,value);
+    const tree=ui.render();for(const [name,value]of Object.entries(values))assert.equal(ui.named(tree,name)?.props.value,value,name);
+    let resetPrevented=false;const form=all(tree).find(node=>node.type==='form');assert.ok(form);
+    (form.props.onReset as (event:{preventDefault:()=>void})=>void)({preventDefault:()=>{resetPrevented=true;}});
+    assert.equal(resetPrevented,true,'native reset must not silently change the selected currency');
+    assert.match(text(tree),language==='ar'?/انتهى موعد صلاحية العرض المحدد/:/quote validity deadline has passed/);
+    assert.equal(ui.named(tree,'expires')?.props.max,'2030-12-12T12:00');
+    assert.equal(ui.submissions.length,0,'rendering a retained draft must never submit it');
+  });
   test(`Review and offer are separate visible actions (${language})`, () => {
     const ui=mount(language,fixture('request_submitted')); const tree=ui.render();
     assert.equal(ui.named(tree,'action')?.props.value,'review');
