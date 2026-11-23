@@ -1,4 +1,6 @@
 'use client';
+import CustomerTripBudget from './CustomerTripBudget';
+import { customerBudgetSearch } from '@/lib/drive/customer-budget';
 import Image from 'next/image';
 import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -55,6 +57,7 @@ export default function DriveRequestReview({ request, notificationLanguage }: { 
     </div><div className={styles.panel}>
       <h2>{ar?'الرحلة والعميل':'Trip and customer'}</h2><p>{trip.pickup} → {trip.dropoff}</p><p dir="ltr">{trip.pickupAt} → {trip.returnAt}</p><p>Africa/Cairo</p>
       <p>{trip.name} · {trip.phone}</p><p>{trip.passengers} {ar?'ركاب':'passengers'} · {trip.luggage} {ar?'قطع أمتعة':'bags'}</p>
+      <CustomerTripBudget search={customerBudgetSearch(trip.customerBudget)} language={language}/>
       {trip.mode==='airport'&&<p>{trip.flightNumber} · {trip.flightArrival}</p>}<p>{trip.specialRequest}</p><p>{trip.notes}</p>
       <h2>{ar?'تفاصيل السعر':'Price breakdown'}</h2><p>{ar?'سعر المورد الأساسي المحفوظ':'Preserved supplier base rate'}: {context.supplier_amount} {context.supplier_currency}</p>
       {request.quote_amount!==null ? <><p className={styles.price}>{ar?'الإجمالي النهائي من العمليات':'Operations final total'}: {request.quote_amount} {request.quote_currency}</p><p>{ar?'صالح حتى':'Valid until'}: {request.quote_expires_at ? new Intl.DateTimeFormat(ar?'ar-EG':'en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(new Date(request.quote_expires_at)) : '—'} (Africa/Cairo)</p></> : <p>{ar?'الإجمالي النهائي بانتظار تأكيد العمليات':'Final total is awaiting Operations confirmation'}</p>}

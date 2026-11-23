@@ -1,3 +1,5 @@
+import CustomerTripBudget from '../components/drive/CustomerTripBudget';
+import * as customerBudgetContract from '../lib/drive/customer-budget';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -62,7 +64,7 @@ function review(preference: locale.AppLanguage, explicit?: locale.AppLanguage, q
     '@/app/my-requests/[reference]/drive/actions': { acceptDriveQuote: () => assert.fail('No customer acceptance in rendering tests') },
     '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language: preference, direction: locale.languageDirection(preference) }) },
     '@/lib/i18n/config': locale, '@/lib/drive/catalog': catalog, '@/lib/drive/record': record, '@/lib/drive/request': state,
-    './DriveMarketplace': { DriveInclusions: 'inclusions' }, './drive.module.css': { default: {} },
+    './DriveMarketplace': { DriveInclusions: 'inclusions' }, './CustomerTripBudget': { default: CustomerTripBudget }, '@/lib/drive/customer-budget': customerBudgetContract, './drive.module.css': { default: {} },
   });
   return (subject.default as (props: { request: record.DriveRequestRecord; notificationLanguage?: locale.AppLanguage }) => Element)
     ({ request: { ...fixture, status: quoteAmount === null ? 'request_submitted' : fixture.status, quote_amount: quoteAmount }, notificationLanguage: explicit });

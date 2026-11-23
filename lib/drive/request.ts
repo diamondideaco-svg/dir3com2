@@ -1,6 +1,7 @@
+import { readCustomerBudget, readCustomerTripBudget, type CustomerBudgetRequirement } from './customer-budget';
 import { driveOffer } from './catalog';
 import { cairoInstant, validateDriveSearch, type DriveSearch } from './search';
-export type DriveTrip = DriveSearch & { name: string; phone: string; flightNumber: string; flightArrival: string; specialRequest: string; notes: string; acknowledged: boolean };
+export type DriveTrip = DriveSearch & { name: string; phone: string; flightNumber: string; flightArrival: string; specialRequest: string; notes: string; acknowledged: boolean; customerBudget?: CustomerBudgetRequirement };
 export function parseDriveTrip(value: unknown, now = Date.now()): { trip: DriveTrip; error: null } | { error: string; trip: null } {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { error: 'INVALID_TRIP', trip: null };
   const source = value as Record<string, unknown>;
@@ -8,6 +9,9 @@ export function parseDriveTrip(value: unknown, now = Date.now()): { trip: DriveT
   if (strings.some(key => typeof source[key] !== 'string')) return { error: 'INVALID_TRIP', trip: null };
   const trip = Object.fromEntries(strings.map(key => [key, (source[key] as string).trim()])) as unknown as DriveTrip;
   trip.passengers = source.passengers as number; trip.luggage = source.luggage as number; trip.acknowledged = source.acknowledged === true;
+  const budget=readCustomerBudget(source.customerBudget);
+  if (budget.kind==='invalid') return {error:'CUSTOMER_BUDGET_INVALID',trip:null};
+  if (budget.kind==='requirement') trip.customerBudget={amount:budget.amount,currency:budget.currency,basis:budget.basis};
   const searchError = validateDriveSearch(trip, now);
   if (searchError) return { error: searchError, trip: null };
   if (trip.dropoff.length < 2 || trip.name.length < 2 || trip.name.length > 120 || !/^[+\d ()-]{7,30}$/.test(trip.phone)
@@ -25,4 +29,11 @@ export function driveRequestState(status: string, expires: string | null, now = 
   if (status === 'awaiting_customer_acceptance') return 'quote_ready';
   if (status === 'awaiting_payment') return 'ready_for_payment';
   return status;
+}
+
+/** The displayed URL requirement owns this prefill; a restored draft cannot silently replace it. */
+export function parseDriveReviewTrip(value:DriveTrip,search:string,now=Date.now()):ReturnType<typeof parseDriveTrip> {
+  const budget=readCustomerTripBudget(new URLSearchParams(search));
+  if (budget.kind==='invalid') return {error:'CUSTOMER_BUDGET_INVALID',trip:null};
+  return parseDriveTrip({...value,customerBudget:budget.kind==='requirement'?{amount:budget.amount,currency:budget.currency,basis:budget.basis}:undefined},now);
 }

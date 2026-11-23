@@ -1,4 +1,6 @@
 'use client';
+import CustomerTripBudget from './CustomerTripBudget';
+import { customerBudgetSearch } from '@/lib/drive/customer-budget';
 import { useActionState, useState } from 'react';
 import { useLanguage } from '@/components/i18n/LanguageProvider';
 import { AdminSubmitButton } from '@/components/admin/AdminLocale';
@@ -28,6 +30,7 @@ function RequestRow({request,canWrite}:{request:DriveRequestRecord;canWrite:bool
   return <article className={styles.panel}><h2>{request.request_reference}</h2><p>{vehicleTitle(vehicleFor(driveOffer(request.drive_offer_id)!),language)}</p>
     <p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language, {modelYears:savedDriveModelYears(trip)})}</p>
     <p>{trip.pickup} → {trip.dropoff} · {trip.pickupAt} → {trip.returnAt} (Africa/Cairo)</p><p>{trip.name} · {trip.phone} · {trip.passengers} {ar?'ركاب':'passengers'} / {trip.luggage} {ar?'أمتعة':'bags'}</p>
+    <CustomerTripBudget search={customerBudgetSearch(trip.customerBudget)} language={language}/>
     {trip.mode==='airport'&&<p>{trip.flightNumber} · {trip.flightArrival}</p>}<p>{trip.specialRequest}</p><p>{trip.notes}</p><p>{ar?'سعر المورد':'Supplier rate'}: {context.supplier_amount} {context.supplier_currency}</p>
     <p>{ar?'الحالة':'State'}: {states[driveRequestState(request.status,request.quote_expires_at)]?.[ar?0:1] ?? (ar?'الحالة غير متاحة':'Status unavailable')}</p>{result&&<p role="status">{messages[result]?.[ar?0:1]}</p>}
     {/* Native action reset can reset a controlled select's DOM value too. The version key owns draft clearing. */}

@@ -1,3 +1,5 @@
+import CustomerTripBudget from '../components/drive/CustomerTripBudget';
+import * as customerBudgetContract from '../lib/drive/customer-budget';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -49,7 +51,7 @@ function mount(language: 'ar' | 'en', data = fixture(), canWrite = true, result 
     '@/components/admin/AdminLocale': { AdminSubmitButton: (props: Record<string, unknown>) => jsx('button', { ...props, type: 'submit', children: props[language] }) },
     '@/app/admin/operations/drive/actions': { reviewDriveRequest: serverAction },
     '@/lib/drive/catalog': catalog, '@/lib/drive/record': record, '@/lib/drive/request': request,
-    './drive.module.css': { default: {} },
+    './CustomerTripBudget': { default: CustomerTripBudget }, '@/lib/drive/customer-budget': customerBudgetContract, './drive.module.css': { default: {} },
   };
   const exports: { default?: (props: { requests: record.DriveRequestRecord[]; canWrite: boolean }) => Element } = {};
   runInNewContext(ts.transpileModule(readFileSync('components/drive/DriveOperations.tsx','utf8'), {
@@ -132,3 +134,13 @@ for (const language of ['ar','en'] as const) {
     assert.equal(ui.submissions[0].get('vehicleYear'),'2025');
   });
 }
+
+for(const language of ['ar','en'] as const)test(`saved customer trip-budget summary uses the actual component without quote authority (${language})`,()=>{
+ const data=fixture('request_submitted');data.drive_request_context.trip.customerBudget={amount:'800',currency:'SAR',basis:'trip'};
+ const ui=mount(language,data,false);const rendered=text(ui.render());
+ assert.match(rendered,/800\s+SAR/);
+ assert.match(rendered,language==='ar'?/للرحلة كاملة، وليس لليوم/:/for the whole trip, not per day/);
+ assert.match(rendered,language==='ar'?/ليس عرض سعر أو ضمان توفر/:/not a quote or availability guarantee/);
+ assert.match(rendered,/66\s+USD/);
+ assert.equal(data.quote_amount,null);assert.equal(ui.named(ui.render(),'amount'),undefined);
+});

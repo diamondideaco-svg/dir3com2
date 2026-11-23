@@ -1,3 +1,4 @@
+import { carryCustomerTripBudget } from '../drive/customer-budget';
 import { resolveCanonicalServiceSlug, type CanonicalServiceSlug } from '../services/canonical';
 import { isComingSoonMarketplaceFamily } from './launch-catalog';
 import { canonicalCity, familyContextFields, partySize, validSearchDate } from './search-context';
@@ -34,6 +35,7 @@ export function serviceEntryHref(service: CanonicalServiceSlug, source = new URL
     params.set(field, value);
   }
   if (service === 'drive') {
+    carryCustomerTripBudget(params,source);
     for (const [legacy, canonical] of [['pickupCity','pickup'],['dropoffCity','dropoff']] as const) {
       const city = canonicalCity(params.get(legacy) ?? undefined);
       if (!params.has(canonical) && city) params.set(canonical, city.en);

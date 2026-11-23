@@ -1,10 +1,11 @@
+import * as driveHandoff from '../lib/dabra/drive-handoff.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { cityRoles,newTripRequested,routingPlace,refineRoutingTrip,withoutRoutingCities } from '../lib/dabra/trip-routing.ts';
-import { driveQuantities,dateWithdrawalIndex,isRejectedBudgetChangeCurrency,bareDriveParty,bareDrivePartyWithLuggage } from '../lib/dabra/drive-planning.ts';
+import { driveDialogue,driveQuantities,dateWithdrawalIndex,isRejectedBudgetChangeCurrency,bareDriveParty,bareDrivePartyWithLuggage } from '../lib/dabra/drive-planning.ts';
 
 // This bounded VM keeps the published routing and entry code; unavailable services are stubs.
 // It is not a browser, POST, authentication, catalogue, or provider integration test.
@@ -12,13 +13,13 @@ function stripped(path) {
  return stripTypeScriptTypes(readFileSync(new URL(path,import.meta.url),'utf8'),{mode:'strip'})
    .replace(/^import .*;\s*$/gm,'').replace(/^export\s+(?=(?:function|const|class|let)\b)/gm,'');
 }
-const globals={URL,URLSearchParams,cityRoles,newTripRequested,routingPlace,refineRoutingTrip,withoutRoutingCities,driveQuantities,dateWithdrawalIndex,isRejectedBudgetChangeCurrency,bareDriveParty,bareDrivePartyWithLuggage,
+const globals={...driveHandoff,URL,URLSearchParams,driveDialogue,cityRoles,newTripRequested,routingPlace,refineRoutingTrip,withoutRoutingCities,driveQuantities,dateWithdrawalIndex,isRejectedBudgetChangeCurrency,bareDriveParty,bareDrivePartyWithLuggage,
  conversationTopicChange:()=>null,conversationIntent:()=>null,conversationReply:()=>null,
  parseDisplayCurrency:value=>['SAR','USD','EUR','EGP','AED'].includes(String(value).toUpperCase())?String(value).toUpperCase():null,
  isComingSoonMarketplaceFamily:()=>false,
  familyContextFields:{drive:[],stay:[],fly:[],vip:[],concierge:[]},
  canonicalCity:()=>null, partySize:()=>null, validSearchDate:()=>true};
-const code=stripped('../lib/marketplace/public-entry.ts')+'\n'+stripped('../lib/dabra/platform-assistant.ts')
+const code=stripped('../lib/drive/customer-budget.ts')+'\n'+stripped('../lib/marketplace/public-entry.ts')+'\n'+stripped('../lib/dabra/platform-assistant.ts')
  +'\n;globalThis.exportsForTest={createPlatformScopeOwner,platformUserRequest,platformUserRequestScope,preparePlatformEntryForUserRequest};';
 const api=runInNewContext(code,globals);
 const saved=Object.freeze({id:'11111111-1111-4111-8111-111111111111',origin:'Cairo',destination:'Cairo',startDate:'2026-12-12',endDate:'2026-12-14',adults:2,children:0,rooms:1,budget:800,currency:'SAR',families:['drive']});

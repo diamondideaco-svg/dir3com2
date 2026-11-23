@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
-import {runInNewContext} from 'node:vm';
+import {runInNewContext} from './fixtures/task258-platform-vm.mjs';
 import {driveDialogue,isRejectedBudgetChangeCurrency} from '../lib/dabra/drive-planning.ts';
 const norm=s=>s.toLowerCase().normalize('NFKC').replace(/[\u064b-\u065f\u0670\u0640]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/\s+/g,' ').trim();
 const p={city:'cairo',ambiguous:false,dates:['2026-12-12','2026-12-14'],party:'2'};

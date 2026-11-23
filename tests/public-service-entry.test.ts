@@ -1,3 +1,5 @@
+import CustomerTripBudget from '../components/drive/CustomerTripBudget';
+import * as customerBudgetContract from '../lib/drive/customer-budget';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -45,7 +47,7 @@ function harness(language: 'ar'|'en') {
     '@/lib/marketplace/public-entry':entry,'@/lib/services/coverage':coverage,'@/lib/services/search-state':rooms,
     '@/lib/marketplace/stay-demo':stay,'@/lib/services/canonical':canonical,
     '@/lib/marketplace/search-context':context,'@/lib/drive/search':drive,'@/lib/drive/catalog':catalog,'@/lib/drive/owner-availability':ownerAvailability,
-    './drive.module.css':{default:{}}, '@/components/public/MarketplaceNavigation':{default:()=>null},
+    './CustomerTripBudget': { default: CustomerTripBudget }, '@/lib/drive/customer-budget': customerBudgetContract, './drive.module.css':{default:{}}, '@/components/public/MarketplaceNavigation':{default:()=>null},
   };
   const Search=load<{default:(p:Record<string,unknown>)=>Node}>('components/shared/ServiceSearchTable.tsx',imports).default;
   const tree=(service='drive')=>{index=0;return Search({initialService:service});};
