@@ -7,9 +7,11 @@ export function platformLinkAllowed(href: string) {
   const url = new URL(href, 'https://dir3com.com');
   if (url.pathname === '/' && url.hash === '#home-map' && !url.search) return true;
   // These are editable Drive requirements, never execution or quote authority.
-  const driveFields=['luggage','budgetAmount','budgetCurrency','budgetBasis'];
+  const driveFields=['luggage','budgetAmount','budgetCurrency','budgetBasis','dropoff'];
   if (driveFields.some(key=>url.searchParams.has(key))) {
     if (url.pathname!=='/marketplace' || url.searchParams.getAll('family').length!==1 || url.searchParams.get('family')!=='dir3-drive') return false;
+    const dropoff=url.searchParams.getAll('dropoff');
+    if(dropoff.length>1 || dropoff.length===1 && (dropoff[0].trim().length<2 || dropoff[0].length>200 || /[\u0000-\u001f\u007f]/.test(dropoff[0])))return false;
     const luggage=url.searchParams.getAll('luggage');
     if (luggage.length>1 || luggage.length===1 && !/^(?:[0-9]|1[0-9]|20)$/.test(luggage[0])) return false;
     if (readCustomerTripBudget(url.searchParams).kind==='invalid') return false;

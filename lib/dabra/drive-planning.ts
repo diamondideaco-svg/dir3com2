@@ -1,3 +1,4 @@
+import { withoutDriveEndpointPlaces } from './drive-handoff';
 import { tripTurnDecision, turnHasDeferredIntent, turnHasDeferredMarker, conditionalActionSpans, withoutIndependentConditionalActions, normalizeNegativeContractions } from './trip-turn-decision.mjs';
 
 /** Public, request-local planning facts. No identity, persistence or provider execution. */
@@ -113,7 +114,7 @@ function luggageQuantity(text:string) {
     const spanUncertain=turnHasDeferredMarker(span)||(/[?؟]/u.test(span)&&!politeRequest);
     for (const piece of quantityClauses(span)) {
       if (!/\b(?:luggage|baggage|bags?|suitcases?)\b|امتعه|حقائب|حقيبه|حقيبتين|شنط/u.test(piece)) continue;
-      const counted=quantity(piece,'bags?|suitcases?|شنط(?:ه|ات)?|حقائب|حقيبه',20,/شنطتين|حقيبتين/g,/الامتعه غير محدده|عدد الحقائب غير محدد|luggage count (?:is )?unknown/g,undefined,0);
+      const counted=quantity(piece,'(?:(?:large|small|medium|big)\\s+)?(?:bags?|suitcases?)|شنط(?:ه|ات)?|حقائب|حقيبه',20,/شنطتين|شنطتان|حقيبتين|حقيبتان/g,/الامتعه غير محدده|عدد الحقائب غير محدد|luggage count (?:is )?unknown/g,undefined,0);
       const uncertain=spanUncertain||turnHasDeferredMarker(piece)||(/[?؟]/u.test(piece)&&!politeRequest);
       const none=/\b(?:no|without)\s+(?:any\s+)?(?:luggage|baggage|bags?|suitcases?)\b|\b(?:do not|don't|dont)\s+(?:have|need|want)\s+(?:any\s+)?(?:luggage|baggage|bags?|suitcases?)\b|(?:بدون|بلا|لا\s*(?:توجد|يوجد|اريد|احتاج|احمل)?)\s*(?:امتعه|حقائب|حقيبه|شنط)/u.test(piece);
       // A negative governing action changes the polarity of a dependent
@@ -144,7 +145,8 @@ function passengerCategory(text:string,units:string,noun:RegExp,dual:RegExp,none
 export function driveQuantities(text: string) {
   text=normalizeNegativeContractions(text);
   const total=quantity(text,'people|persons?|passengers?|اشخاص|شخصا|شخص|ركاب|راكب(?:ا|ين|ان)?|مسافر(?:ين|ان)?',20,/شخصين|لشخصين/g,/العدد غير محدد|عدد الاشخاص غير محدد|لم نحدد العدد|passenger count (?:is )?unknown|number of people (?:is )?undecided/g,'(?:family|party|group) of');
-  const adults=passengerCategory(text,'adults?|بالغ(?:ين|ان)?|كبار',/\badults?\b|بالغ|كبار/u,/بالغان/g,/\b(?:no|without)\s+adults?\b|(?:بدون|بلا|لا)\s*(?:بالغ|كبار)/u);
+  const adultText=text.replace(/(?<![\p{L}])ل?شخصين\s+بالغين(?![\p{L}])/gu,'2 بالغين');
+  const adults=passengerCategory(adultText,'adults?|بالغ(?:ين|ان)?|كبار',/\badults?\b|بالغ|كبار/u,/بالغان/g,/\b(?:no|without)\s+adults?\b|(?:بدون|بلا|لا)\s*(?:بالغ|كبار)/u);
   const children=passengerCategory(text,'children|child|kids?|اطفال|طفل(?:ين|ان|ه)?|اولاد|صغار',/\b(?:children|child|kids?)\b|اطفال|طفل|اولاد|صغار/u,/طفلان|طفلين/g,/\b(?:no|without)\s+(?:any\s+)?(?:children|child|kids?)\b|(?:بدون|بلا|لا)\s*(?:اطفال|طفل|اولاد|صغار)/u);
   let party=total;
   if (!total.mentioned && (adults.mentioned || children.mentioned)) {
@@ -353,7 +355,7 @@ function declaredNewCarService(text:string) {
  */
 export function driveBudgetState(userTurns:readonly string[]) {
   const reset=userTurns.findLastIndex(turn=>{const decision=tripTurnDecision(turn);return decision.kind==='new'||decision.refused;});
-  const scopedTurns=userTurns.slice(Math.max(0,reset));
+  const scopedTurns=userTurns.slice(Math.max(0,reset)).map(withoutDriveEndpointPlaces);
   let confirmed:Budget|null=null;
   let pending:PendingBudget[]=[];
   let driveEvidence=false;

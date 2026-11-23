@@ -1,3 +1,4 @@
+import * as driveHandoff from '../lib/dabra/drive-handoff.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -12,7 +13,7 @@ function stripped(path) {
  return stripTypeScriptTypes(readFileSync(new URL(path,import.meta.url),'utf8'),{mode:'strip'})
    .replace(/^import .*;\s*$/gm,'').replace(/^export\s+(?=(?:function|const|class|let)\b)/gm,'');
 }
-const globals={URL,URLSearchParams,driveDialogue,cityRoles,newTripRequested,routingPlace,refineRoutingTrip,withoutRoutingCities,driveQuantities,dateWithdrawalIndex,isRejectedBudgetChangeCurrency,bareDriveParty,bareDrivePartyWithLuggage,
+const globals={...driveHandoff,URL,URLSearchParams,driveDialogue,cityRoles,newTripRequested,routingPlace,refineRoutingTrip,withoutRoutingCities,driveQuantities,dateWithdrawalIndex,isRejectedBudgetChangeCurrency,bareDriveParty,bareDrivePartyWithLuggage,
  conversationTopicChange:()=>null,conversationIntent:()=>null,conversationReply:()=>null,
  parseDisplayCurrency:value=>['SAR','USD','EUR','EGP','AED'].includes(String(value).toUpperCase())?String(value).toUpperCase():null,
  isComingSoonMarketplaceFamily:()=>false,

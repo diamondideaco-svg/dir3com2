@@ -1,3 +1,4 @@
+import { withoutDriveEndpointPlaces, driveEndpointRouteText, airportDriveService, driveHandoffForUsers, applyDriveHandoff, type DriveHandoff } from './drive-handoff';
 import { AI2_DABRA_CONVERSATION_COPY } from '../ai2/prompt/contract';
 import { driveQuantities, driveDialogue, driveDialogueCopy, driveBudgetState, isRejectedBudgetChangeCurrency, bareDriveParty, bareDrivePartyWithLuggage, dateWithdrawalIndex } from './drive-planning';
 import { CORE_REQUIRED_DIALOGUE_UNITS, conversationIntent, conversationTopicChange, conversationClarification, conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
@@ -12,6 +13,7 @@ import type { SavedTrip } from './continuity-contract';
 import { cityRoles, newTripRequested, routingPlace, refineRoutingTrip, withoutRoutingCities } from './trip-routing';
 
 import { displayPrice, parseDisplayCurrency, type DisplayCurrency, type FxSnapshot } from '../currency/display';
+function driveCityRoles(value:string){return cityRoles(driveEndpointRouteText(value));}
 export type PlatformPricing = { currency: DisplayCurrency | null; snapshot: FxSnapshot | null; excludedCurrencies?: readonly DisplayCurrency[] };
 /** A negative display action can have an object before its currency.
  * A numeric or budget object is not by itself a rejection of the currency. */
@@ -181,7 +183,7 @@ function platformRooms(text:string) {
   return roomMatches.at(-1)?.[1] ?? (/\bone room\b|غرفه واحده/.test(text) ? '1' : undefined);
 }
 export function platformFamilies(message: string): PlatformFamily[] {
-  const text = normalizePlatformQuery(message);
+  const text = withoutDriveEndpointPlaces(normalizePlatformQuery(message));
   const families=(Object.keys(familyTerms) as PlatformFamily[]).filter(f => familyTerms[f].test(text));
   // A bounded room count is itself a Stay preference, even after old turns leave the transcript window.
   if (!families.includes('stay') && platformRooms(text)) families.push('stay');
@@ -202,7 +204,7 @@ function scopedFamilyState(message:string,history:Turn[]) {
   const denied=new Set<PlatformFamily>(),contested=new Set<PlatformFamily>();let active:PlatformFamily[]=[];
   for (const input of [...history.filter(turn=>turn.role==='user').slice(-64).map(turn=>turn.content),message]) {
     const positives:PlatformFamily[]=[];
-    for (const span of newTripRequested.actionSpans(newTripRequested.normalizeNegation(normalizePlatformQuery(input)))) {
+    for (const span of newTripRequested.actionSpans(newTripRequested.normalizeNegation(withoutDriveEndpointPlaces(normalizePlatformQuery(input))))) {
       const uncertain=newTripRequested.deferredMarker(span);
       const spans:Array<{start:number;end:number;family:PlatformFamily;negative:boolean}>=[];
       for (const {family,pattern} of familyRefusalPatterns()) for (const match of span.matchAll(pattern)) {
@@ -276,7 +278,7 @@ function differentRequest(message: string, history: Turn[], trip?: SavedTrip | n
   // Room-count projections are not explicit new Stay requests. Only service
   // words written in a turn can establish a service boundary.
   const explicitFamilies = (value:string, stripRefusals=false) => {
-    let words=normalizePlatformQuery(value);
+    let words=withoutDriveEndpointPlaces(normalizePlatformQuery(value));
     const tripDecision=newTripRequested.decision(value);
     if (stripRefusals || tripDecision.mentioned && tripDecision.kind==='continue' && !tripDecision.refused && !tripDecision.contested) {
       // An explicitly rejected service is not itself a new service request.
@@ -301,13 +303,13 @@ function differentRequest(message: string, history: Turn[], trip?: SavedTrip | n
   // user's current service. Keep refusals of that current service in scope.
   const families=priorFamily ? mentionedFamilies.filter(family=>family===priorFamily || affirmativeFamilies.includes(family)) : mentionedFamilies;
   if (families.length > 1 && !correction && (users.length > 0 || trip)) return true;
-  const location=cityRoles(message);
+  const location=driveCityRoles(message);
   // A competing or multi-leg route is a pending route constraint, not by
   // itself a new request that discards an earlier confirmed service budget.
   if ((location.unknownDestination || location.unknownOrigin) && (users.length > 0 || trip)) return true;
   if (families.length !== 1) return false;
-  const priorCity = users.slice().reverse().map(turn => cityRoles(turn.content).city).find(Boolean) ?? (trip ? routingPlace(trip.destination) : undefined);
-  const city = cityRoles(message).city;
+  const priorCity = users.slice().reverse().map(turn => driveCityRoles(turn.content).city).find(Boolean) ?? (trip ? routingPlace(trip.destination) : undefined);
+  const city = driveCityRoles(message).city;
   // An explicit same-trip transition can move among the services already in
   // the attached trip without discarding the preceding USER facts. A new
   // request, a different location, or an absent/refused anchor remains guarded.
@@ -605,8 +607,8 @@ function platformConversationScopeForSource(message: string, history: Turn[] = [
     const priorInScope=previousFamilies.some(family=>!anchor || anchor.families.includes(family));
     const differentService=nextFamilies.some(family=>(!anchor || anchor.families.includes(family)) && !previousFamilies.includes(family));
     if (!priorInScope || !differentService) return false;
-    const nextLocation=cityRoles(next);
-    const priorCity=users.slice().reverse().map(turn=>cityRoles(turn.content).city).find(Boolean) ?? (anchor ? routingPlace(anchor.destination) : undefined);
+    const nextLocation=driveCityRoles(next);
+    const priorCity=users.slice().reverse().map(turn=>driveCityRoles(turn.content).city).find(Boolean) ?? (anchor ? routingPlace(anchor.destination) : undefined);
     // An affirmative standalone request at a different known destination
     // cannot inherit the earlier service's budget. Corrections and conditional
     // mentions still require the existing same-request decision.
@@ -662,8 +664,8 @@ function platformConversationScopeForSource(message: string, history: Turn[] = [
   let unanchoredBoundaryPending=false,unanchoredScopeConfirmed=false;
   const staysInConfirmedRequest=(next:string,prior:Turn[]) => {
     if (!unanchoredScopeConfirmed || explicitlyFreshServiceRequest(normalizePlatformQuery(next))) return false;
-    const location=cityRoles(next);
-    const previousCity=prior.filter(item=>item.role==='user').slice().reverse().map(item=>cityRoles(item.content).city).find(Boolean);
+    const location=driveCityRoles(next);
+    const previousCity=prior.filter(item=>item.role==='user').slice().reverse().map(item=>driveCityRoles(item.content).city).find(Boolean);
     return !location.unknownOrigin && !location.unknownDestination && (!location.city || !previousCity || location.city===previousCity);
   };
   for (const turn of history) {
@@ -878,6 +880,7 @@ function platformPartyState(message:string,history:Turn[],trip?:SavedTrip|null) 
   let children:number|null=validTrip ? trip!.children : null;
   let total:number|null=validTrip ? adults!+children! : null;
   let mentioned=Boolean(trip);
+  let childrenEverMentioned=validTrip;
   // A disputed category remains pending independently of the other one.
   // Keep confirmed facts internally; only the consumer projection is blocked.
   let pendingAdults=false,pendingChildren=false,pendingTotal=false,pendingScope=false;
@@ -887,6 +890,7 @@ function platformPartyState(message:string,history:Turn[],trip?:SavedTrip|null) 
       const uncertain=newTripRequested.deferredMarker(span)||/[?؟]/u.test(span);
       for (const clause of span.split(/[,،](?!\s*(?:or\b|او(?:\s|$)|and\s+(?:above|up|more|over)\b|و\s*(?:اكثر|اقل|فوق)(?![\p{L}])|at\s+(?:(?:a|the)\s+)?(?:least|most|minimum|maximum)\b|(?:minimum|maximum)\b|علي\s+(?:الاقل|الاكثر)|كحد\s+(?:ادني|اقصي|اعلي)))|[;؛]/u)) {
         const q=driveQuantities(clause);
+        if(q.children.mentioned)childrenEverMentioned=true;
         if (!q.total.mentioned && !q.adults.mentioned && !q.children.mentioned) continue;
         mentioned=true;
         // A count scoped to another service cannot silently replace this car
@@ -918,7 +922,8 @@ function platformPartyState(message:string,history:Turn[],trip?:SavedTrip|null) 
         if (q.adults.mentioned && q.children.mentioned && q.adults.value!==undefined && q.children.value!==undefined) {
           pendingTotal=false;pendingScope=false;proposedTotal=null;
         }
-        total=adults!==null && children!==null && adults+children>0 && adults+children<=20 ? adults+children : null;
+        total=adults!==null && children!==null && adults+children>0 && adults+children<=20 ? adults+children
+          : !childrenEverMentioned && adults!==null && adults>0 ? adults : null;
       }
     }
   }
@@ -926,7 +931,7 @@ function platformPartyState(message:string,history:Turn[],trip?:SavedTrip|null) 
   return {mentioned,total:pending?null:total,confirmed:{adults,children,total},pending:{adults:pendingAdults,children:pendingChildren,total:pendingTotal,scope:pendingScope},proposals:{adults:proposedAdults,children:proposedChildren,total:proposedTotal}};
 }
 function tripPreferences(text: string, trip?: SavedTrip | null) {
-  const roles = cityRoles(text);
+  const roles = driveCityRoles(text);
   const unknownDestination=roles.unknownDestination||/\bdestination is unknown\b/.test(text);
   const city = roles.ambiguous || unknownDestination ? undefined : trip ? routingPlace(trip.destination) : roles.city;
   const iso = [...text.matchAll(/\b\d{4}-\d{2}-\d{2}(?:t\d{2}:\d{2})?\b/g)];
@@ -992,7 +997,7 @@ function userDriveRoute(message:string,history:Turn[]):UserDriveRouteEvidence {
     // A clear contrast or semicolon delimits the acted-on route, while any
     // condition over the connected span remains in force for both parts.
     for (const part of whole.split(/\s*[,،]?\s*\b(?:but|however|instead)\b\s*|\s*[;؛]\s*|\s*(?<![\p{L}])(?:لكن|بل)(?![\p{L}])\s*/u)) {
-      const roles=cityRoles(part),rejected=rejectedDriveRoute(part),objectRefusal=rejectedRouteObject(part);
+      const roles=driveCityRoles(part),rejected=rejectedDriveRoute(part),objectRefusal=rejectedRouteObject(part);
       if (roles.ambiguousOrigin||roles.ambiguousDestination||roles.multiSegment||roles.unassignedLocation) {
         route=null;reference=null;status='contested';continue;
       }
@@ -1037,13 +1042,13 @@ function customerTripBudget(scope:ConsumerProjection):CustomerTripBudget|null {
   if (!currency || !/^(?:0|[1-9]\d{0,8})(?:\.\d{1,2})?$/.test(budget.amount) || Number(budget.amount)<=0) return null;
   return {amount:budget.amount,currency,basis:'trip'};
 }
-function platformEntryFromText(family: PlatformFamily, message: string, locale: Locale, displayCurrency?: DisplayCurrency, trip?: SavedTrip | null, excludedCurrencies: readonly DisplayCurrency[] = [], ignoreEarlierCurrency=false, routeEvidence?:UserDriveRouteEvidence, customerBudget?:CustomerTripBudget|null) {
+function platformEntryFromText(family: PlatformFamily, message: string, locale: Locale, displayCurrency?: DisplayCurrency, trip?: SavedTrip | null, excludedCurrencies: readonly DisplayCurrency[] = [], ignoreEarlierCurrency=false, routeEvidence?:UserDriveRouteEvidence, customerBudget?:CustomerTripBudget|null,handoff?:DriveHandoff) {
   const text = normalizePlatformQuery(message);
   const params = new URLSearchParams({ language: locale });
   const { city, dates, party, luggage, rooms } = tripPreferences(text, trip);
   if (city) params.set('destination', city);
   if (family === 'drive') {
-    const roles = cityRoles(message);
+    const roles = driveCityRoles(message);
     // The marketplace defaults destination to pickup. Withhold that fallback
     // for an unresolved source; use only the scoped user route for a pickup.
     if (routeEvidence?.withholdPickup || !routeEvidence && roles.unknownOrigin) {
@@ -1060,7 +1065,8 @@ function platformEntryFromText(family: PlatformFamily, message: string, locale: 
   if (family === 'drive') {
     if (dates[0]) params.set(dates[0].includes('t') ? 'pickupAt' : 'pickupDate', dates[0].replace('t', 'T'));
     if (dates[1]) params.set(dates[1].includes('t') ? 'returnAt' : 'returnDate', dates[1].replace('t', 'T'));
-    if (/airport|المطار/.test(text)) params.set('mode', 'airport');
+    if (handoff) applyDriveHandoff(params,handoff,Boolean(routeEvidence?.withholdPickup),Boolean(routeEvidence?.withholdDropoff));
+    else if (airportDriveService(text)) params.set('mode', 'airport');
     if (luggage !== undefined) params.set('luggage', String(luggage));
   } else if (family === 'stay') {
     if (dates[0]) params.set('checkIn', dates[0].slice(0, 10));
@@ -1104,7 +1110,7 @@ export function preparePlatformEntryForUserRequest(family:PlatformFamily,request
     const context=platformContextText(platformContext(snapshot.message,snapshot.history,snapshot.trip));
     const excluded=local?.supersede ? [...local.excludedCurrencies] : scopedDisplayExclusions(snapshot.history,snapshot.message,excludedCurrencies);
     const selected=local ? local.currency ?? undefined : displayCurrency;
-    const href=platformEntryFromText(family,context,locale,selected,snapshot.trip,excluded,Boolean(local?.supersede),userDriveRoute(snapshot.message,snapshot.history),customerTripBudget(scope));
+    const href=platformEntryFromText(family,context,locale,selected,snapshot.trip,excluded,Boolean(local?.supersede),userDriveRoute(snapshot.message,snapshot.history),customerTripBudget(scope),driveHandoffForUsers([...snapshot.history.filter(turn=>turn.role==='user').map(turn=>turn.content),snapshot.message]));
     return currentMatchingScope(scope) && (!localPolicy || platformLocalCurrencyPolicy(request,localPolicy)) ? href : generic();
   }});
 }
@@ -1122,7 +1128,7 @@ export function refinePlatformTrip(trip: SavedTrip, message: string): SavedTrip 
 function driveCatalogueDestinationEligible(text: string, trip?: SavedTrip | null) {
   // Reuse the catalogue's existing destination boundary before planning.
   // An unavailable destination must not be treated as a supported car service.
-  if (!trip && (cityRoles(text).unknownDestination || /\bdestination is unknown\b/.test(text))) return false;
+  if (!trip && (driveCityRoles(text).unknownDestination || /\bdestination is unknown\b/.test(text))) return false;
   const destination = trip ? routingPlace(trip.destination) : tripPreferences(text).city;
   return trip ? ['cairo', 'giza', 'alexandria'].includes(destination ?? '') : !['riyadh', 'jeddah', 'dubai'].includes(destination ?? '');
 }
@@ -1156,7 +1162,7 @@ function driveServiceDecision(message:string,history:Turn[]):'open'|'refused'|'c
   const englishSelection=new RegExp(String.raw`\b(?:(?:want|need)\s+(?:(?:you|me|us|them)\s+)?to\s+)?${englishServiceVerb}\s+(?:(?:me|us|a|an|the|my|any|some)\s+){0,3}(?:${serviceNames.drive.source})`,'gu');
   let state:'open'|'refused'|'contested'='open';
   for (const input of planningUserTurns(message,history)) {
-    for (const span of newTripRequested.actionSpans(newTripRequested.normalizeNegation(normalizePlatformQuery(input)))) {
+    for (const span of newTripRequested.actionSpans(newTripRequested.normalizeNegation(withoutDriveEndpointPlaces(normalizePlatformQuery(input))))) {
       const clauses=span.match(/[^;؛.!?؟\n]+[?؟]?/gu) ?? [];
       let danglingCondition=false;
       for (const clause of clauses) {
@@ -1231,7 +1237,7 @@ function evaluatePlatformDriveOffers(_message: string, pricing?: PlatformPricing
   const requestedCodes = text.match(/\b(?:[a-z]{1,3}\d{1,3}|[tesvghx]\s+\d{1,3})\b/g) ?? [];
   if (requestedCodes.some(code => !modelTokens.some(model => model.replace(/\s/g,'').includes(code.replace(/\s/g,''))))) return evaluated([]);
   const longestModels = models.filter(model => !models.some(other => other !== model && other.includes(model)));
-  const airport = /airport|المطار/.test(text);
+  const airport = airportDriveService(text);
   // Derive budget from the issued scope, never the mutable text argument or
   // a potentially stale caller-supplied plan.
   const userTurns=planningUserTurns(snapshot.message,snapshot.history);
@@ -1383,7 +1389,7 @@ export function preparePlatformAssistantResponse(input: string|PlatformUserReque
   } else {
     if (!families.length && /trip|itinerary|رحله|برنامج سفر|خطه سفر|(?:^|[^\p{L}\p{N}_])رحل(?:تي|تنا)(?=$|[^\p{L}\p{N}_])/u.test(current)) families.push(...(['drive','stay'] as PlatformFamily[]).filter(family=>!familyState.denied.includes(family)));
     for (const family of families) {
-      const href = platformEntryFromText(family, context, locale, pricing?.currency ?? undefined, trip, excludedCurrencies, Boolean(local?.supersede),userDriveRoute(message,history),customerTripBudget(matchingScope));
+      const href = platformEntryFromText(family, context, locale, pricing?.currency ?? undefined, trip, excludedCurrencies, Boolean(local?.supersede),userDriveRoute(message,history),customerTripBudget(matchingScope),driveHandoffForUsers([...history.filter(turn=>turn.role==='user').map(turn=>turn.content),message]));
       if (family === 'drive') {
         const serviceDecision=driveServiceDecision(message,history);
         if (serviceDecision!=='open') {
@@ -1447,7 +1453,7 @@ export function preparePlatformAssistantResponse(input: string|PlatformUserReque
           continue;
         }
         const party=drivePlan?.preferences.party ?? tripPreferences(text,trip).party;
-        const offers = outcome.offers.filter(offer => !party || (vehicleFor(offer).passengers ?? 0) >= Number(party)), airport = /airport|المطار/.test(text);
+        const offers = outcome.offers.filter(offer => !party || (vehicleFor(offer).passengers ?? 0) >= Number(party)), airport = airportDriveService(text);
         cardOffers=offers;
         const pickup = new URL(href, 'https://dir3com.com').searchParams.get('pickupAt');
         const instant = pickup ? cairoInstant(pickup) : null;
@@ -1475,7 +1481,7 @@ export function preparePlatformAssistantResponse(input: string|PlatformUserReque
         lines.push(link(ar ? 'اختيار السيارة وإكمال مواعيد الطلب' : 'Choose a car and complete request dates', href));
         lines.push(ar ? 'إنشاء الطلب قبل الموعد بـ6 ساعات على الأقل. الدخول عند إرسال الطلب، ثم تؤكد عمليات مصر السيارة والسعر. لم يُنشأ طلب أو حجز من هذه المحادثة.' : 'Submit at least 6 hours before pickup. Sign in when submitting; Egypt Operations confirms the vehicle and price. This chat has not created a request or booking.');
       } else if (family === 'stay') {
-        if (trip ? cityRoles(message).ambiguous || cityRoles(message).unknownDestination : tripPreferences(text, trip).ambiguous) {
+        if (trip ? driveCityRoles(message).ambiguous || driveCityRoles(message).unknownDestination : tripPreferences(text, trip).ambiguous) {
           const question = ar ? 'أي مدينة تقصد للإقامة؟ حدّد الوجهة ومدينة المغادرة بشكل منفصل.' : 'Which city is your Stay destination? Specify the destination and departure city separately.';
           requiredUnits.push(question); lines.push(question);
           continue;
@@ -1494,7 +1500,7 @@ export function preparePlatformAssistantResponse(input: string|PlatformUserReque
       // Generic discovery links must obey the same refusal/uncertainty as
       // a selected family and its cards; they cannot re-advertise a denial.
       if (!familyState.denied.includes('drive') && !familyState.contested.includes('drive'))
-        lines.push(link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntryFromText('drive', context, locale, pricing?.currency ?? undefined, undefined, excludedCurrencies, Boolean(local?.supersede),userDriveRoute(message,history),customerTripBudget(matchingScope))));
+        lines.push(link(ar ? 'السيارات والأسعار' : 'Cars and rates', platformEntryFromText('drive', context, locale, pricing?.currency ?? undefined, undefined, excludedCurrencies, Boolean(local?.supersede),userDriveRoute(message,history),customerTripBudget(matchingScope),driveHandoffForUsers([...history.filter(turn=>turn.role==='user').map(turn=>turn.content),message]))));
       if (!familyState.denied.includes('stay') && !familyState.contested.includes('stay'))
         lines.push(link(ar ? 'بحث الإقامة' : 'Stay search', platformEntryFromText('stay', context, locale, pricing?.currency ?? undefined, undefined, excludedCurrencies, Boolean(local?.supersede))));
       lines.push(link(ar ? 'طلباتي' : 'My requests', '/my-requests'));
