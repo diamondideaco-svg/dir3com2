@@ -33,6 +33,13 @@ function RequestRow({request,canWrite}:{request:DriveRequestRecord;canWrite:bool
     <CustomerTripBudget search={customerBudgetSearch(trip.customerBudget)} language={language}/>
     {trip.mode==='airport'&&<p>{trip.flightNumber} · {trip.flightArrival}</p>}<p>{trip.specialRequest}</p><p>{trip.notes}</p><p>{ar?'سعر المورد':'Supplier rate'}: {context.supplier_amount} {context.supplier_currency}</p>
     <p>{ar?'الحالة':'State'}: {states[driveRequestState(request.status,request.quote_expires_at)]?.[ar?0:1] ?? (ar?'الحالة غير متاحة':'Status unavailable')}</p>{result&&<p role="status">{messages[result]?.[ar?0:1]}</p>}
+    {request.quote_amount!==null&&<section className={styles.quoteFields}>
+      <h3>{ar?'العرض المحفوظ':'Saved offer'}</h3>
+      <p>{context.confirmed_vehicle}</p>
+      {context.confirmed_vehicle_year&&<p>{ar?'موديل':'Model year'} {context.confirmed_vehicle_year}</p>}
+      <p>{ar?'الإجمالي النهائي من العمليات':'Operations final total'}: {request.quote_amount} {request.quote_currency}</p>
+      <p>{ar?'صالح حتى':'Valid until'}: {request.quote_expires_at ? <time dateTime={request.quote_expires_at}>{new Intl.DateTimeFormat(ar?'ar-EG':'en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(new Date(request.quote_expires_at))}</time> : '—'} (Africa/Cairo)</p>
+    </section>}
     {/* Native action reset can reset a controlled select's DOM value too. The version key owns draft clearing. */}
     {active&&canWrite&&<form action={action} onReset={event=>event.preventDefault()}><input type="hidden" name="requestId" value={request.id}/><input type="hidden" name="version" value={context.version}/>
       <label>{ar?'الإجراء':'Action'}<select name="action" value={selectedAction} onChange={event=>setSelectedAction(event.target.value as typeof selectedAction)}>{request.status==='request_submitted'?<option value="review">{ar?'بدء المراجعة':'Start review'}</option>:<option value="confirm">{ar?'إرسال العرض للعميل':'Send offer to customer'}</option>}<option value="decline">{ar?'رفض الطلب':'Decline request'}</option></select></label>

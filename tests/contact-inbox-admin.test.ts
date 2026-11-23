@@ -237,7 +237,8 @@ for (const language of ['ar', 'en'] as const) for (const status of ['received', 
     assert.ok(typeof confirmation === 'string' && confirmation.length > 0);
     const h = buttonHarness(language), render = () => h.render(control.props);
     let submissions = 0;
-    const form = { reportValidity: () => true, requestSubmit() { submissions++; } };
+    const events = new EventTarget();
+    const form = Object.assign(events, { reportValidity: () => true, requestSubmit() { events.dispatchEvent(new Event('submit')); submissions++; } });
     assert.equal(button(render()).props.children, label);
     assert.equal(click(button(render()), form), true);
     assert.equal(submissions, 0, 'opening confirmation does not submit');
