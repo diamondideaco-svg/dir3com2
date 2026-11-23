@@ -26,7 +26,13 @@ export const newTripRequested = Object.assign(
 );
 export function withoutRoutingCities(message: string) {
   const aliases = cities.flatMap(names => names.map(normalize)).join('|');
-  return normalize(message).replace(new RegExp(`(?<![\\p{L}])(?:${aliases})(?![\\p{L}])`, 'gu'), '');
+  // This is generated preference carry, not USER route evidence. Remove a
+  // known city's governing spatial phrase with it so a dangling "في لمدة"
+  // cannot be reparsed as an unknown destination. Unknown places stay intact.
+  const namedCity = `(?:${aliases})(?![\\p{L}])`;
+  return normalize(message)
+    .replace(new RegExp(`(?<![\\p{L}])(?:from|to|in|من|الي|في)\\s+${namedCity}`, 'gu'), ' ')
+    .replace(new RegExp(`(?<![\\p{L}])${namedCity}`, 'gu'), '');
 }
 
 /** Bounded city-role interpretation, not a general NLU or authorization source. */
