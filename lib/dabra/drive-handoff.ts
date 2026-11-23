@@ -5,7 +5,7 @@ import { turnHasDeferredMarker } from './trip-turn-decision.mjs';
 
 type Fact = {kind:'absent'} | {kind:'unknown'} | {kind:'value';value:string};
 type Endpoint = {location:Fact;date:Fact;time:Fact};
-export type DriveHandoff = {pickup:Endpoint;dropoff:Endpoint;mode:'chauffeur'|'airport'};
+export type DriveHandoff = {pickup:Endpoint;dropoff:Endpoint;mode?:'chauffeur'|'airport'};
 const empty = ():Endpoint => ({location:{kind:'absent'},date:{kind:'absent'},time:{kind:'absent'}});
 const digits = (text:string) => text.normalize('NFKC').replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
 const rolePattern = /\bpick(?:[ -]?up)\b|\bdrop(?:[ -]?off)\b|\breturn(?:\s+the\s+car)?\b|(?<![\p{L}])(?:الاستلام|استلام|التسليم|تسليم)(?![\p{L}])/giu;
@@ -64,7 +64,7 @@ function affirmativeChauffeur(input:string) {
 }
 /** Only the caller's scoped USER turns may supply these editable requirements. */
 export function driveHandoffForUsers(turns:readonly string[]):DriveHandoff {
- const state:DriveHandoff={pickup:empty(),dropoff:empty(),mode:'chauffeur'};
+ const state:DriveHandoff={pickup:empty(),dropoff:empty()};
  for(const turn of turns) {
   const serviceTurn=digits(turn).toLowerCase().replace(/[أإآ]/g,'ا').replace(/ة/g,'ه');
   if(!turnHasDeferredMarker(serviceTurn)) {
@@ -103,7 +103,9 @@ export function applyDriveHandoff(params:URLSearchParams,state:DriveHandoff,with
    if(cairoInstant(value)!==null)params.set(at,value);else params.delete(at);
   } else if(endpoint.date.kind==='value') {params.delete(at);params.set(dateKey,date);}
  }
- params.set('mode',state.mode);
+ // Unspecified browsing keeps the established URL/default contract. Only
+ // affirmative USER service evidence supplies an explicit mode query.
+ if(state.mode)params.set('mode',state.mode);else params.delete('mode');
 }
 
 /** Give the existing city-route guard only cities explicitly written in endpoint addresses.

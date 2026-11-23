@@ -75,3 +75,17 @@ test('qualified luggage and explicit adult apposition retain nonexact/count boun
  for(const text of ['two large bags','two small suitcases','شنطتان كبيرتان'])assert.equal(driveQuantities(normalizePlatformQuery(text)).luggage.value,2,text);
  for(const text of ['at least two large bags','two or three large bags','not two large bags','perhaps two large bags','ربما شنطتان كبيرتان'])assert.equal(driveQuantities(normalizePlatformQuery(text)).luggage.value,undefined,text);
 });
+
+test('neutral catalogue browsing does not invent a service-mode query while explicit services remain intact',()=>{
+ for(const content of ['car Cairo','Nissan Sunny Cairo','سيارات القاهرة']) {
+  const request=platformUserRequest({role:'user',content},[],null,createPlatformScopeOwner());
+  const href=preparePlatformEntryForUserRequest('drive',request,'en').deliver();
+  assert.ok(href);assert.equal(new URL(href,'http://local.invalid').searchParams.has('mode'),false);
+ }
+ for(const [content,mode]of [['I need a car with a driver in Cairo.','chauffeur'],['I need an airport transfer in Cairo.','airport']]as const) {
+  const p=new URLSearchParams();applyDriveHandoff(p,driveHandoffForUsers([content]));assert.equal(p.get('mode'),mode);
+ }
+ const neutral=new URLSearchParams('mode=airport');
+ applyDriveHandoff(neutral,driveHandoffForUsers(['car Cairo']));
+ assert.equal(neutral.has('mode'),false,'unowned legacy mode must not be promoted');
+});
