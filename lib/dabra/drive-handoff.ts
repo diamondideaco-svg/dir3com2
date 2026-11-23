@@ -13,7 +13,7 @@ function endpointClauses(input:string) {
  const text=digits(input);
  return [...text.matchAll(rolePattern)].map(match=>{
   const start=match.index+match[0].length,tail=text.slice(start);
-  const stop=tail.search(/[,،;؛.!?؟\n]|\b(?:and\s+(?:(?:i|we)\s+)?(?:need|want|book|reserve|request))\b|(?:واحتاج|واريد)/iu);
+  const stop=tail.search(/[,،;؛.!?؟\n]|\b(?:and|but|however)\s+(?:i|we|you|they|he|she)\b|\b(?:and|but|however)\s+(?:(?:the|my|our)\s+)?(?:car|vehicle|driver|hotel|airport\s+transfer)\s+(?:is|are|was|were)\b|\b(?:and|but|however)\s+(?:(?:i|we)\s+)?(?:need|want|book|reserve|request|do\s+not|don['’]?t|never|no|not|refuse|reject|decline|avoid|without)\b|\b(?:do\s+not|don['’]?t|no\s+longer)\s+(?:want|need|use|take|choose|book|request)\b|(?:و[اأإ]حتاج|و[اأإ]ريد|ولا|ولن|ولم|وليس|وليست|وبدون|وارفض|ونرفض|لكن|بل)(?![\p{L}])|(?<![\p{L}])(?:لا|لن|لم)\s*(?:[أا]ريد|[أا]حتاج|[أا]ستخدم|نريد|نحتاج|تستخدم)(?![\p{L}])/iu);
   const body=tail.slice(0,stop<0?200:Math.min(stop,200));
   const location=/^\s*(?:(?:location|address)\s*)?(?:is\s+)?(?:at|from|to|من|في|الي|إلى)\s+(.+?)(?=\s+(?:on|يوم|بتاريخ)\s+\d{4}-\d{2}-\d{2}|\s+(?:at|الساع[ةه])\s+\d{1,2}:\d{2}|$)/iu.exec(body);
   const place=location?.[1]?.trim();
@@ -31,21 +31,47 @@ function endpointClauses(input:string) {
  * The original USER text still governs route uncertainty and customer facts. */
 export function withoutDriveEndpointPlaces(input:string) {
  let text=digits(input);
- for(const item of endpointClauses(input).filter(item=>item.at>=0&&item.place).sort((a,b)=>b.at-a.at))
-  text=text.slice(0,item.at)+' '.repeat(item.place!.length)+text.slice(item.at+item.place!.length);
+ for(const item of endpointClauses(input).filter(item=>item.at>=0&&item.place).sort((a,b)=>b.at-a.at)) {
+  // Keep every action/refusal word. Only ambiguous service nouns in the
+  // address prefix are masked, even if an unfamiliar clause escaped its boundary.
+  const prefix=item.place!.split(/\b(?:and|or|but|however)\b|(?<![\p{L}])(?:لكن|بل)(?![\p{L}])/iu)[0];
+  const masked=prefix.replace(/\b(?:hotels?|airports?|resorts?|lodging|accommodation)\b|(?<![\p{L}])(?:ال)?(?:فندق|فنادق|مطار|مطارات|منتجع|منتجعات|اقامه)(?![\p{L}])/giu,word=>' '.repeat(word.length));
+  text=text.slice(0,item.at)+masked+text.slice(item.at+prefix.length);
+  // An attached Arabic conjunction marks the same independent clause boundary.
+  if(/^(?:و[اأإ]حتاج|و[اأإ]ريد|ولا|ولن|ولم|وليس|وليست|وبدون|وارفض|ونرفض)(?![\p{L}])/u.test(text.slice(item.clauseEnd)))
+   text=text.slice(0,item.clauseEnd)+';'+text.slice(item.clauseEnd+1);
+ }
  return text;
 }
 /** Airport as an endpoint or rejected transfer is not an airport service request. */
 export function airportDriveService(input:string) {
  const text=withoutDriveEndpointPlaces(input).toLowerCase().replace(/[أإآ]/g,'ا').replace(/ة/g,'ه')
-  .replace(/\b(?:not|no|do not|don't|dont|never)\s+(?:(?:an?|the)\s+)?airport\s+(?:transfer|pickup|reception)\b/gu,' ')
-  .replace(/(?:لا|ليس|ليست)\s*(?:اريد\s*)?(?:توصيله?|انتقال|استقبال)\s*(?:ال)?مطار/gu,' ');
+  .replace(/\b(?:not|no|never|without|do\s+not|does\s+not|did\s+not|will\s+not|can\s+not|cannot|can['’]?t|won['’]?t|don['’]?t|no\s+longer|refuse(?:\s+to)?|reject|decline(?:\s+to)?)\s+(?:(?:want|need|use|take|choose|request|book)\s+)?(?:(?:an?|the|my|our)\s+)?airport\s+(?:transfer|pickup|reception)\b/gu,' ')
+  .replace(/(?:لا|لن|لم|ليس|ليست|بدون|ارفض|نرفض)\s*(?:(?:اريد|احتاج|استخدم|نريد|نحتاج)\s*)?(?:توصيله?|انتقال|استقبال)\s*(?:ال)?مطار/gu,' ');
  return !turnHasDeferredMarker(text) && /\bairport\b|(?<![\p{L}])(?:ال)?مطار(?![\p{L}])/u.test(text);
+}
+function affirmativeChauffeur(input:string) {
+ const text=withoutDriveEndpointPlaces(input).toLowerCase().replace(/[أإآ]/g,'ا').replace(/ة/g,'ه');
+ if(turnHasDeferredMarker(text))return false;
+ for(const match of text.matchAll(/\b(?:car|vehicle)\s+with\s+(?:a\s+)?driver\b|\bchauffeur(?:ed)?\s+(?:car|service)\b|(?<![\p{L}])سياره\s*(?:مع\s+(?:ال)?سائق|بسائق)(?![\p{L}])/gu)) {
+  const before=text.slice(0,match.index).split(/[;؛.!?؟\n]/u).at(-1)??'';
+  const suffix=text.slice(match.index+match[0].length);
+  if(/\b(?:do not|don't|dont|never|no longer|not|no|without)\s+(?:(?:want|need|use|take|choose|request)\s+)?(?:(?:a|the|my|our)\s+)?$|(?:لا|لن|لم|ليس|ليست|بدون)\s*(?:(?:اريد|احتاج|استخدم|نريد)\s*)?(?:ال)?$/u.test(before))continue;
+  if(/^\s*(?:budget|allowance|cap|limit)\b|^\s*(?:ميزاني|سقف)/u.test(suffix))continue;
+  return true;
+ }
+ return false;
 }
 /** Only the caller's scoped USER turns may supply these editable requirements. */
 export function driveHandoffForUsers(turns:readonly string[]):DriveHandoff {
- const state:DriveHandoff={pickup:empty(),dropoff:empty(),mode:airportDriveService(turns.join('\n'))?'airport':'chauffeur'};
- for(const turn of turns) for(const item of endpointClauses(turn)) {
+ const state:DriveHandoff={pickup:empty(),dropoff:empty(),mode:'chauffeur'};
+ for(const turn of turns) {
+  const serviceTurn=digits(turn).toLowerCase().replace(/[أإآ]/g,'ا').replace(/ة/g,'ه');
+  if(!turnHasDeferredMarker(serviceTurn)) {
+   if(airportDriveService(turn))state.mode='airport';
+   else if(affirmativeChauffeur(turn))state.mode='chauffeur';
+  }
+  for(const item of endpointClauses(turn)) {
   const target=state[item.kind];
   if(item.place) target.location=item.uncertain?{kind:'unknown'}:{kind:'value',value:item.place};
   const date=item.body.match(/\b\d{4}-\d{2}-\d{2}\b/)?.[0];
@@ -58,6 +84,7 @@ export function driveHandoffForUsers(turns:readonly string[]):DriveHandoff {
   if(/\b(?:unknown|undecided)\b|غير محدد|غير معروف|لم احدد|لم أحدد/iu.test(item.body)) {
    if(/\btime\b|وقت|الساع/iu.test(item.body))target.time={kind:'unknown'};
    else target.location={kind:'unknown'};
+  }
   }
  }
  return state;

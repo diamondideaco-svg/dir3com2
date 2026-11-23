@@ -1237,7 +1237,7 @@ function evaluatePlatformDriveOffers(_message: string, pricing?: PlatformPricing
   const requestedCodes = text.match(/\b(?:[a-z]{1,3}\d{1,3}|[tesvghx]\s+\d{1,3})\b/g) ?? [];
   if (requestedCodes.some(code => !modelTokens.some(model => model.replace(/\s/g,'').includes(code.replace(/\s/g,''))))) return evaluated([]);
   const longestModels = models.filter(model => !models.some(other => other !== model && other.includes(model)));
-  const airport = airportDriveService(text);
+  const airport = driveHandoffForUsers([...snapshot.history.filter(turn=>turn.role==='user').map(turn=>turn.content),snapshot.message]).mode==='airport';
   // Derive budget from the issued scope, never the mutable text argument or
   // a potentially stale caller-supplied plan.
   const userTurns=planningUserTurns(snapshot.message,snapshot.history);
@@ -1453,7 +1453,7 @@ export function preparePlatformAssistantResponse(input: string|PlatformUserReque
           continue;
         }
         const party=drivePlan?.preferences.party ?? tripPreferences(text,trip).party;
-        const offers = outcome.offers.filter(offer => !party || (vehicleFor(offer).passengers ?? 0) >= Number(party)), airport = airportDriveService(text);
+        const offers = outcome.offers.filter(offer => !party || (vehicleFor(offer).passengers ?? 0) >= Number(party)), airport = driveHandoffForUsers([...history.filter(turn=>turn.role==='user').map(turn=>turn.content),message]).mode==='airport';
         cardOffers=offers;
         const pickup = new URL(href, 'https://dir3com.com').searchParams.get('pickupAt');
         const instant = pickup ? cairoInstant(pickup) : null;
