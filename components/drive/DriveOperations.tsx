@@ -14,6 +14,10 @@ function RequestRow({request,canWrite}:{request:DriveRequestRecord;canWrite:bool
   const {language}=useLanguage(); const ar=language==='ar'; const [result,action]=useActionState(reviewDriveRequest,'');
   const context=request.drive_request_context; const trip=context.trip; const modelYears=savedDriveModelYears(trip);
   const [selectedAction,setSelectedAction]=useState<'review'|'confirm'|'decline'>(request.status==='under_review'?'confirm':'review');
+  // React resets uncontrolled fields after a resolved action, including a rejected quote.
+  // Keep this row's draft in memory until an authoritative version change remounts it.
+  const [draft,setDraft]=useState({vehicle:'',vehicleYear:String(modelYears?.[0] ?? ''),amount:'',currency:String(DRIVE_CURRENCIES[0]),expires:'',note:''});
+  const updateDraft=(key:keyof typeof draft,value:string)=>setDraft(current=>({...current,[key]:value}));
   const actionCopy={
     review:{ar:'بدء المراجعة',en:'Start review',confirmAr:'بدء مراجعة هذا الطلب؟ ستظهر بعدها حقول إعداد العرض.',confirmEn:'Start reviewing this request? The offer fields will appear next.'},
     confirm:{ar:'إرسال العرض للعميل',en:'Send offer to customer',confirmAr:'إرسال هذا العرض إلى حساب العميل للموافقة؟ هذا لا ينشئ حجزًا أو دفعًا ولا يرسل واتساب تلقائيًا.',confirmEn:'Send this offer to the customer’s account for acceptance? This does not create a booking, take payment or send WhatsApp automatically.'},
@@ -22,27 +26,29 @@ function RequestRow({request,canWrite}:{request:DriveRequestRecord;canWrite:bool
   const states:Record<string,[string,string]>={request_submitted:['تم استلام الطلب','Request submitted'],under_review:['قيد المراجعة','Under review'],quote_ready:['العرض النهائي بانتظار موافقة العميل','Final quote awaiting customer acceptance'],ready_for_payment:['وافق العميل على العرض — الدفع غير مفعّل','Customer accepted the quote — payment is not enabled'],declined:['تم رفض الطلب','Request declined'],expired:['انتهت صلاحية العرض','Offer expired']};
   const active=['request_submitted','under_review'].includes(request.status);
   const messages:Record<string,[string,string]>={SAVED:['تم حفظ الإجراء في سجل التدقيق.','Action saved with audit.'],STALE:['تغير الطلب؛ حدّث الصفحة.','Request changed; refresh the page.'],FORBIDDEN:['لا توجد صلاحية لعمليات مصر.','Egypt Operations permission denied.'],UNAUTHORIZED:['انتهت الجلسة.','Session expired.'],INVALID:['تحقق من البيانات والمهلة وتسلسل الإجراء.','Check fields, expiry and action order.'],UNAVAILABLE:['تعذّر الحفظ؛ لم نؤكد نجاح الإجراء.','Unable to save; success is not confirmed.']};
+  messages.EXPIRED=['انتهى موعد صلاحية العرض المحدد. اختر موعدًا قادمًا ثم أعد الإرسال.','The quote validity deadline has passed. Choose a future deadline and send again.'];
   return <article className={styles.panel}><h2>{request.request_reference}</h2><p>{vehicleTitle(vehicleFor(driveOffer(request.drive_offer_id)!),language)}</p>
     <p className={styles.modelYear}>{vehicleYearAvailabilityLabel(language, {modelYears:savedDriveModelYears(trip)})}</p>
     <p>{trip.pickup} → {trip.dropoff} · {trip.pickupAt} → {trip.returnAt} (Africa/Cairo)</p><p>{trip.name} · {trip.phone} · {trip.passengers} {ar?'ركاب':'passengers'} / {trip.luggage} {ar?'أمتعة':'bags'}</p>
     <CustomerTripBudget search={customerBudgetSearch(trip.customerBudget)} language={language}/>
     {trip.mode==='airport'&&<p>{trip.flightNumber} · {trip.flightArrival}</p>}<p>{trip.specialRequest}</p><p>{trip.notes}</p><p>{ar?'سعر المورد':'Supplier rate'}: {context.supplier_amount} {context.supplier_currency}</p>
     <p>{ar?'الحالة':'State'}: {states[driveRequestState(request.status,request.quote_expires_at)]?.[ar?0:1] ?? (ar?'الحالة غير متاحة':'Status unavailable')}</p>{result&&<p role="status">{messages[result]?.[ar?0:1]}</p>}
-    {active&&canWrite&&<form action={action}><input type="hidden" name="requestId" value={request.id}/><input type="hidden" name="version" value={context.version}/>
+    {/* Native action reset can reset a controlled select's DOM value too. The version key owns draft clearing. */}
+    {active&&canWrite&&<form action={action} onReset={event=>event.preventDefault()}><input type="hidden" name="requestId" value={request.id}/><input type="hidden" name="version" value={context.version}/>
       <label>{ar?'الإجراء':'Action'}<select name="action" value={selectedAction} onChange={event=>setSelectedAction(event.target.value as typeof selectedAction)}>{request.status==='request_submitted'?<option value="review">{ar?'بدء المراجعة':'Start review'}</option>:<option value="confirm">{ar?'إرسال العرض للعميل':'Send offer to customer'}</option>}<option value="decline">{ar?'رفض الطلب':'Decline request'}</option></select></label>
       {selectedAction==='review'&&<p className={styles.muted}>{ar?'ابدأ المراجعة أولًا، ثم أدخل السيارة والسعر النهائي ومدة صلاحية العرض. بدء المراجعة لا يرسل عرضًا للعميل.':'Start the review first, then enter the vehicle, final price and offer expiry. Starting a review does not send an offer to the customer.'}</p>}
       {request.status==='under_review'&&selectedAction==='confirm'&&<fieldset className={styles.quoteFields}>
         <legend>{ar?'إعداد العرض وإرساله للعميل':'Prepare and send the customer offer'}</legend>
         <p className={styles.muted}>{ar?'سيظهر العرض في حساب العميل بانتظار موافقته. إرسال العرض لا ينشئ حجزًا أو دفعًا. إشعار واتساب التلقائي غير مفعّل حاليًا.':'The offer will appear in the customer’s account for acceptance. Sending it does not create a booking or take payment. Automatic WhatsApp notifications are not enabled yet.'}</p>
         <div className={styles.fields}>
-          <label>{ar?'السيارة أو الفئة المكافئة المؤكدة':'Confirmed vehicle or equivalent class'}<input name="vehicle" required minLength={2} maxLength={200}/></label>
-          <label>{ar?'سنة الموديل المؤكدة':'Confirmed model year'}{modelYears ? <select name="vehicleYear" required>{modelYears.map(year=><option key={year}>{year}</option>)}</select> : <input name="vehicleYear" type="number" min="1000" max="9999" step="1" placeholder={ar?'غير محددة — اختياري':'Unspecified — optional'}/>}</label>
-          <label>{ar?'الإجمالي النهائي':'Final total'}<input name="amount" type="number" required step="0.01" min="0.01" max="99999999"/></label>
-          <label>{ar?'العملة':'Currency'}<select name="currency">{DRIVE_CURRENCIES.map(currency=><option key={currency}>{currency}</option>)}</select></label>
-          <label>{ar?'انتهاء صلاحية العرض — القاهرة':'Offer validity deadline — Cairo'}<input name="expires" type="datetime-local" required max={trip.pickupAt}/></label>
+          <label>{ar?'السيارة أو الفئة المكافئة المؤكدة':'Confirmed vehicle or equivalent class'}<input name="vehicle" value={draft.vehicle} onChange={event=>updateDraft('vehicle',event.target.value)} required minLength={2} maxLength={200}/></label>
+          <label>{ar?'سنة الموديل المؤكدة':'Confirmed model year'}{modelYears ? <select name="vehicleYear" value={draft.vehicleYear} onChange={event=>updateDraft('vehicleYear',event.target.value)} required>{modelYears.map(year=><option key={year}>{year}</option>)}</select> : <input name="vehicleYear" value={draft.vehicleYear} onChange={event=>updateDraft('vehicleYear',event.target.value)} type="number" min="1000" max="9999" step="1" placeholder={ar?'غير محددة — اختياري':'Unspecified — optional'}/>}</label>
+          <label>{ar?'الإجمالي النهائي':'Final total'}<input name="amount" value={draft.amount} onChange={event=>updateDraft('amount',event.target.value)} type="number" required step="0.01" min="0.01" max="99999999"/></label>
+          <label>{ar?'العملة':'Currency'}<select name="currency" value={draft.currency} onChange={event=>updateDraft('currency',event.target.value)}>{DRIVE_CURRENCIES.map(currency=><option key={currency}>{currency}</option>)}</select></label>
+          <label>{ar?'انتهاء صلاحية العرض — القاهرة':'Offer validity deadline — Cairo'}<input name="expires" value={draft.expires} onChange={event=>updateDraft('expires',event.target.value)} type="datetime-local" required max={trip.pickupAt}/></label>
         </div>
       </fieldset>}
-      <label>{ar?'ملاحظات العمليات الخاصة':'Private Operations notes'}<textarea name="note" maxLength={2000}/></label>
+      <label>{ar?'ملاحظات العمليات الخاصة':'Private Operations notes'}<textarea name="note" value={draft.note} onChange={event=>updateDraft('note',event.target.value)} maxLength={2000}/></label>
       <AdminSubmitButton {...actionCopy} className={styles.button}/>
     </form>}
   </article>;

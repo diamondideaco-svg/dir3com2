@@ -19,6 +19,8 @@ export async function reviewDriveRequest(_previous: string, form: FormData): Pro
   if (!/^[a-f0-9-]{36}$/i.test(id) || !Number.isInteger(version) || version<0 || !['review','confirm','decline'].includes(action)) return 'INVALID';
   // The RPC also checks this year against the immutable promise saved on this REQ.
   if (action==='confirm' && (!Number.isFinite(amount) || amount<=0 || expiry===null || !validDriveModelYear(vehicleYear))) return 'INVALID';
+  // Feedback only after verified Operations authority; the RPC still enforces DB-clock expiry.
+  if (action==='confirm' && expiry!==null && expiry<=Date.now()) return 'EXPIRED';
   const { error } = await supabase.rpc('review_managed_drive_request', {
     p_request_id:id,p_version:version,p_action:action,p_vehicle:String(form.get('vehicle') ?? ''),p_vehicle_year:action==='confirm'?vehicleYear:null,
     p_amount:action==='confirm'?amount:null,p_currency:action==='confirm'?String(form.get('currency')):null,
