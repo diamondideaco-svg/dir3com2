@@ -133,6 +133,7 @@ export function AdminSubmitButton({
   const { language } = useLanguage();
   const { pending } = useFormStatus();
   const [confirmForm, setConfirmForm] = useState<HTMLFormElement | null>(null);
+  const [submissionFailed, setSubmissionFailed] = useState(false);
   const submittingRef = useRef(false);
   const dialogId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -167,6 +168,7 @@ export function AdminSubmitButton({
       return;
     }
 
+    setSubmissionFailed(false);
     if (!confirmation) {
       submittingRef.current = true;
       return;
@@ -185,11 +187,19 @@ export function AdminSubmitButton({
     }
     submittingRef.current = true;
     setConfirmForm(null);
+    let submitObserved = false;
+    const observeSubmit = () => { submitObserved = true; };
+    form.addEventListener('submit', observeSubmit, true);
     try {
       form.requestSubmit();
-    } catch (error) {
-      submittingRef.current = false;
-      throw error;
+    } catch {
+      // A native dispatch failure is shown below when no submit event occurred.
+    } finally {
+      form.removeEventListener('submit', observeSubmit, true);
+      if (!submitObserved) {
+        submittingRef.current = false;
+        setSubmissionFailed(true);
+      }
     }
   }
 
@@ -198,6 +208,7 @@ export function AdminSubmitButton({
       <button type="submit" disabled={pending || disabled} onClick={handleClick} className={`${className} disabled:cursor-wait disabled:opacity-60`}>
         {pending ? (language === 'ar' ? 'جارٍ التنفيذ…' : 'Working…') : (language === 'ar' ? ar : en)}
       </button>
+      {submissionFailed && <p role="alert">{language === 'ar' ? 'تعذّر بدء إرسال النموذج. راجع الحقول ثم أعد المحاولة.' : 'The form could not start sending. Check the fields and try again.'}</p>}
       {confirmForm && confirmation ? (
         <dialog ref={dialogRef} role="dialog" aria-modal="true" onCancel={(event) => { event.preventDefault(); setConfirmForm(null); }} aria-labelledby={dialogId} className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md border-0 bg-transparent p-0 backdrop:bg-[#0D1B2A]/45">
           <section dir={language === 'ar' ? 'rtl' : 'ltr'} className="w-full max-w-md rounded-[1.75rem] border border-[#D4AF37]/40 bg-white p-5 text-[#0D1B2A] shadow-2xl">

@@ -144,3 +144,18 @@ for(const language of ['ar','en'] as const)test(`saved customer trip-budget summ
  assert.match(rendered,/66\s+USD/);
  assert.equal(data.quote_amount,null);assert.equal(ui.named(ui.render(),'amount'),undefined);
 });
+
+for (const language of ['ar','en'] as const) test('Operations shows the saved quote after reload without exposing edit controls ('+language+')',()=>{
+ const data=fixture('awaiting_customer_acceptance');
+ data.quote_amount=750;data.quote_currency='SAR';data.quote_expires_at='2030-12-11T10:00:00Z';
+ data.drive_request_context.confirmed_vehicle='Synthetic confirmed vehicle';
+ data.drive_request_context.confirmed_vehicle_year=2026;
+ const tree=mount(language,data,false).render(),rendered=text(tree);
+ assert.match(rendered,/Synthetic confirmed vehicle/);
+ assert.match(rendered,/750\s+SAR/);
+ assert.match(rendered,/2026/);
+ assert.ok(rendered.includes(new Intl.DateTimeFormat(language==='ar'?'ar-EG':'en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(new Date(data.quote_expires_at))));
+ assert.match(rendered,/Africa\/Cairo/);
+ assert.equal(all(tree).find(node=>node.type==='time')?.props.dateTime,data.quote_expires_at);
+ assert.equal(all(tree).some(node=>node.type==='form'||node.type==='button'),false);
+});

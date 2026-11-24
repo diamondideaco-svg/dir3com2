@@ -14,7 +14,7 @@ function nodes(value: unknown): Node[] {
 
 // Runs the actual component handlers while preserving hook state across renders.
 // Native validation and server-action completion are controlled test boundaries.
-function harness(path: string, actions: Record<string, unknown> = {}) {
+function harness(path: string, actions: Record<string, unknown> = {}, language: 'ar' | 'en' = 'en') {
   const slots: unknown[] = [];
   let index = 0;
   let pending = false;
@@ -43,7 +43,7 @@ function harness(path: string, actions: Record<string, unknown> = {}) {
     'react-dom': { useFormStatus: () => ({ pending }) },
     'react/jsx-runtime': { jsx: (type: unknown, props: Node['props']) => ({ type, props }), jsxs: (type: unknown, props: Node['props']) => ({ type, props }) },
     'next/link': 'a', 'next/navigation': {},
-    '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language: 'en' }) },
+    '@/components/i18n/LanguageProvider': { useLanguage: () => ({ language }) },
     '@/lib/actions/product-actions': actions,
   };
   const source = ts.transpileModule(readFileSync(path, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
@@ -79,7 +79,8 @@ for (const confirmation of [false, true]) {
     const render = () => h.render('AdminSubmitButton', props);
     let valid = false;
     let submissions = 0;
-    const form = { reportValidity: () => valid, requestSubmit() { assert.ok(valid); submissions++; } };
+    const events = new EventTarget();
+    const form = Object.assign(events, { reportValidity: () => valid, requestSubmit() { assert.ok(valid); events.dispatchEvent(new Event('submit')); submissions++; } });
     assert.equal(click(button(render()), form), true);
     assert.equal(render().some(node => node.type === 'dialog'), false);
     valid = true;
@@ -105,7 +106,8 @@ test('admin confirmation revalidates fields changed while dialog is open without
   const render = () => h.render('AdminSubmitButton', { ar: 'Save', en: 'Save', className: '', confirmEn: 'Save?' });
   let valid = true;
   let submissions = 0;
-  const form = { reportValidity: () => valid, requestSubmit() { submissions++; } };
+  const events = new EventTarget();
+    const form = Object.assign(events, { reportValidity: () => valid, requestSubmit() { events.dispatchEvent(new Event('submit')); submissions++; } });
   click(button(render()), form);
   valid = false;
   click(button(render(), 'Confirm'));
@@ -149,4 +151,50 @@ for (const fails of [false, true]) {
     finish();
     await second;
   });
+}
+
+for (const language of ['ar', 'en'] as const) {
+  for (const failure of ['no-event', 'throw'] as const) {
+    test('confirmation dispatch failure is visible and permits an explicit retry (' + language + ', ' + failure + ')', () => {
+      const h = harness('components/admin/AdminLocale.tsx', {}, language);
+      const render = () => h.render('AdminSubmitButton', { ar: 'حفظ', en: 'Save', className: '', confirmAr: 'حفظ؟', confirmEn: 'Save?' });
+      let mode: 'no-event' | 'throw' | 'submit' = failure;
+      let attempts = 0;
+      let submissions = 0;
+      const events = new EventTarget();
+      const form = Object.assign(events, {
+        reportValidity: () => true,
+        requestSubmit() {
+          attempts++;
+          if (mode === 'throw') throw new DOMException('Synthetic dispatch failure', 'InvalidStateError');
+          if (mode === 'submit') {
+            events.dispatchEvent(new Event('submit'));
+            submissions++;
+          }
+        },
+      });
+      const confirm = language === 'ar' ? 'تأكيد' : 'Confirm';
+      click(button(render()), form);
+      click(button(render(), confirm));
+      const message = render().find(node => node.props.role === 'alert');
+      assert.ok(message);
+      assert.equal(message.props.children, language === 'ar'
+        ? 'تعذّر بدء إرسال النموذج. راجع الحقول ثم أعد المحاولة.'
+        : 'The form could not start sending. Check the fields and try again.');
+      assert.equal(attempts, 1);
+      assert.equal(submissions, 0, 'a failed dispatch must not retry automatically');
+      mode = 'submit';
+      click(button(render()), form);
+      assert.ok(render().some(node => node.type === 'dialog'), 'retry still requires fresh confirmation');
+      click(button(render(), confirm));
+      assert.equal(submissions, 1);
+      assert.equal(render().some(node => node.props.role === 'alert'), false);
+      assert.equal(click(button(render()), form), true, 'same-tick overlap remains blocked');
+      assert.equal(submissions, 1);
+      h.setPending(true);
+      assert.equal(button(render()).props.disabled, true);
+      h.setPending(false);
+      assert.equal(button(render()).props.disabled, false);
+    });
+  }
 }
