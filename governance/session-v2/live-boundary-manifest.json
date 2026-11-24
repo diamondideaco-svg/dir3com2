@@ -1,0 +1,42 @@
+{
+  "base": "78805415542f6609bfa135daa1a1148fadecd6e4",
+  "activation": false,
+  "liveFiles": [
+    {
+      "path": "AGENTS.md",
+      "gitBlobSha256": "9a6eee678ade5652acfbb0d42471c94cab7eba904823df9ef237a8a1272612bb"
+    },
+    {
+      "path": "docs/CODEX_OPERATIONS.md",
+      "gitBlobSha256": "765a376525b81c693e1b8b39c7921ecbec618cb43aec40a17644ace1e1497e63"
+    },
+    {
+      "path": ".agents/skills/dir3com-engineering/SKILL.md",
+      "gitBlobSha256": "15a158f3f25565e25a7349c04946baf82883d8c4805a7eb85df47402dc0aa26b"
+    },
+    {
+      "path": ".github/workflows/codex-governance.yml",
+      "gitBlobSha256": "f7844144f81e2b330c1047a4a5ecd3fb5ad721f05194ce6ddca22c3375d5e7d1"
+    },
+    {
+      "path": ".github/scripts/codex-governance.cjs",
+      "gitBlobSha256": "20972e134f6c4fc7397b0a26ea5525d7923da08b5e4c15ffe4ec57f1d774d623"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/codex-task.yml",
+      "gitBlobSha256": "0b25fd60660f21d471a7127adbc2f06be8b2750051ec3c460391e869fe9a8103"
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "gitBlobSha256": "a9c91249bd77727ea2142c8cbe6ac2cec0e53754bcab218fb808d519fe88268d"
+    },
+    {
+      "path": "scripts/test-codex-continuity-governance.mjs",
+      "gitBlobSha256": "fa4e7c3e44d9c19f0a805ec7a5decb16ef0e01e5d68efe97cb53a8c703746628"
+    },
+    {
+      "path": "tests/codex-governance.test.mjs",
+      "gitBlobSha256": "e4a94e26132325bb59d8f450987103cd9bc929a4d5fa2f0c689b9058933c9f3f"
+    }
+  ]
+}
