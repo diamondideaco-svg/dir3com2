@@ -24,7 +24,7 @@ export default function PlatformAnswer({ text,onDriveReview }: { text: string;on
   return <span style={{ whiteSpace: 'pre-line' }}>{pieces.map((piece, i) => {
     const match = piece.match(/^\[([^\]\n]+)\]\((\/[^)\s]+)\)$/);
     return match && platformLinkAllowed(match[2])
-      ? onDriveReview && ['مراجعة متطلبات السيارة','Review car requirements'].includes(match[1]) && new URL(match[2], "https://dir3com.com").pathname==='/marketplace' && new URL(match[2], "https://dir3com.com").searchParams.get("family")==="dir3-drive"
+      ? onDriveReview && ['مراجعة متطلبات السيارة','Review car requirements'].includes(match[1]) && new URL(match[2], "https://dir3com.com").pathname==='/marketplace' && new URL(match[2], "https://dir3com.com").searchParams.get("family")==="dir3-drive" && new URL(match[2], "https://dir3com.com").searchParams.get("mode")==="chauffeur"
        ? <button key={i} type="button" data-drive-chat-open onClick={onDriveReview} className="font-semibold underline underline-offset-4"><bdi>{match[1]}</bdi></button>
        : <a key={i} href={match[2]} className="font-semibold underline underline-offset-4" style={{ overflowWrap: 'anywhere' }}><bdi>{match[1]}</bdi></a>
       : <Fragment key={i}>{piece}</Fragment>;

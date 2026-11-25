@@ -277,7 +277,7 @@
   },
   {
     "path": "supabase/migrations/20261125194500_task265_drive_chat_approval_notice.sql",
-    "sha256": "34baa56025a00ce7b9e13f28f485a7161bb1f75badfcd838ae6782712dbbe6fb",
+    "sha256": "ad3e716b004393bb5819c7654e2a16f86be877686f8c3810cac47c48065dc325",
     "task": "#265",
     "production_apply_authorized": false
   }

@@ -1601,6 +1601,7 @@ export function managedDriveChatPlan(input:PlatformUserRequest,locale:Locale,now
   const validated=readCustomerBudget({amount:budget.amount,currency:budget.currency,basis:'trip'});
   if(validated.kind==='requirement')r.customerBudget={amount:validated.amount,currency:validated.currency,basis:'trip'};
  }
+ if(r.mode==='airport')return {active:true,blocked:true,summary:copy.summary,requirements:r,question:ar?'توصيلة المطار تتطلب رقم الرحلة وموعد الوصول. تابعها من رابط المطار في الكتالوج؛ المراجعة داخل المحادثة هنا للسيارة مع سائق باليوم.':'An airport transfer requires a flight number and arrival time. Continue from its airport catalogue link; this in-chat review is for a daily chauffeured car.'};
  let question=copy.question;
  if(!question){
   if(plan.driver==='without')question=ar?'الكتالوج الحالي بسائق؛ لا أستطيع إرسال طلب بدون سائق بهذا المسار.':'The current catalogue is chauffeured; this flow cannot submit a self-drive request.';

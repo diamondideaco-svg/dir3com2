@@ -55,7 +55,7 @@ BEGIN
  THEN RAISE EXCEPTION 'TASK265_ACCEPT_BASELINE_MISMATCH'; END IF;
 END $baseline$;
 CREATE OR REPLACE FUNCTION public.accept_managed_drive_quote(p_request_id uuid,p_version integer)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE v_context public.drive_request_context%ROWTYPE; v_request public.marketplace_requests%ROWTYPE; v_stamp timestamptz;
 BEGIN
  IF auth.uid() IS NULL OR current_setting('role',true) IS DISTINCT FROM 'authenticated'
@@ -98,7 +98,7 @@ BEGIN
  INSERT INTO public.drive_request_events(request_id,actor_user_id,country,action,previous_status,new_status)
  VALUES(p_request_id,auth.uid(),'EG','customer_accept',v_request.status,'awaiting_payment');
  RETURN jsonb_build_object('status','awaiting_payment','version',p_version+1,'replayed',false);
-END $;
+END $$;
 
 -- Same current owner only; status projection discloses neither recipients nor provider identifiers.
 CREATE FUNCTION public.read_owned_drive_accept_notice(p_request_id uuid) RETURNS text

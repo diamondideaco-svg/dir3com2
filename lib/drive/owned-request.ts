@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PersistedDriveTrip } from './record';
 import { isMarketplaceRequestReference } from '../marketplace/customer-requests';
 import { driveRequestState } from './request';
+import {readCustomerBudget} from './customer-budget';
 export type DriveNoticeState='not_queued'|'queued'|'sending'|'provider_accepted'|'sent'|'delivered'|'read'|'failed'|'unknown';
 export type OwnedDriveSnapshot={
  reference:string;status:string;state:string;version:number;acceptedAt:string|null;
@@ -22,13 +23,14 @@ export async function readOwnedDriveRequest(supabase:SupabaseClient,actorId:stri
  if(error)return {ok:false,error:'UNAVAILABLE'};if(!data)return {ok:false,error:'NOT_FOUND'};
  const row=data as unknown as Row,c=row.drive_request_context;
  if(!c||!c.trip||!Number.isSafeInteger(c.version))return {ok:false,error:'UNAVAILABLE'};
+ const t=c.trip,budget=readCustomerBudget(t.customerBudget);
+ if(budget.kind==='invalid')return {ok:false,error:'UNAVAILABLE'};
  let operationsNotice:DriveNoticeState='not_queued';
  if(c.customer_accepted_at){const result=await supabase.rpc('read_owned_drive_accept_notice',{p_request_id:row.id});operationsNotice=!result.error&&typeof result.data==='string'&&notices.includes(result.data)?result.data as DriveNoticeState:'unknown';}
- const t=c.trip;
  const quote=typeof row.quote_amount==='number'&&Number.isFinite(row.quote_amount)&&row.quote_amount>0&&row.quote_currency&&c.confirmed_vehicle&&row.quote_expires_at&&Number.isFinite(Date.parse(row.quote_expires_at))
   ?{amount:row.quote_amount,currency:row.quote_currency,vehicle:c.confirmed_vehicle,vehicleYear:c.confirmed_vehicle_year,expiresAt:row.quote_expires_at}:null;
  return {ok:true,requestId:row.id,snapshot:{reference:row.request_reference,status:row.status,state:driveRequestState(row.status,row.quote_expires_at,now),version:c.version,acceptedAt:c.customer_accepted_at,
-  trip:{pickup:t.pickup,dropoff:t.dropoff,pickupAt:t.pickupAt,returnAt:t.returnAt,mode:t.mode,passengers:t.passengers,luggage:t.luggage,...(t.customerBudget?{customerBudget:t.customerBudget}:{})},quote,operationsNotice}};
+  trip:{pickup:t.pickup,dropoff:t.dropoff,pickupAt:t.pickupAt,returnAt:t.returnAt,mode:t.mode,passengers:t.passengers,luggage:t.luggage,...(budget.kind==='requirement'?{customerBudget:{amount:budget.amount,currency:budget.currency,basis:budget.basis}}:{})},quote,operationsNotice}};
 }
 export type DriveAcceptResult={ok:true;snapshot:OwnedDriveSnapshot;replayed:boolean}|{ok:false;error:'INVALID'|'NOT_FOUND'|'STALE'|'FORBIDDEN'|'INVALID_OR_EXPIRED'|'UNAVAILABLE'};
 /** The existing atomic owner/version/expiry RPC is the only approval and audit writer. */

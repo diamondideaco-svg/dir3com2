@@ -43,3 +43,9 @@ for(const [text,value]of [['Actually I may bring 4 bags if my family joins.',und
  const plan=managedDriveChatPlan(platformContext(text,[{role:'user',content:first},{role:'assistant',content:'The customer has 9 bags.'}]),'en',now);
  assert.equal(plan.requirements.luggage,value,JSON.stringify(plan));assert.equal(plan.blocked,value===undefined);
 });
+
+test('explicit airport transfer is withheld from the chauffeur-only inline plan',()=>{
+ const text='I need an airport transfer in Cairo with a driver. Pickup from Cairo airport on 2026-11-27 at 21:00. Return to Cairo hotel on 2026-11-28 at 21:00. We are 3 people with 2 bags. Budget 800 SAR for the whole trip.';
+ const plan=managedDriveChatPlan(platformContext(text),'en',now);
+ assert.equal(plan.requirements.mode,'airport');assert.equal(plan.blocked,true);assert.match(plan.question??'',/flight number and arrival time/);
+});
