@@ -92,10 +92,11 @@ try {
   const currentStateResume = files.find(file => file === '20261101070938_task166_guarded_current_state_resume.sql');
   const workerBinding = files.find(file => file === '20261105081501_task166_existing_worker_binding.sql');
   const workerBindingFingerprint = files.find(file => file === '20261106161631_task166_worker_binding_fingerprint.sql');
+  const driveChatApprovalNotice = files.find(file => file === '20261125194500_task265_drive_chat_approval_notice.sql');
   // CEO-specific 43-row price release has its own isolated rollback/replay fixture.
   const priceRelease = files.find(file => file.endsWith('_drive_price_reduction_15_percent.sql'));
   assert.ok(migration);
-  for (const file of files.filter(file => file !== priceRelease && file !== migration && file !== managedDrive && file !== managedDriveModelYear && file !== managedDriveAcceptance && file !== managedDriveSeptember && file !== managedDriveWhatsApp && file !== managedDriveKapso && file !== managedDriveCustomer && file !== managedDriveTarget && file !== boundedDriveWhatsApp && file !== queryDriveWhatsApp && file !== boundedCustomerWhatsApp && file !== currentStateWhatsApp && file !== continuousWhatsApp && file !== currentStateResume && file !== workerBinding && file !== workerBindingFingerprint)) {
+  for (const file of files.filter(file => file !== priceRelease && file !== migration && file !== managedDrive && file !== managedDriveModelYear && file !== managedDriveAcceptance && file !== managedDriveSeptember && file !== managedDriveWhatsApp && file !== managedDriveKapso && file !== managedDriveCustomer && file !== managedDriveTarget && file !== boundedDriveWhatsApp && file !== queryDriveWhatsApp && file !== boundedCustomerWhatsApp && file !== currentStateWhatsApp && file !== continuousWhatsApp && file !== currentStateResume && file !== workerBinding && file !== workerBindingFingerprint && file !== driveChatApprovalNotice)) {
     if (file === '20261112120000_task237_content_erasure.sql') {
       // Synthetic database prerequisite only: the accepted historical Task187
       // contract is not part of the source migration registry. Never provision
@@ -154,6 +155,10 @@ try {
     // The binding forward requires the notification schema; do not load it before Drive.
     assert.ok(workerBinding);sql(read(`supabase/migrations/${workerBinding}`));
     assert.ok(workerBindingFingerprint);sql(read(`supabase/migrations/${workerBindingFingerprint}`));
+    // Chat approval depends on the deferred Core acceptance and continuous outbox.
+    // Apply the actual forward after those prerequisites; never skip or stub it.
+    assert.ok(driveChatApprovalNotice);sql(read(`supabase/migrations/${driveChatApprovalNotice}`));
+    equal(sql("SELECT to_regprocedure('public.read_owned_drive_accept_notice(uuid)') IS NOT NULL AND NOT capture_enabled AND NOT send_enabled FROM drive_notification_private.settings WHERE singleton"),'t','chat approval forward installed after notification prerequisites with capture and send OFF');
     sql(read('tests/sql/drive-managed-request.sql'));
     equal(rows(), before, 'managed Drive regression rolls back fixtures without changing existing business data');
   }
