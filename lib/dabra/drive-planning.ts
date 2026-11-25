@@ -167,7 +167,7 @@ export function driveQuantities(text: string) {
 }
 type Budget={kind:'flexible'}|{kind:'amount';amount:string;currency:string|null;basis:'day'|'trip'|null};
 type PendingBudget={value:Budget;scope:'drive'|'other'|'unknown';reason:'conditional'|'other-service'|'unbound';sourceTurn:number;serviceKey?:string};
-export type DrivePlanningPreferences={city?:string;ambiguous:boolean;dates:string[];party?:string;luggage?:number;durationDays?:number};
+export type DrivePlanningPreferences={city?:string;ambiguous:boolean;dates:string[];party?:string;luggage?:number;durationDays?:number;pickupAt?:string;returnAt?:string};
 type Planning={preferences:DrivePlanningPreferences;driver:'with'|'without'|null;budget:Budget|null;pendingBudgets:readonly PendingBudget[]};
 export type DriveDialogue=Planning&({kind:'clarify';question:'trip'|'city'|'dates'|'party'|'driver'|'budget'}|{kind:'ready'});
 const currencies:Record<string,string>={دولار:'USD',ريال:'SAR',جنيه:'EGP',يورو:'EUR',درهم:'AED','$':'USD'};
@@ -354,7 +354,7 @@ function declaredNewCarService(text:string) {
  * This bounded reducer is not proof that a user approved an external action.
  */
 export function driveBudgetState(userTurns:readonly string[]) {
-  const reset=userTurns.findLastIndex(turn=>{const decision=tripTurnDecision(turn);return decision.kind==='new'||decision.refused;});
+  const reset=userTurns.findLastIndex((turn,index)=>{const decision=tripTurnDecision(turn,userTurns[index-1]);return decision.kind==='new'||decision.refused;});
   const scopedTurns=userTurns.slice(Math.max(0,reset)).map(withoutDriveEndpointPlaces);
   let confirmed:Budget|null=null;
   let pending:PendingBudget[]=[];
@@ -366,10 +366,10 @@ export function driveBudgetState(userTurns:readonly string[]) {
     // not evidence that a car service is active.
     const serviceCondition=turnHasDeferredIntent(text);
     const cancelled=/\b(?:cancel|stop|forget)\s+(?:it|that|my request|the request|my car|the car)\b|\b(?:do not|don't|no longer)\s+(?:need|want|use)\s+(?:a\s+|the\s+|my\s+)?(?:car|vehicle|transfer)\b|(?:الغ|الغي|اوقف)\s*(?:طلبي|الطلب|السياره)|لا اريد\s+(?:السياره|سياره)/u.test(text);
-    const requested=/\b(?:need|want|show|find|search for|looking for|arrange)\s+(?:(?:me|a|an|the|my|some)\s+){0,2}(?:car|cars|vehicle|vehicles|driver|chauffeur|transfer)\b|(?:اريد|ابي|ابغي|احتاج|اعرض|ابحث عن|احجز)\s+(?:ال)?(?:سياره|سيارات|سائق|سواق|توصيل)/u.test(text);
-    if (cancelled) driveEvidence=false;
+    const requested=/\b(?:need|want|show|find|search for|looking for|arrange)\s+(?:(?:me|a|an|the|my|some)\s+){0,2}(?:car|cars|vehicle|vehicles|driver|chauffeur|transfer)\b|(?:اريد|ابي|ابغي|احتاج|محتاج|اعرض|ابحث عن|احجز)\s+(?:ال)?(?:سياره|سيارات|سائق|سواق|توصيل)/u.test(text);
+    if (cancelled || /(?<![\p{L}])(?:لا|مش|مو)\s+محتاج\s+(?:ال)?سياره/u.test(text)) driveEvidence=false;
     else if (declaredNewCarService(text)) driveEvidence=true;
-    else if (requested && (!serviceCondition || conditionalActionSpans(text).some(span=>/\b(?:need|want|show|find|arrange)\s+(?:(?:me|a|an|the|my)\s+){0,2}(?:cars?|vehicles?|driver|chauffeur|transfer)\b|(?:اريد|ابي|ابغي|احتاج|اعرض|احجز)\s+(?:ال)?(?:سياره|سيارات|سائق|توصيل)/u.test(span) && !turnHasDeferredMarker(span)))) driveEvidence=true;
+    else if (requested && (!serviceCondition || conditionalActionSpans(text).some(span=>/\b(?:need|want|show|find|arrange)\s+(?:(?:me|a|an|the|my)\s+){0,2}(?:cars?|vehicles?|driver|chauffeur|transfer)\b|(?:اريد|ابي|ابغي|احتاج|محتاج|اعرض|احجز)\s+(?:ال)?(?:سياره|سيارات|سائق|توصيل)/u.test(span) && !turnHasDeferredMarker(span)))) driveEvidence=true;
     // The shared turn parser has removed only a clearly independent weather
     // directive. Every remaining condition can still qualify a budget.
     const pieces=conditionalActionSpans(originalText).flatMap((span,spanIndex)=>normalizeBudgetDigits(span).split(/[;؛\n]|(?<!\d)[,،](?=\s)|(?<=\d)[,،](?=\s+(?![0-9+−.,،٫٬/-])\S)|\s+(?:but|however|لكن|بل)\s+|\s+and\s+(?=(?:(?:about|around|approximately)\s+\d|(?:the\s+)?[\p{L}]+(?:\s+[\p{L}]+){0,3}\s+(?:is|costs?|has|was)\b|(?:show|find|search|display|set|change|adjust|use)\b))|\s+و(?=(?:اعرض|ابحث|اظهر|اجعل|عدل|استخدم)(?![\p{L}]))/u)
@@ -556,9 +556,9 @@ export function driveBudgetState(userTurns:readonly string[]) {
 }
 /** Bounded USER facts only. Assistant assertions are never interpreted as preferences. */
 export function driveDialogue(userTurns:readonly string[],preferences:DrivePlanningPreferences):DriveDialogue|null {
-  const reset=userTurns.findLastIndex(t=>{const decision=tripTurnDecision(t);return decision.kind==='new'||decision.refused;});
+  const reset=userTurns.findLastIndex((t,index)=>{const decision=tripTurnDecision(t,userTurns[index-1]);return decision.kind==='new'||decision.refused;});
   const turns=userTurns.slice(Math.max(0,reset));
-  const decisions=turns.map(tripTurnDecision);
+  const decisions=turns.map((turn,index)=>tripTurnDecision(turn,turns[index-1]));
   const lastTripDecision=decisions.filter(decision=>decision.mentioned).at(-1);
   // User text may clarify intent, but cannot prove that a retained anchor
   // was revalidated. Until the authenticated caller resolves the boundary,
@@ -632,6 +632,8 @@ export function driveDialogueCopy(state:DriveDialogue,locale:Locale,excludedCurr
   if(p.luggage !== undefined)facts.push(ar?p.luggage+' قطع أمتعة':p.luggage+' bags');
   if(p.durationDays)facts.push(ar?p.durationDays+' أيام':p.durationDays+' days');
   if(p.dates.length)facts.push(p.dates.join(ar?' إلى ':' to '));
+  if(p.pickupAt)facts.push((ar?'الاستلام ':'pickup ')+p.pickupAt+' (Africa/Cairo)');
+  if(p.returnAt)facts.push((ar?'التسليم ':'return ')+p.returnAt+' (Africa/Cairo)');
   if(state.driver)facts.push(ar?state.driver==='with'?'مع سائق':'بدون سائق':state.driver==='with'?'with a driver':'without a driver');
   if(state.budget?.kind==='flexible')facts.push(ar?'ميزانية مفتوحة':'a flexible budget');
   else if(state.budget?.kind==='amount' && (!state.budget.currency || !excludedCurrencies.includes(state.budget.currency)))facts.push(state.budget.amount+(state.budget.currency?' '+state.budget.currency:''));
@@ -641,7 +643,7 @@ export function driveDialogueCopy(state:DriveDialogue,locale:Locale,excludedCurr
   const questions={
     trip:ar?'هل نتابع الرحلة الحالية أم نبدأ رحلة جديدة؟':'Should we continue the current trip or start a new trip?',
     city:ar?p.ambiguous?'ما مدينة استخدام السيارة؟ حدّدها بشكل منفصل عن مدينة المغادرة.':'في أي مدينة تحتاج السيارة؟':p.ambiguous?'Which city will you use the car in, separately from your departure city?':'Which city do you need the car in?',
-    dates:ar?p.durationDays?'ما تاريخا بدء الاستخدام وانتهائه لهذه المدة؟':'ما تاريخا بدء استخدام السيارة وانتهائه، وكم مدة الاستخدام؟':p.durationDays?'What are the pickup and return dates for those days?':'What are the pickup and return dates, and how long will you need the car?',
+    dates:ar?p.pickupAt?'ما تاريخ ووقت التسليم، وأين تسلّم السيارة؟':p.durationDays?'ما تاريخا بدء الاستخدام وانتهائه لهذه المدة؟':'ما تاريخا بدء استخدام السيارة وانتهائه، وكم مدة الاستخدام؟':p.pickupAt?'What are the return date, time and dropoff location?':p.durationDays?'What are the pickup and return dates for those days?':'What are the pickup and return dates, and how long will you need the car?',
     party:ar?'كم عدد الأشخاص الذين سيستخدمون السيارة؟':'How many passengers will use the car?',
     driver:ar?'تفضّل السيارة مع سائق أم بدون سائق؟ الكتالوج الحالي بسائق؛ وأي طلب بدونه يحتاج تأكيد العمليات.':'Would you prefer a driver or no driver? The current catalogue is chauffeured; a self-drive request needs Operations confirmation.',
     budget:state.pendingBudgets.length

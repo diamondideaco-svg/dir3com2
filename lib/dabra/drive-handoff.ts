@@ -8,7 +8,7 @@ type Endpoint = {location:Fact;date:Fact;time:Fact};
 export type DriveHandoff = {pickup:Endpoint;dropoff:Endpoint;mode?:'chauffeur'|'airport'};
 const empty = ():Endpoint => ({location:{kind:'absent'},date:{kind:'absent'},time:{kind:'absent'}});
 const digits = (text:string) => text.normalize('NFKC').replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
-const rolePattern = /\bpick(?:[ -]?up)\b|\bdrop(?:[ -]?off)\b|\breturn(?:\s+the\s+car)?\b|(?<![\p{L}])(?:الاستلام|استلام|التسليم|تسليم)(?![\p{L}])/giu;
+const rolePattern = /\bpick(?:[ -]?up)\b|\bdrop(?:[ -]?off)\b|\breturn(?:\s+the\s+car)?\b|(?<![\p{L}])(?:لل|ال|ل)?(?:استلام|تسليم)(?![\p{L}])/giu;
 function endpointClauses(input:string) {
  const text=digits(input);
  return [...text.matchAll(rolePattern)].map(match=>{

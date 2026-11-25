@@ -1,10 +1,11 @@
+import { validDriveCalendarDay } from './drive-time.mjs';
 import type { MarketplaceService } from '@/lib/marketplace/data';
 
 export const DABRA_STORAGE_VERSION = 1;
 export const DABRA_STORAGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const DABRA_ANONYMOUS_SESSION_KEY = 'dir3com-dabra-v1:anonymous-session';
 
-export type DabraPersistedMessage = { id: string; role: 'user' | 'assistant'; text: string };
+export type DabraPersistedMessage = { id: string; role: 'user' | 'assistant'; text: string; relativeDate?: string };
 export type DabraCartItem = Pick<MarketplaceService, 'id' | 'name_ar' | 'basePrice' | 'currency' | 'categoryLabel' | 'href'>;
 export type DabraStorageEnvelope<T> = { version: number; expiresAt: number; ownerId: string; value: T };
 export type DabraCurrencyTotal = { currency: string; amount: number; itemCount: number };
@@ -109,7 +110,8 @@ export function validatePersistedMessages(value: unknown): DabraPersistedMessage
   if (!messages.every((entry) => entry && typeof entry === 'object' &&
     typeof entry.id === 'string' && entry.id.length <= 100 &&
     (entry.role === 'user' || entry.role === 'assistant') &&
-    typeof entry.text === 'string' && entry.text.length <= 4000)) return null;
+    typeof entry.text === 'string' && entry.text.length <= 4000
+    && (entry.relativeDate===undefined || entry.role==='user' && validDriveCalendarDay(entry.relativeDate)))) return null;
   return messages as DabraPersistedMessage[];
 }
 

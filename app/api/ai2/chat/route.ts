@@ -2,6 +2,7 @@ import type { SuccessfulTaskContinuityBinding } from '@/lib/dabra/continuity-cha
 import { selectSuccessfulTaskPilot, successfulTaskProductionGate } from '@/lib/dabra/successful-task-production-policy';
 import { successfulTaskChatResponse } from '@/lib/dabra/successful-task-chat';
 import { conversationIntent } from '@/lib/dabra/conversation-renderer';
+import { resolveDriveTemporalText } from '@/lib/dabra/drive-time.mjs';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { platformCurrencySelection, platformConversationScope, platformFamilies, refinePlatformTrip, hasActivePlatformDriveDialogue, createPlatformScopeOwner, platformUserRequest, platformUserRequestScope, platformUserRequestFacts, platformRequestCurrencySelection, platformRequestDisplayPolicy } from '@/lib/dabra/platform-assistant';
 type AI2ChatTurn = { role: 'user' | 'assistant'; content: string };
@@ -100,6 +101,7 @@ function sanitizeHistory(raw: AI2ChatRequest['history']): AI2ChatTurn[] {
 }
 
 export async function POST(request: NextRequest) {
+  const planningNow=Date.now();
   const pilot = await selectSuccessfulTaskPilot(request);
   if (pilot.kind === 'unavailable') return NextResponse.json({ saved: false, error: 'Task unavailable.' }, {
     status: 503, headers: { 'Cache-Control': 'private, no-store', Vary: 'Cookie, Authorization' },
@@ -109,6 +111,9 @@ export async function POST(request: NextRequest) {
   const parsed = await parseChatRequest(request);
   const { body } = parsed;
   const message = typeof body?.message === 'string' ? body.message.slice(0, MAX_TURN_LENGTH).trim() : '';
+  const relativeDate=resolveDriveTemporalText(message,planningNow).relativeDate;
+  // Only a calendar preference is returned; never dialogue/account data or authority.
+  const withCalendar=<T extends Response>(response:T):T=>{if(response.ok&&relativeDate)response.headers.set('X-DABRA-Relative-Date',relativeDate);return response;};
   const locale = explicitDabraReplyLocale(message) ?? parseDabraLocale(body?.locale) ?? (/[؀-ۿ]/u.test(message) ? 'ar' : 'en');
 
   if (body?.locale !== undefined && !parseDabraLocale(body.locale)) {
@@ -241,7 +246,7 @@ export async function POST(request: NextRequest) {
     const currency = candidate && !excluded.has(candidate) ? candidate : null;
     const needsRates = currency && !publicUtility && (intent.tool !== 'discover' || platformFacts?.families.includes('drive') || trip?.families.includes('drive') || /trip|itinerary|رحلة|رحله/.test(scopedMessage));
     const snapshot = needsRates ? await getCurrencySnapshot() : null;
-    return { message: scopedMessage, serverAttachmentNote, history, locale, context: agentContext, intent, needsClarification,
+    return { message: scopedMessage, serverAttachmentNote, planningNow, history, locale, context: agentContext, intent, needsClarification,
       pricing: currency || excludedCurrencies.length ? { currency, snapshot, excludedCurrencies } : undefined, trip, continuityBinding: trip ? continuityBinding : undefined, successfulTaskContinuityBinding: trip ? successfulTaskContinuityBinding : undefined };
   };
   // Only the selected Core path consumes this canonical input; failure never funds legacy.
@@ -249,14 +254,14 @@ export async function POST(request: NextRequest) {
     { resolveInput: resolveTaskInput, requestId, stream: body?.stream === true });
   if (productionGate) {
     if (productionGate.ok && tripIsCurrent && trip && !await tripIsCurrent()) return NextResponse.json({ error: 'Continuity context expired or changed.' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
-    return productionGate;
+    return withCalendar(productionGate);
   }
   // No adapter is installed. Only an explicitly injected synthetic dependency
   // in isolated tests can select this path; request data and ENV cannot select it.
   const successfulTaskResponse = await successfulTaskChatResponse(resolveTaskInput, requestId, request.signal, body?.stream === true);
   if (successfulTaskResponse) {
     if (successfulTaskResponse.ok && tripIsCurrent && trip && !await tripIsCurrent()) return NextResponse.json({ error: 'Continuity context expired or changed.' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
-    return successfulTaskResponse;
+    return withCalendar(successfulTaskResponse);
   }
   let dialoguePolicy = await getAgentDialoguePolicy(agentContext, request.signal, parsed.attachmentCount ? undefined : requestId);
   let understanding: string = 'internal-rules';
@@ -293,9 +298,9 @@ export async function POST(request: NextRequest) {
     streamed.headers.set('X-DABRA-Understanding', understanding);
     if (understandingProvider) streamed.headers.set('X-DABRA-Understanding-Provider', understandingProvider);
     if (intent.tool !== 'discover') streamed.headers.set('X-DABRA-Private-Context', '1');
-    return streamed;
+    return withCalendar(streamed);
   }
-  return NextResponse.json({ ...response, understanding, understandingProvider }, { headers: { 'Cache-Control': 'private, no-store' } });
+  return withCalendar(NextResponse.json({ ...response, understanding, understandingProvider }, { headers: { 'Cache-Control': 'private, no-store' } }));
 }
 
 /** CEO-only, read-only diagnostic; the existing POST dialogue path is unchanged. */

@@ -19,12 +19,14 @@ export function platformLinkAllowed(href: string) {
   return ['/marketplace', '/services', '/my-requests', '/my-account', '/support', '/admin/operations/drive'].includes(url.pathname)
     && [...url.searchParams.keys()].every(k => ['family','language','currency','destination','pickup','pickupAt','returnAt','pickupDate','returnDate','checkIn','checkOut','adults','travelers','rooms','passengers','mode','offer',...driveFields].includes(k));
 }
-export default function PlatformAnswer({ text }: { text: string }) {
+export default function PlatformAnswer({ text,onDriveReview }: { text: string;onDriveReview?:()=>void }) {
   const pieces = text.split(/(\[[^\]\n]{1,100}\]\(\/[^)\s]{1,1500}\))/g);
   return <span style={{ whiteSpace: 'pre-line' }}>{pieces.map((piece, i) => {
     const match = piece.match(/^\[([^\]\n]+)\]\((\/[^)\s]+)\)$/);
     return match && platformLinkAllowed(match[2])
-      ? <a key={i} href={match[2]} className="font-semibold underline underline-offset-4" style={{ overflowWrap: 'anywhere' }}><bdi>{match[1]}</bdi></a>
+      ? onDriveReview && ['مراجعة متطلبات السيارة','Review car requirements'].includes(match[1]) && new URL(match[2], "https://dir3com.com").pathname==='/marketplace' && new URL(match[2], "https://dir3com.com").searchParams.get("family")==="dir3-drive"
+       ? <button key={i} type="button" data-drive-chat-open onClick={onDriveReview} className="font-semibold underline underline-offset-4"><bdi>{match[1]}</bdi></button>
+       : <a key={i} href={match[2]} className="font-semibold underline underline-offset-4" style={{ overflowWrap: 'anywhere' }}><bdi>{match[1]}</bdi></a>
       : <Fragment key={i}>{piece}</Fragment>;
   })}</span>;
 }
