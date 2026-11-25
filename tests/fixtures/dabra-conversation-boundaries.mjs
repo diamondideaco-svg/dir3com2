@@ -11,7 +11,10 @@ const compile = source => ts.transpileModule(source, {compilerOptions:{module:ts
 import path from 'node:path';
 const sourceCache = new Map();
 function loadSource(file) {
- if (!path.extname(file)) file += '.ts';
+ if (!path.extname(file)) {
+  const actual=['.ts','.tsx'].map(extension=>file+extension).find(candidate=>fs.existsSync(candidate));
+  assert.ok(actual,'Actual source module not found: '+file);file=actual;
+ }
  if (file.endsWith('.json')) return JSON.parse(fs.readFileSync(file,'utf8'));
  if (sourceCache.has(file)) return sourceCache.get(file).exports;
  const compiledModule={exports:{}};sourceCache.set(file,compiledModule);
@@ -183,7 +186,7 @@ function fullSendFixture(options={}){
  for(const name of ['PlatformAnswer','DabraContinuity','PlatformResults','DabraFamilySafetyPanel'])deps['@/components/dabra/'+name]=()=>null;deps['@/components/v6/CollaborativeTripCapabilities']=()=>null;
  const exports={};const syntheticURL=class extends URL{static revokeObjectURL(value){events.push('revoke:'+value);}};
  vm.runInNewContext(compile(source),{exports,require:name=>name in deps?deps[name]:name.startsWith('@/')?loadSource(owner+'/'+name.slice(2)):req(name),window:{localStorage:{getItem:()=>null},sessionStorage:{getItem:()=>null}},AbortController,AbortSignal,FormData,URL:syntheticURL,crypto:globalThis.crypto,fetch:async(url,init)=>{
- if(url==='/api/ai2/chat'){events.push('chat-dispatch');requests.push(init);const ordinal=requests.length;if(options.deferFirst&&ordinal===1)await new Promise(resolve=>{releaseReply=resolve;});return Response.json({answer:options.deferFirst&&ordinal===1?'Late answer '+options.lateMarker:'Synthetic visible answer'});}
+ if(url==='/api/ai2/chat'){events.push('chat-dispatch');requests.push(init);const ordinal=requests.length;if(options.deferFirst&&ordinal===1)await new Promise(resolve=>{releaseReply=resolve;});return Response.json({answer:options.deferFirst&&ordinal===1?'Late answer '+options.lateMarker:'Synthetic visible answer'},{headers:options.relativeDate?{'X-DABRA-Relative-Date':options.relativeDate}:{}});}
  if(String(url).startsWith('/api/public/marketplace/items?')){marketRequests.push(String(url));if(options.deferMarket && marketRequests.length===1)await new Promise(resolve=>{releaseMarket=resolve;});return Response.json({items:options.marketItems??[]});}
  if(String(url).startsWith('/api/marketplace'))return Response.json({services:[]});
  throw Error('Unmocked full-view IO '+url);
@@ -368,4 +371,14 @@ test('delayed market response and subsequent tab changes respect the latest sele
  const search=f.view().find(node=>node.props.id==='dabra-marketplace-query');assert.ok(search);search.props.onChange({target:{value:'Do not use USD'}});
  const tab=f.view().find(node=>node.props.role==='tab'&&syntheticText(node)==='VIP');assert.ok(tab);tab.props.onClick();for(let i=0;i<10;i++)await new Promise(resolve=>setImmediate(resolve));
  assert.equal(f.session.selectRequestCurrency(),'USD');assert.deepEqual(Array.from(f.session.getExcludedRequestCurrencies()),[]);
+});
+
+test('private JSON response marks privacy before pinning the trusted calendar day',async()=>{
+ const day='2026-11-25',f=fullSendFixture({relativeDate:day}),observed=[];
+ const stop=f.session.subscribe(()=>{if(f.session.getSnapshot().messages.some(message=>message.relativeDate===day))observed.push(f.session.privateConversation);});
+ try{await f.send();}finally{stop();}
+ assert.ok(observed.length>0,'actual trusted calendar pin was not observed');
+ assert.equal(observed.every(Boolean),true,'calendar message updates must already be private');
+ assert.equal(f.session.getSnapshot().messages.find(message=>message.role==='user').relativeDate,day);
+ assert.equal(cacheInFullView(f.session),null,'private calendar response must not persist a transcript');
 });

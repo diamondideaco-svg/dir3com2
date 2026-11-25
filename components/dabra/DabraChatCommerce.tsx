@@ -633,9 +633,9 @@ function DabraChatCommerceSession() {
       if (!conversation.isCurrent(job)) return;
       if(derivedResponse&&!response.ok&&!await ensureContinuityFresh(false,job))return;
       conversation.acceptAllowance(job, response.headers);
+      if (response.headers.get('X-DABRA-Private-Context') === '1' || response.headers.get('Content-Type')?.includes('application/json')) conversation.markPrivate();
       const calendar=response.headers.get('X-DABRA-Relative-Date');
       if(response.ok&&validDriveCalendarDay(calendar)){resolvedCurrentDate=calendar!;setJobMessages(current=>current.map(item=>item.id===userId?{...item,relativeDate:calendar!}:item));}
-      if (response.headers.get('X-DABRA-Private-Context') === '1' || response.headers.get('Content-Type')?.includes('application/json')) conversation.markPrivate();
       const finalAnswer=await consumeDabraChatResponse(response, (visibleAnswer) => {
         if (derivedResponse || !conversation.isCurrent(job)) return;
         setJobMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));
