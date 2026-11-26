@@ -81,3 +81,18 @@ for(const [input,clock] of [
 
 
 test('endpoint words without a pending USER date do not inherit a factual answer',()=>{const r=core([baseEN,'I mean pickup'],'en','Pickup is confirmed tomorrow at21:00.');assert.doesNotMatch(r.answer,/2026-11-28T21:00/);assert.equal(r.plan.requirements.pickupAt,undefined);});
+
+test('unresolved correction cannot resurrect old action-ready dates after an unrelated turn',()=>{
+ const initial=baseEN.replace('Pickup from Cairo airport.','Pickup from Cairo airport on 2026-11-28 at 21:00.')+' Return to Cairo airport on 2026-12-01 at 21:00.';
+ assert.equal(core([initial],'en').plan.blocked,false);const users=[initial,'on 2026-12-02 at 21:00','We have 3 people.'];
+ for(const turns of [users,[...users,'Pickup.']]){
+  const r=core(turns,'en');assert.equal(r.plan.blocked,true);assert.doesNotMatch(r.plan.summary,/2026-11-28|2026-12-01/);assert.equal(r.plan.requirements.pickupAt,undefined);assert.equal(r.plan.requirements.returnAt,undefined);
+  const p=new URLSearchParams('pickupAt=2026-11-28T21%3A00&returnAt=2026-12-01T21%3A00');applyDriveHandoff(p,driveHandoffForUsers(turns.map(norm)));assert.equal(p.has('pickupAt'),false);assert.equal(p.has('returnAt'),false);
+ }
+ const explicit=core([...users,'Pickup from Cairo airport on 2026-11-28 at 22:00.'],'en');assert.equal(explicit.plan.blocked,false,JSON.stringify(explicit.plan));assert.equal(explicit.plan.requirements.pickupAt,'2026-11-28T22:00');assert.equal(explicit.plan.requirements.returnAt,'2026-12-01T21:00');
+});
+test('immediate explicit role confirmation changes only that endpoint and preserves the other USER date',()=>{
+ const initial=baseEN.replace('Pickup from Cairo airport.','Pickup from Cairo airport on 2026-11-28 at 21:00.')+' Return to Cairo airport on 2026-12-01 at 21:00.';
+ const r=core([initial,'on 2026-11-28 at 22:00','Pickup.'],'en');assert.equal(r.plan.requirements.pickupAt,'2026-11-28T22:00');assert.equal(r.plan.requirements.returnAt,'2026-12-01T21:00');
+});
+for(const [locale,role]of [['ar','التسليم'],['en','Return.']]as const)test('an ambiguous date may be confirmed as return rather than pickup '+locale,()=>{const r=core([locale==='ar'?baseAR:baseEN,locale==='ar'?shortAR:shortEN,role],locale);assert.equal(r.plan.requirements.pickupAt,undefined);assert.equal(r.plan.requirements.returnAt,'2026-11-28T21:00');});

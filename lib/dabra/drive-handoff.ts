@@ -6,7 +6,7 @@ import { turnHasDeferredMarker } from './trip-turn-decision.mjs';
 type Fact = {kind:'absent'} | {kind:'unknown'} | {kind:'value';value:string};
 type Endpoint = {location:Fact;date:Fact;time:Fact};
 type DateTime = {date:string;time:string};
-export type DriveHandoff = {pickup:Endpoint;dropoff:Endpoint;mode?:'chauffeur'|'airport';pendingDateTime?:DateTime};
+export type DriveHandoff = {pickup:Endpoint;dropoff:Endpoint;mode?:'chauffeur'|'airport';pendingDateTime?:DateTime;dateTimeUnresolved?:true};
 const empty = ():Endpoint => ({location:{kind:'absent'},date:{kind:'absent'},time:{kind:'absent'}});
 const digits = (text:string) => text.normalize('NFKC').replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
 const rolePattern = /\bpick(?:[ -]?up)\b|\bdrop(?:[ -]?off)\b|\breturn(?:\s+the\s+car)?\b|(?<![\p{L}])(?:لل|ال|ل)?(?:استلام|تسليم)(?![\p{L}])/giu;
@@ -85,7 +85,7 @@ export function driveHandoffForUsers(turns:readonly string[]):DriveHandoff {
   // Candidates survive only to an immediate explicit USER endpoint confirmation.
   const previousCandidate=state.pendingDateTime;delete state.pendingDateTime;
   const confirmedEndpoint=dateTimeEndpoint(turn);
-  if(previousCandidate&&confirmedEndpoint)setDateTime(state[confirmedEndpoint],previousCandidate);
+  if(previousCandidate&&confirmedEndpoint){setDateTime(state[confirmedEndpoint],previousCandidate);delete state.dateTimeUnresolved;}
   const serviceTurn=digits(turn).toLowerCase().replace(/[أإآ]/g,'ا').replace(/ة/g,'ه');
   if(!turnHasDeferredMarker(serviceTurn)) {
    if(airportDriveService(turn))state.mode='airport';
@@ -95,8 +95,8 @@ export function driveHandoffForUsers(turns:readonly string[]):DriveHandoff {
   if(candidate&&state.mode==='chauffeur') {
    const pickupMissing=state.pickup.date.kind!=='value'||state.pickup.time.kind!=='value';
    const returnMissing=state.dropoff.date.kind!=='value'||state.dropoff.time.kind!=='value';
-   if(pickupMissing!==returnMissing)setDateTime(pickupMissing?state.pickup:state.dropoff,candidate);
-   else state.pendingDateTime=candidate;
+   if(pickupMissing!==returnMissing){setDateTime(pickupMissing?state.pickup:state.dropoff,candidate);delete state.dateTimeUnresolved;}
+   else {state.pendingDateTime=candidate;state.dateTimeUnresolved=true;}
   }
   for(const item of endpointClauses(turn)) {
   const target=state[item.kind];
@@ -108,6 +108,8 @@ export function driveHandoffForUsers(turns:readonly string[]):DriveHandoff {
    const value=time.padStart(5,'0');
    target.time=!item.uncertain&&/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)?{kind:'value',value}:{kind:'unknown'};
   }
+  // A complete explicit USER endpoint replaces an unresolved proposal; old dates alone do not.
+  if(date&&time&&!item.uncertain&&target.date.kind==='value'&&target.time.kind==='value')delete state.dateTimeUnresolved;
   if(/\b(?:unknown|undecided)\b|غير محدد|غير معروف|لم احدد|لم أحدد/iu.test(item.body)) {
    if(/\btime\b|وقت|الساع/iu.test(item.body))target.time={kind:'unknown'};
    else target.location={kind:'unknown'};
@@ -116,9 +118,9 @@ export function driveHandoffForUsers(turns:readonly string[]):DriveHandoff {
  }
  return state;
 }
-/** Only an immediate USER confirmation of its own pending date/time is a contextual reply. */
+/** An explicit USER endpoint reply keeps unresolved USER preference context, never assistant assertions. */
 export function isDriveDateTimeContinuation(turns:readonly string[]) {
- const current=turns.at(-1);return Boolean(current&&dateTimeEndpoint(current)&&driveHandoffForUsers(turns.slice(0,-1)).pendingDateTime);
+ const current=turns.at(-1);return Boolean(current&&dateTimeEndpoint(current)&&driveHandoffForUsers(turns.slice(0,-1)).dateTimeUnresolved);
 }
 export function applyDriveHandoff(params:URLSearchParams,state:DriveHandoff,withholdPickup=false,withholdDropoff=false) {
  for(const [kind,at,dateKey,withheld] of [['pickup','pickupAt','pickupDate',withholdPickup],['dropoff','returnAt','returnDate',withholdDropoff]] as const) {
@@ -135,7 +137,7 @@ export function applyDriveHandoff(params:URLSearchParams,state:DriveHandoff,with
   } else if(endpoint.date.kind==='value') {params.delete(at);params.set(dateKey,date);}
  }
  // An unbound correction must not become an action-ready date through a generic URL.
- if(state.pendingDateTime)for(const key of ['pickupAt','returnAt','pickupDate','returnDate'])params.delete(key);
+ if(state.dateTimeUnresolved)for(const key of ['pickupAt','returnAt','pickupDate','returnDate'])params.delete(key);
  // Unspecified browsing keeps the established URL/default contract. Only
  // affirmative USER service evidence supplies an explicit mode query.
  if(state.mode)params.set('mode',state.mode);else params.delete('mode');

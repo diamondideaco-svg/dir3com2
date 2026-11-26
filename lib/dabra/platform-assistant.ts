@@ -1145,10 +1145,10 @@ function platformDriveDialogue({ message, history, context, trip }: {
   const text = normalizePlatformQuery(context);
   const basePreferences=tripPreferences(text,trip),party=platformPartyState(message,history,trip);
   const endpoints=driveHandoffForUsers(planningUserTurns(message,history));
-  const pickupAt=!endpoints.pendingDateTime&&endpoints.pickup.date.kind==='value'&&endpoints.pickup.time.kind==='value'?endpoints.pickup.date.value+'T'+endpoints.pickup.time.value:undefined;
-  const returnAt=!endpoints.pendingDateTime&&endpoints.dropoff.date.kind==='value'&&endpoints.dropoff.time.kind==='value'?endpoints.dropoff.date.value+'T'+endpoints.dropoff.time.value:undefined;
-  const dates=!basePreferences.dateWithdrawn&&endpoints.pickup.date.kind==='value'&&endpoints.dropoff.date.kind==='value'?[endpoints.pickup.date.value,endpoints.dropoff.date.value]:basePreferences.dates;
-  const preferences={...basePreferences,dates,pickupAt:basePreferences.dateWithdrawn?undefined:pickupAt,returnAt:basePreferences.dateWithdrawn?undefined:returnAt,...(endpoints.pendingDateTime?{pendingDateTime:endpoints.pendingDateTime}:{})};
+  const pickupAt=!endpoints.dateTimeUnresolved&&endpoints.pickup.date.kind==='value'&&endpoints.pickup.time.kind==='value'?endpoints.pickup.date.value+'T'+endpoints.pickup.time.value:undefined;
+  const returnAt=!endpoints.dateTimeUnresolved&&endpoints.dropoff.date.kind==='value'&&endpoints.dropoff.time.kind==='value'?endpoints.dropoff.date.value+'T'+endpoints.dropoff.time.value:undefined;
+  const dates=endpoints.dateTimeUnresolved?[]:!basePreferences.dateWithdrawn&&endpoints.pickup.date.kind==='value'&&endpoints.dropoff.date.kind==='value'?[endpoints.pickup.date.value,endpoints.dropoff.date.value]:basePreferences.dates;
+  const preferences={...basePreferences,dates,pickupAt:basePreferences.dateWithdrawn?undefined:pickupAt,returnAt:basePreferences.dateWithdrawn?undefined:returnAt,...(endpoints.pendingDateTime?{pendingDateTime:endpoints.pendingDateTime}:{}),...(endpoints.dateTimeUnresolved?{dateTimeUnresolved:true}:{})};
   if (party.mentioned) preferences.party=party.total===null?undefined:String(party.total);
   // Reduce baggage from actual scoped USER turns. Generated preference prose
   // may follow an unrelated question and must not turn a confirmed count into uncertainty.
