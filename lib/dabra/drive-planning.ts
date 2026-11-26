@@ -167,7 +167,7 @@ export function driveQuantities(text: string) {
 }
 type Budget={kind:'flexible'}|{kind:'amount';amount:string;currency:string|null;basis:'day'|'trip'|null};
 type PendingBudget={value:Budget;scope:'drive'|'other'|'unknown';reason:'conditional'|'other-service'|'unbound';sourceTurn:number;serviceKey?:string};
-export type DrivePlanningPreferences={city?:string;ambiguous:boolean;dates:string[];party?:string;luggage?:number;durationDays?:number;pickupAt?:string;returnAt?:string};
+export type DrivePlanningPreferences={city?:string;ambiguous:boolean;dates:string[];party?:string;luggage?:number;durationDays?:number;pickupAt?:string;returnAt?:string;pendingDateTime?:Readonly<Record<'date'|'time',string>>};
 type Planning={preferences:DrivePlanningPreferences;driver:'with'|'without'|null;budget:Budget|null;pendingBudgets:readonly PendingBudget[]};
 export type DriveDialogue=Planning&({kind:'clarify';question:'trip'|'city'|'dates'|'party'|'driver'|'budget'}|{kind:'ready'});
 const currencies:Record<string,string>={دولار:'USD',ريال:'SAR',جنيه:'EGP',يورو:'EUR',درهم:'AED','$':'USD'};
@@ -618,7 +618,7 @@ export function driveDialogue(userTurns:readonly string[],preferences:DrivePlann
   }
   const state={preferences,driver,budget,pendingBudgets};
   const question=tripUncertain?'trip':preferences.ambiguous||!preferences.city?'city'
-    :preferences.dates.length!==2||preferences.dates[0]>preferences.dates[1]?'dates'
+    :preferences.pendingDateTime||preferences.dates.length!==2||preferences.dates[0]>preferences.dates[1]?'dates'
     :!preferences.party?'party':!driver?'driver'
     :pendingBudgets.length||!budget||budget.kind==='amount'&&(!budget.currency||!budget.basis)?'budget':null;
   return question?{...state,kind:'clarify',question}:{...state,kind:'ready'};
@@ -643,7 +643,7 @@ export function driveDialogueCopy(state:DriveDialogue,locale:Locale,excludedCurr
   const questions={
     trip:ar?'هل نتابع الرحلة الحالية أم نبدأ رحلة جديدة؟':'Should we continue the current trip or start a new trip?',
     city:ar?p.ambiguous?'ما مدينة استخدام السيارة؟ حدّدها بشكل منفصل عن مدينة المغادرة.':'في أي مدينة تحتاج السيارة؟':p.ambiguous?'Which city will you use the car in, separately from your departure city?':'Which city do you need the car in?',
-    dates:ar?p.pickupAt?'ما تاريخ ووقت التسليم، وأين تسلّم السيارة؟':p.durationDays?'ما تاريخا بدء الاستخدام وانتهائه لهذه المدة؟':'ما تاريخا بدء استخدام السيارة وانتهائه، وكم مدة الاستخدام؟':p.pickupAt?'What are the return date, time and dropoff location?':p.durationDays?'What are the pickup and return dates for those days?':'What are the pickup and return dates, and how long will you need the car?',
+    dates:p.pendingDateTime?(ar?'هل تقصد موعد الاستلام أم موعد التسليم في '+p.pendingDateTime.date+' الساعة '+p.pendingDateTime.time+' بتوقيت القاهرة؟ اكتب «الاستلام» أو «التسليم».':'Is '+p.pendingDateTime.date+' at '+p.pendingDateTime.time+' Cairo time the pickup or the return? Reply “pickup” or “return”.'):!p.pickupAt&&p.returnAt?(ar?'ما تاريخ ووقت الاستلام بتوقيت القاهرة، صباحًا أم مساءً؟':'What is the pickup date and Cairo time, including AM or PM?'):ar?p.pickupAt?'ما تاريخ ووقت التسليم، وأين تسلّم السيارة؟':p.durationDays?'ما تاريخا بدء الاستخدام وانتهائه لهذه المدة؟':'ما تاريخا بدء استخدام السيارة وانتهائه، وكم مدة الاستخدام؟':p.pickupAt?'What are the return date, time and dropoff location?':p.durationDays?'What are the pickup and return dates for those days?':'What are the pickup and return dates, and how long will you need the car?',
     party:ar?'كم عدد الأشخاص الذين سيستخدمون السيارة؟':'How many passengers will use the car?',
     driver:ar?'تفضّل السيارة مع سائق أم بدون سائق؟ الكتالوج الحالي بسائق؛ وأي طلب بدونه يحتاج تأكيد العمليات.':'Would you prefer a driver or no driver? The current catalogue is chauffeured; a self-drive request needs Operations confirmation.',
     budget:state.pendingBudgets.length

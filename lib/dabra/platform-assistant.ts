@@ -1,4 +1,4 @@
-import { withoutDriveEndpointPlaces, driveEndpointRouteText, airportDriveService, driveHandoffForUsers, applyDriveHandoff, type DriveHandoff } from './drive-handoff';
+import { withoutDriveEndpointPlaces, driveEndpointRouteText, airportDriveService, driveHandoffForUsers, applyDriveHandoff, isDriveDateTimeContinuation, type DriveHandoff } from './drive-handoff';
 import { resolveDriveTemporalText, replayDriveTemporalText } from './drive-time.mjs';
 import { AI2_DABRA_CONVERSATION_COPY } from '../ai2/prompt/contract';
 import { driveQuantities, driveDialogue, driveDialogueCopy, driveBudgetState, isRejectedBudgetChangeCurrency, bareDriveParty, bareDrivePartyWithLuggage, dateWithdrawalIndex } from './drive-planning';
@@ -736,7 +736,7 @@ function buildPlatformContextText(message: string, history: Turn[] = [], trip?: 
   const planningContinuation = /^(?:plan my trip|خطط رحلتي|could you help me arrange things|هل تساعدني في ترتيب التفاصيل)[.!?؟،,;:]*$/.test(normalizePlatformQuery(currentMessage));
   // Inherit a service only for a bounded planning continuation or preference/answer, not every
   // unrecognized sentence. Assistant turns indicate question position, not facts.
-  const followup=planningContinuation || newTripRequested.decision(currentMessage).mentioned || resumePlatformTripRequested(currentMessage) || platformFamilies(currentMessage).length>0 || currentPreferences.city || currentPreferences.ambiguous
+  const followup=isDriveDateTimeContinuation([...reconstructed.filter(turn=>turn.role==='user').map(turn=>turn.content),currentMessage]) || planningContinuation || newTripRequested.decision(currentMessage).mentioned || resumePlatformTripRequested(currentMessage) || platformFamilies(currentMessage).length>0 || currentPreferences.city || currentPreferences.ambiguous
     || currentPreferences.hasDates || currentPreferences.partyMentioned || currentPreferences.luggageMentioned || currentPreferences.durationMentioned || currentPreferences.rooms
     || /\b(?:per day|daily|whole trip|total)\b|للرحله|اجمالي|لكامل|لليوم|في اليوم|يومي/.test(normalizePlatformQuery(currentMessage))
     || platformCurrencySelection(currentMessage).mentioned || /^(?:yes|no|not sure|نعم|لا|مش عارف|ما ادري)$/.test(normalizePlatformQuery(currentMessage))
@@ -1145,10 +1145,10 @@ function platformDriveDialogue({ message, history, context, trip }: {
   const text = normalizePlatformQuery(context);
   const basePreferences=tripPreferences(text,trip),party=platformPartyState(message,history,trip);
   const endpoints=driveHandoffForUsers(planningUserTurns(message,history));
-  const pickupAt=endpoints.pickup.date.kind==='value'&&endpoints.pickup.time.kind==='value'?endpoints.pickup.date.value+'T'+endpoints.pickup.time.value:undefined;
-  const returnAt=endpoints.dropoff.date.kind==='value'&&endpoints.dropoff.time.kind==='value'?endpoints.dropoff.date.value+'T'+endpoints.dropoff.time.value:undefined;
+  const pickupAt=!endpoints.pendingDateTime&&endpoints.pickup.date.kind==='value'&&endpoints.pickup.time.kind==='value'?endpoints.pickup.date.value+'T'+endpoints.pickup.time.value:undefined;
+  const returnAt=!endpoints.pendingDateTime&&endpoints.dropoff.date.kind==='value'&&endpoints.dropoff.time.kind==='value'?endpoints.dropoff.date.value+'T'+endpoints.dropoff.time.value:undefined;
   const dates=!basePreferences.dateWithdrawn&&endpoints.pickup.date.kind==='value'&&endpoints.dropoff.date.kind==='value'?[endpoints.pickup.date.value,endpoints.dropoff.date.value]:basePreferences.dates;
-  const preferences={...basePreferences,dates,pickupAt:basePreferences.dateWithdrawn?undefined:pickupAt,returnAt:basePreferences.dateWithdrawn?undefined:returnAt};
+  const preferences={...basePreferences,dates,pickupAt:basePreferences.dateWithdrawn?undefined:pickupAt,returnAt:basePreferences.dateWithdrawn?undefined:returnAt,...(endpoints.pendingDateTime?{pendingDateTime:endpoints.pendingDateTime}:{})};
   if (party.mentioned) preferences.party=party.total===null?undefined:String(party.total);
   // Reduce baggage from actual scoped USER turns. Generated preference prose
   // may follow an unrelated question and must not turn a confirmed count into uncertainty.
