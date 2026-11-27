@@ -329,3 +329,12 @@ test('runtime filtered claim still requires current eligibility RPC and rejects 
   assert.deepEqual(JSON.parse(JSON.stringify(mock.calls[0].args)), { p_template_keys: Object.keys(customerConfig.templates) });
   await assert.rejects(api.dispatchKapsoOne({ rpc: async () => ({ data: row, error: new Error('claim unavailable') }) }, customerConfig, failFetch), /CLAIM_FAILED/);
 });
+
+test('Operations approval notices require explicit continuous webhook scope and their own template',()=>{
+ const approval={...env,DIR3COM_WHATSAPP_DISPATCH_MODE:'continuous',DIR3COM_WHATSAPP_CATEGORIES:'operations.customer_accept',DIR3COM_WHATSAPP_KAPSO_TEMPLATES:JSON.stringify({'operations.customer_accept.ar':{name:'isolated_ops_approval',languageCode:'ar'}})};
+ assert.ok(api.kapsoConfig(approval));
+ for(const mode of ['general','target_only',''])assert.equal(api.kapsoConfig({...approval,DIR3COM_WHATSAPP_DISPATCH_MODE:mode}),null);
+ assert.equal(api.kapsoConfig({...approval,DIR3COM_WHATSAPP_KAPSO_TEMPLATES:env.DIR3COM_WHATSAPP_KAPSO_TEMPLATES}),null);
+ assert.equal(api.kapsoConfig({...approval,DIR3COM_WHATSAPP_DELIVERY_MODE:'provider_query'}),null);
+ assert.equal(api.parseKapsoTarget({...target,category:'operations.customer_accept'}),null,'new approval category does not open legacy target route');
+});

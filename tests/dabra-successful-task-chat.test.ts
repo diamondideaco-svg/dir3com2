@@ -1043,7 +1043,7 @@ test('consent CASE comparisons are delimited and protected fixture pins historic
  assert.doesNotMatch(sql,/(?:count_rows|d\.approved_by)<>CASE/);
  const loader=readFileSync('scripts/test-protected-operations-postgresql.mjs','utf8');
  const loop=loader.slice(loader.indexOf('  for (const file of files.filter'),loader.indexOf('  // Fixtures are inserted'));
- const names=['priceRelease','migration','managedDrive','managedDriveModelYear','managedDriveAcceptance','managedDriveSeptember','managedDriveWhatsApp','managedDriveKapso','managedDriveCustomer','managedDriveTarget','boundedDriveWhatsApp','queryDriveWhatsApp','boundedCustomerWhatsApp','currentStateWhatsApp','continuousWhatsApp','currentStateResume','workerBinding','workerBindingFingerprint'];
+ const names=['priceRelease','migration','managedDrive','managedDriveModelYear','managedDriveAcceptance','managedDriveSeptember','managedDriveWhatsApp','managedDriveKapso','managedDriveCustomer','managedDriveTarget','boundedDriveWhatsApp','queryDriveWhatsApp','boundedCustomerWhatsApp','currentStateWhatsApp','continuousWhatsApp','currentStateResume','workerBinding','workerBindingFingerprint','driveChatApprovalNotice'];
  const consent='20261112110000_task237_consent_capture.sql',erasure='20261112120000_task237_content_erasure.sql';
  const historical=readFileSync('supabase/drafts/task187-continuity.sql','utf8');
  const run=(tamper:boolean)=>{const applied:string[]=[];const execute=()=>vm.runInNewContext(loop,{...Object.fromEntries(names.map(n=>[n,'excluded'])),files:[consent,erasure],assert,createHash,read:(path:string)=>path==='supabase/drafts/task187-continuity.sql'?historical+(tamper?'-- changed':''):path,sql:(value:string)=>applied.push(value)});return {execute,applied};};

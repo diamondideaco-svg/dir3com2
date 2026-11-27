@@ -5,8 +5,8 @@ import { parseOutboxItem, parseOutboxEnvelope, readLimitedBody, secureEqual, typ
 type Environment = Record<string, string | undefined>;
 type Template = { name: string; languageCode: string; bodyParameterNames?: [string, string] };
 export type KapsoOutboxItem = OutboxItem | (OutboxEnvelope & { action: 'current_state' });
-export type KapsoCategory = 'operations.created' | `customer.${OutboxItem['action']}` | 'customer.current_state' | 'operations.current_state';
-const CATEGORIES: readonly KapsoCategory[] = ['operations.created', 'customer.created', 'customer.review', 'customer.confirm', 'customer.decline', 'customer.customer_accept', 'customer.current_state', 'operations.current_state'];
+export type KapsoCategory = 'operations.created' | 'operations.customer_accept' | `customer.${OutboxItem['action']}` | 'customer.current_state' | 'operations.current_state';
+const CATEGORIES: readonly KapsoCategory[] = ['operations.created', 'operations.customer_accept', 'customer.created', 'customer.review', 'customer.confirm', 'customer.decline', 'customer.customer_accept', 'customer.current_state', 'operations.current_state'];
 export function parseKapsoOutboxItem(value: unknown): KapsoOutboxItem | null {
   const lifecycle = parseOutboxItem(value);
   if (lifecycle) return lifecycle;
@@ -69,6 +69,7 @@ export function kapsoConfig(env: Environment, onReject?: (code: KapsoConfigRejec
   // Exact explicit categories only; absence, duplicates and unknown categories fail closed.
   const categories = (env.DIR3COM_WHATSAPP_CATEGORIES ?? '').split(',');
   if (new Set(categories).size !== categories.length || categories.some(key => !CATEGORIES.includes(key as KapsoCategory))) return reject('KAPSO_CONFIG_CATEGORIES_REJECTED');
+  if (categories.includes('operations.customer_accept') && env.DIR3COM_WHATSAPP_DISPATCH_MODE !== 'continuous') return reject('KAPSO_CONFIG_CONTINUOUS_SCOPE_REJECTED');
   const deliveryMode = env.DIR3COM_WHATSAPP_DELIVERY_MODE ?? 'webhook';
   if (deliveryMode !== 'webhook' && deliveryMode !== 'provider_query') return reject('KAPSO_CONFIG_DELIVERY_MODE_REJECTED');
   if (env.DIR3COM_WHATSAPP_DISPATCH_MODE === 'continuous' && (deliveryMode !== 'webhook'
@@ -233,7 +234,7 @@ export function parseKapsoTarget(value: unknown): KapsoTarget | null {
     || typeof target.recipientUserId !== 'string' || !TARGET_UUID.test(target.recipientUserId)
     || (target.language !== 'ar' && target.language !== 'en')) return null;
   const category = CATEGORIES.find(category => category === target.category);
-  if (!category) return null;
+  if (!category || category === 'operations.customer_accept') return null;
   return { requestId: target.requestId, outboxId: target.outboxId, recipientUserId: target.recipientUserId, category, language: target.language };
 }
 export async function dispatchKapsoTarget(store: NotificationStore, config: KapsoConfig, target: KapsoTarget, fetcher: typeof fetch = fetch) {

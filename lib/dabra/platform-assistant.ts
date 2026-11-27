@@ -1,4 +1,5 @@
-import { withoutDriveEndpointPlaces, driveEndpointRouteText, airportDriveService, driveHandoffForUsers, applyDriveHandoff, type DriveHandoff } from './drive-handoff';
+import { withoutDriveEndpointPlaces, driveEndpointRouteText, airportDriveService, driveHandoffForUsers, applyDriveHandoff, isDriveDateTimeContinuation, type DriveHandoff } from './drive-handoff';
+import { resolveDriveTemporalText, replayDriveTemporalText } from './drive-time.mjs';
 import { AI2_DABRA_CONVERSATION_COPY } from '../ai2/prompt/contract';
 import { driveQuantities, driveDialogue, driveDialogueCopy, driveBudgetState, isRejectedBudgetChangeCurrency, bareDriveParty, bareDrivePartyWithLuggage, dateWithdrawalIndex } from './drive-planning';
 import { CORE_REQUIRED_DIALOGUE_UNITS, conversationIntent, conversationTopicChange, conversationClarification, conversationReply, renderServerReply, serverReplyLink, serverReplySegments } from './conversation-renderer';
@@ -6,7 +7,9 @@ import { DRIVE_OFFERS, vehicleFor, vehicleTitle, type DriveOffer } from '../driv
 import { driveOwnerAvailabilityCopy } from '../drive/owner-availability';
 import { driveModelReferenceCopy } from '../drive/model-reference';
 import { serviceEntryHref } from '../marketplace/public-entry';
-import { cairoInstant } from '../drive/search';
+import { cairoInstant,validateDriveSearch,type DriveSearch } from '../drive/search';
+import {DRIVE_CURRENCIES,type DriveCurrency} from '../drive/catalog';
+import {readCustomerBudget,type CustomerBudgetRequirement} from '../drive/customer-budget';
 import { validSearchDate } from '../marketplace/search-context';
 import { withoutNegativeActions } from './intent-constraints';
 import type { SavedTrip } from './continuity-contract';
@@ -324,8 +327,8 @@ function differentRequest(message: string, history: Turn[], trip?: SavedTrip | n
     || (!correction && city && priorCity && city !== priorCity));
 }
 /** Apply the whole-turn trip decision before any history boundary. */
-function scopedTopicChange(message:string) {
-  const decision=newTripRequested.decision(message);
+function scopedTopicChange(message:string,previousUser?:string) {
+  const decision=newTripRequested.decision(message,previousUser);
   if (decision.mentioned) return decision.kind==='new'||decision.refused||decision.contested?message:null;
   return conversationTopicChange(message);
 }
@@ -333,7 +336,7 @@ function scopedTopicChange(message:string) {
  * Client history is not authority; a competing service or absent referent
  * withholds the anchor instead of asserting which object was rejected. */
 function userTripTurnDecision(message:string,previousUser?:string) {
-  const direct=newTripRequested.decision(message);
+  const direct=newTripRequested.decision(message,previousUser);
   if (direct.mentioned) return direct;
   const probe=newTripRequested.decision(`the same trip; ${message}`);
   if (!probe.refused && !probe.contested) return direct;
@@ -344,6 +347,7 @@ function userTripTurnDecision(message:string,previousUser?:string) {
   }
   return {...direct,kind:'uncertain' as const,mentioned:true,refused:false,contested:true};
 }
+function previousUserText(history:Turn[],before=history.length) {return history.slice(0,before).filter(turn=>turn.role==='user').at(-1)?.content;}
 type ProtectedTripStatus='active'|'contested'|'revalidation'|'detached';
 /** Separate a clear continuation clause from later user input. The complete
  * original turn remains protected; the remainder is not authorization. */
@@ -626,7 +630,7 @@ function platformConversationScopeForSource(message: string, history: Turn[] = [
   if (requestIntent==='pending') return issue({message:TRIP_SCOPE_GUARD,history:[],trip:null,tripStatus:'contested',scopeReason:'service-budget'});
   const previousUser=history.filter(turn=>turn.role==='user').at(-1)?.content;
   const decision=userTripTurnDecision(message,previousUser);
-  const current = decision.mentioned && (decision.refused || decision.contested || decision.kind==='new') ? message : scopedTopicChange(message);
+  const current = decision.mentioned && (decision.refused || decision.contested || decision.kind==='new') ? message : scopedTopicChange(message,previousUser);
   const currentMessage = current ?? message;
   const status=tripScopeStatus(message,history,Boolean(trip)).status;
   if (status==='detached') trip=null;
@@ -651,7 +655,7 @@ function platformConversationScopeForSource(message: string, history: Turn[] = [
     return issue({ message: currentMessage, history: [], trip: detached?null:trip ?? null });
   }
   if (current !== null) return issue({ message: current || message, history: [], trip: null });
-  const boundary = history.findLastIndex(turn => turn.role === 'user' && (scopedTopicChange(turn.content) !== null
+  const boundary = history.findLastIndex((turn,index) => turn.role === 'user' && (scopedTopicChange(turn.content,previousUserText(history,index)) !== null
     || resumePlatformTripRequested(turn.content)));
   if (boundary >= 0) {
     const next = scopedTopicChange(history[boundary].content) ?? history[boundary].content;
@@ -669,7 +673,7 @@ function platformConversationScopeForSource(message: string, history: Turn[] = [
     return !location.unknownOrigin && !location.unknownDestination && (!location.city || !previousCity || location.city===previousCity);
   };
   for (const turn of history) {
-    const priorDecision=newTripRequested.decision(turn.content);
+    const priorDecision=newTripRequested.decision(turn.content,previousUserText(scoped));
     const unresolved=priorDecision.mentioned && priorDecision.kind==='uncertain';
     const explicitlyContinues=priorDecision.mentioned && priorDecision.kind==='continue' && !priorDecision.refused && !priorDecision.contested;
     if (!trip && turn.role==='user') {
@@ -685,7 +689,7 @@ function platformConversationScopeForSource(message: string, history: Turn[] = [
       // into an open match when that distinction has not been resolved.
       if (needsBudgetBoundaryClarification(turn.content,scoped,trip)) {
         if (!trip) {unanchoredBoundaryPending=true;scoped.push(turn);continue;}
-        const currentDecision=newTripRequested.decision(message);
+        const currentDecision=newTripRequested.decision(message,previousUser);
         const explicitlyContinues=currentDecision.mentioned && currentDecision.kind==='continue' && !currentDecision.refused && !currentDecision.contested;
         return issue({message:TRIP_SCOPE_GUARD,history:[],trip:null,tripStatus:explicitlyContinues?'revalidation':'contested'});
       }
@@ -708,7 +712,7 @@ function platformConversationScopeForSource(message: string, history: Turn[] = [
       return issue({message:TRIP_SCOPE_GUARD,history:[],trip:null,tripStatus:'contested',...(!trip?{scopeReason:'service-budget' as const}:{})});
     return issue({ message, history: [], trip: null });
   }
-  return issue({ message, history: scoped, trip: newTripRequested(message) ? null : trip ?? null });
+  return issue({ message, history: scoped, trip: newTripRequested(message,previousUser) ? null : trip ?? null });
 }
 export function platformConversationScope(message: string, history: Turn[] = [], trip?: SavedTrip | null, owner?:PlatformScopeOwner) {
   return platformConversationScopeForSource(message,history,trip,owner,'legacy');
@@ -732,7 +736,7 @@ function buildPlatformContextText(message: string, history: Turn[] = [], trip?: 
   const planningContinuation = /^(?:plan my trip|خطط رحلتي|could you help me arrange things|هل تساعدني في ترتيب التفاصيل)[.!?؟،,;:]*$/.test(normalizePlatformQuery(currentMessage));
   // Inherit a service only for a bounded planning continuation or preference/answer, not every
   // unrecognized sentence. Assistant turns indicate question position, not facts.
-  const followup=planningContinuation || newTripRequested.decision(currentMessage).mentioned || resumePlatformTripRequested(currentMessage) || platformFamilies(currentMessage).length>0 || currentPreferences.city || currentPreferences.ambiguous
+  const followup=isDriveDateTimeContinuation([...reconstructed.filter(turn=>turn.role==='user').map(turn=>turn.content),currentMessage]) || planningContinuation || newTripRequested.decision(currentMessage).mentioned || resumePlatformTripRequested(currentMessage) || platformFamilies(currentMessage).length>0 || currentPreferences.city || currentPreferences.ambiguous
     || currentPreferences.hasDates || currentPreferences.partyMentioned || currentPreferences.luggageMentioned || currentPreferences.durationMentioned || currentPreferences.rooms
     || /\b(?:per day|daily|whole trip|total)\b|للرحله|اجمالي|لكامل|لليوم|في اليوم|يومي/.test(normalizePlatformQuery(currentMessage))
     || platformCurrencySelection(currentMessage).mentioned || /^(?:yes|no|not sure|نعم|لا|مش عارف|ما ادري)$/.test(normalizePlatformQuery(currentMessage))
@@ -775,7 +779,7 @@ function preferenceContext(message: string, history: Turn[]) {
   // Carry only bounded user preferences, never assistant assertions or account data.
   // New explicit preferences override old ones, including when the user names a family.
   const turns = [...history.filter(t => t.role === 'user').slice(-12).map(t => t.content.slice(0, 500)), message];
-  const reset = turns.findLastIndex(turn => {const decision=newTripRequested.decision(turn);return decision.kind==='new'||decision.refused||decision.contested;});
+  const reset = turns.findLastIndex((turn,index) => {const decision=newTripRequested.decision(turn,turns[index-1]);return decision.kind==='new'||decision.refused||decision.contested;});
   const relevant = turns.slice(Math.max(0, reset));
   const preferences = relevant.map(turn => tripPreferences(normalizePlatformQuery(turn)));
   const current = preferences.at(-1)!;
@@ -787,7 +791,7 @@ function preferenceContext(message: string, history: Turn[]) {
     if (prior && !/\bREQ-|طلباتي|my requests|operations|\bceo\b/i.test(prior)) {
       const priorText=normalizePlatformQuery(prior);
       const roomRefinement=platformRooms(priorText) && !Object.values(familyTerms).some(term=>term.test(priorText));
-      carry.push(current.ambiguous || roomRefinement ? platformFamilies(prior).join(' ') : current.city ? withoutRoutingCities(prior) : prior);
+      carry.push(current.ambiguous || roomRefinement ? platformFamilies(prior).join(' ') : current.city ? withoutRoutingCities(driveEndpointRouteText(prior)) : prior);
     }
   }
   if (!current.city && !current.ambiguous) { const city = previous.find(p => p.city || p.ambiguous); if (city?.city) carry.push(`destination: ${city.city}`); else if (city?.ambiguous) carry.push('destination is unknown'); }
@@ -946,7 +950,7 @@ function tripPreferences(text: string, trip?: SavedTrip | null) {
   const party = quantities.party.value ? String(quantities.party.value) : undefined;
   const luggage = quantities.luggage.value;
   const rooms=platformRooms(text);
-  return { city, ambiguous: roles.ambiguous || unknownDestination, dates: !dateWithdrawn && safeDates.length === dates.length ? safeDates : [], hasDates: iso.length > 0 || Boolean(range) || dateWithdrawn, dateWithdrawn, party, rooms,
+  return { city, ambiguous: roles.ambiguous || unknownDestination, dates: !dateWithdrawn && safeDates.length === dates.length ? [...new Set(safeDates)] : [], hasDates: iso.length > 0 || Boolean(range) || dateWithdrawn, dateWithdrawn, party, rooms,
     partyMentioned: quantities.party.mentioned, luggage, luggageMentioned: quantities.luggage.mentioned, durationDays: quantities.days.value, durationMentioned: quantities.days.mentioned };
 }
 type UserDriveRoute={origin:string;destination:string};
@@ -1139,8 +1143,21 @@ function platformDriveDialogue({ message, history, context, trip }: {
   message: string; history: Turn[]; context: string; trip?: SavedTrip | null;
 }) {
   const text = normalizePlatformQuery(context);
-  const preferences=tripPreferences(text,trip),party=platformPartyState(message,history,trip);
+  const basePreferences=tripPreferences(text,trip),party=platformPartyState(message,history,trip);
+  const endpoints=driveHandoffForUsers(planningUserTurns(message,history));
+  const pickupAt=!endpoints.dateTimeUnresolved&&endpoints.pickup.date.kind==='value'&&endpoints.pickup.time.kind==='value'?endpoints.pickup.date.value+'T'+endpoints.pickup.time.value:undefined;
+  const returnAt=!endpoints.dateTimeUnresolved&&endpoints.dropoff.date.kind==='value'&&endpoints.dropoff.time.kind==='value'?endpoints.dropoff.date.value+'T'+endpoints.dropoff.time.value:undefined;
+  const dates=endpoints.dateTimeUnresolved?[]:!basePreferences.dateWithdrawn&&endpoints.pickup.date.kind==='value'&&endpoints.dropoff.date.kind==='value'?[endpoints.pickup.date.value,endpoints.dropoff.date.value]:basePreferences.dates;
+  const preferences={...basePreferences,dates,pickupAt:basePreferences.dateWithdrawn?undefined:pickupAt,returnAt:basePreferences.dateWithdrawn?undefined:returnAt,...(endpoints.pendingDateTime?{pendingDateTime:endpoints.pendingDateTime}:{}),...(endpoints.dateTimeUnresolved?{dateTimeUnresolved:true}:{})};
   if (party.mentioned) preferences.party=party.total===null?undefined:String(party.total);
+  // Reduce baggage from actual scoped USER turns. Generated preference prose
+  // may follow an unrelated question and must not turn a confirmed count into uncertainty.
+  let baggage:{mentioned:boolean;value?:number}={mentioned:false};
+  for(const turn of planningUserTurns(message,history)){
+    const candidate=driveQuantities(normalizePlatformQuery(turn)).luggage;
+    if(candidate.mentioned)baggage=candidate;
+  }
+  if(baggage.mentioned)preferences.luggage=baggage.value;
   return driveCatalogueDestinationEligible(text, trip) ? driveDialogue([...history.filter(t => t.role === 'user').slice(-12).map(t => normalizePlatformQuery(t.content.slice(0, 500))), normalizePlatformQuery(message)], preferences) : null;
 }
 
@@ -1342,7 +1359,8 @@ export function preparePlatformAssistantResponse(input: string|PlatformUserReque
   if (localPolicy && !local) return safe(changed);
   if (local) pricing={currency:local.currency,snapshot:pricing?.snapshot ?? null,excludedCurrencies:local.excludedCurrencies};
   const matchingScope=scoped;
-  const message=snapshot.message, history=snapshot.history.map(turn=>({...turn})), trip=snapshot.trip;
+  // Calendar normalization derives preferences only; the branded source/authority stays unchanged.
+  const message=resolveDriveTemporalText(snapshot.message,now).text, history=snapshot.history.map(turn=>({...turn,content:turn.role==='user'?replayDriveTemporalText(turn.content,undefined):turn.content})), trip=snapshot.trip;
   const projected=Boolean(familyOverride && trip && !history.length);
   const blockedTrip=snapshot.blocked;
   const context = blockedTrip ? TRIP_SCOPE_GUARD : projected ? message : platformContextText(platformContext(message, history, trip)), text = normalizePlatformQuery(context), current = withoutNegativeActions(normalizePlatformQuery(message));
@@ -1546,4 +1564,58 @@ export function preparePlatformMarketDisplay(request:PlatformUserRequest,family:
     if (!platformUserRequestFacts(request) || localPolicy && !platformLocalCurrencyPolicy(request,localPolicy)) return stale();
     return {status:'ready' as const,offers,entry:href,answer,facts:activeFacts};
   }});
+}
+
+export type ManagedDriveChatRequirements=Partial<DriveSearch>&{customerBudget?:CustomerBudgetRequirement};
+export type ManagedDriveChatPlan={active:boolean;blocked:boolean;summary:string;question:string|null;requirements:ManagedDriveChatRequirements};
+/** The same issued USER scope supplies editable requirements for every client.
+ * This is not identity, an offer, availability, creation consent or approval authority. */
+export function managedDriveChatPlan(input:PlatformUserRequest,locale:Locale,now=Date.now()):ManagedDriveChatPlan {
+ const scope=scopedUserRequests.get(input),snapshot=scope?matchingScopes.get(scope):undefined;
+ const empty=(active:boolean,question:string):ManagedDriveChatPlan=>({active,blocked:true,summary:'',question,requirements:{}});
+ const ar=locale==='ar';
+ if(!scope||!snapshot||snapshot.source!=='user'||!currentMatchingScope(scope))return empty(false,ar?'تغير سياق الطلب؛ أعد المراجعة.':'The request context changed. Review it again.');
+ if(snapshot.blocked)return empty(true,preparePlatformAssistantResponse(input,[],locale,now).deliver().answer);
+ const message=resolveDriveTemporalText(snapshot.message,now).text;
+ const history=snapshot.history.map(turn=>({...turn,content:turn.role==='user'?replayDriveTemporalText(turn.content,undefined):turn.content}));
+ const families=scopedFamilyState(message,history);
+ if(families.active.join(',')!=='drive'||families.denied.includes('drive')||families.contested.includes('drive'))return empty(false,ar?'حدّد طلب السيارة المقصود أولًا.':'First clarify the car request you mean.');
+ const context=platformContextText(platformContext(message,history,snapshot.trip));
+ const plan=platformDriveDialogue({message,history,context,trip:snapshot.trip});
+ if(!plan||driveServiceDecision(message,history)!=='open')return empty(true,ar?'أحتاج تأكيد خدمة السيارة أولًا.':'Please confirm the car service first.');
+ const copy=driveDialogueCopy(plan,locale),route=userDriveRoute(message,history);
+ if(route.withholdPickup||route.withholdDropoff)return {...empty(true,ar?'حدّد مسار السيارة وموقعي الاستلام والتسليم دون التباس.':'Please clarify the car route and pickup/dropoff locations.'),summary:copy.summary};
+ const endpoints=driveHandoffForUsers(planningUserTurns(message,history));
+ const r:ManagedDriveChatRequirements={};
+ if(endpoints.pickup.location.kind==='value')r.pickup=endpoints.pickup.location.value;
+ if(endpoints.dropoff.location.kind==='value')r.dropoff=endpoints.dropoff.location.value;
+ if(plan.preferences.pickupAt&&cairoInstant(plan.preferences.pickupAt)!==null)r.pickupAt=plan.preferences.pickupAt;
+ if(plan.preferences.returnAt&&cairoInstant(plan.preferences.returnAt)!==null)r.returnAt=plan.preferences.returnAt;
+ if(plan.preferences.party)r.passengers=Number(plan.preferences.party);
+ if(plan.preferences.luggage!==undefined)r.luggage=plan.preferences.luggage;
+ if(endpoints.mode)r.mode=endpoints.mode;
+ else if(plan.driver==='with'&&plan.preferences.durationDays)r.mode='chauffeur';
+ const budget=plan.budget;
+ if(budget?.kind==='amount'&&budget.currency&&DRIVE_CURRENCIES.includes(budget.currency as DriveCurrency))r.currency=budget.currency as DriveCurrency;
+ if(budget?.kind==='amount'&&budget.basis==='trip'&&!plan.pendingBudgets.length){
+  const validated=readCustomerBudget({amount:budget.amount,currency:budget.currency,basis:'trip'});
+  if(validated.kind==='requirement')r.customerBudget={amount:validated.amount,currency:validated.currency,basis:'trip'};
+ }
+ if(r.mode==='airport')return {active:true,blocked:true,summary:copy.summary,requirements:r,question:ar?'توصيلة المطار تتطلب رقم الرحلة وموعد الوصول. تابعها من رابط المطار في الكتالوج؛ المراجعة داخل المحادثة هنا للسيارة مع سائق باليوم.':'An airport transfer requires a flight number and arrival time. Continue from its airport catalogue link; this in-chat review is for a daily chauffeured car.'};
+ let question=copy.question;
+ if(!question){
+  if(plan.driver==='without')question=ar?'الكتالوج الحالي بسائق؛ لا أستطيع إرسال طلب بدون سائق بهذا المسار.':'The current catalogue is chauffeured; this flow cannot submit a self-drive request.';
+  else if(!r.pickup)question=ar?'ما موقع الاستلام بالتحديد؟':'What is the exact pickup location?';
+  else if(!r.pickupAt)question=ar?'ما تاريخ ووقت الاستلام بتوقيت القاهرة، صباحًا أم مساءً؟':'What is the pickup date and Cairo time, including AM or PM?';
+  else if(!r.dropoff)question=ar?'أين موقع تسليم السيارة؟':'Where will the car be returned?';
+  else if(!r.returnAt)question=ar?'ما تاريخ ووقت التسليم بتوقيت القاهرة؟':'What is the return date and Cairo time?';
+  else if(r.luggage===undefined)question=ar?'كم قطعة أمتعة معكم؟':'How many bags will you have?';
+  else if(!r.mode)question=ar?'هل الخدمة سيارة مع سائق باليوم أم توصيلة مطار؟':'Is this a daily chauffeured car or an airport transfer?';
+  else if(!r.currency)question=ar?'بأي عملة تريد مراجعة متطلبات السعر؟':'Which currency should be used to review your price requirements?';
+  else {
+   const error=validateDriveSearch(r as DriveSearch,now);
+   if(error)question=error==='PICKUP_TOO_SOON'?(ar?'اختر استلامًا بعد ٦ ساعات على الأقل.':'Choose pickup at least six hours ahead.'):(ar?'موعد الاستلام أو التسليم غير صالح؛ وضحه بتوقيت القاهرة.':'The pickup or return time is invalid; clarify it in Cairo time.');
+  }
+ }
+ return currentMatchingScope(scope)?{active:true,blocked:question!==null,summary:copy.summary,question,requirements:r}:empty(false,ar?'تغير سياق الطلب.':'The request context changed.');
 }

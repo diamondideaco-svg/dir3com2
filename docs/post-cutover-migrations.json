@@ -274,5 +274,11 @@
     "sha256": "4c221be87b435140ba117662ae997dae1a9944b6b8c0233d1bbb4f097b44bedd",
     "task": "#237",
     "production_apply_authorized": false
+  },
+  {
+    "path": "supabase/migrations/20261125194500_task265_drive_chat_approval_notice.sql",
+    "sha256": "ad3e716b004393bb5819c7654e2a16f86be877686f8c3810cac47c48065dc325",
+    "task": "#265",
+    "production_apply_authorized": false
   }
 ]

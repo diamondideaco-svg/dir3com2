@@ -5,6 +5,7 @@ import { runDabraBoundaryCase } from './fixtures/run-dabra-boundary';
 // A passing file with no selected case, SKIP or TODO cannot satisfy this guard.
 for (const name of [
   'same-account TOKEN_REFRESHED must preserve text, draft and the in-flight answer',
+  'private JSON response marks privacy before pinning the trusted calendar day',
   'floating continuity invalidation must undo its saved display currency',
   'a private JSON reply from floating must not enter the full-page persistence path',
   'private replies remain in live history while excluded from storage',
