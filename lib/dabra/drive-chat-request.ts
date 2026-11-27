@@ -26,3 +26,16 @@ export function readDriveRequestReservation(raw:string|null):DriveRequestReserva
   return {kind:'reserved',key:saved.key,reference:typeof saved.reference==='string'?saved.reference:null};
  }catch{return {kind:'invalid'};}
 }
+/** Navigation help only: never approval, status or submission authority. */
+export function driveRequestFollowCommand(text:string):boolean {
+ const value=text.normalize('NFKC').replace(/[\u064B-\u065F\u0670]/g,'').replace(/[أإآ]/g,'ا').trim().toLowerCase().replace(/[.!؟?]+$/u,'').trim();
+ return /^(?:موافق|اوافق(?: على العرض)?|اقبل العرض|(?:اعرض|عرض|افتح) (?:العرض|حالة الطلب)|(?:تابع|تحديث) (?:حالة )?الطلب|i accept(?: the quote)?|accept (?:the )?quote|(?:show|open|refresh|check) (?:the )?(?:quote|offer|request(?: status)?))$/.test(value);
+}
+const contactMarkers={ar:'تم إدخال بيانات التواصل لهذه المراجعة فقط.',en:'Contact details provided for this review only.'} as const;
+/** Raw contact remains only in the managed request's memory, not chat history. */
+export function driveChatUserText(text:string,locale:'ar'|'en'):string {
+ return driveChatContact(text)?contactMarkers[locale]:text;
+}
+export function isDriveChatContactTurn(text:string):boolean {
+ return Boolean(driveChatContact(text))||Object.values(contactMarkers).some(marker=>marker===text);
+}

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync,existsSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
-import {driveRequestSubmitCommand,driveChatContact,readDriveRequestReservation} from '../lib/dabra/drive-chat-request';
+import {driveRequestSubmitCommand,driveRequestFollowCommand,driveChatContact,driveChatUserText,isDriveChatContactTurn,readDriveRequestReservation} from '../lib/dabra/drive-chat-request';
 const key='00000000-0000-4000-8000-000000000265';
 for(const text of ['أؤكد التفاصيل وأرسل طلبًا واحدًا','أؤكد تفاصيل الطلب وأرسله','Confirm details and submit one request','Confirm the details and send this request.'])test('explicit request creation: '+text,()=>assert.equal(driveRequestSubmitCommand(text),true));
 for(const text of ['موافق','I accept','I accept the quote','إذا وافقت أؤكد التفاصيل وأرسل الطلب','لا أؤكد التفاصيل وأرسل الطلب','Confirm details and submit one request if available','Name: Synthetic Customer, Phone: +10000000265'])test('no creation authority: '+text,()=>assert.equal(driveRequestSubmitCommand(text),false));
@@ -16,3 +16,6 @@ test('candidate carries no new quote approval, owned-read or notice RPC; old Cor
   const base=execFileSync('git',['show','7cd76d014166d0b53f76c4839580dc207a0f2ef6:'+file]);assert.deepEqual(readFileSync(file),base,file);
  }
 });
+for(const text of ['موافق','اعرض العرض','أوافق على العرض','Show the quote','I accept the quote','Refresh request status'])test('follow command is navigation only: '+text,()=>assert.equal(driveRequestFollowCommand(text),true));
+for(const text of ['أريد فندقًا في القاهرة','I need a hotel in Cairo','How is the weather?','Start a new trip','لا أوافق','I do not accept'])test('unrelated or refused intent is not intercepted by request follow: '+text,()=>assert.equal(driveRequestFollowCommand(text),false));
+for(const locale of ['ar','en']as const)test('handled contact has only a local neutral marker in USER history '+locale,()=>{const raw=locale==='ar'?'الاسم: عميل اختبار، الهاتف: +10000000265':'Name: Synthetic Customer, Phone: +10000000265';const visible=driveChatUserText(raw,locale);assert.doesNotMatch(visible,/10000000265|Synthetic Customer|عميل اختبار/);assert.equal(isDriveChatContactTurn(visible),true);assert.equal(isDriveChatContactTurn(raw),true);assert.equal(driveChatUserText('I need a hotel',locale),'I need a hotel');});

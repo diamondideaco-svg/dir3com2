@@ -3,6 +3,7 @@
 import { successfulTaskAllowanceText } from '@/lib/dabra/successful-task-contract';
 import PlatformAnswer from '@/components/dabra/PlatformAnswer';
 import ManagedDriveChat,{type ManagedDriveChatHandle} from '@/components/dabra/ManagedDriveChat';
+import {driveChatUserText} from '@/lib/dabra/drive-chat-request';
 import DabraContinuity from '@/components/dabra/DabraContinuity';
 import type { ContinuityPreferences, SavedTrip } from '@/lib/dabra/continuity-contract';
 import { useDabraConversation } from '@/components/dabra/DabraConversationProvider';
@@ -555,7 +556,7 @@ function DabraChatCommerceSession() {
     if(!conversation.isCurrent(job)){marketSession.endChat(job.id);return;}
     if(managedReply!==null&&managedReply!==undefined){
       conversation.markPrivate();
-      conversation.update(job,current=>[...current,{id:'user-'+job.id,role:'user',text:text.trim()},{id:'assistant-'+job.id,role:'assistant',text:managedReply}]);
+      conversation.update(job,current=>[...current,{id:'user-'+job.id,role:'user',text:driveChatUserText(text.trim(),language)},{id:'assistant-'+job.id,role:'assistant',text:managedReply}]);
       setInput(current=>current===text?'':current);conversation.finish(job);marketSession.endChat(job.id);return;
     }
     managedDriveRef.current?.invalidatePlan();

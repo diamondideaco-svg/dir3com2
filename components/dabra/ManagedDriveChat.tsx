@@ -7,7 +7,7 @@ import type {ConversationMessage,ConversationJob,ConversationSession} from '@/li
 import {parseDriveTrip} from '@/lib/drive/request';
 import {isMarketplaceRequestReference} from '@/lib/marketplace/customer-requests';
 import {newTripRequested} from '@/lib/dabra/trip-routing';
-import {driveRequestSubmitCommand,driveChatContact,readDriveRequestReservation} from '@/lib/dabra/drive-chat-request';
+import {driveRequestSubmitCommand,driveRequestFollowCommand,driveChatContact,isDriveChatContactTurn,readDriveRequestReservation} from '@/lib/dabra/drive-chat-request';
 
 export type ManagedDriveChatHandle={
  review:()=>Promise<void>;
@@ -82,7 +82,7 @@ export default forwardRef<ManagedDriveChatHandle,Props>(function ManagedDriveCha
   if(key.current||uncertain.current){setError('unknown');return;}
   if(!storageKey){setError('login');return;}
   // Contact and explicit submission text never become planning history or notes.
-  const planning=messages.filter(message=>message.role!=='user'||!driveChatContact(message.text)&&!driveRequestSubmitCommand(message.text));
+  const planning=messages.filter(message=>message.role!=='user'||!isDriveChatContactTurn(message.text)&&!driveRequestSubmitCommand(message.text));
   const index=planning.findLastIndex(message=>message.role==='user');if(index<0)return;
   await run(async(signal,job)=>{
    const current=planning[index];
@@ -153,10 +153,19 @@ export default forwardRef<ManagedDriveChatHandle,Props>(function ManagedDriveCha
    delegatedJob.current=job;
    try{
     if(busyRef.current)return ar?'أتحقق من نفس العملية؛ انتظر النتيجة قبل محاولة أخرى.':'The same operation is being checked. Wait for its outcome before another attempt.';
-    if(reference.current&&!newTripRequested(text,latest?.text))return followText();
-    if(driveRequestSubmitCommand(text)&&visible)return submit();
+    if(driveRequestFollowCommand(text)&&visible)return reference.current?followText():
+     ar?'هذه مراجعة متطلبات وليست عرضًا قابلاً للموافقة. لم أسجل موافقة عرض داخل الشات.':'This is a requirements review, not an approvable quote. No quote approval was recorded in chat.';
+    if(driveRequestSubmitCommand(text)&&visible){
+     const reply=await submit();
+     return reply??(key.current&&!reference.current||uncertain.current?errorText.unknown:errorText.unavailable);
+    }
     const parsed=driveChatContact(text);
-    if(parsed&&visible&&!reference.current&&!key.current&&!uncertain.current){onPrivate();setContact(parsed);return ar?'تم إدخال الاسم والهاتف لهذه المراجعة فقط. راجع التفاصيل ثم أكد إرسال طلب واحد.':'Name and phone are set for this review only. Review the details, then confirm submission of one request.';}
+    if(parsed&&visible){
+     onPrivate();
+     if(reference.current)return ar?'تعديل التواصل يتم من مسار طلبك الحالي. لم أغيّر الطلب أو أرسل بيانات التواصل إلى الشات العام.':'Contact changes use your existing request flow. The request was not changed and contact details were not sent to general chat.';
+     if(key.current||uncertain.current)return errorText.unknown;
+     setContact(parsed);return ar?'تم إدخال الاسم والهاتف لهذه المراجعة فقط. راجع التفاصيل ثم أكد إرسال طلب واحد.':'Name and phone are set for this review only. Review the details, then confirm submission of one request.';
+    }
     return null;
    }finally{delegatedJob.current=null;}
   },
