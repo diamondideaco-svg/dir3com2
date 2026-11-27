@@ -36,6 +36,7 @@ function productPost(role: AgentContext['role'], registerAfterResponse: (task: (
   const realDependencies: readonly string[] = [
     '@/lib/dabra/successful-task-production-policy',
     '@/lib/dabra/successful-task-chat',
+    '@/lib/dabra/drive-time.mjs',
     '@/lib/dabra/conversation-renderer',
     '@/lib/dabra/platform-assistant',
     '@/lib/dabra/chat-response-contract',

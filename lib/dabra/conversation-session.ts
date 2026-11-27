@@ -5,7 +5,7 @@ import type { ContinuityPreferences } from './continuity-contract';
 import type { DabraPersistenceContext } from './travel-commerce-state';
 import type { DisplayCurrency } from '../currency/display';
 
-export type ConversationMessage = { id: string; role: 'user' | 'assistant'; text: string };
+export type ConversationMessage = { id: string; role: 'user' | 'assistant'; text: string; relativeDate?: string };
 type Update<T> = T | ((current: T) => T);
 export type ConversationJob = { readonly id: string; readonly generation: number; readonly signal: AbortSignal };
 export type ConversationState = {

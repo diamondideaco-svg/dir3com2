@@ -5,10 +5,11 @@ import { turnHasDeferredMarker } from './trip-turn-decision.mjs';
 
 type Fact = {kind:'absent'} | {kind:'unknown'} | {kind:'value';value:string};
 type Endpoint = {location:Fact;date:Fact;time:Fact};
-export type DriveHandoff = {pickup:Endpoint;dropoff:Endpoint;mode?:'chauffeur'|'airport'};
+type DateTime = {date:string;time:string};
+export type DriveHandoff = {pickup:Endpoint;dropoff:Endpoint;mode?:'chauffeur'|'airport';pendingDateTime?:DateTime;dateTimeUnresolved?:true};
 const empty = ():Endpoint => ({location:{kind:'absent'},date:{kind:'absent'},time:{kind:'absent'}});
 const digits = (text:string) => text.normalize('NFKC').replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
-const rolePattern = /\bpick(?:[ -]?up)\b|\bdrop(?:[ -]?off)\b|\breturn(?:\s+the\s+car)?\b|(?<![\p{L}])(?:الاستلام|استلام|التسليم|تسليم)(?![\p{L}])/giu;
+const rolePattern = /\bpick(?:[ -]?up)\b|\bdrop(?:[ -]?off)\b|\breturn(?:\s+the\s+car)?\b|(?<![\p{L}])(?:لل|ال|ل)?(?:استلام|تسليم)(?![\p{L}])/giu;
 function endpointClauses(input:string) {
  const text=digits(input);
  return [...text.matchAll(rolePattern)].map(match=>{
@@ -62,14 +63,40 @@ function affirmativeChauffeur(input:string) {
  }
  return false;
 }
+/** A complete bare USER date/time is a proposal until its endpoint is unambiguous. */
+function bareDateTime(input:string):DateTime|null {
+ if(turnHasDeferredMarker(input))return null;
+ const match=/^\s*(?:(?:on|يوم|بتاريخ)\s+)?(\d{4}-\d{2}-\d{2})(?:\s+(?:at|الساع[ةه])\s+|T)(\d{1,2}:\d{2})(?:\s+(?:Cairo\s+time|بتوقيت\s+القاهرة|Africa\/Cairo))?\s*[.!]?\s*$/iu.exec(digits(input));
+ if(!match)return null;const date=match[1],time=match[2].padStart(5,'0');
+ return validSearchDate(date)&&/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)&&cairoInstant(date+'T'+time)!==null?{date,time}:null;
+}
+/** Confirmation comes from the next USER turn, never from assistant prose. */
+function dateTimeEndpoint(input:string):'pickup'|'dropoff'|null {
+ const text=input.trim().normalize('NFKC').replace(/[.!]$/u,'');
+ if(/^(?:(?:I\s+mean|the)\s+)?(?:pick[ -]?up|return|drop[ -]?off)$/iu.test(text))return /return|drop/iu.test(text)?'dropoff':'pickup';
+ if(/^(?:(?:أقصد|اقصد|قصدي)\s+)?(?:موعد\s+)?(?:الاستلام|التسليم)$/u.test(text))return /التسليم/u.test(text)?'dropoff':'pickup';
+ return null;
+}
+function setDateTime(endpoint:Endpoint,value:DateTime){endpoint.date={kind:'value',value:value.date};endpoint.time={kind:'value',value:value.time};}
 /** Only the caller's scoped USER turns may supply these editable requirements. */
 export function driveHandoffForUsers(turns:readonly string[]):DriveHandoff {
  const state:DriveHandoff={pickup:empty(),dropoff:empty()};
  for(const turn of turns) {
+  // Candidates survive only to an immediate explicit USER endpoint confirmation.
+  const previousCandidate=state.pendingDateTime;delete state.pendingDateTime;
+  const confirmedEndpoint=dateTimeEndpoint(turn);
+  if(previousCandidate&&confirmedEndpoint){setDateTime(state[confirmedEndpoint],previousCandidate);delete state.dateTimeUnresolved;}
   const serviceTurn=digits(turn).toLowerCase().replace(/[أإآ]/g,'ا').replace(/ة/g,'ه');
   if(!turnHasDeferredMarker(serviceTurn)) {
    if(airportDriveService(turn))state.mode='airport';
    else if(affirmativeChauffeur(turn))state.mode='chauffeur';
+  }
+  const candidate=bareDateTime(turn);
+  if(candidate&&state.mode==='chauffeur') {
+   const pickupMissing=state.pickup.date.kind!=='value'||state.pickup.time.kind!=='value';
+   const returnMissing=state.dropoff.date.kind!=='value'||state.dropoff.time.kind!=='value';
+   if(pickupMissing!==returnMissing){setDateTime(pickupMissing?state.pickup:state.dropoff,candidate);delete state.dateTimeUnresolved;}
+   else {state.pendingDateTime=candidate;state.dateTimeUnresolved=true;}
   }
   for(const item of endpointClauses(turn)) {
   const target=state[item.kind];
@@ -81,6 +108,8 @@ export function driveHandoffForUsers(turns:readonly string[]):DriveHandoff {
    const value=time.padStart(5,'0');
    target.time=!item.uncertain&&/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)?{kind:'value',value}:{kind:'unknown'};
   }
+  // A complete explicit USER endpoint replaces an unresolved proposal; old dates alone do not.
+  if(date&&time&&!item.uncertain&&target.date.kind==='value'&&target.time.kind==='value')delete state.dateTimeUnresolved;
   if(/\b(?:unknown|undecided)\b|غير محدد|غير معروف|لم احدد|لم أحدد/iu.test(item.body)) {
    if(/\btime\b|وقت|الساع/iu.test(item.body))target.time={kind:'unknown'};
    else target.location={kind:'unknown'};
@@ -88,6 +117,10 @@ export function driveHandoffForUsers(turns:readonly string[]):DriveHandoff {
   }
  }
  return state;
+}
+/** An explicit USER endpoint reply keeps unresolved USER preference context, never assistant assertions. */
+export function isDriveDateTimeContinuation(turns:readonly string[]) {
+ const current=turns.at(-1);return Boolean(current&&dateTimeEndpoint(current)&&driveHandoffForUsers(turns.slice(0,-1)).dateTimeUnresolved);
 }
 export function applyDriveHandoff(params:URLSearchParams,state:DriveHandoff,withholdPickup=false,withholdDropoff=false) {
  for(const [kind,at,dateKey,withheld] of [['pickup','pickupAt','pickupDate',withholdPickup],['dropoff','returnAt','returnDate',withholdDropoff]] as const) {
@@ -103,6 +136,8 @@ export function applyDriveHandoff(params:URLSearchParams,state:DriveHandoff,with
    if(cairoInstant(value)!==null)params.set(at,value);else params.delete(at);
   } else if(endpoint.date.kind==='value') {params.delete(at);params.set(dateKey,date);}
  }
+ // An unbound correction must not become an action-ready date through a generic URL.
+ if(state.dateTimeUnresolved)for(const key of ['pickupAt','returnAt','pickupDate','returnDate'])params.delete(key);
  // Unspecified browsing keeps the established URL/default contract. Only
  // affirmative USER service evidence supplies an explicit mode query.
  if(state.mode)params.set('mode',state.mode);else params.delete('mode');

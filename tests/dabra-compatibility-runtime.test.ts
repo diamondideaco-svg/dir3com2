@@ -38,6 +38,7 @@ function fixture() {
   const realDependencies: readonly string[] = [
     '@/lib/dabra/successful-task-production-policy',
     '@/lib/dabra/successful-task-chat',
+    '@/lib/dabra/drive-time.mjs',
     'next/server',
     '@/lib/dabra/conversation-renderer',
     '@/lib/dabra/platform-assistant',
