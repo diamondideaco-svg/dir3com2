@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import * as credentialBindingModule from '../lib/dabra/credential-binding';
+import * as driveTimeModule from '../lib/dabra/drive-time.mjs';
 import { AGENT_PROVIDER_IDS } from '../lib/dabra/agent-capabilities';
 import { checkRuntimeCredentialBinding, type CredentialBindingDependencies } from '../lib/dabra/credential-binding';
 
@@ -224,13 +225,20 @@ test('credential binding: actual GET uses canonical CEO and existing null-subjec
   const ledger = { admissions: 6, heldMicros: 61719 }, originalLedger = JSON.stringify(ledger);
   const rpcCalls: unknown[] = [], authCalls: unknown[] = [];
   const actualRoute = readFileSync(new URL('../app/api/ai2/chat/route.ts', import.meta.url), 'utf8');
-  const post = actualRoute.replace(/\r\n/g, '\n').split('\n/** CEO-only, read-only diagnostic;')[0];
-  // Pin the complete POST prefix for the Task248 issued USER-request integration.
-  // The GET suffix is byte-identical to ab2d; independent review covers the POST delta.
-  // Baseline maintenance requires independent review of that full delta; GET assertions remain active.
-  assert.equal(createHash('sha256').update(post).digest('hex'), 'e6bc1e0336a1ba0d5587702bc468427bd1163311f854ca82efca8dac76a6bc99');
+  const normalizedRoute = actualRoute.replace(/\r\n/g, '\n');
+  const diagnosticStart = normalizedRoute.indexOf('\n/** CEO-only, read-only diagnostic;');
+  assert.ok(diagnosticStart > 0, 'CEO diagnostic boundary must remain explicit');
+  const post = normalizedRoute.slice(0, diagnosticStart);
+  const diagnostic = normalizedRoute.slice(diagnosticStart);
+  // The complete Task265 POST delta adds a trusted Cairo planning clock and
+  // calendar-only successful-response header; authority/funding guards are retained.
+  // New baselines require independent review of the full POST delta. Keep the
+  // unchanged CEO GET suffix pinned separately and its runtime assertions active.
+  assert.equal(createHash('sha256').update(post).digest('hex'), '999815827c8654687a62f109be952e0eb260e61a2d150a948ccd88448f6cbd4d');
+  assert.equal(createHash('sha256').update(diagnostic).digest('hex'), '1002a6eda1616aadc1cc9a0450ffd7031d36803164fbde89d4cb8d4470b04135');
   const loaded = compileModule('../app/api/ai2/chat/route.ts', id => {
     if (id === '@/lib/dabra/credential-binding') return credentialBindingModule;
+    if (id === '@/lib/dabra/drive-time.mjs') return driveTimeModule;
     if (id === '@/lib/ai2/runtime/agent-provider-dispatch') return { internalAgentCredential: () => key };
     if (id === '@/lib/auth/team-access') return { isCeoActor: async (...args: unknown[]) => { authCalls.push(args); return true; } };
     if (id === '@/lib/supabase/server') return {
@@ -283,6 +291,7 @@ async function bindingGetForProject(projectHostname: string | null | undefined) 
   const actualClient = {};
   const loaded = compileModule('../app/api/ai2/chat/route.ts', id => {
     if (id === '@/lib/dabra/credential-binding') return credentialBindingModule;
+    if (id === '@/lib/dabra/drive-time.mjs') return driveTimeModule;
     if (id === '@/lib/ai2/runtime/agent-provider-dispatch') return { internalAgentCredential: () => { calls.credential++; return key; } };
     if (id === '@/lib/auth/team-access') return { isCeoActor: async (client: unknown) => {
       assert.equal(client, actualClient); calls.authority++; return true;

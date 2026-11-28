@@ -2,10 +2,13 @@
 
 import { successfulTaskAllowanceText } from '@/lib/dabra/successful-task-contract';
 import PlatformAnswer from '@/components/dabra/PlatformAnswer';
+import ManagedDriveChat,{type ManagedDriveChatHandle} from '@/components/dabra/ManagedDriveChat';
+import {driveChatUserText} from '@/lib/dabra/drive-chat-request';
 import DabraContinuity from '@/components/dabra/DabraContinuity';
 import type { ContinuityPreferences, SavedTrip } from '@/lib/dabra/continuity-contract';
 import { useDabraConversation } from '@/components/dabra/DabraConversationProvider';
 import type { ConversationJob } from '@/lib/dabra/conversation-session';
+import { replayDriveTemporalText, validDriveCalendarDay } from '@/lib/dabra/drive-time.mjs';
 import { newTripRequested } from '@/lib/dabra/trip-routing';
 import {parseContinuitySnapshot,type ContinuitySnapshot} from '@/lib/dabra/continuity-service';
 import PlatformResults from '@/components/dabra/PlatformResults';
@@ -45,7 +48,7 @@ import {
 
 type VoiceStatus = 'idle' | 'listening' | 'processing' | 'error';
 type VoicePlaybackStatus = 'idle' | 'loading' | 'playing' | 'error';
-type Message = { id: string; role: 'user' | 'assistant'; text: string };
+type Message = { id: string; role: 'user' | 'assistant'; text: string; relativeDate?: string };
 type DabraAttachment = { id: string; file: File; safeName: string; status: 'selected' | 'uploading' | 'error'; error?: string };
 type CartItem = DabraCartItem;
 
@@ -115,6 +118,7 @@ export default function DabraChatCommerce() {
 function DabraChatCommerceSession() {
   const { session: conversation, state: conversationState } = useDabraConversation();
   const viewMountedRef = useRef(true);
+  const managedDriveRef=useRef<ManagedDriveChatHandle|null>(null);
   const marketSessionRef = useRef<ReturnType<typeof createPlatformMarketSession> | null>(null);
   if (!marketSessionRef.current) marketSessionRef.current = createPlatformMarketSession();
   const marketSession = marketSessionRef.current;
@@ -548,6 +552,14 @@ function DabraChatCommerceSession() {
     const job = conversation.begin();
     if (!job) return;
     marketSession.beginChat(job.id);
+    const managedReply=await managedDriveRef.current?.handleMessage(text.trim(),job);
+    if(!conversation.isCurrent(job)){marketSession.endChat(job.id);return;}
+    if(managedReply!==null&&managedReply!==undefined){
+      conversation.markPrivate();
+      conversation.update(job,current=>[...current,{id:'user-'+job.id,role:'user',text:driveChatUserText(text.trim(),language)},{id:'assistant-'+job.id,role:'assistant',text:managedReply}]);
+      setInput(current=>current===text?'':current);conversation.finish(job);marketSession.endChat(job.id);return;
+    }
+    managedDriveRef.current?.invalidatePlan();
     const inputVersion = marketSession.userVersion();
     // A message's currency intent takes effect at submission, before any async gate.
     const explicitText = text.trim();
@@ -559,12 +571,12 @@ function DabraChatCommerceSession() {
     const excludedCurrencies = conversation.getExcludedRequestCurrencies();
     if (currencyChoice.requested && currencyChoice.requested !== currency) setCurrency(currencyChoice.requested);
     if(!await ensureContinuityFresh(false, job) || !conversation.isCurrent(job)) { conversation.finish(job); marketSession.endChat(job.id); return; }
-    if(newTripRequested(text))forgetContinuityContext(job);
+    if(newTripRequested(text,messages.filter(message=>message.role==='user').at(-1)?.text)){managedDriveRef.current?.reset();forgetContinuityContext(job);}
     const context=continuityContextRef.current;
     const draft=context.draft;
     const message = explicitText || draft || (attachments.length ? t.attachmentPrompt : '');
     if (!message || !identityResolved) { conversation.finish(job); marketSession.endChat(job.id); return; }
-    const requestHistory=context.scoped(messages).map(({role,text:content})=>({role,content}));
+    const requestHistory=context.scoped(messages).map(({role,text:content,relativeDate})=>({role,content:role==='user'?replayDriveTemporalText(content,relativeDate):content}));
     const trip=context.scope(explicitText,requestHistory);
     // This send owns detaching its local trip projection. Previous results were
     // already invalidated; keep external revocation/identity changes observable.
@@ -600,6 +612,7 @@ function DabraChatCommerceSession() {
     setJobMessages((current) => [...current,...(seed?[seed]:[]), { id:userId, role: 'user', text: message }, { id: assistantId, role: 'assistant', text: '' }]);
     setVoiceStatus('processing');
     let answerFinished=false;
+    let resolvedCurrentDate:string|undefined;
     try {
       const form = new FormData();
       form.set('message', requestMessage);
@@ -622,6 +635,8 @@ function DabraChatCommerceSession() {
       if(derivedResponse&&!response.ok&&!await ensureContinuityFresh(false,job))return;
       conversation.acceptAllowance(job, response.headers);
       if (response.headers.get('X-DABRA-Private-Context') === '1' || response.headers.get('Content-Type')?.includes('application/json')) conversation.markPrivate();
+      const calendar=response.headers.get('X-DABRA-Relative-Date');
+      if(response.ok&&validDriveCalendarDay(calendar)){resolvedCurrentDate=calendar!;setJobMessages(current=>current.map(item=>item.id===userId?{...item,relativeDate:calendar!}:item));}
       const finalAnswer=await consumeDabraChatResponse(response, (visibleAnswer) => {
         if (derivedResponse || !conversation.isCurrent(job)) return;
         setJobMessages((current) => current.map((item) => item.id === assistantId ? { ...item, text: visibleAnswer } : item));
@@ -647,7 +662,7 @@ function DabraChatCommerceSession() {
       marketSession.endChat(job.id);
       if (current && viewMountedRef.current && lifecycle === lifecycleRef.current) {
         setVoiceStatus('idle');
-        if (marketSession.userVersion() === inputVersion && explicitText) void searchMarketplace(explicitText, activeTab, false, false, true, userId);
+        if (marketSession.userVersion() === inputVersion && explicitText) void searchMarketplace(replayDriveTemporalText(explicitText,resolvedCurrentDate), activeTab, false, false, true, userId);
       }
     }
   }
@@ -947,9 +962,12 @@ function DabraChatCommerceSession() {
             {messages.map((message) => (
               <div key={message.id} className={cn('dabra-message', message.role === 'user' ? 'dabra-message-user' : 'dabra-message-assistant')}>
                 {message.role === 'assistant' && <span className="dabra-mini-avatar" aria-hidden="true">{language === 'ar' ? 'د' : 'D'}</span>}
-                <p>{message.role === 'assistant' ? <PlatformAnswer text={message.text} /> : message.text}</p>
+                <p>{message.role === 'assistant' ? <PlatformAnswer text={message.text} onDriveReview={()=>{if(!conversation.getSnapshot().pending)void managedDriveRef.current?.review();}} /> : message.text}</p>
               </div>
             ))}
+            <ManagedDriveChat ref={managedDriveRef} session={conversation} messages={messages} locale={language} ownerId={conversationState.persistence?.ownerId??null}
+              onPrivate={()=>conversation.markPrivate()}
+              onAssistant={text=>{if(viewMountedRef.current&&viewGeneration===conversation.getSnapshot().generation){conversation.markPrivate();setMessages(current=>[...current,{id:makeId(),role:'assistant',text}]);}}}/>
           </div>
 
           <div className={cn('dabra-voice-panel', `dabra-voice-${voiceStatus}`)}>

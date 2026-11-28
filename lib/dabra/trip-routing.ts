@@ -21,7 +21,7 @@ const arabicServiceVerb=String.raw`(?:استخدم|تستخدم|اعرض|تعر�
 const arabicServiceIntent=String.raw`(?:(?:اريد|ابي|ابغي|احتاج)(?:\s+(?:ان\s+)?${arabicServiceVerb})?|(?:اعرض|اظهر|استخدم|ابحث\s+عن|اختر|احجز|رتب))`;
 /** Backward-compatible boolean plus the shared whole-turn decision. */
 export const newTripRequested = Object.assign(
-  (message:string) => tripTurnDecision(message).kind === 'new',
+  (message:string,previousUser?:string) => tripTurnDecision(message,previousUser).kind === 'new',
   { decision:tripTurnDecision, deferred:turnHasDeferredIntent, deferredMarker:turnHasDeferredMarker, actionSpans:conditionalActionSpans, normalizeNegation:normalizeNegativeContractions, arabicAnyDeterminer, arabicServiceVerb, arabicServiceIntent },
 );
 export function withoutRoutingCities(message: string) {
@@ -37,7 +37,8 @@ export function withoutRoutingCities(message: string) {
 
 /** Bounded city-role interpretation, not a general NLU or authorization source. */
 export function cityRoles(message: string) {
-  const text = normalize(message);
+  // Explicit interface wording names where to continue the conversation, not a trip destination.
+  const text = normalize(message).replace(/\bhere\s+in\s+(?:the\s+)?chat\b|(?<![\p{L}])هنا\s+في\s+(?:الشات|المحادثه)(?![\p{L}])|(?<![\p{L}])في\s+رسالتي\s+(?:السابقه|الاخيره)(?![\p{L}])|\bin\s+(?:my|the)\s+(?:previous|preceding|last)\s+message\b/gu,' ');
   const tokens = cities.flatMap(([name, ar]) => [name, normalize(ar)].map(alias => ({ name, alias })))
     .flatMap(({ name, alias }) => [...text.matchAll(new RegExp(`(?<![\\p{L}])${alias}(?![\\p{L}])`, 'gu'))]
       .map(match => ({ name, index: match.index!, end: match.index! + alias.length })));

@@ -12,11 +12,13 @@ type Input = {
   message: string; locale: 'ar' | 'en'; history: Array<{ role: 'user' | 'assistant'; content: string }>;
   /** Constructed by the server after attachment validation; never part of user intent. */
   serverAttachmentNote?: string;
+  /** Trusted request-receipt clock for planning only; never read from request JSON. */
+  planningNow?: number;
   context: AgentContext; pricing?: PlatformPricing; intent?: AgentIntent; trip?: SavedTrip | null; needsClarification?: boolean;
 };
 
 /** The model can select a read tool. Facts, permissions, links and replies stay server-owned. */
-export async function runInternalAgent({ message, locale, history, context, pricing, trip, needsClarification = false, intent = agentIntent(message) }: Input, issuedRequest?:PlatformUserRequest, displayPolicy?:PlatformLocalCurrencyPolicy) {
+export async function runInternalAgent({ message, locale, history, context, pricing, trip, planningNow, needsClarification = false, intent = agentIntent(message) }: Input, issuedRequest?:PlatformUserRequest, displayPolicy?:PlatformLocalCurrencyPolicy) {
   const ar = locale === 'ar';
   const link = serverReplyLink;
   const text = serverReplySegments();
@@ -50,7 +52,7 @@ export async function runInternalAgent({ message, locale, history, context, pric
   }
 
   if (intent.tool === 'discover') {
-    const response = preparePlatformAssistantResponse(platformRequest, [], locale, undefined, undefined, pricing,undefined,undefined,displayPolicy).deliver();
+    const response = preparePlatformAssistantResponse(platformRequest, [], locale, planningNow, undefined, pricing,undefined,undefined,displayPolicy).deliver();
     // Optional understanding can fail without blocking existing platform journeys.
     // Keep history, catalogue facts and links; do not surface provider internals.
     const continuation = ar
